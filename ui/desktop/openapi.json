@@ -4232,8 +4232,23 @@
           "display_name": {
             "type": "string"
           },
+          "dynamic_models": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "engine": {
             "$ref": "#/components/schemas/ProviderEngine"
+          },
+          "env_vars": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EnvVarConfig"
+            }
           },
           "headers": {
             "type": [
@@ -4516,6 +4531,35 @@
         "properties": {
           "deeplink": {
             "type": "string"
+          }
+        }
+      },
+      "EnvVarConfig": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
           }
         }
       },

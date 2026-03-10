@@ -17,7 +17,7 @@ use rmcp::model::{
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
-    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
+    DeclarativeProviderConfig, EnvVarConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
@@ -545,6 +545,7 @@ impl Modify for BinaryResponseFixup {
         LoadedProvider,
         ProviderEngine,
         DeclarativeProviderConfig,
+        EnvVarConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,

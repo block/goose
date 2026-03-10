@@ -7,7 +7,6 @@ import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client, createClient, createConfig } from './api/client';
 
-
 export interface Logger {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;

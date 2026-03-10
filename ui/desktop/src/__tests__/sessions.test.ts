@@ -66,7 +66,7 @@ describe('session reuse scoping (fix for #7601)', () => {
 
   const allSessions = [emptySessionA, emptySessionB, usedSession];
 
-  it('window A only reuses its own active empty session, not window B\'s', () => {
+  it("window A only reuses its own active empty session, not window B's", () => {
     // Window A has emptySessionA active, Window B has emptySessionB active.
     // Under the old logic, both would grab emptySessionA (the first in the list).
     const windowAResult = findReusableSession(allSessions, 'empty-a');
@@ -95,8 +95,7 @@ describe('session reuse scoping (fix for #7601)', () => {
 
   it('demonstrates the old bug: global find would give same session to both windows', () => {
     // Old logic (before fix) - both windows get the same session.
-    const oldLogicFind = (sessions: Session[]) =>
-      sessions.find((s) => shouldShowNewChatTitle(s));
+    const oldLogicFind = (sessions: Session[]) => sessions.find((s) => shouldShowNewChatTitle(s));
 
     const windowAOld = oldLogicFind(allSessions);
     const windowBOld = oldLogicFind(allSessions);
