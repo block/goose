@@ -296,13 +296,19 @@ impl CodeExecutionClient {
         // If the entire return value was just a content ref, return only
         // the resolved rich content. Otherwise return the text output
         // (with refs intact) plus the rich content alongside it.
-        let is_top_level_ref = output
+        // Only treat as a pure content ref if the object is exactly the shape
+        // we created (just _goose_content_ref + text_result, nothing extra).
+        let is_pure_ref = output
             .output
             .as_ref()
             .and_then(|v| v.as_object())
-            .is_some_and(|m| m.contains_key("_goose_content_ref"));
+            .is_some_and(|m| {
+                m.contains_key("_goose_content_ref")
+                    && m.len() <= 2
+                    && m.keys().all(|k| k == "_goose_content_ref" || k == "text_result")
+            });
 
-        if is_top_level_ref && !rich_contents.is_empty() {
+        if is_pure_ref && !rich_contents.is_empty() {
             Ok(rich_contents)
         } else {
             let return_val = serde_json::to_string_pretty(&output.output)
@@ -423,10 +429,9 @@ fn collect_rich_content(
                 if let Some(stored) = store.get(token) {
                     rich.extend(stored.iter().cloned());
                 }
-            } else {
-                for v in map.values() {
-                    collect_rich_content(v, store, rich);
-                }
+            }
+            for v in map.values() {
+                collect_rich_content(v, store, rich);
             }
         }
         Value::Array(arr) => {
