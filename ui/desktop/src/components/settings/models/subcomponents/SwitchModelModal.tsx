@@ -272,18 +272,13 @@ export const SwitchModelModal = ({
       const models = getPredefinedModelsFromEnv();
       setPredefinedModels(models);
 
-      // Initialize selected predefined model with current model
-      (async () => {
-        try {
-          const currentModelName = (await read('GOOSE_MODEL', false)) as string;
-          const matchingModel = models.find((model) => model.name === currentModelName);
-          if (matchingModel) {
-            setSelectedPredefinedModel(matchingModel);
-          }
-        } catch (error) {
-          console.error('Failed to get current model for selection:', error);
+      // Initialize selected predefined model with current model (session-scoped or config default)
+      if (currentModel) {
+        const matchingModel = models.find((m) => m.name === currentModel);
+        if (matchingModel) {
+          setSelectedPredefinedModel(matchingModel);
         }
-      })();
+      }
     }
 
     // Load providers for manual model selection
