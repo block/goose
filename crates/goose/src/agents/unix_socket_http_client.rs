@@ -74,11 +74,18 @@ fn resolve_socket_path(raw: &str) -> String {
 async fn connect_unix(socket_path: &str) -> Result<UnixStream, std::io::Error> {
     #[cfg(target_os = "linux")]
     if let Some(abstract_name) = socket_path.strip_prefix('\0') {
-        use std::os::linux::net::SocketAddrExt;
-        let addr = std::os::unix::net::SocketAddr::from_abstract_name(abstract_name)?;
-        // tokio::net::UnixStream has no connect_addr; use std then convert
-        let std_stream = std::os::unix::net::UnixStream::connect_addr(&addr)?;
-        std_stream.set_nonblocking(true)?;
+        // tokio::net::UnixStream has no connect_addr; use std via spawn_blocking
+        // to avoid blocking a tokio worker thread during the connect syscall
+        let abstract_name = abstract_name.to_string();
+        let std_stream = tokio::task::spawn_blocking(move || {
+            use std::os::linux::net::SocketAddrExt;
+            let addr = std::os::unix::net::SocketAddr::from_abstract_name(&abstract_name)?;
+            let stream = std::os::unix::net::UnixStream::connect_addr(&addr)?;
+            stream.set_nonblocking(true)?;
+            Ok::<_, std::io::Error>(stream)
+        })
+        .await
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))??;
         return UnixStream::from_std(std_stream);
     }
 
