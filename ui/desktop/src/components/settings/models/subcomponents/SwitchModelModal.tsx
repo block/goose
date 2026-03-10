@@ -249,10 +249,11 @@ export const SwitchModelModal = ({
         }
       }
 
-      await changeModel(sessionId, modelObj);
-      onModelSelected?.(modelObj.name, modelObj.provider || '');
-
-      trackModelChanged(modelObj.provider || '', modelObj.name);
+      const success = await changeModel(sessionId, modelObj);
+      if (success) {
+        onModelSelected?.(modelObj.name, modelObj.provider || '');
+        trackModelChanged(modelObj.provider || '', modelObj.name);
+      }
 
       onClose();
     }

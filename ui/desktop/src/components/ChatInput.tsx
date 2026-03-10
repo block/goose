@@ -373,8 +373,14 @@ export default function ChatInput({
       // Reset token limit loaded state
       setIsTokenLimitLoaded(false);
 
-      // Get current model and provider first to avoid unnecessary provider fetches
-      const { model, provider } = await getCurrentModelAndProvider();
+      // Use session-specific model/provider when available, fall back to config defaults
+      let model = sessionModel;
+      let provider = sessionProvider;
+      if (!model || !provider) {
+        const configModelAndProvider = await getCurrentModelAndProvider();
+        model = configModelAndProvider.model;
+        provider = configModelAndProvider.provider;
+      }
       if (!model || !provider) {
         console.log('No model or provider found');
         setIsTokenLimitLoaded(true);

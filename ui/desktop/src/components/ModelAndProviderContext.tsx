@@ -19,7 +19,7 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface ModelAndProviderContextType {
   currentModel: string | null;
   currentProvider: string | null;
-  changeModel: (sessionId: string | null, model: Model) => Promise<void>;
+  changeModel: (sessionId: string | null, model: Model) => Promise<boolean>;
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getCurrentModelAndProviderForDisplay: () => Promise<{ model: string; provider: string }>;
@@ -79,6 +79,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         title: CHANGE_MODEL_TOAST_TITLE,
         msg: `${SWITCH_MODEL_SUCCESS_MSG} -- using ${model.alias ?? modelName} from ${model.subtext ?? providerName}`,
       });
+      return true;
     } catch (error) {
       console.error(`Failed to change model at ${phase} step -- ${modelName} ${providerName}`);
       toastError({
@@ -86,6 +87,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         msg: `${error}`,
         traceback: errorMessage(error),
       });
+      return false;
     }
   }, []);
 
