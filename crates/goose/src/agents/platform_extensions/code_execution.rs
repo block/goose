@@ -396,7 +396,9 @@ fn create_tool_callback(
                             let text_value: Value =
                                 serde_json::from_str(&text).unwrap_or(Value::String(text));
 
-                            // If there's non-text content, store it and return a token reference
+                            // If there's non-text content, store it and return a token reference.
+                            // When text_value is an object, inject the ref key into it so that
+                            // the original shape is preserved (e.g. r.items still works in JS).
                             if !rich_contents.is_empty() {
                                 let token = format!(
                                     "cref_{}",
@@ -406,10 +408,19 @@ fn create_tool_callback(
                                     .lock()
                                     .unwrap()
                                     .insert(token.clone(), rich_contents);
-                                Ok(json!({
-                                    "_goose_content_ref": token,
-                                    "text_result": text_value,
-                                }))
+                                match text_value {
+                                    Value::Object(mut map) => {
+                                        map.insert(
+                                            "_goose_content_ref".to_string(),
+                                            Value::String(token),
+                                        );
+                                        Ok(Value::Object(map))
+                                    }
+                                    _ => Ok(json!({
+                                        "_goose_content_ref": token,
+                                        "text_result": text_value,
+                                    })),
+                                }
                             } else {
                                 Ok(text_value)
                             }
