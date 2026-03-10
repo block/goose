@@ -1,3 +1,5 @@
+import '@sentry/electron/preload';
+
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
@@ -130,6 +132,7 @@ type ElectronAPI = {
   setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => Promise<void>;
   getSecretKey: () => Promise<string>;
   getGoosedHostPort: () => Promise<string | null>;
+  setSentryTelemetryEnabled: (enabled: boolean) => void;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   setSpellcheck: (enable: boolean) => Promise<boolean>;
@@ -245,6 +248,7 @@ const electronAPI: ElectronAPI = {
   },
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
+  setSentryTelemetryEnabled: (enabled: boolean) => ipcRenderer.send('set-sentry-telemetry', enabled),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),

@@ -173,6 +173,12 @@ pub async fn upsert_config(
 ) -> Result<Json<Value>, ErrorResponse> {
     let config = Config::global();
     config.set(&query.key, &query.value, query.is_secret)?;
+
+    if query.key == goose::posthog::TELEMETRY_ENABLED_KEY {
+        let enabled = query.value.as_bool().unwrap_or(false);
+        goose::posthog::set_telemetry_enabled(enabled);
+    }
+
     Ok(Json(Value::String(format!("Upserted key {}", query.key))))
 }
 
@@ -195,6 +201,10 @@ pub async fn remove_config(
         config.delete_secret(&query.key)?;
     } else {
         config.delete(&query.key)?;
+    }
+
+    if query.key == goose::posthog::TELEMETRY_ENABLED_KEY {
+        goose::posthog::set_telemetry_enabled(false);
     }
 
     Ok(Json(format!("Removed key {}", query.key)))

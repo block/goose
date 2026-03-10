@@ -6,6 +6,8 @@ import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
 import { useConfig } from './ConfigContext';
 import { trackTelemetryPreference } from '../utils/analytics';
+import { setTelemetryEnabled } from '../utils/analytics';
+import { setSentryTelemetryEnabled } from '../utils/sentryTelemetry';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -55,6 +57,9 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
     setIsLoading(true);
     try {
       await upsert(TELEMETRY_CONFIG_KEY, enabled, false);
+      setTelemetryEnabled(enabled);
+      setSentryTelemetryEnabled(enabled);
+      window.electron.setSentryTelemetryEnabled(enabled);
       trackTelemetryPreference(enabled, 'modal');
       setShowModal(false);
       onClose?.();

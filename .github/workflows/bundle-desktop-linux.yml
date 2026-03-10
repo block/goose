@@ -15,6 +15,9 @@ on:
         type: string
         required: false
         default: ''
+    secrets:
+      SENTRY_DSN:
+        required: false
 
 name: "Bundle Desktop (Linux)"
 
@@ -105,6 +108,7 @@ jobs:
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
           CC: gcc-10
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           source ./bin/activate-hermit
           export TARGET="x86_64-unknown-linux-gnu"
@@ -139,6 +143,8 @@ jobs:
           ls -la node_modules/.bin/ | head -5
 
       - name: Build Linux packages
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           source ./bin/activate-hermit
           cd ui/desktop

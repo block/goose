@@ -13,5 +13,8 @@ export default defineConfig({
       },
       external: ['electron']
     }
-  }
+  },
+  ssr: {
+    noExternal: [/^@sentry\//],
+  },
 });

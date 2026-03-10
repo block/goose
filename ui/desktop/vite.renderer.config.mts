@@ -12,6 +12,8 @@ export default defineConfig({
   plugins: [tailwindcss()],
 
   build: {
-    target: 'esnext'
+    target: 'esnext',
   },
+
+
 });

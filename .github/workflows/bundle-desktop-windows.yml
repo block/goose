@@ -25,6 +25,8 @@ on:
         required: false
       WINDOW_SIGNING_ROLE_TAG:
         required: false
+      SENTRY_DSN:
+        required: false
 
 # Permissions required for OIDC authentication with AWS
 permissions:
@@ -79,6 +81,8 @@ jobs:
 
       - name: Build Windows executable
         shell: bash
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           echo "🚀 Building Windows executable..."
           cargo build --release --target x86_64-pc-windows-msvc
@@ -134,6 +138,7 @@ jobs:
         shell: bash
         env:
           ELECTRON_PLATFORM: win32
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           cd ui/desktop
 
