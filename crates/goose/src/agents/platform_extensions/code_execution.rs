@@ -19,12 +19,21 @@ use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
+
+/// Thread-safe store for non-text content captured during code execution.
+/// Maps token strings (e.g. "cref_1") to the original rich Content items.
+type ContentStore = Arc<std::sync::Mutex<HashMap<String, Vec<Content>>>>;
+
+/// Global counter for generating unique content reference tokens.
+static CONTENT_REF_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub static EXTENSION_NAME: &str = "code_execution";
 
@@ -140,12 +149,14 @@ impl CodeExecutionClient {
         Ok(code_mode)
     }
 
-    /// Build a PctxRegistry with all tool callbacks registered
+    /// Build a PctxRegistry with all tool callbacks registered.
+    /// Returns the registry and a ContentStore that will accumulate non-text content
+    /// produced by tool callbacks during execution.
     fn build_callback_registry(
         &self,
         session_id: &str,
         code_mode: &CodeMode,
-    ) -> Result<PctxRegistry, String> {
+    ) -> Result<(PctxRegistry, ContentStore), String> {
         let manager = self
             .context
             .extension_manager
@@ -153,6 +164,7 @@ impl CodeExecutionClient {
             .and_then(|w| w.upgrade())
             .ok_or("Extension manager not available")?;
 
+        let content_store: ContentStore = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let registry = PctxRegistry::default();
         for cfg in code_mode.callbacks() {
             let full_name = format!(
@@ -163,13 +175,18 @@ impl CodeExecutionClient {
                     .unwrap_or_default(),
                 &cfg.name
             );
-            let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
+            let callback = create_tool_callback(
+                session_id.to_string(),
+                full_name,
+                manager.clone(),
+                content_store.clone(),
+            );
             registry
                 .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
         }
 
-        Ok(registry)
+        Ok((registry, content_store))
     }
 
     /// Handle the list_functions tool call
@@ -246,7 +263,8 @@ impl CodeExecutionClient {
             .ok_or("Missing arguments for execute_typescript")?;
 
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(session_id, &code_mode)?;
+        let (registry, content_store) =
+            self.build_callback_registry(session_id, &code_mode)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
@@ -268,7 +286,35 @@ impl CodeExecutionClient {
         .await
         .map_err(|e| format!("Typescript execution task failed: {e}"))??;
 
-        Ok(vec![Content::text(output.markdown())])
+        // Collect any rich content referenced by tokens in the output
+        let mut rich_contents = Vec::new();
+        if let Some(ref val) = output.output {
+            let store = content_store.lock().unwrap();
+            collect_rich_content(val, &store, &mut rich_contents);
+        }
+
+        // If the entire return value was just a content ref, return only
+        // the resolved rich content. Otherwise return the text output
+        // (with refs intact) plus the rich content alongside it.
+        let is_top_level_ref = output
+            .output
+            .as_ref()
+            .and_then(|v| v.as_object())
+            .is_some_and(|m| m.contains_key("_goose_content_ref"));
+
+        if is_top_level_ref && !rich_contents.is_empty() {
+            Ok(rich_contents)
+        } else {
+            let return_val = serde_json::to_string_pretty(&output.output)
+                .unwrap_or_else(|_| json!(&output.output).to_string());
+            let mut contents = vec![Content::text(format_output(
+                output.success,
+                &return_val,
+                &output.stderr,
+            ))];
+            contents.extend(rich_contents);
+            Ok(contents)
+        }
     }
 }
 
@@ -276,11 +322,13 @@ fn create_tool_callback(
     session_id: String,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
+    content_store: ContentStore,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let session_id = session_id.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
+        let content_store = content_store.clone();
         Box::pin(async move {
             let tool_call = {
                 let mut params = CallToolRequestParams::new(full_name);
@@ -299,24 +347,49 @@ fn create_tool_callback(
                         if let Some(sc) = &result.structured_content {
                             Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
                         } else {
-                            // Filter to assistant-audience or no-audience content,
-                            // skipping user-only content to avoid duplicated output
-                            let text: String = result
-                                .content
-                                .iter()
-                                .filter(|c| {
-                                    c.audience().is_none_or(|audiences| {
-                                        audiences.is_empty() || audiences.contains(&Role::Assistant)
-                                    })
-                                })
-                                .filter_map(|c| match &c.raw {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            // Try to parse as JSON, otherwise return as string
-                            Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
+                            // Separate text content from non-text (resources, images, etc.)
+                            let mut text_parts = Vec::new();
+                            let mut rich_contents = Vec::new();
+
+                            for content in &result.content {
+                                match &content.raw {
+                                    RawContent::Text(t) => {
+                                        // Only include text meant for assistant
+                                        if content.audience().is_none_or(|audiences| {
+                                            audiences.is_empty()
+                                                || audiences.contains(&Role::Assistant)
+                                        }) {
+                                            text_parts.push(t.text.clone());
+                                        }
+                                    }
+                                    _ => {
+                                        // Non-text content (resources, images, blobs) — store for later
+                                        rich_contents.push(content.clone());
+                                    }
+                                }
+                            }
+
+                            let text = text_parts.join("\n");
+                            let text_value: Value =
+                                serde_json::from_str(&text).unwrap_or(Value::String(text));
+
+                            // If there's non-text content, store it and return a token reference
+                            if !rich_contents.is_empty() {
+                                let token = format!(
+                                    "cref_{}",
+                                    CONTENT_REF_COUNTER.fetch_add(1, Ordering::Relaxed)
+                                );
+                                content_store
+                                    .lock()
+                                    .unwrap()
+                                    .insert(token.clone(), rich_contents);
+                                Ok(json!({
+                                    "_goose_content_ref": token,
+                                    "text_result": text_value,
+                                }))
+                            } else {
+                                Ok(text_value)
+                            }
                         }
                     }
                     Err(e) => Err(format!("Tool error: {}", e.message)),
@@ -325,6 +398,44 @@ fn create_tool_callback(
             }
         }) as Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
     })
+}
+
+fn format_output(success: bool, return_val: &str, stderr: &str) -> String {
+    if success {
+        format!("Code Executed Successfully: true\n\n# Return Value\n```json\n{return_val}\n```\n")
+    } else {
+        format!(
+            "Code Executed Successfully: false\n\n# Return Value\n```json\n{return_val}\n```\n\n# STDERR\n{stderr}\n"
+        )
+    }
+}
+
+/// Recursively walk a JSON value, collecting rich content for any
+/// `_goose_content_ref` tokens found.
+fn collect_rich_content(
+    val: &Value,
+    store: &HashMap<String, Vec<Content>>,
+    rich: &mut Vec<Content>,
+) {
+    match val {
+        Value::Object(map) => {
+            if let Some(Value::String(token)) = map.get("_goose_content_ref") {
+                if let Some(stored) = store.get(token) {
+                    rich.extend(stored.iter().cloned());
+                }
+            } else {
+                for v in map.values() {
+                    collect_rich_content(v, store, rich);
+                }
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                collect_rich_content(v, store, rich);
+            }
+        }
+        _ => {}
+    }
 }
 
 #[async_trait]
