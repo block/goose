@@ -37,15 +37,17 @@ pub async fn run() -> Result<()> {
 
     let settings = configuration::Settings::new()?;
 
-    let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| {
-        let key = hex::encode(rand::random::<[u8; 32]>());
-        // Persist so that other components in the same process (e.g. tunnel)
-        // read the same secret instead of generating a second random value.
-        unsafe { std::env::set_var("GOOSE_SERVER__SECRET_KEY", &key) };
-        key
-    });
+    let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY")
+        .unwrap_or_else(|_| hex::encode(rand::random::<[u8; 32]>()));
 
     let app_state = state::AppState::new(settings.tls).await?;
+
+    // Share the server secret with the tunnel manager so it uses the same
+    // key for forwarded requests, without mutating the process environment.
+    app_state
+        .tunnel_manager
+        .set_server_secret(secret_key.clone())
+        .await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
