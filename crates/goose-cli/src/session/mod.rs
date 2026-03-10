@@ -1220,6 +1220,17 @@ impl CliSession {
                 }
             }
         }
+
+        if let Err(e) = self
+            .agent
+            .config
+            .session_manager
+            .replace_conversation(&self.session_id, &self.messages)
+            .await
+        {
+            warn!("Failed to persist conversation on interruption: {}", e);
+        }
+
         Ok(())
     }
 

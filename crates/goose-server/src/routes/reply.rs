@@ -336,6 +336,13 @@ pub async fn reply(
             tokio::select! {
                 _ = task_cancel.cancelled() => {
                     tracing::info!("Agent task cancelled");
+                    if let Err(e) = state
+                        .session_manager()
+                        .replace_conversation(&session_id, &all_messages)
+                        .await
+                    {
+                        tracing::warn!("Failed to persist conversation on cancellation: {}", e);
+                    }
                     break;
                 }
                 _ = heartbeat_interval.tick() => {
@@ -385,6 +392,13 @@ pub async fn reply(
                         }
                         Err(_) => {
                             if tx.is_closed() {
+                                if let Err(e) = state
+                                    .session_manager()
+                                    .replace_conversation(&session_id, &all_messages)
+                                    .await
+                                {
+                                    tracing::warn!("Failed to persist conversation on client disconnect: {}", e);
+                                }
                                 break;
                             }
                             continue;
