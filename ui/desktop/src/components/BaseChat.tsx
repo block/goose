@@ -26,6 +26,8 @@ import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
+import { SkillHeader } from './SkillHeader';
+import { detectLoadedSkills } from '../utils/skillDetection';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
 import { UserInput } from '../types/message';
@@ -106,6 +108,8 @@ export default function BaseChat({
   });
 
   const recipe = session?.recipe;
+
+  const loadedSkills = useMemo(() => detectLoadedSkills(messages), [messages]);
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
     if (!initialMessage) return undefined;
@@ -420,6 +424,14 @@ export default function BaseChat({
             {recipe?.title && (
               <div className="sticky top-0 z-10 bg-background-primary px-0 -mx-6 mb-6 pt-6">
                 <RecipeHeader title={recipe.title} />
+              </div>
+            )}
+
+            {loadedSkills.length > 0 && (
+              <div className="sticky top-0 z-10 bg-background-primary px-0 -mx-6 mb-6 pt-6">
+                {loadedSkills.map((skill) => (
+                  <SkillHeader key={skill.name} name={skill.name} content={skill.content} />
+                ))}
               </div>
             )}
 

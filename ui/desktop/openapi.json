@@ -3547,6 +3547,38 @@
         ]
       }
     },
+    "/skills/list": {
+      "get": {
+        "tags": [
+          "Skills"
+        ],
+        "operationId": "list_skills",
+        "parameters": [
+          {
+            "name": "working_dir",
+            "in": "query",
+            "description": "Working directory to discover skills from",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Skills listed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSkillsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/status": {
       "get": {
         "tags": [
@@ -5243,6 +5275,29 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ScheduledJob"
+            }
+          }
+        }
+      },
+      "ListSkillsQuery": {
+        "type": "object",
+        "properties": {
+          "working_dir": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ListSkillsResponse": {
+        "type": "object",
+        "required": [
+          "skills"
+        ],
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillInfo"
             }
           }
         }
@@ -7526,6 +7581,41 @@
             "type": "boolean"
           }
         }
+      },
+      "SkillInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "scope",
+          "path",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/SkillScope"
+          }
+        }
+      },
+      "SkillScope": {
+        "type": "string",
+        "enum": [
+          "Project",
+          "Global",
+          "Builtin"
+        ]
       },
       "SlashCommand": {
         "type": "object",

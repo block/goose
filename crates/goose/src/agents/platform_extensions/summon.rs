@@ -337,7 +337,7 @@ fn scan_agents_from_dir(
     }
 }
 
-fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
+pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     let mut sources: Vec<Source> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 

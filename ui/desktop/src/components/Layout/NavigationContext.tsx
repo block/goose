@@ -21,6 +21,7 @@ export const DEFAULT_ITEM_ORDER = [
   'home',
   'chat',
   'recipes',
+  'skills',
   'apps',
   'scheduler',
   'extensions',
@@ -98,7 +99,16 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     const stored = localStorage.getItem('navigation_preferences');
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored) as NavigationPreferences;
+        // Migrate: add any new default items that are missing from stored preferences
+        for (const id of DEFAULT_ITEM_ORDER) {
+          if (!parsed.itemOrder.includes(id)) {
+            const defaultIndex = DEFAULT_ITEM_ORDER.indexOf(id);
+            parsed.itemOrder.splice(defaultIndex, 0, id);
+            parsed.enabledItems.push(id);
+          }
+        }
+        return parsed;
       } catch {
         console.error('Failed to parse navigation preferences');
       }

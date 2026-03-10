@@ -550,6 +550,14 @@ export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
 };
 
+export type ListSkillsQuery = {
+    working_dir?: string | null;
+};
+
+export type ListSkillsResponse = {
+    skills: Array<SkillInfo>;
+};
+
 export type LoadedProvider = {
     config: DeclarativeProviderConfig;
     is_editable: boolean;
@@ -1245,6 +1253,16 @@ export type SetupResponse = {
     message: string;
     success: boolean;
 };
+
+export type SkillInfo = {
+    content: string;
+    description: string;
+    name: string;
+    path: string;
+    scope: SkillScope;
+};
+
+export type SkillScope = 'Project' | 'Global' | 'Builtin';
 
 export type SlashCommand = {
     command: string;
@@ -4278,6 +4296,27 @@ export type UpdateSessionUserRecipeValuesResponses = {
 };
 
 export type UpdateSessionUserRecipeValuesResponse2 = UpdateSessionUserRecipeValuesResponses[keyof UpdateSessionUserRecipeValuesResponses];
+
+export type ListSkillsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Working directory to discover skills from
+         */
+        working_dir?: string | null;
+    };
+    url: '/skills/list';
+};
+
+export type ListSkillsResponses = {
+    /**
+     * Skills listed successfully
+     */
+    200: ListSkillsResponse;
+};
+
+export type ListSkillsResponse2 = ListSkillsResponses[keyof ListSkillsResponses];
 
 export type StatusData = {
     body?: never;
