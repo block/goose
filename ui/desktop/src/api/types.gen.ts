@@ -36,12 +36,6 @@ export type Annotations = {
     priority?: number;
 };
 
-export type AudioContentBlock = {
-    data: string;
-    mimeType: string;
-    type: 'audio';
-};
-
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -134,9 +128,29 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
-export type ContentBlock = TextContentBlock | ImageContentBlock | ResourceContentBlock | AudioContentBlock | ResourceLinkContentBlock;
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
 export type Conversation = Array<Message>;
 
@@ -523,15 +537,6 @@ export type ImageContent = {
     };
     data: string;
     mimeType: string;
-};
-
-export type ImageContentBlock = {
-    _meta?: {
-        [key: string]: unknown;
-    };
-    data: string;
-    mimeType: string;
-    type: 'image';
 };
 
 export type ImportAppRequest = {
@@ -1058,16 +1063,6 @@ export type RepoVariantsResponse = {
     variants: Array<HfQuantVariant>;
 };
 
-export type ResourceContentBlock = {
-    _meta?: {
-        [key: string]: unknown;
-    };
-    resource: {
-        [key: string]: unknown;
-    };
-    type: 'resource';
-};
-
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -1081,18 +1076,6 @@ export type ResourceContents = {
     };
     blob: string;
     mimeType?: string;
-    uri: string;
-};
-
-export type ResourceLinkContentBlock = {
-    _meta?: {
-        [key: string]: unknown;
-    };
-    description?: string;
-    mimeType?: string;
-    name: string;
-    title?: string;
-    type: 'resource_link';
     uri: string;
 };
 
@@ -1151,7 +1134,7 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
@@ -1356,7 +1339,7 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;
@@ -1384,14 +1367,6 @@ export type TextContent = {
         [key: string]: unknown;
     };
     text: string;
-};
-
-export type TextContentBlock = {
-    _meta?: {
-        [key: string]: unknown;
-    };
-    text: string;
-    type: 'text';
 };
 
 export type ThinkingContent = {
