@@ -206,6 +206,7 @@ pub enum ExtensionConfig {
     Platform {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -220,6 +221,7 @@ pub enum ExtensionConfig {
     StreamableHttp {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -243,6 +245,7 @@ pub enum ExtensionConfig {
     Frontend {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -260,6 +263,7 @@ pub enum ExtensionConfig {
     InlinePython {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,

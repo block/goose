@@ -315,12 +315,8 @@ fn send_emulator_action(
             let tool_id = Uuid::new_v4().to_string();
             let mut args = serde_json::Map::new();
             args.insert("command".to_string(), json!(command));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Borrowed(SHELL_TOOL),
-                arguments: Some(args),
-            };
+            let tool_call =
+                CallToolRequestParams::new(Cow::Borrowed(SHELL_TOOL)).with_arguments(args);
             let mut message = Message::assistant();
             message
                 .content
@@ -339,12 +335,8 @@ fn send_emulator_action(
             };
             let mut args = serde_json::Map::new();
             args.insert("code".to_string(), json!(wrapped));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Borrowed(CODE_EXECUTION_TOOL),
-                arguments: Some(args),
-            };
+            let tool_call =
+                CallToolRequestParams::new(Cow::Borrowed(CODE_EXECUTION_TOOL)).with_arguments(args);
             let mut message = Message::assistant();
             message
                 .content

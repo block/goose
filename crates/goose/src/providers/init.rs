@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use super::{
     anthropic::AnthropicProvider,
+    avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
@@ -46,6 +47,7 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
         registry.register::<AnthropicProvider>(true);
+        registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         registry.register::<BedrockProvider>(false);
         registry.register::<LocalInferenceProvider>(false);
@@ -318,6 +320,43 @@ mod tests {
 
         let result = create_worker_model_config(&default_model, "openai").unwrap();
         assert_eq!(result.context_limit, Some(expected_limit));
+    }
+
+    #[tokio::test]
+    async fn test_tanzu_declarative_provider_registry_wiring() {
+        let providers_list = providers().await;
+        let tanzu = providers_list
+            .iter()
+            .find(|(m, _)| m.name == "tanzu_ai")
+            .expect("tanzu_ai provider should be registered");
+        let (meta, provider_type) = tanzu;
+
+        // Should be a Declarative (fixed) provider
+        assert_eq!(*provider_type, ProviderType::Declarative);
+
+        assert_eq!(meta.display_name, "Tanzu AI Services");
+        assert_eq!(meta.default_model, "openai/gpt-oss-120b");
+
+        // First config key should be TANZU_AI_API_KEY (secret, required)
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "TANZU_AI_API_KEY")
+            .expect("TANZU_AI_API_KEY config key should exist");
+        assert!(
+            api_key.required,
+            "API key should be required for fixed declarative provider"
+        );
+        assert!(api_key.secret, "API key should be secret");
+
+        // Should have TANZU_AI_ENDPOINT config key (not secret, required)
+        let endpoint = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "TANZU_AI_ENDPOINT")
+            .expect("TANZU_AI_ENDPOINT config key should exist");
+        assert!(endpoint.required, "Endpoint should be required");
+        assert!(!endpoint.secret, "Endpoint should not be secret");
     }
 
     #[tokio::test]

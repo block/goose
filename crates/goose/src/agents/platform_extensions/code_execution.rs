@@ -9,8 +9,7 @@ use pctx_code_mode::model::{
 use pctx_code_mode::{tool_descriptions, CodeMode, PctxRegistry};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
-    ToolAnnotations, ToolsCapability,
+    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -87,30 +86,13 @@ impl CodeExecutionClient {
             }
         };
 
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Code Mode".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(format!(indoc! {r#"
-                BATCH MULTIPLE TOOL CALLS INTO ONE execute_typescript CALL.
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string())
+                    .with_title("Code Mode"),
+            )
+            .with_instructions(format!(indoc! {r#"
+                BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
 
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
                 - WRONG: Multiple execute_typescript calls, each with one tool
@@ -120,8 +102,7 @@ impl CodeExecutionClient {
 
                 Workflow:
                     {}
-            "#}, disclosure_style_workflow).to_string()),
-        };
+            "#}, disclosure_style_workflow));
 
         Ok(Self {
             info,
@@ -349,11 +330,12 @@ fn create_tool_callback(
         let full_name = full_name.clone();
         let manager = manager.clone();
         Box::pin(async move {
-            let tool_call = CallToolRequestParams {
-                task: None,
-                meta: None,
-                name: full_name.into(),
-                arguments: args.and_then(|v| v.as_object().cloned()),
+            let tool_call = {
+                let mut params = CallToolRequestParams::new(full_name);
+                if let Some(args) = args.and_then(|v| v.as_object().cloned()) {
+                    params = params.with_arguments(args);
+                }
+                params
             };
             match manager
                 .dispatch_tool_call(&session_id, tool_call, None, CancellationToken::new())
@@ -423,37 +405,37 @@ impl McpClientTrait for CodeExecutionClient {
                         tool_descriptions::LIST_FUNCTIONS.to_string(),
                         empty_schema,
                     )
-                    .annotate(ToolAnnotations {
-                        title: Some("List functions".to_string()),
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                        open_world_hint: Some(false),
-                    }),
+                    .annotate(ToolAnnotations::from_raw(
+                        Some("List functions".to_string()),
+                        Some(true),
+                        Some(false),
+                        Some(true),
+                        Some(false),
+                    )),
                     McpTool::new(
                         "get_function_details".to_string(),
                         tool_descriptions::GET_FUNCTION_DETAILS.to_string(),
                         schema::<GetFunctionDetailsInput>(),
                     )
-                    .annotate(ToolAnnotations {
-                        title: Some("Get function details".to_string()),
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                        open_world_hint: Some(false),
-                    }),
+                    .annotate(ToolAnnotations::from_raw(
+                        Some("Get function details".to_string()),
+                        Some(true),
+                        Some(false),
+                        Some(true),
+                        Some(false),
+                    )),
                     McpTool::new(
                         "execute_typescript".to_string(),
                         tool_descriptions::EXECUTE_TYPESCRIPT_CATALOG.to_string(),
                         schema::<ExecuteWithToolGraph>(),
                     )
-                    .annotate(ToolAnnotations {
-                        title: Some("Execute TypeScript".to_string()),
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(true),
-                        idempotent_hint: Some(false),
-                        open_world_hint: Some(true),
-                    }),
+                    .annotate(ToolAnnotations::from_raw(
+                        Some("Execute TypeScript".to_string()),
+                        Some(false),
+                        Some(true),
+                        Some(false),
+                        Some(true),
+                    )),
                 ]
             }
             DisclosureStyle::Filesystem => {
@@ -463,25 +445,25 @@ impl McpClientTrait for CodeExecutionClient {
                         tool_descriptions::EXECUTE_BASH.to_string(),
                         schema::<ExecuteBashInput>(),
                     )
-                    .annotate(ToolAnnotations {
-                        title: Some("Get function details".to_string()),
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                        open_world_hint: Some(false),
-                    }),
+                    .annotate(ToolAnnotations::from_raw(
+                        Some("Get function details".to_string()),
+                        Some(true),
+                        Some(false),
+                        Some(true),
+                        Some(false),
+                    )),
                     McpTool::new(
                         "execute_typescript".to_string(),
                         tool_descriptions::EXECUTE_TYPESCRIPT_FILESYSTEM.to_string(),
                         schema::<ExecuteWithToolGraph>(),
                     )
-                    .annotate(ToolAnnotations {
-                        title: Some("Execute TypeScript".to_string()),
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(true),
-                        idempotent_hint: Some(false),
-                        open_world_hint: Some(true),
-                    }),
+                    .annotate(ToolAnnotations::from_raw(
+                        Some("Execute TypeScript".to_string()),
+                        Some(false),
+                        Some(true),
+                        Some(false),
+                        Some(true),
+                    )),
                 ]
             }
             DisclosureStyle::Sidecar => {
@@ -490,13 +472,13 @@ impl McpClientTrait for CodeExecutionClient {
                     tool_descriptions::EXECUTE_TYPESCRIPT_SIDECAR.to_string(),
                     schema::<ExecuteWithToolGraph>(),
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("Execute TypeScript".to_string()),
-                    read_only_hint: Some(false),
-                    destructive_hint: Some(true),
-                    idempotent_hint: Some(false),
-                    open_world_hint: Some(true),
-                })]
+                .annotate(ToolAnnotations::from_raw(
+                    Some("Execute TypeScript".to_string()),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                ))]
             }
         };
 

@@ -178,7 +178,9 @@ export type DeclarativeProviderConfig = {
     catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
+    dynamic_models?: boolean | null;
     engine: ProviderEngine;
+    env_vars?: Array<EnvVarConfig> | null;
     headers?: {
         [key: string]: string;
     } | null;
@@ -296,6 +298,14 @@ export type EncodeRecipeRequest = {
 
 export type EncodeRecipeResponse = {
     deeplink: string;
+};
+
+export type EnvVarConfig = {
+    default?: string | null;
+    description?: string | null;
+    name: string;
+    required?: boolean;
+    secret?: boolean;
 };
 
 export type Envs = {

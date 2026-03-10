@@ -2015,6 +2015,17 @@ fn add_provider() -> anyhow::Result<()> {
         .initial_value(true)
         .interact()?;
 
+    let base_path_input: String = cliclack::input("API base path (optional, press Enter to skip):")
+        .placeholder("e.g., v1/chat/completions or project_id/v1")
+        .required(false)
+        .interact()?;
+
+    let base_path = if base_path_input.trim().is_empty() {
+        None
+    } else {
+        Some(base_path_input)
+    };
+
     let headers = collect_custom_headers()?;
 
     create_custom_provider(CreateCustomProviderParams {
@@ -2027,7 +2038,7 @@ fn add_provider() -> anyhow::Result<()> {
         headers,
         requires_auth,
         catalog_provider_id: None,
-        base_path: None,
+        base_path,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
