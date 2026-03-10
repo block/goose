@@ -98,7 +98,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
                 ]
             });
         let ignore_patterns = {
-            let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
+            let mut builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
+            let gitignore_path = working_dir.join(".gitignore");
+            if gitignore_path.is_file() {
+                let _ = builder.add(&gitignore_path);
+            }
             builder.build().unwrap_or_else(|_| {
                 ignore::gitignore::GitignoreBuilder::new(working_dir)
                     .build()

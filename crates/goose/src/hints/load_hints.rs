@@ -467,3 +467,40 @@ End of hints"#;
         assert!(hints.contains("--- Content from ../root_file.md ---"));
     }
 }
+
+#[cfg(test)]
+mod gitignore_tests {
+    use super::*;
+    use ignore::gitignore::GitignoreBuilder;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_hints_with_gitignore_filters_referenced_files() {
+        let dir = TempDir::new().unwrap();
+        let project_root = dir.path();
+
+        fs::create_dir(project_root.join(".git")).unwrap();
+        fs::write(project_root.join("allowed.md"), "Allowed content").unwrap();
+        fs::write(project_root.join("secret.env"), "SECRET_KEY=abc123").unwrap();
+
+        let hints_content = "Project hints\n@allowed.md\n@secret.env\nEnd of hints";
+        fs::write(project_root.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
+
+        // Build gitignore that excludes .env files
+        let mut builder = GitignoreBuilder::new(project_root);
+        builder.add_line(None, "*.env").unwrap();
+        let gitignore = builder.build().unwrap();
+
+        let hints = load_hint_files(
+            project_root,
+            &[GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
+        );
+
+        assert!(hints.contains("Allowed content"));
+        assert!(!hints.contains("SECRET_KEY=abc123"));
+        // The @secret.env reference should remain unexpanded
+        assert!(hints.contains("@secret.env"));
+    }
+}
