@@ -1,5 +1,6 @@
 import { Sliders, Bot, Settings } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import { View } from '../../../../utils/navigationUtils';
@@ -38,9 +39,10 @@ export default function ModelsBottomBar({
   onModelChanged,
 }: ModelsBottomBarProps) {
   // ChatInput owns the override state and passes effective model/provider as sessionModel/sessionProvider.
-  // We just consume them here.
-  const currentModel = sessionModel ?? null;
-  const currentProvider = sessionProvider ?? null;
+  // Fall back to config defaults when no session exists (e.g. Hub / new empty chat).
+  const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
+  const currentModel = sessionModel ?? configModel;
+  const currentProvider = sessionProvider ?? configProvider;
 
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
