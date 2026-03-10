@@ -305,7 +305,8 @@ impl CodeExecutionClient {
             .is_some_and(|m| {
                 m.contains_key("_goose_content_ref")
                     && m.len() <= 2
-                    && m.keys().all(|k| k == "_goose_content_ref" || k == "text_result")
+                    && m.keys()
+                        .all(|k| k == "_goose_content_ref" || k == "text_result")
             });
 
         if is_pure_ref && !rich_contents.is_empty() {
