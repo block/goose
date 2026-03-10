@@ -567,6 +567,7 @@ impl ExtensionManager {
             } => {
                 let config = Config::global();
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name, config).await?;
+                let resolved_uri = substitute_env_vars(uri, &all_envs);
                 let resolved_headers = headers
                     .iter()
                     .map(|(k, v)| (k.clone(), substitute_env_vars(v, &all_envs)))
@@ -576,7 +577,7 @@ impl ExtensionManager {
                 };
 
                 create_streamable_http_client(
-                    uri,
+                    &resolved_uri,
                     *timeout,
                     &resolved_headers,
                     name,

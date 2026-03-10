@@ -387,7 +387,7 @@ export default function ExtensionModal({
                 />
               </div>
 
-              {formData.type === 'stdio' && (
+              {(formData.type === 'stdio' || formData.type === 'streamable_http') && (
                 <>
                   <hr className="border-t border-border-primary" />
 
