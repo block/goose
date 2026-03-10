@@ -60,6 +60,11 @@ static RE_ENV_SIMPLE: Lazy<regex::Regex> =
 
 struct Extension {
     pub config: ExtensionConfig,
+    /// Resolved config snapshot (with secrets from keyring substituted)
+    /// captured at client-creation time. Used to detect secret rotation
+    /// without re-reading the keyring on every comparison. Only held in
+    /// memory — never serialized to disk.
+    resolved_config: ExtensionConfig,
 
     client: McpClientBox,
     server_info: Option<ServerInfo>,
@@ -69,6 +74,7 @@ struct Extension {
 impl Extension {
     fn new(
         config: ExtensionConfig,
+        resolved_config: ExtensionConfig,
         client: McpClientBox,
         server_info: Option<ServerInfo>,
         temp_dir: Option<tempfile::TempDir>,
@@ -76,6 +82,7 @@ impl Extension {
         Self {
             client,
             config,
+            resolved_config,
             server_info,
             _temp_dir: temp_dir,
         }
@@ -377,8 +384,9 @@ pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>
         }
     }
 
-    let snapshot = result.clone();
-    for cap in RE_ENV_SIMPLE.captures_iter(&snapshot) {
+    // Scan the original input for $VAR patterns (not the post-substitution result)
+    // to avoid recursive expansion when a substituted value contains $OTHER_VAR.
+    for cap in RE_ENV_SIMPLE.captures_iter(value) {
         if let Some(var_name) = cap.get(1) {
             if !value.contains(&format!("${{{}}}", var_name.as_str())) {
                 if let Some(env_value) = env_map.get(var_name.as_str()) {
@@ -538,8 +546,14 @@ impl ExtensionManager {
     ) -> ExtensionResult<()> {
         let sanitized_name = config.key();
 
+        // Compare both the unresolved config (to detect structural changes like
+        // migrating from plaintext envs to env_keys) and the resolved config (to
+        // detect secret rotation where only keyring values changed). Only skip
+        // restart if both match.
+        let resolved_config = config.clone().resolve(Config::global()).await?;
+
         if let Some(existing) = self.extensions.lock().await.get(&sanitized_name) {
-            if existing.config == config {
+            if existing.config == config && existing.resolved_config == resolved_config {
                 return Ok(());
             }
             tracing::debug!(
@@ -788,7 +802,13 @@ impl ExtensionManager {
         let mut extensions = self.extensions.lock().await;
         extensions.insert(
             sanitized_name,
-            Extension::new(config, Arc::from(client), server_info, temp_dir),
+            Extension::new(
+                config,
+                resolved_config,
+                Arc::from(client),
+                server_info,
+                temp_dir,
+            ),
         );
         drop(extensions);
         self.invalidate_tools_cache_and_bump_version().await;
@@ -805,10 +825,10 @@ impl ExtensionManager {
         temp_dir: Option<TempDir>,
     ) {
         let normalized = name_to_key(&name);
-        self.extensions
-            .lock()
-            .await
-            .insert(normalized, Extension::new(config, client, info, temp_dir));
+        self.extensions.lock().await.insert(
+            normalized,
+            Extension::new(config.clone(), config.clone(), client, info, temp_dir),
+        );
         self.invalidate_tools_cache_and_bump_version().await;
     }
 
@@ -1709,7 +1729,7 @@ mod tests {
                 bundled: None,
                 available_tools,
             };
-            let extension = Extension::new(config, client, None, None);
+            let extension = Extension::new(config.clone(), config.clone(), client, None, None);
             self.extensions
                 .lock()
                 .await
@@ -2070,6 +2090,20 @@ mod tests {
             &env_map,
         );
         assert_eq!(result, "Authorization: Bearer secret123 and API key456");
+    }
+
+    #[tokio::test]
+    async fn test_substitute_env_vars_no_recursive_expansion() {
+        let mut env_map = HashMap::new();
+        env_map.insert("TOKEN".to_string(), "abc$KEY".to_string());
+        env_map.insert("KEY".to_string(), "xyz".to_string());
+
+        // A substituted value containing $KEY should NOT be re-expanded
+        let result = substitute_env_vars("${TOKEN}", &env_map);
+        assert_eq!(result, "abc$KEY");
+
+        let result = substitute_env_vars("$TOKEN", &env_map);
+        assert_eq!(result, "abc$KEY");
     }
 
     #[tokio::test]
