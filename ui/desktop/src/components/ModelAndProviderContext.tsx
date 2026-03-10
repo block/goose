@@ -46,7 +46,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
     try {
       if (sessionId) {
-        await updateAgentProvider({
+        const response = await updateAgentProvider({
           body: {
             session_id: sessionId,
             provider: providerName,
@@ -55,6 +55,9 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             request_params: model.request_params,
           },
         });
+        if (response.error) {
+          throw new Error(`Failed to update agent provider: ${response.error}`);
+        }
       }
 
       // Only update the global config default when there's no session

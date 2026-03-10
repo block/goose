@@ -143,7 +143,7 @@ export default function ChatInput({
     null
   ) as React.RefObject<HTMLDivElement>;
   const { getProviders } = useConfig();
-  const { getCurrentModelAndProvider } = useModelAndProvider();
+  const { getCurrentModelAndProvider, currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -427,11 +427,12 @@ export default function ChatInput({
     }
   };
 
-  // Initial load and refresh when model changes
+  // Initial load and refresh when model changes (session model takes priority,
+  // config model is the fallback for Hub/no-session contexts)
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionModel, sessionProvider]);
+  }, [sessionModel, sessionProvider, configModel, configProvider]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
