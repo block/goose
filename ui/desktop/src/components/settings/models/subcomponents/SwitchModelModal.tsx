@@ -279,15 +279,18 @@ export const SwitchModelModal = ({
 
   // For manual mode: sync provider/model state when session data arrives
   // after the modal has already mounted (only if user hasn't changed them).
+  // Skip when initialProvider forces a different provider — model is
+  // intentionally empty so the user picks one for that provider.
   useEffect(() => {
     if (usePredefinedModels) return;
+    if (initialProvider && initialProvider !== currentProvider) return;
     if (currentProvider && !provider) {
       setProvider(currentProvider);
     }
     if (currentModel && !model) {
       setModel(currentModel);
     }
-  }, [currentModel, currentProvider, usePredefinedModels, provider, model]);
+  }, [currentModel, currentProvider, usePredefinedModels, provider, model, initialProvider]);
 
   useEffect(() => {
     // Load predefined models if enabled
