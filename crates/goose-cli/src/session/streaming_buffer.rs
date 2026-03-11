@@ -668,5 +668,4 @@ mod tests {
     fn test_incomplete_constructs(chunks: &[&str], expected: &[&str]) {
         assert_eq!(stream(chunks), expected);
     }
-
 }
