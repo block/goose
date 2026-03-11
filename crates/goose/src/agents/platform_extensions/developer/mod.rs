@@ -6,7 +6,7 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
-use edit::{EditTools, FileEditParams, FileReadParams, FileWriteParams};
+use edit::{EditTools, FileEditParams, FileWriteParams};
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
@@ -154,13 +154,6 @@ impl McpClientTrait for DeveloperClient {
     ) -> Result<CallToolResult, Error> {
         let working_dir = working_dir.map(Path::new);
         match name {
-            "read" => match Self::parse_args::<FileReadParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_read_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
-            },
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
