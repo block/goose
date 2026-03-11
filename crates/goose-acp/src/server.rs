@@ -1290,10 +1290,20 @@ impl GooseAcpAgent {
         &self,
         req: ClearSessionRequest,
     ) -> Result<EmptyResponse, sacp::Error> {
-        if !self.sessions.lock().await.contains_key(&req.session_id) {
-            return Err(sacp::Error::invalid_params()
-                .data(format!("no active session: {}", req.session_id)));
+        // Cancel any in-flight streaming prompt before resetting state,
+        // otherwise the prompt task can keep appending messages after we clear.
+        {
+            let mut sessions = self.sessions.lock().await;
+            let session = sessions.get_mut(&req.session_id).ok_or_else(|| {
+                sacp::Error::invalid_params().data(format!("no active session: {}", req.session_id))
+            })?;
+            if let Some(ref token) = session.cancel_token {
+                token.cancel();
+            }
         }
+
+        // Brief yield so the prompt task can observe cancellation and exit.
+        tokio::task::yield_now().await;
 
         self.session_manager
             .replace_conversation(
