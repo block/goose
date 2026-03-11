@@ -1127,6 +1127,7 @@ impl Agent {
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
             let mut compaction_attempts = 0;
+            let mut auth_retry_count: u32 = 0;
             let mut last_assistant_text = String::new();
 
             loop {
@@ -1181,6 +1182,7 @@ impl Agent {
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
+                let mut did_auth_recovery = false;
                 let mut exit_chat = false;
 
                 while let Some(next) = stream.next().await {
@@ -1564,6 +1566,43 @@ impl Agent {
                             );
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::Authentication(_)) if auth_retry_count == 0 => {
+                            auth_retry_count += 1;
+                            warn!("Authentication failed, attempting credential refresh and provider rebuild: {}", provider_err);
+
+                            // Invalidate the in-memory secrets cache so the next
+                            // provider construction re-reads secrets.yaml from disk
+                            // (which a sidecar may have updated with a rotated token).
+                            Config::global().invalidate_secrets_cache();
+
+                            let session_manager = self.config.session_manager.clone();
+                            match session_manager.get_session(&session_config.id, false).await {
+                                Ok(session) => {
+                                    match self.restore_provider_from_session(&session).await {
+                                        Ok(()) => {
+                                            warn!("Provider rebuilt with refreshed credentials, retrying");
+                                            did_auth_recovery = true;
+                                            break;
+                                        }
+                                        Err(e) => {
+                                            error!("Failed to rebuild provider after auth error: {}", e);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to get session for provider rebuild: {}", e);
+                                }
+                            }
+
+                            // Fallthrough: rebuild failed, report the original error
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
+                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                )
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -1606,7 +1645,7 @@ impl Agent {
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
-                    } else if did_recovery_compact_this_iteration {
+                    } else if did_recovery_compact_this_iteration || did_auth_recovery {
                         // Avoid setting exit_chat; continue from last user message in the conversation
                     } else {
                         match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
