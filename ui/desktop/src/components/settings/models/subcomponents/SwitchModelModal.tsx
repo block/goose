@@ -277,6 +277,18 @@ export const SwitchModelModal = ({
     }
   }, [usePredefinedModels, currentModel]);
 
+  // For manual mode: sync provider/model state when session data arrives
+  // after the modal has already mounted (only if user hasn't changed them).
+  useEffect(() => {
+    if (usePredefinedModels) return;
+    if (currentProvider && !provider) {
+      setProvider(currentProvider);
+    }
+    if (currentModel && !model) {
+      setModel(currentModel);
+    }
+  }, [currentModel, currentProvider, usePredefinedModels, provider, model]);
+
   useEffect(() => {
     // Load predefined models if enabled
     if (usePredefinedModels) {
