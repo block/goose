@@ -1,7 +1,7 @@
 use crate::session::{ExpectedSessionId, SESSION_ID_HEADER};
 use rmcp::model::{
-    CallToolResult, ClientNotification, ClientRequest, Content, ErrorCode, Implementation, Meta,
-    ProtocolVersion, ServerCapabilities, ServerInfo,
+    CallToolResult, ClientNotification, ClientRequest, Content, ErrorCode, Implementation,
+    InitializeResult, Meta, ProtocolVersion, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{DynService, NotificationContext, RequestContext, ServiceExt, ServiceRole};
 use rmcp::transport::streamable_http_server::{
@@ -105,7 +105,7 @@ impl McpFixtureServer {
         }
     }
 
-    #[tool(description = "Get the code")]
+    #[tool(description = "Get the code", annotations(read_only_hint = true))]
     fn get_code(&self) -> Result<CallToolResult, McpError> {
         Ok(CallToolResult::success(vec![Content::text(FAKE_CODE)]))
     }
@@ -122,16 +122,10 @@ impl McpFixtureServer {
 #[tool_handler]
 impl ServerHandler for McpFixtureServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation {
-                name: "mcp-fixture".into(),
-                version: "1.0.0".into(),
-                ..Default::default()
-            },
-            instructions: Some("Test server with get_code and get_image tools.".into()),
-        }
+        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_protocol_version(ProtocolVersion::V_2025_03_26)
+            .with_server_info(Implementation::new("mcp-fixture", "1.0.0"))
+            .with_instructions("Test server with get_code and get_image tools.")
     }
 }
 

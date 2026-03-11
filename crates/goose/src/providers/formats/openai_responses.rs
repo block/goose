@@ -1,6 +1,7 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::utils::extract_reasoning_effort;
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
@@ -24,14 +25,33 @@ pub struct ResponsesApiResponse {
     pub usage: Option<ResponseUsage>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub struct SummaryText {
+    pub text: String,
+}
+
+fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
+    let text: String = summary
+        .iter()
+        .map(|s| s.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.is_empty() {
+        None
+    } else {
+        Some(MessageContent::reasoning(text))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseOutputItem {
     Reasoning {
         id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        summary: Option<Vec<String>>,
+        #[serde(default)]
+        summary: Vec<SummaryText>,
     },
     Message {
         id: String,
@@ -242,7 +262,8 @@ pub struct ResponseMetadata {
 pub enum ResponseOutputItemInfo {
     Reasoning {
         id: String,
-        summary: Vec<String>,
+        #[serde(default)]
+        summary: Vec<SummaryText>,
     },
     Message {
         id: String,
@@ -411,11 +432,24 @@ pub fn create_responses_request(
 
     add_message_items(&mut input_items, messages);
 
+    let (model_name, reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let is_reasoning_model = reasoning_effort.is_some();
+
     let mut payload = json!({
-        "model": model_config.model_name,
+        "model": model_name,
         "input": input_items,
-        "store": false,  // Don't store responses on server (we replay history ourselves)
+        "store": false,
     });
+
+    if let Some(effort) = reasoning_effort {
+        payload.as_object_mut().unwrap().insert(
+            "reasoning".to_string(),
+            json!({
+                "effort": effort,
+                "summary": "auto",
+            }),
+        );
+    }
 
     if !tools.is_empty() {
         let tools_spec: Vec<Value> = tools
@@ -436,11 +470,13 @@ pub fn create_responses_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
 
-    if let Some(temp) = model_config.temperature {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("temperature".to_string(), json!(temp));
+    if !is_reasoning_model {
+        if let Some(temp) = model_config.temperature {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("temperature".to_string(), json!(temp));
+        }
     }
 
     payload.as_object_mut().unwrap().insert(
@@ -456,8 +492,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 
     for item in &response.output {
         match item {
-            ResponseOutputItem::Reasoning { .. } => {
-                continue;
+            ResponseOutputItem::Reasoning { summary, .. } => {
+                content.extend(reasoning_from_summary(summary));
             }
             ResponseOutputItem::Message {
                 content: msg_content,
@@ -473,12 +509,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                         ResponseContentBlock::ToolCall { id, name, input } => {
                             content.push(MessageContent::tool_request(
                                 id.clone(),
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.clone().into(),
-                                    arguments: Some(object(input.clone())),
-                                }),
+                                Ok(CallToolRequestParams::new(name.clone())
+                                    .with_arguments(object(input.clone()))),
                             ));
                         }
                     }
@@ -499,12 +531,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 
                 content.push(MessageContent::tool_request(
                     id.clone(),
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.clone().into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
+                    Ok(CallToolRequestParams::new(name.clone())
+                        .with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -535,8 +563,8 @@ fn process_streaming_output_items(
 
     for item in output_items {
         match item {
-            ResponseOutputItemInfo::Reasoning { .. } => {
-                // Skip reasoning items
+            ResponseOutputItemInfo::Reasoning { summary, .. } => {
+                content.extend(reasoning_from_summary(&summary));
             }
             ResponseOutputItemInfo::Message { content: parts, .. } => {
                 for part in parts {
@@ -559,12 +587,8 @@ fn process_streaming_output_items(
 
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.into(),
-                                    arguments: Some(object(parsed_args)),
-                                }),
+                                Ok(CallToolRequestParams::new(name)
+                                    .with_arguments(object(parsed_args))),
                             ));
                         }
                     }
@@ -584,12 +608,7 @@ fn process_streaming_output_items(
 
                 content.push(MessageContent::tool_request(
                     call_id,
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
+                    Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -654,21 +673,23 @@ where
 
                 ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
                     is_text_response = true;
-                    accumulated_text.push_str(&delta);
-
-                    // Yield incremental text updates for true streaming
-                    let mut content = Vec::new();
                     if !delta.is_empty() {
-                        content.push(MessageContent::text(&delta));
-                    }
-                    let mut msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                        accumulated_text.push_str(&delta);
 
-                    // Add ID so desktop client knows these deltas are part of the same message
-                    if let Some(id) = &response_id {
-                        msg = msg.with_id(id.clone());
-                    }
+                        // Yield incremental text updates for true streaming
+                        let mut msg = Message::new(
+                            Role::Assistant,
+                            chrono::Utc::now().timestamp(),
+                            vec![MessageContent::text(&delta)],
+                        );
 
-                    yield (Some(msg), None);
+                        // Add ID so desktop client knows these deltas are part of the same message
+                        if let Some(id) = &response_id {
+                            msg = msg.with_id(id.clone());
+                        }
+
+                        yield (Some(msg), None);
+                    }
                 }
 
                 ResponsesStreamEvent::OutputItemDone { item, .. } => {
@@ -791,6 +812,120 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_responses_api_to_message_captures_reasoning_summary() -> anyhow::Result<()> {
+        let response: ResponsesApiResponse = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "object": "response",
+            "created_at": 1737368310,
+            "status": "completed",
+            "model": "gpt-5",
+            "output": [
+                {
+                    "type": "reasoning",
+                    "id": "rs_1",
+                    "summary": [
+                        { "type": "summary_text", "text": "Thinking about the question..." },
+                        { "type": "summary_text", "text": "The answer is straightforward." }
+                    ]
+                },
+                {
+                    "type": "message",
+                    "id": "msg_1",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": [
+                        { "type": "output_text", "text": "The capital of France is Paris." }
+                    ]
+                }
+            ]
+        }))?;
+
+        let message = responses_api_to_message(&response)?;
+
+        let reasoning = message.content.iter().find_map(|c| c.as_reasoning());
+        assert!(reasoning.is_some(), "should contain reasoning content");
+        assert_eq!(
+            reasoning.unwrap().text,
+            "Thinking about the question...\nThe answer is straightforward."
+        );
+
+        let text = message.content.iter().find_map(|c| c.as_text());
+        assert_eq!(text, Some("The capital of France is Paris."));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_captures_reasoning_summary() -> anyhow::Result<()> {
+        let reasoning_item = serde_json::json!({
+            "type": "reasoning",
+            "id": "rs_1",
+            "summary": [
+                { "type": "summary_text", "text": "Let me think step by step." }
+            ]
+        });
+        let message_item = serde_json::json!({
+            "type": "message",
+            "id": "msg_1",
+            "status": "completed",
+            "role": "assistant",
+            "content": [{ "type": "output_text", "text": "Paris." }]
+        });
+
+        let lines = vec![
+            format!(
+                r#"data: {{"type":"response.created","sequence_number":1,"response":{{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5","output":[]}}}}"#
+            ),
+            format!(
+                r#"data: {{"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":1,"content_index":0,"delta":"Paris."}}"#
+            ),
+            format!(
+                r#"data: {{"type":"response.output_item.done","sequence_number":3,"output_index":0,"item":{}}}"#,
+                serde_json::to_string(&reasoning_item)?
+            ),
+            format!(
+                r#"data: {{"type":"response.output_item.done","sequence_number":4,"output_index":1,"item":{}}}"#,
+                serde_json::to_string(&message_item)?
+            ),
+            format!(
+                r#"data: {{"type":"response.completed","sequence_number":5,"response":{{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5","output":[{},{}],"usage":{{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}}}"#,
+                serde_json::to_string(&reasoning_item)?,
+                serde_json::to_string(&message_item)?
+            ),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut reasoning_parts = Vec::new();
+        let mut text_parts = Vec::new();
+
+        while let Some(item) = messages.next().await {
+            let (message, _) = item?;
+            if let Some(msg) = message {
+                for content in msg.content {
+                    match &content {
+                        MessageContent::Reasoning(r) => reasoning_parts.push(r.text.clone()),
+                        MessageContent::Text(t) => text_parts.push(t.text.clone()),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        assert!(
+            !reasoning_parts.is_empty(),
+            "should capture reasoning from stream"
+        );
+        assert_eq!(reasoning_parts.join(""), "Let me think step by step.");
+        assert!(text_parts.concat().contains("Paris."));
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_responses_stream_error_event_still_returns_error() -> anyhow::Result<()> {
         let lines = vec![
@@ -835,23 +970,15 @@ mod tests {
                 .with_text("I'll create that file.")
                 .with_tool_request(
                     "call_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "shell".into(),
-                        arguments: Some(object!({"command": "echo hello"})),
-                    }),
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "echo hello"}))),
                 ),
             Message::assistant()
                 .with_text("Now let me verify.")
                 .with_tool_request(
                     "call_2",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "shell".into(),
-                        arguments: Some(object!({"command": "cat file.txt"})),
-                    }),
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "cat file.txt"}))),
                 ),
         ];
 

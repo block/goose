@@ -125,7 +125,7 @@ copy-binary-windows:
 run-ui:
     @just release-binary
     @echo "Running UI..."
-    cd ui/desktop && npm install && npm run start-gui
+    cd ui/desktop && npm ci && npm run start-gui
 
 run-ui-playwright:
     #!/usr/bin/env sh
@@ -135,14 +135,15 @@ run-ui-playwright:
 
 run-ui-only:
     @echo "Running UI..."
-    cd ui/desktop && npm install && npm run start-gui
+    cd ui/desktop && npm ci && npm run start-gui
 
 debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
     cd ui/desktop && \
     export GOOSE_EXTERNAL_BACKEND=true && \
+    export GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" && \
     {{ if alpha == "alpha" { "export ALPHA=true &&" } else { "" } }} \
-    npm install && \
+    npm ci && \
     npm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}
 
 # Run UI with main process debugging enabled
@@ -156,7 +157,7 @@ debug-ui-main-process:
 	@echo "🔍 Starting goose UI with main process debugging enabled"
 	@just release-binary
 	cd ui/desktop && \
-	npm install && \
+	npm ci && \
 	npm run start-gui-debug
 
 # Package the desktop app locally for testing (macOS)
@@ -164,7 +165,7 @@ debug-ui-main-process:
 package-ui:
     @just release-binary
     @echo "Packaging desktop app..."
-    cd ui/desktop && npm install && npm run package
+    cd ui/desktop && npm ci && npm run package
     @echo "Signing with entitlements..."
     codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist ui/desktop/out/Goose-darwin-arm64/Goose.app
     @echo "Done! Launch with: open ui/desktop/out/Goose-darwin-arm64/Goose.app"
@@ -173,14 +174,14 @@ package-ui:
 run-ui-alpha:
     @just release-binary
     @echo "Running UI with alpha features..."
-    cd ui/desktop && npm install && ALPHA=true npm run start-alpha-gui
+    cd ui/desktop && npm ci && ALPHA=true npm run start-alpha-gui
 
 # Run UI with latest (Windows version)
 run-ui-windows:
     @just release-windows
     @powershell.exe -Command "Write-Host 'Copying Windows binary...'"
     @just copy-binary-windows
-    @powershell.exe -Command "Write-Host 'Running UI...'; Set-Location ui/desktop; npm install; npm run start-gui"
+    @powershell.exe -Command "Write-Host 'Running UI...'; Set-Location ui/desktop; npm ci; npm run start-gui"
 
 # Run Docusaurus server for documentation
 run-docs:
@@ -383,7 +384,7 @@ win-bld-rls-all:
 
 ### Install npm stuff
 win-app-deps:
-  cd ui{{s}}desktop ; npm install
+  cd ui{{s}}desktop ; npm ci
 
 ### Windows copy {release|debug} files to ui\desktop\src\bin
 ### s = os dependent file separator

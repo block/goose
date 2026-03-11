@@ -1,6 +1,7 @@
 use crate::custom_requests::*;
 use anyhow::Result;
 use fs_err as fs;
+use goose::acp::PermissionDecision;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
@@ -591,24 +592,9 @@ impl GooseAcpAgent {
 }
 
 fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConfirmation {
-    let permission = match outcome {
-        RequestPermissionOutcome::Cancelled => Permission::Cancel,
-        RequestPermissionOutcome::Selected(selected) => {
-            match serde_json::from_value::<PermissionOptionKind>(serde_json::Value::String(
-                selected.option_id.0.to_string(),
-            )) {
-                Ok(PermissionOptionKind::AllowAlways) => Permission::AlwaysAllow,
-                Ok(PermissionOptionKind::AllowOnce) => Permission::AllowOnce,
-                Ok(PermissionOptionKind::RejectOnce) => Permission::DenyOnce,
-                Ok(PermissionOptionKind::RejectAlways) => Permission::AlwaysDeny,
-                _ => Permission::Cancel,
-            }
-        }
-        _ => Permission::Cancel,
-    };
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
-        permission,
+        permission: Permission::from(PermissionDecision::from(outcome)),
     }
 }
 

@@ -24,6 +24,7 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
+oauth2 = "5.0"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
@@ -66,6 +67,7 @@ keyring = { version = "3.6.2", features = [
     "vendored",
 ] }
 serde_yaml = { workspace = true }
+strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }
@@ -100,6 +102,8 @@ tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { workspace = true, features = ["compat"] }
+sacp = { workspace = true }
+agent-client-protocol-schema = { version = "0.10", features = ["unstable"] }
 unicode-normalization = "0.1"
 
 # For local Whisper transcription
@@ -108,7 +112,7 @@ candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
 tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
-hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
+hf-hub = { version = "0.5.0", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
 zip = "0.6"
@@ -118,8 +122,7 @@ schemars = { workspace = true, features = [
     "derive",
 ] }
 insta = "1.43.2"
-paste = "1.0.0"
-posthog-rs = "0.3.7"
+posthog-rs = "0.4.3"
 shellexpand = { workspace = true }
 indexmap = "2.12.0"
 ignore = { workspace = true }
@@ -138,8 +141,9 @@ which = { workspace = true }
 pctx_code_mode = { version = "^0.2.3", optional = true }
 unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
-llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
 encoding_rs = "0.8.35"
+pastey = "0.2.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
@@ -148,7 +152,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"] }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
-llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler", "metal"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
