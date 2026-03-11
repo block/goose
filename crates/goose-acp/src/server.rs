@@ -875,8 +875,21 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
             })?;
 
-        // Restore MCP extensions that were active when the session was created
-        agent.load_extensions_from_session(&goose_session).await;
+        // Use client-provided MCP servers per the ACP protocol spec,
+        // rather than restoring from persisted session state.
+        for mcp_server in args.mcp_servers {
+            let config = match mcp_server_to_extension_config(mcp_server) {
+                Ok(c) => c,
+                Err(msg) => {
+                    return Err(sacp::Error::invalid_params().data(msg));
+                }
+            };
+            let name = config.name().to_string();
+            if let Err(e) = agent.add_extension(config, &session_id).await {
+                return Err(sacp::Error::internal_error()
+                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
+            }
+        }
 
         let conversation = goose_session.conversation.ok_or_else(|| {
             sacp::Error::internal_error()
