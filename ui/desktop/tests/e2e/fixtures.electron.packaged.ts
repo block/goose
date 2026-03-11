@@ -1,5 +1,6 @@
 import { test as base, Page, _electron as electron } from '@playwright/test';
 import * as fs from 'fs';
+import { join } from 'path';
 
 import { debugLog, attachAppDebugLogs, attachPageDebugLogs } from './helpers/debug-log';
 import { withVisualDelayPage } from './helpers/visual-delay';
@@ -64,6 +65,15 @@ export const test = base.extend<GooseTestFixtures>({
 
       if (videoDir && videoTrimStartMs > 0) {
         await trimVideosInDirectory(videoDir, videoTrimStartMs);
+      }
+
+      if (videoDir && fs.existsSync(videoDir)) {
+        for (const file of fs.readdirSync(videoDir).filter(f => f.endsWith('.webm'))) {
+          await testInfo.attach('video', {
+            path: join(videoDir, file),
+            contentType: 'video/webm',
+          });
+        }
       }
 
       fs.rmSync(tempDir, { recursive: true, force: true });
