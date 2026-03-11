@@ -67,6 +67,19 @@ goose also supports special "pass-through" providers that work with existing CLI
 CLI providers are cost-effective alternatives that use your existing subscriptions. They work differently from API providers as they execute CLI commands and integrate with the tools' native capabilities. See the [CLI Providers guide](/docs/guides/cli-providers) for detailed setup instructions.
 :::
 
+### ACP Providers
+
+goose supports [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) agents as providers. ACP providers pass goose extensions through to the agent as MCP servers.
+
+| Provider                                                                    | Description                                                                                                                                                                                                               | Requirements                                                                                                                                                                          |
+|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Claude ACP](https://github.com/zed-industries/claude-agent-acp) (`claude-acp`) | Uses Claude Code via ACP. Passes goose extensions to the agent as MCP servers. | `npm install -g @zed-industries/claude-agent-acp`, active Claude Code subscription |
+| [Codex ACP](https://github.com/zed-industries/codex-acp) (`codex-acp`) | Uses OpenAI Codex via ACP. Passes goose extensions to the agent as MCP servers. | `npm install -g @zed-industries/codex-acp`, active ChatGPT Plus/Pro subscription |
+
+:::tip ACP Providers
+See the [ACP Providers guide](/docs/guides/acp-providers) for detailed setup instructions.
+:::
+
 ## Configure Provider and Model
 
 To configure your chosen provider, see available options, or select a model, visit the `Models` tab in goose Desktop or run `goose configure` in the CLI.
