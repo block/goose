@@ -594,7 +594,13 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     await goosedResult.cleanup();
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    stopErrorLogCollection,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -697,6 +703,11 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     }
     app.quit();
   }
+
+  // errorLog is only needed during startup to detect fatal errors.
+  // Stop collecting stderr to avoid unbounded memory growth over long sessions.
+  stopErrorLogCollection();
+  errorLog.length = 0;
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
