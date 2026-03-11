@@ -299,6 +299,7 @@ pub trait Connection: Sized {
     async fn load_session(
         &mut self,
         session_id: &str,
+        mcp_servers: Vec<McpServer>,
     ) -> (Self::Session, Option<SessionModelState>);
     fn auth_methods(&self) -> &[AuthMethod];
     fn reset_openai(&self);
