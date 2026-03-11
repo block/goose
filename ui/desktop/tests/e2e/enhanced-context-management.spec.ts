@@ -1,4 +1,5 @@
-import { test, expect } from './fixtures';
+import { test } from './fixtures';
+import { expect } from '@playwright/test';
 
 test.describe('Enhanced Context Management E2E Tests', () => {
   test.beforeEach(async ({ goosePage }) => {

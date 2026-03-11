@@ -1,4 +1,4 @@
-import { test } from './fixtures.electron.packaged';
+import { test } from './fixtures';
 import { expect } from '@playwright/test';
 import { goToHome, openSettingsAppTab } from './helpers/test-steps';
 

@@ -1,4 +1,4 @@
-import { test } from './fixtures.electron.packaged';
+import { test } from './fixtures';
 import { expect } from '@playwright/test';
 import { createCustomExtension, expectExtensionIsEnabled, expectLastChatMessageContains, getLastAssistantMessageText, getToolCalls, goToExtensions, goToHome, sendMessage } from './helpers/test-steps';
 import { join } from 'path';

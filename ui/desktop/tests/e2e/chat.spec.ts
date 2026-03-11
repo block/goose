@@ -1,4 +1,4 @@
-import { test } from './fixtures.electron.packaged';
+import { test } from './fixtures';
 import { expect } from '@playwright/test';
 import { changeWorkingDirectory, expectChatContainsMessage, expectCostIsNonZero, expectCostIsZero, expectLastChatMessageContains, expectChatMessageCount, expectSessionCount, expectToolCallContainsText, expectToolCallCount, getChatInput, goToChatHistory, goToHome, openSession, sendMessage, startNewChat } from './helpers/test-steps';
 
