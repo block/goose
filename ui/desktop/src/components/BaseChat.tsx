@@ -183,6 +183,7 @@ export default function BaseChat({
 
   const sessionModel = session?.model_config?.model_name ?? null;
   const sessionProvider = session?.provider_name ?? null;
+  const sessionLoaded = session !== undefined;
 
   useEffect(() => {
     if (!recipe) return;
@@ -498,6 +499,7 @@ export default function BaseChat({
             toolCount={toolCount || 0}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
+            sessionLoaded={sessionLoaded}
             {...customChatInputProps}
           />
         </div>

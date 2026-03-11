@@ -92,6 +92,7 @@ interface ChatInputProps {
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   sessionModel?: string | null;
   sessionProvider?: string | null;
+  sessionLoaded?: boolean;
 }
 
 export default function ChatInput({
@@ -121,6 +122,7 @@ export default function ChatInput({
   inputRef,
   sessionModel,
   sessionProvider,
+  sessionLoaded,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1554,6 +1556,7 @@ export default function ChatInput({
                 sessionModel={effectiveModel}
                 sessionProvider={effectiveProvider}
                 onModelChanged={setModelOverride}
+                sessionLoaded={sessionLoaded}
               />
             </div>
           </Tooltip>

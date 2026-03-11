@@ -27,6 +27,7 @@ interface ModelsBottomBarProps {
   sessionModel?: string | null;
   sessionProvider?: string | null;
   onModelChanged: (override: { model: string; provider: string }) => void;
+  sessionLoaded?: boolean;
 }
 
 export default function ModelsBottomBar({
@@ -37,20 +38,13 @@ export default function ModelsBottomBar({
   sessionModel,
   sessionProvider,
   onModelChanged,
+  sessionLoaded,
 }: ModelsBottomBarProps) {
   // ChatInput owns the override state and passes effective model/provider as sessionModel/sessionProvider.
   // Fall back to config defaults when no session-specific model is available.
   const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
   const currentModel = sessionModel ?? configModel;
   const currentProvider = sessionProvider ?? configProvider;
-
-  // Track whether session model data has arrived at least once, so we can
-  // hide the label briefly while a resumed chat's session data is loading
-  // (avoids flashing the config default for past chats).
-  const [sessionModelResolved, setSessionModelResolved] = useState(!sessionId || !!sessionModel);
-  useEffect(() => {
-    if (sessionModel) setSessionModelResolved(true);
-  }, [sessionModel]);
 
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
@@ -120,7 +114,9 @@ export default function ModelsBottomBar({
     : undefined;
 
   // Determine which model to display - activeModel takes priority when lead/worker is active
-  const isModelLoading = sessionId && !sessionModelResolved;
+  // Hide label while session data is still being fetched (avoids flashing
+  // the config default before the session's actual model arrives).
+  const isModelLoading = sessionId && !sessionLoaded;
   const displayModel =
     isLeadWorkerActive && currentModelInfo?.model
       ? currentModelInfo.model
