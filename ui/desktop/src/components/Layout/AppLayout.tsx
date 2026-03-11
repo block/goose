@@ -34,11 +34,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     isCondensedIconOnly,
   } = useNavigationContext();
 
-  const [navWidth, setNavWidth] = useState<number | null>(() => {
-    const stored = localStorage.getItem('navigation_expanded_width');
-    const parsed = stored ? parseInt(stored, 10) : NaN;
-    return isNaN(parsed) ? null : parsed;
-  });
+  const [navWidth, setNavWidth] = useState<number | null>(null);
+  const navWidthRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    window.electron.getSetting('navExpandedWidth').then((width) => {
+      if (width !== null) setNavWidth(width);
+    });
+  }, []);
 
   const isResizable =
     !isHorizontalNav && !isCondensedIconOnly && effectiveNavigationMode === 'push' && isNavExpanded;
@@ -55,8 +58,8 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       NAV_DIMENSIONS.MAX_NAV_WIDTH,
       Math.max(NAV_DIMENSIONS.MIN_NAV_WIDTH, dragStateRef.current.startWidth + delta)
     );
+    navWidthRef.current = newWidth;
     setNavWidth(newWidth);
-    localStorage.setItem('navigation_expanded_width', String(newWidth));
   }, []);
 
   const onMouseUp = useCallback(() => {
@@ -65,6 +68,9 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     document.body.style.userSelect = '';
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+    if (navWidthRef.current !== null) {
+      window.electron.setSetting('navExpandedWidth', navWidthRef.current);
+    }
   }, [onMouseMove]);
 
   const onHandleMouseDown = useCallback(
@@ -89,6 +95,8 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
   }, [onMouseMove, onMouseUp]);
 
