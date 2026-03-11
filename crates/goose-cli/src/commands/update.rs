@@ -59,7 +59,13 @@ pub async fn update(canary: bool, reconfigure: bool) -> Result<()> {
         println!("Downloading {asset} from {tag} release...");
 
         // --- Download -----------------------------------------------------------
-        let response = reqwest::get(&url)
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(300))
+            .build()
+            .context("Failed to build HTTP client")?;
+        let response = client
+            .get(&url)
+            .send()
             .await
             .context("Failed to download release archive")?;
 
