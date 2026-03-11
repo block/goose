@@ -687,5 +687,4 @@ mod tests {
         let result = handle_slash_command("/recipe /path/to/file.txt");
         assert!(matches!(result, Some(InputResult::Retry)));
     }
-
 }
