@@ -37,6 +37,7 @@ jobs:
           rm -f Cargo.toml.bak
 
           # Update version in package.json
+          source ./bin/activate-hermit
           cd ui/desktop
           pnpm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
