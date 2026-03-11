@@ -251,8 +251,22 @@ impl OpenAiProvider {
         Self::is_responses_model(model_name)
     }
 
+    /// Providers known to reject `max_completion_tokens` and require
+    /// the legacy `max_tokens` field instead.
+    const PROVIDERS_NEEDING_MAX_TOKENS_REMAP: &[&str] = &[
+        "cerebras",
+        "custom_deepseek",
+        "groq",
+        "inception",
+        "kimi",
+        "lmstudio",
+        "mistral",
+        "moonshot",
+        "ovhcloud",
+    ];
+
     fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
-        if self.name == OPEN_AI_PROVIDER_NAME {
+        if !Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
             return payload;
         }
 
@@ -637,6 +651,22 @@ mod tests {
         let provider = make_provider("openai");
         let payload = json!({
             "model": "o3",
+            "messages": [],
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert!(obj.contains_key("max_completion_tokens"));
+        assert!(!obj.contains_key("max_tokens"));
+    }
+
+    #[test]
+    fn sanitize_noop_for_unknown_provider() {
+        let provider = make_provider("some_future_provider");
+        let payload = json!({
+            "model": "future-model",
             "messages": [],
             "max_completion_tokens": 16384
         });
