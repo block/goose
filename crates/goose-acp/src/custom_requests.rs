@@ -144,6 +144,10 @@ pub struct ListPromptsResponse {
 pub struct GetPromptInfoRequest {
     pub session_id: String,
     pub name: String,
+    /// Optional extension name to disambiguate when multiple extensions
+    /// register a prompt with the same name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension: Option<String>,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]

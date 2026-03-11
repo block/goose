@@ -191,7 +191,11 @@ export const zListPromptsResponse = z.object({
  */
 export const zGetPromptInfoRequest = z.object({
     session_id: z.string(),
-    name: z.string()
+    name: z.string(),
+    extension: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
 });
 
 export const zGetPromptInfoResponse = z.object({

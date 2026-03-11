@@ -1219,7 +1219,38 @@ impl GooseAcpAgent {
     ) -> Result<GetPromptInfoResponse, sacp::Error> {
         let agent = self.get_agent_for_session(&req.session_id).await?;
         let prompts = agent.list_extension_prompts(&req.session_id).await;
-        for (extension, prompt_list) in prompts {
+
+        // If caller specified an extension, look only there.
+        if let Some(ref ext) = req.extension {
+            if let Some(prompt_list) = prompts.get(ext) {
+                if let Some(prompt) = prompt_list.iter().find(|p| p.name == req.name) {
+                    return Ok(GetPromptInfoResponse {
+                        found: true,
+                        prompt: Some(PromptEntry {
+                            name: prompt.name.clone(),
+                            description: prompt.description.clone(),
+                            arguments: prompt.arguments.clone().map(|args| {
+                                args.into_iter()
+                                    .filter_map(|a| serde_json::to_value(&a).ok())
+                                    .collect()
+                            }),
+                        }),
+                        extension: Some(ext.clone()),
+                    });
+                }
+            }
+            return Ok(GetPromptInfoResponse {
+                found: false,
+                prompt: None,
+                extension: None,
+            });
+        }
+
+        // No extension specified — iterate in sorted order for determinism.
+        let mut extensions: Vec<_> = prompts.into_iter().collect();
+        extensions.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        for (extension, prompt_list) in extensions {
             if let Some(prompt) = prompt_list.iter().find(|p| p.name == req.name) {
                 return Ok(GetPromptInfoResponse {
                     found: true,

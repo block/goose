@@ -392,6 +392,13 @@
         },
         "name": {
           "type": "string"
+        },
+        "extension": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional extension name to disambiguate when multiple extensions\nregister a prompt with the same name."
         }
       },
       "required": [

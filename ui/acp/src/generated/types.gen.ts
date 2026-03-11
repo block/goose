@@ -232,6 +232,11 @@ export type PromptEntry = {
 export type GetPromptInfoRequest = {
     session_id: string;
     name: string;
+    /**
+     * Optional extension name to disambiguate when multiple extensions
+     * register a prompt with the same name.
+     */
+    extension?: string | null;
 };
 
 export type GetPromptInfoResponse = {
