@@ -150,8 +150,8 @@ export default function ChatInput({
   // Local override for when the user changes the model in the modal,
   // before the session object is re-fetched from the backend.
   const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(null);
-  const effectiveModel = modelOverride?.model ?? sessionModel ?? null;
-  const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? null;
+  const effectiveModel = modelOverride?.model ?? sessionModel ?? configModel;
+  const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? configProvider;
 
   // Clear override when the underlying data catches up (session props for
   // active chats, config defaults for Hub / no-session contexts).
