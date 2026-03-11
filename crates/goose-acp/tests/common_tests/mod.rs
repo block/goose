@@ -58,39 +58,6 @@ pub async fn run_config_mcp<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
-pub async fn run_fs_read_text_file_false<C: Connection>() {
-    fs::write("/tmp/test_acp_read.txt", "test-read-content-12345").unwrap();
-
-    let expected_session_id = ExpectedSessionId::default();
-    let prompt = "Use the read tool to read /tmp/test_acp_read.txt and output only its contents.";
-    let openai = OpenAiFixture::new(
-        vec![
-            (
-                prompt.to_string(),
-                include_str!("../test_data/openai_fs_read_tool_call.txt"),
-            ),
-            (
-                r#""content":"test-read-content-12345""#.into(),
-                include_str!("../test_data/openai_fs_read_tool_result.txt"),
-            ),
-        ],
-        expected_session_id.clone(),
-    )
-    .await;
-
-    let config = TestConnectionConfig {
-        builtins: vec!["developer".to_string()],
-        ..Default::default()
-    };
-    let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
-
-    let output = session.prompt(prompt, PermissionDecision::Cancel).await;
-    assert_eq!(output.text, "test-read-content-12345");
-    expected_session_id.assert_matches(&session.session_id().0);
-}
-
 // Also proves developer loaded from config.yaml (not CLI args) gets ACP fs delegation.
 pub async fn run_fs_read_text_file_true<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();

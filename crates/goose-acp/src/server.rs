@@ -119,6 +119,28 @@ fn is_developer_file_tool(tool_name: &str) -> bool {
     matches!(tool_name, "read" | "write" | "edit")
 }
 
+fn extract_locations_from_meta(
+    tool_response: &goose::conversation::message::ToolResponse,
+) -> Option<Vec<ToolCallLocation>> {
+    let result = tool_response.tool_result.as_ref().ok()?;
+    let meta = result.meta.as_ref()?;
+    let locations_val = meta.get("tool_locations")?;
+    let entries: Vec<serde_json::Value> = serde_json::from_value(locations_val.clone()).ok()?;
+    let locations = entries
+        .into_iter()
+        .filter_map(|entry| {
+            let path = entry.get("path")?.as_str()?;
+            let line = entry.get("line").and_then(|v| v.as_u64()).map(|l| l as u32);
+            Some(create_tool_location(path, line))
+        })
+        .collect::<Vec<_>>();
+    if locations.is_empty() {
+        None
+    } else {
+        Some(locations)
+    }
+}
+
 fn extract_tool_locations(
     tool_request: &goose::conversation::message::ToolRequest,
     tool_response: &goose::conversation::message::ToolResponse,
@@ -402,9 +424,10 @@ impl GooseAcpAgent {
         }
 
         if let Some((client, config)) = acp_developer {
+            let info = client.get_info().cloned();
             agent
                 .extension_manager
-                .add_client("developer".into(), config, client, None, None)
+                .add_client("developer".into(), config, client, info, None)
                 .await;
         }
 
@@ -548,11 +571,13 @@ impl GooseAcpAgent {
 
         let content = build_tool_call_content(&tool_response.tool_result);
 
-        let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
-            extract_tool_locations(tool_request, tool_response)
-        } else {
-            Vec::new()
-        };
+        let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
+            if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
+                extract_tool_locations(tool_request, tool_response)
+            } else {
+                Vec::new()
+            }
+        });
 
         let mut fields = ToolCallUpdateFields::new().status(status).content(content);
         if !locations.is_empty() {
@@ -1738,5 +1763,42 @@ print(\"hello, world\")
             .into_iter()
             .map(|loc| (loc.path, loc.line))
             .collect()
+    }
+
+    fn response_with_meta(meta: Option<serde_json::Value>) -> ToolResponse {
+        let mut result = CallToolResult::success(vec![RmcpContent::text("")]);
+        result.meta = meta.map(|v| serde_json::from_value(v).unwrap());
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(result),
+            metadata: None,
+        }
+    }
+
+    #[test_case(
+        response_with_meta(Some(serde_json::json!({"tool_locations": [{"path": "/tmp/f.txt", "line": 5}]})))
+        => Some(vec![(PathBuf::from("/tmp/f.txt"), Some(5))])
+        ; "meta with path and line"
+    )]
+    #[test_case(
+        response_with_meta(Some(serde_json::json!({"tool_locations": [{"path": "/tmp/f.txt"}]})))
+        => Some(vec![(PathBuf::from("/tmp/f.txt"), None)])
+        ; "meta with path no line"
+    )]
+    #[test_case(
+        response_with_meta(Some(serde_json::json!({})))
+        => None
+        ; "meta without tool_locations key"
+    )]
+    #[test_case(
+        response_with_meta(None)
+        => None
+        ; "no meta"
+    )]
+    fn test_extract_locations_from_meta(
+        response: ToolResponse,
+    ) -> Option<Vec<(PathBuf, Option<u32>)>> {
+        extract_locations_from_meta(&response)
+            .map(|locs| locs.into_iter().map(|loc| (loc.path, loc.line)).collect())
     }
 }

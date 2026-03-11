@@ -77,18 +77,6 @@ impl DeveloperClient {
     pub(crate) fn get_tools() -> Vec<Tool> {
         vec![
             Tool::new(
-                "read".to_string(),
-                "Read a text file from disk.".to_string(),
-                Self::schema::<FileReadParams>(),
-            )
-            .annotate(ToolAnnotations::from_raw(
-                Some("Read".to_string()),
-                Some(true),
-                Some(false),
-                Some(false),
-                Some(false),
-            )),
-            Tool::new(
                 "write".to_string(),
                 "Create a new file or overwrite an existing file. Creates parent directories if needed.".to_string(),
                 Self::schema::<FileWriteParams>(),
@@ -225,7 +213,7 @@ mod tests {
             .map(|t| t.name.to_string())
             .collect();
 
-        assert_eq!(names, vec!["read", "write", "edit", "shell", "tree"]);
+        assert_eq!(names, vec!["write", "edit", "shell", "tree"]);
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {
