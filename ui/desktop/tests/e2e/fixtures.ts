@@ -10,6 +10,7 @@ import {
   buildLaunchOptions,
   waitForRootWindow,
   closeElectronApp,
+  isBundledAppMode,
 } from './helpers/electron-launch';
 
 type GooseTestFixtures = {
@@ -28,17 +29,23 @@ export const test = base.extend<GooseTestFixtures>({
 
     try {
       videoDir = isVideoRecording() ? testInfo.outputPath('videos') : undefined;
+
       const launchOptions = buildLaunchOptions(tempDir, videoDir);
-      debugLog(`Launching direct Electron for test: ${testInfo.title}`);
+      debugLog(`Launching Electron for test: ${testInfo.title} (bundled=${isBundledAppMode()})`);
 
       electronApp = await electron.launch(launchOptions);
-      await electronApp.evaluate(({ ipcMain }, chooserDir) => {
-        ipcMain.removeHandler('directory-chooser');
-        ipcMain.handle('directory-chooser', async () => ({
-          canceled: false,
-          filePaths: [chooserDir],
-        }));
-      }, tempDir);
+
+      if (!isBundledAppMode()) {
+        // Mock directory chooser (only works in dev mode with direct IPC access)
+        await electronApp.evaluate(({ ipcMain }, chooserDir) => {
+          ipcMain.removeHandler('directory-chooser');
+          ipcMain.handle('directory-chooser', async () => ({
+            canceled: false,
+            filePaths: [chooserDir],
+          }));
+        }, tempDir);
+      }
+
       attachAppDebugLogs(electronApp);
 
       const recordingStartMs = Date.now();
@@ -48,15 +55,16 @@ export const test = base.extend<GooseTestFixtures>({
       });
       page = rootWindow;
       debugLog(`Selected app window URL: ${page.url()}`);
-      attachPageDebugLogs(page);
       const rootReadyElapsedMs = Date.now() - recordingStartMs;
+      videoTrimStartMs = Math.max(0, rootReadyElapsedMs - 300);
+
+      attachPageDebugLogs(page);
       if (isVideoRecording()) {
         await enableCursorHighlight(page);
         page.on('domcontentloaded', async () => {
           await enableCursorHighlight(page!);
         });
       }
-      videoTrimStartMs = Math.max(0, rootReadyElapsedMs - 300);
       await use(withVisualDelayPage(page));
     } finally {
       if (electronApp) {

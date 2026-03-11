@@ -5,13 +5,7 @@ import { Page, _electron as electron } from '@playwright/test';
 import { debugLog } from './debug-log';
 
 function resolveDirectElectronExecutable(appRoot: string): string {
-  if (process.platform === 'darwin') {
-    return join(appRoot, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron');
-  }
-  if (process.platform === 'win32') {
-    return join(appRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
-  }
-  return join(appRoot, 'node_modules', 'electron', 'dist', 'electron');
+  return join(appRoot, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron');
 }
 
 export function createIsolatedGoosePathRoot(): string {
@@ -45,45 +39,54 @@ function validateBuildPrerequisites(appRoot: string, executablePath: string): vo
   }
 }
 
-function resolveBundledExecutable(appPath: string): string {
-  if (process.platform === 'darwin') {
-    if (appPath.endsWith('.app')) {
-      return join(appPath, 'Contents', 'MacOS', 'Goose');
-    }
-    return appPath;
-  }
-  if (process.platform === 'win32') {
-    return appPath.endsWith('.exe') ? appPath : join(appPath, 'Goose.exe');
-  }
-  return appPath;
+function resolveBundledGoosedPath(appPath: string): string {
+  return join(appPath, 'Contents', 'Resources', 'bin', 'goosed');
+}
+
+function resolveBundledAppAsar(appPath: string): string {
+  return join(appPath, 'Contents', 'Resources', 'app.asar');
+}
+
+export function isBundledAppMode(): boolean {
+  return !!process.env.GOOSE_E2E_APP_PATH;
 }
 
 export function buildLaunchOptions(
   tempDir: string,
   videoDir?: string
 ): Parameters<typeof electron.launch>[0] {
+  const appRoot = join(__dirname, '../../..');
+  const executablePath = resolveDirectElectronExecutable(appRoot);
+
   const bundledAppPath = process.env.GOOSE_E2E_APP_PATH;
-  let executablePath: string;
-  let args: string[];
+  let appPath: string;
+  const extraEnv: Record<string, string> = {};
 
   if (bundledAppPath) {
-    executablePath = resolveBundledExecutable(bundledAppPath);
-    args = [];
-    if (!fs.existsSync(executablePath)) {
-      throw new Error(`Bundled app executable not found at ${executablePath}`);
+    // Bundled app mode: use dev Electron binary but load bundled app.asar
+    const appAsar = resolveBundledAppAsar(bundledAppPath);
+    if (!fs.existsSync(appAsar)) {
+      throw new Error(`Bundled app.asar not found at ${appAsar}`);
     }
-    debugLog(`Using bundled app: ${executablePath}`);
+    const goosedPath = resolveBundledGoosedPath(bundledAppPath);
+    if (!fs.existsSync(goosedPath)) {
+      throw new Error(`Bundled goosed binary not found at ${goosedPath}`);
+    }
+    appPath = appAsar;
+    extraEnv.GOOSED_BINARY = goosedPath;
+    debugLog(`Using bundled app.asar: ${appAsar}`);
+    debugLog(`Using bundled goosed: ${goosedPath}`);
   } else {
-    const appRoot = join(__dirname, '../../..');
-    executablePath = resolveDirectElectronExecutable(appRoot);
-    args = [appRoot];
+    // Dev mode: use local Vite build output
+    appPath = appRoot;
     validateBuildPrerequisites(appRoot, executablePath);
-    debugLog(`Using dev Electron: ${executablePath}`);
   }
+
+  debugLog(`Using Electron: ${executablePath} (mode=${bundledAppPath ? 'bundled' : 'dev'})`);
 
   const launchOptions: Parameters<typeof electron.launch>[0] = {
     executablePath,
-    args,
+    args: [appPath],
     timeout: 30000,
     // WARNING: env contains API keys (e.g. ANTHROPIC_API_KEY). Do not log launchOptions.
     env: {
@@ -93,6 +96,7 @@ export function buildLaunchOptions(
       GOOSE_PATH_ROOT: tempDir,
       GOOSE_WORKING_DIR: tempDir,
       RUST_LOG: 'info',
+      ...extraEnv,
     },
   };
 
