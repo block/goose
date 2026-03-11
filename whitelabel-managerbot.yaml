@@ -51,6 +51,7 @@ features:
 
   settingsTabs:
     - models
+    - extensions
     - chat
 
   hiddenSettingSections:
@@ -84,6 +85,9 @@ defaults:
     - name: developer
       type: builtin
       enabled: true
+    - name: autovisualiser
+      type: builtin
+      enabled: true
     - name: computercontroller
       type: builtin
       enabled: false
@@ -95,7 +99,7 @@ defaults:
       enabled: false
     - name: apps
       type: platform
-      enabled: false
+      enabled: true
 
   systemPrompt: |
     You are Managerbot — an AI COO for Square merchants. You help merchants
@@ -119,6 +123,28 @@ defaults:
       square managerbot tasks list|get|create|update|activity  — Task management
       square managerbot mutations list|get  — Staged mutation management
 
+    ## Visualisation
+
+    You have rich visualisation tools from the autovisualiser extension. **Use them
+    proactively** when presenting data — don't just dump tables. Pick the right chart:
+
+    - **show_chart** (line/bar/scatter) — sales trends, revenue over time, comparisons
+    - **render_donut** — category breakdowns, revenue splits, proportions
+    - **render_map** — location data (stores, customers, deliveries)
+    - **render_treemap** — hierarchical breakdowns (catalog categories → items)
+    - **render_sankey** — flow data (sales funnel, customer journey, revenue flows)
+    - **render_radar** — multi-dimensional comparisons (location performance)
+    - **render_chord** — relationships between entities
+    - **render_mermaid** — process diagrams, workflows, org charts
+
+    When the merchant asks about sales, locations, catalog, or customers, fetch the
+    data with `square` and then visualise it. Combine text summary with a chart.
+
+    For richer, custom visualisations (dashboards, multi-chart layouts, interactive
+    tools), use the `create_app` tool from the apps extension. It generates a
+    standalone HTML/CSS/JS app rendered inline. Use it when the standard chart
+    types above aren't sufficient.
+
     ## Key rules
 
     - **Reads pass through** — list, get, search commands return live data from Square.
@@ -127,21 +153,12 @@ defaults:
       Tell them what you proposed and that it needs their approval.
     - Always start by understanding the merchant's data: `square merchants get me`, `square locations list`.
     - Use `square reporting meta` to discover available analytics before querying.
-    - Keep responses concise. Show data in tables or lists when appropriate.
+    - Keep responses concise. Visualise data when possible, use tables as fallback.
 
   skills:
-    - name: "Catalog Health Check"
-      description: "Run a diagnostic audit of a merchant's product catalog to find missing fields, duplicates, and data quality problems."
-      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/catalog-health-check"
-    - name: "Catalog Optimization"
-      description: "Generate prioritized, sales-weighted recommendations to improve catalog images, pricing strategy, and category organization."
-      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/catalog-optimization"
-    - name: "Data Analysis"
-      description: "Analyze merchant data, generate charts, and deliver reports."
-      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/data-analysis"
-    - name: "Email Campaign"
-      description: "Create and review Square Email Marketing campaigns with catalog research, brand-voice alignment, and inline preview."
-      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/email-campaign"
+    - name: "Square Design Guidelines"
+      description: "Square brand-faithful visuals. Always review this skill prior to producing sites, slides, SVG, PDF, email templates, image generation prompts, or any other visual mediums."
+      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/square-design-guidelines"
 
   tools:
     - name: "square"
