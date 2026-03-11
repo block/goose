@@ -14,8 +14,8 @@ interface CostTrackerProps {
       totalCost: number;
     };
   };
-  model?: string | null;
-  provider?: string | null;
+  model: string | null;
+  provider: string | null;
 }
 
 export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts, model: currentModel, provider: currentProvider }: CostTrackerProps) {

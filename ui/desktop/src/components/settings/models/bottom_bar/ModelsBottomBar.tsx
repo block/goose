@@ -26,7 +26,7 @@ interface ModelsBottomBarProps {
   alerts: Alert[];
   sessionModel?: string | null;
   sessionProvider?: string | null;
-  onModelChanged?: (override: { model: string; provider: string }) => void;
+  onModelChanged: (override: { model: string; provider: string }) => void;
 }
 
 export default function ModelsBottomBar({
@@ -151,7 +151,7 @@ export default function ModelsBottomBar({
   }, [currentModel]);
 
   const handleModelSelected = (model: string, provider: string) => {
-    onModelChanged?.({ model, provider });
+    onModelChanged({ model, provider });
   };
 
   return (

@@ -25,13 +25,15 @@ export const useCostTracking = ({
     };
   }>({});
 
-  const currentModel = session?.model_config?.model_name ?? null;
-  const currentProvider = session?.provider_name ?? null;
+  const currentModel = session?.model_config?.model_name ?? undefined;
+  const currentProvider = session?.provider_name ?? undefined;
   const prevModelRef = useRef<string | undefined>(undefined);
   const prevProviderRef = useRef<string | undefined>(undefined);
 
   // Handle model changes and accumulate costs
   useEffect(() => {
+    if (!currentModel || !currentProvider) return;
+
     const handleModelChange = async () => {
       if (
         prevModelRef.current !== undefined &&
