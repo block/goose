@@ -39,10 +39,11 @@ export default function ModelsBottomBar({
   onModelChanged,
 }: ModelsBottomBarProps) {
   // ChatInput owns the override state and passes effective model/provider as sessionModel/sessionProvider.
-  // Fall back to config defaults when no session exists (e.g. Hub / new empty chat).
+  // Only fall back to config defaults when there is genuinely no session (Hub / new empty chat).
+  // When a session exists but data hasn't loaded yet, avoid flashing the default model.
   const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
-  const currentModel = sessionModel ?? configModel;
-  const currentProvider = sessionProvider ?? configProvider;
+  const currentModel = sessionModel ?? (!sessionId ? configModel : null);
+  const currentProvider = sessionProvider ?? (!sessionId ? configProvider : null);
 
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();

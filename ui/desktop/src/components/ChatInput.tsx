@@ -390,11 +390,17 @@ export default function ChatInput({
       // Reset token limit loaded state
       setIsTokenLimitLoaded(false);
 
-      // Use effective model/provider (includes overrides from in-session model changes),
-      // fall back to config defaults
+      // Use effective model/provider (includes overrides from in-session model changes).
+      // Only fall back to config defaults when there's no session; when a session exists
+      // but data hasn't loaded yet, wait rather than loading metadata for the wrong model.
       let model = effectiveModel;
       let provider = effectiveProvider;
       if (!model || !provider) {
+        if (sessionId) {
+          // Session exists but data hasn't loaded yet — skip until it arrives
+          setIsTokenLimitLoaded(true);
+          return;
+        }
         const configModelAndProvider = await getCurrentModelAndProvider();
         model = configModelAndProvider.model;
         provider = configModelAndProvider.provider;
