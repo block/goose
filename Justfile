@@ -127,11 +127,17 @@ run-ui:
     @echo "Running UI..."
     cd ui/desktop && pnpm install && pnpm run start-gui
 
-run-ui-playwright:
+run-ui-playwright-video:
     #!/usr/bin/env sh
     just release-binary
     echo "Running UI with Playwright"
     cd ui/desktop && pnpm run test-e2e:video
+
+run-ui-playwright:
+    #!/usr/bin/env sh
+    just release-binary
+    echo "Running UI with Playwright"
+    cd ui/desktop && pnpm run test-e2e
 
 run-ui-only:
     @echo "Running UI..."
