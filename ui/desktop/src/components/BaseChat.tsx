@@ -470,7 +470,7 @@ export default function BaseChat({
             </div>
           )}
 
-          {providerUnavailable && messages.length > 0 && (
+          {providerUnavailable && (
             <div className="absolute bottom-16 left-4 right-4 z-30 rounded-lg border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 flex items-start gap-3 backdrop-blur-sm">
               <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
