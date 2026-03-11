@@ -400,12 +400,7 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
 }
 
 fn get_input_prompt_string() -> String {
-    let goose = "🪿";
-    if cfg!(target_os = "windows") {
-        format!("{goose} ")
-    } else {
-        format!("{} ", console::style(goose))
-    }
+    "🪿 ".to_string()
 }
 
 fn print_help() {
@@ -693,19 +688,4 @@ mod tests {
         assert!(matches!(result, Some(InputResult::Retry)));
     }
 
-    #[test]
-    fn test_get_input_prompt_string() {
-        let prompt = get_input_prompt_string();
-
-        // Prompt should always end with a space
-        assert!(prompt.ends_with(' '));
-
-        // Prompt should contain the goose emoji
-        assert!(prompt.contains("🪿"));
-
-        #[cfg(target_os = "windows")]
-        {
-            assert_eq!(prompt, "🪿 ");
-        }
-    }
 }
