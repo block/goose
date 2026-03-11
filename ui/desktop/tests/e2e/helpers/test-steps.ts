@@ -49,6 +49,7 @@ export const getLastAssistantMessageText = async (page: Page) => {
 
 export const goToHome = async (page: Page) => {
   await page.getByTestId('sidebar-home-button').click();
+  await expect(page.getByTestId('loading-indicator')).toBeHidden({ timeout: LLM_TIMEOUT });
 };
 
 export const expectSessionCount = async (page: Page, count: number) => {

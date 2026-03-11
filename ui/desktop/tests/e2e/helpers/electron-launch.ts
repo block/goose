@@ -20,21 +20,12 @@ export function createIsolatedGoosePathRoot(): string {
   fs.mkdirSync(configDir, { recursive: true });
   fs.mkdirSync(join(tempDir, 'data'), { recursive: true });
   fs.mkdirSync(join(tempDir, 'state'), { recursive: true });
+  const provider = process.env.GOOSE_PROVIDER || 'anthropic';
+  const model = process.env.GOOSE_MODEL || 'claude-haiku-4-5-20251001';
   fs.writeFileSync(
     join(configDir, 'config.yaml'),
-    'GOOSE_PROVIDER: databricks\nGOOSE_MODEL: databricks-claude-haiku-4-5\nGOOSE_TELEMETRY_ENABLED: false\nDATABRICKS_HOST: https://block-lakehouse-production.cloud.databricks.com/\n'
+    `GOOSE_PROVIDER: ${provider}\nGOOSE_MODEL: ${model}\nGOOSE_TELEMETRY_ENABLED: false\n`
   );
-
-  // Copy OAuth token cache so the app can silently refresh without opening a browser.
-  // If the refresh token is expired, the app falls back to browser OAuth as usual.
-  const realOAuthDir = join(os.homedir(), '.config', 'goose', 'databricks', 'oauth');
-  if (fs.existsSync(realOAuthDir)) {
-    const testOAuthDir = join(configDir, 'databricks', 'oauth');
-    fs.mkdirSync(testOAuthDir, { recursive: true });
-    for (const file of fs.readdirSync(realOAuthDir)) {
-      fs.copyFileSync(join(realOAuthDir, file), join(testOAuthDir, file));
-    }
-  }
 
   return tempDir;
 }
@@ -65,6 +56,7 @@ export function buildLaunchOptions(
     executablePath,
     args: [appRoot],
     timeout: 30000,
+    // WARNING: env contains API keys (e.g. ANTHROPIC_API_KEY). Do not log launchOptions.
     env: {
       ...process.env,
       GOOSE_ALLOWLIST_BYPASS: 'true',
