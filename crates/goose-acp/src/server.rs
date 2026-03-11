@@ -36,7 +36,7 @@ use sacp::schema::{
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -49,6 +49,7 @@ struct GooseAcpSession {
     messages: Conversation,
     tool_requests: HashMap<String, goose::conversation::message::ToolRequest>,
     cancel_token: Option<CancellationToken>,
+    prompt_done: Option<Arc<Notify>>,
 }
 
 pub struct GooseAcpAgent {
@@ -729,6 +730,7 @@ impl GooseAcpAgent {
             messages: Conversation::new_unvalidated(Vec::new()),
             tool_requests: HashMap::new(),
             cancel_token: None,
+            prompt_done: None,
         };
 
         let mut sessions = self.sessions.lock().await;
@@ -808,6 +810,7 @@ impl GooseAcpAgent {
             messages: conversation.clone(),
             tool_requests: HashMap::new(),
             cancel_token: None,
+            prompt_done: None,
         };
 
         for message in conversation.messages() {
@@ -878,6 +881,7 @@ impl GooseAcpAgent {
     ) -> Result<PromptResponse, sacp::Error> {
         let session_id = args.session_id.0.to_string();
         let cancel_token = CancellationToken::new();
+        let done = Arc::new(Notify::new());
 
         let agent = {
             let mut sessions = self.sessions.lock().await;
@@ -885,6 +889,7 @@ impl GooseAcpAgent {
                 sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
             })?;
             session.cancel_token = Some(cancel_token.clone());
+            session.prompt_done = Some(done.clone());
             session.agent.clone()
         };
 
@@ -937,10 +942,14 @@ impl GooseAcpAgent {
             }
         }
 
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&session_id) {
-            session.cancel_token = None;
+        {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(&session_id) {
+                session.cancel_token = None;
+                session.prompt_done = None;
+            }
         }
+        done.notify_waiters();
 
         Ok(PromptResponse::new(if was_cancelled {
             StopReason::Cancelled
@@ -1321,20 +1330,34 @@ impl GooseAcpAgent {
         &self,
         req: ClearSessionRequest,
     ) -> Result<EmptyResponse, sacp::Error> {
-        // Cancel any in-flight streaming prompt before resetting state,
-        // otherwise the prompt task can keep appending messages after we clear.
-        {
-            let mut sessions = self.sessions.lock().await;
-            let session = sessions.get_mut(&req.session_id).ok_or_else(|| {
+        // Validate via session_manager so persisted (not-yet-loaded) sessions
+        // are accepted, consistent with session/get and session/delete.
+        self.session_manager
+            .get_session(&req.session_id, false)
+            .await
+            .map_err(|_| {
                 sacp::Error::invalid_params().data(format!("no active session: {}", req.session_id))
             })?;
-            if let Some(ref token) = session.cancel_token {
-                token.cancel();
-            }
-        }
 
-        // Brief yield so the prompt task can observe cancellation and exit.
-        tokio::task::yield_now().await;
+        // Cancel any in-flight prompt and grab the done signal so we can
+        // wait for the task to actually stop before resetting state.
+        let prompt_done = {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(&req.session_id) {
+                if let Some(ref token) = session.cancel_token {
+                    token.cancel();
+                }
+                session.prompt_done.clone()
+            } else {
+                None
+            }
+        };
+
+        // Wait for the prompt task to exit (with a bounded timeout).
+        if let Some(done) = prompt_done {
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_millis(800), done.notified()).await;
+        }
 
         self.session_manager
             .replace_conversation(
