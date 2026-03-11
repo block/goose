@@ -1394,7 +1394,7 @@ data: [DONE]"#;
         let thinking_config = result.unwrap();
         assert!(matches!(
             thinking_config.thinking_level,
-            ThinkingLevel::High
+            Some(ThinkingLevel::High)
         ));
 
         let config = ModelConfig::new("gemini-2.5-flash").unwrap();
@@ -1412,7 +1412,7 @@ data: [DONE]"#;
         params.insert("thinking_budget".to_string(), json!(4096));
         let config = ModelConfig::new("gemini-2.5-flash")
             .unwrap()
-            .with_request_params(Some(params));
+            .with_merged_request_params(params);
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
@@ -1422,7 +1422,7 @@ data: [DONE]"#;
         params.insert("thinking_budget".to_string(), json!(-1));
         let config = ModelConfig::new("gemini-2.5-flash")
             .unwrap()
-            .with_request_params(Some(params));
+            .with_merged_request_params(params);
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
