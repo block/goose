@@ -45,7 +45,7 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
-pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
+pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.3-codex";
 /// Per-model attributes for known ChatGPT Codex models.
 pub struct ChatGptCodexModelAttrs {
     pub name: &'static str,
@@ -53,6 +53,10 @@ pub struct ChatGptCodexModelAttrs {
 }
 
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[ChatGptCodexModelAttrs] = &[
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.4",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
     ChatGptCodexModelAttrs {
         name: "gpt-5.3-codex",
         reasoning_levels: &["low", "medium", "high", "xhigh"],
