@@ -789,19 +789,7 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
             })?;
 
-        for mcp_server in args.mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(sacp::Error::invalid_params().data(msg));
-                }
-            };
-            let name = config.name().to_string();
-            if let Err(e) = agent.add_extension(config, &goose_session.id).await {
-                return Err(sacp::Error::internal_error()
-                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
-            }
-        }
+        Self::add_mcp_extensions(&agent, args.mcp_servers, &goose_session.id).await?;
 
         let session = GooseAcpSession {
             agent,
@@ -841,6 +829,27 @@ impl GooseAcpAgent {
         Ok(provider)
     }
 
+    async fn add_mcp_extensions(
+        agent: &Agent,
+        mcp_servers: Vec<McpServer>,
+        session_id: &str,
+    ) -> Result<(), sacp::Error> {
+        for mcp_server in mcp_servers {
+            let config = match mcp_server_to_extension_config(mcp_server) {
+                Ok(c) => c,
+                Err(msg) => {
+                    return Err(sacp::Error::invalid_params().data(msg));
+                }
+            };
+            let name = config.name().to_string();
+            if let Err(e) = agent.add_extension(config, session_id).await {
+                return Err(sacp::Error::internal_error()
+                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
+            }
+        }
+        Ok(())
+    }
+
     async fn on_load_session(
         &self,
         cx: &JrConnectionCx<AgentToClient>,
@@ -877,19 +886,7 @@ impl GooseAcpAgent {
 
         // Use client-provided MCP servers per the ACP protocol spec,
         // rather than restoring from persisted session state.
-        for mcp_server in args.mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(sacp::Error::invalid_params().data(msg));
-                }
-            };
-            let name = config.name().to_string();
-            if let Err(e) = agent.add_extension(config, &session_id).await {
-                return Err(sacp::Error::internal_error()
-                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
-            }
-        }
+        Self::add_mcp_extensions(&agent, args.mcp_servers, &session_id).await?;
 
         let conversation = goose_session.conversation.ok_or_else(|| {
             sacp::Error::internal_error()
