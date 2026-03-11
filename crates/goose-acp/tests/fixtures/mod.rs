@@ -3,19 +3,17 @@
 
 use async_trait::async_trait;
 use fs_err as fs;
+pub use goose::acp::{map_permission_response, PermissionDecision, PermissionMapping};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
-use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
-use sacp::schema::{
-    McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionModelState, ToolCallStatus,
-};
+use sacp::schema::{AuthMethod, McpServer, SessionModelState, ToolCallStatus};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::path::Path;
@@ -25,49 +23,6 @@ use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PermissionDecision {
-    AllowAlways,
-    AllowOnce,
-    RejectOnce,
-    RejectAlways,
-    Cancel,
-}
-
-#[derive(Default)]
-pub struct PermissionMapping;
-
-pub fn map_permission_response(
-    _mapping: &PermissionMapping,
-    req: &RequestPermissionRequest,
-    decision: PermissionDecision,
-) -> RequestPermissionResponse {
-    let outcome = match decision {
-        PermissionDecision::Cancel => RequestPermissionOutcome::Cancelled,
-        PermissionDecision::AllowAlways => select_option(req, PermissionOptionKind::AllowAlways),
-        PermissionDecision::AllowOnce => select_option(req, PermissionOptionKind::AllowOnce),
-        PermissionDecision::RejectOnce => select_option(req, PermissionOptionKind::RejectOnce),
-        PermissionDecision::RejectAlways => select_option(req, PermissionOptionKind::RejectAlways),
-    };
-
-    RequestPermissionResponse::new(outcome)
-}
-
-fn select_option(
-    req: &RequestPermissionRequest,
-    kind: PermissionOptionKind,
-) -> RequestPermissionOutcome {
-    req.options
-        .iter()
-        .find(|opt| opt.kind == kind)
-        .map(|opt| {
-            RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                opt.option_id.clone(),
-            ))
-        })
-        .unwrap_or(RequestPermissionOutcome::Cancelled)
-}
 
 pub struct OpenAiFixture {
     _server: MockServer,
@@ -211,7 +166,7 @@ pub async fn spawn_acp_server_in_process(
             let base_url = base_url.clone();
             Box::pin(async move {
                 let api_client =
-                    ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string()))
+                    ApiClient::new(base_url, ApiAuthMethod::BearerToken("test-key".to_string()))
                         .unwrap();
                 let provider: Arc<dyn Provider> =
                     Arc::new(OpenAiProvider::new(api_client, model_config));
@@ -273,6 +228,7 @@ pub trait Connection: Sized {
         &mut self,
         session_id: &str,
     ) -> (Self::Session, Option<SessionModelState>);
+    fn auth_methods(&self) -> &[AuthMethod];
     fn reset_openai(&self);
     fn reset_permissions(&self);
 }
@@ -281,6 +237,13 @@ pub trait Connection: Sized {
 pub trait Session {
     fn session_id(&self) -> &sacp::schema::SessionId;
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+    async fn prompt_with_image(
+        &mut self,
+        text: &str,
+        image_b64: &str,
+        mime_type: &str,
+        decision: PermissionDecision,
+    ) -> TestOutput;
     async fn set_model(&self, model_id: &str);
 }
 
@@ -332,4 +295,5 @@ pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::Initia
         .unwrap()
 }
 
+pub mod provider;
 pub mod server;

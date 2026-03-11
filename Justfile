@@ -144,6 +144,7 @@ debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
     cd ui/desktop && \
     export GOOSE_EXTERNAL_BACKEND=true && \
+    export GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" && \
     {{ if alpha == "alpha" { "export ALPHA=true &&" } else { "" } }} \
     pnpm install && \
     pnpm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}

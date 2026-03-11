@@ -538,8 +538,14 @@ impl ExtensionManager {
     ) -> ExtensionResult<()> {
         let sanitized_name = config.key();
 
-        if self.extensions.lock().await.contains_key(&sanitized_name) {
-            return Ok(());
+        if let Some(existing) = self.extensions.lock().await.get(&sanitized_name) {
+            if existing.config == config {
+                return Ok(());
+            }
+            tracing::debug!(
+                name = sanitized_name,
+                "extension config changed, restarting with updated config"
+            );
         }
 
         let mut temp_dir = None;
@@ -965,7 +971,7 @@ impl ExtensionManager {
                 let expose_unprefixed = is_unprefixed_extension(&config);
 
                 loop {
-                    for tool in client_tools.tools {
+                    for mut tool in client_tools.tools {
                         if config.is_tool_available(&tool.name) {
                             let public_name = if expose_unprefixed {
                                 tool.name.to_string()
@@ -983,17 +989,10 @@ impl ExtensionManager {
                                 serde_json::Value::String(name.clone()),
                             );
 
-                            tools.push(Tool {
-                                name: public_name.into(),
-                                description: tool.description,
-                                input_schema: tool.input_schema,
-                                annotations: tool.annotations,
-                                output_schema: tool.output_schema,
-                                execution: tool.execution,
-                                icons: tool.icons,
-                                title: tool.title,
-                                meta: Some(rmcp::model::Meta(meta_map)),
-                            });
+                            tool.name = public_name.into();
+                            tool.meta = Some(rmcp::model::Meta(meta_map));
+
+                            tools.push(tool);
                         }
                     }
 
@@ -1784,12 +1783,9 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" | "available_tool" | "hidden_tool" => Ok(CallToolResult {
-                    content: vec![],
-                    is_error: None,
-                    structured_content: None,
-                    meta: None,
-                }),
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" => {
+                    Ok(CallToolResult::success(vec![]))
+                }
                 _ => Err(Error::TransportClosed),
             }
         }
@@ -1837,12 +1833,8 @@ mod tests {
             .add_mock_extension("client 🚀".to_string(), Arc::new(MockClient {}))
             .await;
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_client__tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call =
+            CallToolRequestParams::new("test_client__tool".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1854,12 +1846,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_client__available_tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call = CallToolRequestParams::new("test_client__available_tool".to_string())
+            .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1871,12 +1859,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "__cli__ent____tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call = CallToolRequestParams::new("__cli__ent____tool".to_string())
+            .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1888,12 +1872,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "client___tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call =
+            CallToolRequestParams::new("client___tool".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1905,12 +1885,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let invalid_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "client___tools".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let invalid_tool_call =
+            CallToolRequestParams::new("client___tools".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1927,12 +1903,8 @@ mod tests {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
 
-        let invalid_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "_client__tools".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let invalid_tool_call =
+            CallToolRequestParams::new("_client__tools".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -2029,12 +2001,8 @@ mod tests {
             )
             .await;
 
-        let unavailable_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_extension__tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let unavailable_tool_call = CallToolRequestParams::new("test_extension__tool".to_string())
+            .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -2053,12 +2021,9 @@ mod tests {
         }
 
         // Try to call an available tool - should succeed
-        let available_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_extension__available_tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let available_tool_call =
+            CallToolRequestParams::new("test_extension__available_tool".to_string())
+                .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -2234,5 +2199,91 @@ mod tests {
 
         assert!(tool_names.iter().any(|n| n.starts_with("ext_a__")));
         assert!(!tool_names.iter().any(|n| n.starts_with("ext_b__")));
+    }
+
+    #[tokio::test]
+    async fn test_add_extension_noop_on_identical_config() {
+        // When add_extension is called with a config that is byte-for-byte identical to
+        // the already-loaded one, it must return Ok(()) without removing the extension.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+
+        let config = ExtensionConfig::Frontend {
+            name: "test-ext".to_string(),
+            description: "original".to_string(),
+            tools: vec![],
+            instructions: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+
+        em.add_client(
+            "test-ext".to_string(),
+            config.clone(),
+            Arc::new(MockClient {}),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(em.extensions.lock().await.len(), 1);
+
+        // Calling add_extension with the same config must be a no-op (Ok, count unchanged).
+        let result = em.add_extension(config, None, None, None).await;
+        assert!(result.is_ok(), "identical config should be a no-op");
+        assert_eq!(
+            em.extensions.lock().await.len(),
+            1,
+            "extension must not be removed on no-op"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_add_extension_replaces_extension_on_config_change() {
+        // When add_extension is called with an updated config (same name, different fields),
+        // the existing extension must be removed so the caller can re-add with new config.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+
+        let config_a = ExtensionConfig::Frontend {
+            name: "test-ext".to_string(),
+            description: "version-a".to_string(),
+            tools: vec![],
+            instructions: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let config_b = ExtensionConfig::Frontend {
+            name: "test-ext".to_string(),
+            description: "version-b".to_string(), // changed
+            tools: vec![],
+            instructions: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+
+        em.add_client(
+            "test-ext".to_string(),
+            config_a,
+            Arc::new(MockClient {}),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(em.extensions.lock().await.len(), 1);
+
+        // add_extension with changed config attempts to create a new client (fails here
+        // because Frontend configs cannot be added as server extensions), but must preserve
+        // the old extension so the session isn't left without it.
+        let result = em.add_extension(config_b, None, None, None).await;
+        assert!(result.is_err(), "Frontend add_extension must return Err");
+        assert_eq!(
+            em.extensions.lock().await.len(),
+            1,
+            "old extension must be preserved when replacement client creation fails"
+        );
     }
 }

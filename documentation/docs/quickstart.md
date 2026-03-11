@@ -230,13 +230,6 @@ Sessions are single, continuous conversations between you and goose. Let's start
         goose session
         ```
 
-        :::tip goose Web
-        CLI users can also start a session in [goose Web](/docs/guides/goose-cli-commands#web), a web-based chat interface:
-        ```sh
-        goose web --open
-        ```
-        :::
-
     </TabItem>
 </Tabs>
 

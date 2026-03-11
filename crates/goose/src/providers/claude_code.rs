@@ -785,14 +785,16 @@ impl Provider for ClaudeCodeProvider {
                                                     .and_then(|d| d.get("text"))
                                                     .and_then(|t| t.as_str())
                                                 {
-                                                    let mut partial_message = Message::new(
-                                                        Role::Assistant,
-                                                        stream_timestamp,
-                                                        vec![MessageContent::text(text)],
-                                                    );
-                                                    partial_message.id =
-                                                        Some(message_id.clone());
-                                                    yield (Some(partial_message), None);
+                                                    if !text.is_empty() {
+                                                        let mut partial_message = Message::new(
+                                                            Role::Assistant,
+                                                            stream_timestamp,
+                                                            vec![MessageContent::text(text)],
+                                                        );
+                                                        partial_message.id =
+                                                            Some(message_id.clone());
+                                                        yield (Some(partial_message), None);
+                                                    }
                                                 }
                                             }
                                             Some("message_start") => {
@@ -1019,21 +1021,14 @@ mod tests {
     )]
     #[test_case(
         vec![Message::new(Role::Assistant, 0, vec![
-            MessageContent::tool_request("call_123", Ok(rmcp::model::CallToolRequestParams {
-                name: "developer__shell".into(),
-                arguments: Some(serde_json::from_value(json!({"cmd": "ls"})).unwrap()),
-                meta: None, task: None,
-            }))
+            MessageContent::tool_request("call_123", Ok(rmcp::model::CallToolRequestParams::new("developer__shell").with_arguments(serde_json::from_value(json!({"cmd": "ls"})).unwrap())))
         ])],
         &[json!({"type":"text","text":"Assistant: [tool_use: developer__shell id=call_123]"})]
         ; "tool_request_no_user_fallback"
     )]
     #[test_case(
         vec![Message::new(Role::User, 0, vec![
-            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult {
-                content: vec![rmcp::model::Content::text("file1.txt\nfile2.txt")],
-                is_error: None, structured_content: None, meta: None,
-            }))
+            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult::success(vec![rmcp::model::Content::text("file1.txt\nfile2.txt")])))
         ])],
         &[json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})]
         ; "tool_response"

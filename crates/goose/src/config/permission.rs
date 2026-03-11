@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -97,6 +98,51 @@ impl PermissionManager {
         self.config_path.as_path()
     }
 
+    pub fn apply_tool_annotations(&self, tools: &[Tool]) {
+        let mut write_annotated = Vec::new();
+        for tool in tools {
+            let Some(anns) = &tool.annotations else {
+                continue;
+            };
+            if anns.read_only_hint == Some(false) {
+                write_annotated.push(tool.name.to_string());
+            }
+        }
+        if !write_annotated.is_empty() {
+            self.bulk_update_smart_approve_permissions(
+                &write_annotated,
+                PermissionLevel::AskBefore,
+            );
+        }
+    }
+
+    fn bulk_update_smart_approve_permissions(&self, tool_names: &[String], level: PermissionLevel) {
+        let mut map = self.permission_map.write().unwrap();
+        let permission_config = map.entry(SMART_APPROVE_PERMISSION.to_string()).or_default();
+
+        for tool_name in tool_names {
+            // Remove from all lists to avoid duplicates
+            permission_config.always_allow.retain(|p| p != tool_name);
+            permission_config.ask_before.retain(|p| p != tool_name);
+            permission_config.never_allow.retain(|p| p != tool_name);
+
+            // Add to the appropriate list
+            match &level {
+                PermissionLevel::AlwaysAllow => {
+                    permission_config.always_allow.push(tool_name.clone())
+                }
+                PermissionLevel::AskBefore => permission_config.ask_before.push(tool_name.clone()),
+                PermissionLevel::NeverAllow => {
+                    permission_config.never_allow.push(tool_name.clone())
+                }
+            }
+        }
+
+        let yaml_content =
+            serde_yaml::to_string(&*map).expect("Failed to serialize permission config");
+        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
+    }
+
     /// Helper function to retrieve the permission level for a specific permission category and tool.
     fn get_permission(&self, name: &str, principal_name: &str) -> Option<PermissionLevel> {
         let map = self.permission_map.read().unwrap();
@@ -191,6 +237,8 @@ impl PermissionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::ToolAnnotations;
+    use rmcp::object;
     use tempfile::TempDir;
 
     // Helper function to create a test instance of PermissionManager with a temp dir
@@ -312,5 +360,30 @@ mod tests {
         let permission_path = temp_dir.path().join(PERMISSION_FILE);
         fs::write(&permission_path, "{{invalid yaml: [broken").unwrap();
         PermissionManager::new(temp_dir.path().to_path_buf());
+    }
+
+    use test_case::test_case;
+
+    #[test_case(
+        vec![Tool::new("tool".to_string(), String::new(), object!({"type": "object"}))
+            .annotate(ToolAnnotations::new().read_only(false))],
+        Some(PermissionLevel::AskBefore);
+        "write_annotation_caches_ask"
+    )]
+    #[test_case(
+        vec![Tool::new("tool".to_string(), String::new(), object!({"type": "object"}))],
+        None;
+        "unannotated_left_uncached"
+    )]
+    #[test_case(
+        vec![Tool::new("tool".to_string(), String::new(), object!({"type": "object"}))
+            .annotate(ToolAnnotations::new().read_only(true))],
+        None;
+        "readonly_annotation_skipped"
+    )]
+    fn test_apply_tool_annotations(tools: Vec<Tool>, expect_cache: Option<PermissionLevel>) {
+        let (manager, _temp_dir) = create_test_permission_manager();
+        manager.apply_tool_annotations(&tools);
+        assert_eq!(manager.get_smart_approve_permission("tool"), expect_cache);
     }
 }
