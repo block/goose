@@ -884,8 +884,6 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
             })?;
 
-        // Use client-provided MCP servers per the ACP protocol spec,
-        // rather than restoring from persisted session state.
         Self::add_mcp_extensions(&agent, args.mcp_servers, &session_id).await?;
 
         let conversation = goose_session.conversation.ok_or_else(|| {
