@@ -140,7 +140,19 @@ export type Content = ({
     type: 'resource_link';
 } & RawResource);
 
-export type ContentBlock = ContentBlock;
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlockRef = ContentBlock;
 
 export type Conversation = Array<Message>;
 

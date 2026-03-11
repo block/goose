@@ -3888,7 +3888,7 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ContentBlock"
+              "$ref": "#/components/schemas/ContentBlockRef"
             }
           },
           "isError": {
@@ -4153,6 +4153,115 @@
         ]
       },
       "ContentBlock": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawTextContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawImageContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawAudioContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawResource"
+              }
+            ]
+          }
+        ]
+      },
+      "ContentBlockRef": {
         "$ref": "#/components/schemas/ContentBlock"
       },
       "Conversation": {

@@ -134,27 +134,28 @@ pub struct CallToolRequest {
     arguments: Value,
 }
 
-/// Ref-only alias so utoipa emits `$ref: "#/components/schemas/ContentBlock"`.
+/// Ref-only proxy so utoipa emits `$ref: "#/components/schemas/ContentBlock"`.
 /// The actual schema is registered via `derive_utoipa!(RawContent as ContentBlockSchema => "ContentBlock")`.
+/// Uses a distinct name to avoid overwriting the real schema with a self-reference.
 #[allow(dead_code)]
-pub enum ContentBlock {}
+pub enum ContentBlockRef {}
 
-impl utoipa::PartialSchema for ContentBlock {
+impl utoipa::PartialSchema for ContentBlockRef {
     fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
         utoipa::openapi::RefOr::Ref(utoipa::openapi::Ref::from_schema_name("ContentBlock"))
     }
 }
 
-impl utoipa::ToSchema for ContentBlock {
+impl utoipa::ToSchema for ContentBlockRef {
     fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("ContentBlock")
+        std::borrow::Cow::Borrowed("ContentBlockRef")
     }
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CallToolResponse {
-    #[schema(value_type = Vec<ContentBlock>)]
+    #[schema(value_type = Vec<ContentBlockRef>)]
     content: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
