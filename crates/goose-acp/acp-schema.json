@@ -16,7 +16,7 @@
         "session_id",
         "config"
       ],
-      "description": "Add an extension to an active session.\nMethod: `_agent/extensions/add`",
+      "description": "Add an extension to an active session.",
       "x-side": "agent",
       "x-method": "extensions/add"
     },
@@ -39,7 +39,7 @@
         "session_id",
         "name"
       ],
-      "description": "Remove an extension from an active session.\nMethod: `_agent/extensions/remove`",
+      "description": "Remove an extension from an active session.",
       "x-side": "agent",
       "x-method": "extensions/remove"
     },
@@ -53,7 +53,7 @@
       "required": [
         "session_id"
       ],
-      "description": "List all tools available in a session.\nMethod: `_agent/tools`",
+      "description": "List all tools available in a session.",
       "x-side": "agent",
       "x-method": "tools"
     },
@@ -90,7 +90,7 @@
         "uri",
         "extension_name"
       ],
-      "description": "Read a resource from an extension.\nMethod: `_agent/resource/read`",
+      "description": "Read a resource from an extension.",
       "x-side": "agent",
       "x-method": "resource/read"
     },
@@ -121,7 +121,7 @@
         "session_id",
         "working_dir"
       ],
-      "description": "Update the working directory for a session.\nMethod: `_agent/working_dir/update`",
+      "description": "Update the working directory for a session.",
       "x-side": "agent",
       "x-method": "working_dir/update"
     },
@@ -130,15 +130,77 @@
       "properties": {
         "sessions": {
           "type": "array",
-          "items": true
+          "items": {
+            "$ref": "#/$defs/SessionInfo"
+          },
+          "description": "Array of session information objects"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque cursor token. If present, pass this in the next request's cursor parameter\nto fetch the next page. If absent, there are no more results."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
         }
       },
       "required": [
         "sessions"
       ],
-      "description": "List all sessions.\nMethod: `_session/list`",
+      "description": "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse from listing sessions.",
       "x-side": "agent",
       "x-method": "session/list"
+    },
+    "SessionInfo": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/$defs/SessionId",
+          "description": "Unique identifier for the session"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "The working directory for this session. Must be an absolute path."
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Human-readable title for the session"
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO 8601 timestamp of last activity"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "sessionId",
+        "cwd"
+      ],
+      "description": "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInformation about a session returned by session/list"
+    },
+    "SessionId": {
+      "type": "string",
+      "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
     },
     "GetSessionRequest": {
       "type": "object",
@@ -154,7 +216,7 @@
       "required": [
         "session_id"
       ],
-      "description": "Get a session by ID.\nMethod: `_session/get`",
+      "description": "Get a session by ID.",
       "x-side": "agent",
       "x-method": "session/get"
     },
@@ -182,7 +244,7 @@
       "required": [
         "session_id"
       ],
-      "description": "Delete a session.\nMethod: `_session/delete`",
+      "description": "Delete a session.",
       "x-side": "agent",
       "x-method": "session/delete"
     },
@@ -196,7 +258,7 @@
       "required": [
         "session_id"
       ],
-      "description": "Export a session as a JSON string.\nMethod: `_session/export`",
+      "description": "Export a session as a JSON string.",
       "x-side": "agent",
       "x-method": "session/export"
     },
@@ -223,7 +285,7 @@
       "required": [
         "data"
       ],
-      "description": "Import a session from a JSON string.\nMethod: `_session/import`",
+      "description": "Import a session from a JSON string.",
       "x-side": "agent",
       "x-method": "session/import"
     },
@@ -259,9 +321,214 @@
         "extensions",
         "warnings"
       ],
-      "description": "List configured extensions and any warnings.\nMethod: `_config/extensions`",
+      "description": "List configured extensions and any warnings.",
       "x-side": "agent",
       "x-method": "config/extensions"
+    },
+    "ListPromptsRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "List extension prompts for a session.",
+      "x-side": "agent",
+      "x-method": "config/prompts"
+    },
+    "ListPromptsResponse": {
+      "type": "object",
+      "properties": {
+        "prompts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/PromptEntry"
+            }
+          },
+          "description": "Map of extension name -> list of prompts."
+        }
+      },
+      "required": [
+        "prompts"
+      ],
+      "x-side": "agent",
+      "x-method": "config/prompts"
+    },
+    "PromptEntry": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arguments": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": true
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "description": "A single prompt entry with name, description, and arguments."
+    },
+    "GetPromptInfoRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "name"
+      ],
+      "description": "Get detailed info for a single prompt by name.",
+      "x-side": "agent",
+      "x-method": "config/prompt_info"
+    },
+    "GetPromptInfoResponse": {
+      "type": "object",
+      "properties": {
+        "found": {
+          "type": "boolean"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PromptEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extension": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "found"
+      ],
+      "x-side": "agent",
+      "x-method": "config/prompt_info"
+    },
+    "ProviderInfoRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "Get provider info (name, model, context limit, token usage) for a session.",
+      "x-side": "agent",
+      "x-method": "agent/provider_info"
+    },
+    "ProviderInfoResponse": {
+      "type": "object",
+      "properties": {
+        "provider_name": {
+          "type": "string"
+        },
+        "model_name": {
+          "type": "string"
+        },
+        "context_limit": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "total_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "input_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        }
+      },
+      "required": [
+        "provider_name",
+        "model_name",
+        "context_limit"
+      ],
+      "x-side": "agent",
+      "x-method": "agent/provider_info"
+    },
+    "PlanPromptRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "Get the plan prompt string for a session.",
+      "x-side": "agent",
+      "x-method": "agent/plan_prompt"
+    },
+    "PlanPromptResponse": {
+      "type": "object",
+      "properties": {
+        "plan_prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_prompt"
+      ],
+      "x-side": "agent",
+      "x-method": "agent/plan_prompt"
+    },
+    "ClearSessionRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "Clear a session's conversation and reset token counts.",
+      "x-side": "agent",
+      "x-method": "session/clear"
     },
     "ExtRequest": {
       "properties": {
@@ -355,6 +622,51 @@
                   ],
                   "description": "Params for _goose/session/import",
                   "title": "ImportSessionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListPromptsRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/config/prompts",
+                  "title": "ListPromptsRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetPromptInfoRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/config/prompt_info",
+                  "title": "GetPromptInfoRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ProviderInfoRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/agent/provider_info",
+                  "title": "ProviderInfoRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/PlanPromptRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/agent/plan_prompt",
+                  "title": "PlanPromptRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ClearSessionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/session/clear",
+                  "title": "ClearSessionRequest"
                 }
               ]
             },
@@ -449,6 +761,38 @@
                         }
                       ],
                       "title": "GetExtensionsResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListPromptsResponse"
+                        }
+                      ],
+                      "title": "ListPromptsResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetPromptInfoResponse"
+                        }
+                      ],
+                      "title": "GetPromptInfoResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ProviderInfoResponse"
+                        }
+                      ],
+                      "title": "ProviderInfoResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/PlanPromptResponse"
+                        }
+                      ],
+                      "title": "PlanPromptResponse"
                     }
                   ]
                 },

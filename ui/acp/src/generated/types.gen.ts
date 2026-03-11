@@ -3,7 +3,6 @@
 
 /**
  * Add an extension to an active session.
- * Method: `_agent/extensions/add`
  */
 export type AddExtensionRequest = {
     session_id: string;
@@ -22,7 +21,6 @@ export type EmptyResponse = {
 
 /**
  * Remove an extension from an active session.
- * Method: `_agent/extensions/remove`
  */
 export type RemoveExtensionRequest = {
     session_id: string;
@@ -31,7 +29,6 @@ export type RemoveExtensionRequest = {
 
 /**
  * List all tools available in a session.
- * Method: `_agent/tools`
  */
 export type GetToolsRequest = {
     session_id: string;
@@ -46,7 +43,6 @@ export type GetToolsResponse = {
 
 /**
  * Read a resource from an extension.
- * Method: `_agent/resource/read`
  */
 export type ReadResourceRequest = {
     session_id: string;
@@ -63,7 +59,6 @@ export type ReadResourceResponse = {
 
 /**
  * Update the working directory for a session.
- * Method: `_agent/working_dir/update`
  */
 export type UpdateWorkingDirRequest = {
     session_id: string;
@@ -71,16 +66,82 @@ export type UpdateWorkingDirRequest = {
 };
 
 /**
- * List all sessions.
- * Method: `_session/list`
+ * **UNSTABLE**
+ *
+ * This capability is not part of the spec yet, and may be removed or changed at any point.
+ *
+ * Response from listing sessions.
  */
 export type ListSessionsResponse = {
-    sessions: Array<unknown>;
+    /**
+     * Array of session information objects
+     */
+    sessions: Array<SessionInfo>;
+    /**
+     * Opaque cursor token. If present, pass this in the next request's cursor parameter
+     * to fetch the next page. If absent, there are no more results.
+     */
+    nextCursor?: string | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
+ * **UNSTABLE**
+ *
+ * This capability is not part of the spec yet, and may be removed or changed at any point.
+ *
+ * Information about a session returned by session/list
+ */
+export type SessionInfo = {
+    /**
+     * Unique identifier for the session
+     */
+    sessionId: SessionId;
+    /**
+     * The working directory for this session. Must be an absolute path.
+     */
+    cwd: string;
+    /**
+     * Human-readable title for the session
+     */
+    title?: string | null;
+    /**
+     * ISO 8601 timestamp of last activity
+     */
+    updatedAt?: string | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * A unique identifier for a conversation session between a client and agent.
+ *
+ * Sessions maintain their own context, conversation history, and state,
+ * allowing multiple independent interactions with the same agent.
+ *
+ * See protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)
+ */
+export type SessionId = string;
+
+/**
  * Get a session by ID.
- * Method: `_session/get`
  */
 export type GetSessionRequest = {
     session_id: string;
@@ -99,7 +160,6 @@ export type GetSessionResponse = {
 
 /**
  * Delete a session.
- * Method: `_session/delete`
  */
 export type DeleteSessionRequest = {
     session_id: string;
@@ -107,7 +167,6 @@ export type DeleteSessionRequest = {
 
 /**
  * Export a session as a JSON string.
- * Method: `_session/export`
  */
 export type ExportSessionRequest = {
     session_id: string;
@@ -119,7 +178,6 @@ export type ExportSessionResponse = {
 
 /**
  * Import a session from a JSON string.
- * Method: `_session/import`
  */
 export type ImportSessionRequest = {
     data: string;
@@ -134,7 +192,6 @@ export type ImportSessionResponse = {
 
 /**
  * List configured extensions and any warnings.
- * Method: `_config/extensions`
  */
 export type GetExtensionsResponse = {
     /**
@@ -144,17 +201,90 @@ export type GetExtensionsResponse = {
     warnings: Array<string>;
 };
 
+/**
+ * List extension prompts for a session.
+ */
+export type ListPromptsRequest = {
+    session_id: string;
+};
+
+export type ListPromptsResponse = {
+    /**
+     * Map of extension name -> list of prompts.
+     */
+    prompts: {
+        [key: string]: Array<PromptEntry>;
+    };
+};
+
+/**
+ * A single prompt entry with name, description, and arguments.
+ */
+export type PromptEntry = {
+    name: string;
+    description?: string | null;
+    arguments?: Array<unknown> | null;
+};
+
+/**
+ * Get detailed info for a single prompt by name.
+ */
+export type GetPromptInfoRequest = {
+    session_id: string;
+    name: string;
+};
+
+export type GetPromptInfoResponse = {
+    found: boolean;
+    prompt?: PromptEntry | null;
+    extension?: string | null;
+};
+
+/**
+ * Get provider info (name, model, context limit, token usage) for a session.
+ */
+export type ProviderInfoRequest = {
+    session_id: string;
+};
+
+export type ProviderInfoResponse = {
+    provider_name: string;
+    model_name: string;
+    context_limit: number;
+    total_tokens?: number | null;
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+};
+
+/**
+ * Get the plan prompt string for a session.
+ */
+export type PlanPromptRequest = {
+    session_id: string;
+};
+
+export type PlanPromptResponse = {
+    plan_prompt: string;
+};
+
+/**
+ * Clear a session's conversation and reset token counts.
+ */
+export type ClearSessionRequest = {
+    session_id: string;
+};
+
 export type ExtRequest = {
     id: string;
     method: string;
-    params?: AddExtensionRequest | RemoveExtensionRequest | GetToolsRequest | ReadResourceRequest | UpdateWorkingDirRequest | GetSessionRequest | DeleteSessionRequest | ExportSessionRequest | ImportSessionRequest | {
+    params?: AddExtensionRequest | RemoveExtensionRequest | GetToolsRequest | ReadResourceRequest | UpdateWorkingDirRequest | GetSessionRequest | DeleteSessionRequest | ExportSessionRequest | ImportSessionRequest | ListPromptsRequest | GetPromptInfoRequest | ProviderInfoRequest | PlanPromptRequest | ClearSessionRequest | {
         [key: string]: unknown;
     } | null;
 };
 
 export type ExtResponse = {
     id: string;
-    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | ListSessionsResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | unknown;
+    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | ListSessionsResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | ListPromptsResponse | GetPromptInfoResponse | ProviderInfoResponse | PlanPromptResponse | unknown;
 } | {
     error: {
         code: number;

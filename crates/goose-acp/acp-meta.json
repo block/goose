@@ -54,6 +54,31 @@
       "method": "config/extensions",
       "requestType": null,
       "responseType": "GetExtensionsResponse"
+    },
+    {
+      "method": "config/prompts",
+      "requestType": "ListPromptsRequest",
+      "responseType": "ListPromptsResponse"
+    },
+    {
+      "method": "config/prompt_info",
+      "requestType": "GetPromptInfoRequest",
+      "responseType": "GetPromptInfoResponse"
+    },
+    {
+      "method": "agent/provider_info",
+      "requestType": "ProviderInfoRequest",
+      "responseType": "ProviderInfoResponse"
+    },
+    {
+      "method": "agent/plan_prompt",
+      "requestType": "PlanPromptRequest",
+      "responseType": "PlanPromptResponse"
+    },
+    {
+      "method": "session/clear",
+      "requestType": "ClearSessionRequest",
+      "responseType": "EmptyResponse"
     }
   ]
 }

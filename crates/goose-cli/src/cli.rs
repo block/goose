@@ -722,7 +722,11 @@ enum Command {
         builtins: Vec<String>,
     },
 
-    /// Start goose as an ACP server over HTTP/WebSocket
+    /// Start goose as an ACP server over HTTP/WebSocket.
+    ///
+    /// Transitional bridge for the three-binary → one-binary consolidation
+    /// (see #6642). Once goose-cli is collapsed into goose, this serve logic
+    /// can move into the main crate or become the default behavior (#7697).
     #[command(
         about = "Start goose as an ACP server over HTTP and WebSocket",
         long_about = "Start a goose ACP server that exposes the Agent Client Protocol over HTTP \n\
