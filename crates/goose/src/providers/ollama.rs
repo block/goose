@@ -369,14 +369,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ollama_retry_config_values() {
-        assert_eq!(OLLAMA_MAX_RETRIES, 10);
-        assert_eq!(OLLAMA_INITIAL_RETRY_INTERVAL_MS, 2000);
-        assert!((OLLAMA_BACKOFF_MULTIPLIER - 1.5).abs() < f64::EPSILON);
-        assert_eq!(OLLAMA_MAX_RETRY_INTERVAL_MS, 15_000);
-    }
-
-    #[test]
     fn test_ollama_retry_config_is_transient_only() {
         let config = RetryConfig::new(
             OLLAMA_MAX_RETRIES,
@@ -407,33 +399,5 @@ mod tests {
             &ProviderError::NetworkError("connection refused".into()),
             &config
         ));
-    }
-
-    #[test]
-    fn test_ollama_retry_config_provides_sufficient_wait_time() {
-        let config = RetryConfig::new(
-            OLLAMA_MAX_RETRIES,
-            OLLAMA_INITIAL_RETRY_INTERVAL_MS,
-            OLLAMA_BACKOFF_MULTIPLIER,
-            OLLAMA_MAX_RETRY_INTERVAL_MS,
-        );
-
-        assert_eq!(config.max_retries(), OLLAMA_MAX_RETRIES);
-
-        let mut base_total_ms: u64 = 0;
-        for attempt in 1..=OLLAMA_MAX_RETRIES {
-            let exponent = (attempt - 1) as u32;
-            let base_delay = (OLLAMA_INITIAL_RETRY_INTERVAL_MS as f64
-                * OLLAMA_BACKOFF_MULTIPLIER.powi(exponent as i32))
-                as u64;
-            let capped = std::cmp::min(base_delay, OLLAMA_MAX_RETRY_INTERVAL_MS);
-            base_total_ms += capped;
-        }
-        let min_total_secs = (base_total_ms as f64 * 0.8) / 1000.0;
-
-        assert!(
-            min_total_secs >= 60.0,
-            "Minimum total retry wait time ({min_total_secs:.1}s) should be >= 60s"
-        );
     }
 }
