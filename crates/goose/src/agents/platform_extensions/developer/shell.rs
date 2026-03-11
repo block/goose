@@ -266,7 +266,7 @@ fn build_shell_command(command_line: &str) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
         let mut command = tokio::process::Command::new("cmd");
-        command.arg("/C").arg(command_line);
+        command.arg("/C").raw_arg(command_line);
         command
     };
 
