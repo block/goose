@@ -21,7 +21,7 @@ include = [
 workspace = true
 
 [dependencies]
-rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros"] }
+rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros", "schemars", "elicitation"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true, features = ["io-util"] }

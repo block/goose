@@ -54,3 +54,38 @@ Elicitation requests timeout after 5 minutes. If you don't respond in time, the 
 ## For Extension Developers
 
 Want to add elicitation to your own extensions? See the [MCP Elicitation specification](https://modelcontextprotocol.io/specification/draft/client/elicitation) to learn how MCP servers can request structured input from users.
+
+## Approval Workflow Example
+
+One useful pattern for elicitation is **approval-gated workflows**. Instead of hard-coding approval logic into a recipe, an MCP server can ask goose to collect a structured decision from the user and then continue based on that response.
+
+This works in both interfaces:
+
+- **goose Desktop** renders the approval form inline
+- **goose CLI** prompts for the same fields in the terminal
+
+A minimal Rust example now lives in this repository:
+
+`crates/goose-mcp/examples/approval_workflow.rs`
+
+The example exposes a `request_approval` tool and uses elicitation to collect:
+
+- `approved`: boolean
+- `reason`: optional string
+
+The core server-side call looks like this:
+
+```rust
+context
+    .peer
+    .elicit_with_timeout::<ApprovalDecision>(prompt, None)
+    .await
+```
+
+This is a good fit when your workflow should:
+
+1. inspect or summarize an action
+2. ask the user to explicitly approve or reject it
+3. continue with structured input rather than guessing
+
+If you want to build a complete flow on top of this, see the tutorial extension's `approval-workflows` tutorial and pair elicitation with recipe `retry.checks` when you need checkpointed or headless workflows.

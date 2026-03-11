@@ -54,6 +54,7 @@ Currently, the following tutorials are available:
 
 - **build-mcp-extension**: Learn how to build an extension using the Model Context Protocol (MCP)
 - **first-game**: Create your first game with goose
+- **approval-workflows**: Build an MCP workflow that pauses for explicit approval using elicitation
 
 More tutorials are being added regularly to cover additional features and use cases.
 
