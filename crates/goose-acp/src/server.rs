@@ -875,6 +875,9 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
             })?;
 
+        // Restore MCP extensions that were active when the session was created
+        agent.load_extensions_from_session(&goose_session).await;
+
         let conversation = goose_session.conversation.ok_or_else(|| {
             sacp::Error::internal_error()
                 .data(format!("Session {} has no conversation data", session_id))
