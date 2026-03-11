@@ -61,6 +61,8 @@ url = { workspace = true }
 urlencoding = { workspace = true }
 clap_complete = "4.5.62"
 comfy-table = "7.2.2"
+sha2 = "0.10"
+sigstore-verification = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
