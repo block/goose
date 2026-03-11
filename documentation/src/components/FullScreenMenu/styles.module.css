@@ -1,0 +1,79 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--background-app);
+  display: flex;
+  flex-direction: column;
+  font-family: "Cash Sans", sans-serif;
+}
+
+.closeButton {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.5rem;
+  background: none;
+  border: none;
+  color: var(--text-prominent);
+  font-size: 1rem;
+  font-family: "Cash Sans", sans-serif;
+  cursor: pointer;
+  padding: 0.5rem;
+  z-index: 1001;
+  transition: color 0.2s ease;
+}
+
+.closeButton:hover {
+  color: var(--text-subtle);
+}
+
+.navLinks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.navLink {
+  font-size: 48px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-prominent);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.navLink:hover {
+  color: var(--text-subtle);
+  text-decoration: none;
+}
+
+.socialLinks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem 1.5rem;
+  border-top: 1px solid var(--border-divider);
+}
+
+.socialLink {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--text-standard);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.socialLink:hover {
+  color: var(--text-subtle);
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .navLink {
+    font-size: 36px;
+  }
+}

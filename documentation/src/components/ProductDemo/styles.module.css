@@ -1,0 +1,53 @@
+.section {
+  width: 100%;
+  padding: 4rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.demoContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  position: relative;
+}
+
+.demoImage {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.marqueeOverlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  padding: 0.75rem 0;
+  background: var(--background-app);
+}
+
+.marqueeText {
+  font-family: "Cash Sans", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-prominent);
+  white-space: nowrap;
+  padding: 0 1rem;
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 2.5rem 0;
+  }
+
+  .marqueeText {
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+}

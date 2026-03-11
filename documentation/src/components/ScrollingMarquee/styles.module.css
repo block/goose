@@ -1,0 +1,32 @@
+.marqueeContainer {
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+}
+
+.marqueeTrack {
+  display: flex;
+  width: max-content;
+}
+
+.pauseOnHover:hover .marqueeTrack {
+  animation-play-state: paused;
+}
+
+@keyframes scrollLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes scrollRight {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

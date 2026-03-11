@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750">
+  <rect width="1200" height="750" rx="12" fill="#1e1e1e"/>
+  <!-- Title bar -->
+  <rect y="0" width="1200" height="40" rx="12" fill="#2a2a2a"/>
+  <rect y="12" width="1200" height="28" fill="#2a2a2a"/>
+  <circle cx="20" cy="20" r="6" fill="#ff5f57"/>
+  <circle cx="40" cy="20" r="6" fill="#febc2e"/>
+  <circle cx="60" cy="20" r="6" fill="#28c840"/>
+  <text x="600" y="25" text-anchor="middle" fill="#878787" font-family="sans-serif" font-size="13">goose</text>
+  <!-- Sidebar -->
+  <rect x="0" y="40" width="260" height="710" fill="#1a1a1a"/>
+  <text x="24" y="72" fill="#878787" font-family="sans-serif" font-size="12" font-weight="600">SESSIONS</text>
+  <rect x="12" y="84" width="236" height="36" rx="6" fill="#232323"/>
+  <text x="24" y="107" fill="#e1e1e1" font-family="sans-serif" font-size="13">File cleanup assistant</text>
+  <rect x="12" y="128" width="236" height="36" rx="6" fill="#1a1a1a"/>
+  <text x="24" y="151" fill="#878787" font-family="sans-serif" font-size="13">React migration</text>
+  <rect x="12" y="172" width="236" height="36" rx="6" fill="#1a1a1a"/>
+  <text x="24" y="195" fill="#878787" font-family="sans-serif" font-size="13">API debugging</text>
+  <!-- Chat area -->
+  <!-- User message -->
+  <rect x="500" y="120" width="660" height="60" rx="12" fill="#333333"/>
+  <text x="520" y="148" fill="#e1e1e1" font-family="sans-serif" font-size="14">hey goose can you take a list of my files on desktop</text>
+  <text x="520" y="166" fill="#e1e1e1" font-family="sans-serif" font-size="14">and let me know which ones I can delete?</text>
+  <!-- Agent message -->
+  <rect x="300" y="210" width="660" height="120" rx="12" fill="#232323"/>
+  <text x="320" y="240" fill="#e1e1e1" font-family="sans-serif" font-size="14">I'll scan your Desktop directory and analyze each file.</text>
+  <text x="320" y="262" fill="#e1e1e1" font-family="sans-serif" font-size="14">Here's what I found:</text>
+  <text x="320" y="292" fill="#4ade80" font-family="monospace" font-size="13">✓ Screenshot 2024-01-15.png  — safe to delete</text>
+  <text x="320" y="312" fill="#4ade80" font-family="monospace" font-size="13">✓ .DS_Store  — safe to delete</text>
+  <!-- Input bar -->
+  <rect x="280" y="690" width="900" height="44" rx="22" fill="#232323" stroke="#333333" stroke-width="1"/>
+  <text x="310" y="716" fill="#595959" font-family="sans-serif" font-size="14">What would you like to do?</text>
+</svg>

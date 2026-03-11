@@ -1,0 +1,97 @@
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 120px 24px 80px;
+  text-align: center;
+  background: var(--background-app);
+}
+
+.logo {
+  max-width: 400px;
+  width: 100%;
+  margin-bottom: 32px;
+}
+
+.tagline {
+  color: var(--text-standard);
+  font-size: 19px;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 0 40px;
+  font-family: "Cash Sans", sans-serif;
+}
+
+.buttons {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--button-primary-background);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: 999px;
+  padding: 12px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: "Cash Sans", sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.primaryButton:hover {
+  opacity: 0.85;
+  color: var(--text-inverse);
+  text-decoration: none;
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-prominent);
+  border: 1px solid var(--border-prominent);
+  border-radius: 999px;
+  padding: 12px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: "Cash Sans", sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.secondaryButton:hover {
+  opacity: 0.75;
+  color: var(--text-prominent);
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 48px 20px;
+  }
+
+  .logo {
+    max-width: 280px;
+  }
+
+  .tagline {
+    font-size: 16px;
+  }
+
+  .buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+}

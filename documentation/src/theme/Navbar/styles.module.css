@@ -1,0 +1,40 @@
+.customNavbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--background-app);
+  border-bottom: 1px solid var(--border-divider);
+  font-family: "Cash Sans", sans-serif;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.logoImage {
+  height: 28px;
+  width: auto;
+}
+
+.menuButton {
+  background: none;
+  border: none;
+  color: var(--text-prominent);
+  font-size: 1rem;
+  font-family: "Cash Sans", sans-serif;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.menuButton:hover {
+  color: var(--text-subtle);
+}
