@@ -138,25 +138,29 @@ export default function ChatInput({
   const editingMessageIdRef = useRef<string | null>(null);
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
 
-  // Local override for when the user changes the model in the modal,
-  // before the session object is re-fetched from the backend.
-  const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(null);
-  const effectiveModel = modelOverride?.model ?? sessionModel ?? null;
-  const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? null;
-
-  // Clear override when the session data catches up
-  useEffect(() => {
-    if (modelOverride && sessionModel === modelOverride.model && sessionProvider === modelOverride.provider) {
-      setModelOverride(null);
-    }
-  }, [sessionModel, sessionProvider, modelOverride]);
-
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
   const { getProviders } = useConfig();
   const { getCurrentModelAndProvider, currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
+
+  // Local override for when the user changes the model in the modal,
+  // before the session object is re-fetched from the backend.
+  const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(null);
+  const effectiveModel = modelOverride?.model ?? sessionModel ?? null;
+  const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? null;
+
+  // Clear override when the underlying data catches up (session props for
+  // active chats, config defaults for Hub / no-session contexts).
+  useEffect(() => {
+    if (!modelOverride) return;
+    const sessionCaughtUp = sessionModel === modelOverride.model && sessionProvider === modelOverride.provider;
+    const configCaughtUp = !sessionId && configModel === modelOverride.model && configProvider === modelOverride.provider;
+    if (sessionCaughtUp || configCaughtUp) {
+      setModelOverride(null);
+    }
+  }, [sessionModel, sessionProvider, configModel, configProvider, sessionId, modelOverride]);
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
