@@ -4558,6 +4558,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_yaml",
  "socket2 0.6.2",
+ "subtle",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
