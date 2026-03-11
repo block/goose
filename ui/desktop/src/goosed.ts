@@ -6,6 +6,7 @@ import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client, createClient, createConfig } from './api/client';
+import { waitForWhiteLabelProcesses } from './whitelabel/processManager';
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -224,6 +225,10 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       certFingerprint: null,
     };
   }
+
+  // Wait for whitelabel sidecar processes (auth flows, daemons) to finish
+  // before spawning goosed, so env vars like SQUARE_ACCESS_TOKEN are available.
+  await waitForWhiteLabelProcesses();
 
   const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
 

@@ -127,13 +127,14 @@ export interface WhiteLabelProcess {
   restartOnCrash?: boolean;
   waitForPort?: number;
   waitTimeoutMs?: number;
-  /** URL to call (POST) after the process is ready. The JSON response
-   *  is a string→string map of environment variables to set on
-   *  process.env so the agent's shell commands can use them. */
-  envFromUrl?: string;
-  /** Timeout in ms for the envFromUrl call (default: 120000 — 2 minutes,
-   *  to allow time for interactive auth flows like OAuth). */
-  envFromUrlTimeoutMs?: number;
+  /** Parse the process's stdout as JSON and set env vars from it.
+   *  Keys are JSON field names from the output, values are env var names.
+   *  e.g. { "access_token": "SQUARE_ACCESS_TOKEN" }
+   *  The process must exit (it's a short-lived command, not a daemon). */
+  envFromOutput?: Record<string, string>;
+  /** Timeout in ms waiting for the process to exit and produce output
+   *  (default: 120000 — 2 minutes, for interactive flows like OAuth). */
+  envFromOutputTimeoutMs?: number;
 }
 
 export interface WhiteLabelWindow {

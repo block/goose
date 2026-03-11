@@ -146,22 +146,30 @@ defaults:
   tools:
     - name: "square"
       description: "Square merchant CLI — interact with Square APIs through the Managerbot server"
-      path: "/Users/micn/Development/managerbot2-poc/bin/square"
+      path: "square"
 
 processes:
+  # 1. Start the managerbot API server (long-running daemon)
   - name: "managerbot-server"
-    command: "bash"
-    args: ["scripts/run-server.sh"]
-    cwd: "/Users/micn/Development/managerbot2-poc"
+    command: "managerbot-server"
+    args: ["serve"]
+    env:
+      SQUARE_BASE_URL: "https://connect.squareupstaging.com"
+    restartOnCrash: true
+    waitForPort: 8080
+    waitTimeoutMs: 20000
+
+  # 2. Run OAuth flow (short-lived — opens browser, merchant logs in, returns token)
+  - name: "square-auth"
+    command: "square"
+    args: ["auth"]
     env:
       SQUARE_BASE_URL: "https://connect.squareupstaging.com"
       MANAGERGOOSE_CLIENT_ID: "sq0ids-2nnfRUeYdZC1R7LHWjC38Q"
       MANAGERGOOSE_CLIENT_SECRET: "sq0css-Z7LoqlmaL_tq68b0VXLlm5bNpI2g0tgTHhAq1AN4I0U"
-    restartOnCrash: true
-    waitForPort: 8080
-    waitTimeoutMs: 20000
-    envFromUrl: "http://localhost:8080/agent/bootstrap"
-    envFromUrlTimeoutMs: 120000
+    envFromOutput:
+      access_token: "SQUARE_ACCESS_TOKEN"
+    envFromOutputTimeoutMs: 120000
 
 window:
   width: 1100

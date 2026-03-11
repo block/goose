@@ -16,6 +16,17 @@ interface ManagedProcess {
 
 const managedProcesses: ManagedProcess[] = [];
 
+/**
+ * Resolves when all whitelabel processes (daemons + auth flows) are ready.
+ * Callers that need whitelabel env vars (e.g. startGoosed) should await this.
+ */
+let processesReady: Promise<void> = Promise.resolve();
+let resolveProcessesReady: () => void;
+
+export function waitForWhiteLabelProcesses(): Promise<void> {
+  return processesReady;
+}
+
 function waitForPort(port: number, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
@@ -42,35 +53,64 @@ function waitForPort(port: number, timeoutMs: number): Promise<void> {
 }
 
 /**
- * Call a URL and set the JSON response (string→string map) as process.env vars.
- * Used to inject credentials from a sidecar's auth flow into the agent's environment.
+ * Run a short-lived command, collect its stdout, parse as JSON, and map
+ * fields to process.env according to the provided mapping.
  */
-async function fetchAndSetEnv(url: string, timeoutMs: number): Promise<void> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+function runAndCaptureEnv(config: WhiteLabelProcess, resourcesPath: string): Promise<void> {
+  const mapping = config.envFromOutput!;
+  const timeoutMs = config.envFromOutputTimeoutMs || 120000;
+  const cwd = config.cwd ? path.resolve(resourcesPath, config.cwd) : resourcesPath;
 
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`[${config.name}] timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    const child = spawn(config.command, config.args || [], {
+      cwd,
+      env: { ...process.env, ...(config.env || {}) },
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`HTTP ${resp.status}: ${body}`);
-    }
+    let stdout = '';
 
-    const envVars: Record<string, string> = await resp.json();
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
 
-    for (const [key, value] of Object.entries(envVars)) {
-      if (typeof value === 'string') {
-        process.env[key] = value;
-        log.info(`[WhiteLabel] Set env: ${key}=${value.substring(0, 10)}...`);
+    child.stderr?.on('data', (data) => {
+      log.info(`[${config.name}] ${data.toString().trim()}`);
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new Error(`[${config.name}] failed to spawn: ${err.message}`));
+    });
+
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+
+      if (code !== 0) {
+        reject(new Error(`[${config.name}] exited with code ${code}`));
+        return;
       }
-    }
-  } finally {
-    clearTimeout(timer);
-  }
+
+      try {
+        const json = JSON.parse(stdout.trim());
+        for (const [jsonField, envVar] of Object.entries(mapping)) {
+          const value = json[jsonField];
+          if (value !== undefined && value !== null) {
+            process.env[envVar] = String(value);
+            log.info(`[WhiteLabel] Set env: ${envVar}=${String(value).substring(0, 10)}...`);
+          }
+        }
+        resolve();
+      } catch (err) {
+        reject(new Error(`[${config.name}] failed to parse stdout as JSON: ${err}`));
+      }
+    });
+  });
 }
 
 function startProcess(managed: ManagedProcess, resourcesPath: string): void {
@@ -114,13 +154,37 @@ export async function startWhiteLabelProcesses(
   processConfigs: WhiteLabelProcess[],
   resourcesPath: string
 ): Promise<void> {
+  // Create a gate that other code (e.g. startGoosed) can await.
+  // This resolves only after ALL processes (daemons + auth flows) are ready.
+  processesReady = new Promise<void>((resolve) => {
+    resolveProcessesReady = resolve;
+  });
+
+  // Add the bin directory to PATH so bundled tools (square, managerbot-server, etc.)
+  // are available to sidecar processes and the agent's shell commands.
+  const binDir = path.join(resourcesPath, 'src', 'bin');
+  const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
+  const currentPath = process.env[pathKey] || '';
+  if (!currentPath.includes(binDir)) {
+    process.env[pathKey] = `${binDir}${path.delimiter}${currentPath}`;
+    log.info(`[WhiteLabel] Added ${binDir} to PATH`);
+  }
+
+  // Collect deferred (envFromOutput) processes to run after daemons are up.
+  const deferred: WhiteLabelProcess[] = [];
+
   for (const config of processConfigs) {
+    if (config.envFromOutput) {
+      deferred.push(config);
+      continue;
+    }
+
+    // Long-running daemon process — start and wait for port before continuing.
     const managed: ManagedProcess = { config, child: null, stopped: false };
     managedProcesses.push(managed);
 
     startProcess(managed, resourcesPath);
 
-    // Wait for the process to be ready on its port
     if (config.waitForPort) {
       const timeout = config.waitTimeoutMs || 10000;
       try {
@@ -128,21 +192,29 @@ export async function startWhiteLabelProcesses(
         log.info(`[WhiteLabel] Process ${config.name} is ready on port ${config.waitForPort}`);
       } catch (err) {
         log.error(`[WhiteLabel] Process ${config.name} failed to become ready: ${err}`);
-        continue; // skip envFromUrl if port never came up
       }
     }
+  }
 
-    // Fetch env vars from the process's bootstrap endpoint
-    if (config.envFromUrl) {
-      const envTimeout = config.envFromUrlTimeoutMs || 120000;
-      try {
-        log.info(`[WhiteLabel] Fetching env from ${config.envFromUrl}...`);
-        await fetchAndSetEnv(config.envFromUrl, envTimeout);
-        log.info(`[WhiteLabel] Process ${config.name} bootstrap complete`);
-      } catch (err) {
-        log.error(`[WhiteLabel] Process ${config.name} envFromUrl failed: ${err}`);
+  // Kick off auth/env-capture processes in the background.
+  // They don't block appMain (so the window can open), but they DO block
+  // goosed from spawning via waitForWhiteLabelProcesses().
+  if (deferred.length > 0) {
+    const runDeferred = async () => {
+      for (const config of deferred) {
+        try {
+          log.info(`[WhiteLabel] Running ${config.name} to capture env...`);
+          await runAndCaptureEnv(config, resourcesPath);
+          log.info(`[WhiteLabel] ${config.name} complete`);
+        } catch (err) {
+          log.error(`[WhiteLabel] ${config.name} failed: ${err}`);
+        }
       }
-    }
+      resolveProcessesReady();
+    };
+    runDeferred();
+  } else {
+    resolveProcessesReady();
   }
 }
 
