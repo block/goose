@@ -43,12 +43,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const isResizable =
     !isHorizontalNav && !isCondensedIconOnly && effectiveNavigationMode === 'push' && isNavExpanded;
 
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const dragStateRef = useRef<{ startX: number; startWidth: number; direction: 1 | -1 } | null>(
+    null
+  );
   const navRef = useRef<HTMLDivElement>(null);
 
   const onMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStateRef.current) return;
-    const delta = e.clientX - dragStateRef.current.startX;
+    const delta = (e.clientX - dragStateRef.current.startX) * dragStateRef.current.direction;
     const newWidth = Math.min(
       NAV_DIMENSIONS.MAX_NAV_WIDTH,
       Math.max(NAV_DIMENSIONS.MIN_NAV_WIDTH, dragStateRef.current.startWidth + delta)
@@ -70,13 +72,17 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       e.preventDefault();
       const currentWidth =
         navRef.current?.getBoundingClientRect().width ?? NAV_DIMENSIONS.CONDENSED_WIDTH;
-      dragStateRef.current = { startX: e.clientX, startWidth: currentWidth };
+      dragStateRef.current = {
+        startX: e.clientX,
+        startWidth: currentWidth,
+        direction: navigationPosition === 'right' ? -1 : 1,
+      };
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     },
-    [onMouseMove, onMouseUp]
+    [navigationPosition, onMouseMove, onMouseUp]
   );
 
   useEffect(() => {
@@ -242,7 +248,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
             {isResizable && (
               <div
                 onMouseDown={onHandleMouseDown}
-                className="absolute top-0 -right-1 w-2 h-full z-20 cursor-col-resize group flex items-center justify-center"
+                className={cn(
+                  'absolute top-0 w-2 h-full z-20 cursor-col-resize group flex items-center justify-center',
+                  navigationPosition === 'right' ? '-left-1' : '-right-1'
+                )}
               >
                 <div className="w-px h-full bg-border-subtle opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
