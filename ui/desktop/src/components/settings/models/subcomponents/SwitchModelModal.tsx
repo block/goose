@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
 
 import {
@@ -277,18 +277,18 @@ export const SwitchModelModal = ({
     }
   }, [usePredefinedModels, currentModel]);
 
-  // For manual mode: sync provider/model state when session data arrives
-  // after the modal has already mounted (only if user hasn't changed them).
-  // Skip when initialProvider forces a different provider — model is
-  // intentionally empty so the user picks one for that provider.
+  // For manual mode: one-time sync of provider/model when session data
+  // arrives after the modal has already mounted. Uses a ref so it only
+  // fires once and doesn't interfere with user-driven changes (e.g.
+  // switching provider clears model intentionally).
+  const manualSyncDone = useRef(false);
   useEffect(() => {
-    if (usePredefinedModels) return;
+    if (usePredefinedModels || manualSyncDone.current) return;
     if (initialProvider && initialProvider !== currentProvider) return;
-    if (currentProvider && !provider) {
-      setProvider(currentProvider);
-    }
-    if (currentModel && !model) {
-      setModel(currentModel);
+    if (currentModel && currentProvider) {
+      if (!provider) setProvider(currentProvider);
+      if (!model) setModel(currentModel);
+      manualSyncDone.current = true;
     }
   }, [currentModel, currentProvider, usePredefinedModels, provider, model, initialProvider]);
 
