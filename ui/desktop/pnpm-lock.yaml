@@ -98,7 +98,7 @@ importers:
         version: 12.34.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       goose-acp-types:
         specifier: file:../acp
-        version: file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))
+        version: '@block/goose-acp@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))'
       katex:
         specifier: ^0.16.33
         version: 0.16.33
@@ -442,6 +442,11 @@ packages:
   '@bcoe/v8-coverage@1.0.2':
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
+
+  '@block/goose-acp@file:../acp':
+    resolution: {directory: ../acp, type: directory}
+    peerDependencies:
+      '@agentclientprotocol/sdk': '*'
 
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
@@ -3939,11 +3944,6 @@ packages:
     resolution: {integrity: sha512-DpLKbNU4WylpxJykQujfCcwYWiV/Jhm50Goo0wrVILAv5jOr9d+H+UR3PhSCD2rCCEIg0uc+G+muBTwD54JhDQ==}
     engines: {node: '>= 0.4'}
 
-  goose-acp-types@file:../acp:
-    resolution: {directory: ../acp, type: directory}
-    peerDependencies:
-      '@agentclientprotocol/sdk': '*'
-
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
@@ -6640,6 +6640,11 @@ snapshots:
       '@babel/helper-validator-identifier': 7.28.5
 
   '@bcoe/v8-coverage@1.0.2': {}
+
+  '@block/goose-acp@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.15.0(zod@3.25.76)
+      zod: 3.25.76
 
   '@bramus/specificity@2.4.2':
     dependencies:
@@ -10687,11 +10692,6 @@ snapshots:
     dependencies:
       define-properties: 1.2.1
       gopd: 1.2.0
-
-  goose-acp-types@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76)):
-    dependencies:
-      '@agentclientprotocol/sdk': 0.15.0(zod@3.25.76)
-      zod: 3.25.76
 
   gopd@1.2.0: {}
 
