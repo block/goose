@@ -1,4 +1,4 @@
-use ignore::gitignore::Gitignore;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -49,6 +49,27 @@ fn get_local_directories(git_root: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
         }
         None => vec![cwd.to_path_buf()],
     }
+}
+
+/// Build a `Gitignore` that includes `.gitignore` files from the git root
+/// down to `cwd`, matching git's hierarchical ignore semantics. When there
+/// is no git root, only `cwd/.gitignore` is loaded.
+pub fn build_gitignore(cwd: &Path) -> Gitignore {
+    let git_root = find_git_root(cwd);
+    let directories = get_local_directories(git_root, cwd);
+
+    let mut builder = GitignoreBuilder::new(cwd);
+    for dir in &directories {
+        let gitignore_path = dir.join(".gitignore");
+        if gitignore_path.is_file() {
+            builder.add(&gitignore_path);
+        }
+    }
+    builder.build().unwrap_or_else(|_| {
+        GitignoreBuilder::new(cwd)
+            .build()
+            .expect("Failed to build default gitignore")
+    })
 }
 
 pub fn load_hint_files(
@@ -471,7 +492,6 @@ End of hints"#;
 #[cfg(test)]
 mod gitignore_tests {
     use super::*;
-    use ignore::gitignore::GitignoreBuilder;
     use std::fs;
     use tempfile::TempDir;
 
@@ -483,14 +503,12 @@ mod gitignore_tests {
         fs::create_dir(project_root.join(".git")).unwrap();
         fs::write(project_root.join("allowed.md"), "Allowed content").unwrap();
         fs::write(project_root.join("secret.env"), "SECRET_KEY=abc123").unwrap();
+        fs::write(project_root.join(".gitignore"), "*.env\n").unwrap();
 
         let hints_content = "Project hints\n@allowed.md\n@secret.env\nEnd of hints";
         fs::write(project_root.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
 
-        // Build gitignore that excludes .env files
-        let mut builder = GitignoreBuilder::new(project_root);
-        builder.add_line(None, "*.env").unwrap();
-        let gitignore = builder.build().unwrap();
+        let gitignore = build_gitignore(project_root);
 
         let hints = load_hint_files(
             project_root,
@@ -500,7 +518,64 @@ mod gitignore_tests {
 
         assert!(hints.contains("Allowed content"));
         assert!(!hints.contains("SECRET_KEY=abc123"));
-        // The @secret.env reference should remain unexpanded
         assert!(hints.contains("@secret.env"));
+    }
+
+    #[test]
+    fn test_build_gitignore_loads_from_git_root_in_subdirectory() {
+        let dir = TempDir::new().unwrap();
+        let project_root = dir.path();
+
+        fs::create_dir(project_root.join(".git")).unwrap();
+        // Root .gitignore ignores .env files
+        fs::write(project_root.join(".gitignore"), "*.env\n").unwrap();
+        fs::write(project_root.join("secret.env"), "SECRET_KEY=abc123").unwrap();
+        fs::write(project_root.join("allowed.md"), "Allowed content").unwrap();
+
+        let subdir = project_root.join("subdir");
+        fs::create_dir(&subdir).unwrap();
+
+        let hints_content = "Subdir hints\n@../allowed.md\n@../secret.env\nEnd of hints";
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
+
+        // Build gitignore from the subdirectory — should still pick up root .gitignore
+        let gitignore = build_gitignore(&subdir);
+
+        let hints = load_hint_files(&subdir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
+
+        assert!(hints.contains("Allowed content"));
+        assert!(!hints.contains("SECRET_KEY=abc123"));
+        assert!(hints.contains("@../secret.env"));
+    }
+
+    #[test]
+    fn test_build_gitignore_merges_nested_gitignores() {
+        let dir = TempDir::new().unwrap();
+        let project_root = dir.path();
+
+        fs::create_dir(project_root.join(".git")).unwrap();
+        // Root ignores *.log
+        fs::write(project_root.join(".gitignore"), "*.log\n").unwrap();
+
+        let subdir = project_root.join("subdir");
+        fs::create_dir(&subdir).unwrap();
+        // Subdir ignores *.tmp
+        fs::write(subdir.join(".gitignore"), "*.tmp\n").unwrap();
+
+        fs::write(project_root.join("debug.log"), "debug log").unwrap();
+        fs::write(subdir.join("cache.tmp"), "temp data").unwrap();
+        fs::write(subdir.join("readme.md"), "Readme content").unwrap();
+
+        let hints_content = "Hints\n@../debug.log\n@cache.tmp\n@readme.md\nEnd";
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
+
+        let gitignore = build_gitignore(&subdir);
+        let hints = load_hint_files(&subdir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
+
+        assert!(hints.contains("Readme content"));
+        assert!(!hints.contains("debug log"));
+        assert!(!hints.contains("temp data"));
+        assert!(hints.contains("@../debug.log"));
+        assert!(hints.contains("@cache.tmp"));
     }
 }

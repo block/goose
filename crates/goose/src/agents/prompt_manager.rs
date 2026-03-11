@@ -7,7 +7,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
+use crate::hints::load_hints::{
+    build_gitignore, load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME,
+};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -97,18 +99,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
                     AGENTS_MD_FILENAME.to_string(),
                 ]
             });
-        let ignore_patterns = {
-            let mut builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
-            let gitignore_path = working_dir.join(".gitignore");
-            if gitignore_path.is_file() {
-                let _ = builder.add(&gitignore_path);
-            }
-            builder.build().unwrap_or_else(|_| {
-                ignore::gitignore::GitignoreBuilder::new(working_dir)
-                    .build()
-                    .expect("Failed to build default gitignore")
-            })
-        };
+        let ignore_patterns = build_gitignore(working_dir);
 
         let hints = load_hint_files(working_dir, &hints_filenames, &ignore_patterns);
 
