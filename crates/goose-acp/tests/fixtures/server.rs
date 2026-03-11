@@ -5,9 +5,11 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    AuthMethod, ContentBlock, ImageContent, InitializeRequest, LoadSessionRequest, McpServer,
-    NewSessionRequest, PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
+    AuthMethod, ClientCapabilities, ContentBlock, FileSystemCapability, ImageContent,
+    InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest,
+    ProtocolVersion, ReadTextFileRequest, RequestPermissionRequest, SessionModelState,
     SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
+    WriteTextFileRequest,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -104,10 +106,20 @@ impl Connection for ClientToAgentConnection {
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
 
+        let mut fs_cap = FileSystemCapability::default();
+        if config.read_text_file.is_some() {
+            fs_cap = fs_cap.read_text_file(true);
+        }
+        if config.write_text_file.is_some() {
+            fs_cap = fs_cap.write_text_file(true);
+        }
+
         let (cx, auth_methods) = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
+            let read_handler = config.read_text_file;
+            let write_handler = config.write_text_file;
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
@@ -147,6 +159,27 @@ impl Connection for ClientToAgentConnection {
                         },
                         sacp::on_receive_request!(),
                     )
+                    .on_receive_request(
+                        async move |req: ReadTextFileRequest, request_cx, _cx| match read_handler {
+                            Some(ref rh) => match rh(&req) {
+                                Ok(resp) => request_cx.respond(resp),
+                                Err(msg) => request_cx.respond_with_internal_error(msg),
+                            },
+                            None => request_cx.respond_with_error(sacp::Error::method_not_found()),
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        async move |req: WriteTextFileRequest, request_cx, _cx| match write_handler
+                        {
+                            Some(ref wh) => match wh(&req) {
+                                Ok(resp) => request_cx.respond(resp),
+                                Err(msg) => request_cx.respond_with_internal_error(msg),
+                            },
+                            None => request_cx.respond_with_error(sacp::Error::method_not_found()),
+                        },
+                        sacp::on_receive_request!(),
+                    )
                     .connect_to(transport)
                     .unwrap()
                     .run_until({
@@ -154,7 +187,10 @@ impl Connection for ClientToAgentConnection {
                         let auth_holder = auth_holder_clone;
                         move |cx: JrConnectionCx<ClientToAgent>| async move {
                             let resp = cx
-                                .send_request(InitializeRequest::new(ProtocolVersion::LATEST))
+                                .send_request(
+                                    InitializeRequest::new(ProtocolVersion::LATEST)
+                                        .client_capabilities(ClientCapabilities::new().fs(fs_cap)),
+                                )
                                 .block_task()
                                 .await
                                 .unwrap();

@@ -28,6 +28,7 @@ goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = { workspace = true }
 agent-client-protocol-schema = { version = "0.10", features = ["unstable"] }
+async-trait = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat", "rt"] }
