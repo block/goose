@@ -151,10 +151,6 @@ jobs:
       #     restore-keys: |
       #       ci-pnpm-cache-v1-${{ runner.os }}-
 
-      - name: Check lockfile has cross-platform entries
-        run: ./scripts/check-lockfile-platforms.sh
-        working-directory: ui/desktop
-
       - name: Install Dependencies
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop

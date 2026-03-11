@@ -56,7 +56,7 @@ jobs:
           node-version: 24.10.0
 
       - name: Install pnpm
-        run: npm install -g pnpm
+        run: npm install -g pnpm@10.30.3
 
       - name: Cache node_modules
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2

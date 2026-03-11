@@ -5,7 +5,7 @@
   "description": "Goose App",
   "engines": {
     "node": "^24.10.0",
-    "pnpm": ">=10"
+    "pnpm": ">=10.30.0"
   },
   "main": ".vite/build/main.js",
   "scripts": {
