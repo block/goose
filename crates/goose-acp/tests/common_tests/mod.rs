@@ -5,14 +5,12 @@
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
 use fixtures::{
-    initialize_agent, Connection, FsFixture, OpenAiFixture, PermissionDecision, Session,
-    TestConnectionConfig,
+    Connection, FsFixture, OpenAiFixture, PermissionDecision, Session, TestConnectionConfig,
 };
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
-use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
 use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
 use std::sync::Arc;
@@ -188,34 +186,6 @@ pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
     assert!(!conn.auth_methods().is_empty());
     assert!(conn
         .auth_methods()
-        .iter()
-        .any(|m| &*m.id.0 == "goose-provider"));
-}
-
-#[allow(dead_code)]
-pub async fn run_initialize_without_provider() {
-    let temp_dir = tempfile::tempdir().unwrap();
-
-    let provider_factory: ProviderConstructor =
-        Arc::new(|_, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
-
-    let agent = Arc::new(
-        GooseAcpAgent::new(
-            provider_factory,
-            vec![],
-            temp_dir.path().to_path_buf(),
-            temp_dir.path().to_path_buf(),
-            GooseMode::Auto,
-            false,
-        )
-        .await
-        .unwrap(),
-    );
-
-    let resp = initialize_agent(agent).await;
-    assert!(!resp.auth_methods.is_empty());
-    assert!(resp
-        .auth_methods
         .iter()
         .any(|m| &*m.id.0 == "goose-provider"));
 }

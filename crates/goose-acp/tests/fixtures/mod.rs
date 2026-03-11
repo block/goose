@@ -346,27 +346,5 @@ where
     }
 }
 
-/// Connects to the given agent via in-process duplex streams, sends an
-/// `InitializeRequest`, and returns the response.
-#[allow(dead_code)]
-pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::InitializeResponse {
-    let (transport, _handle) = serve_agent_in_process(agent).await;
-    sacp::ClientToAgent::builder()
-        .connect_to(transport)
-        .unwrap()
-        .run_until(|cx: sacp::JrConnectionCx<sacp::ClientToAgent>| async move {
-            let resp = cx
-                .send_request(sacp::schema::InitializeRequest::new(
-                    sacp::schema::ProtocolVersion::LATEST,
-                ))
-                .block_task()
-                .await
-                .unwrap();
-            Ok::<_, sacp::Error>(resp)
-        })
-        .await
-        .unwrap()
-}
-
 pub mod provider;
 pub mod server;
