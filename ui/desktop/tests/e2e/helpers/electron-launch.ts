@@ -45,16 +45,45 @@ function validateBuildPrerequisites(appRoot: string, executablePath: string): vo
   }
 }
 
+function resolveBundledExecutable(appPath: string): string {
+  if (process.platform === 'darwin') {
+    if (appPath.endsWith('.app')) {
+      return join(appPath, 'Contents', 'MacOS', 'Goose');
+    }
+    return appPath;
+  }
+  if (process.platform === 'win32') {
+    return appPath.endsWith('.exe') ? appPath : join(appPath, 'Goose.exe');
+  }
+  return appPath;
+}
+
 export function buildLaunchOptions(
   tempDir: string,
   videoDir?: string
 ): Parameters<typeof electron.launch>[0] {
-  const appRoot = join(__dirname, '../../..');
-  const executablePath = resolveDirectElectronExecutable(appRoot);
-  validateBuildPrerequisites(appRoot, executablePath);
+  const bundledAppPath = process.env.GOOSE_E2E_APP_PATH;
+  let executablePath: string;
+  let args: string[];
+
+  if (bundledAppPath) {
+    executablePath = resolveBundledExecutable(bundledAppPath);
+    args = [];
+    if (!fs.existsSync(executablePath)) {
+      throw new Error(`Bundled app executable not found at ${executablePath}`);
+    }
+    debugLog(`Using bundled app: ${executablePath}`);
+  } else {
+    const appRoot = join(__dirname, '../../..');
+    executablePath = resolveDirectElectronExecutable(appRoot);
+    args = [appRoot];
+    validateBuildPrerequisites(appRoot, executablePath);
+    debugLog(`Using dev Electron: ${executablePath}`);
+  }
+
   const launchOptions: Parameters<typeof electron.launch>[0] = {
     executablePath,
-    args: [appRoot],
+    args,
     timeout: 30000,
     // WARNING: env contains API keys (e.g. ANTHROPIC_API_KEY). Do not log launchOptions.
     env: {

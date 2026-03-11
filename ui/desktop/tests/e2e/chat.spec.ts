@@ -18,7 +18,7 @@ test.describe('Goose App', {tag: '@release'}, () => {
     await goToHome(goosePage);
     await expectChatMessageCount(goosePage, 0);
 
-    await sendMessage(goosePage, 'Hello from hub');
+    await sendMessage(goosePage, 'tell me a joke');
     await expectChatMessageCount(goosePage, 2);
 
     await goToChatHistory(goosePage);

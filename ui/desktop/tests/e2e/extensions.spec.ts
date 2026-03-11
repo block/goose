@@ -9,6 +9,7 @@ const PLAYWRIGHT_DEEPLINK =
 
 test.describe('Goose App Extensions', {tag: '@release'}, () => {
   test('install playwright extension', async ({ goosePage }) => {
+    test.setTimeout(120000);
     await goToExtensions(goosePage);
 
     await goosePage.evaluate((link) => {
@@ -24,6 +25,7 @@ test.describe('Goose App Extensions', {tag: '@release'}, () => {
     await expectExtensionIsEnabled(goosePage, 'playwright');
 
     await goToHome(goosePage);
+
     await sendMessage(goosePage, 'open a browser and search on google for cats');
 
     const toolCalls = getToolCalls(goosePage);
