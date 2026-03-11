@@ -4,6 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use subtle::ConstantTimeEq;
 
 pub async fn check_token(
     State(state): State<String>,
@@ -23,7 +24,9 @@ pub async fn check_token(
         .and_then(|value| value.to_str().ok());
 
     match secret_key {
-        Some(key) if key == state => Ok(next.run(request).await),
+        Some(key) if bool::from(key.as_bytes().ct_eq(state.as_bytes())) => {
+            Ok(next.run(request).await)
+        }
         _ => Err(StatusCode::UNAUTHORIZED),
     }
 }

@@ -10,6 +10,156 @@ use crate::hints::import_files::read_referenced_files;
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 
+pub fn get_context_filenames() -> Vec<String> {
+    use crate::config::Config;
+
+    Config::global()
+        .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+        .unwrap_or_else(|_| {
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ]
+        })
+}
+
+#[derive(Default)]
+pub struct SubdirectoryHintTracker {
+    loaded_dirs: HashSet<PathBuf>,
+    pending_dirs: Vec<PathBuf>,
+    hints_filenames: Vec<String>,
+}
+
+impl SubdirectoryHintTracker {
+    pub fn new() -> Self {
+        Self {
+            loaded_dirs: HashSet::new(),
+            pending_dirs: Vec::new(),
+            hints_filenames: get_context_filenames(),
+        }
+    }
+
+    pub fn record_tool_arguments(
+        &mut self,
+        arguments: &Option<serde_json::Map<String, serde_json::Value>>,
+        working_dir: &Path,
+    ) {
+        let args = match arguments.as_ref() {
+            Some(a) => a,
+            None => return,
+        };
+
+        if let Some(path_str) = args.get("path").and_then(|v| v.as_str()) {
+            if let Some(dir) = resolve_to_parent_dir(path_str, working_dir) {
+                self.pending_dirs.push(dir);
+            }
+        }
+
+        if let Some(cmd) = args.get("command").and_then(|v| v.as_str()) {
+            for token in shell_words::split(cmd).unwrap_or_default() {
+                if token.starts_with('-') {
+                    continue;
+                }
+                if token.contains(std::path::MAIN_SEPARATOR) || token.contains('.') {
+                    if let Some(dir) = resolve_to_parent_dir(&token, working_dir) {
+                        self.pending_dirs.push(dir);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn load_new_hints(&mut self, working_dir: &Path) -> Vec<(String, String)> {
+        let pending = std::mem::take(&mut self.pending_dirs);
+        if pending.is_empty() {
+            return Vec::new();
+        }
+
+        let mut results = Vec::new();
+        for dir in pending {
+            if !dir.starts_with(working_dir) || dir == working_dir {
+                continue;
+            }
+            if self.loaded_dirs.contains(&dir) {
+                continue;
+            }
+            if let Some(content) =
+                load_hints_from_directory(&dir, working_dir, &self.hints_filenames)
+            {
+                let key = format!("subdir_hints:{}", dir.display());
+                results.push((key, content));
+            }
+            self.loaded_dirs.insert(dir);
+        }
+        results
+    }
+}
+
+fn resolve_to_parent_dir(token: &str, working_dir: &Path) -> Option<PathBuf> {
+    let path = Path::new(token);
+    let resolved = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        working_dir.join(path)
+    };
+    resolved.parent().map(|d| d.to_path_buf())
+}
+
+fn load_hints_from_directory(
+    directory: &Path,
+    working_dir: &Path,
+    hints_filenames: &[String],
+) -> Option<String> {
+    if !directory.is_dir() || !directory.is_absolute() {
+        return None;
+    }
+
+    if !directory.starts_with(working_dir) || directory == working_dir {
+        return None;
+    }
+
+    let git_root = find_git_root(working_dir);
+    let import_boundary = git_root.unwrap_or(working_dir);
+    let gitignore = Gitignore::empty();
+
+    let mut directories: Vec<PathBuf> = directory
+        .ancestors()
+        .take_while(|d| d.starts_with(working_dir) && *d != working_dir)
+        .map(|d| d.to_path_buf())
+        .collect();
+    directories.reverse();
+
+    let mut contents = Vec::new();
+    for dir in &directories {
+        for hints_filename in hints_filenames {
+            let hints_path = dir.join(hints_filename);
+            if hints_path.is_file() {
+                let mut visited = HashSet::new();
+                let expanded = read_referenced_files(
+                    &hints_path,
+                    import_boundary,
+                    &mut visited,
+                    0,
+                    &gitignore,
+                );
+                if !expanded.is_empty() {
+                    contents.push(expanded);
+                }
+            }
+        }
+    }
+
+    if contents.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "### Subdirectory Hints ({})\n{}",
+            directory.display(),
+            contents.join("\n")
+        ))
+    }
+}
+
 fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
 
@@ -486,6 +636,108 @@ End of hints"#;
 
         assert!(hints.contains("Root file content"));
         assert!(hints.contains("--- Content from ../root_file.md ---"));
+    }
+
+    #[test]
+    fn resolve_to_parent_dir_relative() {
+        let wd = Path::new("/home/user/project");
+        assert_eq!(
+            resolve_to_parent_dir("src/main.rs", wd),
+            Some(PathBuf::from("/home/user/project/src"))
+        );
+    }
+
+    #[test]
+    fn resolve_to_parent_dir_absolute() {
+        let wd = Path::new("/home/user/project");
+        assert_eq!(
+            resolve_to_parent_dir("/tmp/foo.rs", wd),
+            Some(PathBuf::from("/tmp"))
+        );
+    }
+
+    #[test]
+    fn tracker_records_path_argument() {
+        let wd = PathBuf::from("/home/user/project");
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "src/main.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args), &wd);
+        let hints = tracker.load_new_hints(&wd);
+        assert!(hints.is_empty());
+        assert!(tracker
+            .loaded_dirs
+            .contains(&PathBuf::from("/home/user/project/src")));
+    }
+
+    #[test]
+    fn tracker_records_command_argument() {
+        let wd = PathBuf::from("/home/user/project");
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"command": "cat nested/doc.md"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args), &wd);
+        let hints = tracker.load_new_hints(&wd);
+        assert!(hints.is_empty());
+        assert!(tracker
+            .loaded_dirs
+            .contains(&PathBuf::from("/home/user/project/nested")));
+    }
+
+    #[test]
+    fn tracker_skips_flags_in_command() {
+        let wd = PathBuf::from("/home/user/project");
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"command": "grep -rn pattern src/lib.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args), &wd);
+        let _ = tracker.load_new_hints(&wd);
+        assert!(tracker
+            .loaded_dirs
+            .contains(&PathBuf::from("/home/user/project/src")));
+        assert_eq!(tracker.loaded_dirs.len(), 1);
+    }
+
+    #[test]
+    fn tracker_loads_subdirectory_hints() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().to_path_buf();
+        let subdir = project_root.join("nested");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(
+            subdir.join(GOOSE_HINTS_FILENAME),
+            "nested subdirectory hints",
+        )
+        .unwrap();
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "nested/foo.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args), &project_root);
+        let hints = tracker.load_new_hints(&project_root);
+        assert_eq!(hints.len(), 1);
+        assert!(hints[0].0.contains("nested"));
+        assert!(hints[0].1.contains("nested subdirectory hints"));
+    }
+
+    #[test]
+    fn tracker_deduplicates_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().to_path_buf();
+        let subdir = project_root.join("nested");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), "nested hints").unwrap();
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "nested/foo.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args.clone()), &project_root);
+        let hints = tracker.load_new_hints(&project_root);
+        assert_eq!(hints.len(), 1);
+
+        tracker.record_tool_arguments(&Some(args), &project_root);
+        let hints = tracker.load_new_hints(&project_root);
+        assert!(hints.is_empty());
     }
 }
 

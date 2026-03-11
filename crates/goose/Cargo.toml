@@ -102,6 +102,8 @@ tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { workspace = true, features = ["compat"] }
+sacp = { workspace = true }
+agent-client-protocol-schema = { version = "0.10", features = ["unstable"] }
 unicode-normalization = "0.1"
 
 # For local Whisper transcription
@@ -142,6 +144,7 @@ pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
 encoding_rs = "0.8.35"
 pastey = "0.2.1"
+shell-words = "1.1.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

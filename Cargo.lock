@@ -4270,6 +4270,7 @@ dependencies = [
 name = "goose"
 version = "1.27.0"
 dependencies = [
+ "agent-client-protocol-schema",
  "ahash",
  "anyhow",
  "async-stream",
@@ -4329,6 +4330,7 @@ dependencies = [
  "reqwest 0.13.2",
  "rmcp 1.1.0",
  "rubato",
+ "sacp",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -4336,6 +4338,7 @@ dependencies = [
  "serde_yaml",
  "serial_test",
  "sha2",
+ "shell-words",
  "shellexpand",
  "sqlx",
  "strum",
@@ -4556,6 +4559,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_yaml",
  "socket2 0.6.2",
+ "subtle",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

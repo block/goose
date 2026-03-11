@@ -5,6 +5,7 @@ pub mod chatrecall;
 pub mod code_execution;
 pub mod developer;
 pub mod ext_manager;
+pub mod summarize;
 pub mod summon;
 pub mod todo;
 pub mod tom;
@@ -101,6 +102,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: true,
                 client_factory: |ctx| Box::new(summon::SummonClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            summarize::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: summarize::EXTENSION_NAME,
+                display_name: "Summarize",
+                description: "Load files/directories and get an LLM summary in a single call",
+                default_enabled: false,
+                unprefixed_tools: false,
+                client_factory: |ctx| Box::new(summarize::SummarizeClient::new(ctx).unwrap()),
             },
         );
 

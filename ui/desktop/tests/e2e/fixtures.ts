@@ -42,7 +42,7 @@ export const test = base.extend<GooseTestFixtures>({
 
       // Start the electron-forge process with Playwright remote debugging enabled
       // Use detached mode on Unix to create a process group we can kill together
-      appProcess = spawn('npm', ['run', 'start-gui'], {
+      appProcess = spawn('pnpm', ['run', 'start-gui'], {
         cwd: join(__dirname, '../..'),
         stdio: 'pipe',
         detached: process.platform !== 'win32',

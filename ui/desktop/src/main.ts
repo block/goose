@@ -62,9 +62,14 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data) as Partial<Settings>;
-    // Deep merge to ensure nested objects get their defaults too
+    let stored: Partial<Settings>;
+    try {
+      const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+      stored = JSON.parse(data) as Partial<Settings>;
+    } catch (err) {
+      console.error('Failed to read settings.json, using defaults:', err);
+      return defaultSettings;
+    }
     return {
       ...defaultSettings,
       ...stored,
