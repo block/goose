@@ -62,9 +62,14 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data) as Partial<Settings>;
-    // Deep merge to ensure nested objects get their defaults too
+    let stored: Partial<Settings>;
+    try {
+      const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+      stored = JSON.parse(data) as Partial<Settings>;
+    } catch (err) {
+      console.error('Failed to read settings.json, using defaults:', err);
+      return defaultSettings;
+    }
     return {
       ...defaultSettings,
       ...stored,
@@ -511,7 +516,13 @@ const getServerSecret = (settings: Settings): string => {
     return settings.externalGoosed.secret;
   }
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return 'test';
+    if (!process.env.GOOSE_SERVER__SECRET_KEY) {
+      throw new Error(
+        'GOOSE_SERVER__SECRET_KEY must be set when using GOOSE_EXTERNAL_BACKEND. ' +
+          'Set it to the same value on both the server and the desktop client.'
+      );
+    }
+    return process.env.GOOSE_SERVER__SECRET_KEY;
   }
   return GENERATED_SECRET;
 };

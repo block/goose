@@ -54,9 +54,9 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
 };
 
 export type ChatRequest = {
@@ -128,7 +128,19 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlock = ContentBlock;
 
 export type Conversation = Array<Message>;
 
@@ -1114,7 +1126,7 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RoleSchemaRef = Role;
 
@@ -1321,7 +1333,7 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;

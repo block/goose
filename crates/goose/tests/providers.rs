@@ -10,8 +10,10 @@ use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
+use goose::providers::claude_acp::CLAUDE_ACP_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
+use goose::providers::codex_acp::CODEX_ACP_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
@@ -838,6 +840,27 @@ async fn test_claude_code_provider() -> Result<()> {
 async fn test_codex_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("codex", CODEX_DEFAULT_MODEL, "codex")
         .test_permissions(false)
+        .run()
+        .await
+}
+
+// Requires: npm install -g @zed-industries/claude-agent-acp
+#[tokio::test]
+async fn test_claude_acp_provider() -> Result<()> {
+    ProviderTestConfig::with_agentic_provider(
+        "claude-acp",
+        CLAUDE_ACP_DEFAULT_MODEL,
+        "claude-agent-acp",
+    )
+    .model_switch_name("sonnet")
+    .run()
+    .await
+}
+
+// Requires: npm install -g @zed-industries/codex-acp
+#[tokio::test]
+async fn test_codex_acp_provider() -> Result<()> {
+    ProviderTestConfig::with_agentic_provider("codex-acp", CODEX_ACP_DEFAULT_MODEL, "codex-acp")
         .run()
         .await
 }

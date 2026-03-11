@@ -3881,20 +3881,20 @@
         "type": "object",
         "required": [
           "content",
-          "is_error"
+          "isError"
         ],
         "properties": {
           "_meta": {},
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Content"
+              "$ref": "#/components/schemas/ContentBlock"
             }
           },
-          "is_error": {
+          "isError": {
             "type": "boolean"
           },
-          "structured_content": {}
+          "structuredContent": {}
         }
       },
       "ChatRequest": {
@@ -4048,12 +4048,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawTextContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawImageContent"
               }
@@ -4062,12 +4090,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawEmbeddedResource"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawAudioContent"
               }
@@ -4076,11 +4132,28 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawResource"
               }
             ]
           }
         ]
+      },
+      "ContentBlock": {
+        "$ref": "#/components/schemas/ContentBlock"
       },
       "Conversation": {
         "type": "array",
@@ -7241,10 +7314,16 @@
       "Role": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "user"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
           }
         ]
       },
@@ -8056,13 +8135,22 @@
       "TaskSupport": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "optional"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "required"
+            ]
           }
         ]
       },

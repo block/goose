@@ -27,7 +27,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParams, Content};
+use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -35,12 +35,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
-
-fn content_schema() -> utoipa::openapi::schema::Array {
-    utoipa::openapi::schema::ArrayBuilder::new()
-        .items(utoipa::openapi::Ref::from_schema_name("Content"))
-        .build()
-}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
@@ -140,14 +134,33 @@ pub struct CallToolRequest {
     arguments: Value,
 }
 
+/// Ref-only alias so utoipa emits `$ref: "#/components/schemas/ContentBlock"`.
+/// The actual schema is registered via `derive_utoipa!(RawContent as ContentBlockSchema => "ContentBlock")`.
+#[allow(dead_code)]
+pub enum ContentBlock {}
+
+impl utoipa::PartialSchema for ContentBlock {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        utoipa::openapi::RefOr::Ref(utoipa::openapi::Ref::from_schema_name("ContentBlock"))
+    }
+}
+
+impl utoipa::ToSchema for ContentBlock {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("ContentBlock")
+    }
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CallToolResponse {
-    #[schema(schema_with = content_schema)]
-    content: Vec<Content>,
+    #[schema(value_type = Vec<ContentBlock>)]
+    content: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
     is_error: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "_meta")]
     _meta: Option<Value>,
 }
 
@@ -999,8 +1012,15 @@ async fn call_tool(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let content = result
+        .content
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(CallToolResponse {
-        content: result.content,
+        content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
         _meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),
