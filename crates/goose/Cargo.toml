@@ -122,7 +122,6 @@ schemars = { workspace = true, features = [
     "derive",
 ] }
 insta = "1.43.2"
-posthog-rs = "0.4.3"
 shellexpand = { workspace = true }
 indexmap = "2.12.0"
 ignore = { workspace = true }
