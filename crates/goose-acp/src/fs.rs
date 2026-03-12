@@ -4,12 +4,14 @@ use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
 use goose::agents::platform_extensions::developer::edit::{
     resolve_path, string_replace, FileEditParams, FileReadParams, FileWriteParams,
 };
+use goose::agents::platform_extensions::developer::shell::ShellParams;
 use goose::agents::platform_extensions::developer::DeveloperClient;
 use rmcp::model::{CallToolResult, Content as RmcpContent, Tool, ToolAnnotations};
 use sacp::schema::{
-    Diff, ReadTextFileRequest, SessionId, SessionNotification, SessionUpdate, ToolCallContent,
+    CreateTerminalRequest, Diff, ReadTextFileRequest, ReleaseTerminalRequest, SessionId,
+    SessionNotification, SessionUpdate, Terminal, TerminalOutputRequest, ToolCallContent,
     ToolCallId, ToolCallLocation, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
-    WriteTextFileRequest,
+    WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use sacp::{AgentToClient, JrConnectionCx};
 use schemars::schema_for;
@@ -60,6 +62,7 @@ pub(crate) struct AcpTools {
     pub(crate) session_id: SessionId,
     pub(crate) fs_read: bool,
     pub(crate) fs_write: bool,
+    pub(crate) terminal: bool,
 }
 
 fn error_result(msg: impl std::fmt::Display) -> CallToolResult {
@@ -229,6 +232,102 @@ impl AcpTools {
             Err(e) => Ok(fail("write", &params.path, e)),
         }
     }
+
+    async fn acp_shell(
+        &self,
+        arguments: Option<rmcp::model::JsonObject>,
+        ctx: &goose::agents::ToolCallContext,
+    ) -> Result<CallToolResult, McpError> {
+        let params: ShellParams = match Self::parse_args(arguments) {
+            Ok(p) => p,
+            Err(e) => return Ok(error_result(e)),
+        };
+        self.update_tool_call(ctx, ToolCallUpdateFields::new().kind(ToolKind::Execute));
+
+        let create_res = self
+            .cx
+            .send_request(CreateTerminalRequest::new(
+                self.session_id.clone(),
+                &params.command,
+            ))
+            .block_task()
+            .await
+            .map_err(|e| {
+                McpError::McpError(rmcp::model::ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    format!("failed to create terminal: {e:?}"),
+                    None,
+                ))
+            })?;
+        let terminal_id = create_res.terminal_id;
+
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new().content(vec![ToolCallContent::Terminal(Terminal::new(
+                terminal_id.clone(),
+            ))]),
+        );
+
+        let _ = self
+            .cx
+            .send_request(WaitForTerminalExitRequest::new(
+                self.session_id.clone(),
+                terminal_id.clone(),
+            ))
+            .block_task()
+            .await
+            .map_err(|e| {
+                McpError::McpError(rmcp::model::ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    format!("failed to wait for terminal exit: {e:?}"),
+                    None,
+                ))
+            })?;
+
+        let output_res = self
+            .cx
+            .send_request(TerminalOutputRequest::new(
+                self.session_id.clone(),
+                terminal_id.clone(),
+            ))
+            .block_task()
+            .await
+            .map_err(|e| {
+                McpError::McpError(rmcp::model::ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    format!("failed to get terminal output: {e:?}"),
+                    None,
+                ))
+            })?;
+
+        let _ = self
+            .cx
+            .send_request(ReleaseTerminalRequest::new(
+                self.session_id.clone(),
+                terminal_id.clone(),
+            ))
+            .block_task()
+            .await
+            .map_err(|e| {
+                McpError::McpError(rmcp::model::ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    format!("failed to release terminal: {e:?}"),
+                    None,
+                ))
+            })?;
+
+        Ok(CallToolResult::success(vec![
+            RmcpContent::text(format!(
+                "exit code: {}",
+                output_res
+                    .exit_status
+                    .and_then(|s| s.exit_code)
+                    .unwrap_or_default()
+            ))
+            .with_priority(0.0),
+            RmcpContent::text(output_res.output).with_priority(0.0),
+        ]))
+    }
 }
 
 #[async_trait]
@@ -260,6 +359,7 @@ impl McpClientTrait for AcpTools {
             "read" if self.fs_read => self.acp_read(arguments, ctx).await,
             "write" if self.fs_write => self.acp_write(arguments, ctx).await,
             "edit" if self.fs_read && self.fs_write => self.acp_edit(arguments, ctx).await,
+            "shell" if self.terminal => self.acp_shell(arguments, ctx).await,
             _ => {
                 self.inner
                     .call_tool(ctx, name, arguments, cancellation_token)

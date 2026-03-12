@@ -60,6 +60,7 @@ pub struct GooseAcpAgent {
     provider_factory: ProviderConstructor,
     builtins: Vec<String>,
     client_fs_capabilities: Mutex<FileSystemCapability>,
+    client_terminal: Mutex<bool>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -341,6 +342,7 @@ impl GooseAcpAgent {
             provider_factory,
             builtins,
             client_fs_capabilities: Mutex::new(FileSystemCapability::new()),
+            client_terminal: Mutex::new(false),
             config_dir,
             session_manager,
             permission_manager,
@@ -372,9 +374,10 @@ impl GooseAcpAgent {
         extensions.extend(self.builtins.iter().map(|b| builtin_to_extension_config(b)));
 
         let caps = self.client_fs_capabilities.lock().await.clone();
+        let terminal = *self.client_terminal.lock().await;
         let acp_developer = match (cx, session_id) {
             (Some(cx), Some(sid))
-                if (caps.read_text_file || caps.write_text_file)
+                if (caps.read_text_file || caps.write_text_file || terminal)
                     && extensions.iter().any(|e| e.name() == "developer") =>
             {
                 let context = agent.extension_manager.get_context().clone();
@@ -384,6 +387,7 @@ impl GooseAcpAgent {
                     session_id: sid.clone(),
                     fs_read: caps.read_text_file,
                     fs_write: caps.write_text_file,
+                    terminal,
                 });
                 let dev_ext = extensions.iter().find(|e| e.name() == "developer");
                 let available_tools = dev_ext
@@ -732,6 +736,7 @@ impl GooseAcpAgent {
         debug!(?args, "initialize request");
 
         *self.client_fs_capabilities.lock().await = args.client_capabilities.fs.clone();
+        *self.client_terminal.lock().await = args.client_capabilities.terminal;
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
