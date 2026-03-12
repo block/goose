@@ -1853,7 +1853,10 @@ data: [DONE]"#;
     fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
         // Test that reasoning_content is properly included in formatted messages
         let mut message = Message::assistant()
-            .with_content(MessageContent::thinking("Thinking through the problem...", ""))
+            .with_content(MessageContent::thinking(
+                "Thinking through the problem...",
+                "",
+            ))
             .with_text("The result is 42");
 
         // Add a tool call to test that reasoning_content works with tool calls

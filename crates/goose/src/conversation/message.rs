@@ -461,7 +461,6 @@ impl MessageContent {
         })
     }
 
-
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
         if let MessageContent::SystemNotification(ref notification) = self {
             Some(notification)
