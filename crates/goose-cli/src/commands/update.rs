@@ -275,8 +275,9 @@ fn extract_tar_bz2(data: &[u8], dest: &Path) -> Result<()> {
         validate_entry_path(&path)?;
 
         // Block symlinks and hardlinks whose targets escape the destination directory.
+        // Use entry.link_name() (not entry.header().link_name()) so GNU/PAX extended
+        // metadata (linkpath) is resolved; the header field alone may be truncated.
         let link_target_opt = entry
-            .header()
             .link_name()
             .context("Failed to read link name from tar entry")?;
         if let Some(link_target) = link_target_opt {
