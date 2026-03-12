@@ -54,15 +54,15 @@ features:
     - settings
 
   settingsTabs:
-    - models
-    - local-inference
     - chat
     - sharing
-    - prompts
     - keyboard
     - app
 
-  hiddenSettingSections: []
+  hiddenSettingSections:
+    - session-sharing
+    - external-backend
+    - gateway
 
   allowedProviders:
     - anthropic
