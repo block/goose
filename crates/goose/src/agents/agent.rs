@@ -1181,9 +1181,10 @@ impl Agent {
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
+                let mut exit_chat = false;
 
                 while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) {
+                    if is_token_cancelled(&cancel_token) || exit_chat {
                         break;
                     }
 
@@ -1462,15 +1463,17 @@ impl Agent {
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
-                                        let error_msg = format!(
-                                            "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
+                                        error!(
+                                            "Tool call could not be parsed: {}",
                                             request.tool_call.as_ref().unwrap_err(),
                                         );
-                                        let error_response = Message::user()
-                                            .with_generated_id()
-                                            .with_text(&error_msg);
-                                        yield AgentEvent::Message(error_response.clone());
-                                        messages_to_add.push(error_response);
+                                        yield AgentEvent::Message(
+                                            Message::assistant().with_text(
+                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
+                                            )
+                                        );
+                                        exit_chat = true;
+                                        break;
                                     }
                                 }
 
@@ -1590,7 +1593,6 @@ impl Agent {
                     }
                 }
 
-                let mut exit_chat = false;
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
