@@ -3,195 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Map Visualization</title>
+    <title>Map</title>
 
+    <style>{{LEAFLET_CSS}}</style>
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        {{LEAFLET_CSS}}
+        body { padding: 0; }
 
-        :root {
-            --color-background-primary: #ffffff;
-            --color-background-secondary: #f5f7fa;
-            --color-text-primary: #333333;
-            --color-text-secondary: #666666;
-            --font-sans: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            --border-radius-md: 12px;
+        .map-header {
+            padding: 12px 16px;
+            text-align: center;
         }
 
-        html, body { overflow: hidden; }
+        .map-header:empty { display: none; }
 
-        body {
-            font-family: var(--font-sans);
-            margin: 0;
-            padding: 20px;
-            background-color: var(--color-background-secondary);
+        .map-title {
+            font-size: var(--font-heading-xs-size);
+            font-weight: var(--font-weight-semibold);
             color: var(--color-text-primary);
+            margin-bottom: 2px;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: var(--color-background-primary);
-            border-radius: var(--border-radius-md);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            overflow: hidden;
+        .map-subtitle {
+            font-size: var(--font-text-xs-size);
+            color: var(--color-text-secondary);
         }
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; padding: 25px; text-align: center;
+        .map-title:empty, .map-subtitle:empty { display: none; }
+
+        #map { width: 100%; height: 440px; }
+
+        .custom-popup h3 {
+            margin: 0 0 6px 0;
+            font-size: var(--font-text-sm-size);
+            font-weight: var(--font-weight-semibold);
         }
-        .header h1 { margin: 0 0 8px 0; font-size: 2em; font-weight: 300; }
-        .header p { margin: 0; font-size: 1em; opacity: 0.9; }
 
-        #map { width: 100%; height: 500px; }
+        .custom-popup p {
+            margin: 3px 0;
+            font-size: var(--font-text-xs-size);
+            color: var(--color-text-secondary);
+        }
 
-        .custom-popup h3 { margin: 0 0 10px 0; color: #333; }
-        .custom-popup p { margin: 5px 0; color: #666; }
-
-        .marker-cluster-small { background-color: rgba(181,226,140,0.6); }
-        .marker-cluster-small div { background-color: rgba(110,204,57,0.6); }
-        .marker-cluster-medium { background-color: rgba(241,211,87,0.6); }
-        .marker-cluster-medium div { background-color: rgba(240,194,12,0.6); }
-        .marker-cluster-large { background-color: rgba(253,156,115,0.6); }
-        .marker-cluster-large div { background-color: rgba(241,128,23,0.6); color: white; text-align: center; line-height: 40px; font-weight: bold; }
         .marker-cluster { border-radius: 50%; }
+        .marker-cluster-small { background-color: rgba(92,152,249,0.35); }
+        .marker-cluster-small div { background-color: rgba(92,152,249,0.7); }
+        .marker-cluster-medium { background-color: rgba(240,160,60,0.35); }
+        .marker-cluster-medium div { background-color: rgba(240,160,60,0.7); }
+        .marker-cluster-large { background-color: rgba(249,112,102,0.35); }
+        .marker-cluster-large div { background-color: rgba(249,112,102,0.7); }
         .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
             width: 30px; height: 30px; margin-left: 5px; margin-top: 5px;
-            text-align: center; border-radius: 15px; font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+            text-align: center; border-radius: 15px;
+            font: 12px var(--font-sans, sans-serif);
+            line-height: 30px; color: #fff; font-weight: var(--font-weight-semibold);
         }
-
-        .loading {
-            display: flex; align-items: center; justify-content: center;
-            height: 400px; color: var(--color-text-secondary); font-size: 1.1em;
-        }
-        .loading.hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1 id="mapTitle">Interactive Map</h1>
-            <p id="mapSubtitle">Geographic data visualization</p>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div id="mapRoot" style="display:none;">
+        <div class="map-header">
+            <div class="map-title" id="mapTitle"></div>
+            <div class="map-subtitle" id="mapSubtitle"></div>
         </div>
-        <div id="loadingIndicator" class="loading">Waiting for data…</div>
-        <div id="map" style="display:none;"></div>
+        <div id="map"></div>
     </div>
 
+    <script>{{LEAFLET_JS}}</script>
+    <script>{{MARKERCLUSTER_JS}}</script>
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-        {{LEAFLET_JS}}
-    </script>
-    <script>
-        {{MARKERCLUSTER_JS}}
-    </script>
-
-    <script>
-    (function() {
+    (function () {
         "use strict";
 
-        var nextId = 1;
         var map, markerClusterGroup;
 
-        function sendRequest(method, params) {
-            return new Promise(function(resolve, reject) {
-                var id = nextId++;
-                function handler(event) {
-                    if (event.data && event.data.id === id) {
-                        window.removeEventListener('message', handler);
-                        if (event.data.result) resolve(event.data.result);
-                        else if (event.data.error) reject(event.data.error);
-                    }
-                }
-                window.addEventListener('message', handler);
-                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
-            });
-        }
-
-        function sendNotification(method, params) {
-            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
-        }
-
-        function reportSize() {
-            var h = Math.max(document.body.scrollHeight, document.body.offsetHeight,
-                document.documentElement.scrollHeight, document.documentElement.offsetHeight);
-            sendNotification("ui/notifications/size-changed", { width: document.body.scrollWidth, height: h });
-        }
-
-        if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(reportSize).observe(document.body); }
-        window.addEventListener('resize', reportSize);
-
-        function applyTheme(hostContext) {
-            if (!hostContext) return;
-            if (hostContext.theme) document.documentElement.style.colorScheme = hostContext.theme;
-            if (hostContext.styles && hostContext.styles.variables) {
-                var vars = hostContext.styles.variables;
-                for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
-            }
-        }
+        var markerPalette = ["#5c98f9", "#47c9a2", "#f0a03c", "#f97066", "#9b8afb"];
 
         function getColorByValue(value, maxValue) {
             var ratio = value / maxValue;
-            if (ratio > 0.8) return '#d73027';
-            if (ratio > 0.6) return '#f46d43';
-            if (ratio > 0.4) return '#fdae61';
-            if (ratio > 0.2) return '#74add1';
-            return '#4575b4';
+            var idx = Math.min(Math.floor(ratio * markerPalette.length), markerPalette.length - 1);
+            return markerPalette[idx];
         }
 
         function initMap(mapData) {
-            var initialLat = mapData.center ? mapData.center.lat : 39.8283;
-            var initialLng = mapData.center ? mapData.center.lng : -98.5795;
-            var initialZoom = mapData.zoom || 4;
+            var lat = mapData.center ? mapData.center.lat : 39.8283;
+            var lng = mapData.center ? mapData.center.lng : -98.5795;
+            var zoom = mapData.zoom || 4;
 
-            map = L.map('map').setView([initialLat, initialLng], initialZoom);
+            map = L.map("map").setView([lat, lng], zoom);
 
-            var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
-            });
-            var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '&copy; Esri', maxZoom: 18
-            });
-            osmLayer.addTo(map);
-            L.control.layers({ "OpenStreetMap": osmLayer, "Satellite": satelliteLayer }).addTo(map);
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: "&copy; OpenStreetMap contributors",
+                maxZoom: 18,
+            }).addTo(map);
 
             if (mapData.clustering !== false) {
                 markerClusterGroup = L.markerClusterGroup({
                     chunkedLoading: true,
                     maxClusterRadius: mapData.clusterRadius || 50,
-                    iconCreateFunction: function(cluster) {
+                    iconCreateFunction: function (cluster) {
                         var count = cluster.getChildCount();
-                        var className = count > 100 ? 'marker-cluster-large' : count > 10 ? 'marker-cluster-medium' : 'marker-cluster-small';
-                        return new L.DivIcon({ html: '<div><span>' + count + '</span></div>', className: 'marker-cluster ' + className, iconSize: new L.Point(40, 40) });
-                    }
+                        var cls = count > 100 ? "marker-cluster-large" : count > 10 ? "marker-cluster-medium" : "marker-cluster-small";
+                        return new L.DivIcon({ html: "<div><span>" + count + "</span></div>", className: "marker-cluster " + cls, iconSize: new L.Point(40, 40) });
+                    },
                 });
             }
         }
 
         function renderMarkers(mapData) {
             var markers = mapData.markers || [];
-            var maxValue = Math.max.apply(null, markers.map(function(m) { return m.value || 1; }).concat([1]));
+            var maxValue = Math.max.apply(null, markers.map(function (m) { return m.value || 1; }).concat([1]));
 
-            markers.forEach(function(point) {
+            markers.forEach(function (point) {
                 var value = point.value || 1;
-                var size = Math.max(10, Math.min(30, (value / maxValue) * 30));
+                var size = Math.max(10, Math.min(28, (value / maxValue) * 28));
                 var color = point.color || getColorByValue(value, maxValue);
-                var labelText = point.label || (value > 1000 ? Math.round(value / 1000) + 'k' : value);
 
-                var customIcon = L.divIcon({
-                    className: 'custom-marker',
-                    html: '<div style="background-color:' + color + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:' + Math.max(8, size * 0.4) + 'px;">' + labelText + '</div>',
-                    iconSize: [size, size], iconAnchor: [size / 2, size / 2]
+                var icon = L.divIcon({
+                    className: "custom-marker",
+                    html: '<div style="background:' + color + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>',
+                    iconSize: [size, size],
+                    iconAnchor: [size / 2, size / 2],
                 });
 
-                var marker = L.marker([point.lat, point.lng], { icon: point.useDefaultIcon ? new L.Icon.Default() : customIcon });
+                var marker = L.marker([point.lat, point.lng], { icon: point.useDefaultIcon ? new L.Icon.Default() : icon });
 
                 if (point.popup || point.name || point.description) {
-                    var popupContent = point.popup || '<div class="custom-popup">' +
-                        (point.name ? '<h3>' + point.name + '</h3>' : '') +
-                        (point.value !== undefined ? '<p><strong>Value:</strong> ' + point.value.toLocaleString() + '</p>' : '') +
-                        '<p><strong>Location:</strong> ' + point.lat.toFixed(4) + ', ' + point.lng.toFixed(4) + '</p>' +
-                        (point.description ? '<p><strong>Description:</strong> ' + point.description + '</p>' : '') +
-                        '</div>';
-                    marker.bindPopup(popupContent);
+                    var html = point.popup || '<div class="custom-popup">' +
+                        (point.name ? "<h3>" + point.name + "</h3>" : "") +
+                        (point.value !== undefined ? "<p><strong>Value:</strong> " + point.value.toLocaleString() + "</p>" : "") +
+                        "<p>" + point.lat.toFixed(4) + ", " + point.lng.toFixed(4) + "</p>" +
+                        (point.description ? "<p>" + point.description + "</p>" : "") +
+                        "</div>";
+                    marker.bindPopup(html);
                 }
 
                 if (markerClusterGroup) markerClusterGroup.addLayer(marker);
@@ -201,56 +147,39 @@
             if (markerClusterGroup) map.addLayer(markerClusterGroup);
 
             if (mapData.autoFit !== false && markers.length > 0) {
-                var group = new L.featureGroup(markers.map(function(m) { return L.marker([m.lat, m.lng]); }));
+                var group = new L.featureGroup(markers.map(function (m) { return L.marker([m.lat, m.lng]); }));
                 map.fitBounds(group.getBounds().pad(0.1));
             }
         }
 
         function renderData(mapData) {
-            document.getElementById('loadingIndicator').classList.add('hidden');
-            document.getElementById('map').style.display = '';
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("mapRoot").style.display = "";
 
-            if (mapData.title) document.getElementById('mapTitle').textContent = mapData.title;
-            if (mapData.subtitle) document.getElementById('mapSubtitle').textContent = mapData.subtitle;
+            document.getElementById("mapTitle").textContent = mapData.title || "";
+            document.getElementById("mapSubtitle").textContent = mapData.subtitle || "";
 
             initMap(mapData);
             renderMarkers(mapData);
-            setTimeout(reportSize, 100);
+            setTimeout(McpAppBridge.reportSize, 80);
         }
 
-        function extractData(msg) {
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) return msg.params.structuredContent.data;
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.markers) return msg.params.structuredContent;
-            if (msg.params && msg.params.arguments && msg.params.arguments.data) return msg.params.arguments.data;
-            if (msg.params && msg.params.arguments && msg.params.arguments.markers) return msg.params.arguments;
-            return null;
-        }
-
-        window.addEventListener('message', function(event) {
-            var msg = event.data;
-            if (!msg || msg.jsonrpc !== "2.0") return;
-            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
-                var data = extractData(msg);
-                if (data) renderData(data);
-            }
-            if (msg.method === 'ui/notifications/host-context-changed') applyTheme(msg.params);
-            if (msg.method === 'ui/resource-teardown' && msg.id) {
-                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
-            }
-        });
-
-        var appIdentity = { name: "autovisualiser-map", version: "1.0.0" };
-        sendRequest("ui/initialize", {
-            protocolVersion: "2026-01-26",
-            appInfo: appIdentity, clientInfo: appIdentity,
-            appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }, capabilities: {}
-        }).then(function(result) {
-            applyTheme(result.hostContext || result);
-            sendNotification("ui/notifications/initialized", {});
-            reportSize();
-        }).catch(function(err) {
-            console.warn('[autovisualiser-map] ui/initialize failed:', err);
-            reportSize();
+        McpAppBridge.init({
+            appName: "autovisualiser-map",
+            onData: renderData,
+            extractData: function (msg) {
+                var sc = msg.params && msg.params.structuredContent;
+                if (sc) {
+                    if (sc.data) return sc.data;
+                    if (sc.markers) return sc;
+                }
+                var args = msg.params && msg.params.arguments;
+                if (args) {
+                    if (args.data) return args.data;
+                    if (args.markers) return args;
+                }
+                return null;
+            },
         });
     })();
     </script>

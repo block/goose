@@ -595,29 +595,53 @@ impl AutoVisualiserRouter {
                 const TEMPLATE: &str = include_str!("templates/sankey_template.html");
                 const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
                 const D3_SANKEY: &str = include_str!("templates/assets/d3.sankey.min.js");
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
                 Ok(TEMPLATE
                     .replace("{{D3_MIN}}", D3_MIN)
-                    .replace("{{D3_SANKY}}", D3_SANKEY))
+                    .replace("{{D3_SANKY}}", D3_SANKEY)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/radar" => {
                 const TEMPLATE: &str = include_str!("templates/radar_template.html");
                 const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
-                Ok(TEMPLATE.replace("{{CHART_MIN}}", CHART_MIN))
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
+                Ok(TEMPLATE
+                    .replace("{{CHART_MIN}}", CHART_MIN)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/donut" => {
                 const TEMPLATE: &str = include_str!("templates/donut_template.html");
                 const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
-                Ok(TEMPLATE.replace("{{CHART_MIN}}", CHART_MIN))
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
+                Ok(TEMPLATE
+                    .replace("{{CHART_MIN}}", CHART_MIN)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/treemap" => {
                 const TEMPLATE: &str = include_str!("templates/treemap_template.html");
                 const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
-                Ok(TEMPLATE.replace("{{D3_MIN}}", D3_MIN))
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
+                Ok(TEMPLATE
+                    .replace("{{D3_MIN}}", D3_MIN)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/chord" => {
                 const TEMPLATE: &str = include_str!("templates/chord_template.html");
                 const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
-                Ok(TEMPLATE.replace("{{D3_MIN}}", D3_MIN))
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
+                Ok(TEMPLATE
+                    .replace("{{D3_MIN}}", D3_MIN)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/map" => {
                 const TEMPLATE: &str = include_str!("templates/map_template.html");
@@ -625,15 +649,24 @@ impl AutoVisualiserRouter {
                 const LEAFLET_CSS: &str = include_str!("templates/assets/leaflet.min.css");
                 const MARKERCLUSTER_JS: &str =
                     include_str!("templates/assets/leaflet.markercluster.min.js");
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
                 Ok(TEMPLATE
                     .replace("{{LEAFLET_JS}}", LEAFLET_JS)
                     .replace("{{LEAFLET_CSS}}", LEAFLET_CSS)
-                    .replace("{{MARKERCLUSTER_JS}}", MARKERCLUSTER_JS))
+                    .replace("{{MARKERCLUSTER_JS}}", MARKERCLUSTER_JS)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/mermaid" => {
                 const TEMPLATE: &str = include_str!("templates/mermaid_template.html");
                 const MERMAID_MIN: &str = include_str!("templates/assets/mermaid.min.js");
-                Ok(TEMPLATE.replace("{{MERMAID_MIN}}", MERMAID_MIN))
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
+                Ok(TEMPLATE
+                    .replace("{{MERMAID_MIN}}", MERMAID_MIN)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             _ => Err(ErrorData::new(
                 ErrorCode::INVALID_REQUEST,

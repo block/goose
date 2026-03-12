@@ -5,277 +5,140 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sankey Diagram</title>
 
-    <script>
-        {{D3_MIN}}
-    </script>
-    <script>
-        {{D3_SANKY}}
-    </script>
+    <script>{{D3_MIN}}</script>
+    <script>{{D3_SANKY}}</script>
 
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        :root {
-            --color-background-primary: #ffffff;
-            --color-background-secondary: #f5f5f5;
-            --color-text-primary: #333333;
-            --color-text-secondary: #666666;
-            --font-sans: Arial, sans-serif;
-        }
-
-        html, body {
-            overflow: hidden;
-        }
-
-        body {
-            font-family: var(--font-sans);
-            margin: 0;
-            padding: 20px;
-            background-color: var(--color-background-secondary);
-            color: var(--color-text-primary);
-        }
-
-        .container {
-            margin: 0 auto;
-        }
-
-        #sankey {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: var(--color-background-primary);
-            display: block;
-            margin: 0 auto;
-        }
+        body { padding: 16px; }
 
         .node rect {
             cursor: pointer;
-            stroke: #000;
-            stroke-width: 1px;
+            stroke-width: 0;
         }
 
         .node text {
             pointer-events: none;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: var(--font-text-xs-size);
+            font-weight: var(--font-weight-medium);
+            fill: var(--color-text-primary);
         }
 
         .link {
             fill: none;
-            stroke-opacity: 0.5;
+            stroke-opacity: 0.35;
             cursor: pointer;
+            transition: stroke-opacity 0.15s ease;
         }
 
         .link:hover {
-            stroke-opacity: 0.8;
-        }
-
-        .tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 1000;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 400px;
-            color: var(--color-text-secondary);
-            font-size: 1.1em;
-        }
-
-        .loading.hidden {
-            display: none;
+            stroke-opacity: 0.6;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="loadingIndicator" class="loading">Waiting for data…</div>
-        <svg id="sankey"></svg>
-        <div class="tooltip" id="tooltip"></div>
-    </div>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <svg id="sankey"></svg>
+    <div class="av-tooltip" id="tooltip"></div>
 
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-    (function() {
+    (function () {
         "use strict";
 
-        var nextId = 1;
         var svg, sankey, tooltip;
-        var width = 500;
-        var height = 400;
-        var margin = { top: 20, right: 20, bottom: 20, left: 20 };
+        var width = 500, height = 400;
+        var margin = { top: 16, right: 16, bottom: 16, left: 16 };
 
-        var colorSchemes = {
-            source: "#ff6b6b", income: "#4ecdc4", input: "#45b7d1",
-            generation: "#f9ca24", process: "#f0932b", pool: "#6c5ce7",
-            distribution: "#a29bfe", logistics: "#fd79a8", landing: "#00b894",
-            page: "#00cec9", storage: "#fdcb6e", retail: "#e17055",
-            consumption: "#74b9ff", expense: "#fd79a8", conversion: "#00b894",
-            end: "#00b894", savings: "#55a3ff", loss: "#636e72",
-            exit: "#636e72", reverse: "#ddd", waste: "#636e72", default: "#69b3a2"
-        };
+        var palette = [
+            "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
+            "#9b8afb", "#e87fa0", "#3cc0e0", "#8bba5a",
+        ];
 
-        // ── MCP Apps messaging helpers ──────────────────────────────────
-        function sendRequest(method, params) {
-            return new Promise(function(resolve, reject) {
-                var id = nextId++;
-                function handler(event) {
-                    if (event.data && event.data.id === id) {
-                        window.removeEventListener('message', handler);
-                        if (event.data.result) resolve(event.data.result);
-                        else if (event.data.error) reject(event.data.error);
-                    }
-                }
-                window.addEventListener('message', handler);
-                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
-            });
+        function nodeColor(d) {
+            return palette[Math.abs(hashCode(d.name)) % palette.length];
         }
 
-        function sendNotification(method, params) {
-            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
-        }
-
-        function reportSize() {
-            var h = Math.max(
-                document.body.scrollHeight, document.body.offsetHeight,
-                document.documentElement.scrollHeight, document.documentElement.offsetHeight
-            );
-            sendNotification("ui/notifications/size-changed", {
-                width: document.body.scrollWidth, height: h
-            });
-        }
-
-        if (typeof ResizeObserver !== 'undefined') {
-            new ResizeObserver(reportSize).observe(document.body);
-        }
-        window.addEventListener('resize', reportSize);
-
-        var currentData = null;
-
-        function applyTheme(hostContext) {
-            if (!hostContext) return;
-            if (hostContext.theme) document.documentElement.style.colorScheme = hostContext.theme;
-            if (hostContext.styles && hostContext.styles.variables) {
-                var vars = hostContext.styles.variables;
-                for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
+        function hashCode(str) {
+            var h = 0;
+            for (var i = 0; i < str.length; i++) {
+                h = ((h << 5) - h + str.charCodeAt(i)) | 0;
             }
-            if (currentData) renderData(currentData);
+            return h;
         }
 
-        // ── Sankey rendering ────────────────────────────────────────────
         function initializeSVG() {
             svg = d3.select("#sankey").attr("width", width).attr("height", height);
             svg.selectAll("*").remove();
-            sankey = d3.sankey().nodeWidth(20).nodePadding(10)
+            sankey = d3.sankey().nodeWidth(18).nodePadding(12)
                 .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
             tooltip = d3.select("#tooltip");
         }
 
         function drawSankey(data) {
             var nodeMap = new Map();
-            data.nodes.forEach(function(node, index) { nodeMap.set(node.name, index); });
+            data.nodes.forEach(function (node, index) { nodeMap.set(node.name, index); });
 
-            var processedLinks = data.links.map(function(link) {
+            var processedLinks = data.links.map(function (link) {
                 return { source: nodeMap.get(link.source), target: nodeMap.get(link.target), value: link.value };
             });
 
             var graph = sankey({
-                nodes: data.nodes.map(function(d) { return Object.assign({}, d); }),
-                links: processedLinks
+                nodes: data.nodes.map(function (d) { return Object.assign({}, d); }),
+                links: processedLinks,
             });
 
             svg.append("g").selectAll("path").data(graph.links).enter().append("path")
-                .attr("class", "link").attr("d", d3.sankeyLinkHorizontal())
-                .attr("stroke", function(d) { return colorSchemes[d.source.category] || colorSchemes.default; })
-                .attr("stroke-width", function(d) { return Math.max(1, d.width); })
-                .on("mouseover", function(event, d) { showLinkTooltip(event, d); })
-                .on("mouseout", hideTooltip);
+                .attr("class", "link")
+                .attr("d", d3.sankeyLinkHorizontal())
+                .attr("stroke", function (d) { return nodeColor(d.source); })
+                .attr("stroke-width", function (d) { return Math.max(1, d.width); })
+                .on("mouseover", function (event, d) {
+                    tooltip.style("opacity", 1)
+                        .html("<strong>" + d.source.name + " → " + d.target.name + "</strong><br/>" + d.value.toLocaleString())
+                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function () { tooltip.style("opacity", 0); });
 
             var node = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g").attr("class", "node");
 
             node.append("rect")
-                .attr("x", function(d) { return d.x0; }).attr("y", function(d) { return d.y0; })
-                .attr("height", function(d) { return d.y1 - d.y0; }).attr("width", function(d) { return d.x1 - d.x0; })
-                .attr("fill", function(d) { return colorSchemes[d.category] || colorSchemes.default; })
-                .on("mouseover", function(event, d) { showNodeTooltip(event, d); })
-                .on("mouseout", hideTooltip);
+                .attr("x", function (d) { return d.x0; }).attr("y", function (d) { return d.y0; })
+                .attr("height", function (d) { return d.y1 - d.y0; }).attr("width", function (d) { return d.x1 - d.x0; })
+                .attr("fill", function (d) { return nodeColor(d); })
+                .attr("rx", 2)
+                .on("mouseover", function (event, d) {
+                    var totalIn = d.targetLinks.reduce(function (s, l) { return s + l.value; }, 0);
+                    var totalOut = d.sourceLinks.reduce(function (s, l) { return s + l.value; }, 0);
+                    tooltip.style("opacity", 1)
+                        .html("<strong>" + d.name + "</strong>" +
+                            (totalIn ? "<br/>In: " + totalIn.toLocaleString() : "") +
+                            (totalOut ? "<br/>Out: " + totalOut.toLocaleString() : ""))
+                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function () { tooltip.style("opacity", 0); });
 
             node.append("text")
-                .attr("x", function(d) { return d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6; })
-                .attr("y", function(d) { return (d.y1 + d.y0) / 2; })
+                .attr("x", function (d) { return d.x0 < width / 2 ? d.x1 + 8 : d.x0 - 8; })
+                .attr("y", function (d) { return (d.y1 + d.y0) / 2; })
                 .attr("dy", "0.35em")
-                .attr("text-anchor", function(d) { return d.x0 < width / 2 ? "start" : "end"; })
-                .text(function(d) { return d.name; })
-                .style("font-size", "12px").style("fill", "var(--color-text-primary)");
+                .attr("text-anchor", function (d) { return d.x0 < width / 2 ? "start" : "end"; })
+                .text(function (d) { return d.name; });
         }
-
-        function showNodeTooltip(event, d) {
-            var totalIn = d.targetLinks.reduce(function(sum, link) { return sum + link.value; }, 0);
-            var totalOut = d.sourceLinks.reduce(function(sum, link) { return sum + link.value; }, 0);
-            tooltip.style("opacity", 1)
-                .html('<strong>' + d.name + '</strong><br/>Category: ' + (d.category || 'N/A') +
-                    '<br/>Total In: ' + totalIn.toLocaleString() + '<br/>Total Out: ' + totalOut.toLocaleString() +
-                    '<br/>Net: ' + (totalIn - totalOut).toLocaleString())
-                .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
-        }
-
-        function showLinkTooltip(event, d) {
-            tooltip.style("opacity", 1)
-                .html('<strong>Flow</strong><br/>From: ' + d.source.name + '<br/>To: ' + d.target.name +
-                    '<br/>Value: ' + d.value.toLocaleString() + '<br/>Width: ' + d.width.toFixed(1) + 'px')
-                .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
-        }
-
-        function hideTooltip() { tooltip.style("opacity", 0); }
 
         function renderData(data) {
-            document.getElementById('loadingIndicator').classList.add('hidden');
-            currentData = data;
+            document.getElementById("loadingIndicator").classList.add("hidden");
             initializeSVG();
             drawSankey(data);
-            setTimeout(reportSize, 100);
+            setTimeout(McpAppBridge.reportSize, 80);
         }
 
-        function extractData(msg) {
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) return msg.params.structuredContent.data;
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.nodes) return msg.params.structuredContent;
-            if (msg.params && msg.params.arguments && msg.params.arguments.data) return msg.params.arguments.data;
-            if (msg.params && msg.params.arguments && msg.params.arguments.nodes) return msg.params.arguments;
-            return null;
-        }
-
-        // ── MCP Apps lifecycle ──────────────────────────────────────────
-        window.addEventListener('message', function(event) {
-            var msg = event.data;
-            if (!msg || msg.jsonrpc !== "2.0") return;
-            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
-                var data = extractData(msg);
-                if (data) renderData(data);
-            }
-            if (msg.method === 'ui/notifications/host-context-changed') applyTheme(msg.params);
-            if (msg.method === 'ui/resource-teardown' && msg.id) {
-                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
-            }
-        });
-
-        var appIdentity = { name: "autovisualiser-sankey", version: "1.0.0" };
-        sendRequest("ui/initialize", {
-            protocolVersion: "2026-01-26",
-            appInfo: appIdentity, clientInfo: appIdentity,
-            appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }, capabilities: {}
-        }).then(function(result) {
-            applyTheme(result.hostContext || result);
-            sendNotification("ui/notifications/initialized", {});
-            reportSize();
-        }).catch(function(err) {
-            console.warn('[autovisualiser-sankey] ui/initialize failed:', err);
-            reportSize();
+        McpAppBridge.init({
+            appName: "autovisualiser-sankey",
+            onData: renderData,
+            onTheme: function () {
+                if (McpAppBridge.currentData) renderData(McpAppBridge.currentData);
+            },
         });
     })();
     </script>

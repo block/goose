@@ -5,252 +5,151 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radar Chart</title>
 
-    <script>
-        {{CHART_MIN}}
-    </script>
+    <script>{{CHART_MIN}}</script>
 
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        :root {
-            --color-background-primary: #ffffff;
-            --color-background-secondary: #f5f5f5;
-            --color-text-primary: #333333;
-            --color-text-secondary: #666666;
-            --color-border-primary: rgba(0, 0, 0, 0.1);
-            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        body { padding: 16px; }
+
+        .chart-area {
+            position: relative;
+            height: 420px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        html, body { overflow: hidden; }
-
-        body {
-            font-family: var(--font-sans);
-            margin: 0; padding: 20px;
-            background-color: var(--color-background-secondary);
-            color: var(--color-text-primary);
+        #radarChart {
+            max-width: 100%;
+            max-height: 100%;
         }
-
-        .container { margin: 0 auto; }
-
-        .chart-container {
-            position: relative; height: 500px; width: 100%;
-            margin: 0 auto; display: flex; justify-content: center; align-items: center;
-        }
-
-        #radarChart { max-width: 100%; max-height: 100%; }
-
-        .stats-panel {
-            background: var(--color-background-primary); padding: 15px; margin-top: 15px;
-            border-radius: 8px; display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;
-        }
-
-        .stat-item { text-align: center; padding: 8px; background: var(--color-background-secondary); border-radius: 6px; }
-        .stat-value { font-size: 1.3em; font-weight: bold; color: #007bff; margin-bottom: 4px; }
-        .stat-label { font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-
-        .loading { display: flex; align-items: center; justify-content: center; height: 400px; color: var(--color-text-secondary); font-size: 1.1em; }
-        .loading.hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="loadingIndicator" class="loading">Waiting for data…</div>
-        <div class="chart-container" id="chartContainer" style="display:none;">
-            <canvas id="radarChart"></canvas>
-        </div>
-        <div class="stats-panel" id="statsPanel" style="display:none;">
-            <div class="stat-item"><div class="stat-value" id="dimensions">0</div><div class="stat-label">Dimensions</div></div>
-            <div class="stat-item"><div class="stat-value" id="datasets">0</div><div class="stat-label">Datasets</div></div>
-            <div class="stat-item"><div class="stat-value" id="maxScore">0</div><div class="stat-label">Max Score</div></div>
-            <div class="stat-item"><div class="stat-value" id="avgScore">0</div><div class="stat-label">Average</div></div>
-        </div>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div class="chart-area" id="chartContainer" style="display:none;">
+        <canvas id="radarChart"></canvas>
     </div>
 
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-    (function() {
+    (function () {
         "use strict";
 
-        var nextId = 1;
         var chart = null;
-        var currentData = null;
 
-        var defaultColors = [
-            'rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
-            'rgba(255, 159, 64, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 206, 86, 1)',
-            'rgba(231, 76, 60, 1)', 'rgba(46, 204, 113, 1)', 'rgba(52, 152, 219, 1)',
-            'rgba(155, 89, 182, 1)'
+        var palette = [
+            { solid: "#5c98f9", fill: "rgba(92,152,249,0.15)" },
+            { solid: "#f97066", fill: "rgba(249,112,102,0.15)" },
+            { solid: "#47c9a2", fill: "rgba(71,201,162,0.15)" },
+            { solid: "#f0a03c", fill: "rgba(240,160,60,0.15)" },
+            { solid: "#9b8afb", fill: "rgba(155,138,251,0.15)" },
+            { solid: "#e87fa0", fill: "rgba(232,127,160,0.15)" },
+            { solid: "#3cc0e0", fill: "rgba(60,192,224,0.15)" },
+            { solid: "#8bba5a", fill: "rgba(139,186,90,0.15)" },
         ];
 
-        function getColor(index, alpha) {
-            if (alpha === undefined) alpha = 1;
-            var color = defaultColors[index % defaultColors.length];
-            return alpha === 1 ? color : color.replace('1)', alpha + ')');
-        }
-
-        function sendRequest(method, params) {
-            return new Promise(function(resolve, reject) {
-                var id = nextId++;
-                function handler(event) {
-                    if (event.data && event.data.id === id) {
-                        window.removeEventListener('message', handler);
-                        if (event.data.result) resolve(event.data.result);
-                        else if (event.data.error) reject(event.data.error);
-                    }
-                }
-                window.addEventListener('message', handler);
-                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
-            });
-        }
-
-        function sendNotification(method, params) {
-            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
-        }
-
-        function reportSize() {
-            var h = Math.max(document.body.scrollHeight, document.body.offsetHeight,
-                document.documentElement.scrollHeight, document.documentElement.offsetHeight);
-            sendNotification("ui/notifications/size-changed", { width: document.body.scrollWidth, height: h });
-        }
-
-        if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(reportSize).observe(document.body); }
-        window.addEventListener('resize', reportSize);
-
-        function cssVar(name) {
-            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        }
-
-        function applyTheme(hostContext) {
-            if (!hostContext) return;
-            if (hostContext.theme) document.documentElement.style.colorScheme = hostContext.theme;
-            if (hostContext.styles && hostContext.styles.variables) {
-                var vars = hostContext.styles.variables;
-                for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
-            }
-            if (currentData) renderRadar(currentData);
-        }
-
-        function processData(data) {
-            return {
-                labels: data.labels || [],
-                datasets: (data.datasets || []).map(function(dataset, index) {
-                    var borderColor = dataset.borderColor || getColor(index);
-                    var backgroundColor = dataset.backgroundColor || getColor(index, 0.2);
-                    return {
-                        label: dataset.label || 'Dataset ' + (index + 1),
-                        data: dataset.data || [],
-                        borderColor: borderColor, backgroundColor: backgroundColor,
-                        borderWidth: dataset.borderWidth || 2,
-                        pointBackgroundColor: dataset.pointBackgroundColor || borderColor,
-                        pointBorderColor: dataset.pointBorderColor || '#fff',
-                        pointHoverBackgroundColor: dataset.pointHoverBackgroundColor || '#fff',
-                        pointHoverBorderColor: dataset.pointHoverBorderColor || borderColor,
-                        fill: dataset.fill !== undefined ? dataset.fill : true,
-                        pointRadius: dataset.pointRadius !== undefined ? dataset.pointRadius : 4,
-                        pointHoverRadius: dataset.pointHoverRadius !== undefined ? dataset.pointHoverRadius : 6
-                    };
-                })
-            };
-        }
-
-        function renderRadar(radarData) {
-            document.getElementById('loadingIndicator').classList.add('hidden');
-            document.getElementById('chartContainer').style.display = '';
-            document.getElementById('statsPanel').style.display = '';
-            currentData = radarData;
+        function renderRadar(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("chartContainer").style.display = "";
 
             if (chart) { chart.destroy(); chart = null; }
 
-            var textColor = cssVar('--color-text-primary') || '#333';
-            var textSecondary = cssVar('--color-text-secondary') || '#666';
-            var gridColor = cssVar('--color-border-primary') || 'rgba(0,0,0,0.1)';
+            var cv = McpAppBridge.cssVar;
+            var textColor = cv("--color-text-primary") || "#3f434b";
+            var textSecondary = cv("--color-text-secondary") || "#878787";
+            var gridColor = cv("--color-border-primary") || "#e3e6ea";
+            var fontFamily = cv("--font-sans") || "sans-serif";
 
-            var data = processData(radarData);
-            var maxValue = 100;
-            if (data.datasets.length > 0) {
-                var allValues = data.datasets.reduce(function(acc, d) { return acc.concat(d.data); }, []);
-                var dataMax = Math.max.apply(null, allValues);
-                maxValue = Math.ceil(dataMax / 10) * 10;
-            }
+            var datasets = (data.datasets || []).map(function (ds, i) {
+                var p = palette[i % palette.length];
+                return {
+                    label: ds.label || "Dataset " + (i + 1),
+                    data: ds.data || [],
+                    borderColor: ds.borderColor || p.solid,
+                    backgroundColor: ds.backgroundColor || p.fill,
+                    borderWidth: ds.borderWidth || 2,
+                    pointBackgroundColor: ds.pointBackgroundColor || p.solid,
+                    pointBorderColor: "transparent",
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: ds.pointHoverBackgroundColor || p.solid,
+                    fill: ds.fill !== undefined ? ds.fill : true,
+                };
+            });
 
-            var ctx = document.getElementById('radarChart').getContext('2d');
+            var allValues = datasets.reduce(function (acc, d) { return acc.concat(d.data); }, []);
+            var dataMax = allValues.length > 0 ? Math.max.apply(null, allValues) : 100;
+            var maxValue = Math.ceil(dataMax / 10) * 10;
+
+            var ctx = document.getElementById("radarChart").getContext("2d");
             chart = new Chart(ctx, {
-                type: 'radar',
-                data: data,
+                type: "radar",
+                data: { labels: data.labels || [], datasets: datasets },
                 options: {
-                    responsive: true, maintainAspectRatio: false,
+                    responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, padding: 15, font: { size: 12 }, color: textColor } },
+                        legend: {
+                            position: "bottom",
+                            labels: {
+                                usePointStyle: true,
+                                pointStyleWidth: 8,
+                                padding: 16,
+                                font: { size: 12, family: fontFamily },
+                                color: textSecondary,
+                                boxWidth: 6,
+                                boxHeight: 6,
+                            },
+                        },
                         tooltip: {
-                            backgroundColor: 'rgba(0,0,0,0.8)', titleColor: 'white', bodyColor: 'white',
-                            borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 6, displayColors: true,
-                            callbacks: {
-                                label: function(context) {
-                                    var val = context.parsed.r;
-                                    var pct = ((val / maxValue) * 100).toFixed(1);
-                                    return context.dataset.label + ': ' + val + ' (' + pct + '%)';
-                                }
-                            }
-                        }
+                            backgroundColor: cv("--color-background-inverse") || "rgba(0,0,0,0.85)",
+                            titleColor: cv("--color-text-inverse") || "#fff",
+                            bodyColor: cv("--color-text-inverse") || "#fff",
+                            borderWidth: 0,
+                            cornerRadius: 6,
+                            padding: { top: 8, bottom: 8, left: 10, right: 10 },
+                            titleFont: { size: 12, weight: "600", family: fontFamily },
+                            bodyFont: { size: 12, family: fontFamily },
+                            displayColors: true,
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            usePointStyle: true,
+                        },
                     },
                     scales: {
                         r: {
-                            beginAtZero: true, max: maxValue, min: 0,
-                            ticks: { stepSize: maxValue / 5, font: { size: 10 }, color: textSecondary },
+                            beginAtZero: true,
+                            max: maxValue,
+                            min: 0,
+                            ticks: {
+                                stepSize: maxValue / 5,
+                                font: { size: 10, family: fontFamily },
+                                color: textSecondary,
+                                backdropColor: "transparent",
+                            },
                             grid: { color: gridColor },
                             angleLines: { color: gridColor },
-                            pointLabels: { font: { size: 11, weight: 'bold' }, color: textColor }
-                        }
+                            pointLabels: {
+                                font: { size: 11, weight: "500", family: fontFamily },
+                                color: textColor,
+                            },
+                        },
                     },
-                    animation: { duration: 750, easing: 'easeInOutQuart' },
-                    interaction: { intersect: false, mode: 'point' }
-                }
+                    animation: { duration: 500, easing: "easeOutQuart" },
+                    interaction: { intersect: false, mode: "point" },
+                },
             });
 
-            var dims = data.labels.length;
-            var dsets = data.datasets.length;
-            var all = data.datasets.reduce(function(acc, d) { return acc.concat(d.data); }, []);
-            var mx = all.length > 0 ? Math.max.apply(null, all) : 0;
-            var avg = all.length > 0 ? all.reduce(function(a, b) { return a + b; }, 0) / all.length : 0;
-            document.getElementById('dimensions').textContent = dims;
-            document.getElementById('datasets').textContent = dsets;
-            document.getElementById('maxScore').textContent = mx.toFixed(0);
-            document.getElementById('avgScore').textContent = avg.toFixed(1);
-
-            setTimeout(reportSize, 100);
+            setTimeout(McpAppBridge.reportSize, 80);
         }
 
-        function extractData(msg) {
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) return msg.params.structuredContent.data;
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.labels) return msg.params.structuredContent;
-            if (msg.params && msg.params.arguments && msg.params.arguments.data) return msg.params.arguments.data;
-            if (msg.params && msg.params.arguments && msg.params.arguments.labels) return msg.params.arguments;
-            return null;
-        }
-
-        window.addEventListener('message', function(event) {
-            var msg = event.data;
-            if (!msg || msg.jsonrpc !== "2.0") return;
-            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
-                var data = extractData(msg);
-                if (data) renderRadar(data);
-            }
-            if (msg.method === 'ui/notifications/host-context-changed') applyTheme(msg.params);
-            if (msg.method === 'ui/resource-teardown' && msg.id) {
-                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
-            }
-        });
-
-        var appIdentity = { name: "autovisualiser-radar", version: "1.0.0" };
-        sendRequest("ui/initialize", {
-            protocolVersion: "2026-01-26",
-            appInfo: appIdentity, clientInfo: appIdentity,
-            appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }, capabilities: {}
-        }).then(function(result) {
-            applyTheme(result.hostContext || result);
-            sendNotification("ui/notifications/initialized", {});
-            reportSize();
-        }).catch(function(err) {
-            console.warn('[autovisualiser-radar] ui/initialize failed:', err);
-            reportSize();
+        McpAppBridge.init({
+            appName: "autovisualiser-radar",
+            onData: renderRadar,
+            onTheme: function () {
+                if (McpAppBridge.currentData) renderRadar(McpAppBridge.currentData);
+            },
         });
     })();
     </script>
