@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
+import { toastError } from '../toasts';
 
 import {
   getSession,
@@ -309,8 +310,18 @@ async function streamFromResponse(
       }
     }
 
+    // If we reach here, the stream ended without a Finish or Error event.
+    // This happens when the connection drops and retries are exhausted — the
+    // generator exits its loop without yielding a terminal event. We call
+    // onFinish() without an error to keep the conversation visible (passing
+    // an error would trigger a full-page error screen via sessionLoadError),
+    // then show a toast so the user knows the response may be incomplete.
     flushBatchedUpdates();
     onFinish();
+    toastError({
+      title: 'Connection lost',
+      msg: 'The response may be incomplete. You can try sending your message again.',
+    });
   } catch (error) {
     flushBatchedUpdates();
     if (error instanceof Error && error.name !== 'AbortError') {
@@ -593,6 +604,7 @@ export function useChatStream({
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          sseMaxRetryAttempts: 0,
         });
 
         await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
@@ -634,6 +646,7 @@ export function useChatStream({
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          sseMaxRetryAttempts: 0,
         });
 
         await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
@@ -773,6 +786,7 @@ export function useChatStream({
                 },
                 throwOnError: true,
                 signal: abortControllerRef.current.signal,
+                sseMaxRetryAttempts: 0,
               });
 
               await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
