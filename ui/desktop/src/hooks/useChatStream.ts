@@ -593,6 +593,7 @@ export function useChatStream({
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          sseMaxRetryAttempts: 1,
         });
 
         await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
@@ -634,6 +635,7 @@ export function useChatStream({
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          sseMaxRetryAttempts: 1,
         });
 
         await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
@@ -773,6 +775,7 @@ export function useChatStream({
                 },
                 throwOnError: true,
                 signal: abortControllerRef.current.signal,
+                sseMaxRetryAttempts: 1,
               });
 
               await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
