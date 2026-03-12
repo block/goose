@@ -4588,6 +4588,8 @@ version = "1.27.0"
 dependencies = [
  "axum 0.7.9",
  "rmcp 1.1.0",
+ "schemars 1.2.1",
+ "serde",
  "serde_json",
  "tokio",
 ]

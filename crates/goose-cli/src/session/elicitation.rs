@@ -162,3 +162,38 @@ fn parse_value(input: &str, field_type: &str, enum_values: Option<&Vec<Value>>) 
         _ => Value::String(input.to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_value_accepts_enum_by_name() {
+        let enum_values = vec![json!("approve"), json!("reject")];
+        assert_eq!(
+            parse_value("reject", "string", Some(&enum_values)),
+            Value::String("reject".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_value_accepts_enum_by_index() {
+        let enum_values = vec![json!("approve"), json!("reject")];
+        assert_eq!(
+            parse_value("2", "string", Some(&enum_values)),
+            Value::String("reject".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_value_handles_boolean_aliases() {
+        assert_eq!(parse_value("yes", "boolean", None), Value::Bool(true));
+        assert_eq!(parse_value("0", "boolean", None), Value::Bool(false));
+    }
+
+    #[test]
+    fn parse_value_returns_null_for_invalid_integer() {
+        assert_eq!(parse_value("abc", "integer", None), Value::Null);
+    }
+}

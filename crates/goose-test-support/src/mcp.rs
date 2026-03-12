@@ -8,14 +8,29 @@ use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
 use rmcp::{
-    handler::server::router::tool::ToolRouter, tool, tool_handler, tool_router,
+    elicit_safe, handler::server::router::tool::ToolRouter, tool, tool_handler, tool_router,
     ErrorData as McpError, RoleServer, ServerHandler, Service,
 };
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 pub const FAKE_CODE: &str = "test-uuid-12345-67890";
 
 pub const TEST_IMAGE_B64: &str = include_str!("test_assets/test_image.b64").trim_ascii_end();
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ConfirmationRequest {
+    prompt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ConfirmationResponse {
+    approved: bool,
+    reason: Option<String>,
+}
+
+elicit_safe!(ConfirmationResponse);
 
 pub trait HasMeta {
     fn meta(&self) -> &Meta;
@@ -117,6 +132,35 @@ impl McpFixtureServer {
             "image/png",
         )]))
     }
+
+    #[tool(description = "Trigger an elicitation request and wait for the client response")]
+    async fn request_confirmation(
+        &self,
+        request: rmcp::handler::server::wrapper::Parameters<ConfirmationRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let response = context
+            .peer
+            .elicit_with_timeout::<ConfirmationResponse>(request.0.prompt.clone(), None)
+            .await
+            .map_err(|error| {
+                McpError::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("elicitation failed: {error}"),
+                    None,
+                )
+            })?;
+
+        let text = match response {
+            Some(ConfirmationResponse { approved, reason }) => {
+                let reason = reason.unwrap_or_default();
+                format!("approved={approved}; reason={reason}")
+            }
+            None => "approved=false; reason=".to_string(),
+        };
+
+        Ok(CallToolResult::success(vec![Content::text(text)]))
+    }
 }
 
 #[tool_handler]
@@ -125,7 +169,9 @@ impl ServerHandler for McpFixtureServer {
         InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2025_03_26)
             .with_server_info(Implementation::new("mcp-fixture", "1.0.0"))
-            .with_instructions("Test server with get_code and get_image tools.")
+            .with_instructions(
+                "Test server with get_code, get_image, and request_confirmation tools.",
+            )
     }
 }
 

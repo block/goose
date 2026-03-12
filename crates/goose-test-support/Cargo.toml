@@ -9,7 +9,9 @@ description.workspace = true
 
 [dependencies]
 axum = "0.7"
-rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server", "elicitation", "schemars"] }
+schemars = { workspace = true, features = ["derive"] }
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 
