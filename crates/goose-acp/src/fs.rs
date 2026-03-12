@@ -1,4 +1,5 @@
 use crate::tools::AcpAwareToolMeta;
+use agent_client_protocol_schema::TerminalId;
 use async_trait::async_trait;
 use fs_err as fs;
 use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
@@ -269,8 +270,43 @@ impl AcpTools {
             ))]),
         );
 
+        let result = self.run_terminal_to_completion(&terminal_id).await;
+
+        // Always release the terminal, even if we hit errors above.
         let _ = self
             .cx
+            .send_request(ReleaseTerminalRequest::new(
+                self.session_id.clone(),
+                terminal_id.clone(),
+            ))
+            .block_task()
+            .await
+            .inspect_err(|e| tracing::error!("failed to release terminal: {e:?}"));
+
+        let output_res = result?;
+
+        let exit_code = output_res
+            .exit_status
+            .and_then(|s| s.exit_code)
+            .unwrap_or_default();
+
+        let content = vec![
+            RmcpContent::text(format!("exit code: {exit_code}")).with_priority(0.0),
+            RmcpContent::text(output_res.output).with_priority(0.0),
+        ];
+
+        if exit_code != 0 {
+            Ok(CallToolResult::error(content))
+        } else {
+            Ok(CallToolResult::success(content))
+        }
+    }
+
+    async fn run_terminal_to_completion(
+        &self,
+        terminal_id: &TerminalId,
+    ) -> Result<sacp::schema::TerminalOutputResponse, McpError> {
+        self.cx
             .send_request(WaitForTerminalExitRequest::new(
                 self.session_id.clone(),
                 terminal_id.clone(),
@@ -285,8 +321,7 @@ impl AcpTools {
                 ))
             })?;
 
-        let output_res = self
-            .cx
+        self.cx
             .send_request(TerminalOutputRequest::new(
                 self.session_id.clone(),
                 terminal_id.clone(),
@@ -299,35 +334,7 @@ impl AcpTools {
                     format!("failed to get terminal output: {e:?}"),
                     None,
                 ))
-            })?;
-
-        let _ = self
-            .cx
-            .send_request(ReleaseTerminalRequest::new(
-                self.session_id.clone(),
-                terminal_id.clone(),
-            ))
-            .block_task()
-            .await
-            .map_err(|e| {
-                McpError::McpError(rmcp::model::ErrorData::new(
-                    rmcp::model::ErrorCode::INTERNAL_ERROR,
-                    format!("failed to release terminal: {e:?}"),
-                    None,
-                ))
-            })?;
-
-        Ok(CallToolResult::success(vec![
-            RmcpContent::text(format!(
-                "exit code: {}",
-                output_res
-                    .exit_status
-                    .and_then(|s| s.exit_code)
-                    .unwrap_or_default()
-            ))
-            .with_priority(0.0),
-            RmcpContent::text(output_res.output).with_priority(0.0),
-        ]))
+            })
     }
 }
 
