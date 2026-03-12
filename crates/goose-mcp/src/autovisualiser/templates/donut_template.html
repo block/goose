@@ -117,6 +117,7 @@
         "use strict";
 
         var nextId = 1;
+        var currentData = null;
 
         var defaultColors = [
             'rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
@@ -162,11 +163,12 @@
 
         function applyTheme(hostContext) {
             if (!hostContext) return;
-            if (hostContext.theme === 'dark') document.documentElement.style.colorScheme = 'dark';
+            if (hostContext.theme) document.documentElement.style.colorScheme = hostContext.theme;
             if (hostContext.styles && hostContext.styles.variables) {
                 var vars = hostContext.styles.variables;
                 for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
             }
+            if (currentData) renderDonut(currentData);
         }
 
         // ── Donut/Pie rendering ─────────────────────────────────────────
@@ -225,6 +227,7 @@
 
         function renderDonut(chartsData) {
             document.getElementById('loadingIndicator').classList.add('hidden');
+            currentData = chartsData;
             var processedData = processChartData(chartsData);
             var chartsGrid = document.getElementById('chartsGrid');
             chartsGrid.innerHTML = '';

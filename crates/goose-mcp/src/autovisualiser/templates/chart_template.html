@@ -10,7 +10,6 @@
     </script>
 
     <style>
-        /* Theming: use host CSS variables with sensible fallbacks */
         :root {
             --color-background-primary: #ffffff;
             --color-background-secondary: #f5f5f5;
@@ -104,8 +103,9 @@
     (function() {
         "use strict";
 
-        let nextId = 1;
-        let chart = null;
+        var nextId = 1;
+        var chart = null;
+        var currentData = null;
 
         // ── MCP Apps messaging helpers ──────────────────────────────────
         function sendRequest(method, params) {
@@ -130,7 +130,7 @@
             window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
         }
 
-        // ── Size reporting (spec-compliant JSON-RPC) ────────────────────
+        // ── Size reporting ──────────────────────────────────────────────
         function reportSize() {
             var h = Math.max(
                 document.body.scrollHeight,
@@ -154,6 +154,8 @@
             if (!hostContext) return;
             if (hostContext.theme === 'dark') {
                 document.documentElement.style.colorScheme = 'dark';
+            } else if (hostContext.theme === 'light') {
+                document.documentElement.style.colorScheme = 'light';
             }
             if (hostContext.styles && hostContext.styles.variables) {
                 var vars = hostContext.styles.variables;
@@ -163,11 +165,19 @@
                     }
                 }
             }
+            // Re-render chart with new theme colors
+            if (currentData) {
+                renderChart(currentData);
+            }
+        }
+
+        // Read a computed CSS variable value from the document
+        function cssVar(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
         }
 
         // ── Chart rendering ─────────────────────────────────────────────
 
-        // Default color palette
         var defaultColors = [
             'rgba(54, 162, 235, 0.8)',
             'rgba(255, 99, 132, 0.8)',
@@ -195,6 +205,10 @@
         ];
 
         function getChartOptions(chartData, type) {
+            var textColor = cssVar('--color-text-primary') || '#333';
+            var textSecondary = cssVar('--color-text-secondary') || '#666';
+            var gridColor = cssVar('--color-border-primary') || 'rgba(0,0,0,0.1)';
+
             var baseOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -202,7 +216,7 @@
                 plugins: {
                     legend: {
                         position: 'top',
-                        labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
+                        labels: { usePointStyle: true, padding: 20, font: { size: 12 }, color: textColor }
                     },
                     tooltip: {
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -223,24 +237,28 @@
                 baseOptions.scales = {
                     x: {
                         type: 'linear', position: 'bottom',
-                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel || 'X Values', font: { size: 12 } },
-                        grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel || 'X Values', font: { size: 12 }, color: textSecondary },
+                        grid: { color: gridColor },
+                        ticks: { color: textSecondary }
                     },
                     y: {
-                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel || 'Y Values', font: { size: 12 } },
-                        grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel || 'Y Values', font: { size: 12 }, color: textSecondary },
+                        grid: { color: gridColor },
+                        ticks: { color: textSecondary }
                     }
                 };
             } else {
                 baseOptions.scales = {
                     x: {
-                        grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel, font: { size: 12 } }
+                        grid: { color: gridColor },
+                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel, font: { size: 12 }, color: textSecondary },
+                        ticks: { color: textSecondary }
                     },
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel, font: { size: 12 } }
+                        grid: { color: gridColor },
+                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel, font: { size: 12 }, color: textSecondary },
+                        ticks: { color: textSecondary }
                     }
                 };
             }
@@ -299,6 +317,7 @@
 
         function renderChart(chartData) {
             document.getElementById('loadingIndicator').classList.add('hidden');
+            currentData = chartData;
 
             if (chart) {
                 chart.destroy();
@@ -330,14 +349,12 @@
 
         // ── Extract chart data from various message shapes ──────────────
         function extractChartData(msg) {
-            // From tool-result structuredContent
             if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) {
                 return msg.params.structuredContent.data;
             }
             if (msg.params && msg.params.structuredContent && msg.params.structuredContent.datasets) {
                 return msg.params.structuredContent;
             }
-            // From tool-input arguments
             if (msg.params && msg.params.arguments && msg.params.arguments.data) {
                 return msg.params.arguments.data;
             }
@@ -361,13 +378,11 @@
                 applyTheme(msg.params);
             }
 
-            // Respond to teardown
             if (msg.method === 'ui/resource-teardown' && msg.id) {
                 window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
             }
         });
 
-        // Initialize: handshake with host
         var appIdentity = { name: "autovisualiser-chart", version: "1.0.0" };
         sendRequest("ui/initialize", {
             protocolVersion: "2026-01-26",

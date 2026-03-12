@@ -15,83 +15,40 @@
             --color-background-secondary: #f5f5f5;
             --color-text-primary: #333333;
             --color-text-secondary: #666666;
+            --color-border-primary: rgba(0, 0, 0, 0.1);
             --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
 
-        html, body {
-            overflow: hidden;
-        }
+        html, body { overflow: hidden; }
 
         body {
             font-family: var(--font-sans);
-            margin: 0;
-            padding: 20px;
+            margin: 0; padding: 20px;
             background-color: var(--color-background-secondary);
             color: var(--color-text-primary);
         }
 
-        .container {
-            margin: 0 auto;
-        }
+        .container { margin: 0 auto; }
 
         .chart-container {
-            position: relative;
-            height: 500px;
-            width: 100%;
-            margin: 0 auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: relative; height: 500px; width: 100%;
+            margin: 0 auto; display: flex; justify-content: center; align-items: center;
         }
 
-        #radarChart {
-            max-width: 100%;
-            max-height: 100%;
-        }
+        #radarChart { max-width: 100%; max-height: 100%; }
 
         .stats-panel {
-            background: var(--color-background-primary);
-            padding: 15px;
-            margin-top: 15px;
-            border-radius: 8px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 10px;
+            background: var(--color-background-primary); padding: 15px; margin-top: 15px;
+            border-radius: 8px; display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;
         }
 
-        .stat-item {
-            text-align: center;
-            padding: 8px;
-            background: var(--color-background-secondary);
-            border-radius: 6px;
-        }
+        .stat-item { text-align: center; padding: 8px; background: var(--color-background-secondary); border-radius: 6px; }
+        .stat-value { font-size: 1.3em; font-weight: bold; color: #007bff; margin-bottom: 4px; }
+        .stat-label { font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .stat-value {
-            font-size: 1.3em;
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            font-size: 0.8em;
-            color: var(--color-text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 400px;
-            color: var(--color-text-secondary);
-            font-size: 1.1em;
-        }
-
-        .loading.hidden {
-            display: none;
-        }
+        .loading { display: flex; align-items: center; justify-content: center; height: 400px; color: var(--color-text-secondary); font-size: 1.1em; }
+        .loading.hidden { display: none; }
     </style>
 </head>
 <body>
@@ -114,6 +71,7 @@
 
         var nextId = 1;
         var chart = null;
+        var currentData = null;
 
         var defaultColors = [
             'rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
@@ -128,7 +86,6 @@
             return alpha === 1 ? color : color.replace('1)', alpha + ')');
         }
 
-        // ── MCP Apps messaging helpers ──────────────────────────────────
         function sendRequest(method, params) {
             return new Promise(function(resolve, reject) {
                 var id = nextId++;
@@ -149,26 +106,28 @@
         }
 
         function reportSize() {
-            var h = Math.max(
-                document.body.scrollHeight, document.body.offsetHeight,
-                document.documentElement.scrollHeight, document.documentElement.offsetHeight
-            );
+            var h = Math.max(document.body.scrollHeight, document.body.offsetHeight,
+                document.documentElement.scrollHeight, document.documentElement.offsetHeight);
             sendNotification("ui/notifications/size-changed", { width: document.body.scrollWidth, height: h });
         }
 
         if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(reportSize).observe(document.body); }
         window.addEventListener('resize', reportSize);
 
+        function cssVar(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
         function applyTheme(hostContext) {
             if (!hostContext) return;
-            if (hostContext.theme === 'dark') document.documentElement.style.colorScheme = 'dark';
+            if (hostContext.theme) document.documentElement.style.colorScheme = hostContext.theme;
             if (hostContext.styles && hostContext.styles.variables) {
                 var vars = hostContext.styles.variables;
                 for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
             }
+            if (currentData) renderRadar(currentData);
         }
 
-        // ── Radar rendering ─────────────────────────────────────────────
         function processData(data) {
             return {
                 labels: data.labels || [],
@@ -196,8 +155,13 @@
             document.getElementById('loadingIndicator').classList.add('hidden');
             document.getElementById('chartContainer').style.display = '';
             document.getElementById('statsPanel').style.display = '';
+            currentData = radarData;
 
             if (chart) { chart.destroy(); chart = null; }
+
+            var textColor = cssVar('--color-text-primary') || '#333';
+            var textSecondary = cssVar('--color-text-secondary') || '#666';
+            var gridColor = cssVar('--color-border-primary') || 'rgba(0,0,0,0.1)';
 
             var data = processData(radarData);
             var maxValue = 100;
@@ -214,7 +178,7 @@
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, padding: 15, font: { size: 12 } } },
+                        legend: { position: 'top', labels: { usePointStyle: true, padding: 15, font: { size: 12 }, color: textColor } },
                         tooltip: {
                             backgroundColor: 'rgba(0,0,0,0.8)', titleColor: 'white', bodyColor: 'white',
                             borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 6, displayColors: true,
@@ -230,18 +194,17 @@
                     scales: {
                         r: {
                             beginAtZero: true, max: maxValue, min: 0,
-                            ticks: { stepSize: maxValue / 5, font: { size: 10 }, color: '#666' },
-                            grid: { color: 'rgba(0,0,0,0.1)' },
-                            angleLines: { color: 'rgba(0,0,0,0.1)' },
-                            pointLabels: { font: { size: 11, weight: 'bold' }, color: 'var(--color-text-primary)' }
+                            ticks: { stepSize: maxValue / 5, font: { size: 10 }, color: textSecondary },
+                            grid: { color: gridColor },
+                            angleLines: { color: gridColor },
+                            pointLabels: { font: { size: 11, weight: 'bold' }, color: textColor }
                         }
                     },
-                    animation: { duration: 1000, easing: 'easeInOutQuart' },
+                    animation: { duration: 750, easing: 'easeInOutQuart' },
                     interaction: { intersect: false, mode: 'point' }
                 }
             });
 
-            // Update stats
             var dims = data.labels.length;
             var dsets = data.datasets.length;
             var all = data.datasets.reduce(function(acc, d) { return acc.concat(d.data); }, []);
@@ -263,7 +226,6 @@
             return null;
         }
 
-        // ── MCP Apps lifecycle ──────────────────────────────────────────
         window.addEventListener('message', function(event) {
             var msg = event.data;
             if (!msg || msg.jsonrpc !== "2.0") return;

@@ -100,13 +100,16 @@
         if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(reportSize).observe(document.body); }
         window.addEventListener('resize', reportSize);
 
+        var currentData = null;
+
         function applyTheme(hostContext) {
             if (!hostContext) return;
-            if (hostContext.theme === 'dark') document.documentElement.style.colorScheme = 'dark';
+            if (hostContext.theme) document.documentElement.style.colorScheme = hostContext.theme;
             if (hostContext.styles && hostContext.styles.variables) {
                 var vars = hostContext.styles.variables;
                 for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
             }
+            if (currentData) renderData(currentData);
         }
 
         function initializeSVG() {
@@ -186,6 +189,7 @@
 
         function renderData(data) {
             document.getElementById('loadingIndicator').classList.add('hidden');
+            currentData = data;
             var g = initializeSVG();
             drawChord(g, data);
             setTimeout(reportSize, 100);
