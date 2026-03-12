@@ -20,6 +20,7 @@ import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
+import { useWhiteLabel } from '../whitelabel/WhiteLabelContext';
 
 interface ToolGraphNode {
   tool: string;
@@ -151,6 +152,9 @@ export default function ToolCallWithResponse({
   confirmationContent,
   isApprovalClicked,
 }: ToolCallWithResponseProps) {
+  const { features } = useWhiteLabel();
+  const compactToolCalls = features.compactToolCalls ?? false;
+
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
   const toolCallData = toolRequest.toolCall as Record<string, unknown>;
@@ -172,6 +176,34 @@ export default function ToolCallWithResponse({
   const shouldShowMcpContent = !isPendingApproval;
 
   const showInlineApproval = isPendingApproval && confirmationContent && sessionId;
+
+  // Compact mode: single line with icon + description, no card/border
+  if (compactToolCalls && !showInlineApproval) {
+    const isComplete = !!toolResponse;
+    const isError =
+      isComplete && (toolResponse.toolResult as Record<string, unknown>).status === 'error';
+    const status: ToolCallStatus = !isComplete ? 'loading' : isError ? 'error' : 'success';
+
+    return (
+      <>
+        <div className="flex items-center gap-1.5 py-0.5 text-xs text-text-secondary font-sans">
+          <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={status} />
+          <span className="truncate opacity-70">
+            {snakeToTitleCase(toolCall.name.split('__').pop() || toolCall.name)}
+          </span>
+        </div>
+        {/* MCP App still renders normally in compact mode */}
+        {shouldShowMcpContent && hasMcpAppResourceURI && sessionId && (
+          <McpAppWrapper
+            toolRequest={toolRequest}
+            toolResponse={toolResponse}
+            sessionId={sessionId}
+            append={append}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>

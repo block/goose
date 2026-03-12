@@ -40,6 +40,8 @@ export interface WhiteLabelFeatures {
   announcementsEnabled: boolean;
   configurationEnabled: boolean;
   telemetryUiEnabled: boolean;
+  /** Render tool calls as compact single-line items instead of bordered cards. Default: false */
+  compactToolCalls?: boolean;
   navigation: string[];
   settingsTabs: string[];
   hiddenSettingSections?: string[];

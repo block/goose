@@ -144,76 +144,65 @@ export function SessionInsights({ onInsightClick }: SessionInsightsProps) {
 
       {/* Stats containers - full bleed with 2px gaps */}
       <div className="flex flex-col flex-1 space-y-0.5">
-        {/* Top row with three equal columns */}
-        <div className="grid grid-cols-2 gap-0.5">
-          {/* Total Sessions Card Skeleton */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
-            <CardContent className="flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <Skeleton className="h-10 w-16 mb-1" />
-                <span className="text-xs text-text-secondary">Total sessions</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Tokens Card Skeleton */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
-            <CardContent className="flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <Skeleton className="h-10 w-24 mb-1" />
-                <span className="text-xs text-text-secondary">Total tokens</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recent Chats Card Skeleton */}
-        <div className="grid grid-cols-1 gap-0.5">
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
-            <CardContent className="p-0">
-              <div className="flex justify-between items-center mb-4">
-                <CardDescription className="mb-0">
-                  <span className="text-lg text-text-primary">Recent chats</span>
-                </CardDescription>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
-                  onClick={navigateToSessionHistory}
-                >
-                  See all
-                </Button>
-              </div>
-              <div className="space-y-3 min-h-[96px] max-h-[140px] overflow-hidden">
-                {/* Skeleton chat items */}
-                <div className="flex items-center justify-between py-1 px-2">
-                  <div className="flex items-center space-x-2">
-                    <Skeleton className="h-4 w-4 rounded-sm" />
-                    <Skeleton className="h-4 w-48" />
-                  </div>
-                  <Skeleton className="h-4 w-16" />
+        {showStats && (
+          <div className="grid grid-cols-2 gap-0.5">
+            <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
+              <CardContent className="flex flex-col justify-end h-full p-0">
+                <div className="flex flex-col justify-end">
+                  <Skeleton className="h-10 w-16 mb-1" />
+                  <span className="text-xs text-text-secondary">Total sessions</span>
                 </div>
-                <div className="flex items-center justify-between py-1 px-2">
-                  <div className="flex items-center space-x-2">
-                    <Skeleton className="h-4 w-4 rounded-sm" />
-                    <Skeleton className="h-4 w-40" />
-                  </div>
-                  <Skeleton className="h-4 w-16" />
+              </CardContent>
+            </Card>
+            <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
+              <CardContent className="flex flex-col justify-end h-full p-0">
+                <div className="flex flex-col justify-end">
+                  <Skeleton className="h-10 w-24 mb-1" />
+                  <span className="text-xs text-text-secondary">Total tokens</span>
                 </div>
-                <div className="flex items-center justify-between py-1 px-2">
-                  <div className="flex items-center space-x-2">
-                    <Skeleton className="h-4 w-4 rounded-sm" />
-                    <Skeleton className="h-4 w-52" />
-                  </div>
-                  <Skeleton className="h-4 w-16" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-        {/* Filler container - extends to fill remaining space */}
-        <div className="bg-background-primary rounded-2xl flex-1"></div>
+        {showRecentChats && (
+          <div className="grid grid-cols-1 gap-0.5">
+            <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
+              <CardContent className="p-0">
+                <div className="flex justify-between items-center mb-4">
+                  <CardDescription className="mb-0">
+                    <span className="text-lg text-text-primary">Recent chats</span>
+                  </CardDescription>
+                </div>
+                <div className="space-y-3 min-h-[96px] max-h-[140px] overflow-hidden">
+                  <div className="flex items-center justify-between py-1 px-2">
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                      <Skeleton className="h-4 w-48" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex items-center justify-between py-1 px-2">
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                      <Skeleton className="h-4 w-40" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex items-center justify-between py-1 px-2">
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                      <Skeleton className="h-4 w-52" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showStats && <div className="bg-background-primary rounded-2xl flex-1"></div>}
       </div>
     </div>
   );
@@ -360,7 +349,7 @@ export function SessionInsights({ onInsightClick }: SessionInsightsProps) {
         )}
 
         {/* Filler container - extends to fill remaining space */}
-        <div className="bg-background-primary rounded-2xl flex-1"></div>
+        {showStats && <div className="bg-background-primary rounded-2xl flex-1"></div>}
       </div>
     </div>
   );

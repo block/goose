@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Brass Wolf — 2025 Sales Summary</title>
+  <style>
+    @font-face { font-family: 'Cash Sans'; src: url('https://square-fonts-production-f.squarecdn.com/v1.2.0/cash-sans/CashSans-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'Cash Sans'; src: url('https://square-fonts-production-f.squarecdn.com/v1.2.0/cash-sans/CashSans-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'Cash Sans'; src: url('https://square-fonts-production-f.squarecdn.com/v1.2.0/cash-sans/CashSans-Semibold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'Exact Block'; src: url('https://campaign-hub-production-f.squarecdn.com/static/fonts/exact/ExactBlock-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'Exact Block'; src: url('https://campaign-hub-production-f.squarecdn.com/static/fonts/exact/ExactBlock-Italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+    :root { --ink:#101010; --muted:#666; --subtle:#8a8a8a; --line:#ececec; --bg:#f7f7f7; --wash:#f3f5f6; --accent:#006AFF; --up:#007D2A; --up-bg:#EAF7EE; --down:#BF0020; --down-bg:#FCECEE; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:linear-gradient(180deg, #fafafa 0%, #f7f7f7 100%); color:var(--ink); font-family:'Cash Sans', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; }
+    .page { max-width:1200px; margin:0 auto; padding:24px 20px 64px; }
+    .hero { padding:28px 0 40px; border-bottom:1px solid var(--line); }
+    .eyebrow { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--subtle); font-weight:600; }
+    h1 { margin:12px 0 16px; max-width:980px; font-size:clamp(40px, 8vw, 78px); line-height:.96; letter-spacing:-.03em; font-weight:400; font-family:'Exact Block', Georgia, 'Times New Roman', serif; }
+    .lede { max-width:740px; margin:0; color:var(--muted); font-size:19px; line-height:1.45; }
+    .hero-stats { display:flex; flex-wrap:wrap; gap:28px; margin-top:28px; padding-top:22px; border-top:1px solid var(--line); }
+    .hero-stat { min-width:210px; }
+    .hero-stat .k { display:block; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--subtle); margin-bottom:8px; }
+    .hero-stat .v { display:block; font-size:34px; line-height:1; letter-spacing:-.04em; font-weight:600; }
+    .hero-stat .s { display:block; margin-top:10px; color:var(--muted); font-size:14px; }
+    .hero-stat.primary .v { color:var(--accent); }
+    .badge { display:inline-flex; align-items:center; border-radius:999px; padding:6px 10px; font-size:12px; line-height:1; font-weight:600; letter-spacing:.02em; }
+    .badge.up { color:var(--up); background:var(--up-bg); }
+    .badge.down { color:var(--down); background:var(--down-bg); }
+    .badge.neutral { color:#666; background:#f0f0f0; }
+    .section { padding:34px 0; border-bottom:1px solid var(--line); }
+    .section:last-child { border-bottom:none; }
+    .split { display:grid; grid-template-columns: 1.05fr .95fr; gap:28px; align-items:start; }
+    h2 { margin:0 0 10px; font-size:clamp(28px, 4vw, 40px); line-height:1.02; letter-spacing:-.02em; font-weight:400; font-family:'Exact Block', Georgia, 'Times New Roman', serif; }
+    .copy { color:var(--muted); font-size:17px; max-width:760px; margin:0 0 18px; }
+    .quote { font-size:clamp(28px, 4vw, 40px); line-height:1.08; letter-spacing:-.02em; font-weight:400; font-family:'Exact Block', Georgia, 'Times New Roman', serif; max-width:760px; margin:0; }
+    .quote .accent { color:var(--accent); }
+    .note { margin-top:14px; color:var(--muted); font-size:15px; }
+    .list { margin:18px 0 0; padding:0; list-style:none; }
+    .list li { padding:16px 0; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:16px; align-items:baseline; }
+    .list li:first-child { border-top:none; padding-top:0; }
+    .list strong { font-size:18px; font-weight:500; }
+    .list span { color:var(--muted); text-align:right; }
+    .strip { display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; margin-top:18px; }
+    .mini { padding-top:16px; border-top:1px solid var(--line); }
+    .mini .k { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--subtle); }
+    .mini .v { display:block; margin-top:10px; font-size:28px; line-height:1; letter-spacing:-.04em; }
+    .section.tint { background:linear-gradient(180deg, rgba(243,245,246,.85) 0%, rgba(243,245,246,0) 100%); margin:0 -20px; padding-left:20px; padding-right:20px; border-radius:24px; }
+    .foot { margin-top:20px; color:var(--subtle); font-size:13px; }
+    @media (max-width: 860px) { .split, .strip { grid-template-columns:1fr; } h1 { font-size:46px; } .hero-stat .v { font-size:28px; } .section.tint { margin:0; padding-left:0; padding-right:0; border-radius:0; background:none; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="eyebrow">2025 sales report</div>
+      <h1>Here’s how your business performed in 2025.</h1>
+      <p class="lede">You brought in $18,199.65 across 303 closed checks. This report highlights what changed year over year, when sales were strongest, and which locations drove the most revenue.</p>
+      <div class="hero-stats">
+        <div class="hero-stat primary"><span class="k">Total collected</span><span class="v">$18,199.65</span><span class="s"><span class="badge down">Down 74.0% vs 2024</span></span></div>
+        <div class="hero-stat"><span class="k">Closed checks</span><span class="v">303</span><span class="s"><span class="badge down">Down 19.2% vs 2024</span></span></div>
+        <div class="hero-stat"><span class="k">Average ticket</span><span class="v">$60.06</span><span class="s"><span class="badge down">Down 67.8% vs 2024</span></span></div>
+        <div class="hero-stat"><span class="k">Q3 vs Q2</span><span class="v">$7,657.76</span><span class="s"><span class="badge up">Up 13.1% vs Q2</span></span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="split">
+        <div>
+          <div class="eyebrow">At a glance</div>
+          <p class="quote">Apr and Jul were your strongest months, and your top two locations brought in <span class="accent">80.4% of total collected sales</span>.</p>
+          <p class="note">Net sales finished at $16,008.04. Gross sales reached $16,314.03, and discounts totaled $302.89.</p>
+        </div>
+        <div>
+          <ul class="list">
+            <li><strong>Best month</strong><span>Apr · $6,403.22</span></li>
+            <li><strong>Second-best month</strong><span>Jul · $5,145.13</span></li>
+            <li><strong>Lowest month</strong><span>Nov · $26.95</span></li>
+            <li><strong>Quarter change</strong><span>Q3 $7,657.76 vs Q2 $6,769.52</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint">
+      <div class="eyebrow">Monthly sales</div>
+      <h2>Your sales were concentrated in a few months.</h2>
+      <p class="copy">April led the year, with another strong lift in July. Outside of those peaks, sales stayed lighter and less consistent month to month.</p>
+      <svg viewBox="0 0 1100 340" role="img" aria-label="Monthly total collected trend"><line x1="24" y1="24.0" x2="1076" y2="24.0" stroke="#ececec" stroke-width="1"/><text x="1074" y="18.0" text-anchor="end" font-size="12" fill="#8a8a8a">$6,403</text><line x1="24" y1="93.0" x2="1076" y2="93.0" stroke="#ececec" stroke-width="1"/><text x="1074" y="87.0" text-anchor="end" font-size="12" fill="#8a8a8a">$4,802</text><line x1="24" y1="162.0" x2="1076" y2="162.0" stroke="#ececec" stroke-width="1"/><text x="1074" y="156.0" text-anchor="end" font-size="12" fill="#8a8a8a">$3,202</text><line x1="24" y1="231.0" x2="1076" y2="231.0" stroke="#ececec" stroke-width="1"/><text x="1074" y="225.0" text-anchor="end" font-size="12" fill="#8a8a8a">$1,601</text><line x1="24" y1="300.0" x2="1076" y2="300.0" stroke="#ececec" stroke-width="1"/><text x="1074" y="294.0" text-anchor="end" font-size="12" fill="#8a8a8a">$0</text><polygon points="24,300 24.0,286.5 119.6,298.3 215.3,280.0 310.9,24.0 406.5,288.0 502.2,296.2 597.8,78.2 693.5,197.5 789.1,294.2 884.7,176.3 980.4,298.8 1076.0,297.4 1076,300" fill="rgba(0,0,0,.045)"/><polyline points="24.0,286.5 119.6,298.3 215.3,280.0 310.9,24.0 406.5,288.0 502.2,296.2 597.8,78.2 693.5,197.5 789.1,294.2 884.7,176.3 980.4,298.8 1076.0,297.4" fill="none" stroke="#101010" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24.0" cy="286.5" r="4.5" fill="#101010"/><text x="24.0" y="328" text-anchor="middle" font-size="12" fill="#666">Jan</text><circle cx="119.6" cy="298.3" r="4.5" fill="#101010"/><text x="119.6" y="328" text-anchor="middle" font-size="12" fill="#666">Feb</text><circle cx="215.3" cy="280.0" r="4.5" fill="#101010"/><text x="215.3" y="328" text-anchor="middle" font-size="12" fill="#666">Mar</text><circle cx="310.9" cy="24.0" r="6" fill="#6f7c8a"/><text x="310.9" y="328" text-anchor="middle" font-size="12" fill="#666">Apr</text><circle cx="406.5" cy="288.0" r="4.5" fill="#101010"/><text x="406.5" y="328" text-anchor="middle" font-size="12" fill="#666">May</text><circle cx="502.2" cy="296.2" r="4.5" fill="#101010"/><text x="502.2" y="328" text-anchor="middle" font-size="12" fill="#666">Jun</text><circle cx="597.8" cy="78.2" r="4.5" fill="#6f7c8a"/><text x="597.8" y="328" text-anchor="middle" font-size="12" fill="#666">Jul</text><circle cx="693.5" cy="197.5" r="4.5" fill="#101010"/><text x="693.5" y="328" text-anchor="middle" font-size="12" fill="#666">Aug</text><circle cx="789.1" cy="294.2" r="4.5" fill="#101010"/><text x="789.1" y="328" text-anchor="middle" font-size="12" fill="#666">Sep</text><circle cx="884.7" cy="176.3" r="4.5" fill="#101010"/><text x="884.7" y="328" text-anchor="middle" font-size="12" fill="#666">Oct</text><circle cx="980.4" cy="298.8" r="4.5" fill="#101010"/><text x="980.4" y="328" text-anchor="middle" font-size="12" fill="#666">Nov</text><circle cx="1076.0" cy="297.4" r="4.5" fill="#101010"/><text x="1076.0" y="328" text-anchor="middle" font-size="12" fill="#666">Dec</text></svg>
+    </section>
+
+    <section class="section">
+      <div class="eyebrow">Top locations</div>
+      <h2>A few locations drove most of the year.</h2>
+      <p class="copy">These locations generated the most total collected revenue in 2025. The biggest gains came from the top end of the list.</p>
+      <svg viewBox="0 0 1100 320" role="img" aria-label="Top locations"><text x="0" y="35" font-size="15" fill="#101010">Z 20170721 Clone Test 1</text><rect x="280" y="21" width="680" height="16" rx="8" fill="#efefef"/><rect x="280" y="21" width="680.0" height="16" rx="8" fill="#006AFF"/><text x="972" y="35" font-size="13" fill="#666">$7,420 · 40.8%</text><text x="0" y="53" font-size="12" fill="#888">51 closed checks</text><text x="0" y="81" font-size="15" fill="#101010">Big Kahuna Burger</text><rect x="280" y="67" width="680" height="16" rx="8" fill="#efefef"/><rect x="280" y="67" width="660.4" height="16" rx="8" fill="#1F7BFF"/><text x="972" y="81" font-size="13" fill="#666">$7,206 · 39.6%</text><text x="0" y="99" font-size="12" fill="#888">71 closed checks</text><text x="0" y="127" font-size="15" fill="#101010">Abrioux Location</text><rect x="280" y="113" width="680" height="16" rx="8" fill="#efefef"/><rect x="280" y="113" width="119.9" height="16" rx="8" fill="#5A9DFF"/><text x="972" y="127" font-size="13" fill="#666">$1,309 · 7.2%</text><text x="0" y="145" font-size="12" fill="#888">3 closed checks</text><text x="0" y="173" font-size="15" fill="#101010">Arlington</text><rect x="280" y="159" width="680" height="16" rx="8" fill="#efefef"/><rect x="280" y="159" width="100.3" height="16" rx="8" fill="#8BBCFF"/><text x="972" y="173" font-size="13" fill="#666">$1,094 · 6.0%</text><text x="0" y="191" font-size="12" fill="#888">55 closed checks</text><text x="0" y="219" font-size="15" fill="#101010">Arjun's</text><rect x="280" y="205" width="680" height="16" rx="8" fill="#efefef"/><rect x="280" y="205" width="54.9" height="16" rx="8" fill="#B9D7FF"/><text x="972" y="219" font-size="13" fill="#666">$599 · 3.3%</text><text x="0" y="237" font-size="12" fill="#888">38 closed checks</text><text x="0" y="265" font-size="15" fill="#101010">BBQ Hill House</text><rect x="280" y="251" width="680" height="16" rx="8" fill="#efefef"/><rect x="280" y="251" width="28.2" height="16" rx="8" fill="#DDEBFF"/><text x="972" y="265" font-size="13" fill="#666">$308 · 1.7%</text><text x="0" y="283" font-size="12" fill="#888">6 closed checks</text></svg>
+      <div class="strip">
+        <div class="mini"><div class="k">Top location</div><span class="v">Z 20170721 Clone Test 1</span><div class="note">$7,419.82</div></div>
+        <div class="mini"><div class="k">Second location</div><span class="v">Big Kahuna Burger</span><div class="note">$7,205.84</div></div>
+        <div class="mini"><div class="k">2024 total collected</div><span class="v">$69,974.25</span><div class="note">375 closed checks</div></div>
+        <div class="mini"><div class="k">Report generated</div><span class="v">Today</span><div class="note">Mar 09, 2026 at 05:02 UTC</div></div>
+      </div>
+      <div class="foot">Source: Square Reporting API · Jan 1–Dec 31, 2025 · closed checks only.</div>
+    </section>
+  </div>
+</body>
+</html>

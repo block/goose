@@ -3,13 +3,14 @@ import { useWhiteLabel } from '../whitelabel/WhiteLabelContext';
 
 interface BrandLogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 const SIZE_MAP = {
   sm: 'size-5',
   md: 'size-8',
   lg: 'size-10',
+  xl: 'size-14',
 };
 
 export default function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
