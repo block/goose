@@ -38,7 +38,7 @@ export function buildWhiteLabelSystemPrompt(): string | undefined {
   const config = getWhiteLabelConfig();
   const { defaults } = config;
 
-  if (!defaults.systemPrompt && !defaults.skills?.length && !defaults.tools?.length) {
+  if (!defaults.systemPrompt && !defaults.tools?.length) {
     return undefined;
   }
 
@@ -47,21 +47,6 @@ export function buildWhiteLabelSystemPrompt(): string | undefined {
   // Base system prompt — the agent persona
   if (defaults.systemPrompt) {
     parts.push(defaults.systemPrompt.trim());
-  }
-
-  // Skills
-  if (defaults.skills && defaults.skills.length > 0) {
-    const lines = ['# Skills', ''];
-    for (const skill of defaults.skills) {
-      lines.push(`## ${skill.name}`);
-      lines.push(skill.description);
-      lines.push(`Skill directory: \`${resolveResourcePath(skill.path)}\``);
-      lines.push(
-        'Read the SKILL.md in this directory for detailed instructions before starting this type of work.'
-      );
-      lines.push('');
-    }
-    parts.push(lines.join('\n'));
   }
 
   // Tools
