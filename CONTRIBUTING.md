@@ -111,7 +111,7 @@ cargo clippy --all-targets -- -D warnings # run the linter
 > [!NOTE]
 > This project uses **pnpm** (not npm). If you previously had `node_modules` installed via npm, remove them first:
 > ```bash
-> rm -rf node_modules **/node_modules
+> rm -rf ui/desktop/node_modules
 > ```
 
 To run the app:
