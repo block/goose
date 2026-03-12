@@ -95,10 +95,21 @@ async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<()> {
             println!("Sigstore provenance verification passed.");
             Ok(())
         }
-        Err(e) => {
-            eprintln!("Warning: Sigstore provenance verification failed: {e}");
+        Err(sigstore_verification::AttestationError::NoAttestations) => {
             eprintln!(
-                "This may be expected for releases published before provenance \
+                "Warning: No Sigstore attestation found for this build. \
+                 This may be expected for canary or nightly builds."
+            );
+            Ok(())
+        }
+        Err(sigstore_verification::AttestationError::Verification(msg)) => Err(anyhow::anyhow!(
+            "Sigstore verification failed: {}\n\nAborting update due to security check failure.",
+            msg
+        )),
+        Err(e) => {
+            eprintln!(
+                "Warning: Sigstore provenance check could not complete: {e}\n\
+                 This may be expected for releases published before provenance \
                  attestations were enabled."
             );
             Ok(())
@@ -262,6 +273,15 @@ fn extract_tar_bz2(data: &[u8], dest: &Path) -> Result<()> {
             .into_owned();
 
         validate_entry_path(&path)?;
+
+        // Block symlinks and hardlinks whose targets escape the destination directory.
+        let link_target_opt = entry
+            .header()
+            .link_name()
+            .context("Failed to read link name from tar entry")?;
+        if let Some(link_target) = link_target_opt {
+            validate_entry_path(&link_target)?;
+        }
 
         let target = dest.join(&path);
         if let Some(parent) = target.parent() {
@@ -680,9 +700,46 @@ mod tests {
     #[tokio::test]
     async fn test_verify_provenance_warns_on_missing_attestation() {
         let result = verify_provenance(b"not a real archive", "stable").await;
+        // Network failures and missing attestations are soft warnings, not hard errors.
         assert!(
             result.is_ok(),
-            "verify_provenance should succeed with a warning for unattested artifacts"
+            "verify_provenance should succeed with a warning when attestations cannot be fetched"
+        );
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_extract_tar_bz2_blocks_symlink_escape() {
+        use bzip2::write::BzEncoder;
+        use bzip2::Compression;
+
+        let tmp = tempdir().unwrap();
+
+        let mut builder_buf = Vec::new();
+        {
+            let encoder = BzEncoder::new(&mut builder_buf, Compression::default());
+            let mut builder = tar::Builder::new(encoder);
+
+            let mut header = tar::Header::new_gnu();
+            header.set_size(0);
+            header.set_mode(0o777);
+            header.set_cksum();
+            // Symlink whose target escapes the destination directory.
+            builder
+                .append_link(&mut header, "evil_link", "../../etc/passwd")
+                .unwrap();
+            builder.into_inner().unwrap().finish().unwrap();
+        }
+
+        let result = extract_tar_bz2(&builder_buf, tmp.path());
+        assert!(
+            result.is_err(),
+            "extraction should fail when a symlink target escapes the destination"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("path traversal"),
+            "error should mention path traversal, got: {err_msg}"
         );
     }
 }
