@@ -89,16 +89,12 @@ fn format_sse_event(seq: u64, json: &str) -> String {
     format!("id: {}\ndata: {}\n\n", seq, json)
 }
 
-fn serialize_session_event(
-    seq: u64,
-    request_id: Option<&str>,
-    event: &MessageEvent,
-) -> String {
+fn serialize_session_event(seq: u64, request_id: Option<&str>, event: &MessageEvent) -> String {
     // Build JSON payload: { request_id?: string, ...event_fields }
     // We flatten request_id into the event JSON.
-    let mut event_json = serde_json::to_value(event).unwrap_or_else(|e| {
-        serde_json::json!({"type": "Error", "error": format!("Serialization error: {}", e)})
-    });
+    let mut event_json = serde_json::to_value(event).unwrap_or_else(
+        |e| serde_json::json!({"type": "Error", "error": format!("Serialization error: {}", e)}),
+    );
 
     if let Some(rid) = request_id {
         if let serde_json::Value::Object(ref mut map) = event_json {
@@ -145,11 +141,8 @@ pub async fn session_events(
     tokio::spawn(async move {
         // Send replayed events
         for event in &replay {
-            let frame = serialize_session_event(
-                event.seq,
-                event.request_id.as_deref(),
-                &event.event,
-            );
+            let frame =
+                serialize_session_event(event.seq, event.request_id.as_deref(), &event.event);
             if tx.send(frame).await.is_err() {
                 return;
             }
@@ -301,11 +294,7 @@ pub async fn session_reply(
         {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!(
-                    "Failed to read session for {}: {}",
-                    task_session_id,
-                    e
-                );
+                tracing::error!("Failed to read session for {}: {}", task_session_id, e);
                 publish(
                     Some(task_request_id.clone()),
                     MessageEvent::Error {
