@@ -111,6 +111,15 @@ Templates use [Jinja2](https://jinja.palletsprojects.com/) syntax for dynamic co
 
 Check out the default templates (linked to from the [table](#available-prompt-templates) above) to find common variables, such as `{{ extensions }}` and `{{ hints }}`.
 
+#### Escaping Template Variables
+
+If you need to include literal variable syntax in your templates without substitution, wrap it in single quotes:
+
+```markdown
+This will substitute: {{ variable }}
+This will appear literally: {{'{{variable}}'}}
+```
+
 :::warning
 Be careful when modifying template variables, as incorrect changes can break functionality. Test your changes in a new session to ensure they work as expected.
 :::

@@ -117,8 +117,8 @@ impl ProviderDef for GoogleProvider {
             GOOGLE_KNOWN_MODELS.to_vec(),
             GOOGLE_DOC_URL,
             vec![
-                ConfigKey::new("GOOGLE_API_KEY", true, true, None),
-                ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST)),
+                ConfigKey::new("GOOGLE_API_KEY", true, true, None, true),
+                ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST), false),
             ],
         )
     }

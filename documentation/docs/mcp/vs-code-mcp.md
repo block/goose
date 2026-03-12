@@ -12,7 +12,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [VS Code MCP Server](https://github.com/block/vscode-mcp) as a goose extension to enable VS Code integration, file operations, and development workflow management.
 
-:::tip TLDR
+:::tip Quick Install
 
 **Command**
 ```sh

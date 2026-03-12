@@ -152,6 +152,23 @@ curl x POST http://localhost:3000/api/users \
 Would you like me to add any additional features or make other improvements to the setup?
 ```
 
+## Environment Variables in Shell Commands
+
+Shell commands executed by the `shell` tool inherit the environment of the running goose process. This typically includes:
+- System variables like `PATH`, `HOME`, and `USER`
+- Environment variables present in the process that launched goose (for example, your terminal's environment when you start goose from a shell)
+- Session-specific variables injected by goose, such as `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
+
+This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
+
+:::info
+goose Desktop or launcher-based starts may use a different environment and may not load your shell startup files.
+:::
+
+:::warning Sensitive Information
+Environment variables may contain sensitive values like API keys and tokens (e.g., `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`).
+:::
+
 ## Configuring Access Controls
 
 By default, goose can run system commands with your user privileges and edit any accessible file **without your approval**. This is because goose runs in Autonomous permission mode by default and has access to the Developer extension's shell and file editing tools. While this configuration allows goose to work quickly and independently, there's potential for unexpected outcomes. Understanding the available access control features can help you configure goose to match your comfort level and specific needs.
@@ -223,3 +240,24 @@ As you become more comfortable with goose's behavior, you can adjust these setti
 :::info
 Also see the [Security Guide](/docs/guides/security/) for information about using goose safely.
 :::
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'topic',
+      title: 'Enhanced Code Editing with AI Models',
+      description: 'Use AI models to intelligently apply code changes',
+      linkUrl: '/goose/docs/guides/enhanced-code-editing'
+    },
+    {
+      type: 'topic',
+      title: 'Codebase Analysis',
+      description: 'Understand codebases with semantic analysis and call graphs',
+      linkUrl: '/goose/docs/guides/codebase-analysis'
+    }
+  ]}
+/> 

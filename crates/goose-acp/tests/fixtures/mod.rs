@@ -3,9 +3,10 @@
 
 use async_trait::async_trait;
 use fs_err as fs;
+pub use goose::acp::{map_permission_response, PermissionDecision, PermissionMapping};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
-use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
 use goose::providers::provider_registry::ProviderConstructor;
@@ -13,61 +14,17 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionModelState, ToolCallStatus,
+    AuthMethod, McpServer, ReadTextFileRequest, ReadTextFileResponse, SessionModelState,
+    ToolCallStatus, WriteTextFileRequest, WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PermissionDecision {
-    AllowAlways,
-    AllowOnce,
-    RejectOnce,
-    RejectAlways,
-    Cancel,
-}
-
-#[derive(Default)]
-pub struct PermissionMapping;
-
-pub fn map_permission_response(
-    _mapping: &PermissionMapping,
-    req: &RequestPermissionRequest,
-    decision: PermissionDecision,
-) -> RequestPermissionResponse {
-    let outcome = match decision {
-        PermissionDecision::Cancel => RequestPermissionOutcome::Cancelled,
-        PermissionDecision::AllowAlways => select_option(req, PermissionOptionKind::AllowAlways),
-        PermissionDecision::AllowOnce => select_option(req, PermissionOptionKind::AllowOnce),
-        PermissionDecision::RejectOnce => select_option(req, PermissionOptionKind::RejectOnce),
-        PermissionDecision::RejectAlways => select_option(req, PermissionOptionKind::RejectAlways),
-    };
-
-    RequestPermissionResponse::new(outcome)
-}
-
-fn select_option(
-    req: &RequestPermissionRequest,
-    kind: PermissionOptionKind,
-) -> RequestPermissionOutcome {
-    req.options
-        .iter()
-        .find(|opt| opt.kind == kind)
-        .map(|opt| {
-            RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                opt.option_id.clone(),
-            ))
-        })
-        .unwrap_or(RequestPermissionOutcome::Cancelled)
-}
 
 pub struct OpenAiFixture {
     _server: MockServer,
@@ -192,7 +149,7 @@ pub async fn serve_agent_in_process(
 pub async fn spawn_acp_server_in_process(
     openai_base_url: &str,
     builtins: &[String],
-    data_root: &Path,
+    data_root: &std::path::Path,
     goose_mode: GooseMode,
     provider_factory: Option<ProviderConstructor>,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
@@ -211,7 +168,7 @@ pub async fn spawn_acp_server_in_process(
             let base_url = base_url.clone();
             Box::pin(async move {
                 let api_client =
-                    ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string()))
+                    ApiClient::new(base_url, ApiAuthMethod::BearerToken("test-key".to_string()))
                         .unwrap();
                 let provider: Arc<dyn Provider> =
                     Arc::new(OpenAiProvider::new(api_client, model_config));
@@ -243,12 +200,80 @@ pub struct TestOutput {
     pub tool_status: Option<ToolCallStatus>,
 }
 
+type ReadTextFileHandler =
+    Arc<dyn Fn(&ReadTextFileRequest) -> Result<ReadTextFileResponse, String> + Send + Sync>;
+type WriteTextFileHandler =
+    Arc<dyn Fn(&WriteTextFileRequest) -> Result<WriteTextFileResponse, String> + Send + Sync>;
+
+#[derive(Clone)]
+pub struct FsFixture {
+    calls: Arc<Mutex<Vec<Result<(), String>>>>,
+}
+
+impl FsFixture {
+    pub fn new() -> Self {
+        Self {
+            calls: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn read_handler(&self, expected_path: &str, content: &str) -> ReadTextFileHandler {
+        let calls = self.calls.clone();
+        let expected_path = expected_path.to_string();
+        let content = content.to_string();
+        Arc::new(move |req: &ReadTextFileRequest| {
+            let path = req.path.to_str().unwrap_or("");
+            if path != expected_path {
+                let err = format!("expected path {expected_path}, got {path}");
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            calls.lock().unwrap().push(Ok(()));
+            Ok(ReadTextFileResponse::new(&content))
+        })
+    }
+
+    pub fn write_handler(
+        &self,
+        expected_path: &str,
+        expected_content: &str,
+    ) -> WriteTextFileHandler {
+        let calls = self.calls.clone();
+        let expected_path = expected_path.to_string();
+        let expected_content = expected_content.to_string();
+        Arc::new(move |req: &WriteTextFileRequest| {
+            let path = req.path.to_str().unwrap_or("");
+            if path != expected_path {
+                let err = format!("expected path {expected_path}, got {path}");
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            if req.content != expected_content {
+                let err = format!("expected content {expected_content}, got {}", req.content);
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            calls.lock().unwrap().push(Ok(()));
+            Ok(WriteTextFileResponse::new())
+        })
+    }
+
+    pub fn assert_called(&self) {
+        let calls = self.calls.lock().unwrap();
+        assert!(!calls.is_empty(), "fs handler was never called");
+        let errors: Vec<_> = calls.iter().filter_map(|c| c.as_ref().err()).collect();
+        assert!(errors.is_empty(), "fs handler errors: {errors:?}");
+    }
+}
+
 pub struct TestConnectionConfig {
     pub mcp_servers: Vec<McpServer>,
     pub builtins: Vec<String>,
     pub goose_mode: GooseMode,
     pub data_root: PathBuf,
     pub provider_factory: Option<ProviderConstructor>,
+    pub read_text_file: Option<ReadTextFileHandler>,
+    pub write_text_file: Option<WriteTextFileHandler>,
 }
 
 impl Default for TestConnectionConfig {
@@ -259,6 +284,8 @@ impl Default for TestConnectionConfig {
             goose_mode: GooseMode::Auto,
             data_root: PathBuf::new(),
             provider_factory: None,
+            read_text_file: None,
+            write_text_file: None,
         }
     }
 }
@@ -272,7 +299,9 @@ pub trait Connection: Sized {
     async fn load_session(
         &mut self,
         session_id: &str,
+        mcp_servers: Vec<McpServer>,
     ) -> (Self::Session, Option<SessionModelState>);
+    fn auth_methods(&self) -> &[AuthMethod];
     fn reset_openai(&self);
     fn reset_permissions(&self);
 }
@@ -281,6 +310,13 @@ pub trait Connection: Sized {
 pub trait Session {
     fn session_id(&self) -> &sacp::schema::SessionId;
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+    async fn prompt_with_image(
+        &mut self,
+        text: &str,
+        image_b64: &str,
+        mime_type: &str,
+        decision: PermissionDecision,
+    ) -> TestOutput;
     async fn set_model(&self, model_id: &str);
 }
 
@@ -310,26 +346,5 @@ where
     }
 }
 
-/// Connects to the given agent via in-process duplex streams, sends an
-/// `InitializeRequest`, and returns the response.
-#[allow(dead_code)]
-pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::InitializeResponse {
-    let (transport, _handle) = serve_agent_in_process(agent).await;
-    sacp::ClientToAgent::builder()
-        .connect_to(transport)
-        .unwrap()
-        .run_until(|cx: sacp::JrConnectionCx<sacp::ClientToAgent>| async move {
-            let resp = cx
-                .send_request(sacp::schema::InitializeRequest::new(
-                    sacp::schema::ProtocolVersion::LATEST,
-                ))
-                .block_task()
-                .await
-                .unwrap();
-            Ok::<_, sacp::Error>(resp)
-        })
-        .await
-        .unwrap()
-}
-
+pub mod provider;
 pub mod server;

@@ -205,19 +205,21 @@ impl ProviderDef for VeniceProvider {
             FALLBACK_MODELS.to_vec(),
             VENICE_DOC_URL,
             vec![
-                ConfigKey::new("VENICE_API_KEY", true, true, None),
-                ConfigKey::new("VENICE_HOST", true, false, Some(VENICE_DEFAULT_HOST)),
+                ConfigKey::new("VENICE_API_KEY", true, true, None, true),
+                ConfigKey::new("VENICE_HOST", true, false, Some(VENICE_DEFAULT_HOST), false),
                 ConfigKey::new(
                     "VENICE_BASE_PATH",
                     true,
                     false,
                     Some(VENICE_DEFAULT_BASE_PATH),
+                    false,
                 ),
                 ConfigKey::new(
                     "VENICE_MODELS_PATH",
                     true,
                     false,
                     Some(VENICE_DEFAULT_MODELS_PATH),
+                    false,
                 ),
             ],
         )
@@ -490,12 +492,8 @@ impl Provider for VeniceProvider {
                         function["arguments"].clone()
                     };
 
-                    let tool_call = CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.into(),
-                        arguments: Some(object(arguments)),
-                    };
+                    let tool_call =
+                        CallToolRequestParams::new(name).with_arguments(object(arguments));
 
                     // Create a ToolRequest MessageContent
                     let tool_request = MessageContent::tool_request(id, ToolResult::Ok(tool_call));

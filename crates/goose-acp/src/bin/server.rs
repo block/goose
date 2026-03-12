@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use goose::builtin_extension::register_builtin_extensions;
 use goose::config::paths::Paths;
 use goose_acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use std::net::SocketAddr;
@@ -28,6 +29,8 @@ async fn main() -> Result<()> {
         .with(filter)
         .with(tracing_subscriber::fmt::layer().with_target(true))
         .init();
+
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
     let cli = Cli::parse();
 

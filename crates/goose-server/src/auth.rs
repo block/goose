@@ -4,6 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use subtle::ConstantTimeEq;
 
 pub async fn check_token(
     State(state): State<String>,
@@ -13,6 +14,7 @@ pub async fn check_token(
     if request.uri().path() == "/status"
         || request.uri().path() == "/mcp-ui-proxy"
         || request.uri().path() == "/mcp-app-proxy"
+        || request.uri().path() == "/mcp-app-guest"
     {
         return Ok(next.run(request).await);
     }
@@ -22,7 +24,9 @@ pub async fn check_token(
         .and_then(|value| value.to_str().ok());
 
     match secret_key {
-        Some(key) if key == state => Ok(next.run(request).await),
+        Some(key) if bool::from(key.as_bytes().ct_eq(state.as_bytes())) => {
+            Ok(next.run(request).await)
+        }
         _ => Err(StatusCode::UNAUTHORIZED),
     }
 }

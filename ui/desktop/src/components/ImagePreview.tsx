@@ -19,12 +19,12 @@ export default function ImagePreview({ src }: ImagePreviewProps) {
         alt="goose image"
         onError={() => setError(true)}
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`rounded border border-border-default cursor-pointer hover:border-border-default transition-all ${
+        className={`rounded border border-border-primary cursor-pointer hover:border-border-primary transition-all ${
           isExpanded ? 'max-w-full max-h-96' : 'max-h-40 max-w-40'
         }`}
         style={{ objectFit: 'contain' }}
       />
-      <div className="text-xs text-text-muted mt-1">
+      <div className="text-xs text-text-secondary mt-1">
         Click to {isExpanded ? 'collapse' : 'expand'}
       </div>
     </div>

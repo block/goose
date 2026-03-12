@@ -274,9 +274,11 @@ jobs:
             INSTRUCTIONS="No specific instructions - perform a general code review."
           fi
           
-          echo "instructions<<INSTRUCTIONS_EOF" >> $GITHUB_OUTPUT
+          # SECURITY: Use random delimiter to prevent injection if comment contains our delimiter
+          DELIMITER="EOF_$(openssl rand -hex 8)"
+          echo "instructions<<$DELIMITER" >> $GITHUB_OUTPUT
           echo "$INSTRUCTIONS" >> $GITHUB_OUTPUT
-          echo "INSTRUCTIONS_EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Run goose review
         id: goose
@@ -285,14 +287,16 @@ jobs:
           PR_TITLE: ${{ github.event.issue.title }}
           PR_BODY: ${{ github.event.issue.body }}
           REVIEW_INSTRUCTIONS: ${{ steps.instructions.outputs.instructions }}
+          # SECURITY: Pass issue JSON via environment variable to avoid heredoc injection
+          # (GHSA-mm8p-57gq-3xj6) - user-controlled content could terminate heredoc early
+          ISSUE_JSON: ${{ toJson(github.event.issue) }}
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          cat > /tmp/pr.json << 'PRJSON'
-          ${{ toJson(github.event.issue) }}
-          PRJSON
+          # SECURITY: Use printf with env var instead of heredoc to prevent injection
+          printf '%s' "$ISSUE_JSON" > /tmp/pr.json
 
           echo "$GOOSE_RECIPE" | envsubst '$PR_NUMBER $PR_TITLE $PR_BODY $REVIEW_INSTRUCTIONS' > /tmp/recipe.yaml
 

@@ -39,6 +39,14 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "plan.md",
         "Prompt used when goose creates step-by-step plans. CLI only",
     ),
+    (
+        "tiny_model_system.md",
+        "System prompt for tiny local models using shell command emulation",
+    ),
+    (
+        "session_name.md",
+        "System prompt for generating short session names from conversation history",
+    ),
 ];
 
 /// Information about a template including its content and customization status

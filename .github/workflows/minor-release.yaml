@@ -11,6 +11,7 @@ on:
 
 jobs:
   release:
+    if: github.repository == 'block/goose'
     uses: ./.github/workflows/create-release-pr.yaml
     with:
       bump_type: "minor"

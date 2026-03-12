@@ -83,6 +83,14 @@ impl CanonicalModelRegistry {
         self.models.get(&(provider.to_string(), model.to_string()))
     }
 
+    pub fn get_all_models_for_provider(&self, provider: &str) -> Vec<CanonicalModel> {
+        self.models
+            .iter()
+            .filter(|((p, _), _)| p == provider)
+            .map(|(_, model)| model.clone())
+            .collect()
+    }
+
     pub fn all_models(&self) -> Vec<&CanonicalModel> {
         self.models.values().collect()
     }

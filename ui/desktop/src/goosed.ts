@@ -6,13 +6,6 @@ import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client, createClient, createConfig } from './api/client';
-import {
-  buildSandboxSpawn,
-  ensureProxy,
-  stopProxy,
-  isSandboxEnabled,
-  isSandboxAvailable,
-} from './sandbox';
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -166,8 +159,10 @@ export interface GoosedResult {
   workingDir: string;
   process: ChildProcess | null;
   errorLog: string[];
+  stopErrorLogCollection: () => void;
   cleanup: () => Promise<void>;
   client: Client;
+  certFingerprint: string | null;
 }
 
 const goosedClientForUrlAndSecret = (url: string, secret: string): Client => {
@@ -205,16 +200,18 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       workingDir,
       process: null,
       errorLog,
+      stopErrorLogCollection: () => {},
       cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
       client: goosedClientForUrlAndSecret(url, serverSecret),
+      certFingerprint: null,
     };
   }
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     const port = process.env.GOOSE_PORT || '3000';
-    const url = `http://127.0.0.1:${port}`;
+    const url = `https://127.0.0.1:${port}`;
     logger.info(`Using external goosed backend from env at ${url}`);
 
     return {
@@ -222,26 +219,21 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       workingDir,
       process: null,
       errorLog,
+      stopErrorLogCollection: () => {},
       cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
       client: goosedClientForUrlAndSecret(url, serverSecret),
+      certFingerprint: null,
     };
   }
-
-  if (isSandboxEnabled() && !isSandboxAvailable()) {
-    throw new Error('GOOSE_SANDBOX=true but sandbox-exec is not available (macOS only)');
-  }
-  const useSandbox = isSandboxEnabled();
 
   const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
 
   const port = await findAvailablePort();
-  logger.info(
-    `Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}${useSandbox ? ' [SANDBOXED]' : ''}`
-  );
+  logger.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}`);
 
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const baseUrl = `https://127.0.0.1:${port}`;
 
   const spawnEnv: Record<string, string | undefined> = {
     ...process.env,
@@ -254,19 +246,8 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     }
   }
 
-  // If sandbox mode, start proxy and wrap with sandbox-exec
-  let spawnCommand = goosedPath;
-  let spawnArgs = ['agent'];
-
-  if (useSandbox) {
-    const proxy = await ensureProxy();
-    const sandboxSpawn = buildSandboxSpawn(goosedPath, ['agent'], proxy.port);
-    spawnCommand = sandboxSpawn.command;
-    spawnArgs = sandboxSpawn.args;
-    // Merge proxy env vars into the process env
-    Object.assign(spawnEnv, sandboxSpawn.env);
-    logger.info(`[sandbox] Spawning via: ${spawnCommand} ${spawnArgs.join(' ')}`);
-  }
+  const spawnCommand = goosedPath;
+  const spawnArgs = ['agent'];
 
   const isWindows = process.platform === 'win32';
   const spawnOptions = {
@@ -292,11 +273,37 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const goosedProcess = spawn(spawnCommand, spawnArgs, spawnOptions);
 
-  goosedProcess.stdout?.on('data', (data: Buffer) => {
-    logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${data.toString()}`);
+  let certFingerprint: string | null = null;
+  const fingerprintReady = new Promise<string | null>((resolve) => {
+    const FINGERPRINT_PREFIX = 'GOOSED_CERT_FINGERPRINT=';
+    let resolved = false;
+
+    goosedProcess.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${text}`);
+
+      if (!resolved && text.includes(FINGERPRINT_PREFIX)) {
+        for (const line of text.split('\n')) {
+          if (line.startsWith(FINGERPRINT_PREFIX)) {
+            certFingerprint = line.slice(FINGERPRINT_PREFIX.length).trim();
+            logger.info(`Pinned cert fingerprint: ${certFingerprint}`);
+            resolved = true;
+            resolve(certFingerprint);
+            break;
+          }
+        }
+      }
+    });
+
+    goosedProcess.on('exit', () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(null);
+      }
+    });
   });
 
-  goosedProcess.stderr?.on('data', (data: Buffer) => {
+  const onStderrData = (data: Buffer) => {
     const lines = data.toString().split('\n');
     for (const line of lines) {
       if (line.trim()) {
@@ -306,7 +313,12 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         }
       }
     }
-  });
+  };
+  goosedProcess.stderr?.on('data', onStderrData);
+
+  const stopErrorLogCollection = () => {
+    goosedProcess.stderr?.off('data', onStderrData);
+  };
 
   goosedProcess.on('exit', (code) => {
     logger.info(`goosed process exited with code ${code} for port ${port} and dir ${workingDir}`);
@@ -339,10 +351,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         logger.error('Error while terminating goosed process:', error);
       }
 
-      if (useSandbox) {
-        stopProxy().catch((err) => logger.error('Error stopping sandbox proxy:', err));
-      }
-
       setTimeout(() => {
         if (goosedProcess && !goosedProcess.killed && process.platform !== 'win32') {
           goosedProcess.kill('SIGKILL');
@@ -354,12 +362,16 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   logger.info(`Goosed server successfully started on port ${port}`);
 
+  await fingerprintReady;
+
   return {
     baseUrl,
     workingDir,
     process: goosedProcess,
     errorLog,
+    stopErrorLogCollection,
     cleanup,
     client: goosedClientForUrlAndSecret(baseUrl, serverSecret),
+    certFingerprint,
   };
 };

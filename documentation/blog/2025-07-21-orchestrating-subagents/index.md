@@ -50,11 +50,9 @@ For this project, I turned my subagents into an on-demand dev squad, and I assig
 Sidenote: It felt like I was assembling the Avengers.
 ![avengers](avengers.gif)
 
-Since the feature is still experimental, I had to enable it via an environment variable:
-
-```bash
-export GOOSE_ALPHA_FEATURES=true  
-```
+:::note
+As of version 1.10.0, subagents are no longer experimental and don't require enabling any feature flags.
+:::
 
 ## Instructing My Team
 

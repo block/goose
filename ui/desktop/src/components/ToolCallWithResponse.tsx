@@ -17,7 +17,9 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResponse, ContentBlock, EmbeddedResource } from '../api';
+
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 
@@ -64,7 +66,7 @@ interface ToolCallWithResponseProps {
   isApprovalClicked?: boolean;
 }
 
-function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+function getToolResultContent(toolResult: Record<string, unknown>): ContentBlock[] {
   if (toolResult.status !== 'success') {
     return [];
   }
@@ -75,8 +77,11 @@ function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
   });
 }
 
-function isEmbeddedResource(content: Content): content is EmbeddedResource {
-  return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
+function isEmbeddedResource(
+  content: ContentBlock
+): content is EmbeddedResource & { type: 'resource' } {
+  const c = content as Record<string, unknown>;
+  return c.type === 'resource' && typeof c.resource === 'object' && c.resource !== null;
 }
 
 interface McpAppWrapperProps {
@@ -120,7 +125,9 @@ function McpAppWrapper({
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
   const toolResult =
-    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
+    resultWithMeta?.status === 'success' && resultWithMeta.value
+      ? (resultWithMeta.value as unknown as CallToolResult)
+      : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -178,7 +185,7 @@ export default function ToolCallWithResponse({
       <div
         className={cn(
           'w-full text-sm font-sans rounded-lg overflow-hidden border',
-          showInlineApproval ? 'border-amber-500/50 bg-amber-50/5' : 'border-border-default'
+          showInlineApproval ? 'border-amber-500/50 bg-amber-50/5' : 'border-border-primary'
         )}
       >
         <ToolCallView
@@ -217,14 +224,12 @@ export default function ToolCallWithResponse({
         !hasMcpAppResourceURI &&
         toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
-          const resourceContent = isEmbeddedResource(content)
-            ? { ...content, type: 'resource' as const }
-            : null;
-          if (resourceContent && isUIResource(resourceContent)) {
+          if (!isEmbeddedResource(content)) return null;
+          if (isUIResource(content)) {
             return (
               <div key={index} className="mt-3">
-                <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
+                <div className="mt-3 p-4 py-3 border border-border-primary rounded-lg bg-background-secondary flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
@@ -428,20 +433,20 @@ function ToolCallView({
   notifications,
   isStreamingMessage = false,
 }: ToolCallViewProps) {
-  const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
+  const [responseStyle, setResponseStyle] = useState<string>('concise');
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      setResponseStyle(localStorage.getItem('response_style'));
+    // Load initial value from settings
+    window.electron.getSetting('responseStyle').then(setResponseStyle);
+
+    const handleStyleChange = () => {
+      window.electron.getSetting('responseStyle').then(setResponseStyle);
     };
 
-    window.addEventListener('storage', handleStorageChange);
-
-    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
+    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
+      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
     };
   }, []);
 
@@ -735,7 +740,7 @@ function ToolCallView({
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
-            <div className="border-t border-border-default">
+            <div className="border-t border-border-primary">
               <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
@@ -743,7 +748,7 @@ function ToolCallView({
 
         if (isToolDetails) {
           return (
-            <div className="border-t border-border-default">
+            <div className="border-t border-border-primary">
               <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
             </div>
           );
@@ -753,7 +758,7 @@ function ToolCallView({
       })()}
 
       {logs && logs.length > 0 && (
-        <div className="border-t border-border-default">
+        <div className="border-t border-border-primary">
           <ToolLogsView
             logs={logs}
             working={loadingStatus === 'loading'}
@@ -767,7 +772,7 @@ function ToolCallView({
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
         progressEntries.map((entry, index) => (
-          <div className="p-3 border-t border-border-default" key={index}>
+          <div className="p-3 border-t border-border-primary" key={index}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
@@ -776,7 +781,7 @@ function ToolCallView({
       {!isCancelledMessage && (
         <>
           {toolResults.map((result, index) => (
-            <div key={index} className={cn('border-t border-border-default')}>
+            <div key={index} className={cn('border-t border-border-primary')}>
               <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
@@ -836,7 +841,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
         <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
       )}
       {code && (
-        <div className="border-t border-border-default -mx-4 mt-2">
+        <div className="border-t border-border-primary -mx-4 mt-2">
           <ToolCallExpandable
             label={<span className="pl-4 font-sans text-sm">Code</span>}
             isStartExpanded={false}
@@ -857,21 +862,22 @@ interface ToolResultViewProps {
     name: string;
     arguments: Record<string, unknown>;
   };
-  result: Content;
+  result: ContentBlock;
   isStartExpanded: boolean;
 }
 
 function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
-  const hasText = (c: Content): c is Content & { text: string } =>
+  const hasText = (c: ContentBlock): c is ContentBlock & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
-  const hasImage = (c: Content): c is Content & { data: string; mimeType: string } => {
+  const hasImage = (c: ContentBlock): c is ContentBlock & { data: string; mimeType: string } => {
     if (!('data' in c && 'mimeType' in c)) return false;
     const mimeType = (c as Record<string, unknown>).mimeType;
     return typeof mimeType === 'string' && mimeType.startsWith('image');
   };
 
-  const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
+  const hasResource = (c: ContentBlock): c is ContentBlock & { resource: unknown } =>
+    'resource' in c;
 
   const wrapMarkdown = (text: string): string => {
     if (

@@ -34,18 +34,21 @@ use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
+use strum::VariantNames;
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -325,7 +328,7 @@ impl CliSession {
                     s.push('_');
                     s.push_str(path);
                 }
-                s
+                name_to_key(&s)
             })
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "unnamed".to_string());
@@ -478,7 +481,6 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        output::display_greeting();
         loop {
             self.display_context_usage().await?;
 
@@ -717,14 +719,14 @@ impl CliSession {
             Ok(mode) => mode,
             Err(_) => {
                 output::render_error(&format!(
-                    "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                    mode
+                    "Invalid mode '{mode}'. Mode must be one of: {}",
+                    GooseMode::VARIANTS.join(", ")
                 ));
                 return Ok(());
             }
         };
         config.set_goose_mode(mode)?;
-        output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+        output::goose_mode_message(&format!("Goose mode set to '{mode}'"));
         Ok(())
     }
 
@@ -967,6 +969,8 @@ impl CliSession {
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
+        let mut prompted_credits_urls: HashSet<String> = HashSet::new();
+        let mut thinking_header_shown = false;
 
         use futures::StreamExt;
         loop {
@@ -979,6 +983,10 @@ impl CliSession {
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::DenyOnce,
+                                    }).await;
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         id,
@@ -1039,7 +1047,12 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message_streaming(&message, &mut markdown_buffer, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
+                                    maybe_open_credits_top_up_url(
+                                        &message,
+                                        interactive,
+                                        &mut prompted_credits_urls,
+                                    );
                                 }
                             }
                         }
@@ -1448,6 +1461,37 @@ impl CliSession {
 
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
+    }
+}
+
+fn maybe_open_credits_top_up_url(
+    message: &Message,
+    interactive: bool,
+    prompted_credits_urls: &mut HashSet<String>,
+) {
+    if !interactive || !std::io::stdout().is_terminal() {
+        return;
+    }
+
+    let Some(url) = output::get_credits_top_up_url(message) else {
+        return;
+    };
+
+    if !prompted_credits_urls.insert(url.clone()) {
+        return;
+    }
+
+    let should_open = cliclack::confirm("Open the top-up URL in your browser?")
+        .initial_value(false)
+        .interact()
+        .unwrap_or(false);
+
+    if should_open && webbrowser::open(&url).is_err() {
+        output::render_text(
+            "Could not open browser automatically. Visit the URL above.",
+            Some(Color::Yellow),
+            true,
+        );
     }
 }
 
@@ -1987,7 +2031,7 @@ mod tests {
     #[test_case(
         "https://mcp.kiwi.com", 300,
         ExtensionConfig::StreamableHttp {
-            name: "mcp.kiwi.com".into(),
+            name: "mcp_kiwi_com".into(),
             uri: "https://mcp.kiwi.com".into(),
             envs: Envs::default(),
             env_keys: vec![],

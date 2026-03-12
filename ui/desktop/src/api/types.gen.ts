@@ -54,13 +54,18 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
 };
 
 export type ChatRequest = {
-    conversation_so_far?: Array<Message> | null;
+    /**
+     * Override the server's conversation history. Only use this when you need absolute control
+     * over the conversation state (e.g., administrative tools). For normal operations, the server
+     * is the source of truth - use truncate/fork endpoints to modify conversation history instead.
+     */
+    override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
@@ -91,6 +96,11 @@ export type ConfigKey = {
      */
     oauth_flow: boolean;
     /**
+     * Whether this key should be shown prominently during provider setup
+     * (onboarding, settings modal, CLI configure)
+     */
+    primary?: boolean;
+    /**
      * Whether this key is required for the provider to function
      */
     required: boolean;
@@ -118,7 +128,29 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
 export type Conversation = Array<Message>;
 
@@ -163,10 +195,14 @@ export type CspMetadata = {
 
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
+    base_path?: string | null;
     base_url: string;
+    catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
+    dynamic_models?: boolean | null;
     engine: ProviderEngine;
+    env_vars?: Array<EnvVarConfig> | null;
     headers?: {
         [key: string]: string;
     } | null;
@@ -227,6 +263,13 @@ export type DictationProviderStatus = {
     uses_provider_config: boolean;
 };
 
+export type DownloadModelRequest = {
+    /**
+     * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
+     */
+    spec: string;
+};
+
 export type DownloadProgress = {
     /**
      * Bytes downloaded so far
@@ -277,6 +320,14 @@ export type EncodeRecipeRequest = {
 
 export type EncodeRecipeResponse = {
     deeplink: string;
+};
+
+export type EnvVarConfig = {
+    default?: string | null;
+    description?: string | null;
+    name: string;
+    required?: boolean;
+    secret?: boolean;
 };
 
 export type Envs = {
@@ -441,6 +492,36 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
+/**
+ * A single downloadable GGUF file (used internally and for downloads).
+ */
+export type HfGgufFile = {
+    download_url: string;
+    filename: string;
+    quantization: string;
+    size_bytes: number;
+};
+
+export type HfModelInfo = {
+    author: string;
+    downloads: number;
+    gguf_files: Array<HfGgufFile>;
+    model_name: string;
+    repo_id: string;
+};
+
+/**
+ * A quantization variant — groups sharded files into one logical entry.
+ */
+export type HfQuantVariant = {
+    description: string;
+    download_url: string;
+    filename: string;
+    quality_rank: number;
+    quantization: string;
+    size_bytes: number;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -504,6 +585,17 @@ export type ListSchedulesResponse = {
 export type LoadedProvider = {
     config: DeclarativeProviderConfig;
     is_editable: boolean;
+};
+
+export type LocalModelResponse = {
+    filename: string;
+    id: string;
+    quantization: string;
+    recommended: boolean;
+    repo_id: string;
+    settings: ModelSettings;
+    size_bytes: number;
+    status: ModelDownloadStatus;
 };
 
 /**
@@ -618,10 +710,18 @@ export type MessageMetadata = {
     userVisible: boolean;
 };
 
+export type ModelCapabilities = {
+    attachment: boolean;
+    reasoning: boolean;
+    temperature: boolean;
+    tool_call: boolean;
+};
+
 export type ModelConfig = {
     context_limit?: number | null;
     max_tokens?: number | null;
     model_name: string;
+    reasoning?: boolean | null;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -631,6 +731,18 @@ export type ModelConfig = {
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
+};
+
+export type ModelDownloadStatus = {
+    state: 'NotDownloaded';
+} | {
+    bytes_downloaded: number;
+    progress_percent: number;
+    speed_bps?: number | null;
+    state: 'Downloading';
+    total_bytes: number;
+} | {
+    state: 'Downloaded';
 };
 
 /**
@@ -685,6 +797,31 @@ export type ModelInfoResponse = {
     source: string;
 };
 
+export type ModelSettings = {
+    context_size?: number | null;
+    flash_attention?: boolean | null;
+    frequency_penalty?: number;
+    max_output_tokens?: number | null;
+    n_batch?: number | null;
+    n_gpu_layers?: number | null;
+    n_threads?: number | null;
+    native_tool_calling?: boolean;
+    presence_penalty?: number;
+    repeat_last_n?: number;
+    repeat_penalty?: number;
+    sampling?: SamplingConfig;
+    use_jinja?: boolean;
+    use_mlock?: boolean;
+};
+
+export type ModelTemplate = {
+    capabilities: ModelCapabilities;
+    context_limit: number;
+    deprecated: boolean;
+    id: string;
+    name: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -737,6 +874,16 @@ export type PromptsListResponse = {
     prompts: Array<Template>;
 };
 
+export type ProviderCatalogEntry = {
+    api_url: string;
+    doc_url: string;
+    env_var: string;
+    format: string;
+    id: string;
+    model_count: number;
+    name: string;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -750,10 +897,6 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
-    /**
-     * Whether this provider allows entering model names not in the fetched list
-     */
-    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
@@ -782,6 +925,17 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+};
+
+export type ProviderTemplate = {
+    api_url: string;
+    doc_url: string;
+    env_var: string;
+    format: string;
+    id: string;
+    models: Array<ModelTemplate>;
+    name: string;
+    supports_streaming: boolean;
 };
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
@@ -904,6 +1058,11 @@ export type RemoveExtensionRequest = {
     session_id: string;
 };
 
+export type RepoVariantsResponse = {
+    recommended_index?: number | null;
+    variants: Array<HfQuantVariant>;
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -975,10 +1134,26 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type SamplingConfig = {
+    type: 'Greedy';
+} | {
+    min_p: number;
+    seed?: number | null;
+    temperature: number;
+    top_k: number;
+    top_p: number;
+    type: 'Temperature';
+} | {
+    eta: number;
+    seed?: number | null;
+    tau: number;
+    type: 'MirostatV2';
 };
 
 export type SavePromptRequest = {
@@ -1075,7 +1250,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
 
 export type SessionsQuery = {
     limit: number;
@@ -1162,9 +1337,9 @@ export type SystemNotificationContent = {
     notificationType: SystemNotificationType;
 };
 
-export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;
@@ -1336,6 +1511,8 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    base_path?: string | null;
+    catalog_provider_id?: string | null;
     display_name: string;
     engine: string;
     headers?: {
@@ -2371,6 +2548,62 @@ export type SavePromptResponses = {
 
 export type SavePromptResponse = SavePromptResponses[keyof SavePromptResponses];
 
+export type GetProviderCatalogData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Filter by provider format (openai, anthropic, ollama)
+         */
+        format?: string | null;
+    };
+    url: '/config/provider-catalog';
+};
+
+export type GetProviderCatalogErrors = {
+    /**
+     * Invalid format parameter
+     */
+    400: unknown;
+};
+
+export type GetProviderCatalogResponses = {
+    /**
+     * Provider catalog retrieved successfully
+     */
+    200: Array<ProviderCatalogEntry>;
+};
+
+export type GetProviderCatalogResponse = GetProviderCatalogResponses[keyof GetProviderCatalogResponses];
+
+export type GetProviderCatalogTemplateData = {
+    body?: never;
+    path: {
+        /**
+         * Provider ID from models.dev
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/config/provider-catalog/{id}';
+};
+
+export type GetProviderCatalogTemplateErrors = {
+    /**
+     * Provider not found in catalog
+     */
+    404: unknown;
+};
+
+export type GetProviderCatalogTemplateResponses = {
+    /**
+     * Provider template retrieved successfully
+     */
+    200: ProviderTemplate;
+};
+
+export type GetProviderCatalogTemplateResponse = GetProviderCatalogTemplateResponses[keyof GetProviderCatalogTemplateResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -2771,7 +3004,7 @@ export type TranscribeDictationErrors = {
      */
     412: unknown;
     /**
-     * Audio file too large (max 25MB)
+     * Audio file too large (max 50MB)
      */
     413: unknown;
     /**
@@ -2830,6 +3063,221 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type DownloadHfModelData = {
+    body: DownloadModelRequest;
+    path?: never;
+    query?: never;
+    url: '/local-inference/download';
+};
+
+export type DownloadHfModelErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+};
+
+export type DownloadHfModelResponses = {
+    /**
+     * Download started
+     */
+    202: string;
+};
+
+export type DownloadHfModelResponse = DownloadHfModelResponses[keyof DownloadHfModelResponses];
+
+export type ListLocalModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/local-inference/models';
+};
+
+export type ListLocalModelsResponses = {
+    /**
+     * List of available local LLM models
+     */
+    200: Array<LocalModelResponse>;
+};
+
+export type ListLocalModelsResponse = ListLocalModelsResponses[keyof ListLocalModelsResponses];
+
+export type DeleteLocalModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}';
+};
+
+export type DeleteLocalModelErrors = {
+    /**
+     * Model not found
+     */
+    404: unknown;
+};
+
+export type DeleteLocalModelResponses = {
+    /**
+     * Model deleted
+     */
+    200: unknown;
+};
+
+export type CancelLocalModelDownloadData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/download';
+};
+
+export type CancelLocalModelDownloadErrors = {
+    /**
+     * No active download
+     */
+    404: unknown;
+};
+
+export type CancelLocalModelDownloadResponses = {
+    /**
+     * Download cancelled
+     */
+    200: unknown;
+};
+
+export type GetLocalModelDownloadProgressData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/download';
+};
+
+export type GetLocalModelDownloadProgressErrors = {
+    /**
+     * No active download
+     */
+    404: unknown;
+};
+
+export type GetLocalModelDownloadProgressResponses = {
+    /**
+     * Download progress
+     */
+    200: DownloadProgress;
+};
+
+export type GetLocalModelDownloadProgressResponse = GetLocalModelDownloadProgressResponses[keyof GetLocalModelDownloadProgressResponses];
+
+export type GetModelSettingsData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/settings';
+};
+
+export type GetModelSettingsErrors = {
+    /**
+     * Model not found
+     */
+    404: unknown;
+};
+
+export type GetModelSettingsResponses = {
+    /**
+     * Model settings
+     */
+    200: ModelSettings;
+};
+
+export type GetModelSettingsResponse = GetModelSettingsResponses[keyof GetModelSettingsResponses];
+
+export type UpdateModelSettingsData = {
+    body: ModelSettings;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/settings';
+};
+
+export type UpdateModelSettingsErrors = {
+    /**
+     * Model not found
+     */
+    404: unknown;
+    /**
+     * Failed to save settings
+     */
+    500: unknown;
+};
+
+export type UpdateModelSettingsResponses = {
+    /**
+     * Settings updated
+     */
+    200: ModelSettings;
+};
+
+export type UpdateModelSettingsResponse = UpdateModelSettingsResponses[keyof UpdateModelSettingsResponses];
+
+export type GetRepoFilesData = {
+    body?: never;
+    path: {
+        author: string;
+        repo: string;
+    };
+    query?: never;
+    url: '/local-inference/repo/{author}/{repo}/files';
+};
+
+export type GetRepoFilesResponses = {
+    /**
+     * GGUF files in the repo
+     */
+    200: RepoVariantsResponse;
+};
+
+export type GetRepoFilesResponse = GetRepoFilesResponses[keyof GetRepoFilesResponses];
+
+export type SearchHfModelsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Search query
+         */
+        q: string;
+        /**
+         * Max results
+         */
+        limit?: number | null;
+    };
+    url: '/local-inference/search';
+};
+
+export type SearchHfModelsErrors = {
+    /**
+     * Search failed
+     */
+    500: unknown;
+};
+
+export type SearchHfModelsResponses = {
+    /**
+     * Search results
+     */
+    200: Array<HfModelInfo>;
+};
+
+export type SearchHfModelsResponse = SearchHfModelsResponses[keyof SearchHfModelsResponses];
 
 export type McpUiProxyData = {
     body?: never;

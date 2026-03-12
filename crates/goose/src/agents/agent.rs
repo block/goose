@@ -33,13 +33,12 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
     ToolRequest,
 };
-use crate::conversation::tool_result_serde::call_tool_result;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::Provider;
+use crate::providers::base::{PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
@@ -246,7 +245,10 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
-            tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            tool_inspection_manager: Self::create_tool_inspection_manager(
+                permission_manager,
+                provider.clone(),
+            ),
             container: Mutex::new(None),
         }
     }
@@ -254,6 +256,7 @@ impl Agent {
     /// Create a tool inspection manager with default inspectors
     fn create_tool_inspection_manager(
         permission_manager: Arc<PermissionManager>,
+        provider: SharedProvider,
     ) -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
 
@@ -262,9 +265,8 @@ impl Agent {
 
         // Add permission inspector (medium-high priority)
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
-            std::collections::HashSet::new(), // regular tools - will be populated from extension manager
             permission_manager,
+            provider,
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
@@ -351,6 +353,10 @@ impl Agent {
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
+        if self.config.goose_mode == GooseMode::SmartApprove {
+            self.tool_inspection_manager.apply_tool_annotations(&tools);
+        }
+
         Ok(ReplyContext {
             conversation,
             tools,
@@ -431,12 +437,9 @@ impl Agent {
                 let mut response = response_msg.lock().await;
                 *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult {
-                        content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
-                        structured_content: None,
-                        is_error: Some(true),
-                        meta: None,
-                    }),
+                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
+                        DECLINED_RESPONSE,
+                    )])),
                     request.metadata.as_ref(),
                 );
             }
@@ -492,7 +495,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, tool_call, request_id, session), fields(input, output, session_id = %session.id))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -506,6 +509,11 @@ impl Agent {
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
 
+        self.prompt_manager
+            .lock()
+            .await
+            .record_tool_arguments(&tool_call.arguments, &session.working_dir);
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -514,12 +522,7 @@ impl Agent {
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
-            let wrapped_result = result.map(|content| CallToolResult {
-                content,
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            });
+            let wrapped_result = result.map(CallToolResult::success);
             return (request_id, Ok(ToolCallResult::from(wrapped_result)));
         }
 
@@ -678,7 +681,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension(config_clone, &session_id_clone)
+                        .add_extension_inner(config_clone, &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -700,10 +703,40 @@ impl Agent {
             })
             .collect::<Vec<_>>();
 
-        futures::future::join_all(extension_futures).await
+        let results = futures::future::join_all(extension_futures).await;
+
+        // Persist once after all extensions are loaded
+        if results.iter().any(|r| r.success) {
+            if let Err(e) = self.persist_extension_state(&session_id).await {
+                warn!("Failed to persist extension state after bulk load: {}", e);
+            }
+        }
+
+        results
     }
 
     pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        session_id: &str,
+    ) -> ExtensionResult<()> {
+        self.add_extension_inner(extension, session_id).await?;
+
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    async fn add_extension_inner(
         &self,
         extension: ExtensionConfig,
         session_id: &str,
@@ -759,17 +792,6 @@ impl Agent {
                     .await?;
             }
         }
-
-        // Persist extension state after successful add
-        self.persist_extension_state(session_id)
-            .await
-            .map_err(|e| {
-                error!("Failed to persist extension state: {}", e);
-                crate::agents::extension::ExtensionError::SetupError(format!(
-                    "Failed to persist extension state: {}",
-                    e
-                ))
-            })?;
 
         Ok(())
     }
@@ -827,9 +849,26 @@ impl Agent {
         request_id: String,
         confirmation: PermissionConfirmation,
     ) {
+        let provider = self.provider.lock().await.clone();
+        if let Some(provider) = provider.as_ref() {
+            if provider.permission_routing() == PermissionRouting::ActionRequired
+                && provider
+                    .handle_permission_confirmation(&request_id, &confirmation)
+                    .await
+            {
+                return;
+            }
+        }
         if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
+    }
+
+    pub async fn supports_action_required_permissions(&self) -> bool {
+        if let Some(provider) = self.provider.lock().await.as_ref() {
+            return provider.permission_routing() == PermissionRouting::ActionRequired;
+        }
+        false
     }
 
     #[instrument(
@@ -1082,7 +1121,11 @@ impl Agent {
             let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
             let _stream_guard = reply_stream_span.enter();
             let mut turns_taken = 0u32;
-            let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let max_turns = session_config.max_turns.unwrap_or_else(|| {
+                Config::global()
+                    .get_param::<u32>("GOOSE_MAX_TURNS")
+                    .unwrap_or(DEFAULT_MAX_TURNS)
+            });
             let mut compaction_attempts = 0;
             let mut last_assistant_text = String::new();
 
@@ -1221,12 +1264,7 @@ impl Agent {
                                             let mut response = response_msg.lock().await;
                                             *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(CallToolResult {
-                                                    content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
-                                                    structured_content: None,
-                                                    is_error: Some(false),
-                                                    meta: None,
-                                                }),
+                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
                                             );
                                         }
@@ -1235,6 +1273,7 @@ impl Agent {
                                     // Run all tool inspectors
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
+                                            &session_config.id,
                                             &remaining_requests,
                                             conversation.messages(),
                                             goose_mode,
@@ -1320,8 +1359,6 @@ impl Agent {
                                                     Some((request_id, item)) => {
                                                         match item {
                                                             ToolStreamItem::Result(output) => {
-                                                                let output = call_tool_result::validate(output);
-
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
                                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
@@ -1424,6 +1461,16 @@ impl Agent {
                                                                 .lock().await.clone();
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
+                                    } else {
+                                        let error_msg = format!(
+                                            "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
+                                            request.tool_call.as_ref().unwrap_err(),
+                                        );
+                                        let error_response = Message::user()
+                                            .with_generated_id()
+                                            .with_text(&error_msg);
+                                        yield AgentEvent::Message(error_response.clone());
+                                        messages_to_add.push(error_response);
                                     }
                                 }
 
@@ -1481,6 +1528,39 @@ impl Agent {
                                 }
                             }
                         }
+                        Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let user_msg = if top_up_url.is_some() {
+                                "Please add credits to your account, then resend your message to continue.".to_string()
+                            } else {
+                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
+                            };
+
+                            let notification_data = serde_json::json!({
+                                "top_up_url": top_up_url,
+                            });
+
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification_with_data(
+                                    SystemNotificationType::CreditsExhausted,
+                                    user_msg,
+                                    notification_data,
+                                )
+                            );
+                            break;
+                        }
+                        Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
+                                    format!("{provider_err}\n\nPlease resend your message to try again.")
+                                )
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -1497,6 +1577,19 @@ impl Agent {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
+
+                {
+                    let has_new_hints = self
+                        .prompt_manager
+                        .lock()
+                        .await
+                        .load_subdirectory_hints(&working_dir);
+                    if has_new_hints && !tools_updated {
+                        (tools, toolshim_tools, system_prompt) =
+                            self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
+                    }
+                }
+
                 let mut exit_chat = false;
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
@@ -1728,7 +1821,15 @@ impl Agent {
     ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
-        let extensions_info = self.extension_manager.get_extensions_info().await;
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+        let extensions_info = self
+            .extension_manager
+            .get_extensions_info(&session.working_dir)
+            .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
         let (extension_count, tool_count) = self
             .extension_manager
@@ -1954,7 +2055,118 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::permission::permission_confirmation::PrincipalType;
+    use crate::providers::base::PermissionRouting;
     use crate::recipe::Response;
+
+    struct ActionRequiredProvider {
+        handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
+    }
+
+    impl ActionRequiredProvider {
+        fn new() -> Self {
+            Self {
+                handled: tokio::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl std::fmt::Debug for ActionRequiredProvider {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("ActionRequiredProvider").finish()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for ActionRequiredProvider {
+        fn get_name(&self) -> &str {
+            "test-action-required"
+        }
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("test").unwrap()
+        }
+        async fn stream(
+            &self,
+            _: &crate::model::ModelConfig,
+            _: &str,
+            _: &str,
+            _: &[crate::conversation::message::Message],
+            _: &[rmcp::model::Tool],
+        ) -> Result<crate::providers::base::MessageStream, crate::providers::errors::ProviderError>
+        {
+            unimplemented!()
+        }
+        fn permission_routing(&self) -> PermissionRouting {
+            PermissionRouting::ActionRequired
+        }
+        async fn handle_permission_confirmation(
+            &self,
+            request_id: &str,
+            confirmation: &PermissionConfirmation,
+        ) -> bool {
+            self.handled
+                .lock()
+                .await
+                .push((request_id.to_string(), confirmation.clone()));
+            request_id == "known"
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_confirmation_routes_to_provider() {
+        let agent = Agent::new();
+        let provider = Arc::new(ActionRequiredProvider::new());
+        *agent.provider.lock().await =
+            Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
+
+        // Known request_id → provider handles it, confirmation_tx NOT called
+        agent
+            .handle_confirmation(
+                "known".to_string(),
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: crate::permission::Permission::AllowOnce,
+                },
+            )
+            .await;
+        assert_eq!(provider.handled.lock().await.len(), 1);
+
+        // Unknown request_id → provider returns false, falls through to confirmation_tx
+        agent
+            .handle_confirmation(
+                "unknown".to_string(),
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: crate::permission::Permission::DenyOnce,
+                },
+            )
+            .await;
+        assert_eq!(provider.handled.lock().await.len(), 2);
+        // Verify the fallthrough went to confirmation_rx
+        let mut rx = agent.confirmation_rx.lock().await;
+        let (id, conf) = rx.recv().await.unwrap();
+        assert_eq!(id, "unknown");
+        assert_eq!(conf.permission, crate::permission::Permission::DenyOnce);
+    }
+
+    #[tokio::test]
+    async fn test_handle_confirmation_noop_provider() {
+        let agent = Agent::new();
+        // No provider set → Noop routing, goes straight to confirmation_tx
+        agent
+            .handle_confirmation(
+                "any".to_string(),
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: crate::permission::Permission::AllowOnce,
+                },
+            )
+            .await;
+
+        let mut rx = agent.confirmation_rx.lock().await;
+        let (id, _) = rx.recv().await.unwrap();
+        assert_eq!(id, "any");
+    }
 
     #[tokio::test]
     async fn test_add_final_output_tool() -> Result<()> {

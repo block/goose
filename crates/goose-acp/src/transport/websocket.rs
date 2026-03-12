@@ -36,13 +36,11 @@ impl WsState {
 
         let acp_session_id = uuid::Uuid::new_v4().to_string();
 
+        let read_stream = ReceiverToAsyncRead::new(to_agent_rx);
+        let write_stream = SenderToAsyncWrite::new(from_agent_tx);
+        let fut = crate::server::serve(agent, read_stream.compat(), write_stream.compat_write());
         let handle = tokio::spawn(async move {
-            let read_stream = ReceiverToAsyncRead::new(to_agent_rx);
-            let write_stream = SenderToAsyncWrite::new(from_agent_tx);
-
-            if let Err(e) =
-                crate::server::serve(agent, read_stream.compat(), write_stream.compat_write()).await
-            {
+            if let Err(e) = fut.await {
                 error!("ACP WebSocket session error: {}", e);
             }
         });

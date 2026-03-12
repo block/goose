@@ -109,8 +109,25 @@ impl ProviderRegistry {
                 config_keys.remove(api_key_index);
             } else if !config.api_key_env.is_empty() {
                 let api_key_required = provider_type == ProviderType::Declarative;
-                config_keys[api_key_index] =
-                    super::base::ConfigKey::new(&config.api_key_env, api_key_required, true, None);
+                config_keys[api_key_index] = super::base::ConfigKey::new(
+                    &config.api_key_env,
+                    api_key_required,
+                    true,
+                    None,
+                    true,
+                );
+            }
+        }
+
+        if let Some(ref env_vars) = config.env_vars {
+            for ev in env_vars {
+                config_keys.push(super::base::ConfigKey::new(
+                    &ev.name,
+                    ev.required,
+                    ev.secret,
+                    ev.default.as_deref(),
+                    false,
+                ));
             }
         }
 
@@ -122,7 +139,6 @@ impl ProviderRegistry {
             known_models,
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
-            allows_unlisted_models: false,
         };
 
         self.entries.insert(

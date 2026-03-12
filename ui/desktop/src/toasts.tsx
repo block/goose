@@ -83,6 +83,8 @@ class ToastService {
     }
 
     const toastId = 'extension-loading';
+    const hasErrors = extensions.some((ext) => ext.status === 'error');
+    const autoClose = isComplete && !hasErrors ? 5000 : false;
 
     // Check if toast already exists
     if (toast.isActive(toastId)) {
@@ -95,7 +97,7 @@ class ToastService {
             isComplete={isComplete}
           />
         ),
-        autoClose: isComplete ? 5000 : false,
+        autoClose,
         closeButton: true,
         closeOnClick: false,
       });
@@ -110,7 +112,7 @@ class ToastService {
         {
           ...commonToastOptions,
           toastId,
-          autoClose: isComplete ? 5000 : false,
+          autoClose,
           closeButton: true,
           closeOnClick: false, // Prevent closing when clicking to expand/collapse
         }

@@ -23,6 +23,7 @@ concurrency:
 jobs:
   rebuild-docs:
     runs-on: ubuntu-latest
+    if: github.repository == 'block/goose'
     permissions:
       contents: write
 

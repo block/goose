@@ -176,6 +176,10 @@ pub fn map_http_error_to_provider_error(
         StatusCode::NOT_FOUND => {
             ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
         }
+        StatusCode::PAYMENT_REQUIRED => ProviderError::CreditsExhausted {
+            details: extract_message(),
+            top_up_url: None,
+        },
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();
@@ -250,4 +254,68 @@ pub fn stream_openai_compat(
             yield (message, usage);
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use test_case::test_case;
+
+    #[test_case(
+        StatusCode::PAYMENT_REQUIRED,
+        Some(json!({"error": {"message": "Insufficient credits to complete this request"}})),
+        "CreditsExhausted"
+        ; "402 with payload"
+    )]
+    #[test_case(
+        StatusCode::PAYMENT_REQUIRED,
+        None,
+        "CreditsExhausted"
+        ; "402 without payload"
+    )]
+    #[test_case(
+        StatusCode::TOO_MANY_REQUESTS,
+        Some(json!({"error": {"message": "Rate limit exceeded"}})),
+        "RateLimitExceeded"
+        ; "429 rate limit"
+    )]
+    #[test_case(
+        StatusCode::UNAUTHORIZED,
+        None,
+        "Authentication"
+        ; "401 unauthorized"
+    )]
+    #[test_case(
+        StatusCode::BAD_REQUEST,
+        Some(json!({"error": {"message": "This request exceeds the maximum context length"}})),
+        "ContextLengthExceeded"
+        ; "400 context length"
+    )]
+    #[test_case(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        None,
+        "ServerError"
+        ; "500 server error"
+    )]
+    fn http_status_maps_to_expected_error(
+        status: StatusCode,
+        payload: Option<Value>,
+        expected_variant: &str,
+    ) {
+        let err = map_http_error_to_provider_error(status, payload);
+        let actual = err.telemetry_type();
+        let expected_telemetry = match expected_variant {
+            "CreditsExhausted" => "credits_exhausted",
+            "RateLimitExceeded" => "rate_limit",
+            "Authentication" => "auth",
+            "ContextLengthExceeded" => "context_length",
+            "ServerError" => "server",
+            other => panic!("Unknown variant: {other}"),
+        };
+        assert_eq!(
+            actual, expected_telemetry,
+            "Expected {expected_variant}, got error: {err:?}"
+        );
+    }
 }

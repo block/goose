@@ -63,9 +63,7 @@ export default function AnnouncementModal() {
         });
 
         // Get list of seen announcement IDs
-        const seenAnnouncementIds = JSON.parse(
-          localStorage.getItem('seenAnnouncementIds') || '[]'
-        ) as string[];
+        const seenAnnouncementIds = await window.electron.getSetting('seenAnnouncementIds');
 
         // Find ALL unseen announcements (in order)
         const unseenAnnouncementsList = applicableAnnouncements.filter(
@@ -101,13 +99,11 @@ export default function AnnouncementModal() {
     loadAnnouncements();
   }, []);
 
-  const handleCloseAnnouncement = () => {
+  const handleCloseAnnouncement = async () => {
     if (unseenAnnouncements.length === 0) return;
 
     // Get existing seen announcement IDs
-    const seenAnnouncementIds = JSON.parse(
-      localStorage.getItem('seenAnnouncementIds') || '[]'
-    ) as string[];
+    const seenAnnouncementIds = await window.electron.getSetting('seenAnnouncementIds');
 
     // Add all unseen announcement IDs to the seen list
     const newSeenIds = [...seenAnnouncementIds];
@@ -117,7 +113,7 @@ export default function AnnouncementModal() {
       }
     });
 
-    localStorage.setItem('seenAnnouncementIds', JSON.stringify(newSeenIds));
+    await window.electron.setSetting('seenAnnouncementIds', newSeenIds);
     setShowAnnouncementModal(false);
   };
 
@@ -139,7 +135,7 @@ export default function AnnouncementModal() {
           <Button
             variant="ghost"
             onClick={handleCloseAnnouncement}
-            className="w-full h-[60px] rounded-none border-b border-border-default bg-transparent hover:bg-background-muted text-text-default font-medium text-md"
+            className="w-full h-[60px] rounded-none border-b border-border-primary bg-transparent hover:bg-background-secondary text-text-primary font-medium text-md"
           >
             Got it!
           </Button>

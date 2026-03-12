@@ -7,7 +7,7 @@ sidebar_label: Using Skills
 Skills are reusable sets of instructions and resources that teach goose how to perform specific tasks. A skill can range from a simple checklist to a detailed workflow with domain expertise, and can include supporting files like scripts or templates. Example use cases include deployment procedures, code review checklists, and API integration guides.
 
 :::info
-This functionality requires the built-in [Skills extension](/docs/mcp/skills-mcp) to be enabled (it's enabled by default).
+This functionality requires the built-in [Summon extension](/docs/mcp/summon-mcp), available in v1.25.0+.
 :::
 
 When a session starts, goose adds any skills that it discovers to its instructions. During the session, goose automatically loads a skill when:

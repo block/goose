@@ -62,7 +62,7 @@ const ScheduleCard: React.FC<{
 
   return (
     <Card
-      className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150"
+      className="py-2 px-4 mb-2 bg-background-primary border-none hover:bg-background-secondary cursor-pointer transition-all duration-150"
       onClick={() => onNavigateToDetail(job.id)}
     >
       <div className="flex justify-between items-start gap-4">
@@ -84,10 +84,10 @@ const ScheduleCard: React.FC<{
               </span>
             )}
           </div>
-          <p className="text-text-muted text-sm mb-2 line-clamp-2" title={readableCron}>
+          <p className="text-text-secondary text-sm mb-2 line-clamp-2" title={readableCron}>
             {readableCron}
           </p>
-          <div className="flex items-center text-xs text-text-muted">
+          <div className="flex items-center text-xs text-text-secondary">
             <span>Last run: {formattedLastRun}</span>
           </div>
         </div>
@@ -442,7 +442,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     <>
       <MainPanelLayout>
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
+          <div className="bg-background-primary px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Scheduler</h1>
@@ -470,7 +470,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                   </Button>
                 </div>
               </div>
-              <p className="text-sm text-text-muted mb-1">
+              <p className="text-sm text-text-secondary mb-1">
                 Create and manage scheduled tasks to run recipes automatically at specified times.
               </p>
             </div>
@@ -493,8 +493,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
                 {!isLoading && !apiError && schedules.length === 0 && (
                   <div className="flex flex-col pt-4 pb-12">
-                    <CircleDotDashed className="h-5 w-5 text-text-muted mb-3.5" />
-                    <p className="text-base text-text-muted font-light mb-2">No schedules yet</p>
+                    <CircleDotDashed className="h-5 w-5 text-text-secondary mb-3.5" />
+                    <p className="text-base text-text-secondary font-light mb-2">
+                      No schedules yet
+                    </p>
                   </div>
                 )}
 

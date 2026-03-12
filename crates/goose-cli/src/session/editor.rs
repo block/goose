@@ -308,6 +308,7 @@ with multiple lines.
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_symlink_raii_cleanup_on_panic() {
         use std::os::unix::fs;
         use std::panic;
@@ -351,6 +352,7 @@ with multiple lines.
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_symlink_creation_and_cleanup() {
         use std::os::unix::fs;
 

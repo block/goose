@@ -2,11 +2,12 @@ use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use axum::middleware;
+use axum_server::Handle;
 use goose_server::auth::check_token;
+use goose_server::tls::self_signed_config;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-// Graceful shutdown signal
 #[cfg(unix)]
 async fn shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
@@ -26,14 +27,27 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
+    // Install the rustls crypto provider early, before any spawned tasks (tunnel,
+    // gateways, etc.) try to open TLS connections. Both `ring` and `aws-lc-rs`
+    // features are enabled on rustls (via different transitive deps), so rustls
+    // cannot auto-detect a provider — we must pick one explicitly.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;
 
-    let secret_key =
-        std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
+    let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY")
+        .unwrap_or_else(|_| hex::encode(rand::random::<[u8; 32]>()));
 
-    let app_state = state::AppState::new().await?;
+    let app_state = state::AppState::new(settings.tls).await?;
+
+    // Share the server secret with the tunnel manager so it uses the same
+    // key for forwarded requests, without mutating the process environment.
+    app_state
+        .tunnel_manager
+        .set_server_secret(secret_key.clone())
+        .await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -47,17 +61,43 @@ pub async fn run() -> Result<()> {
         ))
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
-    info!("listening on {}", listener.local_addr()?);
+    let addr = settings.socket_addr();
 
     let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
         tunnel_manager.check_auto_start().await;
     });
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    let gateway_manager = app_state.gateway_manager.clone();
+    tokio::spawn(async move {
+        gateway_manager.check_auto_start().await;
+    });
+
+    if settings.tls {
+        let tls_setup = self_signed_config().await?;
+
+        let handle = Handle::new();
+        let shutdown_handle = handle.clone();
+        tokio::spawn(async move {
+            shutdown_signal().await;
+            shutdown_handle.graceful_shutdown(None);
+        });
+
+        info!("listening on https://{}", addr);
+
+        axum_server::bind_rustls(addr, tls_setup.config)
+            .handle(handle)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+
+        info!("listening on http://{}", addr);
+
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async { shutdown_signal().await })
+            .await?;
+    }
 
     if goose::otel::otlp::is_otlp_initialized() {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

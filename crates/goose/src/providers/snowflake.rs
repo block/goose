@@ -309,8 +309,8 @@ impl ProviderDef for SnowflakeProvider {
             SNOWFLAKE_KNOWN_MODELS.to_vec(),
             SNOWFLAKE_DOC_URL,
             vec![
-                ConfigKey::new("SNOWFLAKE_HOST", true, false, None),
-                ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None),
+                ConfigKey::new("SNOWFLAKE_HOST", true, false, None, true),
+                ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None, true),
             ],
         )
     }

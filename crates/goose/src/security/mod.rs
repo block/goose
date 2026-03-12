@@ -68,6 +68,20 @@ impl SecurityManager {
         }
 
         let scanner = self.scanner.get_or_init(|| {
+            let config = Config::global();
+            let command_classifier_enabled = config
+                .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                .unwrap_or(false);
+            let prompt_classifier_enabled = config
+                .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+                .unwrap_or(false);
+
+            tracing::info!(
+                monotonic_counter.goose.security_command_classifier_enabled = if command_classifier_enabled { 1 } else { 0 },
+                monotonic_counter.goose.security_prompt_classifier_enabled = if prompt_classifier_enabled { 1 } else { 0 },
+                "Security classifier configuration"
+            );
+
             let ml_enabled = self.is_ml_scanning_enabled();
 
             let scanner = if ml_enabled {
@@ -151,13 +165,18 @@ impl SecurityManager {
                             tool_request_id: tool_request.id.clone(),
                         });
                     }
-                } else {
+                } else if analysis_result.scanned {
+                    let tool_call_json =
+                        serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
+
                     tracing::info!(
+                        monotonic_counter.goose.prompt_injection_tool_call_passed = 1,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
+                        tool_call_json = %tool_call_json,
                         confidence = analysis_result.confidence,
                         explanation = %sanitized_explanation,
-                        "✅ Current tool call passed security analysis"
+                        "Current tool call passed security analysis"
                     );
                 }
             }

@@ -1,6 +1,11 @@
+use crate::custom_requests::*;
+use crate::fs::AcpTools;
 use anyhow::Result;
 use fs_err as fs;
+use goose::acp::PermissionDecision;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
+use goose::agents::mcp_client::McpClientTrait;
+use goose::agents::platform_extensions::developer::DeveloperClient;
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -17,15 +22,17 @@ use goose::providers::base::Provider;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
+use goose_acp_macros::custom_methods;
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
-    EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
-    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, ModelId, ModelInfo,
-    NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
-    PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
-    RequestPermissionRequest, ResourceLink, SessionId, SessionModelState, SessionNotification,
+    EmbeddedResourceResource, FileSystemCapability, ImageContent, InitializeRequest,
+    InitializeResponse, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
+    McpCapabilities, McpServer, ModelId, ModelInfo, NewSessionRequest, NewSessionResponse,
+    PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
+    SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
     SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
     TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
     ToolCallUpdate, ToolCallUpdateFields, ToolKind,
@@ -51,12 +58,13 @@ struct GooseAcpSession {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     provider_factory: ProviderConstructor,
+    builtins: Vec<String>,
+    client_fs_capabilities: Mutex<FileSystemCapability>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
-    builtins: Vec<String>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -92,12 +100,45 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
+    arguments
+        .and_then(|args| args.get("line"))
+        .and_then(|v| v.as_u64())
+        .map(|l| l as u32)
+}
+
 fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
     let mut loc = ToolCallLocation::new(path);
     if let Some(l) = line {
         loc = loc.line(l);
     }
     loc
+}
+
+fn is_developer_file_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "read" | "write" | "edit")
+}
+
+fn extract_locations_from_meta(
+    tool_response: &goose::conversation::message::ToolResponse,
+) -> Option<Vec<ToolCallLocation>> {
+    let result = tool_response.tool_result.as_ref().ok()?;
+    let meta = result.meta.as_ref()?;
+    let locations_val = meta.get("tool_locations")?;
+    let entries: Vec<serde_json::Value> = serde_json::from_value(locations_val.clone()).ok()?;
+    let locations = entries
+        .into_iter()
+        .filter_map(|entry| {
+            let path = entry.get("path")?.as_str()?;
+            let line = entry.get("line").and_then(|v| v.as_u64()).map(|l| l as u32);
+            Some(create_tool_location(path, line))
+        })
+        .collect::<Vec<_>>();
+    if locations.is_empty() {
+        None
+    } else {
+        Some(locations)
+    }
 }
 
 fn extract_tool_locations(
@@ -107,10 +148,11 @@ fn extract_tool_locations(
     let mut locations = Vec::new();
 
     if let Ok(tool_call) = &tool_request.tool_call {
-        if tool_call.name != "developer__text_editor" {
+        if !is_developer_file_tool(tool_call.name.as_ref()) {
             return locations;
         }
 
+        let tool_name = tool_call.name.as_ref();
         let path_str = tool_call
             .arguments
             .as_ref()
@@ -118,6 +160,17 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
+            if matches!(tool_name, "read") {
+                let line = get_requested_line(tool_call.arguments.as_ref());
+                locations.push(create_tool_location(path_str, line));
+                return locations;
+            }
+
+            if matches!(tool_name, "write" | "edit") {
+                locations.push(create_tool_location(path_str, Some(1)));
+                return locations;
+            }
+
             let command = tool_call
                 .arguments
                 .as_ref()
@@ -229,65 +282,42 @@ fn format_tool_name(tool_name: &str) -> String {
     }
 }
 
-async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
-    for builtin in builtins {
-        let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
-            ExtensionConfig::Platform {
-                name: builtin.clone(),
-                description: builtin.clone(),
-                display_name: None,
-                bundled: None,
-                available_tools: Vec::new(),
-            }
-        } else {
-            ExtensionConfig::Builtin {
-                name: builtin.clone(),
-                display_name: None,
-                timeout: None,
-                bundled: None,
-                description: builtin.clone(),
-                available_tools: Vec::new(),
-            }
-        };
-
-        match agent
-            .extension_manager
-            .add_extension(config, None, None, None)
-            .await
-        {
-            Ok(_) => info!(extension = %builtin, "extension loaded"),
-            Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
+fn builtin_to_extension_config(name: &str) -> ExtensionConfig {
+    if let Some(def) = PLATFORM_EXTENSIONS.get(name) {
+        ExtensionConfig::Platform {
+            name: def.name.into(),
+            description: def.description.into(),
+            display_name: Some(def.display_name.into()),
+            bundled: Some(true),
+            available_tools: vec![],
         }
-    }
-}
-async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
-    for extension in extensions {
-        let name = extension.name().to_string();
-        match agent
-            .extension_manager
-            .add_extension(extension, None, None, None)
-            .await
-        {
-            Ok(_) => info!(extension = %name, "extension loaded"),
-            Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+    } else {
+        ExtensionConfig::Builtin {
+            name: name.into(),
+            display_name: None,
+            timeout: None,
+            bundled: Some(true),
+            description: name.into(),
+            available_tools: vec![],
         }
     }
 }
 
-async fn build_model_state(
-    provider: &dyn Provider,
-    current_model: &str,
-) -> Result<SessionModelState, sacp::Error> {
-    let models = provider.fetch_recommended_models().await.map_err(|e| {
-        sacp::Error::internal_error().data(format!("Failed to fetch models: {}", e))
-    })?;
-    Ok(SessionModelState::new(
+async fn build_model_state(provider: &dyn Provider, current_model: &str) -> SessionModelState {
+    let models = match provider.fetch_recommended_models().await {
+        Ok(models) => models,
+        Err(e) => {
+            warn!(error = %e, "failed to fetch models, model selection will be unavailable");
+            vec![]
+        }
+    };
+    SessionModelState::new(
         ModelId::new(current_model),
         models
             .iter()
             .map(|name| ModelInfo::new(ModelId::new(&**name), &**name))
             .collect(),
-    ))
+    )
 }
 
 impl GooseAcpAgent {
@@ -309,16 +339,21 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             provider_factory,
+            builtins,
+            client_fs_capabilities: Mutex::new(FileSystemCapability::new()),
             config_dir,
             session_manager,
             permission_manager,
             goose_mode,
             disable_session_naming,
-            builtins,
         })
     }
 
-    async fn create_agent_for_session(&self) -> Arc<Agent> {
+    async fn create_agent_for_session(
+        &self,
+        cx: Option<&JrConnectionCx<AgentToClient>>,
+        session_id: Option<&SessionId>,
+    ) -> Result<Arc<Agent>> {
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&self.session_manager),
             Arc::clone(&self.permission_manager),
@@ -330,13 +365,73 @@ impl GooseAcpAgent {
         let agent = Arc::new(agent);
 
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
-        if let Ok(config_file) = Config::new(&config_path, "goose") {
-            let extensions = get_enabled_extensions_with_config(&config_file);
-            add_extensions(&agent, extensions).await;
-        }
-        add_builtins(&agent, self.builtins.clone()).await;
+        let mut extensions = Config::new(&config_path, "goose")
+            .ok()
+            .map(|c| get_enabled_extensions_with_config(&c))
+            .unwrap_or_default();
+        extensions.extend(self.builtins.iter().map(|b| builtin_to_extension_config(b)));
 
-        agent
+        let caps = self.client_fs_capabilities.lock().await.clone();
+        let acp_developer = match (cx, session_id) {
+            (Some(cx), Some(sid))
+                if (caps.read_text_file || caps.write_text_file)
+                    && extensions.iter().any(|e| e.name() == "developer") =>
+            {
+                let context = agent.extension_manager.get_context().clone();
+                let client: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
+                    inner: Arc::new(DeveloperClient::new(context)?),
+                    cx: cx.clone(),
+                    session_id: sid.clone(),
+                    fs_read: caps.read_text_file,
+                    fs_write: caps.write_text_file,
+                });
+                let dev_ext = extensions.iter().find(|e| e.name() == "developer");
+                let available_tools = dev_ext
+                    .and_then(|e| match e {
+                        ExtensionConfig::Platform {
+                            available_tools, ..
+                        } => Some(available_tools.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
+                let def = &PLATFORM_EXTENSIONS["developer"];
+                let config = ExtensionConfig::Platform {
+                    name: def.name.into(),
+                    description: def.description.into(),
+                    display_name: Some(def.display_name.into()),
+                    bundled: Some(true),
+                    available_tools,
+                };
+                Some((client, config))
+            }
+            _ => None,
+        };
+        let skip_developer = acp_developer.is_some();
+
+        for ext in extensions {
+            if skip_developer && ext.name() == "developer" {
+                continue;
+            }
+            let name = ext.name().to_string();
+            match agent
+                .extension_manager
+                .add_extension(ext, None, None, None)
+                .await
+            {
+                Ok(_) => info!(extension = %name, "extension loaded"),
+                Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+            }
+        }
+
+        if let Some((client, config)) = acp_developer {
+            let info = client.get_info().cloned();
+            agent
+                .extension_manager
+                .add_client("developer".into(), config, client, info, None)
+                .await;
+        }
+
+        Ok(agent)
     }
 
     pub async fn has_session(&self, session_id: &str) -> bool {
@@ -476,11 +571,13 @@ impl GooseAcpAgent {
 
         let content = build_tool_call_content(&tool_response.tool_result);
 
-        let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
-            extract_tool_locations(tool_request, tool_response)
-        } else {
-            Vec::new()
-        };
+        let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
+            if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
+                extract_tool_locations(tool_request, tool_response)
+            } else {
+                Vec::new()
+            }
+        });
 
         let mut fields = ToolCallUpdateFields::new().status(status).content(content);
         if !locations.is_empty() {
@@ -577,24 +674,9 @@ impl GooseAcpAgent {
 }
 
 fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConfirmation {
-    let permission = match outcome {
-        RequestPermissionOutcome::Cancelled => Permission::Cancel,
-        RequestPermissionOutcome::Selected(selected) => {
-            match serde_json::from_value::<PermissionOptionKind>(serde_json::Value::String(
-                selected.option_id.0.to_string(),
-            )) {
-                Ok(PermissionOptionKind::AllowAlways) => Permission::AlwaysAllow,
-                Ok(PermissionOptionKind::AllowOnce) => Permission::AllowOnce,
-                Ok(PermissionOptionKind::RejectOnce) => Permission::DenyOnce,
-                Ok(PermissionOptionKind::RejectAlways) => Permission::AlwaysDeny,
-                _ => Permission::Cancel,
-            }
-        }
-        _ => Permission::Cancel,
-    };
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
-        permission,
+        permission: Permission::from(PermissionDecision::from(outcome)),
     }
 }
 
@@ -649,8 +731,11 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
+        *self.client_fs_capabilities.lock().await = args.client_capabilities.fs.clone();
+
         let capabilities = AgentCapabilities::new()
             .load_session(true)
+            .session_capabilities(SessionCapabilities::new().list(SessionListCapabilities::new()))
             .prompt_capabilities(
                 PromptCapabilities::new()
                     .image(true)
@@ -671,6 +756,7 @@ impl GooseAcpAgent {
 
     async fn on_new_session(
         &self,
+        cx: &JrConnectionCx<AgentToClient>,
         args: NewSessionRequest,
     ) -> Result<NewSessionResponse, sacp::Error> {
         debug!(?args, "new session request");
@@ -687,7 +773,15 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let session_id = SessionId::new(goose_session.id.clone());
+
+        let agent = self
+            .create_agent_for_session(Some(cx), Some(&session_id))
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
+            })?;
+
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -695,19 +789,7 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
             })?;
 
-        for mcp_server in args.mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(sacp::Error::invalid_params().data(msg));
-                }
-            };
-            let name = config.name().to_string();
-            if let Err(e) = agent.add_extension(config, &goose_session.id).await {
-                return Err(sacp::Error::internal_error()
-                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
-            }
-        }
+        Self::add_mcp_extensions(&agent, args.mcp_servers, &goose_session.id).await?;
 
         let session = GooseAcpSession {
             agent,
@@ -726,7 +808,7 @@ impl GooseAcpAgent {
         );
 
         let model_state =
-            build_model_state(&*provider, &provider.get_model_config().model_name).await?;
+            build_model_state(&*provider, &provider.get_model_config().model_name).await;
 
         Ok(NewSessionResponse::new(SessionId::new(goose_session.id)).models(model_state))
     }
@@ -747,10 +829,31 @@ impl GooseAcpAgent {
         Ok(provider)
     }
 
+    async fn add_mcp_extensions(
+        agent: &Agent,
+        mcp_servers: Vec<McpServer>,
+        session_id: &str,
+    ) -> Result<(), sacp::Error> {
+        for mcp_server in mcp_servers {
+            let config = match mcp_server_to_extension_config(mcp_server) {
+                Ok(c) => c,
+                Err(msg) => {
+                    return Err(sacp::Error::invalid_params().data(msg));
+                }
+            };
+            let name = config.name().to_string();
+            if let Err(e) = agent.add_extension(config, session_id).await {
+                return Err(sacp::Error::internal_error()
+                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
+            }
+        }
+        Ok(())
+    }
+
     async fn on_load_session(
         &self,
-        args: LoadSessionRequest,
         cx: &JrConnectionCx<AgentToClient>,
+        args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, sacp::Error> {
         debug!(?args, "load session request");
 
@@ -765,13 +868,23 @@ impl GooseAcpAgent {
                     .data(format!("Failed to load session {}: {}", session_id, e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let acp_session_id = SessionId::new(session_id.clone());
+
+        let agent = self
+            .create_agent_for_session(Some(cx), Some(&acp_session_id))
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
+            })?;
+
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
             })?;
+
+        Self::add_mcp_extensions(&agent, args.mcp_servers, &session_id).await?;
 
         let conversation = goose_session.conversation.ok_or_else(|| {
             sacp::Error::internal_error()
@@ -851,15 +964,15 @@ impl GooseAcpAgent {
         );
 
         let model_state =
-            build_model_state(&*provider, &provider.get_model_config().model_name).await?;
+            build_model_state(&*provider, &provider.get_model_config().model_name).await;
 
         Ok(LoadSessionResponse::new().models(model_state))
     }
 
     async fn on_prompt(
         &self,
-        args: PromptRequest,
         cx: &JrConnectionCx<AgentToClient>,
+        args: PromptRequest,
     ) -> Result<PromptResponse, sacp::Error> {
         let session_id = args.session_id.0.to_string();
         let cancel_token = CancellationToken::new();
@@ -994,6 +1107,203 @@ impl GooseAcpAgent {
     }
 }
 
+#[custom_methods]
+impl GooseAcpAgent {
+    #[custom_method("extensions/add")]
+    async fn on_add_extension(
+        &self,
+        req: AddExtensionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let config: ExtensionConfig = serde_json::from_value(req.config)
+            .map_err(|e| sacp::Error::invalid_params().data(format!("bad config: {e}")))?;
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        agent
+            .add_extension(config, &req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("extensions/remove")]
+    async fn on_remove_extension(
+        &self,
+        req: RemoveExtensionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        agent
+            .remove_extension(&req.name, &req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("tools")]
+    async fn on_get_tools(&self, req: GetToolsRequest) -> Result<GetToolsResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let tools = agent.list_tools(&req.session_id, None).await;
+        let tools_json = tools
+            .into_iter()
+            .map(|t| serde_json::to_value(&t))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetToolsResponse { tools: tools_json })
+    }
+
+    #[custom_method("resource/read")]
+    async fn on_read_resource(
+        &self,
+        req: ReadResourceRequest,
+    ) -> Result<ReadResourceResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let cancel_token = CancellationToken::new();
+        let result = agent
+            .extension_manager
+            .read_resource(&req.session_id, &req.uri, &req.extension_name, cancel_token)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let result_json = serde_json::to_value(&result)
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ReadResourceResponse {
+            result: result_json,
+        })
+    }
+
+    #[custom_method("working_dir/update")]
+    async fn on_update_working_dir(
+        &self,
+        req: UpdateWorkingDirRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let working_dir = req.working_dir.trim().to_string();
+        if working_dir.is_empty() {
+            return Err(sacp::Error::invalid_params().data("working directory cannot be empty"));
+        }
+        let path = std::path::PathBuf::from(&working_dir);
+        if !path.exists() || !path.is_dir() {
+            return Err(sacp::Error::invalid_params().data("invalid directory path"));
+        }
+        self.session_manager
+            .update(&req.session_id)
+            .working_dir(path.clone())
+            .apply()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        // Notify MCP servers so roots stay in sync with the new working directory.
+        if let Some(session) = self.sessions.lock().await.get(&req.session_id) {
+            session
+                .agent
+                .extension_manager
+                .update_working_dir(&path)
+                .await;
+        }
+
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("session/list")]
+    async fn on_list_sessions(&self) -> Result<ListSessionsResponse, sacp::Error> {
+        let sessions = self
+            .session_manager
+            .list_sessions()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let session_infos: Vec<SessionInfo> = sessions
+            .into_iter()
+            .map(|s| {
+                SessionInfo::new(SessionId::new(s.id), s.working_dir)
+                    .title(s.name)
+                    .updated_at(s.updated_at.to_rfc3339())
+            })
+            .collect();
+        Ok(ListSessionsResponse::new(session_infos))
+    }
+
+    #[custom_method("session/get")]
+    async fn on_get_session(
+        &self,
+        req: GetSessionRequest,
+    ) -> Result<GetSessionResponse, sacp::Error> {
+        let session = self
+            .session_manager
+            .get_session(&req.session_id, req.include_messages)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let session_json = serde_json::to_value(&session)
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetSessionResponse {
+            session: session_json,
+        })
+    }
+
+    #[custom_method("session/delete")]
+    async fn on_delete_session(
+        &self,
+        req: DeleteSessionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        self.session_manager
+            .delete_session(&req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("session/export")]
+    async fn on_export_session(
+        &self,
+        req: ExportSessionRequest,
+    ) -> Result<ExportSessionResponse, sacp::Error> {
+        let data = self
+            .session_manager
+            .export_session(&req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ExportSessionResponse { data })
+    }
+
+    #[custom_method("session/import")]
+    async fn on_import_session(
+        &self,
+        req: ImportSessionRequest,
+    ) -> Result<ImportSessionResponse, sacp::Error> {
+        let session = self
+            .session_manager
+            .import_session(&req.data)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let session_json = serde_json::to_value(&session)
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ImportSessionResponse {
+            session: session_json,
+        })
+    }
+
+    #[custom_method("config/extensions")]
+    async fn on_get_extensions(&self) -> Result<GetExtensionsResponse, sacp::Error> {
+        let extensions = goose::config::extensions::get_all_extensions();
+        let warnings = goose::config::extensions::get_warnings();
+        let extensions_json = extensions
+            .into_iter()
+            .map(|e| serde_json::to_value(&e))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetExtensionsResponse {
+            extensions: extensions_json,
+            warnings,
+        })
+    }
+
+    async fn get_agent_for_session(&self, session_id: &str) -> Result<Arc<Agent>, sacp::Error> {
+        self.sessions
+            .lock()
+            .await
+            .get(session_id)
+            .map(|s| Arc::clone(&s.agent))
+            .ok_or_else(|| {
+                sacp::Error::invalid_params().data(format!("no active session: {session_id}"))
+            })
+    }
+}
+
 pub struct GooseAcpHandler {
     pub agent: Arc<GooseAcpAgent>,
 }
@@ -1005,103 +1315,133 @@ impl JrMessageHandler for GooseAcpHandler {
         "goose-acp"
     }
 
-    async fn handle_message(
+    fn handle_message(
         &mut self,
         message: MessageCx,
         cx: JrConnectionCx<AgentToClient>,
-    ) -> Result<Handled<MessageCx>, sacp::Error> {
+    ) -> impl std::future::Future<Output = Result<Handled<MessageCx>, sacp::Error>> + Send {
         use sacp::util::MatchMessageFrom;
         use sacp::JrRequestCx;
 
-        MatchMessageFrom::new(message, &cx)
-            .if_request(
-                |req: InitializeRequest, req_cx: JrRequestCx<InitializeResponse>| async {
-                    req_cx.respond(self.agent.on_initialize(req).await?)
-                },
-            )
-            .await
-            .if_request(
-                |_req: AuthenticateRequest, req_cx: JrRequestCx<AuthenticateResponse>| async {
-                    req_cx.respond(AuthenticateResponse::new())
-                },
-            )
-            .await
-            .if_request(
-                |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
-                    req_cx.respond(self.agent.on_new_session(req).await?)
-                },
-            )
-            .await
-            .if_request(
-                |req: LoadSessionRequest, req_cx: JrRequestCx<LoadSessionResponse>| async {
-                    req_cx.respond(self.agent.on_load_session(req, &cx).await?)
-                },
-            )
-            .await
-            .if_request(
-                |req: PromptRequest, req_cx: JrRequestCx<PromptResponse>| async {
-                    let agent = self.agent.clone();
-                    let cx_clone = cx.clone();
-                    cx.spawn(async move {
-                        match agent.on_prompt(req, &cx_clone).await {
-                            Ok(response) => {
-                                req_cx.respond(response)?;
+        let agent = self.agent.clone();
+
+        // The MatchMessageFrom chain produces an ~85KB async state machine.
+        // Box::pin moves it to the heap so it doesn't overflow the tokio worker stack.
+        Box::pin(async move {
+            MatchMessageFrom::new(message, &cx)
+                .if_request(
+                    |req: InitializeRequest, req_cx: JrRequestCx<InitializeResponse>| async {
+                        req_cx.respond(agent.on_initialize(req).await?)
+                    },
+                )
+                .await
+                .if_request(
+                    |_req: AuthenticateRequest, req_cx: JrRequestCx<AuthenticateResponse>| async {
+                        req_cx.respond(AuthenticateResponse::new())
+                    },
+                )
+                .await
+                .if_request(
+                    |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
+                        req_cx.respond(agent.on_new_session(&cx, req).await?)
+                    },
+                )
+                .await
+                .if_request(
+                    |req: LoadSessionRequest, req_cx: JrRequestCx<LoadSessionResponse>| async {
+                        req_cx.respond(agent.on_load_session(&cx, req).await?)
+                    },
+                )
+                .await
+                .if_request(
+                    |req: PromptRequest, req_cx: JrRequestCx<PromptResponse>| async {
+                        let agent = agent.clone();
+                        let cx_clone = cx.clone();
+                        cx.spawn(async move {
+                            match agent.on_prompt(&cx_clone, req).await {
+                                Ok(response) => {
+                                    req_cx.respond(response)?;
+                                }
+                                Err(e) => {
+                                    req_cx.respond_with_error(e)?;
+                                }
                             }
-                            Err(e) => {
-                                req_cx.respond_with_error(e)?;
-                            }
-                        }
-                        Ok(())
-                    })?;
-                    Ok(())
-                },
-            )
-            .await
-            .if_notification(|notif: CancelNotification| async {
-                self.agent.on_cancel(notif).await
-            })
-            .await
-            // HACK: sacp doesn't support session/set_model yet, so we handle it as untyped JSON.
-            .otherwise({
-                let agent = self.agent.clone();
-                |message: MessageCx| async move {
-                    match message {
-                        MessageCx::Request(req, request_cx)
-                            if req.method == "session/set_model" =>
-                        {
-                            let params: SetSessionModelRequest = serde_json::from_value(req.params)
-                                .map_err(|e| sacp::Error::invalid_params().data(e.to_string()))?;
-                            let resp = agent
-                                .on_set_model(&params.session_id.0, &params.model_id.0)
-                                .await?;
-                            let json = serde_json::to_value(resp)
-                                .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
-                            request_cx.respond(json)?;
                             Ok(())
+                        })?;
+                        Ok(())
+                    },
+                )
+                .await
+                .if_notification(|notif: CancelNotification| async { agent.on_cancel(notif).await })
+                .await
+                // Handle methods not yet in the sacp typed API.
+                // - session/set_model: typed support pending in sacp
+                // - _<method>: custom requests that will eventually route to goose-server
+                .otherwise({
+                    let agent = agent.clone();
+                    |message: MessageCx| async move {
+                        match message {
+                            MessageCx::Request(req, request_cx)
+                                if req.method == "session/set_model" =>
+                            {
+                                let params: SetSessionModelRequest =
+                                    serde_json::from_value(req.params).map_err(|e| {
+                                        sacp::Error::invalid_params().data(e.to_string())
+                                    })?;
+                                let resp = agent
+                                    .on_set_model(&params.session_id.0, &params.model_id.0)
+                                    .await?;
+                                let json = serde_json::to_value(resp).map_err(|e| {
+                                    sacp::Error::internal_error().data(e.to_string())
+                                })?;
+                                request_cx.respond(json)?;
+                                Ok(())
+                            }
+                            MessageCx::Request(req, request_cx) if req.method == "session/list" => {
+                                let resp = agent.on_list_sessions().await?;
+                                let json = serde_json::to_value(resp).map_err(|e| {
+                                    sacp::Error::internal_error().data(e.to_string())
+                                })?;
+                                request_cx.respond(json)?;
+                                Ok(())
+                            }
+                            MessageCx::Request(req, request_cx) if req.method.starts_with('_') => {
+                                match agent.handle_custom_request(&req.method, req.params).await {
+                                    Ok(json) => request_cx.respond(json)?,
+                                    Err(e) => request_cx.respond_with_error(e)?,
+                                }
+                                Ok(())
+                            }
+                            _ => Err(sacp::Error::method_not_found()),
                         }
-                        _ => Err(sacp::Error::method_not_found()),
                     }
-                }
-            })
-            .await
-            .map(|()| Handled::Yes)
+                })
+                .await
+                .map(|()| Handled::Yes)
+        })
     }
 }
 
-pub async fn serve<R, W>(agent: Arc<GooseAcpAgent>, read: R, write: W) -> Result<()>
+pub fn serve<R, W>(
+    agent: Arc<GooseAcpAgent>,
+    read: R,
+    write: W,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>>
 where
     R: futures::AsyncRead + Unpin + Send + 'static,
     W: futures::AsyncWrite + Unpin + Send + 'static,
 {
-    let handler = GooseAcpHandler { agent };
+    Box::pin(async move {
+        let handler = GooseAcpHandler { agent };
 
-    AgentToClient::builder()
-        .name("goose-acp")
-        .with_handler(handler)
-        .serve(ByteStreams::new(write, read))
-        .await?;
+        AgentToClient::builder()
+            .name("goose-acp")
+            .with_handler(handler)
+            .serve(ByteStreams::new(write, read))
+            .await?;
 
-    Ok(())
+        Ok(())
+    })
 }
 
 pub async fn run(builtins: Vec<String>) -> Result<()> {
@@ -1124,11 +1464,15 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::conversation::message::{ToolRequest, ToolResponse};
+    use goose::providers::errors::ProviderError;
+    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use sacp::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
 
@@ -1222,10 +1566,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_format_tool_name_with_extension() {
-        assert_eq!(
-            format_tool_name("developer__text_editor"),
-            "Developer: Text Editor"
-        );
+        assert_eq!(format_tool_name("developer__edit"), "Developer: Edit");
         assert_eq!(
             format_tool_name("platform__manage_extensions"),
             "Platform: Manage Extensions"
@@ -1277,8 +1618,6 @@ print(\"hello, world\")
         assert_eq!(outcome_to_confirmation(&input), expected);
     }
 
-    use goose::providers::errors::ProviderError;
-
     struct MockModelProvider {
         models: Result<Vec<String>, ProviderError>,
     }
@@ -1311,38 +1650,176 @@ print(\"hello, world\")
 
     #[test_case(
         "model-a", Ok(vec!["model-a".into(), "model-b".into()])
-        => Ok(SessionModelState::new(
+        => SessionModelState::new(
             ModelId::new("model-a"),
             vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
                  ModelInfo::new(ModelId::new("model-b"), "model-b")],
-        ))
+        )
         ; "returns current and available models"
     )]
     #[test_case(
         "model-a", Ok(vec![])
-        => Ok(SessionModelState::new(ModelId::new("model-a"), vec![]))
+        => SessionModelState::new(ModelId::new("model-a"), vec![])
         ; "empty model list"
     )]
     #[test_case(
         "model-a", Err(ProviderError::ExecutionError("fail".into()))
-        => matches Err(_)
-        ; "fetch error propagates"
+        => SessionModelState::new(ModelId::new("model-a"), vec![])
+        ; "fetch error falls back to current model only"
     )]
     #[test_case(
         "switched-model", Ok(vec!["model-a".into(), "switched-model".into()])
-        => Ok(SessionModelState::new(
+        => SessionModelState::new(
             ModelId::new("switched-model"),
             vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
                  ModelInfo::new(ModelId::new("switched-model"), "switched-model")],
-        ))
+        )
         ; "current model reflects switched model"
     )]
     #[tokio::test]
     async fn test_build_model_state(
         current_model: &str,
         models: Result<Vec<String>, ProviderError>,
-    ) -> Result<SessionModelState, sacp::Error> {
+    ) -> SessionModelState {
         let provider = MockModelProvider { models };
         build_model_state(&provider, current_model).await
+    }
+
+    fn json_object(pairs: Vec<(&str, serde_json::Value)>) -> rmcp::model::JsonObject {
+        pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
+    }
+
+    #[test_case(None => None ; "none arguments")]
+    #[test_case(Some(json_object(vec![])) => None ; "missing line key")]
+    #[test_case(Some(json_object(vec![("line", serde_json::json!(5))])) => Some(5) ; "line present")]
+    #[test_case(Some(json_object(vec![("line", serde_json::json!("not_a_number"))])) => None ; "line not a number")]
+    fn test_get_requested_line(arguments: Option<rmcp::model::JsonObject>) -> Option<u32> {
+        get_requested_line(arguments.as_ref())
+    }
+
+    #[test_case("read", true ; "read is developer file tool")]
+    #[test_case("write", true ; "write is developer file tool")]
+    #[test_case("edit", true ; "edit is developer file tool")]
+    #[test_case("shell", false ; "shell is not developer file tool")]
+    #[test_case("analyze", false ; "analyze is not developer file tool")]
+    fn test_is_developer_file_tool(tool_name: &str, expected: bool) {
+        assert_eq!(is_developer_file_tool(tool_name), expected);
+    }
+
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
+        ; "read returns requested line"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), None)]
+        ; "read without line"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("write").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+        ; "write returns line 1"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+        ; "edit returns line 1"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("shell").with_arguments(serde_json::json!({"command": "ls"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => Vec::<(PathBuf, Option<u32>)>::new()
+        ; "non file tool returns empty"
+    )]
+    fn test_extract_tool_locations(
+        request: ToolRequest,
+        response: ToolResponse,
+    ) -> Vec<(PathBuf, Option<u32>)> {
+        extract_tool_locations(&request, &response)
+            .into_iter()
+            .map(|loc| (loc.path, loc.line))
+            .collect()
+    }
+
+    fn response_with_meta(meta: Option<serde_json::Value>) -> ToolResponse {
+        let mut result = CallToolResult::success(vec![RmcpContent::text("")]);
+        result.meta = meta.map(|v| serde_json::from_value(v).unwrap());
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(result),
+            metadata: None,
+        }
+    }
+
+    #[test_case(
+        response_with_meta(Some(serde_json::json!({"tool_locations": [{"path": "/tmp/f.txt", "line": 5}]})))
+        => Some(vec![(PathBuf::from("/tmp/f.txt"), Some(5))])
+        ; "meta with path and line"
+    )]
+    #[test_case(
+        response_with_meta(Some(serde_json::json!({"tool_locations": [{"path": "/tmp/f.txt"}]})))
+        => Some(vec![(PathBuf::from("/tmp/f.txt"), None)])
+        ; "meta with path no line"
+    )]
+    #[test_case(
+        response_with_meta(Some(serde_json::json!({})))
+        => None
+        ; "meta without tool_locations key"
+    )]
+    #[test_case(
+        response_with_meta(None)
+        => None
+        ; "no meta"
+    )]
+    fn test_extract_locations_from_meta(
+        response: ToolResponse,
+    ) -> Option<Vec<(PathBuf, Option<u32>)>> {
+        extract_locations_from_meta(&response)
+            .map(|locs| locs.into_iter().map(|loc| (loc.path, loc.line)).collect())
     }
 }

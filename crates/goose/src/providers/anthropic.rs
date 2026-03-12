@@ -11,9 +11,12 @@ use tokio_util::io::StreamReader;
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::formats::anthropic::{create_request, response_to_streaming_message};
+use super::formats::anthropic::{
+    create_request, response_to_streaming_message, thinking_type, ThinkingType,
+};
 use super::openai_compatible::handle_status_openai_compat;
 use super::openai_compatible::map_http_error_to_provider_error;
+use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -25,6 +28,9 @@ const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.6 models
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     // Claude 4.5 models with aliases
     "claude-sonnet-4-5",
     "claude-sonnet-4-5-20250929",
@@ -124,9 +130,8 @@ impl AnthropicProvider {
     fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
         let mut headers = Vec::new();
 
-        let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
         if self.model.model_name.starts_with("claude-3-7-sonnet-") {
-            if is_thinking_enabled {
+            if thinking_type(&self.model) == ThinkingType::Enabled {
                 headers.push(("anthropic-beta", "output-128k-2025-02-19"));
             }
             headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
@@ -153,12 +158,13 @@ impl ProviderDef for AnthropicProvider {
             models,
             ANTHROPIC_DOC_URL,
             vec![
-                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),
+                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "ANTHROPIC_HOST",
                     true,
                     false,
                     Some("https://api.anthropic.com"),
+                    false,
                 ),
             ],
         )
@@ -221,19 +227,22 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(Some(session_id), "v1/messages");
+        let conditional_headers = self.get_conditional_headers();
         let mut log = RequestLog::start(model_config, &payload)?;
 
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        let response = self
+            .with_retry(|| async {
+                let mut request = self.api_client.request(Some(session_id), "v1/messages");
+                for (key, value) in &conditional_headers {
+                    request = request.header(key, value)?;
+                }
+                let resp = request.response_post(&payload).await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

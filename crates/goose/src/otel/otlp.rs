@@ -310,10 +310,34 @@ fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
     })
 }
 
-/// Creates a custom filter for OTLP logs that captures:
-/// - All events at WARN level and above
+fn parse_level(s: &str) -> Option<Level> {
+    match s.to_lowercase().as_str() {
+        "trace" => Some(Level::TRACE),
+        "debug" => Some(Level::DEBUG),
+        "info" => Some(Level::INFO),
+        "warn" => Some(Level::WARN),
+        "error" => Some(Level::ERROR),
+        _ => None,
+    }
+}
+
+fn otel_logs_level() -> Level {
+    env::var("RUST_LOG")
+        .ok()
+        .and_then(|s| parse_level(&s))
+        .or_else(|| {
+            env::var("OTEL_LOG_LEVEL")
+                .ok()
+                .and_then(|s| parse_level(&s))
+        })
+        .unwrap_or(Level::INFO)
+}
+
+/// Creates a custom filter for OTLP logs.
+/// Level is resolved via RUST_LOG → OTEL_LOG_LEVEL → default INFO.
 fn create_otlp_logs_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
-    FilterFn::new(|metadata: &Metadata<'_>| metadata.level() <= &Level::WARN)
+    let min_level = otel_logs_level();
+    FilterFn::new(move |metadata: &Metadata<'_>| metadata.level() <= &min_level)
 }
 
 /// Shutdown OTLP providers gracefully
@@ -372,23 +396,32 @@ mod tests {
         }
     }
 
-    fn clear_otel_env(overrides: &[(&str, &str)]) -> OtelTestGuard {
+    fn clear_otel_env(overrides: &[(&'static str, &'static str)]) -> OtelTestGuard {
         let prev_tracer = global::tracer_provider();
         let prev_meter = global::meter_provider();
-        let guard = env_lock::lock_env([
-            ("OTEL_SDK_DISABLED", None::<&str>),
-            ("OTEL_TRACES_EXPORTER", None),
-            ("OTEL_METRICS_EXPORTER", None),
-            ("OTEL_LOGS_EXPORTER", None),
-            ("OTEL_EXPORTER_OTLP_ENDPOINT", None),
-            ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", None),
-            ("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", None),
-            ("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", None),
-            ("OTEL_EXPORTER_OTLP_TIMEOUT", None),
-            ("OTEL_SERVICE_NAME", None),
-            ("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", None),
-            ("OTEL_RESOURCE_ATTRIBUTES", None),
-        ]);
+
+        let mut keys: Vec<&'static str> = vec![
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
+            "OTEL_EXPORTER_OTLP_TIMEOUT",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+            "OTEL_LOG_LEVEL",
+            "OTEL_LOGS_EXPORTER",
+            "OTEL_METRICS_EXPORTER",
+            "OTEL_RESOURCE_ATTRIBUTES",
+            "OTEL_SDK_DISABLED",
+            "OTEL_SERVICE_NAME",
+            "OTEL_TRACES_EXPORTER",
+        ];
+        for &(k, _) in overrides {
+            if !keys.contains(&k) {
+                keys.push(k);
+            }
+        }
+
+        let guard = env_lock::lock_env(keys.into_iter().map(|k| (k, None::<&str>)));
         for &(k, v) in overrides {
             env::set_var(k, v);
         }
@@ -419,7 +452,7 @@ mod tests {
 
     #[test_case(&[("OTEL_SDK_DISABLED", "true")]; "OTEL_SDK_DISABLED disables all signals")]
     #[test_case(&[]; "no env vars returns None")]
-    fn signal_exporter_disabled(env: &[(&str, &str)]) {
+    fn signal_exporter_disabled(env: &[(&'static str, &'static str)]) {
         let _guard = clear_otel_env(env);
         assert!(signal_exporter("traces").is_none());
         assert!(signal_exporter("metrics").is_none());
@@ -431,7 +464,11 @@ mod tests {
     #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "otlp")],    Some(ExporterType::Otlp);    "OTEL_TRACES_EXPORTER=otlp")]
     #[test_case("metrics", &[("OTEL_METRICS_EXPORTER", "console")], Some(ExporterType::Console); "OTEL_METRICS_EXPORTER=console")]
     #[test_case("logs",    &[("OTEL_LOGS_EXPORTER", "none")],       None;                        "OTEL_LOGS_EXPORTER=none")]
-    fn signal_exporter_by_var(signal: &str, env: &[(&str, &str)], expected: Option<ExporterType>) {
+    fn signal_exporter_by_var(
+        signal: &str,
+        env: &[(&'static str, &'static str)],
+        expected: Option<ExporterType>,
+    ) {
         let _guard = clear_otel_env(env);
         assert_eq!(signal_exporter(signal), expected);
     }
@@ -444,7 +481,7 @@ mod tests {
     #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_ENDPOINT", "")],                              None;                     "empty endpoint returns None")]
     fn signal_exporter_endpoints(
         signal: &str,
-        env: &[(&str, &str)],
+        env: &[(&'static str, &'static str)],
         expected: Option<ExporterType>,
     ) {
         let _guard = clear_otel_env(env);
@@ -453,7 +490,7 @@ mod tests {
 
     #[test_case("console"; "console")]
     #[test_case("otlp"; "otlp")]
-    fn test_all_layers_ok(exporter: &str) {
+    fn test_all_layers_ok(exporter: &'static str) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let _guard = rt.enter();
         let _env = clear_otel_env(&[
@@ -504,9 +541,22 @@ mod tests {
             .build();
         "OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES combine"
     )]
-    fn test_create_resource(env: &[(&str, &str)], expected: Resource) {
+    fn test_create_resource(env: &[(&'static str, &'static str)], expected: Resource) {
         let _guard = clear_otel_env(env);
         assert_eq!(create_resource(), expected);
+    }
+
+    #[test_case(&[("RUST_LOG", "")], Level::INFO; "default is info")]
+    #[test_case(&[("RUST_LOG", "debug")], Level::DEBUG; "RUST_LOG takes precedence")]
+    #[test_case(&[("RUST_LOG", ""), ("OTEL_LOG_LEVEL", "error")], Level::ERROR; "OTEL_LOG_LEVEL fallback")]
+    #[test_case(&[("RUST_LOG", "warn"), ("OTEL_LOG_LEVEL", "error")], Level::WARN; "RUST_LOG wins over OTEL_LOG_LEVEL")]
+    #[test_case(&[("RUST_LOG", "goose=debug"), ("OTEL_LOG_LEVEL", "trace")], Level::TRACE; "directive RUST_LOG falls through to OTEL_LOG_LEVEL")]
+    #[test_case(&[("RUST_LOG", "goose=debug")], Level::INFO; "directive RUST_LOG falls through to default")]
+    #[test_case(&[("RUST_LOG", ""), ("OTEL_LOG_LEVEL", "INFO")], Level::INFO; "case insensitive")]
+    #[test_case(&[("RUST_LOG", ""), ("OTEL_LOG_LEVEL", "bogus")], Level::INFO; "unknown defaults to info")]
+    fn otel_logs_level_from_env(env: &[(&'static str, &'static str)], expected: Level) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(otel_logs_level(), expected);
     }
 
     fn test_config(
@@ -545,7 +595,7 @@ mod tests {
         "no config leaves env unset"
     )]
     fn test_promote_config_to_env(
-        env_overrides: &[(&str, &str)],
+        env_overrides: &[(&'static str, &'static str)],
         cfg: &[(&str, &str)],
         expect_endpoint: Option<&str>,
         expect_timeout: Option<&str>,
@@ -571,7 +621,10 @@ mod tests {
     #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "lowmemory")], Temporality::LowMemory; "lowmemory")]
     #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "cumulative")], Temporality::Cumulative; "cumulative")]
     #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "bogus")], Temporality::Cumulative; "unknown defaults to cumulative")]
-    fn temporality_preference_from_env(env: &[(&str, &str)], expected: Temporality) {
+    fn temporality_preference_from_env(
+        env: &[(&'static str, &'static str)],
+        expected: Temporality,
+    ) {
         let _guard = clear_otel_env(env);
         assert_eq!(temporality_preference(), expected);
     }
