@@ -169,7 +169,9 @@ defaults:
 
     # Formatting
 
-    Less is more. No headers, no emojis. Prefer human-readable names over identifiers. Bias towards less text.
+    Present data as rich reports. Use markdown tables for comparisons and breakdowns. Use **bold** for key numbers and metrics. Use headers (##, ###) to structure multi-section responses. Use bullet lists for action items. Prefer human-readable names over identifiers — never show raw IDs unless asked.
+
+    Keep it scannable — a merchant should get the headline number in the first line, then the breakdown below. Don't pad with filler text.
 
     # Delight mandate
 
