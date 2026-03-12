@@ -647,7 +647,7 @@ export function useChatStream({
 
       await submitToSession(sessionId, newMessage, currentMessages);
     },
-    [sessionId, onFinish, submitToSession]
+    [sessionId, submitToSession]
   );
 
   const submitElicitationResponse = useCallback(
@@ -668,7 +668,7 @@ export function useChatStream({
 
       await submitToSession(sessionId, responseMessage, currentMessages);
     },
-    [sessionId, onFinish, submitToSession]
+    [sessionId, submitToSession]
   );
 
   const setRecipeUserParams = useCallback(
@@ -815,7 +815,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, handleSubmit, onFinish, submitToSession]
+    [sessionId, handleSubmit, submitToSession]
   );
 
   const setChatState = useCallback((newState: ChatState) => {
