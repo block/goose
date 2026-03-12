@@ -85,18 +85,6 @@ fn read_tool() -> Tool {
     )
 }
 
-pub(crate) fn with_location_meta(
-    mut result: CallToolResult,
-    path: &Path,
-    line: Option<u32>,
-) -> CallToolResult {
-    let location = serde_json::json!({
-        "tool_locations": [{"path": path.to_string_lossy(), "line": line}]
-    });
-    result.meta = Some(serde_json::from_value(location).unwrap());
-    result
-}
-
 impl AcpTools {
     fn update_tool_call(&self, ctx: &goose::agents::ToolCallContext, fields: ToolCallUpdateFields) {
         if let Some(ref req_id) = ctx.tool_call_request_id {
@@ -145,11 +133,9 @@ impl AcpTools {
         );
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {
-            Ok(content) => Ok(with_location_meta(
-                CallToolResult::success(vec![RmcpContent::text(content).with_priority(0.0)]),
-                &path,
-                params.line,
-            )),
+            Ok(content) => Ok(CallToolResult::success(vec![
+                RmcpContent::text(content).with_priority(0.0)
+            ])),
             Err(e) => Ok(fail("read", &params.path, e)),
         }
     }
@@ -181,15 +167,11 @@ impl AcpTools {
                 );
                 let line_count = params.content.lines().count();
                 let action = if path.exists() { "Wrote" } else { "Created" };
-                Ok(with_location_meta(
-                    CallToolResult::success(vec![RmcpContent::text(format!(
-                        "{action} {} ({line_count} lines)",
-                        params.path
-                    ))
-                    .with_priority(0.0)]),
-                    &path,
-                    Some(1),
+                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
+                    "{action} {} ({line_count} lines)",
+                    params.path
                 ))
+                .with_priority(0.0)]))
             }
             Err(e) => Ok(fail("write", &params.path, e)),
         }
@@ -238,15 +220,11 @@ impl AcpTools {
                 );
                 let old_lines = params.before.lines().count();
                 let new_lines = params.after.lines().count();
-                Ok(with_location_meta(
-                    CallToolResult::success(vec![RmcpContent::text(format!(
-                        "Edited {} ({old_lines} lines -> {new_lines} lines)",
-                        params.path
-                    ))
-                    .with_priority(0.0)]),
-                    &path,
-                    Some(1),
+                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
+                    "Edited {} ({old_lines} lines -> {new_lines} lines)",
+                    params.path
                 ))
+                .with_priority(0.0)]))
             }
             Err(e) => Ok(fail("write", &params.path, e)),
         }
