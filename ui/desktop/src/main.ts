@@ -65,6 +65,7 @@ import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { startWhiteLabelProcesses, stopAllWhiteLabelProcesses } from './whitelabel/processManager';
 import { initWhiteLabelProvider } from './whitelabel/initProvider';
+import { installWhiteLabelSkills } from './whitelabel/installSkills';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -1787,9 +1788,12 @@ async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
+  // Install whitelabel skills to ~/.config/goose/skills/ so summon can find them
+  const resourcesPath = app.isPackaged ? process.resourcesPath : process.cwd();
+  installWhiteLabelSkills(whiteLabelConfig, resourcesPath);
+
   // Start any sidecar processes defined in white-label config
   if (whiteLabelConfig.processes && whiteLabelConfig.processes.length > 0) {
-    const resourcesPath = app.isPackaged ? process.resourcesPath : process.cwd();
     await startWhiteLabelProcesses(whiteLabelConfig.processes, resourcesPath);
   }
 
