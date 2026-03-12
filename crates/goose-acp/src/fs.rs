@@ -6,7 +6,11 @@ use goose::agents::platform_extensions::developer::edit::{
 };
 use goose::agents::platform_extensions::developer::DeveloperClient;
 use rmcp::model::{CallToolResult, Content as RmcpContent, Tool, ToolAnnotations};
-use sacp::schema::{ReadTextFileRequest, SessionId, WriteTextFileRequest};
+use sacp::schema::{
+    Diff, ReadTextFileRequest, SessionId, SessionNotification, SessionUpdate, ToolCallContent,
+    ToolCallId, ToolCallLocation, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    WriteTextFileRequest,
+};
 use sacp::{AgentToClient, JrConnectionCx};
 use schemars::schema_for;
 use std::path::Path;
@@ -94,6 +98,21 @@ pub(crate) fn with_location_meta(
 }
 
 impl AcpTools {
+    fn update_tool_call(&self, ctx: &goose::agents::ToolCallContext, fields: ToolCallUpdateFields) {
+        if let Some(ref req_id) = ctx.tool_call_request_id {
+            let _ = self
+                .cx
+                .send_notification(SessionNotification::new(
+                    self.session_id.clone(),
+                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+                        ToolCallId::new(req_id.clone()),
+                        fields,
+                    )),
+                ))
+                .inspect_err(|e| tracing::error!("error updating tool call with client: {}", e));
+        }
+    }
+
     fn parse_args<T: serde::de::DeserializeOwned>(
         arguments: Option<rmcp::model::JsonObject>,
     ) -> Result<T, String> {
@@ -118,6 +137,12 @@ impl AcpTools {
             Err(e) => return Ok(error_result(e)),
         };
         let path = resolve_path(&params.path, ctx.working_dir.as_deref());
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Read)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {
             Ok(content) => Ok(with_location_meta(
@@ -139,8 +164,21 @@ impl AcpTools {
             Err(e) => return Ok(error_result(e)),
         };
         let path = resolve_path(&params.path, ctx.working_dir.as_deref());
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Edit)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
         match acp_write_text_file(&self.cx, &self.session_id, &path, &params.content).await {
             Ok(()) => {
+                self.update_tool_call(
+                    ctx,
+                    ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(Diff::new(
+                        &path,
+                        &params.content,
+                    ))]),
+                );
                 let line_count = params.content.lines().count();
                 let action = if path.exists() { "Wrote" } else { "Created" };
                 Ok(with_location_meta(
@@ -167,6 +205,12 @@ impl AcpTools {
             Err(e) => return Ok(error_result(e)),
         };
         let path = resolve_path(&params.path, ctx.working_dir.as_deref());
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Edit)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
 
         let content = match self.read_content(&path).await {
             Ok(c) => c,
@@ -186,6 +230,12 @@ impl AcpTools {
 
         match write_result {
             Ok(()) => {
+                self.update_tool_call(
+                    ctx,
+                    ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(
+                        Diff::new(&path, &new_content).old_text(&content),
+                    )]),
+                );
                 let old_lines = params.before.lines().count();
                 let new_lines = params.after.lines().count();
                 Ok(with_location_meta(
