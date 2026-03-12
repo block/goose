@@ -461,12 +461,6 @@ impl MessageContent {
         })
     }
 
-    pub fn reasoning<S: Into<String>>(text: S) -> Self {
-        MessageContent::Thinking(ThinkingContent {
-            thinking: text.into(),
-            signature: String::new(),
-        })
-    }
 
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
         if let MessageContent::SystemNotification(ref notification) = self {

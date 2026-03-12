@@ -341,7 +341,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     if let Some(reasoning_content) = reasoning_value {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
-                content.push(MessageContent::reasoning(reasoning_str));
+                content.push(MessageContent::thinking(reasoning_str, ""));
             }
         }
     }
@@ -641,7 +641,7 @@ where
 
                 let mut contents = Vec::new();
                 if !accumulated_reasoning_content.is_empty() {
-                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    contents.push(MessageContent::thinking(&accumulated_reasoning_content, ""));
                     accumulated_reasoning_content.clear();
                 }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
@@ -701,7 +701,7 @@ where
 
                 if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
                     if !reasoning.is_empty() {
-                        content.push(MessageContent::reasoning(reasoning));
+                        content.push(MessageContent::thinking(reasoning, ""));
                     }
                 }
 
@@ -1853,7 +1853,7 @@ data: [DONE]"#;
     fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
         // Test that reasoning_content is properly included in formatted messages
         let mut message = Message::assistant()
-            .with_content(MessageContent::reasoning("Thinking through the problem..."))
+            .with_content(MessageContent::thinking("Thinking through the problem...", ""))
             .with_text("The result is 42");
 
         // Add a tool call to test that reasoning_content works with tool calls
