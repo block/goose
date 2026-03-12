@@ -50,8 +50,8 @@ features:
     - home
     - chat
     - apps
-    - extensions
     - settings
+  showModelSelector: false
 
   settingsTabs:
     - chat
@@ -62,7 +62,6 @@ features:
   hiddenSettingSections:
     - session-sharing
     - external-backend
-    - gateway
 
   allowedProviders:
     - anthropic

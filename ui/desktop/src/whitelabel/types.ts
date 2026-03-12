@@ -42,6 +42,8 @@ export interface WhiteLabelFeatures {
   telemetryUiEnabled: boolean;
   /** Render tool calls as compact single-line items instead of bordered cards. Default: false */
   compactToolCalls?: boolean;
+  /** Show the model selector in the bottom bar. Default: true */
+  showModelSelector?: boolean;
   navigation: string[];
   settingsTabs: string[];
   hiddenSettingSections?: string[];

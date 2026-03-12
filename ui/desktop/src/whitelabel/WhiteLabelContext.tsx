@@ -64,6 +64,8 @@ export const WhiteLabelProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return features.configurationEnabled;
           case 'telemetryUi':
             return features.telemetryUiEnabled;
+          case 'showModelSelector':
+            return features.showModelSelector !== false;
           default:
             return true;
         }

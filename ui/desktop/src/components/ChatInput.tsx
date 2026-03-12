@@ -23,6 +23,7 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
+import { useWhiteLabel } from '../whitelabel/WhiteLabelContext';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
@@ -124,6 +125,7 @@ export default function ChatInput({
   sessionProvider,
   sessionLoaded,
 }: ChatInputProps) {
+  const { isFeatureEnabled } = useWhiteLabel();
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
@@ -1556,21 +1558,25 @@ export default function ChatInput({
               </div>
             </>
           )}
-          <Tooltip>
-            <div>
-              <ModelsBottomBar
-                sessionId={sessionId}
-                dropdownRef={dropdownRef}
-                setView={setView}
-                alerts={alerts}
-                sessionModel={effectiveModel}
-                sessionProvider={effectiveProvider}
-                onModelChanged={setModelOverride}
-                sessionLoaded={sessionLoaded}
-              />
-            </div>
-          </Tooltip>
-          <div className="w-px h-4 bg-border-primary mx-2" />
+          {isFeatureEnabled('showModelSelector') && (
+            <>
+              <Tooltip>
+                <div>
+                  <ModelsBottomBar
+                    sessionId={sessionId}
+                    dropdownRef={dropdownRef}
+                    setView={setView}
+                    alerts={alerts}
+                    sessionModel={effectiveModel}
+                    sessionProvider={effectiveProvider}
+                    onModelChanged={setModelOverride}
+                    sessionLoaded={sessionLoaded}
+                  />
+                </div>
+              </Tooltip>
+              <div className="w-px h-4 bg-border-primary mx-2" />
+            </>
+          )}
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />

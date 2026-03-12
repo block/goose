@@ -24,6 +24,7 @@ export const DEFAULT_WHITELABEL_CONFIG: WhiteLabelConfig = {
     telemetryUiEnabled: true,
     navigation: ['home', 'chat', 'recipes', 'apps', 'scheduler', 'extensions', 'settings'],
     settingsTabs: ['models', 'local-inference', 'chat', 'sharing', 'prompts', 'keyboard', 'app'],
+    showModelSelector: true,
   },
   defaults: {},
   window: {
