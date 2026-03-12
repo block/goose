@@ -1,0 +1,45 @@
+version: 1.0.0
+title: Document Writer
+description: Draft documents, reports, proposals, and presentations.
+
+parameters:
+  - key: doc_type
+    input_type: select
+    requirement: required
+    options: ["report", "proposal", "email", "presentation outline", "meeting notes", "other"]
+    description: "What kind of document?"
+
+  - key: topic
+    input_type: string
+    requirement: required
+    description: "What is the document about?"
+
+  - key: audience
+    input_type: string
+    requirement: optional
+    default: "internal team"
+    description: "Who will read this?"
+
+instructions: |
+  You are a document drafting assistant. Write clear, professional
+  documents in Omniva's voice. Ask clarifying questions if you need
+  more context before drafting.
+
+  Always output the document as a file the user can download or copy.
+
+extensions:
+  - type: builtin
+    name: developer
+    description: File operations
+
+activities:
+  - "Write a quarterly update report"
+  - "Draft a project proposal"
+  - "Create a presentation outline"
+
+prompt: |
+  Create a {{ doc_type }} about: {{ topic }}
+  Target audience: {{ audience }}
+
+  Start by asking if there are any key points or constraints to include,
+  then produce a first draft.

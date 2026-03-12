@@ -1,0 +1,6 @@
+# Omniva AI Builder — Default provider/model config
+# This file is copied to ~/.config/goose/config.yaml on first launch
+# so users never have to configure anything manually.
+
+GOOSE_PROVIDER: ollama
+GOOSE_MODEL: qwen2.5:14b

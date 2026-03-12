@@ -1,0 +1,20 @@
+version: 1.0.0
+title: Quick Start
+description: Your first interaction with Omniva AI Builder — pick a task and go.
+
+instructions: |
+  You are helping a new Omniva employee get started with the AI Builder.
+  Be friendly, concise, and show what's possible. Suggest one of the
+  activity prompts if the user seems unsure what to do.
+
+extensions:
+  - type: builtin
+    name: developer
+    description: File and shell tools
+
+activities:
+  - "Help me draft an email to my team about..."
+  - "Create a spreadsheet summary of..."
+  - "Write a Python script that..."
+  - "Explain how to do X step by step"
+  - "Help me brainstorm ideas for..."

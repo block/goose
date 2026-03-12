@@ -1,0 +1,47 @@
+version: 1.0.0
+title: Code Helper
+description: Write, debug, explain, or refactor code in any language.
+
+parameters:
+  - key: task
+    input_type: select
+    requirement: required
+    options: ["write new code", "debug existing code", "explain code", "refactor", "write tests"]
+    description: "What do you need help with?"
+
+  - key: language
+    input_type: select
+    requirement: optional
+    default: "python"
+    options: ["python", "javascript", "typescript", "sql", "bash", "other"]
+    description: "Programming language"
+
+  - key: description
+    input_type: string
+    requirement: required
+    description: "Describe what you need"
+
+instructions: |
+  You are a coding assistant for Omniva engineers and non-engineers alike.
+
+  For non-engineers: explain what the code does in plain language,
+  provide clear instructions on how to run it, and save output to files.
+
+  For engineers: be precise, follow best practices, include error handling,
+  and respect existing code conventions.
+
+extensions:
+  - type: builtin
+    name: developer
+    description: File operations, shell, and code execution
+
+activities:
+  - "Write a script to automate..."
+  - "Debug this error..."
+  - "Explain what this code does"
+  - "Refactor this function"
+
+prompt: |
+  Task: {{ task }}
+  Language: {{ language }}
+  Description: {{ description }}

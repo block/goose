@@ -1,0 +1,41 @@
+version: 1.0.0
+title: Data Analyst
+description: Analyze CSV/Excel files, create charts, and summarize data.
+
+parameters:
+  - key: file_path
+    input_type: file
+    requirement: required
+    description: "Path to the data file (CSV, Excel, JSON)"
+
+  - key: question
+    input_type: string
+    requirement: optional
+    description: "What do you want to know about this data?"
+
+instructions: |
+  You are a data analysis assistant. When given a data file:
+  1. Read and understand the structure (columns, types, row count)
+  2. Summarize key statistics
+  3. Answer the user's specific question if provided
+  4. Suggest interesting patterns or insights
+
+  Use Python for analysis. Prefer pandas for data manipulation.
+  Save any generated charts as PNG files.
+
+extensions:
+  - type: builtin
+    name: developer
+    description: File operations and Python execution
+
+activities:
+  - "Summarize this spreadsheet"
+  - "Find trends in this data"
+  - "Create a chart showing..."
+  - "Compare these two columns"
+
+prompt: |
+  Analyze the data file at: {{ file_path }}
+  {% if question %}
+  Specific question: {{ question }}
+  {% endif %}

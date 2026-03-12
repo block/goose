@@ -1,0 +1,26 @@
+[
+  {
+    "name": "qwen2.5:14b",
+    "display_name": "Qwen 2.5 14B (Recommended)",
+    "description": "Best quality/speed balance for everyday use",
+    "context_limit": 8192
+  },
+  {
+    "name": "deepseek-r1:14b",
+    "display_name": "DeepSeek R1 14B (Reasoning)",
+    "description": "Shows step-by-step thinking — great for complex problems",
+    "context_limit": 8192
+  },
+  {
+    "name": "qwen2.5:7b",
+    "display_name": "Qwen 2.5 7B (Fast)",
+    "description": "Faster responses, lower quality — use when machine is under load",
+    "context_limit": 8192
+  },
+  {
+    "name": "deepseek-r1:7b",
+    "display_name": "DeepSeek R1 7B (Fast Reasoning)",
+    "description": "Lighter reasoning model for quick tasks",
+    "context_limit": 8192
+  }
+]

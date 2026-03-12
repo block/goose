@@ -17,8 +17,8 @@ let cfg = {
   // Protocol registration
   protocols: [
     {
-      name: 'GooseProtocol',
-      schemes: ['goose'],
+      name: 'OmnivaAIProtocol',
+      schemes: ['omniva-ai'],
     },
   ],
   // macOS Info.plist extensions for drag-and-drop support
@@ -33,8 +33,8 @@ let cfg = {
       },
     ],
     // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
-    NSCalendarsUsageDescription: 'Goose needs access to your calendars to help manage and query calendar events.',
-    NSRemindersUsageDescription: 'Goose needs access to your reminders to help manage and query reminders.',
+    NSCalendarsUsageDescription: 'Omniva AI Builder needs access to your calendars to help manage and query calendar events.',
+    NSRemindersUsageDescription: 'Omniva AI Builder needs access to your reminders to help manage and query reminders.',
   },
 };
 
@@ -46,7 +46,7 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: process.env.GITHUB_OWNER || 'block',
+          owner: process.env.GITHUB_OWNER || 'bobsantos',
           name: process.env.GITHUB_REPO || 'goose',
         },
         prerelease: false,
@@ -68,10 +68,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-deb',
       config: {
-        name: 'Goose',
-        bin: 'Goose',
-        maintainer: 'Block, Inc.',
-        homepage: 'https://block.github.io/goose/',
+        name: 'Omniva AI Builder',
+        bin: 'Omniva AI Builder',
+        maintainer: 'Omniva',
+        homepage: 'https://github.com/bobsantos/goose',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
@@ -83,10 +83,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-rpm',
       config: {
-        name: 'Goose',
-        bin: 'Goose',
-        maintainer: 'Block, Inc.',
-        homepage: 'https://block.github.io/goose/',
+        name: 'Omniva AI Builder',
+        bin: 'Omniva AI Builder',
+        maintainer: 'Omniva',
+        homepage: 'https://github.com/bobsantos/goose',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
@@ -100,16 +100,16 @@ module.exports = {
       name: '@electron-forge/maker-flatpak',
       config: {
         options: {
-          id: 'io.github.block.Goose',
+          id: 'com.omniva.ai-builder',
           categories: ['Development'],
           icon: {
             'scalable': 'src/images/icon.svg',
             '512x512': 'src/images/icon-512.png',
           },
-          homepage: 'https://block.github.io/goose/',
+          homepage: 'https://github.com/bobsantos/goose',
           runtimeVersion: '25.08',
           baseVersion: '25.08',
-          bin: 'Goose',
+          bin: 'Omniva AI Builder',
           modules: [
             {
               name: 'libbz2-shim',

@@ -1,0 +1,12 @@
+# Omniva AI Builder — Full runtime config
+# Extends init-config with extensions and settings
+
+GOOSE_PROVIDER: ollama
+GOOSE_MODEL: qwen2.5:14b
+
+extensions:
+  # Developer tools (file ops, shell) — built-in to Goose
+  - type: builtin
+    name: developer
+    description: File operations and shell commands
+    enabled: true
