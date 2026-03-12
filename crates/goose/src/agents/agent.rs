@@ -1134,12 +1134,10 @@ impl Agent {
                     break;
                 }
 
-                if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                    if final_output_tool.final_output.is_some() {
-                        let final_event = AgentEvent::Message(
-                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap())
-                        );
-                        yield final_event;
+                {
+                    let guard = self.final_output_tool.lock().await;
+                    if let Some(ref output) = guard.as_ref().and_then(|fot| fot.final_output.clone()) {
+                        yield AgentEvent::Message(Message::assistant().with_text(output));
                         break;
                     }
                 }
@@ -1592,37 +1590,62 @@ impl Agent {
 
                 let mut exit_chat = false;
                 if no_tools_called {
-                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                        if final_output_tool.final_output.is_none() {
+                    // Determine what action to take based on final_output_tool state.
+                    // We use a separate scope to ensure the MutexGuard is dropped before
+                    // entering handle_retry_logic, which also needs to lock final_output_tool.
+                    // Without this, Rust's temporary lifetime extension in `if let` keeps the
+                    // MutexGuard alive across `else` branches, causing a deadlock since
+                    // tokio::sync::Mutex is not reentrant.
+                    enum FinalOutputAction {
+                        NotYetCalled,
+                        Called(String),
+                        NotConfigured,
+                    }
+                    let action = {
+                        let guard = self.final_output_tool.lock().await;
+                        match guard.as_ref() {
+                            Some(fot) => match fot.final_output.clone() {
+                                Some(output) => FinalOutputAction::Called(output),
+                                None => FinalOutputAction::NotYetCalled,
+                            },
+                            None => FinalOutputAction::NotConfigured,
+                        }
+                    }; // MutexGuard dropped here
+
+                    match action {
+                        FinalOutputAction::NotYetCalled => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
-                        } else {
-                            let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                        }
+                        FinalOutputAction::Called(output) => {
+                            let message = Message::assistant().with_text(output);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
-                    } else if did_recovery_compact_this_iteration {
-                        // Avoid setting exit_chat; continue from last user message in the conversation
-                    } else {
-                        match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
-                            Ok(should_retry) => {
-                                if should_retry {
-                                    info!("Retry logic triggered, restarting agent loop");
-                                } else {
+                        FinalOutputAction::NotConfigured if did_recovery_compact_this_iteration => {
+                            // Avoid setting exit_chat; continue from last user message in the conversation
+                        }
+                        FinalOutputAction::NotConfigured => {
+                            match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
+                                Ok(should_retry) => {
+                                    if should_retry {
+                                        info!("Retry logic triggered, restarting agent loop");
+                                    } else {
+                                        exit_chat = true;
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Retry logic failed: {}", e);
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_text(
+                                            format!("Retry logic encountered an error: {}", e)
+                                        )
+                                    );
                                     exit_chat = true;
                                 }
-                            }
-                            Err(e) => {
-                                error!("Retry logic failed: {}", e);
-                                yield AgentEvent::Message(
-                                    Message::assistant().with_text(
-                                        format!("Retry logic encountered an error: {}", e)
-                                    )
-                                );
-                                exit_chat = true;
                             }
                         }
                     }

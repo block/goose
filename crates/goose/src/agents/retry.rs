@@ -104,8 +104,9 @@ impl RetryManager {
         *messages = Conversation::new_unvalidated(initial_messages.to_vec());
         info!("Reset message history to initial state for retry");
 
-        if let Some(final_output_tool) = final_output_tool.lock().await.as_mut() {
-            final_output_tool.final_output = None;
+        let mut guard = final_output_tool.lock().await;
+        if let Some(fot) = guard.as_mut() {
+            fot.final_output = None;
             info!("Cleared final output tool state for retry");
         }
     }
