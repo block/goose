@@ -3,407 +3,309 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Donut & Pie Charts</title>
+    <title>Donut &amp; Pie Charts</title>
 
     <script>
         {{CHART_MIN}}
     </script>
-    
+
     <style>
+        :root {
+            --color-background-primary: #ffffff;
+            --color-background-secondary: #f5f5f5;
+            --color-text-primary: #333333;
+            --color-text-secondary: #666666;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        html, body { overflow: hidden; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: var(--font-sans);
             margin: 0;
             padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
+            background-color: var(--color-background-secondary);
+            color: var(--color-text-primary);
         }
-        
-        .container {
-            margin: 0 auto;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 1.8em;
-            font-weight: 300;
-        }
-        
+
+        .container { margin: 0 auto; }
+
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 30px;
-            margin-bottom: 20px;
-        }
-        
-        .chart-wrapper {
-            background: #fafbfc;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        
-        .chart-title {
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: 500;
-            color: #495057;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
             margin-bottom: 15px;
         }
-        
+
+        .chart-wrapper {
+            background: var(--color-background-primary);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .chart-title {
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 500;
+            color: var(--color-text-primary);
+            margin-bottom: 10px;
+        }
+
         .chart-container {
             position: relative;
-            height: 350px;
+            height: 300px;
             display: flex;
             justify-content: center;
             align-items: center;
         }
-        
+
         .chart-legend {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #e9ecef;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0,0,0,0.1);
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 12px;
+            gap: 10px;
             font-size: 0.85em;
         }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-        }
-        
-        .legend-label {
-            color: #6c757d;
-        }
-        
-        .legend-value {
-            color: #495057;
-            font-weight: 500;
-            margin-left: 4px;
-        }
-        
+
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+        .legend-label { color: var(--color-text-secondary); }
+        .legend-value { color: var(--color-text-primary); font-weight: 500; margin-left: 4px; }
+
         .stats-panel {
-            background: #f8f9fa;
-            padding: 20px;
-            margin-top: 30px;
+            background: var(--color-background-primary);
+            padding: 15px;
+            margin-top: 15px;
             border-radius: 8px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
         }
-        
+
         .stat-card {
-            background: white;
-            padding: 15px;
+            background: var(--color-background-secondary);
+            padding: 10px;
             border-radius: 6px;
             text-align: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        
-        .stat-title {
-            font-size: 0.85em;
-            color: #6c757d;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+
+        .stat-title { font-size: 0.8em; color: var(--color-text-secondary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-size: 1.3em; font-weight: bold; color: #007bff; }
+
+        .loading {
+            display: flex; align-items: center; justify-content: center;
+            height: 350px; color: var(--color-text-secondary); font-size: 1.1em;
         }
-        
-        .stat-value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #007bff;
-        }
-        
-        .stat-subtitle {
-            font-size: 0.9em;
-            color: #6c757d;
-            margin-top: 4px;
-        }
-        
-        @media (max-width: 768px) {
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        .loading.hidden { display: none; }
+
+        @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <div class="container">        
-        <div class="charts-grid" id="chartsGrid">
-            <!-- Charts will be dynamically inserted here -->
-        </div>
-        
-        <div class="stats-panel" id="statsPanel">
-            <!-- Stats will be dynamically inserted here -->
-        </div>
+    <div class="container">
+        <div id="loadingIndicator" class="loading">Waiting for data…</div>
+        <div class="charts-grid" id="chartsGrid"></div>
+        <div class="stats-panel" id="statsPanel" style="display:none;"></div>
     </div>
 
     <script>
-        // Data will be injected here
-        const chartsData = {{CHARTS_DATA}};
-        
-        // Default color palette
-        const defaultColors = [
-            'rgba(255, 99, 132, 1)',    // Red
-            'rgba(54, 162, 235, 1)',    // Blue
-            'rgba(75, 192, 192, 1)',    // Teal
-            'rgba(255, 159, 64, 1)',     // Orange
-            'rgba(153, 102, 255, 1)',    // Purple
-            'rgba(255, 206, 86, 1)',     // Yellow
-            'rgba(46, 204, 113, 1)',     // Green
-            'rgba(231, 76, 60, 1)',      // Darker Red
-            'rgba(52, 152, 219, 1)',     // Light Blue
-            'rgba(155, 89, 182, 1)',     // Violet
-            'rgba(241, 196, 15, 1)',     // Gold
-            'rgba(230, 126, 34, 1)',     // Carrot
-            'rgba(149, 165, 166, 1)',    // Gray
-            'rgba(26, 188, 156, 1)',     // Turquoise
-            'rgba(52, 73, 94, 1)',       // Dark Blue-Gray
+    (function() {
+        "use strict";
+
+        var nextId = 1;
+
+        var defaultColors = [
+            'rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
+            'rgba(255, 159, 64, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 206, 86, 1)',
+            'rgba(46, 204, 113, 1)', 'rgba(231, 76, 60, 1)', 'rgba(52, 152, 219, 1)',
+            'rgba(155, 89, 182, 1)', 'rgba(241, 196, 15, 1)', 'rgba(230, 126, 34, 1)',
+            'rgba(149, 165, 166, 1)', 'rgba(26, 188, 156, 1)', 'rgba(52, 73, 94, 1)'
         ];
-        
-        function getColor(index, alpha = 1) {
-            const color = defaultColors[index % defaultColors.length];
-            return alpha === 1 ? color : color.replace('1)', `${alpha})`);
+
+        function getColor(index, alpha) {
+            if (alpha === undefined) alpha = 1;
+            var color = defaultColors[index % defaultColors.length];
+            return alpha === 1 ? color : color.replace('1)', alpha + ')');
         }
-        
-        function processChartData(data) {
-            // Ensure we have an array of charts
-            const charts = Array.isArray(data) ? data : [data];
-            
-            return charts.map(chart => {
-                // Process labels and data
-                const labels = chart.labels || chart.data.map((d, i) => d.label || `Item ${i + 1}`);
-                const values = chart.data.map(d => typeof d === 'object' ? d.value : d);
-                
-                // Auto-assign colors if not provided
-                const backgroundColors = chart.backgroundColor || 
-                    chart.data.map((d, i) => {
-                        if (typeof d === 'object' && d.color) return d.color;
-                        return getColor(i, 0.8);
-                    });
-                    
-                const borderColors = chart.borderColor || 
-                    backgroundColors.map(c => c.replace('0.8)', '1)'));
-                
-                return {
-                    title: chart.title || 'Chart',
-                    type: chart.type || 'doughnut',
-                    labels: labels,
-                    values: values,
-                    backgroundColors: backgroundColors,
-                    borderColors: borderColors
-                };
+
+        function sendRequest(method, params) {
+            return new Promise(function(resolve, reject) {
+                var id = nextId++;
+                function handler(event) {
+                    if (event.data && event.data.id === id) {
+                        window.removeEventListener('message', handler);
+                        if (event.data.result) resolve(event.data.result);
+                        else if (event.data.error) reject(event.data.error);
+                    }
+                }
+                window.addEventListener('message', handler);
+                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
             });
         }
-        
+
+        function sendNotification(method, params) {
+            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
+        }
+
+        function reportSize() {
+            var h = Math.max(document.body.scrollHeight, document.body.offsetHeight,
+                document.documentElement.scrollHeight, document.documentElement.offsetHeight);
+            sendNotification("ui/notifications/size-changed", { width: document.body.scrollWidth, height: h });
+        }
+
+        if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(reportSize).observe(document.body); }
+        window.addEventListener('resize', reportSize);
+
+        function applyTheme(hostContext) {
+            if (!hostContext) return;
+            if (hostContext.theme === 'dark') document.documentElement.style.colorScheme = 'dark';
+            if (hostContext.styles && hostContext.styles.variables) {
+                var vars = hostContext.styles.variables;
+                for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
+            }
+        }
+
+        // ── Donut/Pie rendering ─────────────────────────────────────────
+        function processChartData(data) {
+            var charts = Array.isArray(data) ? data : [data];
+            return charts.map(function(chart) {
+                var labels = chart.labels || chart.data.map(function(d, i) { return d.label || 'Item ' + (i + 1); });
+                var values = chart.data.map(function(d) { return typeof d === 'object' ? d.value : d; });
+                var backgroundColors = chart.backgroundColor || chart.data.map(function(d, i) {
+                    if (typeof d === 'object' && d.color) return d.color;
+                    return getColor(i, 0.8);
+                });
+                var borderColors = chart.borderColor || backgroundColors.map(function(c) { return c.replace('0.8)', '1)'); });
+                return { title: chart.title || 'Chart', type: chart.type || 'doughnut', labels: labels, values: values, backgroundColors: backgroundColors, borderColors: borderColors };
+            });
+        }
+
         function createChart(chartData, canvasId) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            
+            var ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
                 type: chartData.type,
-                data: {
-                    labels: chartData.labels,
-                    datasets: [{
-                        data: chartData.values,
-                        backgroundColor: chartData.backgroundColors,
-                        borderColor: chartData.borderColors,
-                        borderWidth: 2,
-                        hoverOffset: 4
-                    }]
-                },
+                data: { labels: chartData.labels, datasets: [{ data: chartData.values, backgroundColor: chartData.backgroundColors, borderColor: chartData.borderColors, borderWidth: 2, hoverOffset: 4 }] },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            display: false // We'll create custom legend
-                        },
+                        legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleColor: 'white',
-                            bodyColor: 'white',
-                            borderColor: 'rgba(255, 255, 255, 0.1)',
-                            borderWidth: 1,
-                            cornerRadius: 6,
-                            padding: 10,
-                            displayColors: true,
+                            backgroundColor: 'rgba(0,0,0,0.8)', titleColor: 'white', bodyColor: 'white',
+                            borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 6, padding: 10, displayColors: true,
                             callbacks: {
                                 label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.parsed;
-                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = ((value / total) * 100).toFixed(1);
-                                    return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+                                    var label = context.label || '';
+                                    var value = context.parsed;
+                                    var total = context.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                    var pct = ((value / total) * 100).toFixed(1);
+                                    return label + ': ' + value.toLocaleString() + ' (' + pct + '%)';
                                 }
                             }
                         }
                     },
-                    animation: {
-                        animateRotate: true,
-                        animateScale: false,
-                        duration: 1000,
-                        easing: 'easeInOutQuart'
-                    },
+                    animation: { animateRotate: true, animateScale: false, duration: 1000, easing: 'easeInOutQuart' },
                     cutout: chartData.type === 'doughnut' ? '50%' : '0%'
                 }
             });
         }
-        
+
         function createLegend(chartData, container) {
-            const legendHtml = chartData.labels.map((label, index) => {
-                const value = chartData.values[index];
-                const total = chartData.values.reduce((a, b) => a + b, 0);
-                const percentage = ((value / total) * 100).toFixed(1);
-                
-                return `
-                    <div class="legend-item">
-                        <div class="legend-color" style="background-color: ${chartData.backgroundColors[index]}"></div>
-                        <span class="legend-label">${label}:</span>
-                        <span class="legend-value">${value.toLocaleString()} (${percentage}%)</span>
-                    </div>
-                `;
+            var total = chartData.values.reduce(function(a, b) { return a + b; }, 0);
+            container.innerHTML = chartData.labels.map(function(label, index) {
+                var value = chartData.values[index];
+                var pct = ((value / total) * 100).toFixed(1);
+                return '<div class="legend-item"><div class="legend-color" style="background-color:' + chartData.backgroundColors[index] + '"></div>' +
+                    '<span class="legend-label">' + label + ':</span><span class="legend-value">' + value.toLocaleString() + ' (' + pct + '%)</span></div>';
             }).join('');
-            
-            container.innerHTML = legendHtml;
         }
-        
-        function renderCharts() {
-            const processedData = processChartData(chartsData);
-            const chartsGrid = document.getElementById('chartsGrid');
-            
-            // Clear existing content
+
+        function renderDonut(chartsData) {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            var processedData = processChartData(chartsData);
+            var chartsGrid = document.getElementById('chartsGrid');
             chartsGrid.innerHTML = '';
-            
-            // Create chart elements
-            processedData.forEach((chartData, index) => {
-                const canvasId = `chart-${index}`;
-                const legendId = `legend-${index}`;
-                
-                const chartWrapper = document.createElement('div');
-                chartWrapper.className = 'chart-wrapper';
-                chartWrapper.innerHTML = `
-                    <div class="chart-title">${chartData.title}</div>
-                    <div class="chart-container">
-                        <canvas id="${canvasId}"></canvas>
-                    </div>
-                    <div class="chart-legend" id="${legendId}"></div>
-                `;
-                
-                chartsGrid.appendChild(chartWrapper);
-                
-                // Create the chart
+
+            processedData.forEach(function(chartData, index) {
+                var canvasId = 'chart-' + index;
+                var legendId = 'legend-' + index;
+                var wrapper = document.createElement('div');
+                wrapper.className = 'chart-wrapper';
+                wrapper.innerHTML = '<div class="chart-title">' + chartData.title + '</div>' +
+                    '<div class="chart-container"><canvas id="' + canvasId + '"></canvas></div>' +
+                    '<div class="chart-legend" id="' + legendId + '"></div>';
+                chartsGrid.appendChild(wrapper);
                 createChart(chartData, canvasId);
-                
-                // Create the legend
                 createLegend(chartData, document.getElementById(legendId));
             });
-            
-            // Update statistics
-            updateStats(processedData);
-        }
-        
-        function updateStats(processedData) {
-            const statsPanel = document.getElementById('statsPanel');
-            
-            // Calculate overall statistics
-            let totalValue = 0;
-            let totalCategories = 0;
-            let maxValue = 0;
-            let minValue = Infinity;
-            
-            processedData.forEach(chart => {
-                const chartTotal = chart.values.reduce((a, b) => a + b, 0);
-                const chartMax = Math.max(...chart.values);
-                const chartMin = Math.min(...chart.values);
-                
-                totalValue += chartTotal;
-                totalCategories += chart.values.length;
-                maxValue = Math.max(maxValue, chartMax);
-                minValue = Math.min(minValue, chartMin);
+
+            // Stats
+            var statsPanel = document.getElementById('statsPanel');
+            statsPanel.style.display = '';
+            var totalValue = 0, totalCategories = 0, maxValue = 0, minValue = Infinity;
+            processedData.forEach(function(c) {
+                var ct = c.values.reduce(function(a, b) { return a + b; }, 0);
+                totalValue += ct;
+                totalCategories += c.values.length;
+                maxValue = Math.max(maxValue, Math.max.apply(null, c.values));
+                minValue = Math.min(minValue, Math.min.apply(null, c.values));
             });
-            
-            const avgValue = totalCategories > 0 ? totalValue / totalCategories : 0;
-            
-            statsPanel.innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-title">Total Charts</div>
-                    <div class="stat-value">${processedData.length}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Total Value</div>
-                    <div class="stat-value">${totalValue.toLocaleString()}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Total Categories</div>
-                    <div class="stat-value">${totalCategories}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Average Value</div>
-                    <div class="stat-value">${avgValue.toFixed(0).toLocaleString()}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Max Value</div>
-                    <div class="stat-value">${maxValue.toLocaleString()}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Min Value</div>
-                    <div class="stat-value">${minValue.toLocaleString()}</div>
-                </div>
-            `;
+            var avgValue = totalCategories > 0 ? totalValue / totalCategories : 0;
+            statsPanel.innerHTML =
+                '<div class="stat-card"><div class="stat-title">Charts</div><div class="stat-value">' + processedData.length + '</div></div>' +
+                '<div class="stat-card"><div class="stat-title">Total</div><div class="stat-value">' + totalValue.toLocaleString() + '</div></div>' +
+                '<div class="stat-card"><div class="stat-title">Categories</div><div class="stat-value">' + totalCategories + '</div></div>' +
+                '<div class="stat-card"><div class="stat-title">Average</div><div class="stat-value">' + avgValue.toFixed(0) + '</div></div>';
+
+            setTimeout(reportSize, 100);
         }
-        
-        // Function to measure and report content size for iframe auto-resizing
-        function reportContentSize() {
-            // Get the actual content height
-            const contentHeight = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            
-            // Send size change message to parent window (for MCP-UI iframe auto-resize)
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'ui-size-change',
-                    payload: {
-                        height: contentHeight
-                    }
-                }, '*');
+
+        function extractData(msg) {
+            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) return msg.params.structuredContent.data;
+            if (msg.params && msg.params.structuredContent) {
+                var sc = msg.params.structuredContent;
+                if (Array.isArray(sc)) return sc;
+                if (sc.data) return sc.data;
             }
+            if (msg.params && msg.params.arguments && msg.params.arguments.data) return msg.params.arguments.data;
+            if (msg.params && msg.params.arguments) {
+                var args = msg.params.arguments;
+                if (Array.isArray(args)) return args;
+                if (args.data) return args.data;
+            }
+            return null;
         }
-        
-        // Initialize on load
-        window.onload = function() {
-            renderCharts();
-            
-            // Report initial size
-            setTimeout(reportContentSize, 100);
-            
-            // Watch for size changes using ResizeObserver if available
-            if (typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    reportContentSize();
-                });
-                resizeObserver.observe(document.body);
-                resizeObserver.observe(document.documentElement);
+
+        window.addEventListener('message', function(event) {
+            var msg = event.data;
+            if (!msg || msg.jsonrpc !== "2.0") return;
+            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
+                var data = extractData(msg);
+                if (data) renderDonut(data);
             }
-            
-            // Fallback: also report on window resize
-            window.addEventListener('resize', reportContentSize);
-        };
+            if (msg.method === 'ui/notifications/host-context-changed') applyTheme(msg.params);
+            if (msg.method === 'ui/resource-teardown' && msg.id) {
+                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
+            }
+        });
+
+        var appIdentity = { name: "autovisualiser-donut", version: "1.0.0" };
+        sendRequest("ui/initialize", {
+            protocolVersion: "2026-01-26",
+            appInfo: appIdentity, clientInfo: appIdentity,
+            appCapabilities: { availableDisplayModes: ["inline"] }, capabilities: {}
+        }).then(function(result) {
+            applyTheme(result.hostContext || result);
+            sendNotification("ui/notifications/initialized", {});
+            reportSize();
+        }).catch(function(err) {
+            console.warn('[autovisualiser-donut] ui/initialize failed:', err);
+            reportSize();
+        });
+    })();
     </script>
 </body>
 </html>

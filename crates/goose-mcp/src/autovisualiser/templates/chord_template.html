@@ -4,271 +4,228 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chord Diagram</title>
-    
+
     <script>
         {{D3_MIN}}
     </script>
-    
+
     <style>
+        :root {
+            --color-background-primary: #ffffff;
+            --color-background-secondary: #f5f5f5;
+            --color-text-primary: #333333;
+            --color-text-secondary: #666666;
+            --font-sans: Arial, sans-serif;
+        }
+
+        html, body { overflow: hidden; }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: var(--font-sans);
             margin: 0;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: var(--color-background-secondary);
+            color: var(--color-text-primary);
         }
-        
-        .container {
-            margin: 0 auto;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        
+
+        .container { margin: 0 auto; }
+
         #chord {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            display: block;
-            margin: 0 auto;
+            border: 1px solid #ddd; border-radius: 4px;
+            background: var(--color-background-primary);
+            display: block; margin: 0 auto;
         }
-        
-        .group-arc {
-            cursor: pointer;
-        }
-        
-        .chord {
-            cursor: pointer;
-            fill-opacity: 0.67;
-            stroke: #000;
-            stroke-width: 0.5px;
-        }
-        
-        .chord:hover {
-            fill-opacity: 0.9;
-        }
-        
-        .group-label {
-            font-size: 12px;
-            font-weight: bold;
-            text-anchor: middle;
-            pointer-events: none;
-        }
-        
+
+        .group-arc { cursor: pointer; }
+        .chord { cursor: pointer; fill-opacity: 0.67; stroke: #000; stroke-width: 0.5px; }
+        .chord:hover { fill-opacity: 0.9; }
+        .group-label { font-size: 12px; font-weight: bold; text-anchor: middle; pointer-events: none; }
+
         .tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 1000;
+            position: absolute; background: rgba(0,0,0,0.8); color: white;
+            padding: 8px; border-radius: 4px; font-size: 12px;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 1000;
         }
+
+        .loading {
+            display: flex; align-items: center; justify-content: center;
+            height: 400px; color: var(--color-text-secondary); font-size: 1.1em;
+        }
+        .loading.hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div id="loadingIndicator" class="loading">Waiting for data…</div>
         <svg id="chord"></svg>
         <div class="tooltip" id="tooltip"></div>
     </div>
 
     <script>
-        // Data will be injected here
-        const chordData = {{CHORD_DATA}};
+    (function() {
+        "use strict";
 
-        // Chord variables
-        let svg, chord, arc, ribbon, tooltip;
-        const width = 500;
-        const height = 500;
-        const outerRadius = Math.min(width, height) * 0.4;
-        const innerRadius = outerRadius - 25;
+        var nextId = 1;
+        var svgEl, chordLayout, arcGen, ribbonGen, tooltipEl;
+        var width = 500, height = 500;
+        var outerRadius = Math.min(width, height) * 0.4;
+        var innerRadius = outerRadius - 25;
+        var colors = d3.scaleOrdinal(d3.schemeCategory10);
 
-        // Color scale
-        const colors = d3.scaleOrdinal(d3.schemeCategory10);
+        function sendRequest(method, params) {
+            return new Promise(function(resolve, reject) {
+                var id = nextId++;
+                function handler(event) {
+                    if (event.data && event.data.id === id) {
+                        window.removeEventListener('message', handler);
+                        if (event.data.result) resolve(event.data.result);
+                        else if (event.data.error) reject(event.data.error);
+                    }
+                }
+                window.addEventListener('message', handler);
+                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
+            });
+        }
 
-        // Initialize SVG
+        function sendNotification(method, params) {
+            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
+        }
+
+        function reportSize() {
+            var h = Math.max(document.body.scrollHeight, document.body.offsetHeight,
+                document.documentElement.scrollHeight, document.documentElement.offsetHeight);
+            sendNotification("ui/notifications/size-changed", { width: document.body.scrollWidth, height: h });
+        }
+
+        if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(reportSize).observe(document.body); }
+        window.addEventListener('resize', reportSize);
+
+        function applyTheme(hostContext) {
+            if (!hostContext) return;
+            if (hostContext.theme === 'dark') document.documentElement.style.colorScheme = 'dark';
+            if (hostContext.styles && hostContext.styles.variables) {
+                var vars = hostContext.styles.variables;
+                for (var key in vars) { if (vars[key]) document.documentElement.style.setProperty(key, vars[key]); }
+            }
+        }
+
         function initializeSVG() {
-            svg = d3.select("#chord")
-                .attr("width", width)
-                .attr("height", height);
-            
-            svg.selectAll("*").remove();
-            
-            const g = svg.append("g")
-                .attr("transform", `translate(${width / 2},${height / 2})`);
-            
-            chord = d3.chord()
-                .padAngle(0.05)
-                .sortSubgroups(d3.descending);
-            
-            arc = d3.arc()
-                .innerRadius(innerRadius)
-                .outerRadius(outerRadius);
-            
-            ribbon = d3.ribbon()
-                .radius(innerRadius);
-            
-            tooltip = d3.select("#tooltip");
-            
+            svgEl = d3.select("#chord").attr("width", width).attr("height", height);
+            svgEl.selectAll("*").remove();
+            var g = svgEl.append("g").attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+            chordLayout = d3.chord().padAngle(0.05).sortSubgroups(d3.descending);
+            arcGen = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
+            ribbonGen = d3.ribbon().radius(innerRadius);
+            tooltipEl = d3.select("#tooltip");
             return g;
         }
 
-        // Draw the Chord diagram
         function drawChord(g, data) {
-            const chords = chord(data.matrix);
-            
-            // Draw the groups (arcs around the circle)
-            const group = g.append("g")
-                .selectAll("g")
-                .data(chords.groups)
-                .enter().append("g")
-                .attr("class", "group");
+            var chords = chordLayout(data.matrix);
 
-            group.append("path")
-                .attr("class", "group-arc")
-                .style("fill", d => colors(d.index))
-                .style("stroke", d => d3.rgb(colors(d.index)).darker())
-                .attr("d", arc)
-                .on("mouseover", function(event, d) {
-                    fadeChords(d.index, 0.1);
-                    showGroupTooltip(event, d, data.labels);
-                })
-                .on("mouseout", function() {
-                    fadeChords(null, 1);
-                    hideTooltip();
-                });
+            var group = g.append("g").selectAll("g").data(chords.groups).enter().append("g").attr("class", "group");
+            group.append("path").attr("class", "group-arc")
+                .style("fill", function(d) { return colors(d.index); })
+                .style("stroke", function(d) { return d3.rgb(colors(d.index)).darker(); })
+                .attr("d", arcGen)
+                .on("mouseover", function(event, d) { fadeChords(d.index, 0.1); showGroupTooltip(event, d, data.labels); })
+                .on("mouseout", function() { fadeChords(null, 1); hideTooltip(); });
 
-            // Add group labels
-            group.append("text")
-                .attr("class", "group-label")
-                .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+            group.append("text").attr("class", "group-label")
+                .each(function(d) { d.angle = (d.startAngle + d.endAngle) / 2; })
                 .attr("dy", ".35em")
-                .attr("transform", d => `
-                    rotate(${(d.angle * 180 / Math.PI - 90)})
-                    translate(${outerRadius + 10})
-                    ${d.angle > Math.PI ? "rotate(180)" : ""}
-                `)
-                .style("text-anchor", d => d.angle > Math.PI ? "end" : null)
-                .text(d => data.labels[d.index]);
+                .attr("transform", function(d) {
+                    return "rotate(" + (d.angle * 180 / Math.PI - 90) + ") translate(" + (outerRadius + 10) + ")" + (d.angle > Math.PI ? " rotate(180)" : "");
+                })
+                .style("text-anchor", function(d) { return d.angle > Math.PI ? "end" : null; })
+                .text(function(d) { return data.labels[d.index]; });
 
-            // Draw the chords (ribbons between groups)
-            g.append("g")
-                .selectAll("path")
-                .data(chords)
-                .enter().append("path")
+            g.append("g").selectAll("path").data(chords).enter().append("path")
                 .attr("class", "chord")
-                .style("fill", d => colors(d.source.index))
-                .attr("d", ribbon)
+                .style("fill", function(d) { return colors(d.source.index); })
+                .attr("d", ribbonGen)
                 .on("mouseover", function(event, d) {
                     d3.select(this).style("fill-opacity", 0.9);
                     showChordTooltip(event, d, data.labels, data.matrix);
                 })
-                .on("mouseout", function(event, d) {
+                .on("mouseout", function() {
                     d3.select(this).style("fill-opacity", 0.67);
                     hideTooltip();
                 });
         }
 
-        // Fade chords for highlighting
         function fadeChords(focusIndex, opacity) {
-            svg.selectAll(".chord")
-                .style("opacity", d => {
-                    if (focusIndex === null) return 1;
-                    return d.source.index === focusIndex || d.target.index === focusIndex ? 1 : opacity;
-                });
-            
-            svg.selectAll(".group-arc")
-                .style("opacity", d => {
-                    if (focusIndex === null) return 1;
-                    return d.index === focusIndex ? 1 : opacity;
-                });
+            svgEl.selectAll(".chord").style("opacity", function(d) {
+                if (focusIndex === null) return 1;
+                return (d.source.index === focusIndex || d.target.index === focusIndex) ? 1 : opacity;
+            });
+            svgEl.selectAll(".group-arc").style("opacity", function(d) {
+                if (focusIndex === null) return 1;
+                return d.index === focusIndex ? 1 : opacity;
+            });
         }
 
-        // Tooltip functions
         function showGroupTooltip(event, d, labels) {
-            const totalOut = d.value;
-            const groupName = labels[d.index];
-            
-            tooltip.style("opacity", 1)
-                .html(`
-                    <strong>${groupName}</strong><br/>
-                    Total Flow: ${totalOut.toLocaleString()}<br/>
-                    Index: ${d.index}
-                `)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 10) + "px");
+            tooltipEl.style("opacity", 1)
+                .html('<strong>' + labels[d.index] + '</strong><br/>Total Flow: ' + d.value.toLocaleString())
+                .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
         }
 
         function showChordTooltip(event, d, labels, matrix) {
-            const sourceName = labels[d.source.index];
-            const targetName = labels[d.target.index];
-            const sourceToTarget = matrix[d.source.index][d.target.index];
-            const targetToSource = matrix[d.target.index][d.source.index];
-            
-            tooltip.style("opacity", 1)
-                .html(`
-                    <strong>Connection</strong><br/>
-                    ${sourceName} → ${targetName}: ${sourceToTarget.toLocaleString()}<br/>
-                    ${targetName} → ${sourceName}: ${targetToSource.toLocaleString()}<br/>
-                    <strong>Total: ${(sourceToTarget + targetToSource).toLocaleString()}</strong>
-                `)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 10) + "px");
+            var s2t = matrix[d.source.index][d.target.index];
+            var t2s = matrix[d.target.index][d.source.index];
+            tooltipEl.style("opacity", 1)
+                .html('<strong>Connection</strong><br/>' +
+                    labels[d.source.index] + ' → ' + labels[d.target.index] + ': ' + s2t.toLocaleString() + '<br/>' +
+                    labels[d.target.index] + ' → ' + labels[d.source.index] + ': ' + t2s.toLocaleString() + '<br/>' +
+                    '<strong>Total: ' + (s2t + t2s).toLocaleString() + '</strong>')
+                .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
         }
 
-        function hideTooltip() {
-            tooltip.style("opacity", 0);
+        function hideTooltip() { tooltipEl.style("opacity", 0); }
+
+        function renderData(data) {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            var g = initializeSVG();
+            drawChord(g, data);
+            setTimeout(reportSize, 100);
         }
 
-        // Function to measure and report content size for iframe auto-resizing
-        function reportContentSize() {
-            // Get the actual content height
-            const contentHeight = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            
-            // Send size change message to parent window (for MCP-UI iframe auto-resize)
-            // The message format must match what the MCP-UI client expects
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'ui-size-change',  // lowercase as expected by MCP-UI client
-                    payload: {
-                        height: contentHeight
-                        // width is optional, we're not setting it to allow responsive design
-                    }
-                }, '*');
+        function extractData(msg) {
+            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) return msg.params.structuredContent.data;
+            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.labels) return msg.params.structuredContent;
+            if (msg.params && msg.params.arguments && msg.params.arguments.data) return msg.params.arguments.data;
+            if (msg.params && msg.params.arguments && msg.params.arguments.labels) return msg.params.arguments;
+            return null;
+        }
+
+        window.addEventListener('message', function(event) {
+            var msg = event.data;
+            if (!msg || msg.jsonrpc !== "2.0") return;
+            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
+                var data = extractData(msg);
+                if (data) renderData(data);
             }
-        }
-
-        // Initialize and render on load
-        window.onload = function() {
-            const g = initializeSVG();
-            drawChord(g, chordData);
-            
-            // Report initial size
-            setTimeout(reportContentSize, 100);
-            
-            // Watch for size changes using ResizeObserver if available
-            if (typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    reportContentSize();
-                });
-                resizeObserver.observe(document.body);
-                resizeObserver.observe(document.documentElement);
+            if (msg.method === 'ui/notifications/host-context-changed') applyTheme(msg.params);
+            if (msg.method === 'ui/resource-teardown' && msg.id) {
+                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
             }
-            
-            // Fallback: also report on window resize
-            window.addEventListener('resize', reportContentSize);
-        };
+        });
+
+        var appIdentity = { name: "autovisualiser-chord", version: "1.0.0" };
+        sendRequest("ui/initialize", {
+            protocolVersion: "2026-01-26",
+            appInfo: appIdentity, clientInfo: appIdentity,
+            appCapabilities: { availableDisplayModes: ["inline"] }, capabilities: {}
+        }).then(function(result) {
+            applyTheme(result.hostContext || result);
+            sendNotification("ui/notifications/initialized", {});
+            reportSize();
+        }).catch(function(err) {
+            console.warn('[autovisualiser-chord] ui/initialize failed:', err);
+            reportSize();
+        });
+    })();
     </script>
 </body>
 </html>

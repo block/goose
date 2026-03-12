@@ -1,17 +1,79 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ResourceContents, Role, ServerCapabilities, ServerInfo,
+        ListResourcesResult, Meta, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
-    tool, tool_handler, tool_router, ServerHandler,
+    service::RequestContext,
+    tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::path::PathBuf;
+
+/// MIME type for MCP Apps (SEP-1865)
+const MCP_APPS_MIME_TYPE: &str = "text/html;profile=mcp-app";
+
+/// Build a Meta object with `_meta.ui.resourceUri` for linking a tool to a UI resource.
+fn ui_resource_meta(uri: &str) -> Meta {
+    let mut meta = Meta::new();
+    meta.0
+        .insert("ui".to_string(), json!({ "resourceUri": uri }));
+    meta
+}
+
+/// Struct representing the UI resource definitions for autovisualiser chart types.
+struct UIResourceDef {
+    uri: &'static str,
+    name: &'static str,
+    description: &'static str,
+}
+
+const UI_RESOURCES: &[UIResourceDef] = &[
+    UIResourceDef {
+        uri: "ui://autovisualiser/chart",
+        name: "Chart",
+        description: "Interactive line, bar, and scatter chart visualization",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/sankey",
+        name: "Sankey Diagram",
+        description: "Flow diagram showing relationships between nodes",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/radar",
+        name: "Radar Chart",
+        description: "Multi-dimensional data comparison spider chart",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/donut",
+        name: "Donut/Pie Chart",
+        description: "Categorical data visualization as donut or pie chart",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/treemap",
+        name: "Treemap",
+        description: "Hierarchical data visualization with proportional areas",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/chord",
+        name: "Chord Diagram",
+        description: "Relationship and flow visualization between entities",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/map",
+        name: "Interactive Map",
+        description: "Geographic data visualization with location markers",
+    },
+    UIResourceDef {
+        uri: "ui://autovisualiser/mermaid",
+        name: "Mermaid Diagram",
+        description: "Diagram visualization from Mermaid syntax",
+    },
+];
 
 /// Validates that the data parameter is a proper JSON value and not a string
 fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, ErrorData> {
@@ -412,12 +474,63 @@ impl Default for AutoVisualiserRouter {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for AutoVisualiserRouter {
     fn get_info(&self) -> ServerInfo {
-        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(
-                "goose-autovisualiser",
-                env!("CARGO_PKG_VERSION"),
-            ))
-            .with_instructions(self.instructions.clone())
+        InitializeResult::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(Implementation::new(
+            "goose-autovisualiser",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(self.instructions.clone())
+    }
+
+    async fn list_resources(
+        &self,
+        _pagination: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        let resources = UI_RESOURCES
+            .iter()
+            .map(|def| Resource {
+                raw: RawResource {
+                    uri: def.uri.to_string(),
+                    name: def.name.to_string(),
+                    title: Some(def.name.to_string()),
+                    description: Some(def.description.to_string()),
+                    mime_type: Some(MCP_APPS_MIME_TYPE.to_string()),
+                    size: None,
+                    icons: None,
+                    meta: None,
+                },
+                annotations: None,
+            })
+            .collect();
+
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn read_resource(
+        &self,
+        params: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, ErrorData> {
+        let html = self.get_template_html(&params.uri)?;
+
+        let resource_contents = ResourceContents::TextResourceContents {
+            uri: params.uri,
+            mime_type: Some(MCP_APPS_MIME_TYPE.to_string()),
+            text: html,
+            meta: None,
+        };
+
+        Ok(ReadResourceResult::new(vec![resource_contents]))
     }
 }
 
@@ -460,6 +573,67 @@ impl AutoVisualiserRouter {
         }
     }
 
+    /// Get the static HTML template for a given `ui://` resource URI.
+    /// Templates have JS libs inlined but NO data baked in — data arrives via postMessage.
+    fn get_template_html(&self, uri: &str) -> Result<String, ErrorData> {
+        match uri {
+            "ui://autovisualiser/chart" => {
+                const TEMPLATE: &str = include_str!("templates/chart_template.html");
+                const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
+                Ok(TEMPLATE.replace("{{CHART_MIN}}", CHART_MIN))
+            }
+            "ui://autovisualiser/sankey" => {
+                const TEMPLATE: &str = include_str!("templates/sankey_template.html");
+                const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+                const D3_SANKEY: &str = include_str!("templates/assets/d3.sankey.min.js");
+                Ok(TEMPLATE
+                    .replace("{{D3_MIN}}", D3_MIN)
+                    .replace("{{D3_SANKY}}", D3_SANKEY))
+            }
+            "ui://autovisualiser/radar" => {
+                const TEMPLATE: &str = include_str!("templates/radar_template.html");
+                const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
+                Ok(TEMPLATE.replace("{{CHART_MIN}}", CHART_MIN))
+            }
+            "ui://autovisualiser/donut" => {
+                const TEMPLATE: &str = include_str!("templates/donut_template.html");
+                const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
+                Ok(TEMPLATE.replace("{{CHART_MIN}}", CHART_MIN))
+            }
+            "ui://autovisualiser/treemap" => {
+                const TEMPLATE: &str = include_str!("templates/treemap_template.html");
+                const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+                Ok(TEMPLATE.replace("{{D3_MIN}}", D3_MIN))
+            }
+            "ui://autovisualiser/chord" => {
+                const TEMPLATE: &str = include_str!("templates/chord_template.html");
+                const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+                Ok(TEMPLATE.replace("{{D3_MIN}}", D3_MIN))
+            }
+            "ui://autovisualiser/map" => {
+                const TEMPLATE: &str = include_str!("templates/map_template.html");
+                const LEAFLET_JS: &str = include_str!("templates/assets/leaflet.min.js");
+                const LEAFLET_CSS: &str = include_str!("templates/assets/leaflet.min.css");
+                const MARKERCLUSTER_JS: &str =
+                    include_str!("templates/assets/leaflet.markercluster.min.js");
+                Ok(TEMPLATE
+                    .replace("{{LEAFLET_JS}}", LEAFLET_JS)
+                    .replace("{{LEAFLET_CSS}}", LEAFLET_CSS)
+                    .replace("{{MARKERCLUSTER_JS}}", MARKERCLUSTER_JS))
+            }
+            "ui://autovisualiser/mermaid" => {
+                const TEMPLATE: &str = include_str!("templates/mermaid_template.html");
+                const MERMAID_MIN: &str = include_str!("templates/assets/mermaid.min.js");
+                Ok(TEMPLATE.replace("{{MERMAID_MIN}}", MERMAID_MIN))
+            }
+            _ => Err(ErrorData::new(
+                ErrorCode::INVALID_REQUEST,
+                format!("Unknown resource URI: {}", uri),
+                None,
+            )),
+        }
+    }
+
     /// show a Sankey diagram from flow data
     #[tool(
         name = "render_sankey",
@@ -477,7 +651,8 @@ Example:
   "links": [
     {"source": "Source A", "target": "Target B", "value": 100}
   ]
-}"#
+}"#,
+        meta = ui_resource_meta("ui://autovisualiser/sankey")
     )]
     pub async fn render_sankey(
         &self,
@@ -494,49 +669,26 @@ Example:
             false,
         )?;
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+        let node_count = data
+            .get("nodes")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let link_count = data
+            .get("links")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let text_fallback = format!(
+            "sankey diagram: {} node(s), {} link(s)",
+            node_count, link_count
+        );
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/sankey_template.html");
-        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
-        const D3_SANKEY: &str = include_str!("templates/assets/d3.sankey.min.js");
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/sankey")));
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{D3_MIN}}", D3_MIN)
-            .replace("{{D3_SANKY}}", D3_SANKEY) // Note: keeping the typo to match template
-            .replace("{{SANKEY_DATA}}", &data_json);
-
-        // Save to /tmp/vis.html for debugging
-        let debug_path = std::path::Path::new("/tmp/vis.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/vis.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/vis.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://sankey/diagram".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 
     /// show a radar chart (spider chart) for multi-dimensional data comparison
@@ -561,7 +713,8 @@ Example:
       "data": [75, 85, 80, 90, 70]
     }
   ]
-}"#
+}"#,
+        meta = ui_resource_meta("ui://autovisualiser/radar")
     )]
     pub async fn render_radar(
         &self,
@@ -578,47 +731,26 @@ Example:
             false,
         )?;
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+        let label_count = data
+            .get("labels")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let dataset_count = data
+            .get("datasets")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let text_fallback = format!(
+            "radar chart: {} dimension(s), {} dataset(s)",
+            label_count, dataset_count
+        );
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/radar_template.html");
-        const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/radar")));
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{CHART_MIN}}", CHART_MIN)
-            .replace("{{RADAR_DATA}}", &data_json);
-
-        // Save to /tmp/radar.html for debugging
-        let debug_path = std::path::Path::new("/tmp/radar.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/radar.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/radar.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://radar/chart".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 
     /// show pie or donut charts for categorical data visualization
@@ -648,7 +780,8 @@ Example multiple charts:
   "title": "Q1 Sales",
   "labels": ["Product A", "Product B"],
   "data": [45000, 38000]
-}]"#
+}]"#,
+        meta = ui_resource_meta("ui://autovisualiser/donut")
     )]
     pub async fn render_donut(
         &self,
@@ -663,49 +796,24 @@ Example multiple charts:
                 )
             })?,
             true,
-        )?; // true because donut accepts arrays
+        )?;
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/donut_template.html");
-        const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
-
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{CHART_MIN}}", CHART_MIN)
-            .replace("{{CHARTS_DATA}}", &data_json);
-
-        // Save to /tmp/donut.html for debugging
-        let debug_path = std::path::Path::new("/tmp/donut.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/donut.html: {}", e);
+        let text_fallback = if data.is_array() {
+            let count = data.as_array().map(|a| a.len()).unwrap_or(0);
+            format!("donut/pie chart: {} chart(s)", count)
         } else {
-            tracing::info!("Debug HTML saved to /tmp/donut.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://donut/chart".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
+            let title = data
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Untitled");
+            format!("donut/pie chart: \"{}\"", title)
         };
 
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/donut")));
+
+        Ok(result)
     }
 
     /// show a treemap visualization for hierarchical data
@@ -732,7 +840,8 @@ Example:
     },
     {"name": "Item 3", "value": 150, "category": "Type1"}
   ]
-}"#
+}"#,
+        meta = ui_resource_meta("ui://autovisualiser/treemap")
     )]
     pub async fn render_treemap(
         &self,
@@ -749,47 +858,22 @@ Example:
             false,
         )?;
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+        let root_name = data.get("name").and_then(|v| v.as_str()).unwrap_or("Root");
+        let child_count = data
+            .get("children")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let text_fallback = format!(
+            "treemap: \"{}\" with {} top-level children",
+            root_name, child_count
+        );
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/treemap_template.html");
-        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/treemap")));
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{D3_MIN}}", D3_MIN)
-            .replace("{{TREEMAP_DATA}}", &data_json);
-
-        // Save to /tmp/treemap.html for debugging
-        let debug_path = std::path::Path::new("/tmp/treemap.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/treemap.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/treemap.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://treemap/visualization".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 
     /// Show a chord diagram visualization for relationships and flows
@@ -810,7 +894,8 @@ Example:
     [22, 18, 0, 15],
     [5, 10, 18, 0]
   ]
-}"#
+}"#,
+        meta = ui_resource_meta("ui://autovisualiser/chord")
     )]
     pub async fn render_chord(
         &self,
@@ -827,47 +912,18 @@ Example:
             false,
         )?;
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+        let entity_count = data
+            .get("labels")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let text_fallback = format!("chord diagram: {} entities", entity_count);
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/chord_template.html");
-        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/chord")));
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{D3_MIN}}", D3_MIN)
-            .replace("{{CHORD_DATA}}", &data_json);
-
-        // Save to /tmp/chord.html for debugging
-        let debug_path = std::path::Path::new("/tmp/chord.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/chord.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/chord.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://chord/diagram".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 
     /// show an interactive map visualization with location markers
@@ -902,7 +958,8 @@ Example:
     {"lat": 37.7749, "lng": -122.4194, "name": "SF Store", "value": 150000},
     {"lat": 40.7128, "lng": -74.0060, "name": "NYC Store", "value": 200000}
   ]
-}"#
+}"#,
+        meta = ui_resource_meta("ui://autovisualiser/map")
     )]
     pub async fn render_map(
         &self,
@@ -919,64 +976,22 @@ Example:
             false,
         )?;
 
-        // Extract title and subtitle from data if provided
         let title = data
             .get("title")
             .and_then(|v| v.as_str())
             .unwrap_or("Interactive Map");
-        let subtitle = data
-            .get("subtitle")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Geographic data visualization");
+        let marker_count = data
+            .get("markers")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let text_fallback = format!("map: \"{}\" with {} marker(s)", title, marker_count);
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/map")));
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/map_template.html");
-        const LEAFLET_JS: &str = include_str!("templates/assets/leaflet.min.js");
-        const LEAFLET_CSS: &str = include_str!("templates/assets/leaflet.min.css");
-        const MARKERCLUSTER_JS: &str =
-            include_str!("templates/assets/leaflet.markercluster.min.js");
-
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{LEAFLET_JS}}", LEAFLET_JS)
-            .replace("{{LEAFLET_CSS}}", LEAFLET_CSS)
-            .replace("{{MARKERCLUSTER_JS}}", MARKERCLUSTER_JS)
-            .replace("{{MAP_DATA}}", &data_json)
-            .replace("{{TITLE}}", title)
-            .replace("{{SUBTITLE}}", subtitle);
-
-        // Save to /tmp/map.html for debugging
-        let debug_path = std::path::Path::new("/tmp/map.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/map.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/map.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://map/visualization".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 
     /// show a Mermaid diagram from Mermaid syntax
@@ -992,46 +1007,31 @@ graph TD;
     A-->C;
     B-->D;
     C-->D;
-"#
+"#,
+        meta = ui_resource_meta("ui://autovisualiser/mermaid")
     )]
     pub async fn render_mermaid(
         &self,
         params: Parameters<RenderMermaidParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mermaid_code = params.0.mermaid_code;
+        let mermaid_code = &params.0.mermaid_code;
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/mermaid_template.html");
-        const MERMAID_MIN: &str = include_str!("templates/assets/mermaid.min.js");
+        let first_line = mermaid_code.lines().next().unwrap_or("diagram").trim();
+        let text_fallback = format!("mermaid diagram: {}", first_line);
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{MERMAID_MIN}}", MERMAID_MIN)
-            .replace("{{MERMAID_CODE}}", &mermaid_code);
+        let data = serde_json::to_value(&params.0).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid parameters: {}", e),
+                None,
+            )
+        })?;
 
-        // Save to /tmp/mermaid.html for debugging
-        let debug_path = std::path::Path::new("/tmp/mermaid.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/mermaid.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/mermaid.html");
-        }
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/mermaid")));
 
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://mermaid/diagram".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 
     /// show interactive line, scatter, or bar charts
@@ -1050,7 +1050,8 @@ Example:
   "datasets": [
     {"label": "Product A", "data": [65, 59, 80]}
   ]
-}"#
+}"#,
+        meta = ui_resource_meta("ui://autovisualiser/chart")
     )]
     pub async fn show_chart(
         &self,
@@ -1067,47 +1068,30 @@ Example:
             false,
         )?;
 
-        // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid JSON data: {}", e),
-                None,
-            )
-        })?;
+        // Build a text fallback describing the chart for non-UI hosts
+        let chart_type = data.get("type").and_then(|v| v.as_str()).unwrap_or("chart");
+        let title = data
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Untitled");
+        let dataset_count = data
+            .get("datasets")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let text_fallback = format!(
+            "{} chart: \"{}\" with {} dataset(s)",
+            chart_type, title, dataset_count
+        );
 
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("templates/chart_template.html");
-        const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
+        // Return structuredContent (the raw data) + text fallback.
+        // The host fetches the template via read_resource and sends this data
+        // to the template via the MCP Apps postMessage lifecycle.
+        let mut result = CallToolResult::structured(data);
+        result.content = vec![Content::text(text_fallback)];
+        result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/chart")));
 
-        // Replace all placeholders with actual content
-        let html_content = TEMPLATE
-            .replace("{{CHART_MIN}}", CHART_MIN)
-            .replace("{{CHART_DATA}}", &data_json);
-
-        // Save to /tmp/chart.html for debugging
-        let debug_path = std::path::Path::new("/tmp/chart.html");
-        if let Err(e) = std::fs::write(debug_path, &html_content) {
-            tracing::warn!("Failed to write debug HTML to /tmp/chart.html: {}", e);
-        } else {
-            tracing::info!("Debug HTML saved to /tmp/chart.html");
-        }
-
-        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
-        let html_bytes = html_content.as_bytes();
-        let base64_encoded = STANDARD.encode(html_bytes);
-
-        let resource_contents = ResourceContents::BlobResourceContents {
-            uri: "ui://chart/interactive".to_string(),
-            mime_type: Some("text/html".to_string()),
-            blob: base64_encoded,
-            meta: None,
-        };
-
-        Ok(CallToolResult::success(vec![Content::resource(
-            resource_contents,
-        )
-        .with_audience(vec![Role::User])]))
+        Ok(result)
     }
 }
 
@@ -1252,6 +1236,37 @@ mod tests {
         assert!(err.message.contains("without comments"));
     }
 
+    fn assert_mcp_apps_result(
+        tool_result: &CallToolResult,
+        expected_uri: &str,
+        text_contains: &str,
+    ) {
+        assert_eq!(tool_result.content.len(), 1);
+        if let RawContent::Text(text_content) = &tool_result.content[0].raw {
+            assert!(
+                text_content.text.contains(text_contains),
+                "Text fallback '{}' should contain '{}'",
+                text_content.text,
+                text_contains
+            );
+        } else {
+            panic!("Expected text content as fallback");
+        }
+
+        assert!(
+            tool_result.structured_content.is_some(),
+            "structured_content should be present"
+        );
+
+        assert!(tool_result.meta.is_some(), "_meta should be present");
+        let meta = tool_result.meta.as_ref().unwrap();
+        let ui = meta.0.get("ui").expect("meta should have 'ui' key");
+        assert_eq!(
+            ui.get("resourceUri").and_then(|v| v.as_str()),
+            Some(expected_uri)
+        );
+    }
+
     #[tokio::test]
     async fn test_render_sankey() {
         let router = AutoVisualiserRouter::new();
@@ -1277,30 +1292,7 @@ mod tests {
 
         let result = router.render_sankey(params).await;
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
-
-        // Check it's a resource with HTML content
-        // Content is Annotated<RawContent>, access underlying RawContent via *
-        if let RawContent::Resource(resource) = &*tool_result.content[0] {
-            if let ResourceContents::BlobResourceContents { uri, mime_type, .. } =
-                &resource.resource
-            {
-                assert_eq!(uri, "ui://sankey/diagram");
-                assert_eq!(mime_type.as_ref().unwrap(), "text/html");
-            } else {
-                panic!("Expected BlobResourceContents");
-            }
-        } else {
-            panic!("Expected Resource content");
-        }
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/sankey", "sankey");
     }
 
     #[tokio::test]
@@ -1322,35 +1314,7 @@ mod tests {
 
         let result = router.render_radar(params).await;
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
-
-        // Check it's a resource with HTML content
-        // Content is Annotated<RawContent>, access underlying RawContent via *
-        if let RawContent::Resource(resource) = &*tool_result.content[0] {
-            if let ResourceContents::BlobResourceContents {
-                uri,
-                mime_type,
-                blob,
-                ..
-            } = &resource.resource
-            {
-                assert_eq!(uri, "ui://radar/chart");
-                assert_eq!(mime_type.as_ref().unwrap(), "text/html");
-                assert!(!blob.is_empty(), "HTML content should not be empty");
-            } else {
-                panic!("Expected BlobResourceContents");
-            }
-        } else {
-            panic!("Expected Resource content");
-        }
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/radar", "radar");
     }
 
     #[tokio::test]
@@ -1373,15 +1337,7 @@ mod tests {
 
         let result = router.render_donut(params).await;
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/donut", "donut");
     }
 
     #[tokio::test]
@@ -1411,15 +1367,7 @@ mod tests {
 
         let result = router.render_treemap(params).await;
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/treemap", "treemap");
     }
 
     #[tokio::test]
@@ -1438,15 +1386,7 @@ mod tests {
 
         let result = router.render_chord(params).await;
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/chord", "chord");
     }
 
     #[tokio::test]
@@ -1477,15 +1417,7 @@ mod tests {
 
         let result = router.render_map(params).await;
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/map", "map");
     }
 
     #[tokio::test]
@@ -1515,46 +1447,19 @@ mod tests {
         });
 
         let result = router.show_chart(params).await;
-        if let Err(e) = &result {
-            eprintln!("Error in test_show_chart: {:?}", e);
-        }
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/chart", "scatter");
     }
 
     #[tokio::test]
     async fn test_render_mermaid() {
         let router = AutoVisualiserRouter::new();
         let params = Parameters(RenderMermaidParams {
-            mermaid_code: r#"graph TD;
-    A-->B;
-    A-->C;
-    B-->D;
-    C-->D;"#
-                .to_string(),
+            mermaid_code: "graph TD;\n    A-->B;\n    A-->C;\n    B-->D;\n    C-->D;".to_string(),
         });
 
         let result = router.render_mermaid(params).await;
-        if let Err(e) = &result {
-            eprintln!("Error in test_render_mermaid: {:?}", e);
-        }
         assert!(result.is_ok());
-        let tool_result = result.unwrap();
-        assert_eq!(tool_result.content.len(), 1);
-
-        // Check the audience is set to User
-        assert!(tool_result.content[0].audience().is_some());
-        assert_eq!(
-            tool_result.content[0].audience().unwrap(),
-            &vec![Role::User]
-        );
+        assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/mermaid", "mermaid");
     }
 }

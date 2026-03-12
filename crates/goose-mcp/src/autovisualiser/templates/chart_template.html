@@ -8,50 +8,77 @@
     <script>
         {{CHART_MIN}}
     </script>
-    
+
     <style>
+        /* Theming: use host CSS variables with sensible fallbacks */
+        :root {
+            --color-background-primary: #ffffff;
+            --color-background-secondary: #f5f5f5;
+            --color-text-primary: #333333;
+            --color-text-secondary: #666666;
+            --color-border-primary: rgba(0, 0, 0, 0.1);
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            --border-radius-md: 12px;
+        }
+
+        html, body {
+            overflow: hidden;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: var(--font-sans);
             margin: 0;
             padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
+            background-color: var(--color-background-secondary);
+            color: var(--color-text-primary);
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: var(--color-background-primary);
+            border-radius: var(--border-radius-md);
             overflow: hidden;
         }
-        
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
         }
-        
+
         .header h1 {
             margin: 0 0 10px 0;
             font-size: 2em;
             font-weight: 300;
         }
-        
+
         .header p {
             margin: 0;
             font-size: 1em;
             opacity: 0.9;
         }
-        
+
         .chart-container {
             padding: 30px;
             position: relative;
             height: 500px;
         }
-        
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--color-text-secondary);
+            font-size: 1.1em;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .chart-container {
                 padding: 15px;
@@ -66,36 +93,116 @@
             <h1 id="chartTitle">📊 Chart Visualization</h1>
             <p id="chartSubtitle">Interactive data visualization</p>
         </div>
-        
+
         <div class="chart-container">
+            <div id="loadingIndicator" class="loading">Waiting for data…</div>
             <canvas id="mainChart"></canvas>
         </div>
     </div>
 
     <script>
-        // Data will be injected here
-        const chartData = {{CHART_DATA}};
-        
-        let chart;
-        
-        function getChartOptions(type) {
-            const baseOptions = {
+    (function() {
+        "use strict";
+
+        let nextId = 1;
+        let chart = null;
+
+        // ── MCP Apps messaging helpers ──────────────────────────────────
+        function sendRequest(method, params) {
+            return new Promise(function(resolve, reject) {
+                var id = nextId++;
+                function handler(event) {
+                    if (event.data && event.data.id === id) {
+                        window.removeEventListener('message', handler);
+                        if (event.data.result) {
+                            resolve(event.data.result);
+                        } else if (event.data.error) {
+                            reject(event.data.error);
+                        }
+                    }
+                }
+                window.addEventListener('message', handler);
+                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
+            });
+        }
+
+        function sendNotification(method, params) {
+            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
+        }
+
+        // ── Size reporting (spec-compliant JSON-RPC) ────────────────────
+        function reportSize() {
+            var h = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            sendNotification("ui/notifications/size-changed", {
+                width: document.body.scrollWidth,
+                height: h
+            });
+        }
+
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(reportSize).observe(document.body);
+        }
+        window.addEventListener('resize', reportSize);
+
+        // ── Theming ─────────────────────────────────────────────────────
+        function applyTheme(hostContext) {
+            if (!hostContext) return;
+            if (hostContext.theme === 'dark') {
+                document.documentElement.style.colorScheme = 'dark';
+            }
+            if (hostContext.styles && hostContext.styles.variables) {
+                var vars = hostContext.styles.variables;
+                for (var key in vars) {
+                    if (vars[key]) {
+                        document.documentElement.style.setProperty(key, vars[key]);
+                    }
+                }
+            }
+        }
+
+        // ── Chart rendering ─────────────────────────────────────────────
+
+        // Default color palette
+        var defaultColors = [
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(255, 159, 64, 0.8)',
+            'rgba(153, 102, 255, 0.8)',
+            'rgba(255, 206, 86, 0.8)',
+            'rgba(46, 204, 113, 0.8)',
+            'rgba(231, 76, 60, 0.8)',
+            'rgba(52, 152, 219, 0.8)',
+            'rgba(155, 89, 182, 0.8)'
+        ];
+
+        var defaultBorderColors = [
+            'rgba(54, 162, 235, 1)',
+            'rgba(255, 99, 132, 1)',
+            'rgba(75, 192, 192, 1)',
+            'rgba(255, 159, 64, 1)',
+            'rgba(153, 102, 255, 1)',
+            'rgba(255, 206, 86, 1)',
+            'rgba(46, 204, 113, 1)',
+            'rgba(231, 76, 60, 1)',
+            'rgba(52, 152, 219, 1)',
+            'rgba(155, 89, 182, 1)'
+        ];
+
+        function getChartOptions(chartData, type) {
+            var baseOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
-                },
+                interaction: { intersect: false, mode: 'index' },
                 plugins: {
                     legend: {
                         position: 'top',
-                        labels: {
-                            usePointStyle: true,
-                            padding: 20,
-                            font: {
-                                size: 12
-                            }
-                        }
+                        labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
                     },
                     tooltip: {
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -107,87 +214,46 @@
                         displayColors: true,
                         padding: 12
                     },
-                    title: {
-                        display: false // We handle title in HTML
-                    }
+                    title: { display: false }
                 },
-                animation: {
-                    duration: 750,
-                    easing: 'easeInOutQuart'
-                }
+                animation: { duration: 750, easing: 'easeInOutQuart' }
             };
-            
+
             if (type === 'scatter') {
                 baseOptions.scales = {
                     x: {
-                        type: 'linear',
-                        position: 'bottom',
-                        title: {
-                            display: chartData.xAxisLabel ? true : false,
-                            text: chartData.xAxisLabel || 'X Values',
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        }
+                        type: 'linear', position: 'bottom',
+                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel || 'X Values', font: { size: 12 } },
+                        grid: { color: 'rgba(0, 0, 0, 0.1)' }
                     },
                     y: {
-                        title: {
-                            display: chartData.yAxisLabel ? true : false,
-                            text: chartData.yAxisLabel || 'Y Values',
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        }
+                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel || 'Y Values', font: { size: 12 } },
+                        grid: { color: 'rgba(0, 0, 0, 0.1)' }
                     }
                 };
             } else {
                 baseOptions.scales = {
                     x: {
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        title: {
-                            display: chartData.xAxisLabel ? true : false,
-                            text: chartData.xAxisLabel,
-                            font: {
-                                size: 12
-                            }
-                        }
+                        grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel, font: { size: 12 } }
                     },
                     y: {
                         beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        title: {
-                            display: chartData.yAxisLabel ? true : false,
-                            text: chartData.yAxisLabel,
-                            font: {
-                                size: 12
-                            }
-                        }
+                        grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel, font: { size: 12 } }
                     }
                 };
             }
-            
-            // Apply any custom options from the data
+
             if (chartData.options) {
                 return mergeOptions(baseOptions, chartData.options);
             }
-            
             return baseOptions;
         }
-        
+
         function mergeOptions(base, custom) {
-            // Simple deep merge for options
-            const merged = {...base};
-            for (const key in custom) {
+            var merged = Object.assign({}, base);
+            for (var key in custom) {
                 if (typeof custom[key] === 'object' && !Array.isArray(custom[key]) && custom[key] !== null) {
                     merged[key] = mergeOptions(base[key] || {}, custom[key]);
                 } else {
@@ -196,42 +262,13 @@
             }
             return merged;
         }
-        
-        // Default color palette
-        const defaultColors = [
-            'rgba(54, 162, 235, 0.8)',   // Blue
-            'rgba(255, 99, 132, 0.8)',   // Red
-            'rgba(75, 192, 192, 0.8)',   // Teal
-            'rgba(255, 159, 64, 0.8)',   // Orange
-            'rgba(153, 102, 255, 0.8)',  // Purple
-            'rgba(255, 206, 86, 0.8)',   // Yellow
-            'rgba(46, 204, 113, 0.8)',   // Green
-            'rgba(231, 76, 60, 0.8)',    // Darker Red
-            'rgba(52, 152, 219, 0.8)',   // Light Blue
-            'rgba(155, 89, 182, 0.8)',   // Violet
-        ];
-        
-        const defaultBorderColors = [
-            'rgba(54, 162, 235, 1)',
-            'rgba(255, 99, 132, 1)',
-            'rgba(75, 192, 192, 1)',
-            'rgba(255, 159, 64, 1)',
-            'rgba(153, 102, 255, 1)',
-            'rgba(255, 206, 86, 1)',
-            'rgba(46, 204, 113, 1)',
-            'rgba(231, 76, 60, 1)',
-            'rgba(52, 152, 219, 1)',
-            'rgba(155, 89, 182, 1)',
-        ];
-        
+
         function processDatasets(datasets, chartType) {
-            return datasets.map((dataset, index) => {
-                const processed = {...dataset};
-                
-                // Add default colors if not provided
+            return datasets.map(function(dataset, index) {
+                var processed = Object.assign({}, dataset);
+
                 if (!processed.backgroundColor) {
                     if (chartType === 'bar' && !dataset.label && datasets.length === 1) {
-                        // For single bar dataset without label, use multiple colors
                         processed.backgroundColor = defaultColors;
                         processed.borderColor = defaultBorderColors;
                     } else {
@@ -239,96 +276,116 @@
                         processed.borderColor = defaultBorderColors[index % defaultBorderColors.length];
                     }
                 }
-                
+
                 if (!processed.borderColor && processed.backgroundColor) {
                     processed.borderColor = processed.backgroundColor.replace('0.8', '1');
                 }
-                
-                // Set default border width
+
                 if (processed.borderWidth === undefined) {
                     processed.borderWidth = chartType === 'line' ? 2 : 1;
                 }
-                
-                // For line charts, add default tension if not specified
+
                 if (chartType === 'line' && processed.tension === undefined) {
                     processed.tension = 0.4;
                 }
-                
-                // For line charts, set fill to false by default if not specified
+
                 if (chartType === 'line' && processed.fill === undefined) {
                     processed.fill = false;
                 }
-                
+
                 return processed;
             });
         }
-        
-        function initChart() {
-            const ctx = document.getElementById('mainChart').getContext('2d');
-            
-            // Set title and subtitle if provided
+
+        function renderChart(chartData) {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+
+            if (chart) {
+                chart.destroy();
+                chart = null;
+            }
+
             if (chartData.title) {
                 document.getElementById('chartTitle').textContent = chartData.title;
             }
             if (chartData.subtitle) {
                 document.getElementById('chartSubtitle').textContent = chartData.subtitle;
             }
-            
-            const chartType = chartData.type || 'line';
-            const processedDatasets = processDatasets(chartData.datasets, chartType);
-            
-            const chartConfig = {
+
+            var chartType = chartData.type || 'line';
+            var processedDatasets = processDatasets(chartData.datasets, chartType);
+
+            var ctx = document.getElementById('mainChart').getContext('2d');
+            chart = new Chart(ctx, {
                 type: chartType,
                 data: {
                     labels: chartData.labels || [],
                     datasets: processedDatasets
                 },
-                options: getChartOptions(chartType)
-            };
-            
-            chart = new Chart(ctx, chartConfig);
+                options: getChartOptions(chartData, chartType)
+            });
+
+            setTimeout(reportSize, 100);
         }
-        
-        // Function to measure and report content size for iframe auto-resizing
-        function reportContentSize() {
-            const contentHeight = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            
-            // Send size change message to parent window (for MCP-UI iframe auto-resize)
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'ui-size-change',
-                    payload: {
-                        height: contentHeight
-                    }
-                }, '*');
+
+        // ── Extract chart data from various message shapes ──────────────
+        function extractChartData(msg) {
+            // From tool-result structuredContent
+            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) {
+                return msg.params.structuredContent.data;
             }
+            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.datasets) {
+                return msg.params.structuredContent;
+            }
+            // From tool-input arguments
+            if (msg.params && msg.params.arguments && msg.params.arguments.data) {
+                return msg.params.arguments.data;
+            }
+            if (msg.params && msg.params.arguments && msg.params.arguments.datasets) {
+                return msg.params.arguments;
+            }
+            return null;
         }
-        
-        // Initialize on load
-        window.onload = function() {
-            initChart();
-            
-            // Report initial size
-            setTimeout(reportContentSize, 100);
-            
-            // Watch for size changes using ResizeObserver if available
-            if (typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    reportContentSize();
-                });
-                resizeObserver.observe(document.body);
-                resizeObserver.observe(document.documentElement);
+
+        // ── MCP Apps lifecycle ──────────────────────────────────────────
+        window.addEventListener('message', function(event) {
+            var msg = event.data;
+            if (!msg || msg.jsonrpc !== "2.0") return;
+
+            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
+                var data = extractChartData(msg);
+                if (data) renderChart(data);
             }
-            
-            // Fallback: also report on window resize
-            window.addEventListener('resize', reportContentSize);
-        };
+
+            if (msg.method === 'ui/notifications/host-context-changed') {
+                applyTheme(msg.params);
+            }
+
+            // Respond to teardown
+            if (msg.method === 'ui/resource-teardown' && msg.id) {
+                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
+            }
+        });
+
+        // Initialize: handshake with host
+        var appIdentity = { name: "autovisualiser-chart", version: "1.0.0" };
+        sendRequest("ui/initialize", {
+            protocolVersion: "2026-01-26",
+            appInfo: appIdentity,
+            clientInfo: appIdentity,
+            appCapabilities: {
+                availableDisplayModes: ["inline"]
+            },
+            capabilities: {}
+        }).then(function(result) {
+            applyTheme(result.hostContext || result);
+            sendNotification("ui/notifications/initialized", {});
+            reportSize();
+        }).catch(function(err) {
+            console.warn('[autovisualiser-chart] ui/initialize failed:', err);
+            reportSize();
+        });
+    })();
     </script>
 </body>
 </html>
