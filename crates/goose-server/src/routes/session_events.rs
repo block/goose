@@ -119,6 +119,7 @@ fn serialize_session_event(seq: u64, request_id: Option<&str>, event: &MessageEv
     ),
     responses(
         (status = 200, description = "SSE event stream",
+         body = MessageEvent,
          content_type = "text/event-stream"),
     )
 )]

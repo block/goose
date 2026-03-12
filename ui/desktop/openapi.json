@@ -3251,7 +3251,14 @@
         ],
         "responses": {
           "200": {
-            "description": "SSE event stream"
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
           }
         }
       }

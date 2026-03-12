@@ -505,7 +505,7 @@ export const sessionCancel = <ThrowOnError extends boolean = false>(options: Opt
     }
 });
 
-export const sessionEvents = <ThrowOnError extends boolean = false>(options: Options<SessionEventsData, ThrowOnError>) => (options.client ?? client).get<SessionEventsResponses, unknown, ThrowOnError>({ url: '/sessions/{id}/events', ...options });
+export const sessionEvents = <ThrowOnError extends boolean = false>(options: Options<SessionEventsData, ThrowOnError>) => (options.client ?? client).sse.get<SessionEventsResponses, unknown, ThrowOnError>({ url: '/sessions/{id}/events', ...options });
 
 export const sessionReply = <ThrowOnError extends boolean = false>(options: Options<SessionReplyData, ThrowOnError>) => (options.client ?? client).post<SessionReplyResponses, SessionReplyErrors, ThrowOnError>({
     url: '/sessions/{id}/reply',
