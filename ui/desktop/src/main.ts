@@ -588,7 +588,10 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   const goosedResult = await startGoosed({
     serverSecret,
-    dir: dir || whiteLabelConfig.defaults.workingDir || os.homedir(),
+    dir:
+      dir ||
+      whiteLabelConfig.defaults.workingDir?.replace(/^~\//, os.homedir() + '/') ||
+      os.homedir(),
     env: {
       GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
     },

@@ -44,6 +44,8 @@ export interface WhiteLabelFeatures {
   compactToolCalls?: boolean;
   /** Show the model selector in the bottom bar. Default: true */
   showModelSelector?: boolean;
+  /** Override display labels for navigation items. Keys are nav item IDs (e.g. "chat"), values are labels. */
+  navigationLabels?: Record<string, string>;
   navigation: string[];
   settingsTabs: string[];
   hiddenSettingSections?: string[];

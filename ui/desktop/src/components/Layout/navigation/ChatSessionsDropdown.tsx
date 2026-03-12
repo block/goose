@@ -1,5 +1,6 @@
 import React from 'react';
 import { MessageSquare, History, Plus, ChefHat } from 'lucide-react';
+import { useWhiteLabel } from '../../../whitelabel/WhiteLabelContext';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -34,6 +35,8 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
   onSessionClick,
   onShowAll,
 }) => {
+  const { getNavLabel } = useWhiteLabel();
+  const chatLabel = getNavLabel('chat', 'Chat');
   return (
     <DropdownMenuContent
       className="w-64 p-1 bg-background-primary border-border-secondary rounded-lg shadow-lg"
@@ -47,7 +50,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
         className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
       >
         <Plus className="w-4 h-4 flex-shrink-0" />
-        <span>New Chat</span>
+        <span>New {chatLabel}</span>
       </DropdownMenuItem>
 
       {sessions.length > 0 && <DropdownMenuSeparator className="my-1" />}

@@ -27,7 +27,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const location = useLocation();
   const { extensionsList } = useConfig();
-  const { isNavItemEnabled } = useWhiteLabel();
+  const { isNavItemEnabled, getNavLabel } = useWhiteLabel();
 
   const appsExtensionEnabled = !!extensionsList?.find((ext) => ext.name === 'apps')?.enabled;
 
@@ -37,11 +37,18 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       .filter((id) => isNavItemEnabled(id))
       .map((id) => getNavItemById(id))
       .filter((item): item is NavItem => item !== undefined)
+      .map((item) => ({ ...item, label: getNavLabel(item.id, item.label) }))
       .filter((item) => {
         if (item.path === '/apps') return appsExtensionEnabled;
         return true;
       });
-  }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled, isNavItemEnabled]);
+  }, [
+    preferences.itemOrder,
+    preferences.enabledItems,
+    appsExtensionEnabled,
+    isNavItemEnabled,
+    getNavLabel,
+  ]);
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 

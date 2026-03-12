@@ -16,6 +16,7 @@ interface WhiteLabelContextType {
   window: WhiteLabelWindow;
   isFeatureEnabled: (feature: string) => boolean;
   isNavItemEnabled: (itemId: string) => boolean;
+  getNavLabel: (itemId: string, defaultLabel: string) => string;
   isSettingsTabEnabled: (tabId: string) => boolean;
   isSectionHidden: (sectionId: string) => boolean;
   isProviderAllowed: (providerId: string) => boolean;
@@ -73,6 +74,10 @@ export const WhiteLabelProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       isNavItemEnabled(itemId: string): boolean {
         return navSet.has(itemId);
+      },
+
+      getNavLabel(itemId: string, defaultLabel: string): string {
+        return features.navigationLabels?.[itemId] ?? defaultLabel;
       },
 
       isSettingsTabEnabled(tabId: string): boolean {

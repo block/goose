@@ -1,44 +1,120 @@
 ---
-name: Catalog Optimization
+name: Catalog Optimization Guide
 description: >
-  Prioritized recommendations to improve catalog images, pricing, and categories.
-  Use when the user asks how to improve their catalog, optimize listings, organize
-  categories, review pricing, or wants actionable next steps to grow sales.
-  For a diagnostic audit of what's broken, see catalog-health-check instead.
+  Generate prioritized, sales-weighted recommendations to improve catalog images, pricing
+  strategy, and category organization. Use this skill whenever the user asks how to improve
+  their catalog, optimize product listings, organize categories, review pricing strategy,
+  identify which items need better images, or wants actionable next steps to grow sales —
+  even if they don't say "optimize." This skill enriches analysis with sales data when
+  available, so it's best for strategic decisions. For a diagnostic audit of missing fields
+  and duplicates, see catalog-health-check instead.
 ---
 
-# Catalog Optimization
+# Catalog Optimization Guide
 
-Produce prioritized recommendations weighted by business impact.
+Produce prioritized recommendations across images, pricing, and category organization.
+Unlike the health check (which diagnoses what's broken), this skill focuses on what to
+improve next for the biggest business impact — weighted by sales data when available.
 
-## Step 1: Fetch data
+> **Script paths:** Replace `$SKILL_DIR` below with the absolute skill directory path shown in the "Supporting Files" section above (e.g. `/Users/.../catalog-optimization`).
+
+## Step 1: Gather catalog and sales data
+
+Run the data gathering script to fetch catalog items, categories, and sales signal:
 
 ```bash
-square catalog list --types ITEM
-square catalog list --types CATEGORY
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area full
 ```
 
-Paginate both fully.
-
-Optionally try sales data for revenue weighting:
+For targeted requests:
 ```bash
-square reporting meta
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area images      # items + categories + sales
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area pricing     # items + categories (no sales)
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area categories  # items + categories (no sales)
 ```
-If reporting is available, query top items by revenue to prioritize recommendations for high-selling items.
 
-## Step 2: Analyze and recommend
+This orchestrates:
+- `square catalog list --types ITEM` (with pagination) for all catalog items
+- `square catalog list --types CATEGORY` (with pagination) for all categories
+- `square reporting meta` + `square reporting query` for best-effort sales data (images/full only)
 
-**Images** — which items are missing images? Prioritize by sales volume if available. Items customers see most should have images first.
+The script outputs consolidated JSON to stdout. Sales data is only fetched when it
+adds value (revenue weighting for image prioritization).
 
-**Pricing** — are prices consistent within categories? Any items priced far above/below their category peers? Any variations missing prices entirely?
+## Step 2: Analyze the data
 
-**Categories** — are items well-organized? Too many uncategorized items? Categories that are too broad (50+ items) or too narrow (1 item)?
+Pipe the gathered data into the analysis script:
 
-## Step 3: Report
+```bash
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area full \
+  | python3 $SKILL_DIR/scripts/catalog-optimization.py
+```
 
-Structure as:
-- Quick wins (high impact, low effort) — e.g. "add images to your 3 best-selling items"
-- Strategic improvements (high impact, higher effort) — e.g. "reorganize your 'Food' category into subcategories"
-- Maintenance (lower urgency) — e.g. "5 items have no SKU"
+The analysis script reads JSON from stdin, computes optimization scores and
+recommendations, and outputs a structured JSON report. It does not make any API calls.
 
-Name specific items. If sales data is unavailable, say so and prioritize by completeness instead.
+## Step 3: Present the report
+
+Translate the JSON into a clean report for the merchant:
+
+**Catalog Optimization Guide**
+
+**Optimization Score: XX/100**
+**Sales Signal: available / zero_activity / unavailable**
+
+| Metric | Value |
+|--------|-------|
+| Total Items | XXX |
+| Total Variations | XXX |
+| Total Categories | XXX |
+| Catalog Completeness | XX% |
+| Items Missing Images | XX |
+| Items Missing Descriptions | XX |
+| Uncategorized Items | XX |
+
+| Area | Score |
+|------|-------|
+| Images | looks_good / ok / needs_improvement |
+| Pricing | looks_good / ok / needs_improvement |
+| Categories | looks_good / ok / needs_improvement |
+
+**Quick Wins** (high impact, lower effort)
+[from quick_wins]
+
+**Strategic Improvements** (high impact, higher effort)
+[from strategic_improvements]
+
+**Maintenance Items** (lower urgency)
+[from maintenance_items]
+
+| Category | Items | Images | Avg Price | Recommendations |
+|----------|-------|--------|-----------|-----------------|
+[from category_summary]
+
+## Step 4: Offer follow-up
+
+After presenting the report, offer to inspect specific flagged items or categories,
+or help implement the top recommendation.
+
+## Scoring reference
+
+Each area gets a qualitative score: `looks_good` (100), `ok` (60), or `needs_improvement` (20).
+- **Images**: based on ratio of items missing images (<=10% = looks_good, <=30% = ok)
+- **Pricing**: based on ratio of outliers + inconsistent endings + variation gaps (<=8% = looks_good, <=20% = ok)
+- **Categories**: based on ratio of issues (uncategorized + empty + sparse + overcrowded) (<=8% = looks_good, <=18% = ok)
+
+Overall = Images 40% + Pricing 30% + Categories 30%.
+
+## Edge cases
+
+- **Empty catalog**: Tell the merchant their catalog is empty.
+- **CLI errors**: Explain plainly.
+- **Very small catalogs** (<5 items): Keep recommendations brief and practical.
+- **Sales data unavailable**: The script gracefully degrades. Don't claim items are "top sellers" without sales data.
+
+## Tips
+
+- For small catalogs (<10 items), keep recommendations pragmatic.
+- If sales signal is unavailable, do not make revenue-weighted claims.
+- Name concrete item/category names, not just counts.
+- Present one final report, not intermediate updates.

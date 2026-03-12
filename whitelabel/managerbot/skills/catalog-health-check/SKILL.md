@@ -1,54 +1,113 @@
 ---
 name: Catalog Health Check
 description: >
-  Diagnostic audit of a merchant's product catalog — missing fields, duplicates,
-  data quality. Use when the user asks about catalog health, data quality,
-  incomplete listings, duplicate items, missing images/descriptions/prices/SKUs,
-  or wants an audit of their catalog.
+  Run a diagnostic audit of a merchant's product catalog to find missing fields, duplicates,
+  and data quality problems. Use this skill whenever the user asks about catalog health,
+  data quality, incomplete listings, duplicate items, missing images/descriptions/prices/SKUs,
+  pricing inconsistencies, category organization, or wants an audit of their catalog — even if
+  they don't explicitly say "health check." For strategic optimization recommendations weighted
+  by sales data, see catalog-optimization instead.
 ---
 
 # Catalog Health Check
 
-Diagnose data quality issues across four areas: completeness, duplicates, pricing, and categories.
+Diagnose data quality issues across four dimensions: completeness, duplicates, pricing,
+and category organization. The goal is to surface what's broken or missing so the merchant
+can fix it — this is a diagnostic tool, not a strategic advisor.
 
-## Step 1: Fetch catalog data
+> **Script paths:** Replace `$SKILL_DIR` below with the absolute skill directory path shown in the "Supporting Files" section above (e.g. `/Users/.../catalog-health-check`).
+
+## Step 1: Gather catalog data
+
+Run the data gathering script to fetch all items and categories from the Square API:
 
 ```bash
-square catalog list --types ITEM
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area full
 ```
 
-Paginate until no cursor remains. Also fetch categories:
+For a targeted request, only gather the relevant data:
+```bash
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area completeness   # items only
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area duplicates     # items only
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area pricing        # items + categories
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area categories     # items + categories
+```
+
+This orchestrates:
+- `square catalog list --types ITEM` (with pagination) for all catalog items
+- `square catalog list --types CATEGORY` (with pagination) when needed
+
+The script outputs consolidated JSON to stdout.
+
+## Step 2: Analyze the data
+
+Pipe the gathered data into the analysis script:
 
 ```bash
-square catalog list --types CATEGORY
+$SKILL_DIR/scripts/gather-catalog.sh --focus-area full \
+  | python3 $SKILL_DIR/scripts/catalog-health-check.py
 ```
 
-## Step 2: Analyze
+The analysis script reads JSON from stdin, computes deterministic health scores,
+and outputs a structured JSON report. It does not make any API calls.
 
-For each item, check:
+## Step 3: Present the report
 
-**Completeness** — does item_data have:
-- `description` (at least 10 chars)?
-- `image_ids` (non-empty)?
-- categories (via `item_data.categories[].id`)?
-- Each variation: has `price_money`? has `sku`?
+Translate the JSON into a clean report for the merchant. Use this structure:
 
-**Duplicates** — are any item names identical (case-insensitive)? Are any SKUs shared across variations?
+**Catalog Health Report**
 
-**Pricing** — any variations with fixed pricing but no `price_money`? Any obvious outliers within a category?
+**Overall Score: XX/100**
 
-**Categories** — any items with no category? Any empty categories (no items assigned)? Any overcrowded categories (50+ items)?
+| Metric | Value |
+|--------|-------|
+| Total Items | XXX |
+| Total Variations | XXX |
+| Complete Items | XX% |
+| Items Missing Images | XX |
+| Items Missing Descriptions | XX |
+| Items Missing Categories | XX |
+| Variations Missing Prices | XX |
+| Variations Missing SKUs | XX |
 
-## Step 3: Report
+| Area | Score |
+|------|-------|
+| Completeness | looks_good / ok / needs_improvement |
+| Duplicates | looks_good / ok / needs_improvement |
+| Pricing | looks_good / ok / needs_improvement |
+| Categories | looks_good / ok / needs_improvement |
 
-Summarize findings. Name the specific items with issues — merchants act on names, not counts.
+**High Priority** (affects customer experience)
+[items needing images or prices, by name; exact duplicate groups to merge]
 
-Structure: overall picture, then high priority (affects customers — missing images, missing prices), medium priority (missing categories, possible duplicates), low priority (missing SKUs, empty categories).
+**Medium Priority** (review and decide)
+[fuzzy near-duplicates to review; items needing categories]
 
-Keep it concise. Don't dump raw JSON.
+**Low Priority** (housekeeping)
+[items needing SKUs, duplicate SKUs, empty or redundant categories]
+
+## Step 4: Offer follow-up
+
+After presenting the report, offer to look up specific flagged items or help fix issues.
+
+## Scoring reference
+
+Each dimension gets a qualitative score: `looks_good` (100), `ok` (60), or `needs_improvement` (20).
+- **Completeness**: based on % of items with all fields filled (>=80% = looks_good, >=50% = ok)
+- **Duplicates**: based on count of exact + fuzzy duplicate groups + duplicate SKUs (0 = looks_good, 1-5 = ok, >5 = needs_improvement)
+- **Pricing**: based on count of zero-price items + IQR-based outliers (0 = looks_good, 1-5 = ok, >5 = needs_improvement)
+- **Categories**: based on how many issues exist: empty, overcrowded (>50), single-item, uncategorized (0 = looks_good, 1-3 = ok, >3 = needs_improvement)
+
+Overall = Completeness 40% + Duplicates 20% + Pricing 20% + Categories 20%.
+
+## Edge cases
+
+- **Empty catalog**: Tell the merchant their catalog is empty — don't post a report full of zeros.
+- **CLI errors**: Explain plainly (e.g., "Couldn't connect to your catalog").
+- **Very small catalogs** (<5 items): Keep recommendations brief. Don't flag statistical outliers with too few data points.
 
 ## Tips
 
-- For small catalogs (<10 items), keep it brief.
-- Empty catalog → just say so, don't produce a report of zeros.
-- If the merchant asked about one specific area (e.g. "do I have duplicates?"), only check that.
+- Name the actual items with issues — merchants act on names, not counts.
+- For a targeted request (e.g., "do I have duplicates?"), only run that focus area.
+- Present one final report, not intermediate progress updates.
