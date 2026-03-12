@@ -21,6 +21,7 @@ Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding an
 ## Built-in Extensions
 goose includes several built-in extensions you can start using out of the box:
 
+- [Approval](/docs/mcp/approval-mcp): Adds a reusable approval checkpoint tool built on MCP elicitation for Desktop and CLI.
 - [Developer](/docs/mcp/developer-mcp): Provides a set of general development tools that are useful for software development. The Developer extension is **enabled by default**.
 - [Computer Controller](/docs/mcp/computer-controller-mcp): Provides general computer control tools for webscraping, file caching, and automations.
 - [Memory](/docs/mcp/memory-mcp): Teaches goose to remember your preferences as you use it.

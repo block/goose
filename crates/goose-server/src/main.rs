@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use goose::agents::validate_extensions;
 use goose_mcp::{
     mcp_server_runner::{serve, McpCommand},
-    AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer,
+    ApprovalServer, AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer,
 };
 
 #[derive(Parser)]
@@ -52,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Mcp { server } => {
             logging::setup_logging(Some(&format!("mcp-{}", server.name())))?;
             match server {
+                McpCommand::Approval => serve(ApprovalServer::new()).await?,
                 McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
                 McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
                 McpCommand::Memory => serve(MemoryServer::new()).await?,

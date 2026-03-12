@@ -1000,6 +1000,11 @@ fn collect_headers() -> anyhow::Result<HashMap<String, String>> {
 fn configure_builtin_extension() -> anyhow::Result<()> {
     let extensions = vec![
         (
+            "approval",
+            "Approval",
+            "Ask for structured approval before continuing a workflow",
+        ),
+        (
             "autovisualiser",
             "Auto Visualiser",
             "Data visualisation and UI generation tools",

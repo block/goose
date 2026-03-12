@@ -48,6 +48,7 @@ context
 3. The result handling:
    - accepted responses continue with structured data
    - declined/cancelled responses are handled explicitly
+   - the tool returns structured output so recipes or agents can branch on approval state without scraping text
 
 ## How to run it
 
