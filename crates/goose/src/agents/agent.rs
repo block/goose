@@ -1590,45 +1590,30 @@ impl Agent {
 
                 let mut exit_chat = false;
                 if no_tools_called {
-                    // Determine what action to take based on final_output_tool state.
-                    // We use a separate scope to ensure the MutexGuard is dropped before
-                    // entering handle_retry_logic, which also needs to lock final_output_tool.
-                    // Without this, Rust's temporary lifetime extension in `if let` keeps the
-                    // MutexGuard alive across `else` branches, causing a deadlock since
-                    // tokio::sync::Mutex is not reentrant.
-                    enum FinalOutputAction {
-                        NotYetCalled,
-                        Called(String),
-                        NotConfigured,
-                    }
-                    let action = {
+                    // Lock, extract state, drop guard before branching — handle_retry_logic
+                    // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
+                    let final_output = {
                         let guard = self.final_output_tool.lock().await;
-                        match guard.as_ref() {
-                            Some(fot) => match fot.final_output.clone() {
-                                Some(output) => FinalOutputAction::Called(output),
-                                None => FinalOutputAction::NotYetCalled,
-                            },
-                            None => FinalOutputAction::NotConfigured,
-                        }
-                    }; // MutexGuard dropped here
+                        guard.as_ref().map(|fot| fot.final_output.clone())
+                    };
 
-                    match action {
-                        FinalOutputAction::NotYetCalled => {
+                    match final_output {
+                        Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
-                        FinalOutputAction::Called(output) => {
+                        Some(Some(output)) => {
                             let message = Message::assistant().with_text(output);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
-                        FinalOutputAction::NotConfigured if did_recovery_compact_this_iteration => {
-                            // Avoid setting exit_chat; continue from last user message in the conversation
+                        None if did_recovery_compact_this_iteration => {
+                            // continue from last user message after recovery compact
                         }
-                        FinalOutputAction::NotConfigured => {
+                        None => {
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
                                 Ok(should_retry) => {
                                     if should_retry {
