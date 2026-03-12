@@ -40,7 +40,7 @@ use sacp::schema::{
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -59,8 +59,8 @@ pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     provider_factory: ProviderConstructor,
     builtins: Vec<String>,
-    client_fs_capabilities: Mutex<FileSystemCapability>,
-    client_terminal: Mutex<bool>,
+    client_fs_capabilities: OnceCell<FileSystemCapability>,
+    client_terminal: OnceCell<bool>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -341,8 +341,8 @@ impl GooseAcpAgent {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             provider_factory,
             builtins,
-            client_fs_capabilities: Mutex::new(FileSystemCapability::new()),
-            client_terminal: Mutex::new(false),
+            client_fs_capabilities: OnceCell::new(),
+            client_terminal: OnceCell::new(),
             config_dir,
             session_manager,
             permission_manager,
@@ -373,8 +373,12 @@ impl GooseAcpAgent {
             .unwrap_or_default();
         extensions.extend(self.builtins.iter().map(|b| builtin_to_extension_config(b)));
 
-        let caps = self.client_fs_capabilities.lock().await.clone();
-        let terminal = *self.client_terminal.lock().await;
+        let caps = self
+            .client_fs_capabilities
+            .get()
+            .cloned()
+            .unwrap_or_default();
+        let terminal = self.client_terminal.get().copied().unwrap_or(false);
         let acp_developer = match (cx, session_id) {
             (Some(cx), Some(sid))
                 if (caps.read_text_file || caps.write_text_file || terminal)
@@ -735,8 +739,10 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
-        *self.client_fs_capabilities.lock().await = args.client_capabilities.fs.clone();
-        *self.client_terminal.lock().await = args.client_capabilities.terminal;
+        let _ = self
+            .client_fs_capabilities
+            .set(args.client_capabilities.fs.clone());
+        let _ = self.client_terminal.set(args.client_capabilities.terminal);
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
