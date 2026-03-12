@@ -144,7 +144,7 @@ run-ui-only:
 run-ui-whitelabel config:
     @just release-binary
     @echo "Running white-labeled UI with config: {{config}}"
-    cd ui/desktop && pnpm install && WHITELABEL_CONFIG="../../{{config}}" pnpm run start-gui
+    cd ui/desktop && WHITELABEL_CONFIG="../../{{config}}" pnpm run start-gui
 
 debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
