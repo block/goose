@@ -29,7 +29,7 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
+pub fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
         MessageContent::ToolRequest(tool_request) => {
             if let Ok(tool_call) = &tool_request.tool_call {
@@ -123,7 +123,7 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum MessageEvent {
     Message {
@@ -152,7 +152,7 @@ pub enum MessageEvent {
     Ping,
 }
 
-async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
+pub async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
     session_manager
         .get_session(session_id, false)
         .await

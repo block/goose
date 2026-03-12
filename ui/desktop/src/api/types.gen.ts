@@ -59,6 +59,10 @@ export type CallToolResponse = {
     structuredContent?: unknown;
 };
 
+export type CancelRequest = {
+    request_id: string;
+};
+
 export type ChatRequest = {
     /**
      * Override the server's conversation history. Only use this when you need absolute control
@@ -1252,6 +1256,21 @@ export type SessionListResponse = {
      * List of available session information objects
      */
     sessions: Array<Session>;
+};
+
+export type SessionReplyRequest = {
+    override_conversation?: Array<Message> | null;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    /**
+     * Client-generated UUIDv7 identifying this request.
+     */
+    request_id: string;
+    user_message: Message;
+};
+
+export type SessionReplyResponse = {
+    request_id: string;
 };
 
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
@@ -4061,6 +4080,82 @@ export type SearchSessionsResponses = {
 };
 
 export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
+
+export type SessionCancelData = {
+    body: CancelRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/cancel';
+};
+
+export type SessionCancelResponses = {
+    /**
+     * Cancellation accepted
+     */
+    200: unknown;
+};
+
+export type SessionEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/events';
+};
+
+export type SessionEventsResponses = {
+    /**
+     * SSE event stream
+     */
+    200: MessageEvent;
+};
+
+export type SessionEventsResponse = SessionEventsResponses[keyof SessionEventsResponses];
+
+export type SessionReplyData = {
+    body: SessionReplyRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/reply';
+};
+
+export type SessionReplyErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SessionReplyResponses = {
+    /**
+     * Request accepted
+     */
+    200: SessionReplyResponse;
+};
+
+export type SessionReplyResponse2 = SessionReplyResponses[keyof SessionReplyResponses];
 
 export type DeleteSessionData = {
     body?: never;
