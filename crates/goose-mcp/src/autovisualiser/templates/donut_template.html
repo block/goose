@@ -299,7 +299,7 @@
         sendRequest("ui/initialize", {
             protocolVersion: "2026-01-26",
             appInfo: appIdentity, clientInfo: appIdentity,
-            appCapabilities: { availableDisplayModes: ["inline"] }, capabilities: {}
+            appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }, capabilities: {}
         }).then(function(result) {
             applyTheme(result.hostContext || result);
             sendNotification("ui/notifications/initialized", {});
