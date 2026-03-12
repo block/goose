@@ -15,6 +15,7 @@ use crate::model::ModelConfig;
 use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
@@ -451,6 +452,15 @@ pub trait LeadWorkerProviderTrait {
     fn get_settings(&self) -> (usize, usize, usize);
 }
 
+/// Response data from OAuth configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OauthResponseData {
+    /// OAuth flow completed successfully (callback-based providers)
+    Completed { message: String },
+    /// Device code info returned (for device code flow providers)
+    DeviceCode { user_code: String, verification_uri: String },
+}
+
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -693,7 +703,7 @@ pub trait Provider: Send + Sync {
     ///
     /// # Default Implementation
     /// The default implementation returns an error indicating OAuth is not supported.
-    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+    async fn configure_oauth(&self) -> Result<OauthResponseData, ProviderError> {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
