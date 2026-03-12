@@ -586,12 +586,16 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
+  // In whitelabel mode, always use the configured workingDir — ignore the dir
+  // argument (which comes from recentDirs and would override the whitelabel config).
+  const resolvedDir =
+    whiteLabelConfig.defaults.workingDir?.replace(/^~\//, os.homedir() + '/') ||
+    dir ||
+    os.homedir();
+
   const goosedResult = await startGoosed({
     serverSecret,
-    dir:
-      dir ||
-      whiteLabelConfig.defaults.workingDir?.replace(/^~\//, os.homedir() + '/') ||
-      os.homedir(),
+    dir: resolvedDir,
     env: {
       GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
     },
