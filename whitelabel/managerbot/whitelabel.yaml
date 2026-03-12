@@ -52,7 +52,7 @@ features:
     - settings
   showModelSelector: false
   navigationLabels:
-    chat: "Activity"
+    chat: "Tasks"
 
   settingsTabs:
     - chat
