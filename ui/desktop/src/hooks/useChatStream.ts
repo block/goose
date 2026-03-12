@@ -207,7 +207,8 @@ async function streamFromResponse(
   initialMessages: Message[],
   dispatch: React.Dispatch<StreamAction>,
   onFinish: (error?: string) => void,
-  sessionId: string
+  sessionId: string,
+  signal?: AbortController['signal']
 ): Promise<void> {
   let currentMessages = initialMessages;
   const reduceMotion = prefersReducedMotion();
@@ -316,12 +317,16 @@ async function streamFromResponse(
     // onFinish() without an error to keep the conversation visible (passing
     // an error would trigger a full-page error screen via sessionLoadError),
     // then show a toast so the user knows the response may be incomplete.
+    // If the signal was aborted, the user intentionally stopped streaming,
+    // so we skip the toast.
     flushBatchedUpdates();
     onFinish();
-    toastError({
-      title: 'Connection lost',
-      msg: 'The response may be incomplete. You can try sending your message again.',
-    });
+    if (!signal?.aborted) {
+      toastError({
+        title: 'Connection lost',
+        msg: 'The response may be incomplete. You can try sending your message again.',
+      });
+    }
   } catch (error) {
     flushBatchedUpdates();
     if (error instanceof Error && error.name !== 'AbortError') {
@@ -607,7 +612,7 @@ export function useChatStream({
           sseMaxRetryAttempts: 0,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
+        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId, abortControllerRef.current.signal);
       } catch (error) {
         // AbortError is expected when user stops streaming
         if (error instanceof Error && error.name === 'AbortError') {
@@ -649,7 +654,7 @@ export function useChatStream({
           sseMaxRetryAttempts: 0,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
+        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId, abortControllerRef.current.signal);
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
@@ -789,7 +794,7 @@ export function useChatStream({
                 sseMaxRetryAttempts: 0,
               });
 
-              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
+              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId, abortControllerRef.current.signal);
             } catch (error) {
               if (error instanceof Error && error.name === 'AbortError') {
                 dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
