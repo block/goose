@@ -3,402 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Chart</title>
+    <title>Chart</title>
 
-    <script>
-        {{CHART_MIN}}
-    </script>
+    <script>{{CHART_MIN}}</script>
 
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        :root {
-            --color-background-primary: #ffffff;
-            --color-background-secondary: #f5f5f5;
-            --color-text-primary: #333333;
-            --color-text-secondary: #666666;
-            --color-border-primary: rgba(0, 0, 0, 0.1);
-            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            --border-radius-md: 12px;
-        }
-
-        html, body {
-            overflow: hidden;
-        }
-
         body {
-            font-family: var(--font-sans);
-            margin: 0;
-            padding: 20px;
-            background-color: var(--color-background-secondary);
+            padding: 16px;
+        }
+
+        .chart-title {
+            font-size: var(--font-heading-xs-size);
+            font-weight: var(--font-weight-semibold);
             color: var(--color-text-primary);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: var(--color-background-primary);
-            border-radius: var(--border-radius-md);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
             text-align: center;
+            margin-bottom: 2px;
         }
 
-        .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 2em;
-            font-weight: 300;
-        }
-
-        .header p {
-            margin: 0;
-            font-size: 1em;
-            opacity: 0.9;
-        }
-
-        .chart-container {
-            padding: 30px;
-            position: relative;
-            height: 500px;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
+        .chart-subtitle {
+            font-size: var(--font-text-xs-size);
             color: var(--color-text-secondary);
-            font-size: 1.1em;
+            text-align: center;
+            margin-bottom: 16px;
         }
 
-        .loading.hidden {
+        .chart-header:empty,
+        .chart-title:empty,
+        .chart-subtitle:empty {
             display: none;
         }
 
-        @media (max-width: 768px) {
-            .chart-container {
-                padding: 15px;
-                height: 400px;
-            }
+        .chart-area {
+            position: relative;
+            height: 360px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1 id="chartTitle">📊 Chart Visualization</h1>
-            <p id="chartSubtitle">Interactive data visualization</p>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div id="chartRoot" style="display:none;">
+        <div class="chart-header">
+            <div class="chart-title" id="chartTitle"></div>
+            <div class="chart-subtitle" id="chartSubtitle"></div>
         </div>
-
-        <div class="chart-container">
-            <div id="loadingIndicator" class="loading">Waiting for data…</div>
+        <div class="chart-area">
             <canvas id="mainChart"></canvas>
         </div>
     </div>
 
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-    (function() {
+    (function () {
         "use strict";
 
-        var nextId = 1;
         var chart = null;
-        var currentData = null;
 
-        // ── MCP Apps messaging helpers ──────────────────────────────────
-        function sendRequest(method, params) {
-            return new Promise(function(resolve, reject) {
-                var id = nextId++;
-                function handler(event) {
-                    if (event.data && event.data.id === id) {
-                        window.removeEventListener('message', handler);
-                        if (event.data.result) {
-                            resolve(event.data.result);
-                        } else if (event.data.error) {
-                            reject(event.data.error);
-                        }
-                    }
-                }
-                window.addEventListener('message', handler);
-                window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, '*');
-            });
-        }
-
-        function sendNotification(method, params) {
-            window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, '*');
-        }
-
-        // ── Size reporting ──────────────────────────────────────────────
-        function reportSize() {
-            var h = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            sendNotification("ui/notifications/size-changed", {
-                width: document.body.scrollWidth,
-                height: h
-            });
-        }
-
-        if (typeof ResizeObserver !== 'undefined') {
-            new ResizeObserver(reportSize).observe(document.body);
-        }
-        window.addEventListener('resize', reportSize);
-
-        // ── Theming ─────────────────────────────────────────────────────
-        function applyTheme(hostContext) {
-            if (!hostContext) return;
-            if (hostContext.theme === 'dark') {
-                document.documentElement.style.colorScheme = 'dark';
-            } else if (hostContext.theme === 'light') {
-                document.documentElement.style.colorScheme = 'light';
-            }
-            if (hostContext.styles && hostContext.styles.variables) {
-                var vars = hostContext.styles.variables;
-                for (var key in vars) {
-                    if (vars[key]) {
-                        document.documentElement.style.setProperty(key, vars[key]);
-                    }
-                }
-            }
-            // Re-render chart with new theme colors
-            if (currentData) {
-                renderChart(currentData);
-            }
-        }
-
-        // Read a computed CSS variable value from the document
-        function cssVar(name) {
-            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        }
-
-        // ── Chart rendering ─────────────────────────────────────────────
-
-        var defaultColors = [
-            'rgba(54, 162, 235, 0.8)',
-            'rgba(255, 99, 132, 0.8)',
-            'rgba(75, 192, 192, 0.8)',
-            'rgba(255, 159, 64, 0.8)',
-            'rgba(153, 102, 255, 0.8)',
-            'rgba(255, 206, 86, 0.8)',
-            'rgba(46, 204, 113, 0.8)',
-            'rgba(231, 76, 60, 0.8)',
-            'rgba(52, 152, 219, 0.8)',
-            'rgba(155, 89, 182, 0.8)'
+        // ── Palette ─────────────────────────────────────────────────
+        // Muted, purposeful colors that feel at home in light & dark.
+        // Each has a solid and a translucent variant.
+        var palette = [
+            { solid: "#5c98f9", fill: "rgba(92,152,249,0.12)" },
+            { solid: "#f97066", fill: "rgba(249,112,102,0.12)" },
+            { solid: "#47c9a2", fill: "rgba(71,201,162,0.12)" },
+            { solid: "#f0a03c", fill: "rgba(240,160,60,0.12)" },
+            { solid: "#9b8afb", fill: "rgba(155,138,251,0.12)" },
+            { solid: "#e87fa0", fill: "rgba(232,127,160,0.12)" },
+            { solid: "#3cc0e0", fill: "rgba(60,192,224,0.12)" },
+            { solid: "#8bba5a", fill: "rgba(139,186,90,0.12)" },
         ];
 
-        var defaultBorderColors = [
-            'rgba(54, 162, 235, 1)',
-            'rgba(255, 99, 132, 1)',
-            'rgba(75, 192, 192, 1)',
-            'rgba(255, 159, 64, 1)',
-            'rgba(153, 102, 255, 1)',
-            'rgba(255, 206, 86, 1)',
-            'rgba(46, 204, 113, 1)',
-            'rgba(231, 76, 60, 1)',
-            'rgba(52, 152, 219, 1)',
-            'rgba(155, 89, 182, 1)'
-        ];
+        // ── Chart rendering ─────────────────────────────────────────
 
         function getChartOptions(chartData, type) {
-            var textColor = cssVar('--color-text-primary') || '#333';
-            var textSecondary = cssVar('--color-text-secondary') || '#666';
-            var gridColor = cssVar('--color-border-primary') || 'rgba(0,0,0,0.1)';
+            var cv = McpAppBridge.cssVar;
+            var textColor = cv("--color-text-primary") || "#3f434b";
+            var textSecondary = cv("--color-text-secondary") || "#878787";
+            var gridColor = cv("--color-border-primary") || "#e3e6ea";
+            var fontFamily = cv("--font-sans") || "sans-serif";
 
-            var baseOptions = {
+            var base = {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: { intersect: false, mode: 'index' },
+                interaction: { intersect: false, mode: "index" },
                 plugins: {
                     legend: {
-                        position: 'top',
-                        labels: { usePointStyle: true, padding: 20, font: { size: 12 }, color: textColor }
+                        position: "bottom",
+                        labels: {
+                            usePointStyle: true,
+                            pointStyleWidth: 8,
+                            padding: 16,
+                            font: { size: 12, family: fontFamily },
+                            color: textSecondary,
+                            boxWidth: 6,
+                            boxHeight: 6,
+                        },
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: 'white',
-                        bodyColor: 'white',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1,
-                        cornerRadius: 8,
+                        backgroundColor: cv("--color-background-inverse") || "rgba(0,0,0,0.85)",
+                        titleColor: cv("--color-text-inverse") || "#fff",
+                        bodyColor: cv("--color-text-inverse") || "#fff",
+                        borderColor: "transparent",
+                        borderWidth: 0,
+                        cornerRadius: 6,
+                        padding: { top: 8, bottom: 8, left: 10, right: 10 },
+                        titleFont: { size: 12, weight: "600", family: fontFamily },
+                        bodyFont: { size: 12, family: fontFamily },
                         displayColors: true,
-                        padding: 12
+                        boxWidth: 8,
+                        boxHeight: 8,
+                        boxPadding: 4,
+                        usePointStyle: true,
                     },
-                    title: { display: false }
+                    title: { display: false },
                 },
-                animation: { duration: 750, easing: 'easeInOutQuart' }
+                animation: { duration: 500, easing: "easeOutQuart" },
             };
 
-            if (type === 'scatter') {
-                baseOptions.scales = {
-                    x: {
-                        type: 'linear', position: 'bottom',
-                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel || 'X Values', font: { size: 12 }, color: textSecondary },
-                        grid: { color: gridColor },
-                        ticks: { color: textSecondary }
-                    },
-                    y: {
-                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel || 'Y Values', font: { size: 12 }, color: textSecondary },
-                        grid: { color: gridColor },
-                        ticks: { color: textSecondary }
-                    }
+            var axisDefaults = {
+                grid: { color: gridColor, drawBorder: false, lineWidth: 1 },
+                ticks: {
+                    color: textSecondary,
+                    font: { size: 11, family: fontFamily },
+                    padding: 8,
+                },
+                border: { display: false },
+            };
+
+            if (type === "scatter") {
+                base.scales = {
+                    x: Object.assign({}, axisDefaults, {
+                        type: "linear",
+                        position: "bottom",
+                        title: chartData.xAxisLabel
+                            ? { display: true, text: chartData.xAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
+                    y: Object.assign({}, axisDefaults, {
+                        title: chartData.yAxisLabel
+                            ? { display: true, text: chartData.yAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
                 };
             } else {
-                baseOptions.scales = {
-                    x: {
-                        grid: { color: gridColor },
-                        title: { display: !!chartData.xAxisLabel, text: chartData.xAxisLabel, font: { size: 12 }, color: textSecondary },
-                        ticks: { color: textSecondary }
-                    },
-                    y: {
+                base.scales = {
+                    x: Object.assign({}, axisDefaults, {
+                        title: chartData.xAxisLabel
+                            ? { display: true, text: chartData.xAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
+                    y: Object.assign({}, axisDefaults, {
                         beginAtZero: true,
-                        grid: { color: gridColor },
-                        title: { display: !!chartData.yAxisLabel, text: chartData.yAxisLabel, font: { size: 12 }, color: textSecondary },
-                        ticks: { color: textSecondary }
-                    }
+                        title: chartData.yAxisLabel
+                            ? { display: true, text: chartData.yAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
                 };
             }
 
-            if (chartData.options) {
-                return mergeOptions(baseOptions, chartData.options);
-            }
-            return baseOptions;
+            if (chartData.options) base = mergeDeep(base, chartData.options);
+            return base;
         }
 
-        function mergeOptions(base, custom) {
-            var merged = Object.assign({}, base);
-            for (var key in custom) {
-                if (typeof custom[key] === 'object' && !Array.isArray(custom[key]) && custom[key] !== null) {
-                    merged[key] = mergeOptions(base[key] || {}, custom[key]);
+        function mergeDeep(target, source) {
+            var out = Object.assign({}, target);
+            for (var key in source) {
+                if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+                    out[key] = mergeDeep(target[key] || {}, source[key]);
                 } else {
-                    merged[key] = custom[key];
+                    out[key] = source[key];
                 }
             }
-            return merged;
+            return out;
         }
 
-        function processDatasets(datasets, chartType) {
-            return datasets.map(function(dataset, index) {
-                var processed = Object.assign({}, dataset);
+        function processDatasets(datasets, type) {
+            return datasets.map(function (ds, i) {
+                var p = palette[i % palette.length];
+                var out = Object.assign({}, ds);
 
-                if (!processed.backgroundColor) {
-                    if (chartType === 'bar' && !dataset.label && datasets.length === 1) {
-                        processed.backgroundColor = defaultColors;
-                        processed.borderColor = defaultBorderColors;
+                if (!out.borderColor) out.borderColor = p.solid;
+
+                if (!out.backgroundColor) {
+                    if (type === "bar") {
+                        out.backgroundColor = p.solid;
                     } else {
-                        processed.backgroundColor = defaultColors[index % defaultColors.length];
-                        processed.borderColor = defaultBorderColors[index % defaultBorderColors.length];
+                        out.backgroundColor = p.fill;
                     }
                 }
 
-                if (!processed.borderColor && processed.backgroundColor) {
-                    processed.borderColor = processed.backgroundColor.replace('0.8', '1');
+                if (out.borderWidth === undefined) {
+                    out.borderWidth = type === "line" ? 2 : 0;
+                }
+                if (type === "line") {
+                    if (out.tension === undefined) out.tension = 0.35;
+                    if (out.fill === undefined) out.fill = true;
+                    if (out.pointRadius === undefined) out.pointRadius = 0;
+                    if (out.pointHitRadius === undefined) out.pointHitRadius = 20;
+                    if (out.pointHoverRadius === undefined) out.pointHoverRadius = 4;
+                    if (out.pointHoverBackgroundColor === undefined)
+                        out.pointHoverBackgroundColor = p.solid;
+                }
+                if (type === "bar") {
+                    if (out.borderRadius === undefined) out.borderRadius = 3;
+                    if (out.maxBarThickness === undefined) out.maxBarThickness = 48;
+                }
+                if (type === "scatter") {
+                    out.backgroundColor = p.solid;
+                    if (out.pointRadius === undefined) out.pointRadius = 4;
+                    if (out.pointHoverRadius === undefined) out.pointHoverRadius = 6;
                 }
 
-                if (processed.borderWidth === undefined) {
-                    processed.borderWidth = chartType === 'line' ? 2 : 1;
-                }
-
-                if (chartType === 'line' && processed.tension === undefined) {
-                    processed.tension = 0.4;
-                }
-
-                if (chartType === 'line' && processed.fill === undefined) {
-                    processed.fill = false;
-                }
-
-                return processed;
+                return out;
             });
         }
 
-        function renderChart(chartData) {
-            document.getElementById('loadingIndicator').classList.add('hidden');
-            currentData = chartData;
+        function renderChart(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("chartRoot").style.display = "";
 
-            if (chart) {
-                chart.destroy();
-                chart = null;
-            }
+            if (chart) { chart.destroy(); chart = null; }
 
-            if (chartData.title) {
-                document.getElementById('chartTitle').textContent = chartData.title;
-            }
-            if (chartData.subtitle) {
-                document.getElementById('chartSubtitle').textContent = chartData.subtitle;
-            }
+            var titleEl = document.getElementById("chartTitle");
+            var subtitleEl = document.getElementById("chartSubtitle");
+            titleEl.textContent = data.title || "";
+            subtitleEl.textContent = data.subtitle || "";
 
-            var chartType = chartData.type || 'line';
-            var processedDatasets = processDatasets(chartData.datasets, chartType);
-
-            var ctx = document.getElementById('mainChart').getContext('2d');
+            var type = data.type || "line";
+            var ctx = document.getElementById("mainChart").getContext("2d");
             chart = new Chart(ctx, {
-                type: chartType,
+                type: type,
                 data: {
-                    labels: chartData.labels || [],
-                    datasets: processedDatasets
+                    labels: data.labels || [],
+                    datasets: processDatasets(data.datasets, type),
                 },
-                options: getChartOptions(chartData, chartType)
+                options: getChartOptions(data, type),
             });
 
-            setTimeout(reportSize, 100);
+            setTimeout(McpAppBridge.reportSize, 80);
         }
 
-        // ── Extract chart data from various message shapes ──────────────
-        function extractChartData(msg) {
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.data) {
-                return msg.params.structuredContent.data;
-            }
-            if (msg.params && msg.params.structuredContent && msg.params.structuredContent.datasets) {
-                return msg.params.structuredContent;
-            }
-            if (msg.params && msg.params.arguments && msg.params.arguments.data) {
-                return msg.params.arguments.data;
-            }
-            if (msg.params && msg.params.arguments && msg.params.arguments.datasets) {
-                return msg.params.arguments;
-            }
-            return null;
-        }
+        // ── Bootstrap ───────────────────────────────────────────────
 
-        // ── MCP Apps lifecycle ──────────────────────────────────────────
-        window.addEventListener('message', function(event) {
-            var msg = event.data;
-            if (!msg || msg.jsonrpc !== "2.0") return;
-
-            if (msg.method === 'ui/notifications/tool-result' || msg.method === 'ui/notifications/tool-input') {
-                var data = extractChartData(msg);
-                if (data) renderChart(data);
-            }
-
-            if (msg.method === 'ui/notifications/host-context-changed') {
-                applyTheme(msg.params);
-            }
-
-            if (msg.method === 'ui/resource-teardown' && msg.id) {
-                window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, '*');
-            }
-        });
-
-        var appIdentity = { name: "autovisualiser-chart", version: "1.0.0" };
-        sendRequest("ui/initialize", {
-            protocolVersion: "2026-01-26",
-            appInfo: appIdentity,
-            clientInfo: appIdentity,
-            appCapabilities: {
-                availableDisplayModes: ["inline", "fullscreen"]
+        McpAppBridge.init({
+            appName: "autovisualiser-chart",
+            onData: renderChart,
+            onTheme: function () {
+                if (McpAppBridge.currentData) renderChart(McpAppBridge.currentData);
             },
-            capabilities: {}
-        }).then(function(result) {
-            applyTheme(result.hostContext || result);
-            sendNotification("ui/notifications/initialized", {});
-            reportSize();
-        }).catch(function(err) {
-            console.warn('[autovisualiser-chart] ui/initialize failed:', err);
-            reportSize();
         });
     })();
     </script>

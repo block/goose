@@ -1,0 +1,93 @@
+/*
+ * MCP App Base — shared foundation styles for autovisualiser templates.
+ *
+ * All color, typography, and spacing values come from the 70+ host theme tokens.
+ * Fallback defaults (--color-background-primary: #fff etc.) are defined here
+ * for resilience, but are overridden at runtime by the bridge's applyTheme().
+ */
+
+/* ── Fallback tokens (overridden by host) ─────────────────────────── */
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f4f6f7;
+  --color-background-tertiary: #e3e6ea;
+  --color-text-primary: #3f434b;
+  --color-text-secondary: #878787;
+  --color-text-tertiary: #a7b0b9;
+  --color-border-primary: #e3e6ea;
+  --color-border-secondary: #e3e6ea;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: monospace;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-text-sm-size: 0.875rem;
+  --font-text-md-size: 1rem;
+  --font-text-xs-size: 0.75rem;
+  --font-heading-sm-size: 1.125rem;
+  --font-heading-xs-size: 1rem;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-text-sm-size);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-primary);
+  background: linear-gradient(
+      light-dark(rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.2)),
+      light-dark(rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.2))
+    ),
+    var(--color-background-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Loading state ─────────────────────────────────────────────────── */
+.av-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-text-sm-size);
+  letter-spacing: 0.01em;
+}
+
+.av-loading.hidden {
+  display: none;
+}
+
+/* ── Tooltip ───────────────────────────────────────────────────────── */
+.av-tooltip {
+  position: absolute;
+  background: var(--color-background-inverse, rgba(0, 0, 0, 0.85));
+  color: var(--color-text-inverse, #fff);
+  padding: 6px 10px;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-text-xs-size);
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 1000;
+  max-width: 280px;
+}
+
+.av-tooltip strong {
+  font-weight: var(--font-weight-semibold);
+}

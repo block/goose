@@ -523,11 +523,15 @@ impl ServerHandler for AutoVisualiserRouter {
     ) -> Result<ReadResourceResult, ErrorData> {
         let html = self.get_template_html(&params.uri)?;
 
+        let mut meta = Meta::new();
+        meta.0
+            .insert("ui".to_string(), json!({ "prefersBorder": true }));
+
         let resource_contents = ResourceContents::TextResourceContents {
             uri: params.uri,
             mime_type: Some(MCP_APPS_MIME_TYPE.to_string()),
             text: html,
-            meta: None,
+            meta: Some(meta),
         };
 
         Ok(ReadResourceResult::new(vec![resource_contents]))
@@ -580,7 +584,12 @@ impl AutoVisualiserRouter {
             "ui://autovisualiser/chart" => {
                 const TEMPLATE: &str = include_str!("templates/chart_template.html");
                 const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
-                Ok(TEMPLATE.replace("{{CHART_MIN}}", CHART_MIN))
+                const BASE_CSS: &str = include_str!("templates/assets/mcp-app-base.css");
+                const BRIDGE_JS: &str = include_str!("templates/assets/mcp-app-bridge.js");
+                Ok(TEMPLATE
+                    .replace("{{CHART_MIN}}", CHART_MIN)
+                    .replace("{{MCP_APP_BASE_CSS}}", BASE_CSS)
+                    .replace("{{MCP_APP_BRIDGE}}", BRIDGE_JS))
             }
             "ui://autovisualiser/sankey" => {
                 const TEMPLATE: &str = include_str!("templates/sankey_template.html");
