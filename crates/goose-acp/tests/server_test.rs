@@ -2,14 +2,36 @@ mod common_tests;
 use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::ClientToAgentConnection;
 use common_tests::{
-    run_config_mcp, run_initialize_without_provider, run_load_model, run_model_list, run_model_set,
+    run_config_mcp, run_fs_read_text_file_true, run_fs_write_text_file_false,
+    run_fs_write_text_file_true, run_initialize_doesnt_hit_provider,
+    run_initialize_without_provider, run_load_model, run_model_list, run_model_set,
     run_permission_persistence, run_prompt_basic, run_prompt_codemode, run_prompt_image,
-    run_prompt_mcp,
+    run_prompt_image_attachment, run_prompt_mcp,
 };
 
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_fs_read_text_file_true() {
+    run_test(async { run_fs_read_text_file_true::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_fs_write_text_file_false() {
+    run_test(async { run_fs_write_text_file_false::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_fs_write_text_file_true() {
+    run_test(async { run_fs_write_text_file_true::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_initialize_doesnt_hit_provider() {
+    run_test(async { run_initialize_doesnt_hit_provider::<ClientToAgentConnection>().await });
 }
 
 #[test]
@@ -50,6 +72,11 @@ fn test_prompt_codemode() {
 #[test]
 fn test_prompt_image() {
     run_test(async { run_prompt_image::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_prompt_image_attachment() {
+    run_test(async { run_prompt_image_attachment::<ClientToAgentConnection>().await });
 }
 
 #[test]

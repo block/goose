@@ -102,6 +102,10 @@ module.exports = [
         AnalyserNode: 'readonly',
         MediaRecorder: 'readonly',
         MediaStream: 'readonly',
+        AudioWorkletNode: 'readonly',
+        DOMException: 'readonly',
+        MediaDeviceInfo: 'readonly',
+        MediaTrackConstraints: 'readonly',
         Blob: 'readonly',
         FormData: 'readonly',
         // Build-time injected globals

@@ -35,7 +35,6 @@ import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
-import { useModelAndProvider } from './ModelAndProviderContext';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
@@ -182,13 +181,9 @@ export default function BaseChat({
     session,
   });
 
-  const { setProviderAndModel } = useModelAndProvider();
-
-  useEffect(() => {
-    if (session?.provider_name && session?.model_config?.model_name) {
-      setProviderAndModel(session.provider_name, session.model_config.model_name);
-    }
-  }, [session?.provider_name, session?.model_config?.model_name, setProviderAndModel]);
+  const sessionModel = session?.model_config?.model_name ?? null;
+  const sessionProvider = session?.provider_name ?? null;
+  const sessionLoaded = session !== undefined;
 
   useEffect(() => {
     if (!recipe) return;
@@ -499,6 +494,9 @@ export default function BaseChat({
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
+            sessionModel={sessionModel}
+            sessionProvider={sessionProvider}
+            sessionLoaded={sessionLoaded}
             {...customChatInputProps}
           />
         </div>

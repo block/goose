@@ -76,9 +76,14 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data) as Partial<Settings>;
-    // Deep merge to ensure nested objects get their defaults too
+    let stored: Partial<Settings>;
+    try {
+      const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+      stored = JSON.parse(data) as Partial<Settings>;
+    } catch (err) {
+      console.error('Failed to read settings.json, using defaults:', err);
+      return defaultSettings;
+    }
     return {
       ...defaultSettings,
       ...stored,
@@ -510,6 +515,14 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
+const resolveGoosePathRoot = (): string | undefined => {
+  const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
+  if (pathRoot) {
+    return expandTilde(pathRoot);
+  }
+  return undefined;
+};
+
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
 const getServerSecret = (settings: Settings): string => {
@@ -517,7 +530,13 @@ const getServerSecret = (settings: Settings): string => {
     return settings.externalGoosed.secret;
   }
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return 'test';
+    if (!process.env.GOOSE_SERVER__SECRET_KEY) {
+      throw new Error(
+        'GOOSE_SERVER__SECRET_KEY must be set when using GOOSE_EXTERNAL_BACKEND. ' +
+          'Set it to the same value on both the server and the desktop client.'
+      );
+    }
+    return process.env.GOOSE_SERVER__SECRET_KEY;
   }
   return GENERATED_SECRET;
 };
@@ -527,6 +546,7 @@ let appConfig = {
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'https://localhost',
+  GOOSE_PATH_ROOT: resolveGoosePathRoot(),
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -568,7 +588,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const goosedResult = await startGoosed({
     serverSecret,
     dir: dir || whiteLabelConfig.defaults.workingDir || os.homedir(),
-    env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
+    env: {
+      GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+    },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,
     resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
@@ -586,7 +608,13 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     await goosedResult.cleanup();
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    stopErrorLogCollection,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: whiteLabelConfig.window.width,
@@ -698,6 +726,11 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   } catch (err) {
     log.warn('[whitelabel] Init failed:', err);
   }
+
+  // errorLog is only needed during startup to detect fatal errors.
+  // Stop collecting stderr to avoid unbounded memory growth over long sessions.
+  stopErrorLogCollection();
+  errorLog.length = 0;
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);

@@ -21,6 +21,7 @@ pub struct ScanResult {
     pub is_malicious: bool,
     pub confidence: f32,
     pub explanation: String,
+    pub scanned: bool,
 }
 
 struct DetailedScanResult {
@@ -127,6 +128,7 @@ impl PromptInjectionScanner {
                 is_malicious: false,
                 confidence: 0.0,
                 explanation: "Tool call skipped: only shell commands are scanned".to_string(),
+                scanned: false,
             });
         }
 
@@ -180,6 +182,7 @@ impl PromptInjectionScanner {
             is_malicious: final_confidence >= threshold,
             confidence: final_confidence,
             explanation: self.build_explanation(&final_result, threshold, &tool_content),
+            scanned: true,
         })
     }
 

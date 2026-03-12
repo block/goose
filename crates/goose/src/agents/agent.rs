@@ -495,7 +495,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, tool_call, request_id, session), fields(input, output, session_id = %session.id))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -508,6 +508,11 @@ impl Agent {
             "arguments": tool_call.arguments,
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
+
+        self.prompt_manager
+            .lock()
+            .await
+            .record_tool_arguments(&tool_call.arguments, &session.working_dir);
 
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -1572,6 +1577,19 @@ impl Agent {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
+
+                {
+                    let has_new_hints = self
+                        .prompt_manager
+                        .lock()
+                        .await
+                        .load_subdirectory_hints(&working_dir);
+                    if has_new_hints && !tools_updated {
+                        (tools, toolshim_tools, system_prompt) =
+                            self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
+                    }
+                }
+
                 let mut exit_chat = false;
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {

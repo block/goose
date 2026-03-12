@@ -3,8 +3,8 @@ use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
     CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
-    ExtensionCapabilities, Extensions, JsonObject, LoggingMessageNotification, Meta,
-    SamplingMessageContent,
+    ExtensionCapabilities, Extensions, JsonObject, ListRootsResult, LoggingMessageNotification,
+    Meta, Root, SamplingMessageContent,
 };
 /// MCP client implementation for Goose
 use rmcp::{
@@ -25,7 +25,7 @@ use rmcp::{
     ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
-use std::{sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
@@ -100,17 +100,19 @@ pub trait McpClientTrait: Send + Sync {
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
         None
     }
+
+    async fn update_working_dir(&self, _new_dir: PathBuf) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     provider: SharedProvider,
-    /// Fallback session_id for server-initiated callbacks (e.g. sampling/createMessage)
-    /// that don't include the session_id in their MCP extensions metadata.
-    /// Set once on first request; never cleared (the id is invariant per McpClient).
     session_id: Mutex<Option<String>>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
 }
 
 impl GooseClient {
@@ -119,6 +121,7 @@ impl GooseClient {
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
+        working_dir: PathBuf,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
@@ -126,7 +129,12 @@ impl GooseClient {
             session_id: Mutex::new(None),
             client_name,
             capabilities,
+            working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
         }
+    }
+
+    pub fn shared_working_dir(&self) -> Arc<tokio::sync::RwLock<PathBuf>> {
+        self.working_dir.clone()
     }
 
     async fn set_session_id(&self, session_id: &str) {
@@ -158,7 +166,21 @@ impl GooseClient {
     }
 }
 
+fn working_dir_roots(dir: &std::path::Path) -> ListRootsResult {
+    let uri = url::Url::from_file_path(dir)
+        .map(|u| u.to_string())
+        .unwrap_or_else(|()| format!("file://{}", dir.display()));
+    ListRootsResult::new(vec![Root::new(uri).with_name("working_directory")])
+}
+
 impl ClientHandler for GooseClient {
+    async fn list_roots(
+        &self,
+        _context: RequestContext<RoleClient>,
+    ) -> Result<ListRootsResult, ErrorData> {
+        Ok(working_dir_roots(&self.working_dir.read().await))
+    }
+
     async fn on_progress(
         &self,
         params: rmcp::model::ProgressNotificationParam,
@@ -337,6 +359,7 @@ impl ClientHandler for GooseClient {
 
         InitializeRequestParams::new(
             ClientCapabilities::builder()
+                .enable_roots()
                 .enable_extensions_with(extensions)
                 .enable_sampling()
                 .enable_elicitation()
@@ -372,6 +395,7 @@ impl McpClient {
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
+        working_dir: PathBuf,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -384,6 +408,7 @@ impl McpClient {
             None,
             client_name,
             capabilities,
+            working_dir,
         )
         .await
     }
@@ -395,6 +420,7 @@ impl McpClient {
         docker_container: Option<String>,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
+        working_dir: PathBuf,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -408,6 +434,7 @@ impl McpClient {
             provider,
             client_name.clone(),
             capabilities.clone(),
+            working_dir,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
@@ -424,6 +451,14 @@ impl McpClient {
 
     pub fn docker_container(&self) -> Option<&str> {
         self.docker_container.as_deref()
+    }
+
+    async fn do_update_working_dir(&self, new_dir: PathBuf) -> Result<(), Error> {
+        let client = self.client.lock().await;
+        let shared = client.service().shared_working_dir();
+        *shared.write().await = new_dir;
+        client.peer().notify_roots_list_changed().await?;
+        Ok(())
     }
 
     async fn send_request_with_context(
@@ -639,6 +674,10 @@ impl McpClientTrait for McpClient {
         self.notification_subscribers.lock().await.push(tx);
         rx
     }
+
+    async fn update_working_dir(&self, new_dir: PathBuf) -> Result<(), Error> {
+        self.do_update_working_dir(new_dir).await
+    }
 }
 
 /// Injects the given session_id and working_dir into Extensions._meta.
@@ -736,6 +775,7 @@ mod tests {
             Arc::new(Mutex::new(None)),
             platform.to_string(),
             capabilities,
+            std::env::current_dir().unwrap_or_default(),
         )
     }
 
@@ -945,5 +985,24 @@ mod tests {
             .expect("ui extension should have mimeTypes");
 
         assert_eq!(mime_types, &json!(["text/html;profile=mcp-app"]));
+    }
+
+    #[test]
+    fn test_client_capabilities_advertise_roots() {
+        let client = new_client(GoosePlatform::GooseCli);
+        let info = ClientHandler::get_info(&client);
+        assert!(
+            info.capabilities.roots.is_some(),
+            "client should advertise roots capability"
+        );
+    }
+
+    #[test]
+    fn test_working_dir_roots_returns_current_dir_as_root() {
+        let dir = PathBuf::from("/tmp/test-project");
+        let result = working_dir_roots(&dir);
+        assert_eq!(result.roots.len(), 1);
+        assert_eq!(result.roots[0].uri, "file:///tmp/test-project");
+        assert_eq!(result.roots[0].name.as_deref(), Some("working_directory"));
     }
 }
