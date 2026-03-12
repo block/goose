@@ -111,13 +111,13 @@ impl AcpTools {
     async fn acp_read(
         &self,
         arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
+        ctx: &goose::agents::ToolCallContext,
     ) -> Result<CallToolResult, McpError> {
         let params: FileReadParams = match Self::parse_args(arguments) {
             Ok(p) => p,
             Err(e) => return Ok(error_result(e)),
         };
-        let path = resolve_path(&params.path, working_dir.map(Path::new));
+        let path = resolve_path(&params.path, ctx.working_dir.as_deref());
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {
             Ok(content) => Ok(with_location_meta(
@@ -132,13 +132,13 @@ impl AcpTools {
     async fn acp_write(
         &self,
         arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
+        ctx: &goose::agents::ToolCallContext,
     ) -> Result<CallToolResult, McpError> {
         let params: FileWriteParams = match Self::parse_args(arguments) {
             Ok(p) => p,
             Err(e) => return Ok(error_result(e)),
         };
-        let path = resolve_path(&params.path, working_dir.map(Path::new));
+        let path = resolve_path(&params.path, ctx.working_dir.as_deref());
         match acp_write_text_file(&self.cx, &self.session_id, &path, &params.content).await {
             Ok(()) => {
                 let line_count = params.content.lines().count();
@@ -160,13 +160,13 @@ impl AcpTools {
     async fn acp_edit(
         &self,
         arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
+        ctx: &goose::agents::ToolCallContext,
     ) -> Result<CallToolResult, McpError> {
         let params: FileEditParams = match Self::parse_args(arguments) {
             Ok(p) => p,
             Err(e) => return Ok(error_result(e)),
         };
-        let path = resolve_path(&params.path, working_dir.map(Path::new));
+        let path = resolve_path(&params.path, ctx.working_dir.as_deref());
 
         let content = match self.read_content(&path).await {
             Ok(c) => c,
@@ -223,20 +223,18 @@ impl McpClientTrait for AcpTools {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &goose::agents::ToolCallContext,
         name: &str,
         arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, McpError> {
         match name {
-            "read" if self.fs_read => self.acp_read(arguments, working_dir).await,
-            "write" if self.fs_write => self.acp_write(arguments, working_dir).await,
-            // edit reads then writes: require both caps so we don't mix editor buffer with local disk
-            "edit" if self.fs_read && self.fs_write => self.acp_edit(arguments, working_dir).await,
+            "read" if self.fs_read => self.acp_read(arguments, ctx).await,
+            "write" if self.fs_write => self.acp_write(arguments, ctx).await,
+            "edit" if self.fs_read && self.fs_write => self.acp_edit(arguments, ctx).await,
             _ => {
                 self.inner
-                    .call_tool(session_id, name, arguments, working_dir, cancellation_token)
+                    .call_tool(ctx, name, arguments, cancellation_token)
                     .await
             }
         }

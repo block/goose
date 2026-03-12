@@ -328,10 +328,15 @@ impl ProviderFixture {
         };
 
         let params = tool_req.tool_call.as_ref().unwrap().clone();
+        let ctx = goose::agents::ToolCallContext::new(
+            self.session_id.to_string(),
+            None,
+            Some("test-id".to_string()),
+        );
         let result = self
             .agent
             .extension_manager
-            .dispatch_tool_call(&self.session_id, params, None, CancellationToken::new())
+            .dispatch_tool_call(&ctx, params, CancellationToken::new())
             .await
             .unwrap()
             .result
