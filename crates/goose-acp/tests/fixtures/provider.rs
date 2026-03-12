@@ -12,7 +12,7 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
 use goose_test_support::TEST_MODEL;
-use sacp::schema::{AuthMethod, SessionModelState, ToolCallStatus};
+use sacp::schema::{AuthMethod, McpServer, SessionModelState, ToolCallStatus};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -180,6 +180,7 @@ impl Connection for ClientToProviderConnection {
     async fn load_session(
         &mut self,
         _session_id: &str,
+        _mcp_servers: Vec<McpServer>,
     ) -> (ClientToProviderSession, Option<SessionModelState>) {
         unimplemented!("TODO: implement load_session in ACP provider")
     }

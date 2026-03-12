@@ -250,13 +250,17 @@ impl Connection for ClientToAgentConnection {
     async fn load_session(
         &mut self,
         session_id: &str,
+        mcp_servers: Vec<McpServer>,
     ) -> (ClientToAgentSession, Option<SessionModelState>) {
         self.updates.lock().unwrap().clear();
         let work_dir = tempfile::tempdir().unwrap();
         let session_id = sacp::schema::SessionId::new(session_id.to_string());
         let response = self
             .cx
-            .send_request(LoadSessionRequest::new(session_id.clone(), work_dir.path()))
+            .send_request(
+                LoadSessionRequest::new(session_id.clone(), work_dir.path())
+                    .mcp_servers(mcp_servers),
+            )
             .block_task()
             .await
             .unwrap();

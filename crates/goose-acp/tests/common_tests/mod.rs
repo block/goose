@@ -5,14 +5,12 @@
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
 use fixtures::{
-    initialize_agent, Connection, FsFixture, OpenAiFixture, PermissionDecision, Session,
-    TestConnectionConfig,
+    Connection, FsFixture, OpenAiFixture, PermissionDecision, Session, TestConnectionConfig,
 };
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
-use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
 use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
 use std::sync::Arc;
@@ -192,34 +190,6 @@ pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
         .any(|m| &*m.id.0 == "goose-provider"));
 }
 
-#[allow(dead_code)]
-pub async fn run_initialize_without_provider() {
-    let temp_dir = tempfile::tempdir().unwrap();
-
-    let provider_factory: ProviderConstructor =
-        Arc::new(|_, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
-
-    let agent = Arc::new(
-        GooseAcpAgent::new(
-            provider_factory,
-            vec![],
-            temp_dir.path().to_path_buf(),
-            temp_dir.path().to_path_buf(),
-            GooseMode::Auto,
-            false,
-        )
-        .await
-        .unwrap(),
-    );
-
-    let resp = initialize_agent(agent).await;
-    assert!(!resp.auth_methods.is_empty());
-    assert!(resp
-        .auth_methods
-        .iter()
-        .any(|m| &*m.id.0 == "goose-provider"));
-}
-
 pub async fn run_load_model<C: Connection>() {
     let expected_session_id = ExpectedSessionId::default();
     let openai = OpenAiFixture::new(
@@ -243,7 +213,7 @@ pub async fn run_load_model<C: Connection>() {
     assert_eq!(output.text, "2");
 
     let session_id = session.session_id().0.to_string();
-    let (_, models) = conn.load_session(&session_id).await;
+    let (_, models) = conn.load_session(&session_id, vec![]).await;
     assert_eq!(&*models.unwrap().current_model_id.0, "o4-mini");
 }
 
@@ -495,6 +465,61 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
         .await;
     assert!(output.text.contains("Hello Goose!"));
     expected_session_id.assert_matches(&session.session_id().0);
+}
+
+pub async fn run_load_session_mcp<C: Connection>() {
+    let expected_session_id = ExpectedSessionId::default();
+    let prompt = "Use the get_code tool and output only its result.";
+    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let mcp_url = mcp.url.clone();
+
+    // Two rounds of tool call + tool result: one for new session, one for loaded session.
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_tool_call.txt"),
+            ),
+            (
+                format!(r#""content":"{FAKE_CODE}""#),
+                include_str!("../test_data/openai_tool_result.txt"),
+            ),
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_tool_call.txt"),
+            ),
+            (
+                format!(r#""content":"{FAKE_CODE}""#),
+                include_str!("../test_data/openai_tool_result.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", &mcp_url))];
+
+    let config = TestConnectionConfig {
+        mcp_servers: mcp_servers.clone(),
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+    let (mut session, _) = conn.new_session().await;
+    expected_session_id.set(session.session_id().0.to_string());
+
+    // First prompt: tool should work in the new session.
+    let output = session.prompt(prompt, PermissionDecision::Cancel).await;
+    assert_eq!(output.text, FAKE_CODE, "tool call failed in new session");
+
+    // Load the same session with MCP servers re-specified.
+    let session_id = session.session_id().0.to_string();
+    let (mut loaded_session, _) = conn.load_session(&session_id, mcp_servers).await;
+
+    // Second prompt: tool should work in the loaded session.
+    let output = loaded_session
+        .prompt(prompt, PermissionDecision::Cancel)
+        .await;
+    assert_eq!(output.text, FAKE_CODE, "tool call failed in loaded session");
 }
 
 pub async fn run_prompt_mcp<C: Connection>() {

@@ -299,6 +299,7 @@ pub trait Connection: Sized {
     async fn load_session(
         &mut self,
         session_id: &str,
+        mcp_servers: Vec<McpServer>,
     ) -> (Self::Session, Option<SessionModelState>);
     fn auth_methods(&self) -> &[AuthMethod];
     fn reset_openai(&self);
@@ -343,28 +344,6 @@ where
         // Re-raise the original panic so the test shows the real failure message.
         std::panic::resume_unwind(err);
     }
-}
-
-/// Connects to the given agent via in-process duplex streams, sends an
-/// `InitializeRequest`, and returns the response.
-#[allow(dead_code)]
-pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::InitializeResponse {
-    let (transport, _handle) = serve_agent_in_process(agent).await;
-    sacp::ClientToAgent::builder()
-        .connect_to(transport)
-        .unwrap()
-        .run_until(|cx: sacp::JrConnectionCx<sacp::ClientToAgent>| async move {
-            let resp = cx
-                .send_request(sacp::schema::InitializeRequest::new(
-                    sacp::schema::ProtocolVersion::LATEST,
-                ))
-                .block_task()
-                .await
-                .unwrap();
-            Ok::<_, sacp::Error>(resp)
-        })
-        .await
-        .unwrap()
 }
 
 pub mod provider;

@@ -51,8 +51,6 @@ socket2 = "0.6.1"
 fs2 = { workspace = true }
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 uuid = { workspace = true }
-once_cell = { workspace = true }
-dirs = { workspace = true }
 rcgen = "0.13"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 aws-lc-rs = "1.16.0"
@@ -70,6 +68,9 @@ path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
 tower = "0.5.2"
-env-lock = { workspace = true }
-wiremock = { workspace = true }
-tempfile.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winreg",
+]
