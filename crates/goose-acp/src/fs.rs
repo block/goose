@@ -1,3 +1,4 @@
+use crate::tools::AcpAwareToolMeta;
 use async_trait::async_trait;
 use fs_err as fs;
 use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
@@ -356,10 +357,22 @@ impl McpClientTrait for AcpTools {
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, McpError> {
         match name {
-            "read" if self.fs_read => self.acp_read(arguments, ctx).await,
-            "write" if self.fs_write => self.acp_write(arguments, ctx).await,
-            "edit" if self.fs_read && self.fs_write => self.acp_edit(arguments, ctx).await,
-            "shell" if self.terminal => self.acp_shell(arguments, ctx).await,
+            "read" if self.fs_read => self
+                .acp_read(arguments, ctx)
+                .await
+                .map(|r| r.with_acp_aware_meta()),
+            "write" if self.fs_write => self
+                .acp_write(arguments, ctx)
+                .await
+                .map(|r| r.with_acp_aware_meta()),
+            "edit" if self.fs_read && self.fs_write => self
+                .acp_edit(arguments, ctx)
+                .await
+                .map(|r| r.with_acp_aware_meta()),
+            "shell" if self.terminal => self
+                .acp_shell(arguments, ctx)
+                .await
+                .map(|r| r.with_acp_aware_meta()),
             _ => {
                 self.inner
                     .call_tool(ctx, name, arguments, cancellation_token)

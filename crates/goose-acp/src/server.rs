@@ -1,5 +1,6 @@
 use crate::custom_requests::*;
 use crate::fs::AcpTools;
+use crate::tools::AcpAwareToolMeta;
 use anyhow::Result;
 use fs_err as fs;
 use goose::acp::PermissionDecision;
@@ -577,20 +578,27 @@ impl GooseAcpAgent {
             Err(_) => ToolCallStatus::Failed,
         };
 
-        let content = build_tool_call_content(&tool_response.tool_result);
+        let mut fields = ToolCallUpdateFields::new().status(status);
+        if !tool_response
+            .tool_result
+            .as_ref()
+            .is_ok_and(|r| r.is_acp_aware())
+        {
+            let content = build_tool_call_content(&tool_response.tool_result);
+            fields = fields.content(content);
 
-        let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
-            if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
-                extract_tool_locations(tool_request, tool_response)
-            } else {
-                Vec::new()
+            let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
+                if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
+                    extract_tool_locations(tool_request, tool_response)
+                } else {
+                    Vec::new()
+                }
+            });
+            if !locations.is_empty() {
+                fields = fields.locations(locations);
             }
-        });
-
-        let mut fields = ToolCallUpdateFields::new().status(status).content(content);
-        if !locations.is_empty() {
-            fields = fields.locations(locations);
         }
+
         cx.send_notification(SessionNotification::new(
             session_id.clone(),
             SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
