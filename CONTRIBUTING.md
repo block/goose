@@ -43,7 +43,7 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 
 goose includes Rust binaries alongside an electron app for the GUI.
 
-We use [Hermit][hermit] to manage development dependencies (Rust, Node, npm, just, etc.).
+We use [Hermit][hermit] to manage development dependencies (Rust, Node, pnpm, just, etc.).
 Activate Hermit when entering the project:
 
 ```bash
@@ -107,6 +107,12 @@ cargo clippy --all-targets -- -D warnings # run the linter
 ```
 
 ### Node
+
+> [!NOTE]
+> This project uses **pnpm** (not npm). If you previously had `node_modules` installed via npm, remove them first:
+> ```bash
+> rm -rf node_modules **/node_modules
+> ```
 
 To run the app:
 
