@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
+use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -61,6 +62,160 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+
+/// Derive a one-sentence reason for the current LLM call based on conversation state.
+fn derive_call_reason(turns_taken: u32, conversation: &Conversation) -> String {
+    if turns_taken == 1 {
+        // Find the last user text message
+        let user_text = conversation
+            .messages()
+            .iter()
+            .rev()
+            .find(|m| m.role == rmcp::model::Role::User)
+            .and_then(|m| {
+                m.content.iter().find_map(|c| {
+                    if let MessageContent::Text(t) = c {
+                        Some(t.text.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or_default();
+        let truncated = if user_text.len() > 100 {
+            format!("{}...", &user_text[..100])
+        } else {
+            user_text
+        };
+        format!("Responding to user message: \"{}\"", truncated.replace('\n', " "))
+    } else {
+        // Find tool names from the most recent assistant tool-request messages
+        let tool_names: Vec<String> = conversation
+            .messages()
+            .iter()
+            .rev()
+            .take_while(|m| m.role == rmcp::model::Role::Assistant)
+            .flat_map(|m| {
+                m.content.iter().filter_map(|c| {
+                    if let MessageContent::ToolRequest(req) = c {
+                        req.tool_call.as_ref().ok().map(|tc| tc.name.to_string())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+        if tool_names.is_empty() {
+            "Continuing after context compaction or recovery".to_string()
+        } else {
+            format!("Processing results from tool call(s): {}", tool_names.join(", "))
+        }
+    }
+}
+
+fn llm_log_path() -> std::path::PathBuf {
+    crate::config::paths::Paths::data_dir().join("llm_calls.log")
+}
+
+fn open_log_file() -> Option<std::fs::File> {
+    let path = llm_log_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok()
+}
+
+/// Format a slice of messages into human-readable text for logging.
+fn format_messages_for_log(messages: &[Message]) -> String {
+    let mut out = String::new();
+    for msg in messages {
+        let role = match msg.role {
+            rmcp::model::Role::User => "user",
+            rmcp::model::Role::Assistant => "assistant",
+        };
+        for content in &msg.content {
+            match content {
+                MessageContent::Text(t) => {
+                    out.push_str(&format!("[{role}] {}\n", t.text));
+                }
+                MessageContent::ToolRequest(r) => {
+                    out.push_str(&format!("[{role}→tool] {}\n", r.to_readable_string()));
+                }
+                MessageContent::ToolResponse(r) => {
+                    let body = match &r.tool_result {
+                        Ok(res) => {
+                            let text = res.content.iter()
+                                .map(|c| format!("{c:?}"))
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            if text.len() > 2000 {
+                                format!("{}...[{} chars truncated]", &text[..2000], text.len() - 2000)
+                            } else {
+                                text
+                            }
+                        }
+                        Err(e) => format!("error: {e}"),
+                    };
+                    out.push_str(&format!("[tool_result] {body}\n"));
+                }
+                other => {
+                    out.push_str(&format!("[{role}:other] {other}\n"));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Write the request half of an LLM call to the log file, then open the response section.
+/// Streaming tokens will be written directly after this via `log_response_token`.
+fn log_llm_call_request(
+    session_id: &str,
+    turn: u32,
+    reason: &str,
+    system_prompt: &str,
+    messages: &[Message],
+) {
+    let Some(mut file) = open_log_file() else { return };
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    let sep = "=".repeat(72);
+    let _ = writeln!(file, "\n{sep}");
+    let _ = writeln!(file, "TIME:    {now}");
+    let _ = writeln!(file, "SESSION: {session_id}  TURN: {turn}");
+    let _ = writeln!(file, "REASON:  {reason}");
+    let _ = writeln!(file, "\n--- SYSTEM PROMPT ---");
+    let _ = writeln!(file, "{system_prompt}");
+    let _ = writeln!(file, "\n--- MESSAGES ({}) ---", messages.len());
+    let _ = write!(file, "{}", format_messages_for_log(messages));
+    // Leave the file open at the start of the response section so tokens stream in.
+    let _ = writeln!(file, "\n--- RESPONSE (streaming) ---");
+    let _ = write!(file, "[assistant] ");
+}
+
+/// Write a streaming text token directly to the log file (no newline — tokens flow inline).
+fn log_response_token(text: &str) {
+    if text.is_empty() { return; }
+    let Some(mut file) = open_log_file() else { return };
+    let _ = write!(file, "{text}");
+}
+
+/// Write a tool request that arrived mid-stream to the log file.
+fn log_response_tool_request(r: &str) {
+    let Some(mut file) = open_log_file() else { return };
+    let _ = writeln!(file, "\n[assistant→tool] {r}");
+}
+
+/// Write the timing footer after the stream finishes.
+fn log_response_end(duration: std::time::Duration) {
+    let Some(mut file) = open_log_file() else { return };
+    let sep = "=".repeat(72);
+    let _ = writeln!(file, "\n--- COMPLETE ({}ms) ---", duration.as_millis());
+    let _ = writeln!(file, "{sep}");
+}
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -1161,6 +1316,16 @@ impl Agent {
                     &working_dir,
                 ).await;
 
+                let call_reason = derive_call_reason(turns_taken, &conversation);
+                log_llm_call_request(
+                    &session_config.id,
+                    turns_taken,
+                    &call_reason,
+                    &system_prompt,
+                    conversation_with_moim.messages(),
+                );
+                let call_start = std::time::Instant::now();
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &session_config.id,
@@ -1210,6 +1375,14 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
+                                // Stream tokens and tool requests to the log file as they arrive.
+                                for content in &response.content {
+                                    match content {
+                                        MessageContent::Text(t) => log_response_token(&t.text),
+                                        MessageContent::ToolRequest(r) => log_response_tool_request(&r.to_readable_string()),
+                                        _ => {}
+                                    }
+                                }
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -1482,12 +1655,12 @@ impl Agent {
 
                             if compaction_attempts >= 2 {
                                 error!("Context limit exceeded after compaction - prompt too large");
-                                yield AgentEvent::Message(
-                                    Message::assistant().with_system_notification(
-                                        SystemNotificationType::InlineMessage,
-                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
-                                    )
+                                let msg = Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
                                 );
+                                messages_to_add.push(msg.clone());
+                                yield AgentEvent::Message(msg);
                                 break;
                             }
 
@@ -1541,37 +1714,38 @@ impl Agent {
                                 "top_up_url": top_up_url,
                             });
 
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification_with_data(
-                                    SystemNotificationType::CreditsExhausted,
-                                    user_msg,
-                                    notification_data,
-                                )
+                            let msg = Message::assistant().with_system_notification_with_data(
+                                SystemNotificationType::CreditsExhausted,
+                                user_msg,
+                                notification_data,
                             );
+                            messages_to_add.push(msg.clone());
+                            yield AgentEvent::Message(msg);
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("{provider_err}\n\nPlease resend your message to try again.")
-                                )
+                            let msg = Message::assistant().with_text(
+                                format!("{provider_err}\n\nPlease resend your message to try again.")
                             );
+                            messages_to_add.push(msg.clone());
+                            yield AgentEvent::Message(msg);
                             break;
                         }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                )
+                            let msg = Message::assistant().with_text(
+                                format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                             );
+                            messages_to_add.push(msg.clone());
+                            yield AgentEvent::Message(msg);
                             break;
                         }
                     }
                 }
+                log_response_end(call_start.elapsed());
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
