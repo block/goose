@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
-import { toastError } from '../toasts';
 
 import {
   getSession,
   Message,
-  MessageEvent,
-  reply,
   resumeAgent,
   Session,
+  sessionCancel,
+  sessionReply,
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
@@ -27,6 +27,8 @@ import {
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
+import { useSessionEvents } from './useSessionEvents';
+import type { SessionEvent } from '../api/sessionSseClient';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -202,14 +204,16 @@ function prefersReducedMotion(): boolean {
 
 const REDUCED_MOTION_BATCH_INTERVAL = 1000;
 
-async function streamFromResponse(
-  stream: AsyncIterable<MessageEvent>,
+/**
+ * Creates an event processor that handles individual SSE events for a request.
+ * Returns an unsubscribe function and a handler to process events.
+ */
+function createEventProcessor(
   initialMessages: Message[],
   dispatch: React.Dispatch<StreamAction>,
   onFinish: (error?: string) => void,
   sessionId: string,
-  signal?: AbortController['signal']
-): Promise<void> {
+) {
   let currentMessages = initialMessages;
   const reduceMotion = prefersReducedMotion();
   let latestTokenState: TokenState | null = null;
@@ -251,88 +255,71 @@ async function streamFromResponse(
     }
   };
 
-  try {
-    for await (const event of stream) {
-      switch (event.type) {
-        case 'Message': {
-          const msg = event.message;
-          currentMessages = pushMessage(currentMessages, msg);
+  // Returns true if the event is terminal (Finish or Error)
+  const processEvent = (event: SessionEvent): boolean => {
+    switch (event.type) {
+      case 'Message': {
+        const msg = (event as Record<string, unknown>).message as Message;
+        const tokenState = (event as Record<string, unknown>).token_state as TokenState;
+        currentMessages = pushMessage(currentMessages, msg);
 
-          const hasToolConfirmation = msg.content.some(
-            (content) =>
-              content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
-          );
+        const hasToolConfirmation = msg.content.some(
+          (content) =>
+            content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
+        );
 
-          const hasElicitation = msg.content.some(
-            (content) =>
-              content.type === 'actionRequired' && content.data.actionType === 'elicitation'
-          );
+        const hasElicitation = msg.content.some(
+          (content) =>
+            content.type === 'actionRequired' && content.data.actionType === 'elicitation'
+        );
 
-          if (hasToolConfirmation || hasElicitation) {
-            maybeUpdateUI(event.token_state, ChatState.WaitingForUserInput, true);
-          } else if (getCompactingMessage(msg)) {
-            maybeUpdateUI(event.token_state, ChatState.Compacting);
-          } else if (getThinkingMessage(msg)) {
-            maybeUpdateUI(event.token_state, ChatState.Thinking);
-          } else {
-            maybeUpdateUI(event.token_state, ChatState.Streaming);
-          }
-          break;
+        if (hasToolConfirmation || hasElicitation) {
+          maybeUpdateUI(tokenState, ChatState.WaitingForUserInput, true);
+        } else if (getCompactingMessage(msg)) {
+          maybeUpdateUI(tokenState, ChatState.Compacting);
+        } else if (getThinkingMessage(msg)) {
+          maybeUpdateUI(tokenState, ChatState.Thinking);
+        } else {
+          maybeUpdateUI(tokenState, ChatState.Streaming);
         }
-        case 'Error': {
-          flushBatchedUpdates();
-          onFinish('Stream error: ' + event.error);
-          return;
-        }
-        case 'Finish': {
-          flushBatchedUpdates();
-          onFinish();
-          return;
-        }
-        case 'ModelChange': {
-          break;
-        }
-        case 'UpdateConversation': {
-          currentMessages = event.conversation;
-          if (!reduceMotion) {
-            dispatch({ type: 'SET_MESSAGES', payload: event.conversation });
-          } else {
-            hasPendingUpdate = true;
-          }
-          break;
-        }
-        case 'Notification': {
-          dispatch({ type: 'ADD_NOTIFICATION', payload: event as NotificationEvent });
-          maybeHandlePlatformEvent(event.message, sessionId);
-          break;
-        }
-        case 'Ping':
-          break;
+        return false;
       }
+      case 'Error': {
+        flushBatchedUpdates();
+        onFinish('Stream error: ' + (event as Record<string, unknown>).error);
+        return true;
+      }
+      case 'Finish': {
+        flushBatchedUpdates();
+        onFinish();
+        return true;
+      }
+      case 'ModelChange': {
+        return false;
+      }
+      case 'UpdateConversation': {
+        const conversation = (event as Record<string, unknown>).conversation as Message[];
+        currentMessages = conversation;
+        if (!reduceMotion) {
+          dispatch({ type: 'SET_MESSAGES', payload: conversation });
+        } else {
+          hasPendingUpdate = true;
+        }
+        return false;
+      }
+      case 'Notification': {
+        dispatch({ type: 'ADD_NOTIFICATION', payload: event as unknown as NotificationEvent });
+        maybeHandlePlatformEvent((event as Record<string, unknown>).message, sessionId);
+        return false;
+      }
+      case 'Ping':
+        return false;
+      default:
+        return false;
     }
+  };
 
-    // If we reach here, the stream ended without a Finish or Error event.
-    // This happens when the connection drops and retries are exhausted — the
-    // generator exits its loop without yielding a terminal event. We call
-    // onFinish() without an error to keep the conversation visible (passing
-    // an error would trigger a full-page error screen via sessionLoadError),
-    // then show a toast so the user knows the response may be incomplete.
-    // If the signal was aborted, the user intentionally stopped streaming,
-    // so we skip the toast.
-    flushBatchedUpdates();
-    onFinish();
-    if (!signal?.aborted) {
-      toastError({
-        title: 'Connection lost',
-        msg: 'The response may be incomplete. You can try sending your message again.',
-      });
-    }
-  } catch (error) {
-    flushBatchedUpdates();
-    if (error instanceof Error && error.name !== 'AbortError') {
-      onFinish('Stream error: ' + errorMessage(error));
-    }
-  }
+  return processEvent;
 }
 
 export function useChatStream({
@@ -342,8 +329,12 @@ export function useChatStream({
 }: UseChatStreamProps): UseChatStreamReturn {
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
-  // Refs for values needed in callbacks without causing re-renders
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // Long-lived SSE connection for this session
+  const { addListener } = useSessionEvents(sessionId);
+
+  // Track the active request for cancellation
+  const activeRequestIdRef = useRef<string | null>(null);
+  const activeUnsubscribeRef = useRef<(() => void) | null>(null);
   const lastInteractionTimeRef = useRef<number>(Date.now());
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -368,6 +359,13 @@ export function useChatStream({
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
+      // Unsubscribe from event listener
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
+      }
+      activeRequestIdRef.current = null;
+
       if (namePollingRef.current) {
         clearTimeout(namePollingRef.current);
         namePollingRef.current = null;
@@ -389,13 +387,10 @@ export function useChatStream({
       }
 
       // Refresh session name after each reply for the first 3 user messages
-      // The backend regenerates the name after each of the first 3 user messages
-      // to refine it as more context becomes available
       if (!error && sessionId) {
         const currentState = stateRef.current;
         const userMessageCount = currentState.messages.filter((m) => m.role === 'user').length;
 
-        // Only refresh for the first 3 user messages
         if (userMessageCount <= 3) {
           try {
             const response = await getSession({
@@ -409,7 +404,6 @@ export function useChatStream({
                   ? { ...currentState.session, name: response.data.name }
                   : undefined,
               });
-              // Notify sidebar of the name change
               window.dispatchEvent(
                 new CustomEvent(AppEvents.SESSION_RENAMED, {
                   detail: { sessionId, newName: response.data.name },
@@ -417,7 +411,6 @@ export function useChatStream({
               );
             }
           } catch (refreshError) {
-            // Silently fail - this is a nice-to-have feature
             console.warn('Failed to refresh session name:', refreshError);
           }
         }
@@ -426,6 +419,66 @@ export function useChatStream({
       onStreamFinish();
     },
     [onStreamFinish, sessionId]
+  );
+
+  /**
+   * Submit a message via the new POST+SSE pattern.
+   * 1. Generate request_id
+   * 2. Register SSE listener BEFORE POST (no race condition)
+   * 3. POST to /sessions/{id}/reply
+   * 4. Events arrive on the long-lived SSE connection
+   */
+  const submitToSession = useCallback(
+    async (
+      targetSessionId: string,
+      userMessage: Message,
+      currentMessages: Message[],
+      overrideConversation?: Message[],
+      recipeName?: string,
+      recipeVersion?: string,
+    ) => {
+      const requestId = uuidv7();
+      activeRequestIdRef.current = requestId;
+
+      // Create event processor and register listener BEFORE the POST
+      const processEvent = createEventProcessor(
+        currentMessages,
+        dispatch,
+        onFinish,
+        targetSessionId,
+      );
+
+      const unsubscribe = addListener(requestId, (event) => {
+        const isTerminal = processEvent(event);
+        if (isTerminal) {
+          unsubscribe();
+          activeUnsubscribeRef.current = null;
+          activeRequestIdRef.current = null;
+        }
+      });
+      activeUnsubscribeRef.current = unsubscribe;
+
+      try {
+        await sessionReply({
+          path: { id: targetSessionId },
+          body: {
+            request_id: requestId,
+            user_message: userMessage,
+            override_conversation: overrideConversation,
+            recipe_name: recipeName,
+            recipe_version: recipeVersion,
+          },
+          throwOnError: true,
+        });
+      } catch (error) {
+        // POST failed — clean up listener and report error
+        unsubscribe();
+        activeUnsubscribeRef.current = null;
+        activeRequestIdRef.current = null;
+        onFinish('Submit error: ' + errorMessage(error));
+      }
+    },
+    [addListener, onFinish]
   );
 
   // Load session on mount or sessionId change
@@ -520,7 +573,6 @@ export function useChatStream({
       const { msg: userMessage, images } = input;
       const currentState = stateRef.current;
 
-      // Guard: Don't submit if session hasn't been loaded yet
       if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
         return;
       }
@@ -528,7 +580,6 @@ export function useChatStream({
       const hasExistingMessages = currentState.messages.length > 0;
       const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
 
-      // Don't submit if there's no message and no conversation to continue
       if (!hasNewMessage && !hasExistingMessages) {
         return;
       }
@@ -539,10 +590,8 @@ export function useChatStream({
       if (!hasExistingMessages && hasNewMessage) {
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
 
-        // Start polling for session name update during streaming
-        // The backend generates the name in parallel with the response
         const pollForName = async (attempts = 0) => {
-          if (attempts >= 20) return; // Max 20 attempts (10 seconds)
+          if (attempts >= 20) return;
 
           try {
             const response = await getSession({
@@ -553,7 +602,6 @@ export function useChatStream({
             const currentName = currentState.session?.name;
             const newName = response.data?.name;
 
-            // Check if name has changed from the initial name
             if (newName && newName !== currentName) {
               dispatch({
                 type: 'SET_SESSION',
@@ -566,13 +614,12 @@ export function useChatStream({
                   detail: { sessionId, newName },
                 })
               );
-              return; // Stop polling once name is updated
+              return;
             }
           } catch {
             // Silently continue polling
           }
 
-          // Continue polling if still streaming
           const latestState = stateRef.current;
           if (
             latestState.chatState === ChatState.Streaming ||
@@ -583,7 +630,6 @@ export function useChatStream({
           }
         };
 
-        // Start polling after a short delay to give backend time to start name generation
         namePollingRef.current = setTimeout(() => pollForName(0), 1000);
       }
 
@@ -599,38 +645,10 @@ export function useChatStream({
       }
 
       dispatch({ type: 'START_STREAMING' });
-      abortControllerRef.current = new AbortController();
 
-      try {
-        const { stream } = await reply({
-          body: {
-            session_id: sessionId,
-            user_message: newMessage,
-          },
-          throwOnError: true,
-          signal: abortControllerRef.current.signal,
-          sseMaxRetryAttempts: 0,
-        });
-
-        await streamFromResponse(
-          stream,
-          currentMessages,
-          dispatch,
-          onFinish,
-          sessionId,
-          abortControllerRef.current.signal
-        );
-      } catch (error) {
-        // AbortError is expected when user stops streaming
-        if (error instanceof Error && error.name === 'AbortError') {
-          // Silently handle abort
-        } else {
-          // Unexpected error during fetch setup (streamFromResponse handles its own errors)
-          onFinish('Submit error: ' + errorMessage(error));
-        }
-      }
+      await submitToSession(sessionId, newMessage, currentMessages);
     },
-    [sessionId, onFinish]
+    [sessionId, onFinish, submitToSession]
   );
 
   const submitElicitationResponse = useCallback(
@@ -648,36 +666,10 @@ export function useChatStream({
 
       dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
       dispatch({ type: 'START_STREAMING' });
-      abortControllerRef.current = new AbortController();
 
-      try {
-        const { stream } = await reply({
-          body: {
-            session_id: sessionId,
-            user_message: responseMessage,
-          },
-          throwOnError: true,
-          signal: abortControllerRef.current.signal,
-          sseMaxRetryAttempts: 0,
-        });
-
-        await streamFromResponse(
-          stream,
-          currentMessages,
-          dispatch,
-          onFinish,
-          sessionId,
-          abortControllerRef.current.signal
-        );
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          // Silently handle abort
-        } else {
-          onFinish('Submit error: ' + errorMessage(error));
-        }
-      }
+      await submitToSession(sessionId, responseMessage, currentMessages);
     },
-    [sessionId, onFinish]
+    [sessionId, onFinish, submitToSession]
   );
 
   const setRecipeUserParams = useCallback(
@@ -694,7 +686,6 @@ export function useChatStream({
           },
           throwOnError: true,
         });
-        // TODO(Douwe): get this from the server instead of emulating it here
         dispatch({
           type: 'SET_SESSION',
           payload: {
@@ -713,9 +704,6 @@ export function useChatStream({
   );
 
   useEffect(() => {
-    // This should happen on the server when the session is loaded or changed
-    // use session.id to support changing of sessions rather than depending on the
-    // stable sessionId.
     if (state.session) {
       updateFromSession({
         body: {
@@ -727,10 +715,27 @@ export function useChatStream({
   }, [state.session]);
 
   const stopStreaming = useCallback(() => {
-    abortControllerRef.current?.abort();
+    const requestId = activeRequestIdRef.current;
+    if (requestId) {
+      // Send cancel request to the server
+      sessionCancel({
+        path: { id: sessionId },
+        body: { request_id: requestId },
+      }).catch((e) => {
+        console.warn('Failed to cancel request:', e);
+      });
+    }
+
+    // Clean up listener
+    if (activeUnsubscribeRef.current) {
+      activeUnsubscribeRef.current();
+      activeUnsubscribeRef.current = null;
+    }
+    activeRequestIdRef.current = null;
+
     dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
     lastInteractionTimeRef.current = Date.now();
-  }, []);
+  }, [sessionId]);
 
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
@@ -795,34 +800,7 @@ export function useChatStream({
             dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
             dispatch({ type: 'START_STREAMING' });
 
-            abortControllerRef.current = new AbortController();
-
-            try {
-              const { stream } = await reply({
-                body: {
-                  session_id: targetSessionId,
-                  user_message: updatedUserMessage,
-                },
-                throwOnError: true,
-                signal: abortControllerRef.current.signal,
-                sseMaxRetryAttempts: 0,
-              });
-
-              await streamFromResponse(
-                stream,
-                messagesForUI,
-                dispatch,
-                onFinish,
-                targetSessionId,
-                abortControllerRef.current.signal
-              );
-            } catch (error) {
-              if (error instanceof Error && error.name === 'AbortError') {
-                dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
-              } else {
-                throw error;
-              }
-            }
+            await submitToSession(targetSessionId, updatedUserMessage, messagesForUI);
           } else {
             await handleSubmit({ msg: newContent, images: [] });
           }
@@ -838,7 +816,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, handleSubmit, onFinish]
+    [sessionId, handleSubmit, onFinish, submitToSession]
   );
 
   const setChatState = useCallback((newState: ChatState) => {
