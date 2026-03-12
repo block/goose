@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { SessionSseClient, type SessionEvent } from '../api/sessionSseClient';
+import { SessionSseClient, type SessionEvent } from '../utils/sessionSseClient';
 
 type EventHandler = (event: SessionEvent) => void;
 

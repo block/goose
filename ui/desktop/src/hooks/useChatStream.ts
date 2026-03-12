@@ -28,7 +28,7 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents } from './useSessionEvents';
-import type { SessionEvent } from '../api/sessionSseClient';
+import type { SessionEvent } from '../utils/sessionSseClient';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
