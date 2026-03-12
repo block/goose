@@ -1,0 +1,74 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to test"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  check-fork:
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+    steps:
+      - run: echo "Not a fork PR - proceeding with e2e tests"
+
+  changes:
+    runs-on: ubuntu-latest
+    needs: check-fork
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Check for code changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '!documentation/**'
+
+  e2e-tests:
+    name: Desktop E2E Tests
+    runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
+
+      - name: Build and run E2E tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-haiku-4-5-20251001
+          GOOSE_DISABLE_KEYRING: "1"
+        run: source ./bin/activate-hermit && just run-ui-playwright
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: test-results
+          path: ui/desktop/test-results/
+          retention-days: 5

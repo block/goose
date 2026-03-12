@@ -36,6 +36,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
 }) => {
   return (
     <DropdownMenuContent
+      data-testid="chat-sessions-list"
       className="w-64 p-1 bg-background-primary border-border-secondary rounded-lg shadow-lg"
       side={side}
       align="start"
@@ -43,6 +44,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
       style={zIndex ? { zIndex } : undefined}
     >
       <DropdownMenuItem
+        data-testid="chat-start-new"
         onClick={onNewChat}
         className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
       >
@@ -92,6 +94,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
         <>
           <DropdownMenuSeparator className="my-1" />
           <DropdownMenuItem
+            data-testid="chat-show-all"
             onClick={onShowAll}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-secondary"
           >

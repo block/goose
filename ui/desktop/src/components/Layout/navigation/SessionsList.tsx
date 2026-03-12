@@ -54,12 +54,14 @@ export const SessionsList: React.FC<SessionsListProps> = ({
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="overflow-hidden mt-[2px]"
+          data-testid="chat-sessions-list"
         >
           <div className="bg-background-primary rounded-lg py-1 flex flex-col gap-[2px]">
             {/* New Chat button as first item */}
             {onNewChat && (
               <div
                 onClick={onNewChat}
+                data-testid="chat-start-new"
                 className={cn(
                   'w-full text-left py-1.5 px-2 text-xs rounded-md',
                   'hover:bg-background-tertiary transition-colors',
@@ -126,6 +128,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
             {onShowAll && sessions.length > 0 && (
               <div
                 onClick={onShowAll}
+                data-testid="chat-show-all"
                 className={cn(
                   'w-full text-left py-1.5 px-2 text-xs rounded-md',
                   'hover:bg-background-tertiary transition-colors',

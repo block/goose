@@ -1,4 +1,5 @@
-import { test, expect } from './fixtures';
+import { test } from './fixtures';
+import { expect } from '@playwright/test';
 
 test.describe('Performance Tests', () => {
   test('measure end-to-end performance for prompt submission', async ({ goosePage }) => {

@@ -98,6 +98,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
 
   return (
     <div
+      data-testid="alert-box"
       className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}
       onMouseDown={(e) => {
         // Prevent popover from closing when clicking inside the alert box
@@ -251,14 +252,17 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           </div>
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
-              <span className={'dark:text-black/60 text-white/60'}>
+              <span
+                className={'dark:text-black/60 text-white/60'}
+                data-testid="alert-progress-current"
+              >
                 {formatTokenCount(alert.progress!.current)}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>
                 {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
               </span>
             </div>
-            <span className={'dark:text-black/60 text-white/60'}>
+            <span className={'dark:text-black/60 text-white/60'} data-testid="alert-progress-total">
               {formatTokenCount(alert.progress!.total)}
             </span>
           </div>
