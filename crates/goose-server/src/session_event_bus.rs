@@ -69,10 +69,7 @@ impl SessionEventBus {
 
         let replay = if let Some(last_id) = last_event_id {
             let buf = self.buffer.lock().await;
-            buf.iter()
-                .filter(|e| e.seq > last_id)
-                .cloned()
-                .collect()
+            buf.iter().filter(|e| e.seq > last_id).cloned().collect()
         } else {
             Vec::new()
         };
@@ -122,11 +119,8 @@ mod tests {
         let bus = SessionEventBus::new();
 
         // Publish some events
-        bus.publish(
-            Some("req-1".to_string()),
-            MessageEvent::Ping,
-        )
-        .await;
+        bus.publish(Some("req-1".to_string()), MessageEvent::Ping)
+            .await;
         bus.publish(
             Some("req-1".to_string()),
             MessageEvent::Finish {
