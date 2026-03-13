@@ -2,7 +2,9 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
-use crate::providers::base::{ConfigKey, MessageStream, OauthResponseData, Provider, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    ConfigKey, MessageStream, OauthResponseData, Provider, ProviderDef, ProviderMetadata,
+};
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status_openai_compat;

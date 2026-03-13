@@ -865,8 +865,8 @@ pub async fn configure_provider_oauth(
     Path(provider_name): Path<String>,
 ) -> Result<Json<OauthResponse>, ErrorResponse> {
     use goose::model::ModelConfig;
-    use goose::providers::create;
     use goose::providers::base::OauthResponseData;
+    use goose::providers::create;
 
     if !is_valid_provider_name(&provider_name) {
         return Err(ErrorResponse::bad_request(format!(
@@ -907,14 +907,17 @@ pub async fn configure_provider_oauth(
 
     match response {
         OauthResponseData::Completed { message } => {
-            Ok(Json(OauthResponse::Completed(OauthCompletedResponse { message })))
-        }
-        OauthResponseData::DeviceCode { user_code, verification_uri } => {
-            Ok(Json(OauthResponse::DeviceCode(DeviceCodeResponse {
-                user_code,
-                verification_uri,
+            Ok(Json(OauthResponse::Completed(OauthCompletedResponse {
+                message,
             })))
         }
+        OauthResponseData::DeviceCode {
+            user_code,
+            verification_uri,
+        } => Ok(Json(OauthResponse::DeviceCode(DeviceCodeResponse {
+            user_code,
+            verification_uri,
+        }))),
     }
 }
 

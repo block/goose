@@ -14,12 +14,15 @@ use std::path::PathBuf;
 use std::time::Duration;
 use webbrowser;
 
-use crate::providers::base::{ConfigKey, MessageStream, OauthResponseData, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
-use crate::providers::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, ImageFormat, RequestLog};
+use crate::providers::base::{
+    ConfigKey, MessageStream, OauthResponseData, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
+use crate::providers::errors::ProviderError;
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
@@ -577,7 +580,9 @@ impl Provider for GithubCopilotProvider {
                     // Save the token
                     config
                         .set_secret("GITHUB_COPILOT_TOKEN", &token)
-                        .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
+                        .map_err(|e| {
+                            ProviderError::ExecutionError(format!("Failed to save token: {}", e))
+                        })?;
 
                     // Clear the stored device code
                     *device_code_guard = None;
@@ -589,7 +594,10 @@ impl Provider for GithubCopilotProvider {
                 Err(e) => {
                     // Polling failed, clear device code and return error
                     *device_code_guard = None;
-                    return Err(ProviderError::Authentication(format!("OAuth polling failed: {}", e)));
+                    return Err(ProviderError::Authentication(format!(
+                        "OAuth polling failed: {}",
+                        e
+                    )));
                 }
             }
         }

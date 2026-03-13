@@ -457,7 +457,10 @@ pub enum OauthResponseData {
     /// OAuth flow completed successfully (callback-based providers)
     Completed { message: String },
     /// Device code info returned (for device code flow providers)
-    DeviceCode { user_code: String, verification_uri: String },
+    DeviceCode {
+        user_code: String,
+        verification_uri: String,
+    },
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
