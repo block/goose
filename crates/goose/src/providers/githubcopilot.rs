@@ -19,8 +19,8 @@ use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::providers::base::{
-    ConfigKey, MessageStream, OauthResponseData, Provider, ProviderDef, ProviderMetadata,
-    ProviderUsage, Usage,
+    ConfigKey, DeviceCodeData, MessageStream, OauthCompletedData, OauthResponseData, Provider,
+    ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use crate::providers::errors::ProviderError;
 
@@ -560,9 +560,9 @@ impl Provider for GithubCopilotProvider {
             // Try to refresh API info to validate the token
             match self.refresh_api_info().await {
                 Ok(_) => {
-                    return Ok(OauthResponseData::Completed {
+                    return Ok(OauthResponseData::Completed(OauthCompletedData {
                         message: "OAuth configuration completed".to_string(),
-                    })
+                    }))
                 }
                 Err(_) => {
                     // Token is invalid, continue with OAuth flow
@@ -587,9 +587,9 @@ impl Provider for GithubCopilotProvider {
                     // Clear the stored device code
                     *device_code_guard = None;
 
-                    return Ok(OauthResponseData::Completed {
+                    return Ok(OauthResponseData::Completed(OauthCompletedData {
                         message: "OAuth configuration completed".to_string(),
-                    });
+                    }));
                 }
                 Err(e) => {
                     // Polling failed, clear device code and return error
@@ -613,10 +613,10 @@ impl Provider for GithubCopilotProvider {
         *device_code_guard = Some(device_code_info.device_code.clone());
         drop(device_code_guard);
 
-        Ok(OauthResponseData::DeviceCode {
+        Ok(OauthResponseData::DeviceCode(DeviceCodeData {
             user_code: device_code_info.user_code,
             verification_uri: device_code_info.verification_uri,
-        })
+        }))
     }
 }
 

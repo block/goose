@@ -3,7 +3,8 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{
-    ConfigKey, MessageStream, OauthResponseData, Provider, ProviderDef, ProviderMetadata,
+    ConfigKey, MessageStream, OauthCompletedData, OauthResponseData, Provider, ProviderDef,
+    ProviderMetadata,
 };
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
@@ -925,9 +926,9 @@ impl Provider for ChatGptCodexProvider {
             .get_valid_token()
             .await
             .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
-        Ok(OauthResponseData::Completed {
+        Ok(OauthResponseData::Completed(OauthCompletedData {
             message: "OAuth configuration completed".to_string(),
-        })
+        }))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

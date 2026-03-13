@@ -451,16 +451,28 @@ pub trait LeadWorkerProviderTrait {
     fn get_settings(&self) -> (usize, usize, usize);
 }
 
+/// OAuth flow completed successfully (callback-based providers)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OauthCompletedData {
+    pub message: String,
+}
+
+/// Device code info returned (for device code flow providers)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCodeData {
+    pub user_code: String,
+    pub verification_uri: String,
+}
+
 /// Response data from OAuth configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum OauthResponseData {
     /// OAuth flow completed successfully (callback-based providers)
-    Completed { message: String },
+    Completed(OauthCompletedData),
     /// Device code info returned (for device code flow providers)
-    DeviceCode {
-        user_code: String,
-        verification_uri: String,
-    },
+    DeviceCode(DeviceCodeData),
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
@@ -1085,9 +1097,9 @@ mod tests {
 
     #[test]
     fn test_oauth_response_data_completed_serializes() {
-        let data = OauthResponseData::Completed {
+        let data = OauthResponseData::Completed(OauthCompletedData {
             message: "OAuth configuration completed".to_string(),
-        };
+        });
         let json = serde_json::to_string(&data).unwrap();
 
         assert!(json.contains("OAuth configuration completed"));
@@ -1096,10 +1108,10 @@ mod tests {
 
     #[test]
     fn test_oauth_response_data_device_code_serializes() {
-        let data = OauthResponseData::DeviceCode {
+        let data = OauthResponseData::DeviceCode(DeviceCodeData {
             user_code: "ABCD-1234".to_string(),
             verification_uri: "https://github.com/verify".to_string(),
-        };
+        });
         let json = serde_json::to_string(&data).unwrap();
 
         assert!(json.contains("ABCD-1234"));
@@ -1113,7 +1125,7 @@ mod tests {
         let data: OauthResponseData = serde_json::from_str(json).unwrap();
 
         match data {
-            OauthResponseData::Completed { message } => {
+            OauthResponseData::Completed(OauthCompletedData { message }) => {
                 assert_eq!(message, "OAuth configuration completed");
             }
             _ => panic!("Expected Completed variant"),
@@ -1126,10 +1138,10 @@ mod tests {
         let data: OauthResponseData = serde_json::from_str(json).unwrap();
 
         match data {
-            OauthResponseData::DeviceCode {
+            OauthResponseData::DeviceCode(DeviceCodeData {
                 user_code,
                 verification_uri,
-            } => {
+            }) => {
                 assert_eq!(user_code, "ABCD-EFGH");
                 assert_eq!(verification_uri, "https://github.com/verify");
             }
@@ -1139,16 +1151,16 @@ mod tests {
 
     #[test]
     fn test_oauth_response_data_roundtrip_completed() {
-        let original = OauthResponseData::Completed {
+        let original = OauthResponseData::Completed(OauthCompletedData {
             message: "Test completed".to_string(),
-        };
+        });
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: OauthResponseData = serde_json::from_str(&json).unwrap();
 
         match (&original, &deserialized) {
             (
-                OauthResponseData::Completed { message: m1 },
-                OauthResponseData::Completed { message: m2 },
+                OauthResponseData::Completed(OauthCompletedData { message: m1 }),
+                OauthResponseData::Completed(OauthCompletedData { message: m2 }),
             ) => {
                 assert_eq!(m1, m2);
             }
@@ -1158,23 +1170,23 @@ mod tests {
 
     #[test]
     fn test_oauth_response_data_roundtrip_device_code() {
-        let original = OauthResponseData::DeviceCode {
+        let original = OauthResponseData::DeviceCode(DeviceCodeData {
             user_code: "WXYZ-5678".to_string(),
             verification_uri: "https://example.com/auth".to_string(),
-        };
+        });
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: OauthResponseData = serde_json::from_str(&json).unwrap();
 
         match (&original, &deserialized) {
             (
-                OauthResponseData::DeviceCode {
+                OauthResponseData::DeviceCode(DeviceCodeData {
                     user_code: uc1,
                     verification_uri: vu1,
-                },
-                OauthResponseData::DeviceCode {
+                }),
+                OauthResponseData::DeviceCode(DeviceCodeData {
                     user_code: uc2,
                     verification_uri: vu2,
-                },
+                }),
             ) => {
                 assert_eq!(uc1, uc2);
                 assert_eq!(vu1, vu2);

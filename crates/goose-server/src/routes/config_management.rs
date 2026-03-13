@@ -865,7 +865,6 @@ pub async fn configure_provider_oauth(
     Path(provider_name): Path<String>,
 ) -> Result<Json<OauthResponse>, ErrorResponse> {
     use goose::model::ModelConfig;
-    use goose::providers::base::OauthResponseData;
     use goose::providers::create;
 
     if !is_valid_provider_name(&provider_name) {
@@ -899,22 +898,27 @@ pub async fn configure_provider_oauth(
     })?;
 
     // Mark the provider as configured after successful OAuth for completed flows
-    if matches!(response, OauthResponseData::Completed { .. }) {
+    if matches!(
+        response,
+        goose::providers::base::OauthResponseData::Completed(_)
+    ) {
         let configured_marker = format!("{}_configured", provider_name);
         let config = goose::config::Config::global();
         config.set_param(&configured_marker, true)?;
     }
 
     match response {
-        OauthResponseData::Completed { message } => {
-            Ok(Json(OauthResponse::Completed(OauthCompletedResponse {
-                message,
-            })))
-        }
-        OauthResponseData::DeviceCode {
-            user_code,
-            verification_uri,
-        } => Ok(Json(OauthResponse::DeviceCode(DeviceCodeResponse {
+        goose::providers::base::OauthResponseData::Completed(
+            goose::providers::base::OauthCompletedData { message },
+        ) => Ok(Json(OauthResponse::Completed(OauthCompletedResponse {
+            message,
+        }))),
+        goose::providers::base::OauthResponseData::DeviceCode(
+            goose::providers::base::DeviceCodeData {
+                user_code,
+                verification_uri,
+            },
+        ) => Ok(Json(OauthResponse::DeviceCode(DeviceCodeResponse {
             user_code,
             verification_uri,
         }))),
