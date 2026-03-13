@@ -205,6 +205,8 @@ fn create_codex_request(
             .collect();
 
         payload_obj.insert("tools".to_string(), json!(tools_spec));
+        payload_obj.insert("tool_choice".to_string(), json!("auto"));
+        payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
     }
 
     if let Some(temp) = model_config.temperature {
