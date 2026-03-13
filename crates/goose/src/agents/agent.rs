@@ -1471,7 +1471,6 @@ impl Agent {
                                             "Tool call could not be parsed: {}",
                                             request.tool_call.as_ref().unwrap_err(),
                                         );
-<<<<<<< Updated upstream
                                         yield AgentEvent::Message(
                                             Message::assistant().with_text(
                                                 "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
@@ -1479,14 +1478,6 @@ impl Agent {
                                         );
                                         exit_chat = true;
                                         break;
-=======
-                                        let error_response = Message::user()
-                                            .with_generated_id()
-                                            .with_text(&error_msg);
-                                        session_manager.add_message(&session_config.id, &error_response).await?;
-                                        conversation.push(error_response.clone());
-                                        yield AgentEvent::Message(error_response);
->>>>>>> Stashed changes
                                     }
                                 }
 
