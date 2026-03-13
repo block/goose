@@ -35,7 +35,7 @@ cargo clippy --all-targets -- -D warnings
 ```bash
 just generate-openapi        # after server changes
 just run-ui                  # start desktop
-cd ui/desktop && npm test    # test UI
+cd ui/desktop && pnpm test   # test UI
 ```
 
 ## Structure

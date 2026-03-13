@@ -51,6 +51,7 @@ import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { buildCSP } from './utils/csp';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -62,9 +63,14 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data) as Partial<Settings>;
-    // Deep merge to ensure nested objects get their defaults too
+    let stored: Partial<Settings>;
+    try {
+      const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+      stored = JSON.parse(data) as Partial<Settings>;
+    } catch (err) {
+      console.error('Failed to read settings.json, using defaults:', err);
+      return defaultSettings;
+    }
     return {
       ...defaultSettings,
       ...stored,
@@ -589,7 +595,13 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     await goosedResult.cleanup();
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    stopErrorLogCollection,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -692,6 +704,11 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     }
     app.quit();
   }
+
+  // errorLog is only needed during startup to detect fatal errors.
+  // Stop collecting stderr to avoid unbounded memory growth over long sessions.
+  stopErrorLogCollection();
+  errorLog.length = 0;
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -1762,51 +1779,14 @@ async function appMain() {
     }
   });
 
-  const buildConnectSrc = (): string => {
-    const sources = [
-      "'self'",
-      'http://127.0.0.1:*',
-      'https://127.0.0.1:*',
-      'http://localhost:*',
-      'https://localhost:*',
-      'https://api.github.com',
-      'https://github.com',
-      'https://objects.githubusercontent.com',
-    ];
-
-    const settings = getSettings();
-    if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
-      try {
-        const externalUrl = new URL(settings.externalGoosed.url);
-        sources.push(externalUrl.origin);
-      } catch {
-        console.warn('Invalid external goosed URL in settings, skipping CSP entry');
-      }
-    }
-
-    return sources.join(' ');
-  };
-
-  // Add CSP headers to all sessions
+  // Add CSP headers to all sessions — recomputed on every response so that
+  // changes to externalGoosed settings take effect without restarting the app.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const currentSettings = getSettings();
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy':
-          "default-src 'self';" +
-          "style-src 'self' 'unsafe-inline';" +
-          "script-src 'self' 'unsafe-inline';" +
-          "img-src 'self' data: https:;" +
-          `connect-src ${buildConnectSrc()};` +
-          "object-src 'none';" +
-          "frame-src 'self' https: http:;" +
-          "font-src 'self' data: https:;" +
-          "media-src 'self' mediastream:;" +
-          "form-action 'none';" +
-          "base-uri 'self';" +
-          "manifest-src 'self';" +
-          "worker-src 'self';" +
-          'upgrade-insecure-requests;',
+        'Content-Security-Policy': buildCSP(currentSettings.externalGoosed),
       },
     });
   });

@@ -3,8 +3,8 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
-    sanitize_function_name, ImageFormat,
+    convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
+    load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
@@ -760,25 +760,8 @@ pub fn create_request(
         ));
     }
 
-    let is_reasoning_model = model_config.is_openai_reasoning_model();
-
-    let (model_name, reasoning_effort) = if is_reasoning_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
-
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
-            }
-            _ => (
-                model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
-        }
-    } else {
-        (model_config.model_name.to_string(), None)
-    };
+    let (model_name, reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let is_reasoning_model = reasoning_effort.is_some();
 
     let system_message = json!({
         "role": if is_reasoning_model { "developer" } else { "system" },
@@ -806,17 +789,21 @@ pub fn create_request(
         payload["tools"] = json!(tools_spec);
     }
 
-    // o1, o3 models currently don't support temperature
     if !is_reasoning_model {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
     }
 
-    payload.as_object_mut().unwrap().insert(
-        "max_completion_tokens".to_string(),
-        json!(model_config.max_output_tokens()),
-    );
+    let key = if is_reasoning_model {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    };
+    payload
+        .as_object_mut()
+        .unwrap()
+        .insert(key.to_string(), json!(model_config.max_output_tokens()));
 
     if for_streaming {
         payload["stream"] = json!(true);
@@ -1459,7 +1446,7 @@ mod tests {
                     "content": "system"
                 }
             ],
-            "max_completion_tokens": 1024
+            "max_tokens": 1024
         });
 
         for (key, value) in expected.as_object().unwrap() {

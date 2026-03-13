@@ -7,7 +7,6 @@ import { startTetrateSetup } from '../utils/tetrateSetup';
 import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
-import { OllamaSetup } from './OllamaSetup';
 import { LocalModelSetup } from './LocalModelSetup';
 import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
@@ -34,7 +33,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
-  const [showOllamaSetup, setShowOllamaSetup] = useState(false);
   const [showLocalModelSetup, setShowLocalModelSetup] = useState(false);
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
@@ -189,19 +187,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     }
   };
 
-  const handleOllamaComplete = () => {
-    trackOnboardingCompleted('ollama');
-    setShowOllamaSetup(false);
-    setShowFirstTimeSetup(false);
-    setHasProvider(true);
-    navigate('/', { replace: true });
-  };
-
-  const handleOllamaCancel = () => {
-    trackOnboardingAbandoned('ollama_setup');
-    setShowOllamaSetup(false);
-  };
-
   const handleLocalModelComplete = () => {
     trackOnboardingCompleted('local');
     setShowLocalModelSetup(false);
@@ -294,10 +279,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         <WelcomeGooseLogo />
       </div>
     );
-  }
-
-  if (showOllamaSetup) {
-    return <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />;
   }
 
   if (showLocalModelSetup) {

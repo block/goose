@@ -1,6 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::get_tool_owner;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use pctx_code_mode::{
@@ -288,8 +289,13 @@ fn create_tool_callback(
                 }
                 params
             };
+            let ctx = crate::agents::ToolCallContext::new(
+                session_id,
+                None,
+                Some("tool-request-id".to_string()),
+            );
             match manager
-                .dispatch_tool_call(&session_id, tool_call, None, CancellationToken::new())
+                .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
                 .await
             {
                 Ok(dispatch_result) => match dispatch_result.result.await {
@@ -442,12 +448,12 @@ impl McpClientTrait for CodeExecutionClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let result = match name {
             "list_functions" => self.handle_list_functions(session_id).await,
             "get_function_details" => {

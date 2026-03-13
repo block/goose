@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/*"]
+members = [
+    "crates/*", 
+    # Mainly for cargo-machete to not error out during inspection.
+    "vendor/v8"
+]
 resolver = "2"
 
 [workspace.package]
@@ -15,7 +19,8 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "1.1.0", features = ["schemars", "auth"] }
+rmcp = { version = "1.2.0", features = ["schemars", "auth"] }
+sacp = "10.1.0"
 anyhow = "1.0"
 async-stream = "0.3"
 async-trait = "0.1"

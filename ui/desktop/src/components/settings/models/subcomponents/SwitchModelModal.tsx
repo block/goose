@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
 
 import {
@@ -84,9 +84,11 @@ type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
-  onModelSelected?: (model: string) => void;
+  onModelSelected?: (model: string, provider: string) => void;
   initialProvider?: string | null;
   titleOverride?: string;
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
 };
 export const SwitchModelModal = ({
   sessionId,
@@ -95,9 +97,18 @@ export const SwitchModelModal = ({
   onModelSelected,
   initialProvider,
   titleOverride,
+  sessionModel,
+  sessionProvider,
 }: SwitchModelModalProps) => {
   const { getProviders, read, upsert } = useConfig();
-  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
+  const {
+    changeModel,
+    currentModel: configModel,
+    currentProvider: configProvider,
+  } = useModelAndProvider();
+  // Use session-specific model/provider if available, otherwise fall back to config defaults
+  const currentModel = sessionModel ?? configModel;
+  const currentProvider = sessionProvider ?? configProvider;
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
@@ -242,10 +253,11 @@ export const SwitchModelModal = ({
         }
       }
 
-      await changeModel(sessionId, modelObj);
-      onModelSelected?.(modelObj.name);
-
-      trackModelChanged(modelObj.provider || '', modelObj.name);
+      const success = await changeModel(sessionId, modelObj);
+      if (success) {
+        onModelSelected?.(modelObj.name, modelObj.provider || '');
+        trackModelChanged(modelObj.provider || '', modelObj.name);
+      }
 
       onClose();
     }
@@ -258,24 +270,37 @@ export const SwitchModelModal = ({
     }
   }, [attemptedSubmit, validateForm]);
 
+  // Initialize predefined model selection from session/config model.
+  // Separate effect so it re-runs when currentModel loads asynchronously.
+  useEffect(() => {
+    if (!usePredefinedModels || !currentModel) return;
+    const models = getPredefinedModelsFromEnv();
+    const matchingModel = models.find((m) => m.name === currentModel);
+    if (matchingModel) {
+      setSelectedPredefinedModel(matchingModel);
+    }
+  }, [usePredefinedModels, currentModel]);
+
+  // For manual mode: one-time sync of provider/model when session data
+  // arrives after the modal has already mounted. Uses a ref so it only
+  // fires once and doesn't interfere with user-driven changes (e.g.
+  // switching provider clears model intentionally).
+  const manualSyncDone = useRef(false);
+  useEffect(() => {
+    if (usePredefinedModels || manualSyncDone.current) return;
+    if (initialProvider && initialProvider !== currentProvider) return;
+    if (currentModel && currentProvider) {
+      if (!provider) setProvider(currentProvider);
+      if (!model) setModel(currentModel);
+      manualSyncDone.current = true;
+    }
+  }, [currentModel, currentProvider, usePredefinedModels, provider, model, initialProvider]);
+
   useEffect(() => {
     // Load predefined models if enabled
     if (usePredefinedModels) {
       const models = getPredefinedModelsFromEnv();
       setPredefinedModels(models);
-
-      // Initialize selected predefined model with current model
-      (async () => {
-        try {
-          const currentModelName = (await read('GOOSE_MODEL', false)) as string;
-          const matchingModel = models.find((model) => model.name === currentModelName);
-          if (matchingModel) {
-            setSelectedPredefinedModel(matchingModel);
-          }
-        } catch (error) {
-          console.error('Failed to get current model for selection:', error);
-        }
-      })();
     }
 
     // Load providers for manual model selection
