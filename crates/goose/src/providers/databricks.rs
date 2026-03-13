@@ -319,9 +319,9 @@ impl Provider for DatabricksProvider {
     }
 
     async fn refresh_credentials(&self) -> Result<(), ProviderError> {
-        *self.token_cache.lock().unwrap() = None;
         crate::config::Config::global().invalidate_secrets_cache();
-        tracing::info!("Invalidated token cache and secrets cache for credential refresh");
+        *self.token_cache.lock().unwrap() = None;
+        tracing::info!("Invalidated secrets cache and token cache for credential refresh");
         Ok(())
     }
 
