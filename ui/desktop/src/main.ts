@@ -10,6 +10,7 @@ import {
   MenuItem,
   net,
   Notification,
+  powerMonitor,
   powerSaveBlocker,
   screen,
   session,
@@ -115,6 +116,14 @@ async function configureProxy() {
 }
 
 if (started) app.quit();
+
+// Mitigate V8 TurboFan/Maglev crash after macOS system wake (EXC_BREAKPOINT / SIGTRAP).
+// V8's tiered compilation can queue deferred optimization tasks on the CFRunLoop.
+// After a long sleep these fire with stale CompilationDependencies, hitting a CHECK().
+// Disabling Maglev removes the intermediate tier that most aggressively defers work.
+if (process.platform === 'darwin' && process.arch === 'arm64') {
+  app.commandLine.appendSwitch('js-flags', '--no-maglev');
+}
 
 // Accept self-signed certificates from the local goosed server.
 // Both certificate-error (renderer) and setCertificateVerifyProc (main-process
@@ -1847,6 +1856,37 @@ async function appMain() {
     ]);
     app.dock?.setMenu(dockMenu);
   }
+
+  // Track system sleep/wake to mitigate V8 crashes after prolonged sleep.
+  // After wake we always request a GC to flush stale compilation state.
+  // If the machine was asleep for ≥8 hours we reload every renderer so that
+  // V8 starts fresh rather than resuming with potentially invalid optimized code.
+  const SLEEP_RELOAD_THRESHOLD_MS = 8 * 60 * 60 * 1000;
+  let lastSuspendTimestamp: number | null = null;
+
+  powerMonitor.on('suspend', () => {
+    lastSuspendTimestamp = Date.now();
+    log.info('[PowerMonitor] System suspending');
+  });
+
+  powerMonitor.on('resume', () => {
+    const sleepDuration = lastSuspendTimestamp ? Date.now() - lastSuspendTimestamp : 0;
+    const sleepHours = (sleepDuration / (1000 * 60 * 60)).toFixed(1);
+    log.info(`[PowerMonitor] System resumed after ~${sleepHours}h`);
+    lastSuspendTimestamp = null;
+
+    if (sleepDuration >= SLEEP_RELOAD_THRESHOLD_MS) {
+      log.info(
+        `[PowerMonitor] Sleep exceeded ${SLEEP_RELOAD_THRESHOLD_MS / 3600000}h — reloading all renderer windows`
+      );
+      const windows = BrowserWindow.getAllWindows();
+      for (const win of windows) {
+        if (!win.isDestroyed()) {
+          win.webContents.reload();
+        }
+      }
+    }
+  });
 
   const menu = Menu.getApplicationMenu();
 
