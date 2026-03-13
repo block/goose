@@ -1082,4 +1082,104 @@ mod tests {
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
     }
+
+    #[test]
+    fn test_oauth_response_data_completed_serializes() {
+        let data = OauthResponseData::Completed {
+            message: "OAuth configuration completed".to_string(),
+        };
+        let json = serde_json::to_string(&data).unwrap();
+
+        assert!(json.contains("OAuth configuration completed"));
+        assert!(json.contains("message"));
+    }
+
+    #[test]
+    fn test_oauth_response_data_device_code_serializes() {
+        let data = OauthResponseData::DeviceCode {
+            user_code: "ABCD-1234".to_string(),
+            verification_uri: "https://github.com/verify".to_string(),
+        };
+        let json = serde_json::to_string(&data).unwrap();
+
+        assert!(json.contains("ABCD-1234"));
+        assert!(json.contains("verificationUri"));
+        assert!(json.contains("userCode"));
+    }
+
+    #[test]
+    fn test_oauth_response_data_deserialize_completed() {
+        let json = r#"{"message":"OAuth configuration completed"}"#;
+        let data: OauthResponseData = serde_json::from_str(json).unwrap();
+
+        match data {
+            OauthResponseData::Completed { message } => {
+                assert_eq!(message, "OAuth configuration completed");
+            }
+            _ => panic!("Expected Completed variant"),
+        }
+    }
+
+    #[test]
+    fn test_oauth_response_data_deserialize_device_code() {
+        let json = r#"{"userCode":"ABCD-EFGH","verificationUri":"https://github.com/verify"}"#;
+        let data: OauthResponseData = serde_json::from_str(json).unwrap();
+
+        match data {
+            OauthResponseData::DeviceCode {
+                user_code,
+                verification_uri,
+            } => {
+                assert_eq!(user_code, "ABCD-EFGH");
+                assert_eq!(verification_uri, "https://github.com/verify");
+            }
+            _ => panic!("Expected DeviceCode variant"),
+        }
+    }
+
+    #[test]
+    fn test_oauth_response_data_roundtrip_completed() {
+        let original = OauthResponseData::Completed {
+            message: "Test completed".to_string(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: OauthResponseData = serde_json::from_str(&json).unwrap();
+
+        match (&original, &deserialized) {
+            (
+                OauthResponseData::Completed { message: m1 },
+                OauthResponseData::Completed { message: m2 },
+            ) => {
+                assert_eq!(m1, m2);
+            }
+            _ => panic!("Roundtrip failed for Completed variant"),
+        }
+    }
+
+    #[test]
+    fn test_oauth_response_data_roundtrip_device_code() {
+        let original = OauthResponseData::DeviceCode {
+            user_code: "WXYZ-5678".to_string(),
+            verification_uri: "https://example.com/auth".to_string(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: OauthResponseData = serde_json::from_str(&json).unwrap();
+
+        match (&original, &deserialized) {
+            (
+                OauthResponseData::DeviceCode {
+                    user_code: uc1,
+                    verification_uri: vu1,
+                },
+                OauthResponseData::DeviceCode {
+                    user_code: uc2,
+                    verification_uri: vu2,
+                },
+            ) => {
+                assert_eq!(uc1, uc2);
+                assert_eq!(vu1, vu2);
+            }
+            _ => panic!("Roundtrip failed for DeviceCode variant"),
+        }
+    }
 }
