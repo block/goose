@@ -6,19 +6,21 @@ use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
 use goose::agents::platform_extensions::developer::edit::{
     resolve_path, string_replace, FileEditParams, FileReadParams, FileWriteParams,
 };
-use goose::agents::platform_extensions::developer::shell::ShellParams;
+use goose::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_LIMIT_BYTES};
 use goose::agents::platform_extensions::developer::DeveloperClient;
 use rmcp::model::{CallToolResult, Content as RmcpContent, Tool, ToolAnnotations};
 use sacp::schema::{
-    CreateTerminalRequest, Diff, ReadTextFileRequest, ReleaseTerminalRequest, SessionId,
-    SessionNotification, SessionUpdate, Terminal, TerminalOutputRequest, ToolCallContent,
-    ToolCallId, ToolCallLocation, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
-    WaitForTerminalExitRequest, WriteTextFileRequest,
+    CreateTerminalRequest, Diff, KillTerminalCommandRequest, ReadTextFileRequest,
+    ReleaseTerminalRequest, SessionId, SessionNotification, SessionUpdate, Terminal,
+    TerminalOutputRequest, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallUpdate,
+    ToolCallUpdateFields, ToolKind, WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use sacp::{AgentToClient, JrConnectionCx};
 use schemars::schema_for;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 async fn acp_read_text_file(
@@ -248,10 +250,11 @@ impl AcpTools {
 
         let create_res = self
             .cx
-            .send_request(CreateTerminalRequest::new(
-                self.session_id.clone(),
-                &params.command,
-            ))
+            .send_request(
+                CreateTerminalRequest::new(self.session_id.clone(), &params.command)
+                    .cwd(ctx.working_dir.clone())
+                    .output_byte_limit(OUTPUT_LIMIT_BYTES as u64),
+            )
             .block_task()
             .await
             .map_err(|e| {
@@ -270,7 +273,9 @@ impl AcpTools {
             ))]),
         );
 
-        let result = self.run_terminal_to_completion(&terminal_id).await;
+        let result = self
+            .run_terminal_to_completion(&terminal_id, params.timeout_secs)
+            .await;
 
         // Always release the terminal, even if we hit errors above.
         let _ = self
@@ -305,23 +310,55 @@ impl AcpTools {
     async fn run_terminal_to_completion(
         &self,
         terminal_id: &TerminalId,
+        timeout_secs: Option<u64>,
     ) -> Result<sacp::schema::TerminalOutputResponse, McpError> {
-        self.cx
+        let wait_fut = self
+            .cx
             .send_request(WaitForTerminalExitRequest::new(
                 self.session_id.clone(),
                 terminal_id.clone(),
             ))
-            .block_task()
-            .await
-            .map_err(|e| {
-                McpError::McpError(rmcp::model::ErrorData::new(
-                    rmcp::model::ErrorCode::INTERNAL_ERROR,
-                    format!("failed to wait for terminal exit: {e:?}"),
-                    None,
-                ))
-            })?;
+            .block_task();
 
-        self.cx
+        let timed_out = match timeout_secs {
+            Some(secs) if secs > 0 => match timeout(Duration::from_secs(secs), wait_fut).await {
+                Ok(res) => {
+                    res.map_err(|e| {
+                        McpError::McpError(rmcp::model::ErrorData::new(
+                            rmcp::model::ErrorCode::INTERNAL_ERROR,
+                            format!("failed to wait for terminal exit: {e:?}"),
+                            None,
+                        ))
+                    })?;
+                    false
+                }
+                Err(_) => {
+                    let _ = self
+                        .cx
+                        .send_request(KillTerminalCommandRequest::new(
+                            self.session_id.clone(),
+                            terminal_id.clone(),
+                        ))
+                        .block_task()
+                        .await
+                        .inspect_err(|e| tracing::error!("failed to kill terminal: {e:?}"));
+                    true
+                }
+            },
+            _ => {
+                wait_fut.await.map_err(|e| {
+                    McpError::McpError(rmcp::model::ErrorData::new(
+                        rmcp::model::ErrorCode::INTERNAL_ERROR,
+                        format!("failed to wait for terminal exit: {e:?}"),
+                        None,
+                    ))
+                })?;
+                false
+            }
+        };
+
+        let mut output_res = self
+            .cx
             .send_request(TerminalOutputRequest::new(
                 self.session_id.clone(),
                 terminal_id.clone(),
@@ -334,7 +371,16 @@ impl AcpTools {
                     format!("failed to get terminal output: {e:?}"),
                     None,
                 ))
-            })
+            })?;
+
+        if timed_out {
+            output_res.output.push_str(&format!(
+                "\n\nCommand timed out after {} seconds",
+                timeout_secs.unwrap_or(0)
+            ));
+        }
+
+        Ok(output_res)
     }
 }
 

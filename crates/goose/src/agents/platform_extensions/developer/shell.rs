@@ -13,7 +13,7 @@ use tokio_stream::{wrappers::SplitStream, StreamExt};
 use crate::subprocess::SubprocessExt;
 
 const OUTPUT_LIMIT_LINES: usize = 2000;
-const OUTPUT_LIMIT_BYTES: usize = 50_000;
+pub const OUTPUT_LIMIT_BYTES: usize = 50_000;
 const OUTPUT_PREVIEW_LINES: usize = 50;
 
 const OUTPUT_SLOTS: usize = 8;
