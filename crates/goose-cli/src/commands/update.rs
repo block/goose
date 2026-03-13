@@ -60,7 +60,11 @@ fn sha256_hex(data: &[u8]) -> String {
 /// the attestation bundle from GitHub's attestation API and validates the
 /// Sigstore signature chain, Rekor transparency log inclusion, and artifact
 /// digest match.
-async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<()> {
+/// Returns `Ok(true)` when the attestation is fully verified, `Ok(false)` when
+/// verification was skipped with a warning (no attestation, transient error),
+/// and `Err` when verification actively fails (invalid signature, digest
+/// mismatch, etc.).
+async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<bool> {
     let digest = sha256_hex(archive_data);
     println!("Archive SHA-256: {digest}");
 
@@ -93,14 +97,14 @@ async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<()> {
     {
         Ok(_) => {
             println!("Sigstore provenance verification passed.");
-            Ok(())
+            Ok(true)
         }
         Err(sigstore_verification::AttestationError::NoAttestations) => {
             eprintln!(
                 "Warning: No Sigstore attestation found for this build. \
                  This may be expected for canary or nightly builds."
             );
-            Ok(())
+            Ok(false)
         }
         Err(sigstore_verification::AttestationError::Verification(msg)) => Err(anyhow::anyhow!(
             "Sigstore verification failed: {}\n\nAborting update due to security check failure.",
@@ -112,7 +116,7 @@ async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<()> {
                  This may be expected for releases published before provenance \
                  attestations were enabled."
             );
-            Ok(())
+            Ok(false)
         }
     }
 }
@@ -157,7 +161,7 @@ pub async fn update(canary: bool, reconfigure: bool) -> Result<()> {
         println!("Downloaded {} bytes.", bytes.len());
 
         // --- Verify SLSA provenance via Sigstore --------------------------------
-        verify_provenance(&bytes, tag).await?;
+        let provenance_verified = verify_provenance(&bytes, tag).await?;
 
         // --- Extract to temp dir (hardened against path traversal) --------------
         let tmp_dir = tempfile::tempdir().context("Failed to create temp directory")?;
@@ -184,7 +188,11 @@ pub async fn update(canary: bool, reconfigure: bool) -> Result<()> {
         #[cfg(target_os = "windows")]
         copy_dlls(&extracted_binary, &current_exe)?;
 
-        println!("goose updated successfully (verified with Sigstore SLSA provenance).");
+        if provenance_verified {
+            println!("goose updated successfully (verified with Sigstore SLSA provenance).");
+        } else {
+            println!("goose updated successfully.");
+        }
 
         // --- Reconfigure if requested -------------------------------------------
         if reconfigure {
@@ -701,10 +709,11 @@ mod tests {
     #[tokio::test]
     async fn test_verify_provenance_warns_on_missing_attestation() {
         let result = verify_provenance(b"not a real archive", "stable").await;
-        // Network failures and missing attestations are soft warnings, not hard errors.
-        assert!(
-            result.is_ok(),
-            "verify_provenance should succeed with a warning when attestations cannot be fetched"
+        // Network failures and missing attestations are soft warnings: Ok(false), not hard errors.
+        assert_eq!(
+            result.ok(),
+            Some(false),
+            "verify_provenance should return Ok(false) when attestations cannot be fetched"
         );
     }
 
