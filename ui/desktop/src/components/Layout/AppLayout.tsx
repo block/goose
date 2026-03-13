@@ -38,8 +38,15 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const navWidthRef = useRef<number | null>(null);
 
   useEffect(() => {
-    window.electron.getSetting('navExpandedWidth').then((width) => {
-      if (width !== null) setNavWidth(width);
+    window.electron.getSetting('navExpandedWidth').then((delta) => {
+      if (delta !== 0) {
+        setNavWidth(
+          Math.min(
+            NAV_DIMENSIONS.MAX_NAV_WIDTH,
+            Math.max(NAV_DIMENSIONS.MIN_NAV_WIDTH, NAV_DIMENSIONS.CONDENSED_WIDTH + delta)
+          )
+        );
+      }
     });
   }, []);
 
@@ -69,7 +76,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
     if (navWidthRef.current !== null) {
-      window.electron.setSetting('navExpandedWidth', navWidthRef.current);
+      window.electron.setSetting(
+        'navExpandedWidth',
+        navWidthRef.current - NAV_DIMENSIONS.CONDENSED_WIDTH
+      );
     }
   }, [onMouseMove]);
 
@@ -250,7 +260,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
               isHorizontalNav ? 'w-full' : 'h-full'
             )}
           >
-            <div className="w-full h-full overflow-hidden">
+            <div
+              className={cn(
+                'w-full h-full',
+                effectiveNavigationStyle === 'condensed' && !isHorizontalNav
+                  ? 'overflow-visible'
+                  : 'overflow-hidden'
+              )}
+            >
               <Navigation />
             </div>
             {isResizable && (
