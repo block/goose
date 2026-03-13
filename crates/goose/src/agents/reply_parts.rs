@@ -156,13 +156,13 @@ impl Agent {
         let code_execution_active = false;
         if code_execution_active {
             let disclosure_style =
-                crate::agents::platform_extensions::code_execution::get_disclosure_style();
+                crate::agents::platform_extensions::code_execution::get_tool_disclosure();
 
             tools = tools
                 .into_iter()
                 .filter_map(|mut t| match disclosure_style {
-                    pctx_code_mode::model::DisclosureStyle::Catalog
-                    | pctx_code_mode::model::DisclosureStyle::Filesystem => {
+                    pctx_code_mode::config::ToolDisclosure::Catalog
+                    | pctx_code_mode::config::ToolDisclosure::Filesystem => {
                         // in catalog & filesystem styles, progressive search is handled
                         // by pctx, so we want to omit all non-first-class extensions
                         // from the standard tool list
@@ -174,7 +174,7 @@ impl Agent {
                             None
                         }
                     }
-                    pctx_code_mode::model::DisclosureStyle::Sidecar => {
+                    pctx_code_mode::config::ToolDisclosure::Sidecar => {
                         // in sidecar style there is no progressive search, just a way to chain tools
                         // together with typescript
                         // add output schema to description since many model providers drop the

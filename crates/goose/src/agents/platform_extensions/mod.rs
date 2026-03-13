@@ -118,7 +118,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     Box::new(
                         code_execution::CodeExecutionClient::new(
                             ctx,
-                            code_execution::get_disclosure_style(),
+                            code_execution::get_tool_disclosure(),
                         )
                         .unwrap(),
                     )

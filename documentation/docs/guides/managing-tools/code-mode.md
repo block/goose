@@ -21,7 +21,7 @@ Code Mode controls how tools are discovered and called:
 
 ## How Code Mode Works
 
-The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses the MCP protocol to expose three foundational meta-tools. When Code Mode is enabled, goose switches to Code Mode. For every request, the LLM writes JavaScript code that goose executes using [pctx (Port of Context)](https://github.com/AdrianCole/pctx), a custom Deno-based runtime, to:
+The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses the MCP protocol to expose three foundational meta-tools. When Code Mode is enabled, goose switches to Code Mode. For every request, the LLM writes JavaScript code that goose executes using [pctx (Port of Context)](https://github.com/portofcontext/pctx), a custom Deno-based runtime, to:
 - Discover available tools from your enabled extensions (if needed)
 - Learn how to work with the tools it needs for the current task
 - Call those tools programmatically to complete the task
