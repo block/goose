@@ -1255,7 +1255,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway' | 'acp';
 
 export type SessionsQuery = {
     limit: number;
