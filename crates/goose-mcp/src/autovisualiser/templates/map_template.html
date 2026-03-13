@@ -108,6 +108,9 @@
         }
 
         function initMap(mapData) {
+            if (map) { map.remove(); map = null; }
+            markerClusterGroup = null;
+
             var lat = mapData.center ? mapData.center.lat : 39.8283;
             var lng = mapData.center ? mapData.center.lng : -98.5795;
             var zoom = mapData.zoom || 4;

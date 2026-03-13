@@ -85,6 +85,29 @@
             });
         }
 
+        // Normalise common diagram-type casing the LLM gets wrong.
+        // Mermaid is case-sensitive: "gitgraph" fails, "gitGraph" works, etc.
+        var diagramCasing = {
+            gitgraph: "gitGraph",
+            sequencediagram: "sequenceDiagram",
+            classdiagram: "classDiagram",
+            statediagram: "stateDiagram",
+            erdiagram: "erDiagram",
+            ganttchart: "gantt",
+            flowchart: "flowchart",
+            piechart: "pie",
+            mindmap: "mindmap",
+            timeline: "timeline",
+        };
+
+        function normaliseMermaidCode(code) {
+            // Fix the diagram type keyword on the first non-empty line
+            return code.replace(/^(\s*)(\S+)/, function (match, ws, keyword) {
+                var fixed = diagramCasing[keyword.toLowerCase()];
+                return fixed ? ws + fixed : match;
+            });
+        }
+
         function renderMermaid(mermaidCode) {
             document.getElementById("loadingIndicator").classList.add("hidden");
             var output = document.getElementById("mermaidOutput");
@@ -97,11 +120,21 @@
 
             initMermaid();
 
+            var code = normaliseMermaidCode(mermaidCode);
             var uid = "mermaid-" + Date.now();
-            mermaid.render(uid, mermaidCode).then(function (result) {
+
+            // Mermaid injects error SVGs into the DOM as side effects even
+            // when the promise rejects.  Clean the output container first so
+            // stale artefacts from a previous render don't linger, and clean
+            // again in the catch path to remove any error SVGs mermaid added.
+            output.innerHTML = "";
+
+            mermaid.render(uid, code).then(function (result) {
                 output.innerHTML = result.svg;
                 setTimeout(McpAppBridge.reportSize, 80);
             }).catch(function (err) {
+                // Remove any error artefacts mermaid injected (bomb-icon SVGs, etc.)
+                document.querySelectorAll('[id^="d' + uid + '"]').forEach(function (el) { el.remove(); });
                 output.innerHTML = '<div class="mermaid-error">' + (err.message || err) + "</div>";
                 setTimeout(McpAppBridge.reportSize, 80);
             });
