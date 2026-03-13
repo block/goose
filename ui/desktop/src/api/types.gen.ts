@@ -209,6 +209,11 @@ export type DetectProviderResponse = {
     provider_name: string;
 };
 
+export type DeviceCodeResponse = {
+    userCode: string;
+    verificationUri: string;
+};
+
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
@@ -787,6 +792,12 @@ export type ModelTemplate = {
     id: string;
     name: string;
 };
+
+export type OauthCompletedResponse = {
+    message: string;
+};
+
+export type OauthResponse = OauthCompletedResponse | DeviceCodeResponse;
 
 export type ParseRecipeRequest = {
     content: string;
@@ -2642,10 +2653,12 @@ export type ConfigureProviderOauthErrors = {
 
 export type ConfigureProviderOauthResponses = {
     /**
-     * OAuth configuration completed
+     * OAuth configuration completed or device code returned
      */
-    200: unknown;
+    200: OauthResponse;
 };
+
+export type ConfigureProviderOauthResponse = ConfigureProviderOauthResponses[keyof ConfigureProviderOauthResponses];
 
 export type ReadConfigData = {
     body: ConfigKeyQuery;

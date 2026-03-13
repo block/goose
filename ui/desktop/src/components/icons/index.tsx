@@ -3,6 +3,7 @@ import ArrowUp from './ArrowUp';
 import Attach from './Attach';
 import Back from './Back';
 import ChatGPT from './ChatGPT';
+import GitHubCopilot from './GitHubCopilot';
 import { Bird1 } from './Bird1';
 import { Bird2 } from './Bird2';
 import { Bird3 } from './Bird3';
@@ -61,6 +62,7 @@ export {
   Attach,
   Back,
   ChatGPT,
+  GitHubCopilot,
   Bird1,
   Bird2,
   Bird3,
