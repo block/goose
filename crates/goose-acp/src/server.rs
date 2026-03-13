@@ -1040,7 +1040,8 @@ impl GooseAcpAgent {
         cx: &JrConnectionCx<AgentToClient>,
         args: PromptRequest,
     ) -> Result<PromptResponse, sacp::Error> {
-        let session_id = args.session_id.0.to_string();
+        let acp_session_id = args.session_id;
+        let session_id = acp_session_id.0.to_string();
         let cancel_token = CancellationToken::new();
         let done = Arc::new(Notify::new());
 
@@ -1063,46 +1064,53 @@ impl GooseAcpAgent {
             retry_config: None,
         };
 
-        let mut stream = agent
-            .reply(user_message, session_config, Some(cancel_token.clone()))
-            .await
-            .map_err(|e| {
-                sacp::Error::internal_error().data(format!("Error getting agent reply: {}", e))
-            })?;
-
         use futures::StreamExt;
 
-        let mut was_cancelled = false;
+        // Capture the result so cleanup always runs regardless of success or error.
+        let result: Result<bool, sacp::Error> = async {
+            let mut stream = agent
+                .reply(user_message, session_config, Some(cancel_token.clone()))
+                .await
+                .map_err(|e| {
+                    sacp::Error::internal_error().data(format!("Error getting agent reply: {}", e))
+                })?;
 
-        while let Some(event) = stream.next().await {
-            if cancel_token.is_cancelled() {
-                was_cancelled = true;
-                break;
-            }
+            let mut was_cancelled = false;
 
-            match event {
-                Ok(goose::agents::AgentEvent::Message(message)) => {
-                    let mut sessions = self.sessions.lock().await;
-                    let session = sessions.get_mut(&session_id).ok_or_else(|| {
-                        sacp::Error::invalid_params()
-                            .data(format!("Session not found: {}", session_id))
-                    })?;
+            while let Some(event) = stream.next().await {
+                if cancel_token.is_cancelled() {
+                    was_cancelled = true;
+                    break;
+                }
 
-                    session.messages.push(message.clone());
+                match event {
+                    Ok(goose::agents::AgentEvent::Message(message)) => {
+                        let mut sessions = self.sessions.lock().await;
+                        let session = sessions.get_mut(&session_id).ok_or_else(|| {
+                            sacp::Error::invalid_params()
+                                .data(format!("Session not found: {}", session_id))
+                        })?;
 
-                    for content_item in &message.content {
-                        self.handle_message_content(content_item, &args.session_id, session, cx)
-                            .await?;
+                        session.messages.push(message.clone());
+
+                        for content_item in &message.content {
+                            self.handle_message_content(content_item, &acp_session_id, session, cx)
+                                .await?;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        return Err(sacp::Error::internal_error()
+                            .data(format!("Error in agent response stream: {}", e)));
                     }
                 }
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(sacp::Error::internal_error()
-                        .data(format!("Error in agent response stream: {}", e)));
-                }
             }
-        }
 
+            Ok(was_cancelled)
+        }
+        .await;
+
+        // Always clean up, regardless of success or error.
         {
             let mut sessions = self.sessions.lock().await;
             if let Some(session) = sessions.get_mut(&session_id) {
@@ -1112,6 +1120,7 @@ impl GooseAcpAgent {
         }
         done.notify_waiters();
 
+        let was_cancelled = result?;
         Ok(PromptResponse::new(if was_cancelled {
             StopReason::Cancelled
         } else {
