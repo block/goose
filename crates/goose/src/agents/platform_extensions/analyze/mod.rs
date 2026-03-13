@@ -5,6 +5,7 @@ pub mod parser;
 
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use ignore::WalkBuilder;
@@ -13,7 +14,7 @@ use parser::{FileAnalysis, Parser};
 use rayon::prelude::*;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
+    ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
@@ -54,40 +55,16 @@ pub struct AnalyzeClient {
 
 impl AnalyzeClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Analyze".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(
-                indoc! {"
-                Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
-                - Directory path → structure overview (file tree with function/class counts)
-                - File path → semantic details (functions, classes, imports, call counts)
-                - Any path + focus parameter → symbol call graph (incoming/outgoing chains)
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Analyze"))
+            .with_instructions(indoc! {"
+            Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
+            - Directory path → structure overview (file tree with function/class counts)
+            - File path → semantic details (functions, classes, imports, call counts)
+            - Any path + focus parameter → symbol call graph (incoming/outgoing chains)
 
-                For large codebases, delegate analysis to a subagent and retain only the summary.
-            "}
-                .to_string(),
-            ),
-        };
+            For large codebases, delegate analysis to a subagent and retain only the summary.
+        "});
 
         Ok(Self { info })
     }
@@ -241,13 +218,13 @@ impl McpClientTrait for AnalyzeClient {
             "Analyze code structure in 3 modes: 1) Directory overview - file tree with LOC/function/class counts to max_depth. 2) File details - functions, classes, imports. 3) Symbol focus - call graphs across directory to max_depth (requires file or directory path, case-sensitive). Typical flow: directory → files → symbols. Functions called >3x show •N.".to_string(),
             Self::schema::<AnalyzeParams>(),
         )
-        .annotate(ToolAnnotations {
-            title: Some("Analyze".to_string()),
-            read_only_hint: Some(true),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(true),
-            open_world_hint: Some(false),
-        });
+        .annotate(ToolAnnotations::from_raw(
+            Some("Analyze".to_string()),
+            Some(true),
+            Some(false),
+            Some(true),
+            Some(false),
+        ));
 
         Ok(ListToolsResult {
             tools: vec![tool],
@@ -258,13 +235,12 @@ impl McpClientTrait for AnalyzeClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let working_dir = working_dir.map(Path::new);
+        let working_dir = ctx.working_dir.as_deref();
         match name {
             "analyze" => match Self::parse_args::<AnalyzeParams>(arguments) {
                 Ok(params) => {

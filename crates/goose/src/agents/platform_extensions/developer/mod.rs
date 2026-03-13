@@ -4,18 +4,18 @@ pub mod tree;
 
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use edit::{EditTools, FileEditParams, FileWriteParams};
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
+    ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
 use shell::{ShellOutput, ShellParams, ShellTool};
-use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tree::{TreeParams, TreeTool};
@@ -31,46 +31,27 @@ pub struct DeveloperClient {
 
 impl DeveloperClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Developer".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(indoc! {"
-                Use the developer extension to build software and operate a terminal.
+        let info = InitializeResult::new(
+            ServerCapabilities::builder().enable_tools().build(),
+        )
+        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Developer"))
+        .with_instructions(indoc! {"
+            Use the developer extension to build software and operate a terminal.
 
-                Make sure to use the tools *efficiently* - reading all the content you need in as few
-                iterations as possible and then making the requested edits or running commands. You are
-                responsible for managing your context window, and to minimize unnecessary turns which
-                cost the user money.
+            Make sure to use the tools *efficiently* - reading all the content you need in as few
+            iterations as possible and then making the requested edits or running commands. You are
+            responsible for managing your context window, and to minimize unnecessary turns which
+            cost the user money.
 
-                For editing software, prefer the flow of using tree to understand the codebase structure
-                and file sizes. When you need to search, prefer rg which correctly respects gitignored
-                content. Then use cat or sed to gather the context you need, always reading before editing.
-                Use write and edit to efficiently make changes. Test and verify as appropriate.
-            "}.to_string()),
-        };
+            For editing software, prefer the flow of using tree to understand the codebase structure
+            and file sizes. When you need to search, prefer rg which correctly respects gitignored
+            content. Then use cat or sed to gather the context you need, always reading before editing.
+            Use write and edit to efficiently make changes. Test and verify as appropriate.
+        "});
 
         Ok(Self {
             info,
-            shell_tool: Arc::new(ShellTool::new()),
+            shell_tool: Arc::new(ShellTool::new()?),
             edit_tools: Arc::new(EditTools::new()),
             tree_tool: Arc::new(TreeTool::new()),
         })
@@ -84,7 +65,7 @@ impl DeveloperClient {
             .clone()
     }
 
-    fn parse_args<T: serde::de::DeserializeOwned>(
+    pub fn parse_args<T: serde::de::DeserializeOwned>(
         arguments: Option<JsonObject>,
     ) -> Result<T, String> {
         let value = arguments
@@ -93,57 +74,57 @@ impl DeveloperClient {
         serde_json::from_value(value).map_err(|e| format!("Failed to parse arguments: {e}"))
     }
 
-    fn get_tools() -> Vec<Tool> {
+    pub(crate) fn get_tools() -> Vec<Tool> {
         vec![
             Tool::new(
                 "write".to_string(),
                 "Create a new file or overwrite an existing file. Creates parent directories if needed.".to_string(),
                 Self::schema::<FileWriteParams>(),
             )
-            .annotate(ToolAnnotations {
-                title: Some("Write".to_string()),
-                read_only_hint: Some(false),
-                destructive_hint: Some(true),
-                idempotent_hint: Some(false),
-                open_world_hint: Some(false),
-            }),
+            .annotate(ToolAnnotations::from_raw(
+                Some("Write".to_string()),
+                Some(false),
+                Some(true),
+                Some(false),
+                Some(false),
+            )),
             Tool::new(
                 "edit".to_string(),
                 "Edit a file by finding and replacing text. The before text must match exactly and uniquely. Use empty after text to delete.".to_string(),
                 Self::schema::<FileEditParams>(),
             )
-            .annotate(ToolAnnotations {
-                title: Some("Edit".to_string()),
-                read_only_hint: Some(false),
-                destructive_hint: Some(true),
-                idempotent_hint: Some(false),
-                open_world_hint: Some(false),
-            }),
+            .annotate(ToolAnnotations::from_raw(
+                Some("Edit".to_string()),
+                Some(false),
+                Some(true),
+                Some(false),
+                Some(false),
+            )),
             Tool::new(
                 "shell".to_string(),
                 "Execute a shell command in the user's default shell in the current dir. Returns an object with stdout and stderr as separate fields. The output of each stream is limited to up to 2000 lines, and longer outputs will be saved to a temporary file.".to_string(),
                 Self::schema::<ShellParams>(),
             )
             .with_output_schema::<ShellOutput>()
-            .annotate(ToolAnnotations {
-                title: Some("Shell".to_string()),
-                read_only_hint: Some(false),
-                destructive_hint: Some(true),
-                idempotent_hint: Some(false),
-                open_world_hint: Some(true),
-            }),
+            .annotate(ToolAnnotations::from_raw(
+                Some("Shell".to_string()),
+                Some(false),
+                Some(true),
+                Some(false),
+                Some(true),
+            )),
             Tool::new(
                 "tree".to_string(),
                 "List a directory tree with line counts. Traversal respects .gitignore rules.".to_string(),
                 Self::schema::<TreeParams>(),
             )
-            .annotate(ToolAnnotations {
-                title: Some("Tree".to_string()),
-                read_only_hint: Some(true),
-                destructive_hint: Some(false),
-                idempotent_hint: Some(true),
-                open_world_hint: Some(false),
-            }),
+            .annotate(ToolAnnotations::from_raw(
+                Some("Tree".to_string()),
+                Some(true),
+                Some(false),
+                Some(true),
+                Some(false),
+            )),
         ]
     }
 }
@@ -165,13 +146,12 @@ impl McpClientTrait for DeveloperClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
-        _cancellation_token: CancellationToken,
+        _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let working_dir = working_dir.map(Path::new);
+        let working_dir = ctx.working_dir.as_deref();
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
@@ -250,15 +230,15 @@ mod tests {
         let cwd = temp.path().join("workspace");
         fs::create_dir_all(&cwd).unwrap();
 
+        let ctx = ToolCallContext::new("session".to_owned(), Some(cwd.clone()), None);
         let write = client
             .call_tool(
-                "session",
+                &ctx,
                 "write",
                 Some(object!({
                     "path": "notes.txt",
                     "content": "first line"
                 })),
-                Some(cwd.to_str().unwrap()),
                 CancellationToken::new(),
             )
             .await
@@ -271,14 +251,13 @@ mod tests {
 
         let edit = client
             .call_tool(
-                "session",
+                &ctx,
                 "edit",
                 Some(object!({
                     "path": "notes.txt",
                     "before": "first",
                     "after": "updated"
                 })),
-                Some(cwd.to_str().unwrap()),
                 CancellationToken::new(),
             )
             .await
@@ -298,14 +277,14 @@ mod tests {
         let cwd = temp.path().join("workspace");
         fs::create_dir_all(&cwd).unwrap();
 
+        let ctx = ToolCallContext::new("session".to_owned(), Some(cwd.clone()), None);
         let result = client
             .call_tool(
-                "session",
+                &ctx,
                 "shell",
                 Some(object!({
                     "command": "pwd"
                 })),
-                Some(cwd.to_str().unwrap()),
                 CancellationToken::new(),
             )
             .await

@@ -236,6 +236,7 @@ function ProviderCards({
     engine: editingProvider.config.engine,
     display_name: editingProvider.config.display_name,
     api_url: editingProvider.config.base_url,
+    base_path: editingProvider.config.base_path ?? undefined,
     api_key: '',
     models: editingProvider.config.models.map((m) => m.name),
     supports_streaming: editingProvider.config.supports_streaming ?? true,

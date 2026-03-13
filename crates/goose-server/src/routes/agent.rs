@@ -27,7 +27,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParams, Content};
+use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -134,13 +134,31 @@ pub struct CallToolRequest {
     arguments: Value,
 }
 
+/// Ref-only alias so utoipa emits `$ref: "#/components/schemas/ContentBlock"`.
+/// The actual schema is registered via `derive_utoipa!(RawContent as ContentBlockSchema => "ContentBlock")`.
+#[allow(dead_code)]
+pub enum ContentBlock {}
+
+impl<'s> utoipa::ToSchema<'s> for ContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        // Delegate to the auto-generated schema
+        crate::openapi::ContentBlockSchema::schema()
+    }
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CallToolResponse {
-    content: Vec<Content>,
+    #[schema(value_type = Vec<ContentBlock>)]
+    content: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
     is_error: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "_meta")]
     _meta: Option<Value>,
 }
 
@@ -968,21 +986,18 @@ async fn call_tool(
         _ => None,
     };
 
-    let tool_call = CallToolRequestParams {
-        meta: None,
-        task: None,
-        name: payload.name.into(),
-        arguments,
+    let tool_call = {
+        let mut params = CallToolRequestParams::new(payload.name);
+        if let Some(args) = arguments {
+            params = params.with_arguments(args);
+        }
+        params
     };
 
+    let ctx = goose::agents::ToolCallContext::new(payload.session_id.clone(), None, None);
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(
-            &payload.session_id,
-            tool_call,
-            None,
-            CancellationToken::default(),
-        )
+        .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -991,8 +1006,15 @@ async fn call_tool(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let content = result
+        .content
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(CallToolResponse {
-        content: result.content,
+        content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
         _meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),

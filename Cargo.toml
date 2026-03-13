@@ -1,10 +1,14 @@
 [workspace]
-members = ["crates/*"]
+members = [
+    "crates/*", 
+    # Mainly for cargo-machete to not error out during inspection.
+    "vendor/v8"
+]
 resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.26.0"
+version = "1.27.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -15,7 +19,8 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.16", features = ["schemars", "auth"] }
+rmcp = { version = "1.2.0", features = ["schemars", "auth"] }
+sacp = "10.1.0"
 anyhow = "1.0"
 async-stream = "0.3"
 async-trait = "0.1"
@@ -44,6 +49,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 shellexpand = "3.1"
+strum = { version = "0.27", features = ["derive"] }
 tempfile = "3"
 thiserror = "1.0"
 tokio = { version = "1.49", features = ["full"] }

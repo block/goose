@@ -27,7 +27,6 @@ rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = "0.3.5"
 console = "0.16.1"
-uuid = { workspace = true }
 dotenvy = { workspace = true }
 bat = { version = "0.26.1", default-features = false, features = ["regex-onig"] }
 anyhow = { workspace = true }
@@ -36,6 +35,7 @@ tokio = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
+strum = { workspace = true }
 tempfile = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }
@@ -52,10 +52,6 @@ tar = "0.4"
 reqwest = { workspace = true, features = ["blocking", "rustls"], default-features = false }
 zip = { version = "^8.0", default-features = false, features = ["deflate"] }
 bzip2 = "0.5"
-# Web server dependencies
-axum = { workspace = true, features = ["ws", "macros"] }
-tower-http = { workspace = true, features = ["cors", "fs", "auth"] }
-http = { workspace = true }
 webbrowser = { workspace = true }
 indicatif = "0.18.1"
 tokio-util = { workspace = true, features = ["compat", "rt"] }
@@ -72,6 +68,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [features]
 default = ["code-mode"]
 code-mode = ["goose/code-mode", "goose-acp/code-mode"]
+cuda = ["goose/cuda"]
 # disables the update command
 disable-update = []
 
@@ -79,3 +76,9 @@ disable-update = []
 tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winapi",
+]

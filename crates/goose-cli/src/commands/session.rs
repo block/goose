@@ -7,7 +7,7 @@ use goose::session::{generate_diagnostics, Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -141,6 +141,14 @@ pub async fn handle_session_remove(
     remove_sessions(&session_manager, matched_sessions).await
 }
 
+fn write_line_or_broken_pipe_ok<W: Write>(out: &mut W, line: &str) -> Result<bool> {
+    match writeln!(out, "{line}") {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(false),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub async fn handle_session_list(
     format: String,
     ascending: bool,
@@ -170,17 +178,28 @@ pub async fn handle_session_list(
         sessions.truncate(n);
     }
 
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+
     match format.as_str() {
         "json" => {
-            println!("{}", serde_json::to_string(&sessions)?);
+            let payload = serde_json::to_string(&sessions)?;
+            if !write_line_or_broken_pipe_ok(&mut out, &payload)? {
+                return Ok(());
+            }
         }
         _ => {
             if sessions.is_empty() {
-                println!("No sessions found");
+                if !write_line_or_broken_pipe_ok(&mut out, "No sessions found")? {
+                    return Ok(());
+                }
                 return Ok(());
             }
 
-            println!("Available sessions:");
+            if !write_line_or_broken_pipe_ok(&mut out, "Available sessions:")? {
+                return Ok(());
+            }
+
             for session in sessions {
                 let output = format!(
                     "{} - {} - {} - {}",
@@ -189,7 +208,9 @@ pub async fn handle_session_list(
                     session.updated_at,
                     display_path_with_tilde(&session.working_dir)
                 );
-                println!("{}", output);
+                if !write_line_or_broken_pipe_ok(&mut out, &output)? {
+                    return Ok(());
+                }
             }
         }
     }
