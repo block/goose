@@ -853,7 +853,7 @@ pub enum OauthResponse {
         ("name" = String, Path, description = "Provider name")
     ),
     responses(
-        (status = 200, description = "OAuth configuration completed or device code returned"),
+        (status = 200, description = "OAuth configuration completed or device code returned", body = OauthResponse),
         (status = 400, description = "OAuth configuration failed")
     )
 )]
