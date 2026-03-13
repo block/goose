@@ -59,7 +59,6 @@ fn test_load_session_mcp() {
 }
 
 #[test]
-#[ignore = "TODO: on_set_mode is a no-op until mode is threaded per-session (#7603)"]
 fn test_mode_set() {
     run_test(async { run_mode_set::<ClientToProviderConnection>().await });
 }

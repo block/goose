@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tornado } from 'lucide-react';
 import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
 import { useConfig } from '../ConfigContext';
@@ -9,25 +9,18 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { trackModeChanged } from '../../utils/analytics';
+import { updateSession } from '../../api';
 
-export const BottomMenuModeSelection = () => {
+export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | null }) => {
   const [gooseMode, setGooseMode] = useState('auto');
-  const { read, upsert } = useConfig();
-
-  const fetchCurrentMode = useCallback(async () => {
-    try {
-      const mode = (await read('GOOSE_MODE', false)) as string;
-      if (mode) {
-        setGooseMode(mode);
-      }
-    } catch (error) {
-      console.error('Error fetching current mode:', error);
-    }
-  }, [read]);
+  const { config, upsert } = useConfig();
 
   useEffect(() => {
-    fetchCurrentMode();
-  }, [fetchCurrentMode]);
+    const mode = config.GOOSE_MODE as string | undefined;
+    if (mode) {
+      setGooseMode(mode);
+    }
+  }, [config.GOOSE_MODE]);
 
   const handleModeChange = async (newMode: string) => {
     if (gooseMode === newMode) {
@@ -35,6 +28,9 @@ export const BottomMenuModeSelection = () => {
     }
 
     try {
+      if (sessionId) {
+        await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
+      }
       await upsert('GOOSE_MODE', newMode, false);
       setGooseMode(newMode);
       trackModeChanged(gooseMode, newMode);

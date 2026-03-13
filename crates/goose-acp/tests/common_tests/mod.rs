@@ -716,7 +716,6 @@ macro_rules! tests_mode_set_error {
     ($conn:ty) => {
         #[test_case::test_case("not_a_mode", None, sacp::Error::invalid_params().data("Invalid mode: not_a_mode") ; "invalid mode")]
         #[test_case::test_case("auto", Some("nonexistent-session-id"), sacp::Error::invalid_params().data("Session not found: nonexistent-session-id") ; "session not found")]
-        #[test_case::test_case("approve", None, sacp::Error::invalid_params().data("Mode change not supported: session is auto, requested approve") ; "mode change rejected")]
         fn test_mode_set_error(
             mode_id: &'static str,
             session_id: Option<&'static str>,

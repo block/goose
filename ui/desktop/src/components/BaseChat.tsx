@@ -35,6 +35,7 @@ import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
+import { useConfig } from './ConfigContext';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
@@ -184,6 +185,14 @@ export default function BaseChat({
   const sessionModel = session?.model_config?.model_name ?? null;
   const sessionProvider = session?.provider_name ?? null;
   const sessionLoaded = session !== undefined;
+
+  const { upsert } = useConfig();
+
+  useEffect(() => {
+    if (session?.goose_mode) {
+      upsert('GOOSE_MODE', session.goose_mode, false);
+    }
+  }, [session?.goose_mode, upsert]);
 
   useEffect(() => {
     if (!recipe) return;

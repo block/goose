@@ -21,6 +21,7 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
+    default_mode: GooseMode,
 }
 
 impl AgentManager {
@@ -28,6 +29,7 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
+        default_mode: GooseMode,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
@@ -39,6 +41,7 @@ impl AgentManager {
             scheduler,
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
+            default_mode,
         };
 
         Ok(manager)
@@ -47,13 +50,20 @@ impl AgentManager {
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
-                let max_sessions = Config::global()
+                let config = Config::global();
+                let max_sessions = config
                     .get_goose_max_active_agents()
                     .unwrap_or(DEFAULT_MAX_SESSION);
+                let default_mode = config.get_goose_mode().unwrap_or_default();
                 let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let manager =
-                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
+                let manager = Self::new(
+                    session_manager,
+                    schedule_file_path,
+                    Some(max_sessions),
+                    default_mode,
+                )
+                .await?;
                 Ok(Arc::new(manager))
             })
             .await
@@ -82,8 +92,14 @@ impl AgentManager {
             }
         }
 
-        let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
+        let mut mode = self.default_mode;
         let permission_manager = PermissionManager::instance();
+
+        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+            mode = session.goose_mode;
+            info!(goose_mode = %mode, session_id = %session_id, "Session loaded");
+        }
+
         let config = AgentConfig::new(
             Arc::clone(&self.session_manager),
             permission_manager,
@@ -118,6 +134,10 @@ impl AgentManager {
                 agent
                     .update_provider(Arc::clone(provider), &session_id)
                     .await?;
+                provider
+                    .update_mode(&session_id, mode)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to propagate mode to provider: {}", e))?;
             }
         }
 
@@ -153,6 +173,7 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    use crate::config::GooseMode;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
 
@@ -161,9 +182,14 @@ mod tests {
     async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let schedule_path = temp_dir.path().join("schedule.json");
-        AgentManager::new(session_manager, schedule_path, Some(100))
-            .await
-            .unwrap()
+        AgentManager::new(
+            session_manager,
+            schedule_path,
+            Some(100),
+            GooseMode::default(),
+        )
+        .await
+        .unwrap()
     }
 
     #[test]

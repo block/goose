@@ -1571,7 +1571,7 @@ export default function ChatInput({
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-primary mx-2" />
-          <BottomMenuModeSelection />
+          <BottomMenuModeSelection sessionId={sessionId} />
           <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (

@@ -8,8 +8,7 @@ use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
-use crate::config::goose_mode::GooseMode;
-use crate::config::ExtensionConfig;
+use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -700,6 +699,10 @@ pub trait Provider: Send + Sync {
         ))
     }
 
+    async fn update_mode(&self, _session_id: &str, _mode: GooseMode) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::Noop
     }
@@ -710,10 +713,6 @@ pub trait Provider: Send + Sync {
         _confirmation: &PermissionConfirmation,
     ) -> bool {
         false
-    }
-
-    async fn update_mode(&self, _session_id: &str, _mode: GooseMode) -> Result<(), ProviderError> {
-        Ok(())
     }
 }
 

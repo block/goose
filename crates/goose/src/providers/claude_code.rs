@@ -270,6 +270,8 @@ pub struct ClaudeCodeProvider {
     #[serde(skip)]
     pending_confirmations:
         Arc<tokio::sync::Mutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
+    #[serde(skip)]
+    initial_mode: tokio::sync::Mutex<Option<GooseMode>>,
 }
 
 impl ClaudeCodeProvider {
@@ -623,6 +625,7 @@ impl ProviderDef for ClaudeCodeProvider {
                 mcp_config_file,
                 cli_process: tokio::sync::OnceCell::new(),
                 pending_confirmations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                initial_mode: tokio::sync::Mutex::new(None),
             })
         })
     }
@@ -667,6 +670,19 @@ impl Provider for ClaudeCodeProvider {
         .await;
         let _ = child.kill().await;
         Ok(extract_model_aliases(response.ok().flatten().as_ref()))
+    }
+
+    async fn update_mode(&self, _session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
+        // Mode is baked into the subprocess at spawn; claude-acp replaces
+        // this provider (#7801).
+        let mut guard = self.initial_mode.lock().await;
+        let current = *guard.get_or_insert(mode);
+        if current != mode {
+            return Err(ProviderError::RequestFailed(format!(
+                "Mode change not supported: session is {current}, requested {mode}",
+            )));
+        }
+        Ok(())
     }
 
     fn permission_routing(&self) -> PermissionRouting {
@@ -1192,6 +1208,7 @@ mod tests {
             mcp_config_file: None,
             cli_process: tokio::sync::OnceCell::new(),
             pending_confirmations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            initial_mode: tokio::sync::Mutex::new(None),
         }
     }
 

@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures::future::BoxFuture;
 use serde_json::json;
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -54,6 +55,8 @@ pub struct CodexProvider {
     skip_git_check: bool,
     /// CLI config overrides for MCP servers
     mcp_config_overrides: Vec<String>,
+    #[serde(skip)]
+    mode_by_session: tokio::sync::RwLock<HashMap<String, GooseMode>>,
 }
 
 impl CodexProvider {
@@ -69,11 +72,11 @@ impl CodexProvider {
         true
     }
 
-    /// Apply permission flags based on GOOSE_MODE setting
-    fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
-        let config = Config::global();
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-
+    /// Apply permission flags based on GooseMode
+    fn apply_permission_flags(
+        cmd: &mut Command,
+        goose_mode: GooseMode,
+    ) -> Result<(), ProviderError> {
         match goose_mode {
             GooseMode::Auto => {
                 // --yolo is shorthand for --dangerously-bypass-approvals-and-sandbox
@@ -101,6 +104,7 @@ impl CodexProvider {
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
+        goose_mode: GooseMode,
     ) -> Result<Vec<String>, ProviderError> {
         // Single pass: text → prompt (stdin), images → temp files (-i flags)
         let image_dir = Paths::state_dir().join("codex/images");
@@ -151,8 +155,7 @@ impl CodexProvider {
         // JSON output format for structured parsing
         cmd.arg("--json");
 
-        // Apply permission mode based on GOOSE_MODE
-        Self::apply_permission_flags(&mut cmd)?;
+        Self::apply_permission_flags(&mut cmd, goose_mode)?;
 
         // Skip git repo check if configured
         if self.skip_git_check {
@@ -653,6 +656,7 @@ impl ProviderDef for CodexProvider {
                 reasoning_effort,
                 skip_git_check,
                 mcp_config_overrides: codex_mcp_config_overrides(&resolved),
+                mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
             })
         })
     }
@@ -675,7 +679,7 @@ impl Provider for CodexProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str, // CLI has no external session-id flag to propagate.
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -691,7 +695,13 @@ impl Provider for CodexProvider {
             ));
         }
 
-        let lines = self.execute_command(system, messages, tools).await?;
+        let goose_mode = {
+            let map = self.mode_by_session.read().await;
+            map.get(session_id).copied().unwrap_or_default()
+        };
+        let lines = self
+            .execute_command(system, messages, tools, goose_mode)
+            .await?;
 
         let (message, usage) = self.parse_response(&lines)?;
 
@@ -722,6 +732,14 @@ impl Provider for CodexProvider {
             message,
             provider_usage,
         ))
+    }
+
+    async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
+        self.mode_by_session
+            .write()
+            .await
+            .insert(session_id.to_string(), mode);
+        Ok(())
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -912,6 +930,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines = vec!["Hello, world!".to_string()];
@@ -932,6 +951,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         // Test with actual Codex CLI output format
@@ -965,6 +985,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines: Vec<String> = vec![];
@@ -1013,6 +1034,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines = vec![
@@ -1038,6 +1060,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines = vec![
@@ -1110,6 +1133,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
@@ -1126,6 +1150,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines = vec![
@@ -1216,6 +1241,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
+            mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
         };
 
         let lines = vec![
