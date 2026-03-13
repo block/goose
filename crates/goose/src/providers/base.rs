@@ -699,6 +699,17 @@ pub trait Provider: Send + Sync {
         ))
     }
 
+    /// Refresh cached credentials after an authentication failure.
+    ///
+    /// Providers that support credential refresh (e.g. re-reading a rotated
+    /// token from disk) should override this. The provider retry loop calls
+    /// this on `ProviderError::Authentication` before retrying once.
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "credential refresh not supported by this provider".to_string(),
+        ))
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::Noop
     }

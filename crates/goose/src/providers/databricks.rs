@@ -87,7 +87,11 @@ struct DatabricksAuthProvider {
 impl AuthProvider for DatabricksAuthProvider {
     async fn get_auth_header(&self) -> Result<(String, String)> {
         let token = match &self.auth {
-            DatabricksAuth::Token(token) => token.clone(),
+            // Re-read from config each time so rotated tokens are picked up
+            // after secrets cache invalidation by refresh_credentials().
+            DatabricksAuth::Token(_) => crate::config::Config::global()
+                .get_secret::<String>("DATABRICKS_TOKEN")
+                .map_err(|e| anyhow::anyhow!("DATABRICKS_TOKEN not found: {}", e))?,
             DatabricksAuth::OAuth {
                 host,
                 client_id,
@@ -283,6 +287,12 @@ impl Provider for DatabricksProvider {
 
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
+    }
+
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        crate::config::Config::global().invalidate_secrets_cache();
+        tracing::info!("Invalidated secrets cache for credential refresh");
+        Ok(())
     }
 
     fn get_model_config(&self) -> ModelConfig {

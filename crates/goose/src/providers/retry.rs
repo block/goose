@@ -192,8 +192,75 @@ pub trait ProviderRetry {
     }
 }
 
+#[async_trait]
 impl<P: Provider> ProviderRetry for P {
     fn retry_config(&self) -> RetryConfig {
         Provider::retry_config(self)
+    }
+
+    async fn with_retry_config<F, Fut, T>(
+        &self,
+        operation: F,
+        config: RetryConfig,
+    ) -> Result<T, ProviderError>
+    where
+        F: Fn() -> Fut + Send,
+        Fut: Future<Output = Result<T, ProviderError>> + Send,
+        T: Send,
+    {
+        let mut attempts = 0;
+        let mut auth_retried = false;
+
+        loop {
+            return match operation().await {
+                Ok(result) => Ok(result),
+                Err(error) => {
+                    // On auth failure, try refreshing credentials once before giving up.
+                    if matches!(error, ProviderError::Authentication(_)) && !auth_retried {
+                        auth_retried = true;
+                        if self.refresh_credentials().await.is_ok() {
+                            tracing::warn!(
+                                "Credentials refreshed after auth error, retrying: {:?}",
+                                error
+                            );
+                            continue;
+                        }
+                    }
+
+                    if should_retry(&error) && attempts < config.max_retries {
+                        attempts += 1;
+                        tracing::warn!(
+                            "Request failed, retrying ({}/{}): {:?}",
+                            attempts,
+                            config.max_retries,
+                            error
+                        );
+
+                        let delay = match &error {
+                            ProviderError::RateLimitExceeded {
+                                retry_delay: Some(provider_delay),
+                                ..
+                            } => *provider_delay,
+                            _ => config.delay_for_attempt(attempts),
+                        };
+
+                        let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
+                            .unwrap_or_default()
+                            .parse::<bool>()
+                            .unwrap_or(false);
+
+                        if skip_backoff {
+                            tracing::info!("Skipping backoff due to GOOSE_PROVIDER_SKIP_BACKOFF");
+                        } else {
+                            tracing::info!("Backing off for {:?} before retry", delay);
+                            sleep(delay).await;
+                        }
+                        continue;
+                    }
+
+                    Err(error)
+                }
+            };
+        }
     }
 }
