@@ -99,9 +99,7 @@ impl Agent {
                         }
                     });
 
-                // Register the oneshot channel BEFORE yielding so confirmations
-                // arriving immediately are not lost (see issue #5558).
-                let confirmation_rx = self.confirmation_router.register(request.id.clone()).await;
+                let confirmation_rx = self.tool_confirmation_router.register(request.id.clone()).await;
 
                 let action_required_msg = Message::assistant()
                     .with_action_required(

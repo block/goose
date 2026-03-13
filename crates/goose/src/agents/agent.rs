@@ -12,6 +12,7 @@ use uuid::Uuid;
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
+use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
@@ -141,7 +142,7 @@ pub struct Agent {
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
-    pub confirmation_router: super::confirmation_router::ConfirmationRouter,
+    pub tool_confirmation_router: ToolConfirmationRouter,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
@@ -237,7 +238,7 @@ impl Agent {
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
-            confirmation_router: super::confirmation_router::ConfirmationRouter::new(),
+            tool_confirmation_router: ToolConfirmationRouter::new(),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
@@ -857,7 +858,11 @@ impl Agent {
                 return;
             }
         }
-        if !self.confirmation_router.deliver(request_id, confirmation).await {
+        if !self
+            .tool_confirmation_router
+            .deliver(request_id, confirmation)
+            .await
+        {
             error!("Failed to deliver confirmation");
         }
     }
@@ -2138,7 +2143,10 @@ mod tests {
 
         // Unknown request_id → provider returns false, falls through to confirmation_router
         // Register first so deliver() has somewhere to send
-        let rx = agent.confirmation_router.register("unknown".to_string()).await;
+        let rx = agent
+            .tool_confirmation_router
+            .register("unknown".to_string())
+            .await;
         agent
             .handle_confirmation(
                 "unknown".to_string(),
@@ -2159,7 +2167,10 @@ mod tests {
         let agent = Agent::new();
         // No provider set → Noop routing, goes straight to confirmation_router
         // Register first so deliver() has somewhere to send
-        let rx = agent.confirmation_router.register("any".to_string()).await;
+        let rx = agent
+            .tool_confirmation_router
+            .register("any".to_string())
+            .await;
         agent
             .handle_confirmation(
                 "any".to_string(),
