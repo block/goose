@@ -10,17 +10,34 @@ use crate::hints::import_files::read_referenced_files;
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 
+fn apply_skip_filter(mut filenames: Vec<String>, skip_csv: Option<&str>) -> Vec<String> {
+    if let Some(skip) = skip_csv {
+        let skip_set: std::collections::HashSet<String> = skip
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        filenames.retain(|f| !skip_set.contains(f));
+    }
+    filenames
+}
+
 pub fn get_context_filenames() -> Vec<String> {
     use crate::config::Config;
 
-    Config::global()
+    let filenames = Config::global()
         .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
         .unwrap_or_else(|_| {
             vec![
                 GOOSE_HINTS_FILENAME.to_string(),
                 AGENTS_MD_FILENAME.to_string(),
             ]
-        })
+        });
+
+    apply_skip_filter(
+        filenames,
+        std::env::var("GOOSE_SKIP_CONTEXT_FILES").ok().as_deref(),
+    )
 }
 
 #[derive(Default)]
@@ -738,6 +755,56 @@ End of hints"#;
         tracker.record_tool_arguments(&Some(args), &project_root);
         let hints = tracker.load_new_hints(&project_root);
         assert!(hints.is_empty());
+    }
+
+    #[test]
+    fn test_skip_context_files_removes_agents_md() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(AGENTS_MD_FILENAME), "Agent instructions").unwrap();
+        fs::write(dir.path().join(GOOSE_HINTS_FILENAME), "Goose hints content").unwrap();
+
+        let filenames = apply_skip_filter(
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
+            Some("AGENTS.md"),
+        );
+
+        assert!(filenames.contains(&GOOSE_HINTS_FILENAME.to_string()));
+        assert!(!filenames.contains(&AGENTS_MD_FILENAME.to_string()));
+
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(dir.path(), &filenames, &gitignore);
+        assert!(hints.contains("Goose hints content"));
+        assert!(!hints.contains("Agent instructions"));
+    }
+
+    #[test]
+    fn test_skip_context_files_multiple() {
+        let filenames = apply_skip_filter(
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
+            Some("AGENTS.md, .goosehints"),
+        );
+
+        assert!(filenames.is_empty());
+    }
+
+    #[test]
+    fn test_skip_context_files_unset_loads_all() {
+        let filenames = apply_skip_filter(
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
+            None,
+        );
+
+        assert!(filenames.contains(&GOOSE_HINTS_FILENAME.to_string()));
+        assert!(filenames.contains(&AGENTS_MD_FILENAME.to_string()));
     }
 }
 

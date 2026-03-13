@@ -12,6 +12,19 @@ use tokio_stream::{wrappers::SplitStream, StreamExt};
 
 use crate::subprocess::SubprocessExt;
 
+/// Parse `GOOSE_SHELL_ENV_SCRUB` into a list of env var names to strip
+/// from spawned shell commands. This prevents prompt-injection attacks
+/// from exfiltrating secrets via shell commands when goose processes
+/// untrusted input (e.g. PR diffs).
+fn parse_env_scrub_list() -> Vec<String> {
+    std::env::var("GOOSE_SHELL_ENV_SCRUB")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 const OUTPUT_LIMIT_LINES: usize = 2000;
 pub const OUTPUT_LIMIT_BYTES: usize = 50_000;
 const OUTPUT_PREVIEW_LINES: usize = 50;
@@ -91,6 +104,7 @@ fn user_login_path() -> Option<&'static str> {
 pub struct ShellTool {
     output_dir: tempfile::TempDir,
     call_index: AtomicUsize,
+    env_scrub: Vec<String>,
 }
 
 impl ShellTool {
@@ -98,6 +112,16 @@ impl ShellTool {
         Ok(Self {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
+            env_scrub: parse_env_scrub_list(),
+        })
+    }
+
+    #[cfg(test)]
+    fn with_env_scrub(env_scrub: Vec<String>) -> std::io::Result<Self> {
+        Ok(Self {
+            output_dir: tempfile::tempdir()?,
+            call_index: AtomicUsize::new(0),
+            env_scrub,
         })
     }
 
@@ -114,7 +138,14 @@ impl ShellTool {
             return Self::error_result("Command cannot be empty.", None);
         }
 
-        let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
+        let execution = match run_command(
+            &params.command,
+            params.timeout_secs,
+            working_dir,
+            &self.env_scrub,
+        )
+        .await
+        {
             Ok(execution) => execution,
             Err(error) => return Self::error_result(&error, None),
         };
@@ -226,6 +257,7 @@ async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
+    env_scrub: &[String],
 ) -> Result<ExecutionOutput, String> {
     let mut command = build_shell_command(command_line);
     if let Some(path) = working_dir {
@@ -235,6 +267,10 @@ async fn run_command(
     #[cfg(not(windows))]
     if let Some(path) = user_login_path() {
         command.env("PATH", path);
+    }
+
+    for var in env_scrub {
+        command.env_remove(var);
     }
 
     command.stdout(Stdio::piped());
@@ -668,5 +704,66 @@ mod tests {
             text.contains("after"),
             "should capture output after background cmd"
         );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_scrubs_env_vars() {
+        let key = "GOOSE_TEST_SECRET_VALUE";
+        // Set a var in our process so the child would normally inherit it
+        unsafe { std::env::set_var(key, "hunter2") };
+
+        let tool = ShellTool::with_env_scrub(vec![key.to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: format!("echo \"val=${{{}}}\"", key),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        let text = extract_text(&result);
+        assert_eq!(text.trim(), "val=", "scrubbed var should be empty in child");
+
+        unsafe { std::env::remove_var(key) };
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_scrub_does_not_affect_other_vars() {
+        let keep = "GOOSE_TEST_KEEP_THIS";
+        let scrub = "GOOSE_TEST_SCRUB_THIS";
+        unsafe {
+            std::env::set_var(keep, "visible");
+            std::env::set_var(scrub, "hidden");
+        }
+
+        let tool = ShellTool::with_env_scrub(vec![scrub.to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: format!("echo \"keep=${{{keep}}} scrub=${{{scrub}}}\""),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        let text = extract_text(&result);
+        assert!(
+            text.contains("keep=visible"),
+            "non-scrubbed var should be visible"
+        );
+        assert!(
+            text.contains("scrub="),
+            "scrubbed var key should appear in echo"
+        );
+        assert!(
+            !text.contains("hidden"),
+            "scrubbed var value should not appear"
+        );
+
+        unsafe {
+            std::env::remove_var(keep);
+            std::env::remove_var(scrub);
+        }
     }
 }
