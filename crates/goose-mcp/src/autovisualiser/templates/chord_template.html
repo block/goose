@@ -44,9 +44,16 @@
         "use strict";
 
         var svgEl, tooltipEl;
-        var width = 500, height = 500;
-        var outerRadius = Math.min(width, height) * 0.4;
-        var innerRadius = outerRadius - 24;
+
+        function getDimensions() {
+            if (McpAppBridge.displayMode === "fullscreen" || McpAppBridge.displayMode === "pip") {
+                var w = window.innerWidth - 32;
+                var h = window.innerHeight - 32;
+                var size = Math.min(w, h);
+                return { width: size, height: size };
+            }
+            return { width: 580, height: 580 };
+        }
 
         var palette = [
             "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
@@ -55,13 +62,18 @@
         var colors = d3.scaleOrdinal(palette);
 
         function initializeSVG() {
-            svgEl = d3.select("#chord").attr("width", width).attr("height", height);
+            var dim = getDimensions();
+            svgEl = d3.select("#chord").attr("width", dim.width).attr("height", dim.height);
             svgEl.selectAll("*").remove();
             tooltipEl = d3.select("#tooltip");
-            return svgEl.append("g").attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+            return {
+                g: svgEl.append("g").attr("transform", "translate(" + dim.width / 2 + "," + dim.height / 2 + ")"),
+                outerRadius: Math.min(dim.width, dim.height) * 0.32,
+            };
         }
 
-        function drawChord(g, data) {
+        function drawChord(g, data, outerRadius) {
+            var innerRadius = outerRadius - 24;
             var chordLayout = d3.chord().padAngle(0.04).sortSubgroups(d3.descending);
             var arcGen = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
             var ribbonGen = d3.ribbon().radius(innerRadius);
@@ -76,8 +88,8 @@
                 .on("mouseover", function (event, d) {
                     fadeChords(g, d.index, 0.08);
                     tooltipEl.style("opacity", 1)
-                        .html("<strong>" + data.labels[d.index] + "</strong><br/>Total: " + d.value.toLocaleString())
-                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
+                        .html("<strong>" + data.labels[d.index] + "</strong><br/>Total: " + d.value.toLocaleString());
+                    McpAppBridge.positionTooltip(tooltipEl, event);
                 })
                 .on("mouseout", function () {
                     fadeChords(g, null, 1);
@@ -104,8 +116,8 @@
                     var t2s = data.matrix[d.target.index][d.source.index];
                     tooltipEl.style("opacity", 1)
                         .html(data.labels[d.source.index] + " → " + data.labels[d.target.index] + ": " + s2t.toLocaleString() +
-                            "<br/>" + data.labels[d.target.index] + " → " + data.labels[d.source.index] + ": " + t2s.toLocaleString())
-                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
+                            "<br/>" + data.labels[d.target.index] + " → " + data.labels[d.source.index] + ": " + t2s.toLocaleString());
+                    McpAppBridge.positionTooltip(tooltipEl, event);
                 })
                 .on("mouseout", function () {
                     d3.select(this).style("fill-opacity", 0.55);
@@ -122,8 +134,8 @@
 
         function renderData(data) {
             document.getElementById("loadingIndicator").classList.add("hidden");
-            var g = initializeSVG();
-            drawChord(g, data);
+            var init = initializeSVG();
+            drawChord(init.g, data, init.outerRadius);
             setTimeout(McpAppBridge.reportSize, 80);
         }
 

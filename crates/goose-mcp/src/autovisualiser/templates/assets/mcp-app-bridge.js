@@ -49,6 +49,10 @@ var McpAppBridge = (function () {
   // ── Size reporting ──────────────────────────────────────────────────
 
   function reportSize() {
+    // In fullscreen/pip the host controls sizing — skip size reports
+    // to avoid a feedback loop when transitioning back to inline.
+    if (_displayMode === "fullscreen" || _displayMode === "pip") return;
+
     var h = Math.max(
       document.body.scrollHeight,
       document.body.offsetHeight,
@@ -63,12 +67,18 @@ var McpAppBridge = (function () {
 
   // ── Theming ─────────────────────────────────────────────────────────
 
+  var _displayMode = "inline";
+
   function applyTheme(hostContext) {
     if (!hostContext) return;
     // Clear resolved color cache — theme change means light-dark() flips.
     _probeCache = {};
     if (hostContext.theme)
       document.documentElement.style.colorScheme = hostContext.theme;
+    if (hostContext.displayMode) {
+      _displayMode = hostContext.displayMode;
+      document.documentElement.setAttribute("data-display-mode", _displayMode);
+    }
     if (hostContext.styles && hostContext.styles.variables) {
       var vars = hostContext.styles.variables;
       for (var key in vars) {
@@ -200,12 +210,34 @@ var McpAppBridge = (function () {
       });
   }
 
+  function positionTooltip(tooltipEl, event, offsetX, offsetY) {
+    var ox = offsetX || 10;
+    var oy = offsetY || -10;
+    var el = tooltipEl instanceof HTMLElement ? tooltipEl : tooltipEl.node();
+    if (!el) return;
+    var rect = el.getBoundingClientRect();
+    var w = rect.width || 150;
+    var h = rect.height || 40;
+    var x = event.pageX + ox;
+    var y = event.pageY + oy;
+    if (x + w > window.innerWidth - 8) x = event.pageX - w - ox;
+    if (y + h > window.innerHeight - 8) y = event.pageY - h - Math.abs(oy);
+    if (x < 8) x = 8;
+    if (y < 8) y = 8;
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+  }
+
   return {
     init: init,
     cssVar: cssVar,
     reportSize: reportSize,
+    positionTooltip: positionTooltip,
     get currentData() {
       return _currentData;
+    },
+    get displayMode() {
+      return _displayMode;
     },
   };
 })();

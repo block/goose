@@ -684,6 +684,11 @@ The data must contain:
 - nodes: Array of objects with 'name' and optional 'category' properties
 - links: Array of objects with 'source', 'target', and 'value' properties
 
+IMPORTANT: Links must NOT form cycles (e.g. A→B and B→A). Sankey diagrams are
+directional acyclic flows. If the data has circular relationships, restructure
+them so flow moves in one direction (e.g. add a separate node like "Re-signed"
+instead of linking back to an earlier node).
+
 Example:
 {
   "nodes": [

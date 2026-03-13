@@ -24,7 +24,7 @@
         }
 
         .chart-card-title {
-            font-size: var(--font-heading-xs-size);
+            font-size: var(--font-heading-md-size);
             font-weight: var(--font-weight-semibold);
             color: var(--color-text-primary);
             text-align: center;
@@ -45,21 +45,38 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 10px;
-            font-size: var(--font-text-xs-size);
+            gap: 12px;
+            font-size: var(--font-text-sm-size);
         }
 
-        .legend-item { display: flex; align-items: center; gap: 5px; }
-        .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         .legend-label { color: var(--color-text-secondary); }
         .legend-value { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
 
         @media (max-width: 640px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 24px;
+        }
+
+        :root[data-display-mode="fullscreen"] .charts-grid,
+        :root[data-display-mode="pip"] .charts-grid {
+            height: 100%;
+            align-content: center;
+        }
+
+        :root[data-display-mode="fullscreen"] .chart-canvas-wrap,
+        :root[data-display-mode="pip"] .chart-canvas-wrap {
+            max-width: 420px;
+            height: 420px;
+        }
     </style>
 </head>
 <body>
     <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
-    <div class="charts-grid" id="chartsGrid"></div>
+    <div class="charts-grid" id="chartsGrid" style="width:100%;"></div>
 
     <script>{{MCP_APP_BRIDGE}}</script>
     <script>

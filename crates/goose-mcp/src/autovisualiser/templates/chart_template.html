@@ -14,15 +14,15 @@
         }
 
         .chart-title {
-            font-size: var(--font-heading-xs-size);
+            font-size: var(--font-heading-md-size);
             font-weight: var(--font-weight-semibold);
             color: var(--color-text-primary);
             text-align: center;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
         }
 
         .chart-subtitle {
-            font-size: var(--font-text-xs-size);
+            font-size: var(--font-text-md-size);
             color: var(--color-text-secondary);
             text-align: center;
             margin-bottom: 16px;
@@ -36,13 +36,33 @@
 
         .chart-area {
             position: relative;
-            height: 360px;
+            height: 520px;
+        }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 24px;
+        }
+
+        :root[data-display-mode="fullscreen"] #chartRoot,
+        :root[data-display-mode="pip"] #chartRoot {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
+
+        :root[data-display-mode="fullscreen"] .chart-area,
+        :root[data-display-mode="pip"] .chart-area {
+            flex: 1;
+            height: auto;
+            min-height: 0;
         }
     </style>
 </head>
 <body>
     <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
-    <div id="chartRoot" style="display:none;">
+    <div id="chartRoot" style="display:none;width:100%;">
         <div class="chart-header">
             <div class="chart-title" id="chartTitle"></div>
             <div class="chart-subtitle" id="chartSubtitle"></div>
@@ -77,26 +97,45 @@
 
         function getChartOptions(chartData, type) {
             var cv = McpAppBridge.cssVar;
-            var textColor = cv("--color-text-primary") || "#3f434b";
-            var textSecondary = cv("--color-text-secondary") || "#878787";
-            var gridColor = cv("--color-border-primary") || "#e3e6ea";
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            var textColor = cv("--color-text-primary") || (isDark ? "#e0e0e0" : "#3f434b");
+            var textSecondary = cv("--color-text-secondary") || (isDark ? "#a0a0a0" : "#878787");
+            var gridColor = cv("--color-border-primary") || (isDark ? "#333" : "#e3e6ea");
             var fontFamily = cv("--font-sans") || "sans-serif";
 
             var base = {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: { intersect: false, mode: "index" },
+                interaction: type === "scatter"
+                    ? { intersect: true, mode: "nearest" }
+                    : { intersect: false, mode: "index" },
                 plugins: {
                     legend: {
                         position: "bottom",
                         labels: {
                             usePointStyle: true,
-                            pointStyleWidth: 8,
-                            padding: 16,
-                            font: { size: 12, family: fontFamily },
+                            pointStyle: "circle",
+                            padding: 20,
+                            font: { size: 13, family: fontFamily },
                             color: textSecondary,
-                            boxWidth: 6,
-                            boxHeight: 6,
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            generateLabels: function (chart) {
+                                var ds = chart.data.datasets;
+                                return ds.map(function (d, i) {
+                                    var color = d.borderColor || d.backgroundColor;
+                                    return {
+                                        text: d.label,
+                                        fontColor: textSecondary,
+                                        fillStyle: color,
+                                        strokeStyle: color,
+                                        lineWidth: 0,
+                                        pointStyle: "circle",
+                                        hidden: !chart.isDatasetVisible(i),
+                                        datasetIndex: i,
+                                    };
+                                });
+                            },
                         },
                     },
                     tooltip: {
@@ -183,13 +222,10 @@
                 var out = Object.assign({}, ds);
 
                 if (!out.borderColor) out.borderColor = p.solid;
+                var lineColor = out.borderColor;
 
                 if (!out.backgroundColor) {
-                    if (type === "bar") {
-                        out.backgroundColor = p.solid;
-                    } else {
-                        out.backgroundColor = p.fill;
-                    }
+                    out.backgroundColor = type === "bar" ? lineColor : p.fill;
                 }
 
                 if (out.borderWidth === undefined) {
@@ -197,19 +233,22 @@
                 }
                 if (type === "line") {
                     if (out.tension === undefined) out.tension = 0.35;
-                    if (out.fill === undefined) out.fill = true;
-                    if (out.pointRadius === undefined) out.pointRadius = 0;
+                    out.fill = false;
+                    out.pointStyle = "circle";
+                    if (out.pointRadius === undefined) out.pointRadius = 3;
+                    out.pointBackgroundColor = lineColor;
+                    out.pointBorderColor = lineColor;
                     if (out.pointHitRadius === undefined) out.pointHitRadius = 20;
-                    if (out.pointHoverRadius === undefined) out.pointHoverRadius = 4;
-                    if (out.pointHoverBackgroundColor === undefined)
-                        out.pointHoverBackgroundColor = p.solid;
+                    if (out.pointHoverRadius === undefined) out.pointHoverRadius = 5;
+                    out.pointHoverBackgroundColor = lineColor;
                 }
                 if (type === "bar") {
                     if (out.borderRadius === undefined) out.borderRadius = 3;
                     if (out.maxBarThickness === undefined) out.maxBarThickness = 48;
                 }
                 if (type === "scatter") {
-                    out.backgroundColor = p.solid;
+                    out.backgroundColor = lineColor;
+                    out.pointStyle = "circle";
                     if (out.pointRadius === undefined) out.pointRadius = 4;
                     if (out.pointHoverRadius === undefined) out.pointHoverRadius = 6;
                 }

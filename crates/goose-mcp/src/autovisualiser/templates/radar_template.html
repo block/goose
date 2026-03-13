@@ -13,7 +13,7 @@
 
         .chart-area {
             position: relative;
-            height: 420px;
+            height: 580px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -23,11 +23,24 @@
             max-width: 100%;
             max-height: 100%;
         }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 24px;
+        }
+
+        :root[data-display-mode="fullscreen"] .chart-area,
+        :root[data-display-mode="pip"] .chart-area {
+            flex: 1;
+            height: auto;
+            width: 100%;
+            min-height: 0;
+        }
     </style>
 </head>
 <body>
     <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
-    <div class="chart-area" id="chartContainer" style="display:none;">
+    <div class="chart-area" id="chartContainer" style="display:none;width:100%;">
         <canvas id="radarChart"></canvas>
     </div>
 
@@ -56,9 +69,10 @@
             if (chart) { chart.destroy(); chart = null; }
 
             var cv = McpAppBridge.cssVar;
-            var textColor = cv("--color-text-primary") || "#3f434b";
-            var textSecondary = cv("--color-text-secondary") || "#878787";
-            var gridColor = cv("--color-border-primary") || "#e3e6ea";
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            var textColor = cv("--color-text-primary") || (isDark ? "#e0e0e0" : "#3f434b");
+            var textSecondary = cv("--color-text-secondary") || (isDark ? "#a0a0a0" : "#878787");
+            var gridColor = cv("--color-border-primary") || (isDark ? "#333" : "#e3e6ea");
             var fontFamily = cv("--font-sans") || "sans-serif";
 
             var datasets = (data.datasets || []).map(function (ds, i) {
@@ -69,8 +83,9 @@
                     borderColor: ds.borderColor || p.solid,
                     backgroundColor: ds.backgroundColor || p.fill,
                     borderWidth: ds.borderWidth || 2,
+                    pointStyle: "circle",
                     pointBackgroundColor: ds.pointBackgroundColor || p.solid,
-                    pointBorderColor: "transparent",
+                    pointBorderColor: ds.pointBorderColor || p.solid,
                     pointRadius: 3,
                     pointHoverRadius: 5,
                     pointHoverBackgroundColor: ds.pointHoverBackgroundColor || p.solid,
@@ -94,12 +109,28 @@
                             position: "bottom",
                             labels: {
                                 usePointStyle: true,
-                                pointStyleWidth: 8,
-                                padding: 16,
-                                font: { size: 12, family: fontFamily },
+                                pointStyle: "circle",
+                                padding: 20,
+                                font: { size: 13, family: fontFamily },
                                 color: textSecondary,
-                                boxWidth: 6,
-                                boxHeight: 6,
+                                boxWidth: 10,
+                                boxHeight: 10,
+                                generateLabels: function (chart) {
+                                    var ds = chart.data.datasets;
+                                    return ds.map(function (d, i) {
+                                        var color = d.borderColor || d.backgroundColor;
+                                        return {
+                                            text: d.label,
+                                            fontColor: textSecondary,
+                                            fillStyle: color,
+                                            strokeStyle: color,
+                                            lineWidth: 0,
+                                            pointStyle: "circle",
+                                            hidden: !chart.isDatasetVisible(i),
+                                            datasetIndex: i,
+                                        };
+                                    });
+                                },
                             },
                         },
                         tooltip: {

@@ -8,14 +8,14 @@
 
 /* ── Fallback tokens (overridden by host) ─────────────────────────── */
 :root {
-  --color-background-primary: #ffffff;
-  --color-background-secondary: #f4f6f7;
-  --color-background-tertiary: #e3e6ea;
-  --color-text-primary: #3f434b;
-  --color-text-secondary: #878787;
-  --color-text-tertiary: #a7b0b9;
-  --color-border-primary: #e3e6ea;
-  --color-border-secondary: #e3e6ea;
+  --color-background-primary: light-dark(#ffffff, #1a1d21);
+  --color-background-secondary: light-dark(#f4f6f7, #22252a);
+  --color-background-tertiary: light-dark(#e3e6ea, #2a2e35);
+  --color-text-primary: light-dark(#3f434b, #e0e0e0);
+  --color-text-secondary: light-dark(#878787, #a0a0a0);
+  --color-text-tertiary: light-dark(#a7b0b9, #666);
+  --color-border-primary: light-dark(#e3e6ea, #333);
+  --color-border-secondary: light-dark(#e3e6ea, #333);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: monospace;
   --font-weight-normal: 400;
@@ -55,6 +55,16 @@ body {
     var(--color-background-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Fullscreen / PiP centering ────────────────────────────────────── */
+:root[data-display-mode="fullscreen"] body,
+:root[data-display-mode="pip"] body {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 /* ── Loading state ─────────────────────────────────────────────────── */

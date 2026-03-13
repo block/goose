@@ -38,7 +38,7 @@
 </head>
 <body>
     <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
-    <svg id="sankey"></svg>
+    <svg id="sankey" style="width:100%;"></svg>
     <div class="av-tooltip" id="tooltip"></div>
 
     <script>{{MCP_APP_BRIDGE}}</script>
@@ -47,8 +47,18 @@
         "use strict";
 
         var svg, sankey, tooltip;
-        var width = 500, height = 400;
         var margin = { top: 16, right: 16, bottom: 16, left: 16 };
+
+        function getWidth() {
+            return document.body.clientWidth - 32 || 500;
+        }
+
+        function getHeight() {
+            if (McpAppBridge.displayMode === "fullscreen" || McpAppBridge.displayMode === "pip") {
+                return window.innerHeight - 64;
+            }
+            return 420;
+        }
 
         var palette = [
             "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
@@ -68,6 +78,8 @@
         }
 
         function initializeSVG() {
+            var width = getWidth();
+            var height = getHeight();
             svg = d3.select("#sankey").attr("width", width).attr("height", height);
             svg.selectAll("*").remove();
             sankey = d3.sankey().nodeWidth(18).nodePadding(12)
@@ -75,17 +87,83 @@
             tooltip = d3.select("#tooltip");
         }
 
-        function drawSankey(data) {
-            var nodeMap = new Map();
-            data.nodes.forEach(function (node, index) { nodeMap.set(node.name, index); });
+        function prepareGraph(data) {
+            var nodes = data.nodes.map(function (d) { return Object.assign({}, d); });
+            var links = [];
+            var nameToIdx = new Map();
+            nodes.forEach(function (n, i) { nameToIdx.set(n.name, i); });
 
-            var processedLinks = data.links.map(function (link) {
-                return { source: nodeMap.get(link.source), target: nodeMap.get(link.target), value: link.value };
+            // Filter out links with unknown nodes or invalid values
+            data.links.forEach(function (link) {
+                if (nameToIdx.has(link.source) && nameToIdx.has(link.target) && link.value > 0) {
+                    links.push({ source: link.source, target: link.target, value: link.value });
+                }
             });
 
+            // Detect and break cycles by creating synthetic return nodes.
+            // d3-sankey doesn't support circular links so we redirect back-edges
+            // to a new "Target → Source" node to preserve the data visually.
+            var adj = new Map();
+            links.forEach(function (l) {
+                if (!adj.has(l.source)) adj.set(l.source, []);
+                adj.get(l.source).push(l.target);
+            });
+
+            var WHITE = 0, GRAY = 1, BLACK = 2;
+            var color = new Map();
+            nodes.forEach(function (n) { color.set(n.name, WHITE); });
+            var backEdges = new Set();
+
+            function dfs(u) {
+                color.set(u, GRAY);
+                (adj.get(u) || []).forEach(function (v) {
+                    if (color.get(v) === GRAY) {
+                        backEdges.add(u + "\0" + v);
+                    } else if (color.get(v) === WHITE) {
+                        dfs(v);
+                    }
+                });
+                color.set(u, BLACK);
+            }
+            nodes.forEach(function (n) {
+                if (color.get(n.name) === WHITE) dfs(n.name);
+            });
+
+            if (backEdges.size > 0) {
+                var fixedLinks = [];
+                links.forEach(function (l) {
+                    var key = l.source + "\0" + l.target;
+                    if (backEdges.has(key)) {
+                        var syntheticName = l.target + " ↩";
+                        if (!nameToIdx.has(syntheticName)) {
+                            nameToIdx.set(syntheticName, nodes.length);
+                            nodes.push({ name: syntheticName, category: "cycle" });
+                        }
+                        fixedLinks.push({ source: l.source, target: syntheticName, value: l.value });
+                    } else {
+                        fixedLinks.push(l);
+                    }
+                });
+                links = fixedLinks;
+            }
+
+            // Rebuild index map after possible new nodes
+            var idxMap = new Map();
+            nodes.forEach(function (n, i) { idxMap.set(n.name, i); });
+
+            var processedLinks = links.map(function (l) {
+                return { source: idxMap.get(l.source), target: idxMap.get(l.target), value: l.value };
+            });
+
+            return { nodes: nodes, links: processedLinks };
+        }
+
+        function drawSankey(data) {
+            var prepared = prepareGraph(data);
+
             var graph = sankey({
-                nodes: data.nodes.map(function (d) { return Object.assign({}, d); }),
-                links: processedLinks,
+                nodes: prepared.nodes,
+                links: prepared.links,
             });
 
             svg.append("g").selectAll("path").data(graph.links).enter().append("path")
@@ -95,8 +173,8 @@
                 .attr("stroke-width", function (d) { return Math.max(1, d.width); })
                 .on("mouseover", function (event, d) {
                     tooltip.style("opacity", 1)
-                        .html("<strong>" + d.source.name + " → " + d.target.name + "</strong><br/>" + d.value.toLocaleString())
-                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
+                        .html("<strong>" + d.source.name + " → " + d.target.name + "</strong><br/>" + d.value.toLocaleString());
+                    McpAppBridge.positionTooltip(tooltip, event);
                 })
                 .on("mouseout", function () { tooltip.style("opacity", 0); });
 
@@ -113,23 +191,36 @@
                     tooltip.style("opacity", 1)
                         .html("<strong>" + d.name + "</strong>" +
                             (totalIn ? "<br/>In: " + totalIn.toLocaleString() : "") +
-                            (totalOut ? "<br/>Out: " + totalOut.toLocaleString() : ""))
-                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 10) + "px");
+                            (totalOut ? "<br/>Out: " + totalOut.toLocaleString() : ""));
+                    McpAppBridge.positionTooltip(tooltip, event);
                 })
                 .on("mouseout", function () { tooltip.style("opacity", 0); });
 
+            var w = getWidth();
             node.append("text")
-                .attr("x", function (d) { return d.x0 < width / 2 ? d.x1 + 8 : d.x0 - 8; })
+                .attr("x", function (d) { return d.x0 < w / 2 ? d.x1 + 8 : d.x0 - 8; })
                 .attr("y", function (d) { return (d.y1 + d.y0) / 2; })
                 .attr("dy", "0.35em")
-                .attr("text-anchor", function (d) { return d.x0 < width / 2 ? "start" : "end"; })
+                .attr("text-anchor", function (d) { return d.x0 < w / 2 ? "start" : "end"; })
                 .text(function (d) { return d.name; });
         }
 
         function renderData(data) {
             document.getElementById("loadingIndicator").classList.add("hidden");
             initializeSVG();
-            drawSankey(data);
+            try {
+                if (!data.nodes || !data.nodes.length || !data.links || !data.links.length) {
+                    throw new Error("Sankey data must include at least one node and one link.");
+                }
+                drawSankey(data);
+            } catch (e) {
+                svg.append("text")
+                    .attr("x", getWidth() / 2).attr("y", getHeight() / 2)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", McpAppBridge.cssVar("--color-text-secondary") || "#878787")
+                    .attr("font-size", "14px")
+                    .text("Unable to render diagram: " + (e.message || e));
+            }
             setTimeout(McpAppBridge.reportSize, 80);
         }
 

@@ -44,7 +44,7 @@
 </head>
 <body>
     <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
-    <div id="treemap"></div>
+    <div id="treemap" style="width:100%;"></div>
     <div class="av-tooltip" id="tooltip"></div>
 
     <script>{{MCP_APP_BRIDGE}}</script>
@@ -53,7 +53,13 @@
         "use strict";
 
         var svg, treemapLayout, root;
-        var width = 800, height = 460;
+
+        function getHeight() {
+            if (McpAppBridge.displayMode === "fullscreen" || McpAppBridge.displayMode === "pip") {
+                return window.innerHeight - 64;
+            }
+            return 460;
+        }
 
         var palette = [
             "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
@@ -67,11 +73,18 @@
             return v.toLocaleString();
         }
 
+        function getWidth() {
+            var container = document.getElementById("treemap");
+            return container.clientWidth || 800;
+        }
+
         function initializeTreemap() {
             var container = d3.select("#treemap");
             container.selectAll("*").remove();
-            svg = container.append("svg").attr("width", width).attr("height", height);
-            treemapLayout = d3.treemap().size([width, height]).padding(2).round(true);
+            var width = getWidth();
+            var h = getHeight();
+            svg = container.append("svg").attr("width", width).attr("height", h);
+            treemapLayout = d3.treemap().size([width, h]).padding(2).round(true);
         }
 
         function updateTreemap(data) {
@@ -95,13 +108,10 @@
                     tt.innerHTML = "<strong>" + d.data.name + "</strong><br/>" + formatValue(d.data.value) + " (" + pct + "%)" +
                         (d.data.category ? "<br/>" + d.data.category : "");
                     tt.style.opacity = 1;
-                    tt.style.left = (event.pageX + 10) + "px";
-                    tt.style.top = (event.pageY - 10) + "px";
+                    McpAppBridge.positionTooltip(tt, event);
                 })
                 .on("mousemove", function (event) {
-                    var tt = document.getElementById("tooltip");
-                    tt.style.left = (event.pageX + 10) + "px";
-                    tt.style.top = (event.pageY - 10) + "px";
+                    McpAppBridge.positionTooltip(document.getElementById("tooltip"), event);
                 })
                 .on("mouseout", function () { document.getElementById("tooltip").style.opacity = 0; });
 

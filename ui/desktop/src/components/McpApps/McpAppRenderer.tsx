@@ -549,9 +549,27 @@ export default function McpAppRenderer({
     []
   );
 
+  // Track when we *return* to inline from fullscreen/pip so we can briefly
+  // suppress stale size reports. The iframe body reflows from 100vh to natural
+  // height, which triggers a cascade of intermediate size-changed notifications
+  // that cause a visible "slow shrink" animation.
+  const inlineTransitionRef = useRef(false);
+  const wasInlineRef = useRef(isInline);
+  useEffect(() => {
+    const wasInline = wasInlineRef.current;
+    wasInlineRef.current = isInline;
+    // Only suppress when transitioning *back* to inline, not on initial mount.
+    if (!isInline || wasInline) return;
+    inlineTransitionRef.current = true;
+    const timer = setTimeout(() => {
+      inlineTransitionRef.current = false;
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isInline]);
+
   const handleSizeChanged = useCallback(
     ({ height }: McpUiSizeChangedNotification['params']) => {
-      if (height !== undefined && height > 0 && isInline) {
+      if (height !== undefined && height > 0 && isInline && !inlineTransitionRef.current) {
         setIframeHeight(height);
       }
     },
