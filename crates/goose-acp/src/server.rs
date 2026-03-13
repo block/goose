@@ -13,7 +13,7 @@ use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionManager;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
@@ -27,16 +27,17 @@ use goose_acp_macros::custom_methods;
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
-    CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
+    CancelNotification, Content, ContentBlock, ContentChunk, CurrentModeUpdate, EmbeddedResource,
     EmbeddedResourceResource, FileSystemCapability, ImageContent, InitializeRequest,
     InitializeResponse, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
     McpCapabilities, McpServer, ModelId, ModelInfo, NewSessionRequest, NewSessionResponse,
     PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
-    SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
-    SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
-    TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
-    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    SessionId, SessionInfo, SessionListCapabilities, SessionMode, SessionModeId, SessionModeState,
+    SessionModelState, SessionNotification, SessionUpdate, SetSessionModeRequest,
+    SetSessionModeResponse, SetSessionModelRequest, SetSessionModelResponse, StopReason,
+    TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
@@ -65,7 +66,7 @@ pub struct GooseAcpAgent {
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
-    goose_mode: goose::config::GooseMode,
+    goose_mode: GooseMode,
     disable_session_naming: bool,
 }
 
@@ -322,6 +323,24 @@ async fn build_model_state(provider: &dyn Provider, current_model: &str) -> Sess
     )
 }
 
+fn build_mode_state(current_mode: GooseMode) -> Result<SessionModeState, sacp::Error> {
+    use strum::{EnumMessage, VariantNames};
+    let mut available = Vec::with_capacity(GooseMode::VARIANTS.len());
+    for &name in GooseMode::VARIANTS {
+        let goose_mode: GooseMode = name.parse().map_err(|_| {
+            sacp::Error::internal_error() // impossible but satisfy linters
+                .data(format!("Failed to parse GooseMode variant: {}", name))
+        })?;
+        let mut mode = SessionMode::new(SessionModeId::new(name), name);
+        mode.description = goose_mode.get_message().map(Into::into);
+        available.push(mode);
+    }
+    Ok(SessionModeState::new(
+        SessionModeId::new(current_mode.to_string()),
+        available,
+    ))
+}
+
 impl GooseAcpAgent {
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
         Arc::clone(&self.permission_manager)
@@ -332,7 +351,7 @@ impl GooseAcpAgent {
         builtins: Vec<String>,
         data_dir: std::path::PathBuf,
         config_dir: std::path::PathBuf,
-        goose_mode: goose::config::GooseMode,
+        goose_mode: GooseMode,
         disable_session_naming: bool,
     ) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(data_dir));
@@ -800,7 +819,6 @@ impl GooseAcpAgent {
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
             })?;
-
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -823,13 +841,17 @@ impl GooseAcpAgent {
         info!(
             session_id = %goose_session.id,
             session_type = "acp",
+            goose_mode = %self.goose_mode,
             "Session started"
         );
 
         let model_state =
             build_model_state(&*provider, &provider.get_model_config().model_name).await;
+        let mode_state = build_mode_state(self.goose_mode)?;
 
-        Ok(NewSessionResponse::new(SessionId::new(goose_session.id)).models(model_state))
+        Ok(NewSessionResponse::new(SessionId::new(goose_session.id))
+            .models(model_state)
+            .modes(mode_state))
     }
 
     async fn init_provider(&self, agent: &Agent, session: &Session) -> Result<Arc<dyn Provider>> {
@@ -846,6 +868,21 @@ impl GooseAcpAgent {
         let provider = (self.provider_factory)(model_config, Vec::new()).await?;
         agent.update_provider(provider.clone(), &session.id).await?;
         Ok(provider)
+    }
+
+    async fn get_session_agent(
+        &self,
+        session_id: &str,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<Arc<Agent>, sacp::Error> {
+        let mut sessions = self.sessions.lock().await;
+        let session = sessions.get_mut(session_id).ok_or_else(|| {
+            sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
+        })?;
+        if let Some(token) = cancel_token {
+            session.cancel_token = Some(token);
+        }
+        Ok(session.agent.clone())
     }
 
     async fn add_mcp_extensions(
@@ -976,16 +1013,23 @@ impl GooseAcpAgent {
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.clone(), session);
 
+        // TODO: read from goose_session.goose_mode after #7603
+        let goose_mode = self.goose_mode;
+
         info!(
             session_id = %session_id,
             session_type = "acp",
+            goose_mode = %goose_mode,
             "Session loaded"
         );
 
         let model_state =
             build_model_state(&*provider, &provider.get_model_config().model_name).await;
+        let mode_state = build_mode_state(goose_mode)?;
 
-        Ok(LoadSessionResponse::new().models(model_state))
+        Ok(LoadSessionResponse::new()
+            .models(model_state)
+            .modes(mode_state))
     }
 
     async fn on_prompt(
@@ -996,14 +1040,9 @@ impl GooseAcpAgent {
         let session_id = args.session_id.0.to_string();
         let cancel_token = CancellationToken::new();
 
-        let agent = {
-            let mut sessions = self.sessions.lock().await;
-            let session = sessions.get_mut(&session_id).ok_or_else(|| {
-                sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
-            })?;
-            session.cancel_token = Some(cancel_token.clone());
-            session.agent.clone()
-        };
+        let agent = self
+            .get_session_agent(&session_id, Some(cancel_token.clone()))
+            .await?;
 
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
@@ -1107,13 +1146,7 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
             })?;
 
-        let agent = {
-            let sessions = self.sessions.lock().await;
-            let session = sessions.get(session_id).ok_or_else(|| {
-                sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
-            })?;
-            session.agent.clone()
-        };
+        let agent = self.get_session_agent(session_id, None).await?;
         agent
             .update_provider(provider, session_id)
             .await
@@ -1123,6 +1156,28 @@ impl GooseAcpAgent {
 
         info!(session_id = %session_id, model_id = %model_id, "Model switched");
         Ok(SetSessionModelResponse::new())
+    }
+
+    async fn on_set_mode(
+        &self,
+        session_id: &str,
+        mode_id: &str,
+    ) -> Result<SetSessionModeResponse, sacp::Error> {
+        let mode = mode_id.parse::<GooseMode>().map_err(|_| {
+            sacp::Error::invalid_params().data(format!("Invalid mode: {}", mode_id))
+        })?;
+
+        self.get_session_agent(session_id, None).await?;
+
+        // Reject mode changes until per-session persistence lands (#7603)
+        if mode != self.goose_mode {
+            return Err(sacp::Error::invalid_params().data(format!(
+                "Mode change not supported: session is {}, requested {}",
+                self.goose_mode, mode_id
+            )));
+        }
+
+        Ok(SetSessionModeResponse::new())
     }
 }
 
@@ -1135,7 +1190,7 @@ impl GooseAcpAgent {
     ) -> Result<EmptyResponse, sacp::Error> {
         let config: ExtensionConfig = serde_json::from_value(req.config)
             .map_err(|e| sacp::Error::invalid_params().data(format!("bad config: {e}")))?;
-        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let agent = self.get_session_agent(&req.session_id, None).await?;
         agent
             .add_extension(config, &req.session_id)
             .await
@@ -1148,7 +1203,7 @@ impl GooseAcpAgent {
         &self,
         req: RemoveExtensionRequest,
     ) -> Result<EmptyResponse, sacp::Error> {
-        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let agent = self.get_session_agent(&req.session_id, None).await?;
         agent
             .remove_extension(&req.name, &req.session_id)
             .await
@@ -1158,7 +1213,7 @@ impl GooseAcpAgent {
 
     #[custom_method("tools")]
     async fn on_get_tools(&self, req: GetToolsRequest) -> Result<GetToolsResponse, sacp::Error> {
-        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let agent = self.get_session_agent(&req.session_id, None).await?;
         let tools = agent.list_tools(&req.session_id, None).await;
         let tools_json = tools
             .into_iter()
@@ -1173,7 +1228,7 @@ impl GooseAcpAgent {
         &self,
         req: ReadResourceRequest,
     ) -> Result<ReadResourceResponse, sacp::Error> {
-        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let agent = self.get_session_agent(&req.session_id, None).await?;
         let cancel_token = CancellationToken::new();
         let result = agent
             .extension_manager
@@ -1310,17 +1365,6 @@ impl GooseAcpAgent {
             warnings,
         })
     }
-
-    async fn get_agent_for_session(&self, session_id: &str) -> Result<Arc<Agent>, sacp::Error> {
-        self.sessions
-            .lock()
-            .await
-            .get(session_id)
-            .map(|s| Arc::clone(&s.agent))
-            .ok_or_else(|| {
-                sacp::Error::invalid_params().data(format!("no active session: {session_id}"))
-            })
-    }
 }
 
 pub struct GooseAcpHandler {
@@ -1394,12 +1438,43 @@ impl JrMessageHandler for GooseAcpHandler {
                 .if_notification(|notif: CancelNotification| async { agent.on_cancel(notif).await })
                 .await
                 // Handle methods not yet in the sacp typed API.
-                // - session/set_model: typed support pending in sacp
+                // - session/set_model, session/set_mode: typed support pending in sacp
                 // - _<method>: custom requests that will eventually route to goose-server
                 .otherwise({
                     let agent = agent.clone();
+                    let cx = cx.clone();
                     |message: MessageCx| async move {
                         match message {
+                            MessageCx::Request(req, request_cx)
+                                if req.method == "session/set_mode" =>
+                            {
+                                let params: SetSessionModeRequest =
+                                    serde_json::from_value(req.params).map_err(|e| {
+                                        sacp::Error::invalid_params().data(e.to_string())
+                                    })?;
+                                let session_id = params.session_id.clone();
+                                let mode_id = params.mode_id.clone();
+                                match agent.on_set_mode(&session_id.0, &mode_id.0).await {
+                                    Ok(resp) => {
+                                        let json = serde_json::to_value(resp).map_err(|e| {
+                                            sacp::Error::internal_error().data(e.to_string())
+                                        })?;
+                                        // Notify before responding so clients see the mode
+                                        // update before block_task unblocks (serial dispatch).
+                                        cx.send_notification(SessionNotification::new(
+                                            session_id,
+                                            SessionUpdate::CurrentModeUpdate(
+                                                CurrentModeUpdate::new(mode_id),
+                                            ),
+                                        ))?;
+                                        request_cx.respond(json)?;
+                                    }
+                                    Err(e) => {
+                                        request_cx.respond_with_error(e)?;
+                                    }
+                                }
+                                Ok(())
+                            }
                             MessageCx::Request(req, request_cx)
                                 if req.method == "session/set_model" =>
                             {
@@ -1488,7 +1563,8 @@ mod tests {
     use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use sacp::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
-        PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
+        PermissionOptionId, ResourceLink, SelectedPermissionOutcome, SessionMode, SessionModeId,
+        SessionModeState,
     };
     use std::io::Write;
     use std::path::PathBuf;
@@ -1840,5 +1916,26 @@ print(\"hello, world\")
     ) -> Option<Vec<(PathBuf, Option<u32>)>> {
         extract_locations_from_meta(&response)
             .map(|locs| locs.into_iter().map(|loc| (loc.path, loc.line)).collect())
+    }
+
+    #[test]
+    fn test_build_mode_state() {
+        let state = build_mode_state(GooseMode::Auto).unwrap();
+        assert_eq!(
+            state,
+            SessionModeState::new(
+                SessionModeId::new("auto"),
+                vec![
+                    SessionMode::new(SessionModeId::new("auto"), "auto")
+                        .description("Automatically approve tool calls"),
+                    SessionMode::new(SessionModeId::new("approve"), "approve")
+                        .description("Ask before every tool call"),
+                    SessionMode::new(SessionModeId::new("smart_approve"), "smart_approve")
+                        .description("Ask only for sensitive tool calls"),
+                    SessionMode::new(SessionModeId::new("chat"), "chat")
+                        .description("Chat only, no tool calls"),
+                ],
+            )
+        );
     }
 }
