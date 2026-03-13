@@ -65,10 +65,6 @@ vi.mock('./utils/openRouterSetup', () => ({
   startOpenRouterSetup: vi.fn().mockResolvedValue({ success: false, message: 'Test' }),
 }));
 
-vi.mock('./utils/ollamaDetection', () => ({
-  checkOllamaStatus: vi.fn().mockResolvedValue({ isRunning: false }),
-}));
-
 // Mock the ConfigContext module
 vi.mock('./components/ConfigContext', () => ({
   useConfig: () => ({
