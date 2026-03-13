@@ -132,7 +132,7 @@ export default function GooseMessage({
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
         {thinkingContent && (
-          <div className="mb-2 text-sm text-gray-400 italic">
+          <div className="mb-2 text-xs text-gray-400/70 italic">
             <MarkdownContent content={thinkingContent} />
           </div>
         )}
