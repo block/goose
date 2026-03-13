@@ -13,6 +13,7 @@ use sacp::{ClientToAgent, JrConnectionCx};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
@@ -43,10 +44,10 @@ enum ClientRequest {
     NewSession {
         response_tx: oneshot::Sender<Result<NewSessionResponse>>,
     },
-    SetModel {
-        session_id: SessionId,
-        model_id: String,
-        response_tx: oneshot::Sender<Result<()>>,
+    Untyped {
+        method: String,
+        params: serde_json::Value,
+        response_tx: oneshot::Sender<Result<serde_json::Value>>,
     },
     Prompt {
         session_id: SessionId,
@@ -77,7 +78,7 @@ enum AcpUpdate {
 pub struct AcpProvider {
     name: String,
     model: ModelConfig,
-    goose_mode: GooseMode,
+    goose_mode: Arc<Mutex<GooseMode>>,
     tx: mpsc::Sender<ClientRequest>,
     permission_mapping: PermissionMapping,
     rejected_tool_calls: Arc<TokioMutex<HashSet<String>>>,
@@ -107,8 +108,10 @@ impl AcpProvider {
         let (init_tx, init_rx) = oneshot::channel();
         let permission_mapping = config.permission_mapping.clone();
         let rejected_tool_calls = Arc::new(TokioMutex::new(HashSet::new()));
+        let goose_mode = Arc::new(Mutex::new(goose_mode));
 
-        tokio::spawn(run_client_loop(config, rx, init_tx));
+        let client_loop = AcpClientLoop::new(config, goose_mode.clone());
+        tokio::spawn(client_loop.spawn(rx, init_tx));
 
         let init_response = init_rx
             .await
@@ -141,12 +144,11 @@ impl AcpProvider {
         let (init_tx, init_rx) = oneshot::channel();
         let permission_mapping = config.permission_mapping.clone();
         let rejected_tool_calls = Arc::new(TokioMutex::new(HashSet::new()));
+        let goose_mode = Arc::new(Mutex::new(goose_mode));
         let transport = sacp::ByteStreams::new(write, read);
-        let init_tx = Arc::new(Mutex::new(Some(init_tx)));
+        let client_loop = AcpClientLoop::new(config, goose_mode.clone());
         tokio::spawn(async move {
-            if let Err(e) =
-                run_protocol_loop_with_transport(config, transport, &mut rx, init_tx.clone()).await
-            {
+            if let Err(e) = client_loop.run(transport, &mut rx, init_tx).await {
                 tracing::error!("ACP protocol error: {e}");
             }
         });
@@ -169,7 +171,7 @@ impl AcpProvider {
     fn new_with_runtime(
         name: String,
         model: ModelConfig,
-        goose_mode: GooseMode,
+        goose_mode: Arc<Mutex<GooseMode>>,
         tx: mpsc::Sender<ClientRequest>,
         permission_mapping: PermissionMapping,
         rejected_tool_calls: Arc<TokioMutex<HashSet<String>>>,
@@ -201,19 +203,21 @@ impl AcpProvider {
         response_rx.await.context("ACP session/new cancelled")?
     }
 
-    pub async fn set_model(&self, session_id: &SessionId, model_id: &str) -> Result<()> {
+    pub async fn send_untyped(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
         let (response_tx, response_rx) = oneshot::channel();
         self.tx
-            .send(ClientRequest::SetModel {
-                session_id: session_id.clone(),
-                model_id: model_id.to_string(),
+            .send(ClientRequest::Untyped {
+                method: method.to_string(),
+                params,
                 response_tx,
             })
             .await
             .context("ACP client is unavailable")?;
-        response_rx
-            .await
-            .context("ACP session/set_model cancelled")?
+        response_rx.await.context("ACP request cancelled")?
     }
 
     pub async fn handle_permission_confirmation(
@@ -281,6 +285,32 @@ impl Provider for AcpProvider {
         self.model.clone()
     }
 
+    async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
+        let _acp_session_id = self
+            .goose_to_acp_id
+            .lock()
+            .await
+            .get(session_id)
+            .map(|r| r.session_id.clone())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed(format!("Session not found: {session_id}"))
+            })?;
+
+        let current = self
+            .goose_mode
+            .lock()
+            .map_err(|_| ProviderError::RequestFailed("Failed to read mode".into()))?;
+
+        if mode != *current {
+            // TODO: "session/set_mode" when session-scoped mode lands (#7603)
+            return Err(ProviderError::RequestFailed(format!(
+                "Mode change not supported: session is {}, requested {}",
+                current, mode
+            )));
+        }
+        Ok(())
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }
@@ -311,7 +341,10 @@ impl Provider for AcpProvider {
         let pending_confirmations = self.pending_confirmations.clone();
         let rejected_tool_calls = self.rejected_tool_calls.clone();
         let permission_mapping = self.permission_mapping.clone();
-        let goose_mode = self.goose_mode;
+        let goose_mode = *self
+            .goose_mode
+            .lock()
+            .map_err(|_| ProviderError::RequestFailed("goose_mode lock poisoned".into()))?;
 
         let reject_all_tools = goose_mode == GooseMode::Chat;
 
@@ -422,30 +455,160 @@ impl Drop for AcpProvider {
     }
 }
 
-async fn run_client_loop(
+struct AcpClientLoop {
     config: AcpProviderConfig,
-    mut rx: mpsc::Receiver<ClientRequest>,
-    init_tx: oneshot::Sender<Result<InitializeResponse>>,
-) {
-    let init_tx = Arc::new(Mutex::new(Some(init_tx)));
+    goose_mode: Arc<Mutex<GooseMode>>,
+    prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+}
 
-    let child = match spawn_acp_process(&config).await {
-        Ok(c) => c,
-        Err(e) => {
-            let message = e.to_string();
-            send_init_result(&init_tx, Err(anyhow::anyhow!(message.clone())));
-            tracing::error!("failed to spawn ACP process: {message}");
-            return;
+impl AcpClientLoop {
+    fn new(config: AcpProviderConfig, goose_mode: Arc<Mutex<GooseMode>>) -> Self {
+        Self {
+            config,
+            goose_mode,
+            prompt_response_tx: Arc::new(Mutex::new(None)),
         }
-    };
+    }
 
-    match run_protocol_loop_with_child(config, child, &mut rx, init_tx.clone()).await {
-        Ok(()) => tracing::debug!("ACP protocol loop exited cleanly"),
-        Err(e) => {
-            let message = e.to_string();
-            tracing::error!(error = %e, "ACP protocol loop error");
-            send_init_result(&init_tx, Err(anyhow::anyhow!(message)));
+    async fn spawn(
+        self,
+        mut rx: mpsc::Receiver<ClientRequest>,
+        init_tx: oneshot::Sender<Result<InitializeResponse>>,
+    ) {
+        let child = match spawn_acp_process(&self.config).await {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = init_tx.send(Err(anyhow::anyhow!("{e}")));
+                tracing::error!("failed to spawn ACP process: {e}");
+                return;
+            }
+        };
+
+        match self.run_with_child(child, &mut rx, init_tx).await {
+            Ok(()) => tracing::debug!("ACP protocol loop exited cleanly"),
+            Err(e) => tracing::error!(error = %e, "ACP protocol loop error"),
         }
+    }
+
+    async fn run_with_child(
+        self,
+        mut child: Child,
+        rx: &mut mpsc::Receiver<ClientRequest>,
+        init_tx: oneshot::Sender<Result<InitializeResponse>>,
+    ) -> Result<()> {
+        let stdin = child.stdin.take().context("no stdin")?;
+        let stdout = child.stdout.take().context("no stdout")?;
+        let transport = sacp::ByteStreams::new(stdin.compat_write(), stdout.compat());
+        self.run(transport, rx, init_tx).await
+    }
+
+    async fn run<R, W>(
+        self,
+        transport: sacp::ByteStreams<W, R>,
+        rx: &mut mpsc::Receiver<ClientRequest>,
+        init_tx: oneshot::Sender<Result<InitializeResponse>>,
+    ) -> Result<()>
+    where
+        R: futures::AsyncRead + Unpin + Send + 'static,
+        W: futures::AsyncWrite + Unpin + Send + 'static,
+    {
+        let AcpClientLoop {
+            config,
+            goose_mode,
+            prompt_response_tx,
+        } = self;
+
+        ClientToAgent::builder()
+            .on_receive_notification(
+                {
+                    let prompt_response_tx = prompt_response_tx.clone();
+                    async move |notification: SessionNotification, _cx| {
+                        // stream() reads goose_mode at call time, so it must
+                        // reflect any prior set_mode before the next prompt.
+                        if let SessionUpdate::CurrentModeUpdate(update) = &notification.update {
+                            if let Ok(mode) = GooseMode::from_str(&update.current_mode_id.0) {
+                                if let Ok(mut guard) = goose_mode.lock() {
+                                    *guard = mode;
+                                }
+                            }
+                        }
+                        if let Some(tx) = prompt_response_tx
+                            .lock()
+                            .ok()
+                            .as_ref()
+                            .and_then(|g| g.as_ref())
+                        {
+                            match notification.update {
+                                SessionUpdate::AgentMessageChunk(ContentChunk {
+                                    content: ContentBlock::Text(TextContent { text, .. }),
+                                    ..
+                                }) => {
+                                    let _ = tx.try_send(AcpUpdate::Text(text));
+                                }
+                                SessionUpdate::AgentThoughtChunk(ContentChunk {
+                                    content: ContentBlock::Text(TextContent { text, .. }),
+                                    ..
+                                }) => {
+                                    let _ = tx.try_send(AcpUpdate::Thought(text));
+                                }
+                                SessionUpdate::ToolCall(tool_call) => {
+                                    let _ = tx.try_send(AcpUpdate::ToolCallStart {
+                                        id: tool_call.tool_call_id.0.to_string(),
+                                    });
+                                }
+                                SessionUpdate::ToolCallUpdate(update) => {
+                                    if update.fields.status.is_some() {
+                                        let _ = tx.try_send(AcpUpdate::ToolCallComplete {
+                                            id: update.tool_call_id.0.to_string(),
+                                        });
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        Ok(())
+                    }
+                },
+                sacp::on_receive_notification!(),
+            )
+            .on_receive_request(
+                {
+                    let prompt_response_tx = prompt_response_tx.clone();
+                    async move |request: RequestPermissionRequest, request_cx, _connection_cx| {
+                        let (response_tx, response_rx) = oneshot::channel();
+
+                        let handler = prompt_response_tx
+                            .lock()
+                            .ok()
+                            .as_ref()
+                            .and_then(|g| g.as_ref().cloned());
+                        let tx = handler.ok_or_else(sacp::Error::internal_error)?;
+
+                        if tx.is_closed() {
+                            return Err(sacp::Error::internal_error());
+                        }
+
+                        tx.try_send(AcpUpdate::PermissionRequest {
+                            request: Box::new(request),
+                            response_tx,
+                        })
+                        .map_err(|_| sacp::Error::internal_error())?;
+
+                        let response = response_rx.await.unwrap_or_else(|_| {
+                            RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
+                        });
+                        request_cx.respond(response)
+                    }
+                },
+                sacp::on_receive_request!(),
+            )
+            .connect_to(transport)?
+            .run_until(move |cx: JrConnectionCx<ClientToAgent>| {
+                handle_requests(config, cx, rx, prompt_response_tx, init_tx)
+            })
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -468,154 +631,52 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
     cmd.spawn().context("failed to spawn ACP process")
 }
 
-async fn run_protocol_loop_with_child(
-    config: AcpProviderConfig,
-    mut child: Child,
-    rx: &mut mpsc::Receiver<ClientRequest>,
-    init_tx: Arc<Mutex<Option<oneshot::Sender<Result<InitializeResponse>>>>>,
-) -> Result<()> {
-    let stdin = child.stdin.take().context("no stdin")?;
-    let stdout = child.stdout.take().context("no stdout")?;
-    let transport = sacp::ByteStreams::new(stdin.compat_write(), stdout.compat());
-    run_protocol_loop_with_transport(config, transport, rx, init_tx).await
-}
-
-async fn run_protocol_loop_with_transport<R, W>(
-    config: AcpProviderConfig,
-    transport: sacp::ByteStreams<W, R>,
-    rx: &mut mpsc::Receiver<ClientRequest>,
-    init_tx: Arc<Mutex<Option<oneshot::Sender<Result<InitializeResponse>>>>>,
-) -> Result<()>
-where
-    R: futures::AsyncRead + Unpin + Send + 'static,
-    W: futures::AsyncWrite + Unpin + Send + 'static,
-{
-    let prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>> =
-        Arc::new(Mutex::new(None));
-
-    ClientToAgent::builder()
-        .on_receive_notification(
-            {
-                let prompt_response_tx = prompt_response_tx.clone();
-                async move |notification: SessionNotification, _cx| {
-                    if let Some(tx) = prompt_response_tx.lock().unwrap().as_ref() {
-                        match notification.update {
-                            SessionUpdate::AgentMessageChunk(ContentChunk {
-                                content: ContentBlock::Text(TextContent { text, .. }),
-                                ..
-                            }) => {
-                                let _ = tx.try_send(AcpUpdate::Text(text));
-                            }
-                            SessionUpdate::AgentThoughtChunk(ContentChunk {
-                                content: ContentBlock::Text(TextContent { text, .. }),
-                                ..
-                            }) => {
-                                let _ = tx.try_send(AcpUpdate::Thought(text));
-                            }
-                            SessionUpdate::ToolCall(tool_call) => {
-                                let _ = tx.try_send(AcpUpdate::ToolCallStart {
-                                    id: tool_call.tool_call_id.0.to_string(),
-                                });
-                            }
-                            SessionUpdate::ToolCallUpdate(update) => {
-                                if update.fields.status.is_some() {
-                                    let _ = tx.try_send(AcpUpdate::ToolCallComplete {
-                                        id: update.tool_call_id.0.to_string(),
-                                    });
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    Ok(())
-                }
-            },
-            sacp::on_receive_notification!(),
-        )
-        .on_receive_request(
-            {
-                let prompt_response_tx = prompt_response_tx.clone();
-                async move |request: RequestPermissionRequest, request_cx, _connection_cx| {
-                    let (response_tx, response_rx) = oneshot::channel();
-
-                    let handler = prompt_response_tx.lock().unwrap().as_ref().cloned();
-                    let tx = handler.ok_or_else(sacp::Error::internal_error)?;
-
-                    if tx.is_closed() {
-                        return Err(sacp::Error::internal_error());
-                    }
-
-                    tx.try_send(AcpUpdate::PermissionRequest {
-                        request: Box::new(request),
-                        response_tx,
-                    })
-                    .map_err(|_| sacp::Error::internal_error())?;
-
-                    let response = response_rx.await.unwrap_or_else(|_| {
-                        RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
-                    });
-                    request_cx.respond(response)
-                }
-            },
-            sacp::on_receive_request!(),
-        )
-        .connect_to(transport)?
-        .run_until({
-            let prompt_response_tx = prompt_response_tx.clone();
-            move |cx: JrConnectionCx<ClientToAgent>| {
-                handle_requests(config, cx, rx, prompt_response_tx, init_tx.clone())
-            }
-        })
-        .await?;
-
-    Ok(())
-}
-
 async fn handle_requests(
     config: AcpProviderConfig,
     cx: JrConnectionCx<ClientToAgent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
-    init_tx: Arc<Mutex<Option<oneshot::Sender<Result<InitializeResponse>>>>>,
+    init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), sacp::Error> {
+    let mut init_tx = Some(init_tx);
+
     let init_response = cx
         .send_request(InitializeRequest::new(ProtocolVersion::LATEST))
         .block_task()
         .await
         .map_err(|err| {
             let message = format!("ACP initialize failed: {err}");
-            send_init_result(&init_tx, Err(anyhow::anyhow!(message.clone())));
+            if let Some(tx) = init_tx.take() {
+                let _ = tx.send(Err(anyhow::anyhow!(message.clone())));
+            }
             sacp::Error::internal_error().data(message)
         })?;
 
     let mcp_capabilities = init_response.agent_capabilities.mcp_capabilities.clone();
-    send_init_result(&init_tx, Ok(init_response));
+    if let Some(tx) = init_tx.take() {
+        let _ = tx.send(Ok(init_response));
+    }
 
     while let Some(request) = rx.recv().await {
         match request {
             ClientRequest::NewSession { response_tx } => {
                 handle_new_session_request(&config, &cx, &mcp_capabilities, response_tx).await;
             }
-            ClientRequest::SetModel {
-                session_id,
-                model_id,
+            ClientRequest::Untyped {
+                method,
+                params,
                 response_tx,
             } => {
-                // sacp doesn't support session/set_model as a typed request yet
-                let msg = sacp::UntypedMessage::new(
-                    "session/set_model",
-                    serde_json::json!({
-                        "sessionId": session_id.0,
-                        "modelId": model_id
-                    }),
-                )
-                .unwrap();
-                let result = cx
-                    .send_request(msg)
-                    .block_task()
-                    .await
-                    .map(|_| ())
-                    .map_err(|e| anyhow::anyhow!("ACP session/set_model failed: {e}"));
+                // Untyped because sacp doesn't have typed client requests for
+                // session/set_mode and session/set_model yet.
+                let result = match sacp::UntypedMessage::new(&method, params) {
+                    Ok(msg) => cx
+                        .send_request(msg)
+                        .block_task()
+                        .await
+                        .map_err(anyhow::Error::from),
+                    Err(e) => Err(anyhow::Error::from(e)),
+                };
                 let _ = response_tx.send(result);
             }
             ClientRequest::Prompt {
@@ -772,15 +833,6 @@ fn filter_supported_servers(
         })
         .cloned()
         .collect()
-}
-
-fn send_init_result(
-    init_tx: &Arc<Mutex<Option<oneshot::Sender<Result<InitializeResponse>>>>>,
-    result: Result<InitializeResponse>,
-) {
-    if let Some(tx) = init_tx.lock().unwrap().take() {
-        let _ = tx.send(result);
-    }
 }
 
 fn messages_to_prompt(messages: &[Message]) -> Vec<ContentBlock> {

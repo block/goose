@@ -3,11 +3,13 @@ use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::ClientToAgentConnection;
 use common_tests::{
     run_config_mcp, run_fs_read_text_file_true, run_fs_write_text_file_false,
-    run_fs_write_text_file_true, run_initialize_doesnt_hit_provider, run_load_model,
-    run_load_session_mcp, run_model_list, run_model_set, run_permission_persistence,
+    run_fs_write_text_file_true, run_initialize_doesnt_hit_provider, run_load_mode, run_load_model,
+    run_load_session_mcp, run_mode_set, run_model_list, run_model_set, run_permission_persistence,
     run_prompt_basic, run_prompt_codemode, run_prompt_image, run_prompt_image_attachment,
     run_prompt_mcp,
 };
+
+tests_mode_set_error!(ClientToAgentConnection);
 
 #[test]
 fn test_config_mcp() {
@@ -35,6 +37,12 @@ fn test_initialize_doesnt_hit_provider() {
 }
 
 #[test]
+#[ignore = "TODO: on_set_mode is a no-op until mode is threaded per-session (#7603)"]
+fn test_load_mode() {
+    run_test(async { run_load_mode::<ClientToAgentConnection>().await });
+}
+
+#[test]
 fn test_load_model() {
     run_test(async { run_load_model::<ClientToAgentConnection>().await });
 }
@@ -42,6 +50,12 @@ fn test_load_model() {
 #[test]
 fn test_load_session_mcp() {
     run_test(async { run_load_session_mcp::<ClientToAgentConnection>().await });
+}
+
+#[test]
+#[ignore = "TODO: on_set_mode is a no-op until mode is threaded per-session (#7603)"]
+fn test_mode_set() {
+    run_test(async { run_mode_set::<ClientToAgentConnection>().await });
 }
 
 #[test]

@@ -276,13 +276,13 @@ async fn test_replayed_session(
                 new_call = new_call.with_arguments(args);
             }
             let tool_call = new_call;
+            let ctx = goose::agents::ToolCallContext::new(
+                "test-session-id".to_string(),
+                None,
+                Some("test-id".to_string()),
+            );
             let result = extension_manager
-                .dispatch_tool_call(
-                    "test-session-id",
-                    tool_call,
-                    None,
-                    CancellationToken::default(),
-                )
+                .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
                 .await;
 
             let tool_result = result?;

@@ -1,0 +1,24 @@
+name: "Unused Dependencies"
+on:
+  push:
+    paths:
+      - '.github/workflows/cargo-machete.yml'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/*.rs'
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/*.rs'
+  workflow_dispatch:
+
+jobs:
+  machete:
+    runs-on: ubuntu-latest
+    if: github.repository == 'block/goose'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: bnjbvr/cargo-machete@7959c845782fed02ee69303126d4a12d64f1db18 # v0.9.1
