@@ -2,8 +2,7 @@
 mod common_tests;
 
 use common_tests::fixtures::server::ClientToAgentConnection;
-use common_tests::fixtures::{run_test, Connection, Session, TestConnectionConfig};
-use goose_test_support::ExpectedSessionId;
+use common_tests::fixtures::{run_test, Connection, Session, SessionResult, TestConnectionConfig};
 
 use common_tests::fixtures::OpenAiFixture;
 
@@ -19,10 +18,11 @@ async fn send_custom(
 #[test]
 fn test_custom_config_prompts() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let mut conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let (session, _models) = conn.new_session().await;
+        let SessionResult { session, .. } = conn.new_session().await;
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
@@ -46,10 +46,11 @@ fn test_custom_config_prompts() {
 #[test]
 fn test_custom_config_prompt_info_not_found() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let mut conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let (session, _models) = conn.new_session().await;
+        let SessionResult { session, .. } = conn.new_session().await;
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
@@ -75,10 +76,11 @@ fn test_custom_config_prompt_info_not_found() {
 #[test]
 fn test_custom_agent_provider_info() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let mut conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let (session, _models) = conn.new_session().await;
+        let SessionResult { session, .. } = conn.new_session().await;
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
@@ -110,7 +112,8 @@ fn test_custom_agent_provider_info() {
 #[test]
 fn test_custom_agent_provider_info_invalid_session() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
         let result = send_custom(
@@ -130,10 +133,11 @@ fn test_custom_agent_provider_info_invalid_session() {
 #[test]
 fn test_custom_agent_plan_prompt() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let mut conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let (session, _models) = conn.new_session().await;
+        let SessionResult { session, .. } = conn.new_session().await;
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
@@ -160,10 +164,11 @@ fn test_custom_agent_plan_prompt() {
 #[test]
 fn test_custom_session_clear() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let mut conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let (session, _models) = conn.new_session().await;
+        let SessionResult { session, .. } = conn.new_session().await;
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
@@ -197,7 +202,8 @@ fn test_custom_session_clear() {
 #[test]
 fn test_custom_session_clear_invalid_session() {
     run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+        let openai =
+            OpenAiFixture::new(vec![], ClientToAgentConnection::expected_session_id()).await;
         let conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
         let result = send_custom(

@@ -19,3 +19,7 @@ path = "examples/mcp_fixture_server.rs"
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-machete]
+# Used for tool description in mcp.rs
+ignored = ["serde_json"]

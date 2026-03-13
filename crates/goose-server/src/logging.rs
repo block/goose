@@ -35,7 +35,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
     let base_env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new("")
             .add_directive("mcp_client=info".parse().unwrap())
-            .add_directive("goose=debug".parse().unwrap())
+            .add_directive("goose=info".parse().unwrap())
             .add_directive("goose_server=info".parse().unwrap())
             .add_directive("tower_http=info".parse().unwrap())
             .add_directive(LevelFilter::WARN.into())
