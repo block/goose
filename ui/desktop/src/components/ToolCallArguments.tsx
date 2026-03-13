@@ -15,7 +15,6 @@ interface ToolCallArgumentsProps {
 
 function formatValue(value: ToolCallArgumentValue): string {
   if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return JSON.stringify(value, null, 2);
   if (typeof value === 'object' && value !== null) return JSON.stringify(value, null, 2);
   return String(value);
 }
