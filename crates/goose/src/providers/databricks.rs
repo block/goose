@@ -89,16 +89,18 @@ struct DatabricksAuthProvider {
 impl AuthProvider for DatabricksAuthProvider {
     async fn get_auth_header(&self) -> Result<(String, String)> {
         let token = match &self.auth {
-            DatabricksAuth::Token(_) => {
+            DatabricksAuth::Token(original) => {
                 let cached = self.token_cache.lock().unwrap().clone();
                 match cached {
                     Some(t) => t,
                     None => {
                         // Cache was cleared by refresh_credentials(); re-read
                         // from config which may have a sidecar-rotated token.
+                        // Fall back to the constructor-provided token if config
+                        // lookup fails (e.g. from_params usage).
                         let fresh = crate::config::Config::global()
                             .get_secret::<String>("DATABRICKS_TOKEN")
-                            .map_err(|e| anyhow::anyhow!("DATABRICKS_TOKEN not found: {}", e))?;
+                            .unwrap_or_else(|_| original.clone());
                         *self.token_cache.lock().unwrap() = Some(fresh.clone());
                         fresh
                     }
