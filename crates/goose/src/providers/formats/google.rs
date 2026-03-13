@@ -1188,7 +1188,7 @@ mod tests {
     async fn test_streaming_with_thought_signature() {
         use futures::StreamExt;
 
-        async fn collect_streaming_text(raw: &str) -> (String, usize, usize) {
+        async fn collect_streaming_text(raw: &str) -> (String, usize) {
             let lines: Vec<Result<String, anyhow::Error>> =
                 raw.lines().map(|l| Ok(l.to_string())).collect();
             let stream = Box::pin(futures::stream::iter(lines));
