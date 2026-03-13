@@ -38,7 +38,6 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:integration:debug": "DEBUG=1 vitest run --config vitest.integration.config.ts",
-    "prepare": "husky",
     "start-alpha-gui": "ALPHA=true pnpm run start-gui"
   },
   "dependencies": {

@@ -542,22 +542,25 @@ impl Agent {
             };
         }
 
+        let ctx = super::tool_execution::ToolCallContext::new(
+            session.id.clone(),
+            Some(session.working_dir.clone()),
+            Some(request_id.clone()),
+        );
+
         debug!("WAITING_TOOL_START: {}", tool_call.name);
         let result: ToolCallResult = if self.is_frontend_tool(&tool_call.name).await {
-            // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
                 None,
             )))
         } else {
-            // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
                 .dispatch_tool_call(
-                    &session.id,
+                    &ctx,
                     tool_call.clone(),
-                    Some(session.working_dir.as_path()),
                     cancellation_token.unwrap_or_default(),
                 )
                 .await;
@@ -566,7 +569,6 @@ impl Agent {
                     "tool_execution_failed",
                     &format!("{}: {}", tool_call.name, e),
                 );
-                // Try to downcast to ErrorData to avoid double wrapping
                 let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
                     ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
                 });
@@ -1176,12 +1178,12 @@ impl Agent {
                 ).await?;
 
                 let mut no_tools_called = true;
-                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
+                let mut exit_chat = false;
 
                 while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) {
+                    if is_token_cancelled(&cancel_token) || exit_chat {
                         break;
                     }
 
@@ -1230,7 +1232,8 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    messages_to_add.push(response.clone());
+                                    session_manager.add_message(&session_config.id, &response).await?;
+                                    conversation.push(response);
                                     continue;
                                 }
 
@@ -1426,7 +1429,8 @@ impl Agent {
                                         response.created,
                                         thinking_content,
                                     ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
+                                    session_manager.add_message(&session_config.id, &thinking_msg).await?;
+                                    conversation.push(thinking_msg);
                                 }
 
                                 // Collect reasoning content to attach to tool request messages
@@ -1454,21 +1458,35 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
+                                        // Persist the tool request and response as a pair
+                                        session_manager.add_message(&session_config.id, &request_msg).await?;
+                                        session_manager.add_message(&session_config.id, &final_response).await?;
+                                        conversation.push(request_msg);
+                                        conversation.push(final_response.clone());
+                                        yield AgentEvent::Message(final_response);
                                     } else {
-                                        let error_msg = format!(
-                                            "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
+                                        error!(
+                                            "Tool call could not be parsed: {}",
                                             request.tool_call.as_ref().unwrap_err(),
                                         );
+<<<<<<< Updated upstream
+                                        yield AgentEvent::Message(
+                                            Message::assistant().with_text(
+                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
+                                            )
+                                        );
+                                        exit_chat = true;
+                                        break;
+=======
                                         let error_response = Message::user()
                                             .with_generated_id()
                                             .with_text(&error_msg);
-                                        yield AgentEvent::Message(error_response.clone());
-                                        messages_to_add.push(error_response);
+                                        session_manager.add_message(&session_config.id, &error_response).await?;
+                                        conversation.push(error_response.clone());
+                                        yield AgentEvent::Message(error_response);
+>>>>>>> Stashed changes
                                     }
                                 }
 
@@ -1588,7 +1606,6 @@ impl Agent {
                     }
                 }
 
-                let mut exit_chat = false;
                 if no_tools_called {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
@@ -1601,12 +1618,14 @@ impl Agent {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
                             let message = Message::assistant().with_text(output);
-                            messages_to_add.push(message.clone());
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message.clone());
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
@@ -1618,6 +1637,8 @@ impl Agent {
                                 Ok(should_retry) => {
                                     if should_retry {
                                         info!("Retry logic triggered, restarting agent loop");
+                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                        yield AgentEvent::HistoryReplaced(conversation.clone());
                                     } else {
                                         exit_chat = true;
                                     }
@@ -1659,17 +1680,14 @@ impl Agent {
                             }).await?;
                         }
                         conversation = Conversation::new_unvalidated(updated_messages);
-                        messages_to_add.push(summary_msg);
+                        session_manager.add_message(&session_config.id, &summary_msg).await?;
+                        conversation.push(summary_msg);
                     } else {
                         warn!("Expected a tool request/reply pair, but found {} matching messages",
                             matching.len());
                     }
                 }
 
-                for msg in &messages_to_add {
-                    session_manager.add_message(&session_config.id, msg).await?;
-                }
-                conversation.extend(messages_to_add);
                 if exit_chat {
                     break;
                 }

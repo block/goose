@@ -5,21 +5,22 @@
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
 use fixtures::{
-    Connection, FsFixture, OpenAiFixture, PermissionDecision, Session, TestConnectionConfig,
+    Connection, FsFixture, OpenAiFixture, PermissionDecision, Session, SessionResult,
+    TestConnectionConfig,
 };
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
-use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
-use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
+use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
+use sacp::schema::{McpServer, McpServerHttp, ModelId, SessionModeId, ToolCallStatus};
 use std::sync::Arc;
 
 pub async fn run_config_mcp<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -48,8 +49,8 @@ pub async fn run_config_mcp<C: Connection>() {
     };
 
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, FAKE_CODE);
@@ -64,7 +65,7 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
     );
     fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
 
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let prompt = "Use the read tool to read /tmp/test_acp_read.txt and output only its contents.";
     let openai = OpenAiFixture::new(
         vec![
@@ -88,8 +89,8 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, "test-read-content-12345");
@@ -100,7 +101,7 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
 pub async fn run_fs_write_text_file_false<C: Connection>() {
     let _ = fs::remove_file("/tmp/test_acp_write.txt");
 
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let prompt =
         "Use the write tool to write 'test-write-content-67890' to /tmp/test_acp_write.txt";
     let openai = OpenAiFixture::new(
@@ -123,8 +124,8 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
     assert!(!output.text.is_empty());
@@ -136,7 +137,7 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
 }
 
 pub async fn run_fs_write_text_file_true<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let prompt =
         "Use the write tool to write 'test-write-content-67890' to /tmp/test_acp_write.txt";
     let openai = OpenAiFixture::new(
@@ -163,8 +164,8 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
     assert!(!output.text.is_empty());
@@ -176,7 +177,7 @@ pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
     let provider_factory: ProviderConstructor =
         Arc::new(|_, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
-    let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+    let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
     let config = TestConnectionConfig {
         provider_factory: Some(provider_factory),
         ..Default::default()
@@ -190,8 +191,67 @@ pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
         .any(|m| &*m.id.0 == "goose-provider"));
 }
 
+pub async fn run_load_mode<C: Connection>() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let expected_session_id = C::expected_session_id();
+    let prompt = "Use the get_code tool and output only its result.";
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
+
+    let config_yaml = format!(
+        "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
+        mcp.url
+    );
+    fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
+
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_tool_call.txt"),
+            ),
+            (
+                format!(r#""content":"{FAKE_CODE}""#),
+                include_str!("../test_data/openai_tool_result.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let config = TestConnectionConfig {
+        data_root: temp_dir.path().to_path_buf(),
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+
+    let SessionResult { session, modes, .. } = conn.new_session().await;
+    assert_eq!(
+        modes.unwrap().current_mode_id,
+        SessionModeId::new(<&str>::from(GooseMode::default()))
+    );
+    let session_id = session.session_id().0.to_string();
+    conn.set_mode(&session_id, <&str>::from(GooseMode::Approve))
+        .await
+        .unwrap();
+
+    let SessionResult {
+        session: mut loaded,
+        modes,
+        ..
+    } = conn.load_session(&session_id, vec![]).await;
+    assert_eq!(
+        modes.unwrap().current_mode_id,
+        SessionModeId::new(<&str>::from(GooseMode::Approve))
+    );
+
+    // Approve mode + Cancel = permission denied → tool fails
+    expected_session_id.set(&loaded.session_id().0);
+    let output = loaded.prompt(prompt, PermissionDecision::Cancel).await;
+    assert_eq!(output.tool_status.unwrap(), ToolCallStatus::Failed);
+}
+
 pub async fn run_load_model<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
             r#""model":"o4-mini""#.into(),
@@ -202,28 +262,88 @@ pub async fn run_load_model<C: Connection>() {
     .await;
 
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
-    session.set_model("o4-mini").await;
+    let session_id = session.session_id().0.to_string();
+    conn.set_model(&session_id, "o4-mini").await.unwrap();
 
     let output = session
         .prompt("what is 1+1", PermissionDecision::Cancel)
         .await;
     assert_eq!(output.text, "2");
 
-    let session_id = session.session_id().0.to_string();
-    let (_, models) = conn.load_session(&session_id, vec![]).await;
+    let SessionResult { models, .. } = conn.load_session(&session_id, vec![]).await;
     assert_eq!(&*models.unwrap().current_model_id.0, "o4-mini");
 }
 
+pub async fn run_mode_set<C: Connection>() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let expected_session_id = C::expected_session_id();
+    let prompt = "Use the get_code tool and output only its result.";
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
+
+    let config_yaml = format!(
+        "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
+        mcp.url
+    );
+    fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
+
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_tool_call.txt"),
+            ),
+            (
+                format!(r#""content":"{FAKE_CODE}""#),
+                include_str!("../test_data/openai_tool_result.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let config = TestConnectionConfig {
+        data_root: temp_dir.path().to_path_buf(),
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+
+    let SessionResult {
+        session: mut session_a,
+        ..
+    } = conn.new_session().await;
+
+    let SessionResult {
+        session: mut session_b,
+        ..
+    } = conn.new_session().await;
+    conn.set_mode(&session_b.session_id().0, <&str>::from(GooseMode::Approve))
+        .await
+        .unwrap();
+
+    // Approve mode + Cancel = permission denied → tool fails
+    expected_session_id.set(&session_b.session_id().0);
+    let output = session_b.prompt(prompt, PermissionDecision::Cancel).await;
+    assert_eq!(output.tool_status.unwrap(), ToolCallStatus::Failed);
+
+    // Auto mode ignores Cancel — tool succeeds without permission prompt
+    conn.reset_openai();
+    expected_session_id.set(&session_a.session_id().0);
+    let output = session_a.prompt(prompt, PermissionDecision::Cancel).await;
+    assert_eq!(output.text, FAKE_CODE);
+}
+
 pub async fn run_model_list<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(vec![], expected_session_id.clone()).await;
 
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
-    let (session, models) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult {
+        session, models, ..
+    } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let models = models.unwrap();
     assert!(!models.available_models.is_empty());
@@ -231,7 +351,7 @@ pub async fn run_model_list<C: Connection>() {
 }
 
 pub async fn run_model_set<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![
             // Session B prompt with switched model
@@ -252,21 +372,29 @@ pub async fn run_model_set<C: Connection>() {
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
 
     // Session A: default model
-    let (mut session_a, _) = conn.new_session().await;
+    let SessionResult {
+        session: mut session_a,
+        ..
+    } = conn.new_session().await;
 
     // Session B: switch to o4-mini
-    let (mut session_b, _) = conn.new_session().await;
-    session_b.set_model("o4-mini").await;
+    let SessionResult {
+        session: mut session_b,
+        ..
+    } = conn.new_session().await;
+    conn.set_model(&session_b.session_id().0, "o4-mini")
+        .await
+        .unwrap();
 
     // Prompt B — expects o4-mini
-    expected_session_id.set(session_b.session_id().0.to_string());
+    expected_session_id.set(&session_b.session_id().0);
     let output = session_b
         .prompt("what is 1+1", PermissionDecision::Cancel)
         .await;
     assert_eq!(output.text, "2");
 
     // Prompt A — expects default TEST_MODEL (proves sessions are independent)
-    expected_session_id.set(session_a.session_id().0.to_string());
+    expected_session_id.set(&session_a.session_id().0);
     let output = session_a
         .prompt("what is 1+1", PermissionDecision::Cancel)
         .await;
@@ -292,8 +420,8 @@ pub async fn run_permission_persistence<C: Connection>() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let prompt = "Use the get_code tool and output only its result.";
-    let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let expected_session_id = C::expected_session_id();
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -317,8 +445,8 @@ pub async fn run_permission_persistence<C: Connection>() {
     };
 
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     for (decision, expected_status, expected_yaml) in cases {
         conn.reset_openai();
@@ -336,7 +464,7 @@ pub async fn run_permission_persistence<C: Connection>() {
 }
 
 pub async fn run_prompt_basic<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
             r#"</info-msg>\nwhat is 1+1""#.into(),
@@ -347,8 +475,8 @@ pub async fn run_prompt_basic<C: Connection>() {
     .await;
 
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session
         .prompt("what is 1+1", PermissionDecision::Cancel)
@@ -358,10 +486,10 @@ pub async fn run_prompt_basic<C: Connection>() {
 }
 
 pub async fn run_prompt_codemode<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let prompt =
         "Search for getCode and write tools. Use them to save the code to /tmp/result.txt.";
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -390,8 +518,8 @@ pub async fn run_prompt_codemode<C: Connection>() {
     let _ = fs::remove_file("/tmp/result.txt");
 
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     if matches!(output.tool_status, Some(ToolCallStatus::Failed)) || output.text.contains("error") {
@@ -404,8 +532,8 @@ pub async fn run_prompt_codemode<C: Connection>() {
 }
 
 pub async fn run_prompt_image<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let expected_session_id = C::expected_session_id();
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -427,8 +555,8 @@ pub async fn run_prompt_image<C: Connection>() {
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session
         .prompt(
@@ -441,7 +569,7 @@ pub async fn run_prompt_image<C: Connection>() {
 }
 
 pub async fn run_prompt_image_attachment<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
             r#""type":"image_url""#.into(),
@@ -452,8 +580,8 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
     .await;
 
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session
         .prompt_with_image(
@@ -468,9 +596,9 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
 }
 
 pub async fn run_load_session_mcp<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
+    let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
     let mcp_url = mcp.url.clone();
 
     // Two rounds of tool call + tool result: one for new session, one for loaded session.
@@ -504,8 +632,8 @@ pub async fn run_load_session_mcp<C: Connection>() {
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     // First prompt: tool should work in the new session.
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
@@ -513,7 +641,10 @@ pub async fn run_load_session_mcp<C: Connection>() {
 
     // Load the same session with MCP servers re-specified.
     let session_id = session.session_id().0.to_string();
-    let (mut loaded_session, _) = conn.load_session(&session_id, mcp_servers).await;
+    let SessionResult {
+        session: mut loaded_session,
+        ..
+    } = conn.load_session(&session_id, mcp_servers).await;
 
     // Second prompt: tool should work in the loaded session.
     let output = loaded_session
@@ -523,8 +654,8 @@ pub async fn run_load_session_mcp<C: Connection>() {
 }
 
 pub async fn run_prompt_mcp<C: Connection>() {
-    let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    let expected_session_id = C::expected_session_id();
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -545,8 +676,8 @@ pub async fn run_prompt_mcp<C: Connection>() {
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
-    let (mut session, _) = conn.new_session().await;
-    expected_session_id.set(session.session_id().0.to_string());
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
     let output = session
         .prompt(
@@ -556,4 +687,47 @@ pub async fn run_prompt_mcp<C: Connection>() {
         .await;
     assert_eq!(output.text, FAKE_CODE);
     expected_session_id.assert_matches(&session.session_id().0);
+}
+
+pub async fn run_mode_set_error<C: Connection>(
+    mode_id: &str,
+    session_id_override: Option<&str>,
+    expected: sacp::Error,
+) {
+    let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
+    let mut conn = C::new(TestConnectionConfig::default(), openai).await;
+    let SessionResult { session, .. } = conn.new_session().await;
+
+    let target_session_id = session_id_override
+        .map(str::to_string)
+        .unwrap_or_else(|| session.session_id().0.to_string());
+
+    let err = conn
+        .set_mode(&target_session_id, mode_id)
+        .await
+        .unwrap_err();
+
+    let sacp_err = err.downcast::<sacp::Error>().unwrap();
+    assert_eq!(sacp_err, expected);
+}
+
+#[macro_export]
+macro_rules! tests_mode_set_error {
+    ($conn:ty) => {
+        #[test_case::test_case("not_a_mode", None, sacp::Error::invalid_params().data("Invalid mode: not_a_mode") ; "invalid mode")]
+        #[test_case::test_case("auto", Some("nonexistent-session-id"), sacp::Error::invalid_params().data("Session not found: nonexistent-session-id") ; "session not found")]
+        #[test_case::test_case("approve", None, sacp::Error::invalid_params().data("Mode change not supported: session is auto, requested approve") ; "mode change rejected")]
+        fn test_mode_set_error(
+            mode_id: &'static str,
+            session_id: Option<&'static str>,
+            expected: sacp::Error,
+        ) {
+            common_tests::fixtures::run_test(async move {
+                common_tests::run_mode_set_error::<$conn>(
+                    mode_id, session_id, expected,
+                )
+                .await
+            });
+        }
+    };
 }
