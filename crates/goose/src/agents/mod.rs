@@ -1,5 +1,6 @@
 mod agent;
 pub(crate) mod builtin_skills;
+mod confirmation_router;
 pub mod container;
 pub mod execute_commands;
 pub mod extension;

@@ -141,8 +141,7 @@ pub struct Agent {
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
-    pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
-    pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
+    pub confirmation_router: super::confirmation_router::ConfirmationRouter,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
@@ -215,8 +214,6 @@ impl Agent {
     }
 
     pub fn with_config(config: AgentConfig) -> Self {
-        // Create channels with buffer size 32 (adjust if needed)
-        let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
@@ -240,8 +237,7 @@ impl Agent {
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
-            confirmation_tx: confirm_tx,
-            confirmation_rx: Mutex::new(confirm_rx),
+            confirmation_router: super::confirmation_router::ConfirmationRouter::new(),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
@@ -861,8 +857,8 @@ impl Agent {
                 return;
             }
         }
-        if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
-            error!("Failed to send confirmation: {}", e);
+        if !self.confirmation_router.deliver(request_id, confirmation).await {
+            error!("Failed to deliver confirmation");
         }
     }
 
@@ -2128,7 +2124,7 @@ mod tests {
         *agent.provider.lock().await =
             Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
 
-        // Known request_id → provider handles it, confirmation_tx NOT called
+        // Known request_id → provider handles it, confirmation_router NOT called
         agent
             .handle_confirmation(
                 "known".to_string(),
@@ -2140,7 +2136,9 @@ mod tests {
             .await;
         assert_eq!(provider.handled.lock().await.len(), 1);
 
-        // Unknown request_id → provider returns false, falls through to confirmation_tx
+        // Unknown request_id → provider returns false, falls through to confirmation_router
+        // Register first so deliver() has somewhere to send
+        let rx = agent.confirmation_router.register("unknown".to_string()).await;
         agent
             .handle_confirmation(
                 "unknown".to_string(),
@@ -2151,17 +2149,17 @@ mod tests {
             )
             .await;
         assert_eq!(provider.handled.lock().await.len(), 2);
-        // Verify the fallthrough went to confirmation_rx
-        let mut rx = agent.confirmation_rx.lock().await;
-        let (id, conf) = rx.recv().await.unwrap();
-        assert_eq!(id, "unknown");
+        // Verify the fallthrough went to confirmation_router
+        let conf = rx.await.unwrap();
         assert_eq!(conf.permission, crate::permission::Permission::DenyOnce);
     }
 
     #[tokio::test]
     async fn test_handle_confirmation_noop_provider() {
         let agent = Agent::new();
-        // No provider set → Noop routing, goes straight to confirmation_tx
+        // No provider set → Noop routing, goes straight to confirmation_router
+        // Register first so deliver() has somewhere to send
+        let rx = agent.confirmation_router.register("any".to_string()).await;
         agent
             .handle_confirmation(
                 "any".to_string(),
@@ -2172,9 +2170,8 @@ mod tests {
             )
             .await;
 
-        let mut rx = agent.confirmation_rx.lock().await;
-        let (id, _) = rx.recv().await.unwrap();
-        assert_eq!(id, "any");
+        let conf = rx.await.unwrap();
+        assert_eq!(conf.permission, crate::permission::Permission::AllowOnce);
     }
 
     #[tokio::test]
