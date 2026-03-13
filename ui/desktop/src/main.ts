@@ -61,6 +61,43 @@ function getWhiteLabelConfig(): WhiteLabelConfig {
 }
 
 const whiteLabelConfig = getWhiteLabelConfig();
+
+/** Build the whitelabel system prompt (main process version of sessions.ts buildWhiteLabelSystemPrompt). */
+function buildWhiteLabelSystemPromptForEnv(resourcesPath: string): string | undefined {
+  const { defaults } = whiteLabelConfig;
+  if (!defaults.systemPrompt && !defaults.tools?.length) return undefined;
+
+  const parts: string[] = [];
+  if (defaults.systemPrompt) parts.push(defaults.systemPrompt.trim());
+
+  if (defaults.tools && defaults.tools.length > 0) {
+    const lines = ['# Tools', ''];
+    for (const tool of defaults.tools) {
+      // Resolve __WHITELABEL_RESOURCES__ prefix the same way the renderer does
+      const toolPath = tool.path.startsWith('__WHITELABEL_RESOURCES__')
+        ? tool.path.replace('__WHITELABEL_RESOURCES__', resourcesPath + '/whitelabel-resources')
+        : tool.path;
+      lines.push(`## \`${tool.name}\``);
+      lines.push(tool.description);
+      lines.push(`Binary: \`${toolPath}\``);
+      if (tool.env) {
+        const envList = Object.entries(tool.env)
+          .map(([k, v]: [string, string]) => `  - \`${k}\`: ${v || '(required)'}`)
+          .join('\n');
+        lines.push(`Environment variables:\n${envList}`);
+      }
+      if (tool.helpText) {
+        lines.push('');
+        lines.push(tool.helpText);
+      }
+      lines.push('');
+    }
+    parts.push(lines.join('\n'));
+  }
+
+  return parts.length > 0 ? parts.join('\n\n') : undefined;
+}
+
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { startWhiteLabelProcesses, stopAllWhiteLabelProcesses } from './whitelabel/processManager';
@@ -593,11 +630,15 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     dir ||
     os.homedir();
 
+  const resourcesPathForPrompt = app.isPackaged ? process.resourcesPath : process.cwd();
+  const whitelabelSystemPrompt = buildWhiteLabelSystemPromptForEnv(resourcesPathForPrompt);
+
   const goosedResult = await startGoosed({
     serverSecret,
     dir: resolvedDir,
     env: {
       GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+      ...(whitelabelSystemPrompt ? { GOOSE_WHITELABEL_SYSTEM_PROMPT: whitelabelSystemPrompt } : {}),
     },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,

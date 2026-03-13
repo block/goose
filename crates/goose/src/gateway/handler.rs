@@ -119,8 +119,13 @@ impl GatewayHandler {
     }
 
     async fn complete_pairing(&self, user: &PlatformUser) -> anyhow::Result<()> {
-        let working_dir = gateway_working_dir(&user.platform, &user.user_id);
-        std::fs::create_dir_all(&working_dir)?;
+        // Use the process working directory (set by Electron from whitelabel config)
+        // so gateway sessions match desktop sessions and skills are discoverable.
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| {
+            let fallback = gateway_working_dir(&user.platform, &user.user_id);
+            let _ = std::fs::create_dir_all(&fallback);
+            fallback
+        });
 
         let session_name = format!(
             "{}/{}",
@@ -292,6 +297,11 @@ impl GatewayHandler {
                 )
                 .await?;
             return Ok(());
+        }
+
+        // Apply whitelabel system prompt if set (passed as env var from Electron).
+        if let Ok(prompt) = std::env::var("GOOSE_WHITELABEL_SYSTEM_PROMPT") {
+            agent.override_system_prompt(prompt).await;
         }
 
         // Load extensions (skips any already loaded on the agent).
