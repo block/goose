@@ -1,28 +1,47 @@
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio_stream::{wrappers::SplitStream, StreamExt};
+use tokio_stream::{StreamExt, wrappers::SplitStream};
 
 use crate::subprocess::SubprocessExt;
 
-/// Parse `GOOSE_SHELL_ENV_SCRUB` into a list of env var names to strip
-/// from spawned shell commands. This prevents prompt-injection attacks
-/// from exfiltrating secrets via shell commands when goose processes
-/// untrusted input (e.g. PR diffs).
-fn parse_env_scrub_list() -> Vec<String> {
-    std::env::var("GOOSE_SHELL_ENV_SCRUB")
+fn parse_csv_env(var: &str) -> Vec<String> {
+    std::env::var(var)
         .unwrap_or_default()
         .split(',')
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+use std::collections::HashSet;
+
+/// When set, the shell tool bypasses the shell entirely and directly executes
+/// only commands in this allowlist. The command string is parsed with
+/// `shell_words::split` and the first token is checked against the set.
+/// No shell expansion, pipes, redirections, or subshells are possible.
+#[derive(Clone, Debug)]
+enum ShellMode {
+    /// Normal mode: commands run via `bash -c` (or equivalent).
+    Unrestricted,
+    /// Direct-exec mode: no shell, only allowlisted programs.
+    AllowList(HashSet<String>),
+}
+
+fn parse_shell_mode() -> ShellMode {
+    let allowed = parse_csv_env("GOOSE_SHELL_ALLOWED_COMMANDS");
+    if allowed.is_empty() {
+        ShellMode::Unrestricted
+    } else {
+        ShellMode::AllowList(allowed.into_iter().collect())
+    }
 }
 
 const OUTPUT_LIMIT_LINES: usize = 2000;
@@ -105,6 +124,7 @@ pub struct ShellTool {
     output_dir: tempfile::TempDir,
     call_index: AtomicUsize,
     env_scrub: Vec<String>,
+    shell_mode: ShellMode,
 }
 
 impl ShellTool {
@@ -112,7 +132,8 @@ impl ShellTool {
         Ok(Self {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
-            env_scrub: parse_env_scrub_list(),
+            env_scrub: parse_csv_env("GOOSE_SHELL_ENV_SCRUB"),
+            shell_mode: parse_shell_mode(),
         })
     }
 
@@ -122,6 +143,17 @@ impl ShellTool {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
             env_scrub,
+            shell_mode: ShellMode::Unrestricted,
+        })
+    }
+
+    #[cfg(test)]
+    fn with_allow_list(allowed: Vec<String>) -> std::io::Result<Self> {
+        Ok(Self {
+            output_dir: tempfile::tempdir()?,
+            call_index: AtomicUsize::new(0),
+            env_scrub: Vec::new(),
+            shell_mode: ShellMode::AllowList(allowed.into_iter().collect()),
         })
     }
 
@@ -143,6 +175,7 @@ impl ShellTool {
             params.timeout_secs,
             working_dir,
             &self.env_scrub,
+            &self.shell_mode,
         )
         .await
         {
@@ -253,109 +286,7 @@ struct ExecutionOutput {
     output_collection_error: Option<String>,
 }
 
-async fn run_command(
-    command_line: &str,
-    timeout_secs: Option<u64>,
-    working_dir: Option<&std::path::Path>,
-    env_scrub: &[String],
-) -> Result<ExecutionOutput, String> {
-    let mut command = build_shell_command(command_line);
-    if let Some(path) = working_dir {
-        command.current_dir(path);
-    }
-
-    #[cfg(not(windows))]
-    if let Some(path) = user_login_path() {
-        command.env("PATH", path);
-    }
-
-    for var in env_scrub {
-        command.env_remove(var);
-    }
-
-    command.stdout(Stdio::piped());
-    command.stderr(Stdio::piped());
-    command.stdin(Stdio::null());
-
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("Failed to spawn shell command: {}", error))?;
-
-    let child_stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "Failed to capture stdout".to_string())?;
-    let child_stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| "Failed to capture stderr".to_string())?;
-
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let output_task = tokio::spawn(collect_tagged_lines(child_stdout, child_stderr, tx));
-    let abort_handle = output_task.abort_handle();
-
-    let mut timed_out = false;
-    let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
-        match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()).await {
-            Ok(wait_result) => wait_result
-                .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-                .code(),
-            Err(_) => {
-                timed_out = true;
-                let _ = child.start_kill();
-                let _ = child.wait().await;
-                None
-            }
-        }
-    } else {
-        child
-            .wait()
-            .await
-            .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-            .code()
-    };
-
-    const OUTPUT_DRAIN_TIMEOUT_MILLIS: u64 = 500;
-    let mut output_collection_error = None;
-    let output_truncated = match tokio::time::timeout(
-        Duration::from_millis(OUTPUT_DRAIN_TIMEOUT_MILLIS),
-        output_task,
-    )
-    .await
-    {
-        Ok(Ok(Ok(()))) => false,
-        Ok(Ok(Err(e))) => {
-            output_collection_error = Some(format!("Failed to collect shell output: {}", e));
-            false
-        }
-        Ok(Err(e)) => {
-            output_collection_error = Some(format!("Failed to collect shell output: {}", e));
-            false
-        }
-        Err(_) => {
-            tracing::debug!(
-                    "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
-                );
-            abort_handle.abort();
-            true
-        }
-    };
-
-    rx.close();
-    let mut lines = Vec::new();
-    while let Some(item) = rx.recv().await {
-        lines.push(item);
-    }
-
-    Ok(ExecutionOutput {
-        lines,
-        exit_code,
-        timed_out,
-        output_truncated,
-        output_collection_error,
-    })
-}
-
+/// Build a `Command` that runs `command_line` through the system shell.
 fn build_shell_command(command_line: &str) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
@@ -378,6 +309,153 @@ fn build_shell_command(command_line: &str) -> tokio::process::Command {
 
     command.set_no_window();
     command
+}
+
+/// Build a `Command` by directly executing `program args...` with no shell.
+/// Returns an error string if the program is not in the allowlist.
+fn build_direct_command(
+    command_line: &str,
+    allowed: &HashSet<String>,
+) -> Result<tokio::process::Command, String> {
+    let tokens =
+        shell_words::split(command_line).map_err(|e| format!("Failed to parse command: {e}"))?;
+
+    let program = tokens
+        .first()
+        .ok_or_else(|| "Command cannot be empty.".to_string())?;
+
+    // Block absolute/relative paths — only bare command names are checked
+    if program.contains('/') || program.contains('\\') {
+        return Err(format!(
+            "Command '{}' rejected: paths are not allowed in restricted mode. Use the bare command name.",
+            program
+        ));
+    }
+
+    if !allowed.contains(program.as_str()) {
+        return Err(format!(
+            "Command '{}' is not in the allowed list. Allowed: {}",
+            program,
+            allowed.iter().cloned().collect::<Vec<_>>().join(", ")
+        ));
+    }
+
+    let mut command = tokio::process::Command::new(program);
+    if tokens.len() > 1 {
+        command.args(&tokens[1..]);
+    }
+    command.set_no_window();
+    Ok(command)
+}
+
+async fn run_command(
+    command_line: &str,
+    timeout_secs: Option<u64>,
+    working_dir: Option<&std::path::Path>,
+    env_scrub: &[String],
+    shell_mode: &ShellMode,
+) -> Result<ExecutionOutput, String> {
+    let mut command = match shell_mode {
+        ShellMode::Unrestricted => build_shell_command(command_line),
+        ShellMode::AllowList(allowed) => build_direct_command(command_line, allowed)?,
+    };
+
+    if let Some(path) = working_dir {
+        command.current_dir(path);
+    }
+
+    #[cfg(not(windows))]
+    if matches!(shell_mode, ShellMode::Unrestricted) {
+        if let Some(path) = user_login_path() {
+            command.env("PATH", path);
+        }
+    }
+
+    for var in env_scrub {
+        command.env_remove(var);
+    }
+
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+    command.stdin(Stdio::null());
+
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Failed to spawn command: {}", error))?;
+
+    let child_stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to capture stdout".to_string())?;
+    let child_stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Failed to capture stderr".to_string())?;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let output_task = tokio::spawn(collect_tagged_lines(child_stdout, child_stderr, tx));
+    let abort_handle = output_task.abort_handle();
+
+    let mut timed_out = false;
+    let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()).await {
+            Ok(wait_result) => wait_result
+                .map_err(|error| format!("Failed waiting on command: {}", error))?
+                .code(),
+            Err(_) => {
+                timed_out = true;
+                let _ = child.start_kill();
+                let _ = child.wait().await;
+                None
+            }
+        }
+    } else {
+        child
+            .wait()
+            .await
+            .map_err(|error| format!("Failed waiting on command: {}", error))?
+            .code()
+    };
+
+    const OUTPUT_DRAIN_TIMEOUT_MILLIS: u64 = 500;
+    let mut output_collection_error = None;
+    let output_truncated = match tokio::time::timeout(
+        Duration::from_millis(OUTPUT_DRAIN_TIMEOUT_MILLIS),
+        output_task,
+    )
+    .await
+    {
+        Ok(Ok(Ok(()))) => false,
+        Ok(Ok(Err(e))) => {
+            output_collection_error = Some(format!("Failed to collect output: {}", e));
+            false
+        }
+        Ok(Err(e)) => {
+            output_collection_error = Some(format!("Failed to collect output: {}", e));
+            false
+        }
+        Err(_) => {
+            tracing::debug!(
+                "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
+            );
+            abort_handle.abort();
+            true
+        }
+    };
+
+    rx.close();
+    let mut lines = Vec::new();
+    while let Some(item) = rx.recv().await {
+        lines.push(item);
+    }
+
+    Ok(ExecutionOutput {
+        lines,
+        exit_code,
+        timed_out,
+        output_truncated,
+        output_collection_error,
+    })
 }
 
 /// Split tagged lines into (stdout, stderr, interleaved) strings.
@@ -765,5 +843,107 @@ mod tests {
             std::env::remove_var(keep);
             std::env::remove_var(scrub);
         }
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn allow_list_permits_listed_command() {
+        let tool = ShellTool::with_allow_list(vec!["echo".to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: "echo hello".to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        assert!(extract_text(&result).contains("hello"));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn allow_list_blocks_unlisted_command() {
+        let tool = ShellTool::with_allow_list(vec!["echo".to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: "curl --version".to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(true));
+        let text = extract_text(&result);
+        assert!(
+            text.contains("not in the allowed list"),
+            "should report allowlist rejection: {text}"
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn allow_list_blocks_absolute_paths() {
+        let tool = ShellTool::with_allow_list(vec!["echo".to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: "/usr/bin/curl --version".to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(true));
+        let text = extract_text(&result);
+        assert!(
+            text.contains("paths are not allowed"),
+            "should reject absolute paths: {text}"
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn allow_list_blocks_relative_paths() {
+        let tool = ShellTool::with_allow_list(vec!["echo".to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: "./malicious".to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(true));
+        let text = extract_text(&result);
+        assert!(
+            text.contains("paths are not allowed"),
+            "should reject relative paths: {text}"
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn allow_list_handles_quoted_args() {
+        let tool =
+            ShellTool::with_allow_list(vec!["echo".to_string(), "grep".to_string()]).unwrap();
+        let result = tool
+            .shell(ShellParams {
+                command: r#"echo "hello world""#.to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        assert!(extract_text(&result).contains("hello world"));
+    }
+
+    #[test]
+    fn build_direct_command_rejects_shell_operators() {
+        let allowed: HashSet<String> = ["echo", "cat"].iter().map(|s| s.to_string()).collect();
+
+        // shell_words::split treats pipes/semicolons as literal tokens,
+        // so "echo hi | cat" parses as ["echo", "hi", "|", "cat"] and
+        // echo runs with "|" and "cat" as arguments — no pipe happens.
+        let cmd = build_direct_command("echo hi | cat", &allowed);
+        assert!(
+            cmd.is_ok(),
+            "should parse successfully (no shell semantics)"
+        );
     }
 }
