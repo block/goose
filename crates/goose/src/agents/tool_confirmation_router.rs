@@ -18,7 +18,9 @@ impl ToolConfirmationRouter {
 
     pub async fn register(&self, request_id: String) -> oneshot::Receiver<PermissionConfirmation> {
         let (tx, rx) = oneshot::channel();
-        self.pending.lock().await.insert(request_id, tx);
+        let mut pending = self.pending.lock().await;
+        pending.retain(|_, sender| !sender.is_closed());
+        pending.insert(request_id, tx);
         rx
     }
 
@@ -89,6 +91,19 @@ mod tests {
                 .deliver("req_1".to_string(), test_confirmation())
                 .await
         );
+    }
+
+    #[tokio::test]
+    async fn test_stale_entries_pruned_on_register() {
+        let router = ToolConfirmationRouter::new();
+        let rx = router.register("req_1".to_string()).await;
+        drop(rx); // simulate task cancellation — entry is now stale
+
+        assert_eq!(router.pending.lock().await.len(), 1);
+
+        let _rx2 = router.register("req_2".to_string()).await;
+        assert_eq!(router.pending.lock().await.len(), 1); // only req_2 remains
+        assert!(router.pending.lock().await.contains_key("req_2"));
     }
 
     #[tokio::test]
