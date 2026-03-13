@@ -27,6 +27,7 @@ jobs:
         HOME: /tmp/goose-home
         GOOSE_SHELL_ENV_SCRUB: ANTHROPIC_API_KEY,GITHUB_TOKEN
         GOOSE_SKIP_CONTEXT_FILES: AGENTS.md
+        GOOSE_SHELL_ALLOWED_COMMANDS: cat,grep,rg,head,tail,wc,ls,find,git
 
     steps:
       - name: Checkout base branch
