@@ -15,7 +15,6 @@ use crate::model::ModelConfig;
 use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
-use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
