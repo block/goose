@@ -122,7 +122,9 @@ where
     }
 }
 
-/// Trait for retry functionality to keep Provider dyn-compatible
+/// Trait for retry functionality to keep Provider dyn-compatible.
+///
+/// All `Provider` implementors get this via the blanket impl below.
 #[async_trait]
 pub trait ProviderRetry {
     fn retry_config(&self) -> RetryConfig {
@@ -146,50 +148,7 @@ pub trait ProviderRetry {
     where
         F: Fn() -> Fut + Send,
         Fut: Future<Output = Result<T, ProviderError>> + Send,
-        T: Send,
-    {
-        let mut attempts = 0;
-
-        loop {
-            return match operation().await {
-                Ok(result) => Ok(result),
-                Err(error) => {
-                    if should_retry(&error) && attempts < config.max_retries {
-                        attempts += 1;
-                        tracing::warn!(
-                            "Request failed, retrying ({}/{}): {:?}",
-                            attempts,
-                            config.max_retries,
-                            error
-                        );
-
-                        let delay = match &error {
-                            ProviderError::RateLimitExceeded {
-                                retry_delay: Some(provider_delay),
-                                ..
-                            } => *provider_delay,
-                            _ => config.delay_for_attempt(attempts),
-                        };
-
-                        let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
-                            .unwrap_or_default()
-                            .parse::<bool>()
-                            .unwrap_or(false);
-
-                        if skip_backoff {
-                            tracing::info!("Skipping backoff due to GOOSE_PROVIDER_SKIP_BACKOFF");
-                        } else {
-                            tracing::info!("Backing off for {:?} before retry", delay);
-                            sleep(delay).await;
-                        }
-                        continue;
-                    }
-
-                    Err(error)
-                }
-            };
-        }
-    }
+        T: Send;
 }
 
 #[async_trait]
@@ -215,15 +174,24 @@ impl<P: Provider> ProviderRetry for P {
             return match operation().await {
                 Ok(result) => Ok(result),
                 Err(error) => {
-                    // On auth failure, try refreshing credentials once before giving up.
+                    // Auth retry is separate from transient-error retries: we get
+                    // at most 1 credential refresh, independent of max_retries.
                     if matches!(error, ProviderError::Authentication(_)) && !auth_retried {
                         auth_retried = true;
-                        if self.refresh_credentials().await.is_ok() {
-                            tracing::warn!(
-                                "Credentials refreshed after auth error, retrying: {:?}",
-                                error
-                            );
-                            continue;
+                        match self.refresh_credentials().await {
+                            Ok(()) => {
+                                tracing::warn!(
+                                    "Credentials refreshed after auth error, retrying: {:?}",
+                                    error
+                                );
+                                continue;
+                            }
+                            Err(refresh_err) => {
+                                tracing::warn!(
+                                    "Credential refresh failed, returning original auth error: {:?}",
+                                    refresh_err
+                                );
+                            }
                         }
                     }
 
