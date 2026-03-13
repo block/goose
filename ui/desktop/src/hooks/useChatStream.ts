@@ -29,6 +29,22 @@ import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+const sessionLoadedAction = (session: Session): StreamAction => ({
+  type: 'SESSION_LOADED',
+  payload: {
+    session,
+    messages: session.conversation || [],
+    tokenState: {
+      inputTokens: session.input_tokens ?? 0,
+      outputTokens: session.output_tokens ?? 0,
+      totalTokens: session.total_tokens ?? 0,
+      accumulatedInputTokens: session.accumulated_input_tokens ?? 0,
+      accumulatedOutputTokens: session.accumulated_output_tokens ?? 0,
+      accumulatedTotalTokens: session.accumulated_total_tokens ?? 0,
+    },
+  },
+});
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
@@ -47,8 +63,7 @@ interface UseChatStreamReturn {
   ) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
-  clearProviderUnavailable: () => void;
-  providerUnavailable: boolean;
+  providerUnavailable: string | null;
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
@@ -64,7 +79,7 @@ interface StreamState {
   session: Session | undefined;
   chatState: ChatState;
   sessionLoadError: string | undefined;
-  providerUnavailable: boolean;
+  providerUnavailable: string | null;
   tokenState: TokenState;
   notifications: NotificationEvent[];
 }
@@ -85,16 +100,8 @@ type StreamAction =
         tokenState: TokenState;
       };
     }
-  | {
-      type: 'SESSION_LOADED_WITH_ERROR';
-      payload: {
-        session: Session;
-        messages: Message[];
-        tokenState: TokenState;
-      };
-    }
   | { type: 'RESET_FOR_NEW_SESSION' }
-  | { type: 'CLEAR_PROVIDER_UNAVAILABLE' }
+  | { type: 'SET_PROVIDER_UNAVAILABLE'; payload: string | null }
   | { type: 'START_STREAMING' }
   | { type: 'STREAM_ERROR'; payload: string }
   | { type: 'STREAM_FINISH'; payload?: string };
@@ -113,7 +120,7 @@ const initialState: StreamState = {
   session: undefined,
   chatState: ChatState.Idle,
   sessionLoadError: undefined,
-  providerUnavailable: false,
+  providerUnavailable: null,
   tokenState: initialTokenState,
   notifications: [],
 };
@@ -149,18 +156,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         tokenState: action.payload.tokenState,
         chatState: ChatState.Idle,
         sessionLoadError: undefined,
-        providerUnavailable: false,
-      };
-
-    case 'SESSION_LOADED_WITH_ERROR':
-      return {
-        ...state,
-        session: action.payload.session,
-        messages: action.payload.messages,
-        tokenState: action.payload.tokenState,
-        chatState: ChatState.Idle,
-        sessionLoadError: undefined,
-        providerUnavailable: true,
+        providerUnavailable: null,
       };
 
     case 'RESET_FOR_NEW_SESSION':
@@ -169,12 +165,12 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         messages: [],
         session: undefined,
         sessionLoadError: undefined,
-        providerUnavailable: false,
+        providerUnavailable: null,
         chatState: ChatState.LoadingConversation,
       };
 
-    case 'CLEAR_PROVIDER_UNAVAILABLE':
-      return { ...state, providerUnavailable: false };
+    case 'SET_PROVIDER_UNAVAILABLE':
+      return { ...state, providerUnavailable: action.payload };
 
     case 'START_STREAMING':
       return {
@@ -374,10 +370,10 @@ export function useChatStream({
   }, [sessionId]);
 
   useEffect(() => {
-    if (state.session) {
+    if (state.session && !state.providerUnavailable) {
       resultsCache.set(sessionId, { session: state.session, messages: state.messages });
     }
-  }, [sessionId, state.session, state.messages]);
+  }, [sessionId, state.session, state.messages, state.providerUnavailable]);
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
@@ -447,21 +443,7 @@ export function useChatStream({
 
     const cached = resultsCache.get(sessionId);
     if (cached) {
-      dispatch({
-        type: 'SESSION_LOADED',
-        payload: {
-          session: cached.session,
-          messages: cached.messages,
-          tokenState: {
-            inputTokens: cached.session?.input_tokens ?? 0,
-            outputTokens: cached.session?.output_tokens ?? 0,
-            totalTokens: cached.session?.total_tokens ?? 0,
-            accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
-            accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
-            accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
-          },
-        },
-      });
+      dispatch(sessionLoadedAction(cached.session));
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
       onSessionLoaded?.();
       return;
@@ -492,21 +474,7 @@ export function useChatStream({
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
 
-        dispatch({
-          type: 'SESSION_LOADED',
-          payload: {
-            session: loadedSession!,
-            messages: loadedSession?.conversation || [],
-            tokenState: {
-              inputTokens: loadedSession?.input_tokens ?? 0,
-              outputTokens: loadedSession?.output_tokens ?? 0,
-              totalTokens: loadedSession?.total_tokens ?? 0,
-              accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-              accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-            },
-          },
-        });
+        dispatch(sessionLoadedAction(loadedSession!));
 
         listApps({
           throwOnError: true,
@@ -519,34 +487,28 @@ export function useChatStream({
       } catch (error) {
         if (cancelled) return;
 
-        // resumeAgent failed. Try to load history read-only
-        // so the user can still see their conversation and continue with a different provider.
-        try {
-          const fallback = await getSession({
-            path: { session_id: sessionId },
-            throwOnError: true,
-          });
-          if (cancelled) return;
+        const msg = errorMessage(error);
 
-          const loadedSession = fallback.data;
-          dispatch({
-            type: 'SESSION_LOADED_WITH_ERROR',
-            payload: {
-              session: loadedSession!,
-              messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
-            },
-          });
-          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
-        } catch {
-          dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
+        if (msg.includes('Unknown provider')) {
+          try {
+            const fallback = await getSession({
+              path: { session_id: sessionId },
+              throwOnError: true,
+            });
+            if (cancelled) return;
+
+            const loadedSession = fallback.data!;
+            dispatch(sessionLoadedAction(loadedSession));
+            dispatch({
+              type: 'SET_PROVIDER_UNAVAILABLE',
+              payload: loadedSession.provider_name ?? null,
+            });
+            window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
+          } catch {
+            dispatch({ type: 'STREAM_ERROR', payload: msg });
+          }
+        } else {
+          dispatch({ type: 'STREAM_ERROR', payload: msg });
         }
       }
     })();
@@ -862,10 +824,6 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
-  const clearProviderUnavailable = useCallback(() => {
-    dispatch({ type: 'CLEAR_PROVIDER_UNAVAILABLE' });
-  }, []);
-
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
@@ -888,7 +846,6 @@ export function useChatStream({
     session: maybe_cached_session,
     chatState: state.chatState,
     setChatState,
-    clearProviderUnavailable,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

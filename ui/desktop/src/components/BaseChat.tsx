@@ -92,7 +92,6 @@ export default function BaseChat({
     messages,
     chatState,
     setChatState,
-    clearProviderUnavailable,
     providerUnavailable,
     handleSubmit,
     submitElicitationResponse,
@@ -471,22 +470,24 @@ export default function BaseChat({
           )}
 
           {providerUnavailable && (
-            <div className="absolute bottom-16 left-4 right-4 z-30 rounded-lg border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 flex items-start gap-3 backdrop-blur-sm">
+            <div className="absolute bottom-4 left-4 right-4 z-30 rounded-lg border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 flex items-start gap-3 backdrop-blur-sm">
               <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
                   Provider unavailable
                 </p>
                 <p className="text-sm text-text-secondary mt-1">
-                  The provider used in this session is no longer available. You can continue this
-                  chat using your current provider.
+                  The provider{' '}
+                  <span className="font-medium">&quot;{providerUnavailable}&quot;</span> used in
+                  this session is no longer available. Your chat history is preserved but this
+                  session cannot be continued.
                 </p>
               </div>
               <button
-                onClick={clearProviderUnavailable}
+                onClick={() => setView('chat')}
                 className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150 shrink-0"
               >
-                Continue
+                Start new chat
               </button>
             </div>
           )}
