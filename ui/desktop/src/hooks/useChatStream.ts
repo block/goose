@@ -515,7 +515,7 @@ export function useChatStream({
             dispatch(sessionLoadedAction(loadedSession));
             dispatch({
               type: 'SET_PROVIDER_UNAVAILABLE',
-              payload: loadedSession.provider_name ?? null,
+              payload: loadedSession.provider_name ?? 'unknown',
             });
             window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
           } catch {
