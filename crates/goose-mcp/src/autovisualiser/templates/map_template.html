@@ -190,9 +190,14 @@
             setTimeout(McpAppBridge.reportSize, 80);
         }
 
+        function safeRender(data) {
+            try { renderData(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
         McpAppBridge.init({
             appName: "autovisualiser-map",
-            onData: renderData,
+            onData: safeRender,
             onTheme: function () {
                 if (map) setTimeout(function () {
                     map.invalidateSize();

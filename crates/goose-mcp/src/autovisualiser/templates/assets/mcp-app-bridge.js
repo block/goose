@@ -228,11 +228,30 @@ var McpAppBridge = (function () {
     el.style.top = y + "px";
   }
 
+  /**
+   * Display an error message in the page body.
+   * Hides the loading indicator and shows a styled error box.
+   */
+  function showError(message) {
+    var loader = document.getElementById("loadingIndicator");
+    if (loader) loader.classList.add("hidden");
+
+    var el = document.createElement("div");
+    el.style.cssText =
+      "padding:24px;text-align:center;color:" +
+      (cssVar("--color-text-secondary") || "#878787") +
+      ";font-size:14px;font-family:" +
+      (cssVar("--font-sans") || "sans-serif");
+    el.textContent = "Unable to render visualization: " + message;
+    document.body.appendChild(el);
+  }
+
   return {
     init: init,
     cssVar: cssVar,
     reportSize: reportSize,
     positionTooltip: positionTooltip,
+    showError: showError,
     get currentData() {
       return _currentData;
     },

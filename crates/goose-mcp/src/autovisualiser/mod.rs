@@ -112,6 +112,10 @@ fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, Error
     Ok(data_value.clone())
 }
 
+fn validation_err(msg: impl Into<String>) -> ErrorData {
+    ErrorData::new(ErrorCode::INVALID_PARAMS, msg.into(), None)
+}
+
 /// Sankey node structure
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct SankeyNode {
@@ -142,6 +146,40 @@ pub struct SankeyData {
     pub links: Vec<SankeyLink>,
 }
 
+impl SankeyData {
+    fn validate(&self) -> Result<(), ErrorData> {
+        if self.nodes.is_empty() {
+            return Err(validation_err("nodes array must not be empty"));
+        }
+        if self.links.is_empty() {
+            return Err(validation_err("links array must not be empty"));
+        }
+        let names: std::collections::HashSet<&str> =
+            self.nodes.iter().map(|n| n.name.as_str()).collect();
+        for link in &self.links {
+            if !names.contains(link.source.as_str()) {
+                return Err(validation_err(format!(
+                    "link source '{}' not found in nodes",
+                    link.source
+                )));
+            }
+            if !names.contains(link.target.as_str()) {
+                return Err(validation_err(format!(
+                    "link target '{}' not found in nodes",
+                    link.target
+                )));
+            }
+            if link.value <= 0.0 {
+                return Err(validation_err(format!(
+                    "link value must be positive, got {} for '{}' → '{}'",
+                    link.value, link.source, link.target
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Parameters for render_sankey tool
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderSankeyParams {
@@ -165,6 +203,29 @@ pub struct RadarData {
     pub labels: Vec<String>,
     /// Datasets to compare
     pub datasets: Vec<RadarDataset>,
+}
+
+impl RadarData {
+    fn validate(&self) -> Result<(), ErrorData> {
+        if self.labels.is_empty() {
+            return Err(validation_err("labels array must not be empty"));
+        }
+        if self.datasets.is_empty() {
+            return Err(validation_err("datasets array must not be empty"));
+        }
+        let expected = self.labels.len();
+        for ds in &self.datasets {
+            if ds.data.len() != expected {
+                return Err(validation_err(format!(
+                    "dataset '{}' has {} values but there are {} labels",
+                    ds.label,
+                    ds.data.len(),
+                    expected
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Parameters for render_radar tool
@@ -202,8 +263,8 @@ pub enum DonutChartType {
 /// Single donut/pie chart data
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct SingleDonutChart {
-    /// Data values - can be numbers or objects with label and value
-    pub data: Vec<DonutDataItem>,
+    /// Array of values — numbers (e.g. [10, 20]) or objects (e.g. [{"label": "A", "value": 10}])
+    pub values: Vec<DonutDataItem>,
     /// Optional chart title
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -211,12 +272,12 @@ pub struct SingleDonutChart {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "type")]
     pub chart_type: Option<DonutChartType>,
-    /// Optional labels array (used when data is just numbers)
+    /// Optional labels array (used when values are just numbers)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<String>>,
 }
 
-/// Donut chart data wrapper - matches the old schema structure
+/// Donut chart data — a single chart object or an array of chart objects
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum DonutChartData {
@@ -226,19 +287,46 @@ pub enum DonutChartData {
     Multiple(Vec<SingleDonutChart>),
 }
 
-/// Root structure for donut chart data - matches old schema
-#[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
-pub struct DonutData {
-    /// The chart data (single or multiple charts)
-    pub data: DonutChartData,
+impl SingleDonutChart {
+    fn validate(&self) -> Result<(), ErrorData> {
+        if self.values.is_empty() {
+            return Err(validation_err("values array must not be empty"));
+        }
+        if let Some(labels) = &self.labels {
+            if labels.len() != self.values.len() {
+                return Err(validation_err(format!(
+                    "labels array length ({}) must match values array length ({})",
+                    labels.len(),
+                    self.values.len()
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl DonutChartData {
+    fn validate(&self) -> Result<(), ErrorData> {
+        match self {
+            DonutChartData::Single(chart) => chart.validate(),
+            DonutChartData::Multiple(charts) => {
+                if charts.is_empty() {
+                    return Err(validation_err("charts array must not be empty"));
+                }
+                for chart in charts {
+                    chart.validate()?;
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Parameters for render_donut tool
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderDonutParams {
-    /// The data for the donut/pie chart(s) - wrapped in data property
-    #[serde(flatten)]
-    pub data: DonutData,
+    /// The chart data (single chart object or array of chart objects)
+    pub data: DonutChartData,
 }
 
 /// Treemap node structure
@@ -257,6 +345,24 @@ pub struct TreemapNode {
     pub children: Option<Vec<TreemapNode>>,
 }
 
+impl TreemapNode {
+    fn validate(&self) -> Result<(), ErrorData> {
+        // Must have either a value or children
+        if self.value.is_none() && self.children.as_ref().is_none_or(|c| c.is_empty()) {
+            return Err(validation_err(format!(
+                "node '{}' must have either a value or non-empty children",
+                self.name
+            )));
+        }
+        if let Some(children) = &self.children {
+            for child in children {
+                child.validate()?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Parameters for render_treemap tool
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderTreemapParams {
@@ -271,6 +377,33 @@ pub struct ChordData {
     pub labels: Vec<String>,
     /// 2D matrix of flows (matrix[i][j] = flow from i to j)
     pub matrix: Vec<Vec<f64>>,
+}
+
+impl ChordData {
+    fn validate(&self) -> Result<(), ErrorData> {
+        if self.labels.is_empty() {
+            return Err(validation_err("labels array must not be empty"));
+        }
+        let n = self.labels.len();
+        if self.matrix.len() != n {
+            return Err(validation_err(format!(
+                "matrix has {} rows but there are {} labels",
+                self.matrix.len(),
+                n
+            )));
+        }
+        for (i, row) in self.matrix.iter().enumerate() {
+            if row.len() != n {
+                return Err(validation_err(format!(
+                    "matrix row {} has {} columns but expected {}",
+                    i,
+                    row.len(),
+                    n
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Parameters for render_chord tool
@@ -348,6 +481,29 @@ pub struct MapData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "autoFit")]
     pub auto_fit: Option<bool>,
+}
+
+impl MapData {
+    fn validate(&self) -> Result<(), ErrorData> {
+        if self.markers.is_empty() {
+            return Err(validation_err("markers array must not be empty"));
+        }
+        for (i, m) in self.markers.iter().enumerate() {
+            if !(-90.0..=90.0).contains(&m.lat) {
+                return Err(validation_err(format!(
+                    "marker {} has invalid latitude {} (must be -90 to 90)",
+                    i, m.lat
+                )));
+            }
+            if !(-180.0..=180.0).contains(&m.lng) {
+                return Err(validation_err(format!(
+                    "marker {} has invalid longitude {} (must be -180 to 180)",
+                    i, m.lng
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Parameters for render_map tool
@@ -440,6 +596,29 @@ pub struct ChartData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "yAxisLabel")]
     pub y_axis_label: Option<String>,
+}
+
+impl ChartData {
+    fn validate(&self) -> Result<(), ErrorData> {
+        if self.datasets.is_empty() {
+            return Err(validation_err("datasets array must not be empty"));
+        }
+        if let Some(labels) = &self.labels {
+            for ds in &self.datasets {
+                if let ChartDataValues::Numbers(nums) = &ds.data {
+                    if nums.len() != labels.len() {
+                        return Err(validation_err(format!(
+                            "dataset '{}' has {} values but there are {} labels",
+                            ds.label,
+                            nums.len(),
+                            labels.len()
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Parameters for show_chart tool
@@ -705,8 +884,10 @@ Example:
         &self,
         params: Parameters<RenderSankeyParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -767,8 +948,10 @@ Example:
         &self,
         params: Parameters<RenderRadarParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -803,39 +986,46 @@ Example:
     /// show pie or donut charts for categorical data visualization
     #[tool(
         name = "render_donut",
-        description = r#"show pie or donut charts for categorical data visualization
+        description = r#"show pie or donut charts for categorical data visualization.
 Supports single or multiple charts in a grid layout.
 
-Each chart should contain:
-- data: Array of values or objects with 'label' and 'value'
+Each chart object must contain:
+- values: Array of numbers OR objects with 'label' and 'value'
 - type: Optional 'doughnut' (default) or 'pie'
 - title: Optional chart title
-- labels: Optional array of labels (if data is just numbers)
+- labels: Optional array of labels (required when values are plain numbers)
 
-Example single chart:
+Example single chart (labeled values):
 {
-  "title": "Budget",
-  "type": "doughnut",
-  "data": [
+  "values": [
     {"label": "Marketing", "value": 25000},
     {"label": "Development", "value": 35000}
-  ]
+  ],
+  "title": "Budget"
 }
 
-Example multiple charts:
-[{
-  "title": "Q1 Sales",
+Example single chart (parallel arrays):
+{
+  "values": [45000, 38000],
   "labels": ["Product A", "Product B"],
-  "data": [45000, 38000]
-}]"#,
+  "type": "pie"
+}
+
+Example multiple charts (array of chart objects):
+[
+  {"values": [60, 40], "labels": ["Yes", "No"], "title": "Q1"},
+  {"values": [75, 25], "labels": ["Yes", "No"], "title": "Q2"}
+]"#,
         meta = ui_resource_meta("ui://autovisualiser/donut")
     )]
     pub async fn render_donut(
         &self,
         params: Parameters<RenderDonutParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -894,8 +1084,10 @@ Example:
         &self,
         params: Parameters<RenderTreemapParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -948,8 +1140,10 @@ Example:
         &self,
         params: Parameters<RenderChordParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -1012,8 +1206,10 @@ Example:
         &self,
         params: Parameters<RenderMapParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -1104,8 +1300,10 @@ Example:
         &self,
         params: Parameters<ShowChartParams>,
     ) -> Result<CallToolResult, ErrorData> {
+        let inner = params.0;
+        inner.data.validate()?;
         let data = validate_data_param(
-            &serde_json::to_value(params.0).map_err(|e| {
+            &serde_json::to_value(inner).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
                     format!("Invalid parameters: {}", e),
@@ -1368,18 +1566,16 @@ mod tests {
     async fn test_render_donut() {
         let router = AutoVisualiserRouter::new();
         let params = Parameters(RenderDonutParams {
-            data: DonutData {
-                data: DonutChartData::Single(SingleDonutChart {
-                    data: vec![
-                        DonutDataItem::Number(30.0),
-                        DonutDataItem::Number(40.0),
-                        DonutDataItem::Number(30.0),
-                    ],
-                    labels: Some(vec!["A".to_string(), "B".to_string(), "C".to_string()]),
-                    title: None,
-                    chart_type: None,
-                }),
-            },
+            data: DonutChartData::Single(SingleDonutChart {
+                values: vec![
+                    DonutDataItem::Number(30.0),
+                    DonutDataItem::Number(40.0),
+                    DonutDataItem::Number(30.0),
+                ],
+                labels: Some(vec!["A".to_string(), "B".to_string(), "C".to_string()]),
+                title: None,
+                chart_type: None,
+            }),
         });
 
         let result = router.render_donut(params).await;
@@ -1508,5 +1704,390 @@ mod tests {
         let result = router.render_mermaid(params).await;
         assert!(result.is_ok());
         assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/mermaid", "mermaid");
+    }
+}
+
+#[cfg(test)]
+mod donut_format_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn round_trip(input: serde_json::Value) -> Result<serde_json::Value, String> {
+        let parsed: RenderDonutParams = serde_json::from_value(input).map_err(|e| e.to_string())?;
+        let serialized = serde_json::to_value(&parsed).map_err(|e| e.to_string())?;
+        // Simulate validate_data_param extracting "data"
+        Ok(serialized.get("data").cloned().unwrap_or(serialized))
+    }
+
+    #[test]
+    fn labeled_values_single_chart() {
+        // {"data": {"values": [{"label": "A", "value": 10}, ...]}}
+        let input = json!({
+            "data": {
+                "values": [
+                    {"label": "A", "value": 10},
+                    {"label": "B", "value": 20}
+                ]
+            }
+        });
+        let result = round_trip(input);
+        assert!(
+            result.is_ok(),
+            "labeled values should parse: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn parallel_arrays_single_chart() {
+        // {"data": {"values": [10, 20], "labels": ["A", "B"]}}
+        let input = json!({
+            "data": {
+                "values": [10, 20],
+                "labels": ["A", "B"]
+            }
+        });
+        let result = round_trip(input);
+        assert!(
+            result.is_ok(),
+            "parallel arrays should parse: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn multiple_charts_array() {
+        // {"data": [{"values": [10, 20], "labels": ["A", "B"], "title": "Q1"}, ...]}
+        let input = json!({
+            "data": [
+                {"values": [60, 40], "labels": ["Yes", "No"], "title": "Q1"},
+                {"values": [75, 25], "labels": ["Yes", "No"], "title": "Q2"}
+            ]
+        });
+        let result = round_trip(input);
+        assert!(
+            result.is_ok(),
+            "multiple charts should parse: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn labeled_values_with_title_and_type() {
+        let input = json!({
+            "data": {
+                "values": [
+                    {"label": "Marketing", "value": 25000},
+                    {"label": "Development", "value": 35000}
+                ],
+                "title": "Budget",
+                "type": "pie"
+            }
+        });
+        let result = round_trip(input);
+        assert!(
+            result.is_ok(),
+            "labeled values with title/type should parse: {:?}",
+            result.err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod donut_regression_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn old_format_1_label_value_as_data_rejects() {
+        // Old broken format: {"data": [{"label": "A", "value": 10}]}
+        // Items have no "values" field, so this should NOT parse as Multiple
+        let input = json!({
+            "data": [{"label": "A", "value": 10}, {"label": "B", "value": 20}]
+        });
+        let parsed: Result<RenderDonutParams, _> = serde_json::from_value(input);
+        assert!(
+            parsed.is_err(),
+            "bare label/value items without 'values' wrapper should not parse"
+        );
+    }
+
+    #[test]
+    fn old_format_3_array_wrapped_with_data_key_still_works() {
+        // Old working format used "data" key inside chart objects.
+        // Template now reads c.values || c.data, so if an LLM sends the old shape
+        // the Rust types would reject it (items need "values" not "data").
+        // This verifies the schema enforces the new shape.
+        let input = json!({
+            "data": [{"labels": ["A", "B"], "data": [10, 20]}]
+        });
+        let parsed: Result<RenderDonutParams, _> = serde_json::from_value(input);
+        assert!(
+            parsed.is_err(),
+            "old 'data' key inside chart objects should not parse — schema now requires 'values'"
+        );
+    }
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    #[test]
+    fn sankey_rejects_empty_nodes() {
+        let data = SankeyData {
+            nodes: vec![],
+            links: vec![SankeyLink {
+                source: "A".into(),
+                target: "B".into(),
+                value: 10.0,
+            }],
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn sankey_rejects_unknown_source() {
+        let data = SankeyData {
+            nodes: vec![SankeyNode {
+                name: "A".into(),
+                category: None,
+            }],
+            links: vec![SankeyLink {
+                source: "X".into(),
+                target: "A".into(),
+                value: 10.0,
+            }],
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("'X' not found"));
+    }
+
+    #[test]
+    fn sankey_rejects_non_positive_value() {
+        let data = SankeyData {
+            nodes: vec![
+                SankeyNode {
+                    name: "A".into(),
+                    category: None,
+                },
+                SankeyNode {
+                    name: "B".into(),
+                    category: None,
+                },
+            ],
+            links: vec![SankeyLink {
+                source: "A".into(),
+                target: "B".into(),
+                value: 0.0,
+            }],
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn radar_rejects_mismatched_dimensions() {
+        let data = RadarData {
+            labels: vec!["A".into(), "B".into(), "C".into()],
+            datasets: vec![RadarDataset {
+                label: "Test".into(),
+                data: vec![1.0, 2.0], // 2 values but 3 labels
+            }],
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("2 values"));
+        assert!(err.message.contains("3 labels"));
+    }
+
+    #[test]
+    fn radar_rejects_empty_datasets() {
+        let data = RadarData {
+            labels: vec!["A".into()],
+            datasets: vec![],
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn donut_rejects_empty_values() {
+        let data = DonutChartData::Single(SingleDonutChart {
+            values: vec![],
+            title: None,
+            chart_type: None,
+            labels: None,
+        });
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn donut_rejects_mismatched_labels() {
+        let data = DonutChartData::Single(SingleDonutChart {
+            values: vec![DonutDataItem::Number(10.0), DonutDataItem::Number(20.0)],
+            title: None,
+            chart_type: None,
+            labels: Some(vec!["A".into()]), // 1 label but 2 values
+        });
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("labels"));
+    }
+
+    #[test]
+    fn donut_rejects_empty_multiple() {
+        let data = DonutChartData::Multiple(vec![]);
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn chord_rejects_mismatched_matrix() {
+        let data = ChordData {
+            labels: vec!["A".into(), "B".into()],
+            matrix: vec![vec![0.0, 1.0]], // 1 row but 2 labels
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("1 rows"));
+        assert!(err.message.contains("2 labels"));
+    }
+
+    #[test]
+    fn chord_rejects_ragged_matrix() {
+        let data = ChordData {
+            labels: vec!["A".into(), "B".into()],
+            matrix: vec![vec![0.0, 1.0], vec![1.0]], // row 1 has 1 col instead of 2
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("row 1"));
+    }
+
+    #[test]
+    fn treemap_rejects_empty_node() {
+        let data = TreemapNode {
+            name: "Root".into(),
+            value: None,
+            category: None,
+            children: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn treemap_validates_recursively() {
+        let data = TreemapNode {
+            name: "Root".into(),
+            value: None,
+            category: None,
+            children: Some(vec![TreemapNode {
+                name: "Empty child".into(),
+                value: None,
+                category: None,
+                children: Some(vec![]),
+            }]),
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("Empty child"));
+    }
+
+    #[test]
+    fn chart_rejects_empty_datasets() {
+        let data = ChartData {
+            chart_type: ChartType::Line,
+            datasets: vec![],
+            labels: None,
+            title: None,
+            subtitle: None,
+            x_axis_label: None,
+            y_axis_label: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn chart_rejects_mismatched_labels() {
+        let data = ChartData {
+            chart_type: ChartType::Bar,
+            datasets: vec![ChartDataset {
+                label: "Test".into(),
+                data: ChartDataValues::Numbers(vec![1.0, 2.0]),
+                background_color: None,
+                border_color: None,
+                border_width: None,
+                tension: None,
+                fill: None,
+            }],
+            labels: Some(vec!["A".into(), "B".into(), "C".into()]), // 3 labels but 2 values
+            title: None,
+            subtitle: None,
+            x_axis_label: None,
+            y_axis_label: None,
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("2 values"));
+        assert!(err.message.contains("3 labels"));
+    }
+
+    #[test]
+    fn map_rejects_empty_markers() {
+        let data = MapData {
+            markers: vec![],
+            title: None,
+            subtitle: None,
+            center: None,
+            zoom: None,
+            clustering: None,
+            cluster_radius: None,
+            auto_fit: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn map_rejects_invalid_lat() {
+        let data = MapData {
+            markers: vec![MapMarker {
+                lat: 91.0,
+                lng: 0.0,
+                name: None,
+                value: None,
+                description: None,
+                popup: None,
+                color: None,
+                label: None,
+                use_default_icon: None,
+            }],
+            title: None,
+            subtitle: None,
+            center: None,
+            zoom: None,
+            clustering: None,
+            cluster_radius: None,
+            auto_fit: None,
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("latitude"));
+    }
+
+    #[test]
+    fn map_rejects_invalid_lng() {
+        let data = MapData {
+            markers: vec![MapMarker {
+                lat: 0.0,
+                lng: 200.0,
+                name: None,
+                value: None,
+                description: None,
+                popup: None,
+                color: None,
+                label: None,
+                use_default_icon: None,
+            }],
+            title: None,
+            subtitle: None,
+            center: None,
+            zoom: None,
+            clustering: None,
+            cluster_radius: None,
+            auto_fit: None,
+        };
+        let err = data.validate().unwrap_err();
+        assert!(err.message.contains("longitude"));
     }
 }

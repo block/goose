@@ -146,11 +146,16 @@
             setTimeout(McpAppBridge.reportSize, 80);
         }
 
+        function safeRender(data) {
+            try { renderData(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
         McpAppBridge.init({
             appName: "autovisualiser-treemap",
-            onData: renderData,
+            onData: safeRender,
             onTheme: function () {
-                if (McpAppBridge.currentData) renderData(McpAppBridge.currentData);
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
             },
         });
     })();

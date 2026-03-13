@@ -90,6 +90,11 @@
             var output = document.getElementById("mermaidOutput");
             output.style.display = "";
 
+            if (!mermaidCode || typeof mermaidCode !== "string") {
+                McpAppBridge.showError("No valid Mermaid code provided");
+                return;
+            }
+
             initMermaid();
 
             var uid = "mermaid-" + Date.now();

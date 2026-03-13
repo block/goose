@@ -175,11 +175,16 @@
             setTimeout(McpAppBridge.reportSize, 80);
         }
 
+        function safeRender(data) {
+            try { renderRadar(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
         McpAppBridge.init({
             appName: "autovisualiser-radar",
-            onData: renderRadar,
+            onData: safeRender,
             onTheme: function () {
-                if (McpAppBridge.currentData) renderRadar(McpAppBridge.currentData);
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
             },
         });
     })();

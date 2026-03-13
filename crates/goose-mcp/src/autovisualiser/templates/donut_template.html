@@ -94,8 +94,9 @@
         function processCharts(data) {
             var list = Array.isArray(data) ? data : [data];
             return list.map(function (c) {
-                var labels = c.labels || c.data.map(function (d, i) { return d.label || "Item " + (i + 1); });
-                var values = c.data.map(function (d) { return typeof d === "object" ? d.value : d; });
+                var items = c.values || c.data || [];
+                var labels = c.labels || items.map(function (d, i) { return (typeof d === "object" && d.label) ? d.label : "Item " + (i + 1); });
+                var values = items.map(function (d) { return typeof d === "object" ? d.value : d; });
                 var colors = values.map(function (_, i) { return palette[i % palette.length]; });
                 return { title: c.title || "", type: c.type || "doughnut", labels: labels, values: values, colors: colors };
             });
@@ -186,11 +187,16 @@
             setTimeout(McpAppBridge.reportSize, 80);
         }
 
+        function safeRender(data) {
+            try { renderDonut(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
         McpAppBridge.init({
             appName: "autovisualiser-donut",
-            onData: renderDonut,
+            onData: safeRender,
             onTheme: function () {
-                if (McpAppBridge.currentData) renderDonut(McpAppBridge.currentData);
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
             },
         });
     })();

@@ -284,11 +284,16 @@
 
         // ── Bootstrap ───────────────────────────────────────────────
 
+        function safeRender(data) {
+            try { renderChart(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
         McpAppBridge.init({
             appName: "autovisualiser-chart",
-            onData: renderChart,
+            onData: safeRender,
             onTheme: function () {
-                if (McpAppBridge.currentData) renderChart(McpAppBridge.currentData);
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
             },
         });
     })();
