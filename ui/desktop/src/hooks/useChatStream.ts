@@ -443,7 +443,21 @@ export function useChatStream({
 
     const cached = resultsCache.get(sessionId);
     if (cached) {
-      dispatch(sessionLoadedAction(cached.session));
+      dispatch({
+        type: 'SESSION_LOADED',
+        payload: {
+          session: cached.session,
+          messages: cached.messages,
+          tokenState: {
+            inputTokens: cached.session.input_tokens ?? 0,
+            outputTokens: cached.session.output_tokens ?? 0,
+            totalTokens: cached.session.total_tokens ?? 0,
+            accumulatedInputTokens: cached.session.accumulated_input_tokens ?? 0,
+            accumulatedOutputTokens: cached.session.accumulated_output_tokens ?? 0,
+            accumulatedTotalTokens: cached.session.accumulated_total_tokens ?? 0,
+          },
+        },
+      });
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
       onSessionLoaded?.();
       return;
