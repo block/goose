@@ -1,9 +1,11 @@
+pub mod analyze;
 pub mod apps;
 pub mod chatrecall;
 #[cfg(feature = "code-mode")]
 pub mod code_execution;
 pub mod developer;
 pub mod ext_manager;
+pub mod summarize;
 pub mod summon;
 pub mod todo;
 pub mod tom;
@@ -11,6 +13,7 @@ pub mod tom;
 use std::collections::HashMap;
 
 use crate::agents::mcp_client::McpClientTrait;
+use crate::session::Session;
 use once_cell::sync::Lazy;
 
 pub use ext_manager::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -24,6 +27,19 @@ pub use ext_manager::SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME;
 pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
     || {
         let mut map = HashMap::new();
+
+        map.insert(
+            analyze::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: analyze::EXTENSION_NAME,
+                display_name: "Analyze",
+                description:
+                    "Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs",
+                default_enabled: true,
+                unprefixed_tools: true,
+                client_factory: |ctx| Box::new(analyze::AnalyzeClient::new(ctx).unwrap()),
+            },
+        );
 
         map.insert(
             todo::EXTENSION_NAME,
@@ -89,6 +105,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        map.insert(
+            summarize::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: summarize::EXTENSION_NAME,
+                display_name: "Summarize",
+                description: "Load files/directories and get an LLM summary in a single call",
+                default_enabled: false,
+                unprefixed_tools: false,
+                client_factory: |ctx| Box::new(summarize::SummarizeClient::new(ctx).unwrap()),
+            },
+        );
+
         #[cfg(feature = "code-mode")]
         map.insert(
             code_execution::EXTENSION_NAME,
@@ -139,6 +167,7 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
+    pub session: Option<std::sync::Arc<Session>>,
 }
 
 impl PlatformExtensionContext {

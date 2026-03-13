@@ -7,7 +7,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
+use crate::hints::load_hints::build_gitignore;
+use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -22,6 +23,7 @@ pub struct PromptManager {
     system_prompt_override: Option<String>,
     system_prompt_extras: IndexMap<String, String>,
     current_date_timestamp: String,
+    subdirectory_hint_tracker: SubdirectoryHintTracker,
 }
 
 impl Default for PromptManager {
@@ -88,23 +90,8 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
     }
 
     pub fn with_hints(mut self, working_dir: &Path) -> Self {
-        let config = Config::global();
-        let hints_filenames = config
-            .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
-            .unwrap_or_else(|_| {
-                vec![
-                    GOOSE_HINTS_FILENAME.to_string(),
-                    AGENTS_MD_FILENAME.to_string(),
-                ]
-            });
-        let ignore_patterns = {
-            let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
-            builder.build().unwrap_or_else(|_| {
-                ignore::gitignore::GitignoreBuilder::new(working_dir)
-                    .build()
-                    .expect("Failed to build default gitignore")
-            })
-        };
+        let hints_filenames = get_context_filenames();
+        let ignore_patterns = build_gitignore(working_dir);
 
         let hints = load_hint_files(working_dir, &hints_filenames, &ignore_patterns);
 
@@ -210,6 +197,7 @@ impl PromptManager {
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
+            subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
         }
     }
 
@@ -219,6 +207,7 @@ impl PromptManager {
             system_prompt_override: None,
             system_prompt_extras: IndexMap::new(),
             current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
         }
     }
 
@@ -226,6 +215,24 @@ impl PromptManager {
     /// Using the same key will replace the previous instruction
     pub fn add_system_prompt_extra(&mut self, key: String, instruction: String) {
         self.system_prompt_extras.insert(key, instruction);
+    }
+
+    pub fn record_tool_arguments(
+        &mut self,
+        arguments: &Option<serde_json::Map<String, serde_json::Value>>,
+        working_dir: &Path,
+    ) {
+        self.subdirectory_hint_tracker
+            .record_tool_arguments(arguments, working_dir);
+    }
+
+    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> bool {
+        let new_hints = self.subdirectory_hint_tracker.load_new_hints(working_dir);
+        let has_new = !new_hints.is_empty();
+        for (key, content) in new_hints {
+            self.system_prompt_extras.insert(key, content);
+        }
+        has_new
     }
 
     /// Override the system prompt with custom text
@@ -401,9 +408,18 @@ mod tests {
 
         let tmp_dir = tempfile::tempdir().unwrap();
         let session_manager = Arc::new(SessionManager::new(tmp_dir.path().to_path_buf()));
+        let session = session_manager
+            .create_session(
+                tmp_dir.path().to_path_buf(),
+                "test session".to_owned(),
+                crate::session::SessionType::Hidden,
+            )
+            .await
+            .unwrap();
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
+            session: Some(Arc::new(session)),
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS

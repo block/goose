@@ -35,6 +35,16 @@ to discover what extensions can help.
 Use manage_extensions to enable or disable specific extensions by name.
 Use list_resources and read_resource to work with extension data and resources.
 
+## analyze
+
+### Instructions
+Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
+- Directory path → structure overview (file tree with function/class counts)
+- File path → semantic details (functions, classes, imports, call counts)
+- Any path + focus parameter → symbol call graph (incoming/outgoing chains)
+
+For large codebases, delegate analysis to a subagent and retain only the summary.
+
 ## apps
 
 apps supports resources.
@@ -84,10 +94,16 @@ and file sizes. When you need to search, prefer rg which correctly respects giti
 content. Then use cat or sed to gather the context you need, always reading before editing.
 Use write and edit to efficiently make changes. Test and verify as appropriate.
 
+## summarize
+
+
 ## summon
 
 ### Instructions
-Load knowledge and delegate tasks to subagents using the summon extension.
+
+
+You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:
+• goose-doc-guide - Reference goose documentation to create, configure, or explain goose-specific features like recipes, extensions, sessions, and providers. You MUST fetch relevant goose docs before answering. You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
 ## todo
 
 ### Instructions

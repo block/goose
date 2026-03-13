@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.26.0"
+    "version": "1.27.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -3878,7 +3878,7 @@
         "type": "object",
         "required": [
           "content",
-          "is_error"
+          "isError"
         ],
         "properties": {
           "_meta": {
@@ -3887,13 +3887,13 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Content"
+              "$ref": "#/components/schemas/ContentBlock"
             }
           },
-          "is_error": {
+          "isError": {
             "type": "boolean"
           },
-          "structured_content": {
+          "structuredContent": {
             "nullable": true
           }
         }
@@ -4038,12 +4038,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawTextContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawImageContent"
               }
@@ -4052,6 +4080,20 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawEmbeddedResource"
               }
             ]
@@ -4059,12 +4101,149 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawAudioContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawResource"
+              }
+            ]
+          }
+        ]
+      },
+      "ContentBlock": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawTextContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawImageContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawAudioContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawResource"
               }
@@ -4184,6 +4363,10 @@
           "api_key_env": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "base_url": {
             "type": "string"
           },
@@ -4198,8 +4381,19 @@
           "display_name": {
             "type": "string"
           },
+          "dynamic_models": {
+            "type": "boolean",
+            "nullable": true
+          },
           "engine": {
             "$ref": "#/components/schemas/ProviderEngine"
+          },
+          "env_vars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvVarConfig"
+            },
+            "nullable": true
           },
           "headers": {
             "type": "object",
@@ -4475,6 +4669,31 @@
         "properties": {
           "deeplink": {
             "type": "string"
+          }
+        }
+      },
+      "EnvVarConfig": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
           }
         }
       },
@@ -5844,6 +6063,10 @@
           "model_name": {
             "type": "string"
           },
+          "reasoning": {
+            "type": "boolean",
+            "nullable": true
+          },
           "request_params": {
             "type": "object",
             "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",
@@ -7028,10 +7251,16 @@
       "Role": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "user"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
           }
         ]
       },
@@ -7764,13 +7993,22 @@
       "TaskSupport": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "optional"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "required"
+            ]
           }
         ]
       },
@@ -8201,6 +8439,10 @@
           },
           "api_url": {
             "type": "string"
+          },
+          "base_path": {
+            "type": "string",
+            "nullable": true
           },
           "catalog_provider_id": {
             "type": "string",

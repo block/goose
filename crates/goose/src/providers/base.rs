@@ -886,12 +886,10 @@ mod tests {
         if let Some(img_data) = s.strip_prefix("*img:") {
             MessageContent::image(format!("http://example.com/{}", img_data), "image/png")
         } else if let Some(tool_name) = s.strip_prefix("*tool:") {
-            let tool_call = Ok(rmcp::model::CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: tool_name.to_string().into(),
-                arguments: Some(serde_json::Map::new()),
-            });
+            let tool_call = Ok(
+                rmcp::model::CallToolRequestParams::new(tool_name.to_string())
+                    .with_arguments(serde_json::Map::new()),
+            );
             MessageContent::tool_request(format!("tool_{}", tool_name), tool_call)
         } else {
             MessageContent::text(s)

@@ -974,11 +974,7 @@ mod tests {
             Message::user().with_text("user text"),
             Message::assistant().with_text("assistant prelude").with_tool_request(
                 "call-1",
-                Ok(CallToolRequestParams {
-                    meta: None, task: None,
-                    name: "tool_name".into(),
-                    arguments: Some(object!({"param": "value"})),
-                }),
+                Ok(CallToolRequestParams::new("tool_name").with_arguments(object!({"param": "value"}))),
             ),
             Message::user().with_tool_response(
                 "call-1",
@@ -1000,11 +996,7 @@ mod tests {
             Message::user().with_text("user text"),
             Message::assistant().with_tool_request(
                 "call-1",
-                Ok(CallToolRequestParams {
-                    meta: None, task: None,
-                    name: "tool_name".into(),
-                    arguments: Some(object!({"param": "value"})),
-                }),
+                Ok(CallToolRequestParams::new("tool_name").with_arguments(object!({"param": "value"}))),
             ),
             Message::user().with_tool_response(
                 "call-1",
@@ -1025,11 +1017,7 @@ mod tests {
             Message::user().with_text("user text"),
             Message::assistant().with_tool_request(
                 "call-1",
-                Ok(CallToolRequestParams {
-                    meta: None, task: None,
-                    name: "tool_name".into(),
-                    arguments: Some(object!({"param": "value"})),
-                }),
+                Ok(CallToolRequestParams::new("tool_name").with_arguments(object!({"param": "value"}))),
             ),
             Message::user().with_tool_response(
                 "call-1",

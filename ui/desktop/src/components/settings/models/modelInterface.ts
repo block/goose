@@ -47,6 +47,7 @@ export interface ProviderModelsResult {
   provider: ProviderDetails;
   models: string[] | null;
   error: string | null;
+  warning: string | null;
 }
 
 export async function fetchModelsForProviders(
@@ -61,7 +62,7 @@ export async function fetchModelsForProviders(
         const downloadedModels = allModels
           .filter((m) => m.status.state === 'Downloaded')
           .map((m) => m.id);
-        return { provider: p, models: downloadedModels, error: null };
+        return { provider: p, models: downloadedModels, error: null, warning: null };
       }
 
       const response = await getProviderModels({
@@ -69,14 +70,29 @@ export async function fetchModelsForProviders(
         throwOnError: true,
       });
       const models = response.data || [];
-      return { provider: p, models, error: null };
+      return { provider: p, models, error: null, warning: null };
     } catch (e: unknown) {
+      // For custom providers, fall back to the configured model list
+      if (p.provider_type === 'Custom') {
+        const fallbackModels = p.metadata.known_models.map((m) => m.name);
+        if (fallbackModels.length > 0) {
+          console.warn(`Failed to fetch models for ${p.name}:`, getErrorMessage(e));
+          return {
+            provider: p,
+            models: fallbackModels,
+            error: null,
+            warning: `Could not fetch models from provider — showing configured models instead.`,
+          };
+        }
+      }
+
       const errMsg = getErrorMessage(e);
       const errorMessage = `Failed to fetch models for ${p.name}${errMsg ? `: ${errMsg}` : ''}`;
       return {
         provider: p,
         models: null,
         error: errorMessage,
+        warning: null,
       };
     }
   });

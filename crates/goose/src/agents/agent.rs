@@ -33,7 +33,6 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
     ToolRequest,
 };
-use crate::conversation::tool_result_serde::call_tool_result;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -246,7 +245,10 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
-            tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            tool_inspection_manager: Self::create_tool_inspection_manager(
+                permission_manager,
+                provider.clone(),
+            ),
             container: Mutex::new(None),
         }
     }
@@ -254,6 +256,7 @@ impl Agent {
     /// Create a tool inspection manager with default inspectors
     fn create_tool_inspection_manager(
         permission_manager: Arc<PermissionManager>,
+        provider: SharedProvider,
     ) -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
 
@@ -262,9 +265,8 @@ impl Agent {
 
         // Add permission inspector (medium-high priority)
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
-            std::collections::HashSet::new(), // regular tools - will be populated from extension manager
             permission_manager,
+            provider,
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
@@ -351,6 +353,10 @@ impl Agent {
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
+        if self.config.goose_mode == GooseMode::SmartApprove {
+            self.tool_inspection_manager.apply_tool_annotations(&tools);
+        }
+
         Ok(ReplyContext {
             conversation,
             tools,
@@ -431,12 +437,9 @@ impl Agent {
                 let mut response = response_msg.lock().await;
                 *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult {
-                        content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
-                        structured_content: None,
-                        is_error: Some(true),
-                        meta: None,
-                    }),
+                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
+                        DECLINED_RESPONSE,
+                    )])),
                     request.metadata.as_ref(),
                 );
             }
@@ -492,7 +495,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, tool_call, request_id, session), fields(input, output, session_id = %session.id))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -506,6 +509,11 @@ impl Agent {
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
 
+        self.prompt_manager
+            .lock()
+            .await
+            .record_tool_arguments(&tool_call.arguments, &session.working_dir);
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -514,12 +522,7 @@ impl Agent {
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
-            let wrapped_result = result.map(|content| CallToolResult {
-                content,
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            });
+            let wrapped_result = result.map(CallToolResult::success);
             return (request_id, Ok(ToolCallResult::from(wrapped_result)));
         }
 
@@ -1118,7 +1121,11 @@ impl Agent {
             let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
             let _stream_guard = reply_stream_span.enter();
             let mut turns_taken = 0u32;
-            let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let max_turns = session_config.max_turns.unwrap_or_else(|| {
+                Config::global()
+                    .get_param::<u32>("GOOSE_MAX_TURNS")
+                    .unwrap_or(DEFAULT_MAX_TURNS)
+            });
             let mut compaction_attempts = 0;
             let mut last_assistant_text = String::new();
 
@@ -1174,9 +1181,10 @@ impl Agent {
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
+                let mut exit_chat = false;
 
                 while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) {
+                    if is_token_cancelled(&cancel_token) || exit_chat {
                         break;
                     }
 
@@ -1257,12 +1265,7 @@ impl Agent {
                                             let mut response = response_msg.lock().await;
                                             *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(CallToolResult {
-                                                    content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
-                                                    structured_content: None,
-                                                    is_error: Some(false),
-                                                    meta: None,
-                                                }),
+                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
                                             );
                                         }
@@ -1271,6 +1274,7 @@ impl Agent {
                                     // Run all tool inspectors
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
+                                            &session_config.id,
                                             &remaining_requests,
                                             conversation.messages(),
                                             goose_mode,
@@ -1356,8 +1360,6 @@ impl Agent {
                                                     Some((request_id, item)) => {
                                                         match item {
                                                             ToolStreamItem::Result(output) => {
-                                                                let output = call_tool_result::validate(output);
-
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
                                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
@@ -1461,15 +1463,17 @@ impl Agent {
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
-                                        let error_msg = format!(
-                                            "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
+                                        error!(
+                                            "Tool call could not be parsed: {}",
                                             request.tool_call.as_ref().unwrap_err(),
                                         );
-                                        let error_response = Message::user()
-                                            .with_generated_id()
-                                            .with_text(&error_msg);
-                                        yield AgentEvent::Message(error_response.clone());
-                                        messages_to_add.push(error_response);
+                                        yield AgentEvent::Message(
+                                            Message::assistant().with_text(
+                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
+                                            )
+                                        );
+                                        exit_chat = true;
+                                        break;
                                     }
                                 }
 
@@ -1550,6 +1554,16 @@ impl Agent {
                             );
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
+                                    format!("{provider_err}\n\nPlease resend your message to try again.")
+                                )
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -1566,7 +1580,19 @@ impl Agent {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
-                let mut exit_chat = false;
+
+                {
+                    let has_new_hints = self
+                        .prompt_manager
+                        .lock()
+                        .await
+                        .load_subdirectory_hints(&working_dir);
+                    if has_new_hints && !tools_updated {
+                        (tools, toolshim_tools, system_prompt) =
+                            self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
+                    }
+                }
+
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {

@@ -63,7 +63,7 @@ if ($ARCH -eq "AMD64") {
 }
 
 # --- 3) Build download URL ---
-$FILE = "goose-$ARCH-pc-windows-gnu.zip"
+$FILE = "goose-$ARCH-pc-windows-msvc.zip"
 $DOWNLOAD_URL = "https://github.com/$REPO/releases/download/$RELEASE_TAG/$FILE"
 
 Write-Host "Downloading $RELEASE_TAG release: $FILE..." -ForegroundColor Green

@@ -100,6 +100,8 @@ pub struct UpdateCustomProviderRequest {
     pub requires_auth: bool,
     #[serde(default)]
     pub catalog_provider_id: Option<String>,
+    #[serde(default)]
+    pub base_path: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -655,6 +657,7 @@ pub async fn create_custom_provider(
             headers: request.headers,
             requires_auth: request.requires_auth,
             catalog_provider_id: request.catalog_provider_id,
+            base_path: request.base_path,
         },
     )?;
 
@@ -726,6 +729,7 @@ pub async fn update_custom_provider(
             headers: request.headers,
             requires_auth: request.requires_auth,
             catalog_provider_id: request.catalog_provider_id,
+            base_path: request.base_path,
         },
     )?;
 
