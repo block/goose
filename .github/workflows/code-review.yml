@@ -1,0 +1,114 @@
+name: Code Review
+
+on:
+  # pull_request_target:
+  #   types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number to review'
+        required: true
+        type: number
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'Pull request number to review'
+        required: true
+        type: number
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: code-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    container:
+      image: ghcr.io/block/goose:latest
+      options: --user root
+      env:
+        HOME: /tmp/goose-home
+
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y gettext curl ripgrep jq
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+            | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+            | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          apt-get update
+          apt-get install -y gh
+
+      - name: Get PR metadata and diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          mkdir -p /tmp/code-review
+          PR_JSON=$(gh pr view "$PR_NUMBER" --json title,body,headRefOid)
+          echo "$PR_JSON" | jq -r '"# " + .title + "\n\n## Description\n\n" + (.body // "(no description)")' > /tmp/code-review/pr.md
+          echo "COMMIT_ID=$(echo "$PR_JSON" | jq -r '.headRefOid')" >> "$GITHUB_ENV"
+          gh pr diff "$PR_NUMBER" > /tmp/code-review/pr.diff
+
+      - name: Run goose review
+        id: goose
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
+          GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-sonnet-4-20250514' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_SHELL_ENV_SCRUB: ANTHROPIC_API_KEY,GITHUB_TOKEN
+          GOOSE_SKIP_CONTEXT_FILES: AGENTS.md
+          GOOSE_SHELL_ALLOWED_COMMANDS: cat,grep,rg,head,tail,wc,ls,find,git
+        run: |
+          mkdir -p "$HOME/.local/share/goose/sessions"
+          mkdir -p "$HOME/.config/goose"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          goose run \
+            --recipe .github/recipes/code_review.yaml \
+            --params pr_directory=/tmp/code-review \
+            --params instructions='Review the changes for correctness'
+
+      - name: Submit review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          CONCLUSION="/tmp/conclusion.json"
+          COMMENTS="/tmp/comments.json"
+
+          if [ ! -f "$CONCLUSION" ]; then
+            echo "No conclusion produced, skipping review submission."
+            exit 0
+          fi
+
+          jq -n \
+            --arg commit_id "$COMMIT_ID" \
+            --argjson conclusion "$(cat "$CONCLUSION")" \
+            --argjson comments "$(if [ -f "$COMMENTS" ]; then cat "$COMMENTS"; else echo '[]'; fi)" \
+            '{
+              commit_id: $commit_id,
+              body: $conclusion.body,
+              event: $conclusion.event,
+              comments: $comments
+            }' \
+          | gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" \
+              --input -
