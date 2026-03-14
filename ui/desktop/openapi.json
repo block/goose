@@ -1431,6 +1431,40 @@
         }
       }
     },
+    "/config/providers/{name}/oauth/completion": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "check_oauth_completion",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth completion status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthCompletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed to check OAuth completion"
+          }
+        }
+      }
+    },
     "/config/read": {
       "post": {
         "tags": [
@@ -6384,6 +6418,17 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "OauthCompletionResponse": {
+        "type": "object",
+        "required": [
+          "completed"
+        ],
+        "properties": {
+          "completed": {
+            "type": "boolean"
           }
         }
       },

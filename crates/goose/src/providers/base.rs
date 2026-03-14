@@ -452,27 +452,12 @@ pub trait LeadWorkerProviderTrait {
 }
 
 /// OAuth flow completed successfully (callback-based providers)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OauthCompletedData {
-    pub message: String,
-}
-
-/// Device code info returned (for device code flow providers)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Device code info for OAuth device code flow (UI only)
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCodeData {
     pub user_code: String,
     pub verification_uri: String,
-}
-
-/// Response data from OAuth configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum OauthResponseData {
-    /// OAuth flow completed successfully (callback-based providers)
-    Completed(OauthCompletedData),
-    /// Device code info returned (for device code flow providers)
-    DeviceCode(DeviceCodeData),
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
@@ -711,16 +696,43 @@ pub trait Provider: Send + Sync {
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.
     /// Providers that support OAuth should override this method to implement their specific OAuth flow.
     ///
+    /// This method blocks until OAuth flow completes (callback flow for browser-based auth,
+    /// device code flow for terminal-based auth where code is displayed and completion is awaited).
+    ///
     /// # Returns
     /// * `Ok(())` if OAuth configuration succeeds and credentials are saved
     /// * `Err(ProviderError)` if OAuth fails or is not supported by this provider
     ///
     /// # Default Implementation
     /// The default implementation returns an error indicating OAuth is not supported.
-    async fn configure_oauth(&self) -> Result<OauthResponseData, ProviderError> {
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    /// Get device code info for OAuth device code flow (UI only)
+    ///
+    /// For providers that use device code flow (like GitHub Copilot), this returns the
+    /// device code and verification URI without completing the OAuth flow. This allows
+    /// the UI to display the code and let the user complete authorization in a browser.
+    ///
+    /// The OAuth flow is then completed by calling configure_oauth() after the user
+    /// has authorized on the verification page.
+    ///
+    /// # Returns
+    /// * `Ok(Some(DeviceCodeData))` if this provider uses device code flow
+    /// * `Ok(None)` if this provider doesn't use device code flow
+    /// * `Err(ProviderError)` if an error occurs
+    ///
+    /// # Default Implementation
+    /// Returns Ok(None) for providers that don't use device code flow.
+    async fn get_oauth_device_code_info(&self) -> Result<Option<DeviceCodeData>, ProviderError> {
+        Ok(None)
+    }
+
+    async fn check_oauth_completion(&self) -> Result<bool, ProviderError> {
+        Ok(false)
     }
 
     fn permission_routing(&self) -> PermissionRouting {
@@ -1096,22 +1108,11 @@ mod tests {
     }
 
     #[test]
-    fn test_oauth_response_data_completed_serializes() {
-        let data = OauthResponseData::Completed(OauthCompletedData {
-            message: "OAuth configuration completed".to_string(),
-        });
-        let json = serde_json::to_string(&data).unwrap();
-
-        assert!(json.contains("OAuth configuration completed"));
-        assert!(json.contains("message"));
-    }
-
-    #[test]
-    fn test_oauth_response_data_device_code_serializes() {
-        let data = OauthResponseData::DeviceCode(DeviceCodeData {
+    fn test_device_code_data_serializes() {
+        let data = DeviceCodeData {
             user_code: "ABCD-1234".to_string(),
             verification_uri: "https://github.com/verify".to_string(),
-        });
+        };
         let json = serde_json::to_string(&data).unwrap();
 
         assert!(json.contains("ABCD-1234"));
@@ -1120,78 +1121,24 @@ mod tests {
     }
 
     #[test]
-    fn test_oauth_response_data_deserialize_completed() {
-        let json = r#"{"message":"OAuth configuration completed"}"#;
-        let data: OauthResponseData = serde_json::from_str(json).unwrap();
-
-        match data {
-            OauthResponseData::Completed(OauthCompletedData { message }) => {
-                assert_eq!(message, "OAuth configuration completed");
-            }
-            _ => panic!("Expected Completed variant"),
-        }
-    }
-
-    #[test]
-    fn test_oauth_response_data_deserialize_device_code() {
+    fn test_device_code_data_deserialize() {
         let json = r#"{"userCode":"ABCD-EFGH","verificationUri":"https://github.com/verify"}"#;
-        let data: OauthResponseData = serde_json::from_str(json).unwrap();
+        let data: DeviceCodeData = serde_json::from_str(json).unwrap();
 
-        match data {
-            OauthResponseData::DeviceCode(DeviceCodeData {
-                user_code,
-                verification_uri,
-            }) => {
-                assert_eq!(user_code, "ABCD-EFGH");
-                assert_eq!(verification_uri, "https://github.com/verify");
-            }
-            _ => panic!("Expected DeviceCode variant"),
-        }
+        assert_eq!(data.user_code, "ABCD-EFGH");
+        assert_eq!(data.verification_uri, "https://github.com/verify");
     }
 
     #[test]
-    fn test_oauth_response_data_roundtrip_completed() {
-        let original = OauthResponseData::Completed(OauthCompletedData {
-            message: "Test completed".to_string(),
-        });
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: OauthResponseData = serde_json::from_str(&json).unwrap();
-
-        match (&original, &deserialized) {
-            (
-                OauthResponseData::Completed(OauthCompletedData { message: m1 }),
-                OauthResponseData::Completed(OauthCompletedData { message: m2 }),
-            ) => {
-                assert_eq!(m1, m2);
-            }
-            _ => panic!("Roundtrip failed for Completed variant"),
-        }
-    }
-
-    #[test]
-    fn test_oauth_response_data_roundtrip_device_code() {
-        let original = OauthResponseData::DeviceCode(DeviceCodeData {
+    fn test_device_code_data_roundtrip() {
+        let original = DeviceCodeData {
             user_code: "WXYZ-5678".to_string(),
             verification_uri: "https://example.com/auth".to_string(),
-        });
+        };
         let json = serde_json::to_string(&original).unwrap();
-        let deserialized: OauthResponseData = serde_json::from_str(&json).unwrap();
+        let deserialized: DeviceCodeData = serde_json::from_str(&json).unwrap();
 
-        match (&original, &deserialized) {
-            (
-                OauthResponseData::DeviceCode(DeviceCodeData {
-                    user_code: uc1,
-                    verification_uri: vu1,
-                }),
-                OauthResponseData::DeviceCode(DeviceCodeData {
-                    user_code: uc2,
-                    verification_uri: vu2,
-                }),
-            ) => {
-                assert_eq!(uc1, uc2);
-                assert_eq!(vu1, vu2);
-            }
-            _ => panic!("Roundtrip failed for DeviceCode variant"),
-        }
+        assert_eq!(original.user_code, deserialized.user_code);
+        assert_eq!(original.verification_uri, deserialized.verification_uri);
     }
 }

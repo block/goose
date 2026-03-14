@@ -94,15 +94,6 @@ export default function ProviderConfigurationModal({
     }
   };
 
-  const handleDeviceCodeComplete = () => {
-    setDeviceCodeData(undefined);
-    if (onConfigured) {
-      onConfigured(provider);
-    } else {
-      onClose();
-    }
-  };
-
   const handleDeviceCodeCancel = () => {
     setDeviceCodeData(undefined);
   };
@@ -314,7 +305,14 @@ export default function ProviderConfigurationModal({
         <DeviceCodeModal
           isOpen={true}
           deviceCodeData={deviceCodeData}
-          onComplete={handleDeviceCodeComplete}
+          onAuthorized={() => {
+            setDeviceCodeData(undefined);
+            if (onConfigured) {
+              onConfigured(provider);
+            } else {
+              onClose();
+            }
+          }}
           onCancel={handleDeviceCodeCancel}
           onRetry={handleDeviceCodeRetry}
         />

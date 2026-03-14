@@ -21,14 +21,13 @@ use goose::config::{
 };
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
-use goose::providers::base::{ConfigKey, DeviceCodeData, OauthCompletedData, OauthResponseData};
+use goose::providers::base::ConfigKey;
 use goose::providers::formats::anthropic::supports_adaptive_thinking;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::io::Read;
 
 // useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
@@ -324,7 +323,6 @@ async fn handle_existing_config() -> anyhow::Result<()> {
 
 /// Helper function to handle OAuth configuration for a provider
 async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyhow::Result<()> {
-    // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
     let provider = create(provider_name, temp_model, Vec::new())
         .await
@@ -335,66 +333,13 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
 
     let _ = cliclack::log::info(format!("Configuring {} using OAuth...", key_name));
 
-    match provider.configure_oauth().await {
-        Ok(OauthResponseData::Completed(OauthCompletedData { message })) => {
-            let _ = cliclack::log::success(message);
-            Ok(())
-        }
-        Ok(OauthResponseData::DeviceCode(DeviceCodeData {
-            user_code,
-            verification_uri,
-        })) => {
-            let _ = cliclack::log::info("Device code received");
-            println!();
-            println!("Device Code: {}", style(user_code).cyan().bold());
-            println!("Verification URI: {}", verification_uri);
-            println!();
+    provider.configure_oauth().await.map_err(|e| {
+        let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
+        anyhow::anyhow!("OAuth authentication failed for {}: {}", key_name, e)
+    })?;
 
-            if cliclack::confirm("Open browser to verification page?")
-                .initial_value(true)
-                .interact()?
-                && webbrowser::open(&verification_uri).is_err()
-            {
-                let _ = cliclack::log::warning("Failed to open browser automatically");
-            }
-
-            let _ = cliclack::log::info("Enter the code on the GitHub page to authorize");
-            let _ = cliclack::log::info("After authorizing, press Enter to complete setup");
-            let _ = std::io::stdin().read(&mut [0u8]);
-
-            // Poll for completion
-            let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
-            let provider = create(provider_name, temp_model, Vec::new())
-                .await
-                .map_err(|e| {
-                    anyhow::anyhow!("Failed to create provider for OAuth polling: {}", e)
-                })?;
-
-            match provider.configure_oauth().await {
-                Ok(OauthResponseData::Completed(OauthCompletedData { message })) => {
-                    let _ = cliclack::log::success(message);
-                    Ok(())
-                }
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-                    Err(anyhow::anyhow!(
-                        "OAuth authentication failed for {}: {}",
-                        key_name,
-                        e
-                    ))
-                }
-            }
-        }
-        Err(e) => {
-            let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-            Err(anyhow::anyhow!(
-                "OAuth authentication failed for {}: {}",
-                key_name,
-                e
-            ))
-        }
-    }
+    let _ = cliclack::log::success("OAuth configuration completed");
+    Ok(())
 }
 
 fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {

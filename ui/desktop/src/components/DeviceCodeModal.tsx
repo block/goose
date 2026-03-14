@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,12 @@ import {
 import { Button } from './ui/button';
 import { Copy } from 'lucide-react';
 import type { DeviceCodeResponse } from '../api/types.gen';
+import { checkOauthCompletion } from '../api';
 
 interface DeviceCodeModalProps {
   isOpen: boolean;
   deviceCodeData?: DeviceCodeResponse;
-  onComplete: () => void;
+  onAuthorized: () => void;
   onCancel: () => void;
   onRetry: () => void;
 }
@@ -22,22 +23,69 @@ interface DeviceCodeModalProps {
 export function DeviceCodeModal({
   isOpen,
   deviceCodeData,
-  onComplete,
+  onAuthorized,
   onCancel,
   onRetry,
 }: DeviceCodeModalProps) {
   const [copied, setCopied] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const browserOpenedRef = useRef(false);
+  const pollingRef = useRef(false);
+
+  const startPolling = useCallback(async () => {
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+    setIsChecking(true);
+    setError(null);
+
+    // Poll every 5 seconds, up to 3 minutes
+    const maxAttempts = 36;
+    const interval = 5000;
+
+    for (let attempt = 0; attempt < maxAttempts && pollingRef.current; attempt++) {
+      try {
+        // Call the completion check endpoint
+        const response = await checkOauthCompletion({
+          path: { name: 'github_copilot' },
+        });
+
+        const data = response.data;
+
+        // If completed is true, authorization succeeded
+        if (data?.completed) {
+          pollingRef.current = false;
+          setIsChecking(false);
+          onAuthorized();
+          return;
+        }
+      } catch {
+        // Error likely means authorization not complete yet, keep polling
+      }
+
+      // Wait before next poll
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+
+    // Timeout reached
+    pollingRef.current = false;
+    setIsChecking(false);
+    setError('Authorization timed out. Please refresh the code or try again.');
+  }, [onAuthorized]);
 
   useEffect(() => {
     if (isOpen && deviceCodeData && !browserOpenedRef.current) {
       window.open(deviceCodeData.verificationUri, '_blank');
       browserOpenedRef.current = true;
+      // Start polling for authorization
+      startPolling();
     }
     if (!isOpen) {
       browserOpenedRef.current = false;
+      pollingRef.current = false;
+      setError(null);
     }
-  }, [isOpen, deviceCodeData]);
+  }, [isOpen, deviceCodeData, startPolling]);
 
   const handleCopy = async () => {
     if (deviceCodeData) {
@@ -85,26 +133,36 @@ export function DeviceCodeModal({
           </div>
 
           <p className="text-sm text-text-muted text-center">
-            A browser window has been opened to the GitHub authorization page. After entering the
-            code, click <span className="font-medium text-text-default">Complete Setup</span> below.
+            {error ? (
+              <span className="text-red-500">{error}</span>
+            ) : isChecking ? (
+              'Waiting for you to authorize on GitHub. Enter the code in the browser, and we will automatically complete setup.'
+            ) : (
+              'A browser window has been opened. Copy the code above and enter it on GitHub.'
+            )}
           </p>
         </div>
 
-        <DialogFooter className="pt-2 shrink-0">
-          <Button
-            variant="outline"
-            onClick={onRetry}
-            className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
-          >
-            Refresh
-          </Button>
-          <Button
-            onClick={onComplete}
-            className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
-          >
-            Complete Setup
-          </Button>
-        </DialogFooter>
+        {error && (
+          <DialogFooter className="pt-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={onRetry}
+              className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
+            >
+              Refresh Code
+            </Button>
+            <Button
+              onClick={() => {
+                setError(null);
+                startPolling();
+              }}
+              className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
+            >
+              Retry
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

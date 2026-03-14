@@ -1,11 +1,6 @@
 import { configureProviderOauth } from '../api';
 import type { OauthResponse, DeviceCodeResponse } from '../api/types.gen';
 
-export interface GitHubCopilotSetupStatus {
-  isRunning: boolean;
-  error: string | null;
-}
-
 export async function startGitHubCopilotSetup(): Promise<{
   success: boolean;
   data?: DeviceCodeResponse;
@@ -40,9 +35,4 @@ export async function startGitHubCopilotSetup(): Promise<{
       message: `Failed to start GitHub Copilot setup: ${e}`,
     };
   }
-}
-
-// Helper function to check if response is a device code response
-export function isDeviceCodeResponse(response: OauthResponse): response is DeviceCodeResponse {
-  return 'userCode' in response && 'verificationUri' in response;
 }

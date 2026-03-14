@@ -11,6 +11,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use std::time::Duration;
 use webbrowser;
 
@@ -19,8 +20,8 @@ use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::providers::base::{
-    ConfigKey, DeviceCodeData, MessageStream, OauthCompletedData, OauthResponseData, Provider,
-    ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, DeviceCodeData, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
 };
 use crate::providers::errors::ProviderError;
 
@@ -62,8 +63,18 @@ const GITHUB_COPILOT_DEVICE_CODE_URL: &str = "https://github.com/login/device/co
 const GITHUB_COPILOT_ACCESS_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
 const GITHUB_COPILOT_API_KEY_URL: &str = "https://api.github.com/copilot_internal/v2/token";
 
+static OAUTH_DEVICE_CODE: LazyLock<tokio::sync::Mutex<Option<StoredDeviceCode>>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(None));
+
 #[derive(Debug, Deserialize)]
 struct DeviceCodeInfo {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+}
+
+#[derive(Debug, Clone)]
+struct StoredDeviceCode {
     device_code: String,
     user_code: String,
     verification_uri: String,
@@ -131,8 +142,6 @@ pub struct GithubCopilotProvider {
     cache: DiskCache,
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
-    #[serde(skip)]
-    oauth_device_code: tokio::sync::Mutex<Option<String>>,
     model: ModelConfig,
     #[serde(skip)]
     name: String,
@@ -168,12 +177,10 @@ impl GithubCopilotProvider {
             .build()?;
         let cache = DiskCache::new();
         let mu = tokio::sync::Mutex::new(RefCell::new(None));
-        let oauth_device_code = tokio::sync::Mutex::new(None);
         Ok(Self {
             client,
             cache,
             mu,
-            oauth_device_code,
             model,
             name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
         })
@@ -269,9 +276,27 @@ impl GithubCopilotProvider {
     async fn get_access_token(&self) -> Result<String> {
         for attempt in 0..3 {
             tracing::trace!("attempt {} to get access token", attempt + 1);
-            match self.login().await {
-                Ok(token) => return Ok(token),
-                Err(err) => tracing::warn!("failed to get access token: {}", err),
+
+            let mut device_code_guard = OAUTH_DEVICE_CODE.lock().await;
+
+            if let Some(stored) = device_code_guard.take() {
+                drop(device_code_guard);
+                match self.poll_for_access_token(&stored.device_code).await {
+                    Ok(token) => return Ok(token),
+                    Err(err) => {
+                        tracing::warn!("failed to get access token: {}", err);
+                        // Put the device code back so user can retry with same code
+                        let mut guard = OAUTH_DEVICE_CODE.lock().await;
+                        *guard = Some(stored);
+                        drop(guard);
+                    }
+                }
+            } else {
+                drop(device_code_guard);
+                match self.login().await {
+                    Ok(token) => return Ok(token),
+                    Err(err) => tracing::warn!("failed to get access token: {}", err),
+                }
             }
         }
         Err(anyhow!("failed to get access token after 3 attempts"))
@@ -289,6 +314,16 @@ impl GithubCopilotProvider {
             "Please visit {} and enter code {}",
             device_code_info.verification_uri, code
         );
+
+        // Store the full device code info for polling
+        let stored = StoredDeviceCode {
+            device_code: device_code_info.device_code.clone(),
+            user_code: device_code_info.user_code.clone(),
+            verification_uri: device_code_info.verification_uri.clone(),
+        };
+        let mut guard = OAUTH_DEVICE_CODE.lock().await;
+        *guard = Some(stored);
+        drop(guard);
 
         self.poll_for_access_token(&device_code_info.device_code)
             .await
@@ -372,6 +407,52 @@ impl GithubCopilotProvider {
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
         Err(anyhow!("failed to get access token"))
+    }
+
+    async fn check_access_token_once(&self, device_code: &str) -> Result<String> {
+        #[derive(Serialize)]
+        struct AccessTokenRequest {
+            client_id: String,
+            device_code: String,
+            grant_type: String,
+        }
+        #[derive(Debug, Deserialize)]
+        struct AccessTokenResponse {
+            access_token: Option<String>,
+            error: Option<String>,
+            #[serde(flatten)]
+            _extra: HashMap<String, Value>,
+        }
+
+        let resp = self
+            .client
+            .post(GITHUB_COPILOT_ACCESS_TOKEN_URL)
+            .headers(self.get_github_headers())
+            .json(&AccessTokenRequest {
+                client_id: GITHUB_COPILOT_CLIENT_ID.to_string(),
+                device_code: device_code.to_string(),
+                grant_type: "urn:ietf:params:oauth:grant-type:device_code".to_string(),
+            })
+            .send()
+            .await
+            .context("failed to make request while checking access token")?
+            .error_for_status()
+            .context("error checking access token")?
+            .json::<AccessTokenResponse>()
+            .await
+            .context("failed to parse response while checking access token")?;
+
+        if let Some(access_token) = resp.access_token {
+            Ok(access_token)
+        } else if resp
+            .error
+            .as_ref()
+            .is_some_and(|err| err == "authorization_pending")
+        {
+            Err(anyhow!("authorization pending"))
+        } else {
+            Err(anyhow!("unexpected response: {:#?}", resp))
+        }
     }
 
     fn get_github_headers(&self) -> http::HeaderMap {
@@ -552,62 +633,102 @@ impl Provider for GithubCopilotProvider {
         Ok(models)
     }
 
-    async fn configure_oauth(&self) -> Result<OauthResponseData, ProviderError> {
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
         let config = Config::global();
 
-        // Check if token already exists (we'll validate it when actually using it)
         if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
-            return Ok(OauthResponseData::Completed(OauthCompletedData {
-                message: "OAuth configuration completed".to_string(),
-            }));
-        }
-
-        // Check if we have a stored device code (user may have entered code)
-        let mut device_code_guard = self.oauth_device_code.lock().await;
-        if let Some(device_code) = device_code_guard.as_ref() {
-            // Poll for access token using stored device code
-            match self.poll_for_access_token(device_code).await {
-                Ok(token) => {
-                    // Save the token
-                    config
-                        .set_secret("GITHUB_COPILOT_TOKEN", &token)
-                        .map_err(|e| {
-                            ProviderError::ExecutionError(format!("Failed to save token: {}", e))
-                        })?;
-
-                    // Clear the stored device code
-                    *device_code_guard = None;
-
-                    return Ok(OauthResponseData::Completed(OauthCompletedData {
-                        message: "OAuth configuration completed".to_string(),
-                    }));
-                }
-                Err(e) => {
-                    // Polling failed, clear device code and return error
-                    *device_code_guard = None;
-                    return Err(ProviderError::Authentication(format!(
-                        "OAuth polling failed: {}",
-                        e
-                    )));
+            match self.refresh_api_info().await {
+                Ok(_) => return Ok(()),
+                Err(_) => {
+                    tracing::debug!("Existing token is invalid, starting OAuth flow");
                 }
             }
         }
-        drop(device_code_guard);
 
-        // Start device code flow - return code info immediately
-        let device_code_info = self.get_device_code().await.map_err(|e| {
-            ProviderError::Authentication(format!("Failed to get device code: {}", e))
-        })?;
+        let token = self
+            .get_access_token()
+            .await
+            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
 
-        // Store the device_code (not user_code) for subsequent polling
-        let mut device_code_guard = self.oauth_device_code.lock().await;
-        *device_code_guard = Some(device_code_info.device_code.clone());
-        drop(device_code_guard);
+        config
+            .set_secret("GITHUB_COPILOT_TOKEN", &token)
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
 
-        Ok(OauthResponseData::DeviceCode(DeviceCodeData {
+        Ok(())
+    }
+
+    async fn get_oauth_device_code_info(&self) -> Result<Option<DeviceCodeData>, ProviderError> {
+        let config = Config::global();
+
+        if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
+            return Ok(None);
+        }
+
+        // Check if we already have a device code in progress
+        let guard = OAUTH_DEVICE_CODE.lock().await;
+        if let Some(stored) = guard.as_ref() {
+            // Return the existing device code info
+            return Ok(Some(DeviceCodeData {
+                user_code: stored.user_code.clone(),
+                verification_uri: stored.verification_uri.clone(),
+            }));
+        }
+        drop(guard);
+
+        // No existing code, generate a new one
+        let device_code_info = self
+            .get_device_code()
+            .await
+            .map_err(|e| ProviderError::Authentication(format!("Failed to get device code: {}", e)))?;
+
+        let stored = StoredDeviceCode {
+            device_code: device_code_info.device_code.clone(),
+            user_code: device_code_info.user_code.clone(),
+            verification_uri: device_code_info.verification_uri.clone(),
+        };
+
+        let mut guard = OAUTH_DEVICE_CODE.lock().await;
+        *guard = Some(stored);
+        drop(guard);
+
+        Ok(Some(DeviceCodeData {
             user_code: device_code_info.user_code,
             verification_uri: device_code_info.verification_uri,
         }))
+    }
+
+    async fn check_oauth_completion(&self) -> Result<bool, ProviderError> {
+        let config = Config::global();
+
+        // Check if we already have a token
+        if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
+            return Ok(true);
+        }
+
+        // Check if we have a device code in progress and poll for completion
+        let mut guard = OAUTH_DEVICE_CODE.lock().await;
+        if let Some(stored) = guard.take() {
+            drop(guard);
+
+            // Single poll attempt to check if user has authorized
+            match self.check_access_token_once(&stored.device_code).await {
+                Ok(token) => {
+                    config
+                        .set_secret("GITHUB_COPILOT_TOKEN", &token)
+                        .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
+                    return Ok(true);
+                }
+                Err(_) => {
+                    // Not authorized yet, put the device code back
+                    let mut guard = OAUTH_DEVICE_CODE.lock().await;
+                    *guard = Some(stored);
+                    drop(guard);
+                    return Ok(false);
+                }
+            }
+        }
+
+        Ok(false)
     }
 }
 

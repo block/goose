@@ -684,7 +684,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
           <DeviceCodeModal
             isOpen={githubCopilotDeviceCodeState.show}
             deviceCodeData={githubCopilotDeviceCodeState.deviceCodeData}
-            onComplete={handleDeviceCodeComplete}
+            onAuthorized={handleDeviceCodeComplete}
             onCancel={handleDeviceCodeCancel}
             onRetry={handleDeviceCodeRetry}
           />

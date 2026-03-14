@@ -831,6 +831,10 @@ export type OauthCompletedResponse = {
     message: string;
 };
 
+export type OauthCompletionResponse = {
+    completed: boolean;
+};
+
 export type OauthResponse = OauthCompletedResponse | DeviceCodeResponse;
 
 export type ParseRecipeRequest = {
@@ -2694,6 +2698,34 @@ export type ConfigureProviderOauthResponses = {
 };
 
 export type ConfigureProviderOauthResponse = ConfigureProviderOauthResponses[keyof ConfigureProviderOauthResponses];
+
+export type CheckOauthCompletionData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/oauth/completion';
+};
+
+export type CheckOauthCompletionErrors = {
+    /**
+     * Failed to check OAuth completion
+     */
+    400: unknown;
+};
+
+export type CheckOauthCompletionResponses = {
+    /**
+     * OAuth completion status
+     */
+    200: OauthCompletionResponse;
+};
+
+export type CheckOauthCompletionResponse = CheckOauthCompletionResponses[keyof CheckOauthCompletionResponses];
 
 export type ReadConfigData = {
     body: ConfigKeyQuery;
