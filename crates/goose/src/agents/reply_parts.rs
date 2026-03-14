@@ -205,8 +205,12 @@ impl Agent {
         Ok((tools, toolshim_tools, system_prompt))
     }
 
-    /// Stream a response from the LLM provider.
-    /// Handles toolshim transformations if needed
+    // Don't add gen_ai.request.model here — provider.get_model_config()
+    // returns the wrong model for LeadWorkerProvider.
+    #[tracing::instrument(
+        skip(provider, session_id, system_prompt, messages, tools, toolshim_tools),
+        fields(session.id = %session_id)
+    )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
         session_id: &str,
