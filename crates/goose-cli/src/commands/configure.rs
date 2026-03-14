@@ -326,15 +326,14 @@ async fn handle_existing_config() -> anyhow::Result<()> {
 async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyhow::Result<()> {
     // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
-    let provider = create(provider_name, temp_model, Vec::new()).await.map_err(|e| {
-        let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
-        anyhow::anyhow!("Failed to create provider for OAuth: {}", e)
-    })?;
+    let provider = create(provider_name, temp_model, Vec::new())
+        .await
+        .map_err(|e| {
+            let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
+            anyhow::anyhow!("Failed to create provider for OAuth: {}", e)
+        })?;
 
-    let _ = cliclack::log::info(format!(
-        "Configuring {} using OAuth...",
-        key_name
-    ));
+    let _ = cliclack::log::info(format!("Configuring {} using OAuth...", key_name));
 
     match provider.configure_oauth().await {
         Ok(OauthResponseData::Completed(OauthCompletedData { message })) => {
@@ -351,10 +350,12 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
             println!("Verification URI: {}", verification_uri);
             println!();
 
-            if cliclack::confirm("Open browser to verification page?").initial_value(true).interact()? {
-                if webbrowser::open(&verification_uri).is_err() {
-                    let _ = cliclack::log::warning("Failed to open browser automatically");
-                }
+            if cliclack::confirm("Open browser to verification page?")
+                .initial_value(true)
+                .interact()?
+                && webbrowser::open(&verification_uri).is_err()
+            {
+                let _ = cliclack::log::warning("Failed to open browser automatically");
             }
 
             let _ = cliclack::log::info("Enter the code on the GitHub page to authorize");
@@ -363,9 +364,11 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
 
             // Poll for completion
             let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
-            let provider = create(provider_name, temp_model, Vec::new()).await.map_err(|e| {
-                anyhow::anyhow!("Failed to create provider for OAuth polling: {}", e)
-            })?;
+            let provider = create(provider_name, temp_model, Vec::new())
+                .await
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to create provider for OAuth polling: {}", e)
+                })?;
 
             match provider.configure_oauth().await {
                 Ok(OauthResponseData::Completed(OauthCompletedData { message })) => {
@@ -375,13 +378,21 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
                 Ok(_) => Ok(()),
                 Err(e) => {
                     let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-                    Err(anyhow::anyhow!("OAuth authentication failed for {}: {}", key_name, e))
+                    Err(anyhow::anyhow!(
+                        "OAuth authentication failed for {}: {}",
+                        key_name,
+                        e
+                    ))
                 }
             }
         }
         Err(e) => {
             let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-            Err(anyhow::anyhow!("OAuth authentication failed for {}: {}", key_name, e))
+            Err(anyhow::anyhow!(
+                "OAuth authentication failed for {}: {}",
+                key_name,
+                e
+            ))
         }
     }
 }
