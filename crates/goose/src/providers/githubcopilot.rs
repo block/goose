@@ -555,20 +555,11 @@ impl Provider for GithubCopilotProvider {
     async fn configure_oauth(&self) -> Result<OauthResponseData, ProviderError> {
         let config = Config::global();
 
-        // Check if token already exists and is valid
+        // Check if token already exists (we'll validate it when actually using it)
         if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
-            // Try to refresh API info to validate the token
-            match self.refresh_api_info().await {
-                Ok(_) => {
-                    return Ok(OauthResponseData::Completed(OauthCompletedData {
-                        message: "OAuth configuration completed".to_string(),
-                    }))
-                }
-                Err(_) => {
-                    // Token is invalid, continue with OAuth flow
-                    tracing::debug!("Existing token is invalid, starting OAuth flow");
-                }
-            }
+            return Ok(OauthResponseData::Completed(OauthCompletedData {
+                message: "OAuth configuration completed".to_string(),
+            }));
         }
 
         // Check if we have a stored device code (user may have entered code)
