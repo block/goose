@@ -81,6 +81,7 @@ jobs:
         id: goose
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REVIEW_INSTRUCTIONS: ${{ inputs.instructions }}
           GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
           GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-sonnet-4-20250514' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -94,7 +95,7 @@ jobs:
           goose run \
             --recipe .github/recipes/code-review.yaml \
             --params pr_directory=/tmp/code-review \
-            --params instructions='${{ inputs.instructions }}'
+            --params instructions="$REVIEW_INSTRUCTIONS"
 
       - name: Upload review artifacts
         if: always()
