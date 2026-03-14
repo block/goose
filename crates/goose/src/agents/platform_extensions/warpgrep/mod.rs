@@ -53,7 +53,7 @@ impl WarpGrepClient {
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
                 description: None,
-                title: Some("WarpGrep".to_string()),
+                title: Some("Codebase Search".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
                 website_url: None,
