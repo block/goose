@@ -16,16 +16,20 @@ output_dir = Path("/tmp")
 
 
 @server.tool()
-def add_comment(path: str, position: int, body: str) -> str:
+def add_comment(
+    path: str, line: int, body: str, side: str = "RIGHT", start_line: int | None = None
+) -> str:
     """Add a review comment on a specific line in the PR diff.
 
     Args:
         path: The relative file path in the repository (e.g. "src/main.rs").
-        position: The line position in the diff. Position 1 is the first line
-                  after the @@ hunk header, position 2 is the next line, and so on.
-                  The count continues through whitespace and additional hunks
-                  until a new file begins.
+        line: The line number in the file that the comment applies to.
+              For added or modified lines, use the line number in the new version of the file (side=RIGHT).
+              For deleted lines, use the line number in the old version of the file (side=LEFT).
         body: The review comment text (Markdown supported).
+        side: Which version of the file the line number refers to.
+              "RIGHT" for the new/modified version (default), "LEFT" for the old/deleted version.
+        start_line: For multi-line comments, the first line of the range. When set, `line` is the last line.
     """
     comments_file = output_dir / "comments.json"
     if comments_file.exists():
@@ -33,9 +37,14 @@ def add_comment(path: str, position: int, body: str) -> str:
     else:
         comments = []
 
-    comments.append({"path": path, "position": position, "body": body})
+    comment = {"path": path, "line": line, "side": side, "body": body}
+    if start_line is not None:
+        comment["start_line"] = start_line
+        comment["start_side"] = side
+
+    comments.append(comment)
     comments_file.write_text(json.dumps(comments, indent=2))
-    return f"Comment added on {path} at position {position} ({len(comments)} total)."
+    return f"Comment added on {path}:{line} ({len(comments)} total)."
 
 
 @server.tool()

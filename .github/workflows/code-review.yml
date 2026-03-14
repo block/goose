@@ -115,15 +115,50 @@ jobs:
             exit 0
           fi
 
-          jq -n \
+          INLINE_COMMENTS=$(if [ -f "$COMMENTS" ]; then cat "$COMMENTS"; else echo '[]'; fi)
+
+          # Try submitting with inline comments first
+          PAYLOAD=$(jq -n \
             --arg commit_id "$COMMIT_ID" \
             --argjson conclusion "$(cat "$CONCLUSION")" \
-            --argjson comments "$(if [ -f "$COMMENTS" ]; then cat "$COMMENTS"; else echo '[]'; fi)" \
+            --argjson comments "$INLINE_COMMENTS" \
             '{
               commit_id: $commit_id,
               body: $conclusion.body,
               event: $conclusion.event,
               comments: $comments
+            }')
+
+          if echo "$PAYLOAD" | gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" \
+              --input - 2>/dev/null; then
+            echo "Review submitted with inline comments."
+            exit 0
+          fi
+
+          echo "Inline comments failed, folding into review body."
+
+          # Fold inline comments into the review body as a fallback
+          FOLDED_BODY=$(jq -n -r \
+            --argjson conclusion "$(cat "$CONCLUSION")" \
+            --argjson comments "$INLINE_COMMENTS" \
+            '
+              $conclusion.body + "\n\n---\n\n## Inline Comments\n\n" +
+              ([$comments[] |
+                "### `" + .path + "` (line " + (.line | tostring) + ")\n\n" + .body
+              ] | join("\n\n---\n\n"))
+            ')
+
+          jq -n \
+            --arg commit_id "$COMMIT_ID" \
+            --argjson conclusion "$(cat "$CONCLUSION")" \
+            --arg body "$FOLDED_BODY" \
+            '{
+              commit_id: $commit_id,
+              body: $body,
+              event: $conclusion.event
             }' \
           | gh api \
               --method POST \
