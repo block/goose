@@ -452,6 +452,15 @@ pub trait LeadWorkerProviderTrait {
     fn get_settings(&self) -> (usize, usize, usize);
 }
 
+/// OAuth flow completed successfully (callback-based providers)
+/// Device code info for OAuth device code flow (UI only)
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCodeData {
+    pub user_code: String,
+    pub verification_uri: String,
+}
+
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -688,6 +697,9 @@ pub trait Provider: Send + Sync {
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.
     /// Providers that support OAuth should override this method to implement their specific OAuth flow.
     ///
+    /// This method blocks until OAuth flow completes (callback flow for browser-based auth,
+    /// device code flow for terminal-based auth where code is displayed and completion is awaited).
+    ///
     /// # Returns
     /// * `Ok(())` if OAuth configuration succeeds and credentials are saved
     /// * `Err(ProviderError)` if OAuth fails or is not supported by this provider
@@ -698,6 +710,30 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    /// Get device code info for OAuth device code flow (UI only)
+    ///
+    /// For providers that use device code flow (like GitHub Copilot), this returns the
+    /// device code and verification URI without completing the OAuth flow. This allows
+    /// the UI to display the code and let the user complete authorization in a browser.
+    ///
+    /// The OAuth flow is then completed by calling configure_oauth() after the user
+    /// has authorized on the verification page.
+    ///
+    /// # Returns
+    /// * `Ok(Some(DeviceCodeData))` if this provider uses device code flow
+    /// * `Ok(None)` if this provider doesn't use device code flow
+    /// * `Err(ProviderError)` if an error occurs
+    ///
+    /// # Default Implementation
+    /// Returns Ok(None) for providers that don't use device code flow.
+    async fn get_oauth_device_code_info(&self) -> Result<Option<DeviceCodeData>, ProviderError> {
+        Ok(None)
+    }
+
+    async fn check_oauth_completion(&self) -> Result<bool, ProviderError> {
+        Ok(false)
     }
 
     fn permission_routing(&self) -> PermissionRouting {
@@ -1074,5 +1110,40 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    #[test]
+    fn test_device_code_data_serializes() {
+        let data = DeviceCodeData {
+            user_code: "ABCD-1234".to_string(),
+            verification_uri: "https://github.com/verify".to_string(),
+        };
+        let json = serde_json::to_string(&data).unwrap();
+
+        assert!(json.contains("ABCD-1234"));
+        assert!(json.contains("verificationUri"));
+        assert!(json.contains("userCode"));
+    }
+
+    #[test]
+    fn test_device_code_data_deserialize() {
+        let json = r#"{"userCode":"ABCD-EFGH","verificationUri":"https://github.com/verify"}"#;
+        let data: DeviceCodeData = serde_json::from_str(json).unwrap();
+
+        assert_eq!(data.user_code, "ABCD-EFGH");
+        assert_eq!(data.verification_uri, "https://github.com/verify");
+    }
+
+    #[test]
+    fn test_device_code_data_roundtrip() {
+        let original = DeviceCodeData {
+            user_code: "WXYZ-5678".to_string(),
+            verification_uri: "https://example.com/auth".to_string(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: DeviceCodeData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original.user_code, deserialized.user_code);
+        assert_eq!(original.verification_uri, deserialized.verification_uri);
     }
 }

@@ -830,20 +830,46 @@ pub async fn get_provider_catalog_template(
     Ok(Json(template))
 }
 
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OauthCompletedResponse {
+    pub message: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCodeResponse {
+    pub user_code: String,
+    pub verification_uri: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub enum OauthResponse {
+    Completed(OauthCompletedResponse),
+    DeviceCode(DeviceCodeResponse),
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OauthCompletionResponse {
+    pub completed: bool,
+}
+
 #[utoipa::path(
-    post,
-    path = "/config/providers/{name}/oauth",
+    get,
+    path = "/config/providers/{name}/oauth/completion",
     params(
         ("name" = String, Path, description = "Provider name")
     ),
     responses(
-        (status = 200, description = "OAuth configuration completed"),
-        (status = 400, description = "OAuth configuration failed")
+        (status = 200, description = "OAuth completion status", body = OauthCompletionResponse),
+        (status = 400, description = "Failed to check OAuth completion")
     )
 )]
-pub async fn configure_provider_oauth(
+pub async fn check_oauth_completion(
     Path(provider_name): Path<String>,
-) -> Result<Json<String>, ErrorResponse> {
+) -> Result<Json<OauthCompletionResponse>, ErrorResponse> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
@@ -860,7 +886,6 @@ pub async fn configure_provider_oauth(
         })?
         .with_canonical_limits(&provider_name);
 
-    // OAuth configuration does not use extensions.
     let provider = create(&provider_name, temp_model, Vec::new())
         .await
         .map_err(|e| {
@@ -870,6 +895,67 @@ pub async fn configure_provider_oauth(
             ))
         })?;
 
+    let completed = provider.check_oauth_completion().await.map_err(|e| {
+        ErrorResponse::bad_request(format!(
+            "Failed to check OAuth completion for provider '{}': {}",
+            provider_name, e
+        ))
+    })?;
+
+    Ok(Json(OauthCompletionResponse { completed }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/providers/{name}/oauth",
+    params(
+        ("name" = String, Path, description = "Provider name")
+    ),
+    responses(
+        (status = 200, description = "OAuth configuration completed or device code returned", body = OauthResponse),
+        (status = 400, description = "OAuth configuration failed")
+    )
+)]
+pub async fn configure_provider_oauth(
+    Path(provider_name): Path<String>,
+) -> Result<Json<OauthResponse>, ErrorResponse> {
+    use goose::model::ModelConfig;
+    use goose::providers::create;
+
+    if !is_valid_provider_name(&provider_name) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid provider name: '{}'",
+            provider_name
+        )));
+    }
+
+    let temp_model = ModelConfig::new("temp")
+        .map_err(|e| {
+            ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
+        })?
+        .with_canonical_limits(&provider_name);
+
+    let provider = create(&provider_name, temp_model, Vec::new())
+        .await
+        .map_err(|e| {
+            ErrorResponse::bad_request(format!(
+                "Failed to create provider '{}': {}",
+                provider_name, e
+            ))
+        })?;
+
+    if let Some(device_code_data) = provider.get_oauth_device_code_info().await.map_err(|e| {
+        ErrorResponse::bad_request(format!(
+            "Failed to get OAuth device code for provider '{}': {}",
+            provider_name, e
+        ))
+    })? {
+        return Ok(Json(OauthResponse::DeviceCode(DeviceCodeResponse {
+            user_code: device_code_data.user_code,
+            verification_uri: device_code_data.verification_uri,
+        })));
+    }
+
     provider.configure_oauth().await.map_err(|e| {
         ErrorResponse::bad_request(format!(
             "OAuth configuration failed for provider '{}': {}",
@@ -877,12 +963,13 @@ pub async fn configure_provider_oauth(
         ))
     })?;
 
-    // Mark the provider as configured after successful OAuth
     let configured_marker = format!("{}_configured", provider_name);
     let config = goose::config::Config::global();
     config.set_param(&configured_marker, true)?;
 
-    Ok(Json("OAuth configuration completed".to_string()))
+    Ok(Json(OauthResponse::Completed(OauthCompletedResponse {
+        message: "OAuth configuration completed".to_string(),
+    })))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -896,6 +983,14 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route(
+            "/config/providers/{name}/oauth",
+            post(configure_provider_oauth),
+        )
+        .route(
+            "/config/providers/{name}/oauth/completion",
+            get(check_oauth_completion),
+        )
         .route("/config/provider-catalog", get(get_provider_catalog))
         .route(
             "/config/provider-catalog/{id}",
@@ -921,10 +1016,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
-        .route(
-            "/config/providers/{name}/oauth",
-            post(configure_provider_oauth),
-        )
         .with_state(state)
 }
 

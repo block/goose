@@ -1416,10 +1416,51 @@
         ],
         "responses": {
           "200": {
-            "description": "OAuth configuration completed"
+            "description": "OAuth configuration completed or device code returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "OAuth configuration failed"
+          }
+        }
+      }
+    },
+    "/config/providers/{name}/oauth/completion": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "check_oauth_completion",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth completion status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthCompletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed to check OAuth completion"
           }
         }
       }
@@ -4481,6 +4522,21 @@
           }
         }
       },
+      "DeviceCodeResponse": {
+        "type": "object",
+        "required": [
+          "userCode",
+          "verificationUri"
+        ],
+        "properties": {
+          "userCode": {
+            "type": "string"
+          },
+          "verificationUri": {
+            "type": "string"
+          }
+        }
+      },
       "DictationProvider": {
         "type": "string",
         "enum": [
@@ -6353,6 +6409,38 @@
             "type": "string"
           }
         }
+      },
+      "OauthCompletedResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "OauthCompletionResponse": {
+        "type": "object",
+        "required": [
+          "completed"
+        ],
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OauthResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/OauthCompletedResponse"
+          },
+          {
+            "$ref": "#/components/schemas/DeviceCodeResponse"
+          }
+        ]
       },
       "ParseRecipeRequest": {
         "type": "object",

@@ -75,6 +75,7 @@ export type AnalyticsEvent =
           | 'openrouter'
           | 'tetrate'
           | 'chatgpt_codex'
+          | 'github_copilot'
           | 'ollama'
           | 'local'
           | 'other';
@@ -88,7 +89,7 @@ export type AnalyticsEvent =
   | {
       name: 'onboarding_setup_failed';
       properties: {
-        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local';
+        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'github_copilot' | 'local';
         error_message?: string;
       };
     }
@@ -294,7 +295,15 @@ export function trackOnboardingStarted(): void {
 }
 
 export function trackOnboardingProviderSelected(
-  method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'local' | 'other'
+  method:
+    | 'api_key'
+    | 'openrouter'
+    | 'tetrate'
+    | 'chatgpt_codex'
+    | 'github_copilot'
+    | 'ollama'
+    | 'local'
+    | 'other'
 ): void {
   trackEvent({
     name: 'onboarding_provider_selected',
@@ -327,7 +336,7 @@ export function trackOnboardingAbandoned(step: string): void {
 }
 
 export function trackOnboardingSetupFailed(
-  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local',
+  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'github_copilot' | 'local',
   errorMessage?: string
 ): void {
   trackEvent({

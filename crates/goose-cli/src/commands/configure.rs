@@ -323,36 +323,23 @@ async fn handle_existing_config() -> anyhow::Result<()> {
 
 /// Helper function to handle OAuth configuration for a provider
 async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyhow::Result<()> {
-    let _ = cliclack::log::info(format!(
-        "Configuring {} using OAuth device code flow...",
-        key_name
-    ));
-
-    // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
-    match create(provider_name, temp_model, Vec::new()).await {
-        Ok(provider) => match provider.configure_oauth().await {
-            Ok(_) => {
-                let _ = cliclack::log::success("OAuth authentication completed successfully!");
-                Ok(())
-            }
-            Err(e) => {
-                let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-                Err(anyhow::anyhow!(
-                    "OAuth authentication failed for {}: {}",
-                    key_name,
-                    e
-                ))
-            }
-        },
-        Err(e) => {
+    let provider = create(provider_name, temp_model, Vec::new())
+        .await
+        .map_err(|e| {
             let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
-            Err(anyhow::anyhow!(
-                "Failed to create provider for OAuth: {}",
-                e
-            ))
-        }
-    }
+            anyhow::anyhow!("Failed to create provider for OAuth: {}", e)
+        })?;
+
+    let _ = cliclack::log::info(format!("Configuring {} using OAuth...", key_name));
+
+    provider.configure_oauth().await.map_err(|e| {
+        let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
+        anyhow::anyhow!("OAuth authentication failed for {}: {}", key_name, e)
+    })?;
+
+    let _ = cliclack::log::success("OAuth configuration completed");
+    Ok(())
 }
 
 fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {

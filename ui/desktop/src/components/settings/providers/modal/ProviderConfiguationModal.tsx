@@ -18,6 +18,8 @@ import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
+import type { DeviceCodeResponse } from '../../../../api/types.gen';
+import { DeviceCodeModal } from '../../../DeviceCodeModal';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
 
@@ -40,6 +42,7 @@ export default function ProviderConfigurationModal({
   const [isActiveProvider, setIsActiveProvider] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [deviceCodeData, setDeviceCodeData] = useState<DeviceCodeResponse | undefined>(undefined);
 
   let primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
   if (primaryParameters.length === 0) {
@@ -66,19 +69,38 @@ export default function ProviderConfigurationModal({
     setIsOAuthLoading(true);
     setError(null);
     try {
-      await configureProviderOauth({
+      const response = await configureProviderOauth({
         path: { name: provider.name },
       });
-      if (onConfigured) {
-        onConfigured(provider);
+
+      const data = response.data;
+
+      // Check if response is a device code response (has userCode field)
+      if (data && 'userCode' in data && 'verificationUri' in data) {
+        // Device code flow - show device code modal
+        setDeviceCodeData(data);
       } else {
-        onClose();
+        // Completed flow
+        if (onConfigured) {
+          onConfigured(provider);
+        } else {
+          onClose();
+        }
       }
     } catch (err) {
       setError(`OAuth login failed: ${errorMessage(err)}`);
     } finally {
       setIsOAuthLoading(false);
     }
+  };
+
+  const handleDeviceCodeCancel = () => {
+    setDeviceCodeData(undefined);
+  };
+
+  const handleDeviceCodeRetry = () => {
+    setDeviceCodeData(undefined);
+    handleOAuthLogin();
   };
 
   const handleSubmitForm = async (e: React.FormEvent) => {
@@ -198,7 +220,7 @@ export default function ProviderConfigurationModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={!error} onOpenChange={(open) => !open && onClose()}>
+      <Dialog open={!error && !deviceCodeData} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -279,6 +301,22 @@ export default function ProviderConfigurationModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {deviceCodeData && (
+        <DeviceCodeModal
+          isOpen={true}
+          deviceCodeData={deviceCodeData}
+          onAuthorized={() => {
+            setDeviceCodeData(undefined);
+            if (onConfigured) {
+              onConfigured(provider);
+            } else {
+              onClose();
+            }
+          }}
+          onCancel={handleDeviceCodeCancel}
+          onRetry={handleDeviceCodeRetry}
+        />
+      )}
     </>
   );
 }

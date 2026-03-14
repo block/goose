@@ -2,9 +2,11 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
+import { DeviceCodeModal } from './DeviceCodeModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import { startTetrateSetup } from '../utils/tetrateSetup';
 import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
+import { startGitHubCopilotSetup } from '../utils/githubCopilotSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { LocalModelSetup } from './LocalModelSetup';
@@ -19,8 +21,9 @@ import {
   trackOnboardingAbandoned,
   trackOnboardingSetupFailed,
 } from '../utils/analytics';
+import type { DeviceCodeResponse } from '../api/types.gen';
 
-import { Goose, OpenRouter, Tetrate, ChatGPT } from './icons';
+import { Goose, OpenRouter, Tetrate, ChatGPT, GitHubCopilot } from './icons';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -78,6 +81,13 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     autoClose?: number;
   } | null>(null);
 
+  const [githubCopilotDeviceCodeState, setGithubCopilotDeviceCodeState] = useState<{
+    show: boolean;
+    deviceCodeData?: DeviceCodeResponse;
+  }>({
+    show: false,
+  });
+
   const handleTetrateSetup = async () => {
     trackOnboardingProviderSelected('tetrate');
     try {
@@ -132,6 +142,59 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         showRetry: true,
       });
     }
+  };
+
+  const handleGitHubCopilotSetup = async () => {
+    trackOnboardingProviderSelected('github_copilot');
+    try {
+      const result = await startGitHubCopilotSetup();
+      if (result.success) {
+        if (result.data) {
+          // Device code flow - show device code modal
+          setGithubCopilotDeviceCodeState({
+            show: true,
+            deviceCodeData: result.data,
+          });
+        } else {
+          // Already configured or completed
+          setSwitchModelProvider('github_copilot');
+          setShowSwitchModelModal(true);
+        }
+      } else {
+        trackOnboardingSetupFailed('github_copilot', result.message);
+        setChatgptCodexSetupState({
+          show: true,
+          title: 'Setup Failed',
+          message: result.message,
+          showRetry: true,
+        });
+      }
+    } catch (error) {
+      console.error('GitHub Copilot setup error:', error);
+      trackOnboardingSetupFailed('github_copilot', 'unexpected_error');
+      setChatgptCodexSetupState({
+        show: true,
+        title: 'Setup Error',
+        message: 'An unexpected error occurred during setup.',
+        showRetry: true,
+      });
+    }
+  };
+
+  const handleDeviceCodeComplete = () => {
+    setGithubCopilotDeviceCodeState({ show: false });
+    setSwitchModelProvider('github_copilot');
+    setShowSwitchModelModal(true);
+  };
+
+  const handleDeviceCodeCancel = () => {
+    setGithubCopilotDeviceCodeState({ show: false });
+    trackOnboardingAbandoned('github_copilot_setup');
+  };
+
+  const handleDeviceCodeRetry = async () => {
+    setGithubCopilotDeviceCodeState({ show: false });
+    await handleGitHubCopilotSetup();
   };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
@@ -412,6 +475,41 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </div>
               </div>
 
+              {/* GitHub Copilot Card - Full Width */}
+              <div className="relative w-full mb-4">
+                <div
+                  onClick={handleGitHubCopilotSetup}
+                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <GitHubCopilot className="w-5 h-5 text-text-primary" />
+                      <span className="font-medium text-text-primary text-sm sm:text-base">
+                        GitHub Copilot
+                      </span>
+                    </div>
+                    <div className="text-text-secondary group-hover:text-text-primary transition-colors">
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-text-secondary text-sm sm:text-base">
+                    Use GitHub Copilot access for a variety of AI models.
+                  </p>
+                </div>
+              </div>
+
               {/* Tetrate Card - Full Width */}
               <div className="relative w-full mb-4">
                 <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
@@ -560,6 +658,16 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
             onRetry={() => handleRetrySetup('chatgpt_codex')}
             onClose={() => closeSetupModal('chatgpt_codex')}
             autoClose={chatgptCodexSetupState.autoClose}
+          />
+        )}
+
+        {githubCopilotDeviceCodeState.show && (
+          <DeviceCodeModal
+            isOpen={githubCopilotDeviceCodeState.show}
+            deviceCodeData={githubCopilotDeviceCodeState.deviceCodeData}
+            onAuthorized={handleDeviceCodeComplete}
+            onCancel={handleDeviceCodeCancel}
+            onRetry={handleDeviceCodeRetry}
           />
         )}
 
