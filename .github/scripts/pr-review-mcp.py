@@ -65,11 +65,13 @@ def add_comment(
 
 
 @server.tool()
-def finish_review(body: str) -> str:
-    """Finish the review with an overall summary and verdict.
+def finish_review(body: str = "") -> str:
+    """Finish the review.
 
     Args:
-        body: The top-level review body (Markdown supported).
+        body: Optional top-level review body (Markdown supported). Only include if it
+              contains information not already covered by inline comments. Most reviews
+              should leave this empty.
     """
     conclusion = {"body": body, "event": "COMMENT"}
     conclusion_file = output_dir / "conclusion.json"

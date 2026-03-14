@@ -126,16 +126,18 @@ jobs:
           fi
 
           # Build payload using jq file inputs to avoid shell interpolation issues
+          # Omit body when empty for a cleaner review
           jq -n \
             --arg commit_id "$COMMIT_ID" \
             --slurpfile conclusion "$CONCLUSION" \
             --slurpfile comments "$COMMENTS" \
             '{
               commit_id: $commit_id,
-              body: $conclusion[0].body,
               event: $conclusion[0].event,
               comments: $comments[0]
-            }' > /tmp/review-payload.json
+            }
+            | if $conclusion[0].body != "" then .body = $conclusion[0].body else . end
+            ' > /tmp/review-payload.json
 
           # Try submitting with inline comments first
           if gh api \
