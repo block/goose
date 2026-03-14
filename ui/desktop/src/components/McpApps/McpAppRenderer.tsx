@@ -541,10 +541,7 @@ export default function McpAppRenderer({
 
   const handleLoggingMessage = useCallback(
     ({ level, logger, data }: { level?: string; logger?: string; data?: unknown }) => {
-      console.log(
-        `[MCP App Notification]${logger ? ` [${logger}]` : ''} ${level || 'info'}:`,
-        data
-      );
+
     },
     []
   );

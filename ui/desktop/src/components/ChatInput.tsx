@@ -412,7 +412,6 @@ export default function ChatInput({
         provider = configModelAndProvider.provider;
       }
       if (!model || !provider) {
-        console.log('No model or provider found');
         setIsTokenLimitLoaded(true);
         return;
       }
