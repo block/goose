@@ -6695,33 +6695,35 @@ dependencies = [
 
 [[package]]
 name = "pctx_code_execution_runtime"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9180fee1264bed9613b65e8702b2bd4ba404a4606d802ac237808e032d476e84"
+checksum = "a8b66a19b684e077ab0bc39b10922cf76e1685ff6a65198fe0bc4004c4be314f"
 dependencies = [
  "anyhow",
  "deno_core",
  "deno_error",
  "pctx_config",
- "rmcp 0.14.0",
+ "pctx_registry",
+ "rmcp 1.2.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "url",
 ]
 
 [[package]]
 name = "pctx_code_mode"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1006bf745381b3726592032cbee129f27873296810be199e04dfe759820e96f8"
+checksum = "3d9f5ffc774d0c440e780aaa2593fbf5c5710e5b5c63a6b498116d3f46a09fe0"
 dependencies = [
  "futures",
- "pctx_code_execution_runtime",
  "pctx_codegen",
  "pctx_config",
  "pctx_executor",
+ "pctx_registry",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -6733,9 +6735,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_codegen"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe8bc4029f5177e4c7a3fd03f702832fe56ef77c34bb165990875fba25980f95"
+checksum = "7b05191d9a37d1101f3a78e770e1a2b5521e75ce718f1165fb15ac16025d297b"
 dependencies = [
  "biome_formatter",
  "biome_js_formatter",
@@ -6755,9 +6757,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_config"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f5d3440e3936b1e06f168ce1657dbb0f05e2be63972ddb51050f81a12e771fb"
+checksum = "88750f27b7000e143e8b7c5703947fe9565b1a616e119513578bf08ef40fc24f"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6767,8 +6769,8 @@ dependencies = [
  "keyring",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
- "reqwest 0.12.28",
- "rmcp 0.14.0",
+ "reqwest 0.13.2",
+ "rmcp 1.2.0",
  "serde",
  "serde_json",
  "shlex",
@@ -6791,17 +6793,17 @@ dependencies = [
 
 [[package]]
 name = "pctx_executor"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d0d78d239a4840d4452bafa4fde7c5ad1f128af85f14c2e3d4c72360551183f"
+checksum = "52c6f6e9ae409b20157d7f60623e32de6627b7a80a159e3ee5c1472c4f36ba64"
 dependencies = [
  "deno_core",
  "deno_resolver",
  "futures",
  "node_resolver",
  "pctx_code_execution_runtime",
- "pctx_config",
  "pctx_deno_transpiler",
+ "pctx_registry",
  "pctx_type_check_runtime",
  "regex",
  "serde",
@@ -6814,10 +6816,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "pctx_type_check_runtime"
-version = "0.1.2"
+name = "pctx_registry"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46d99b3ee5c8b345ba4038552ed4f6776a7a702e9739d35b99ffcc4eb7647e9b"
+checksum = "9a49c948ffc8c07357e76b2e0008503c9fafaf49d91fd7e00e672bbd7aabd157"
+dependencies = [
+ "deno_error",
+ "pctx_config",
+ "rmcp 1.2.0",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pctx_type_check_runtime"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cda6e59419494a65a7915ae4780708de2e72c70af21d68b7dfd64e1540c838cc"
 dependencies = [
  "deno_ast",
  "deno_core",
@@ -7700,13 +7717,9 @@ checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "cookie",
- "cookie_store",
- "encoding_rs",
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2 0.4.13",
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
@@ -7715,12 +7728,10 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
- "mime",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
  "rustls 0.23.37",
- "rustls-native-certs",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -7728,14 +7739,12 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-rustls 0.26.4",
- "tokio-util",
  "tower",
  "tower-http",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.4.2",
  "web-sys",
  "webpki-roots 1.0.6",
 ]
@@ -7784,7 +7793,7 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.5.0",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -7845,33 +7854,6 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a621b37a548ff6ab6292d57841eb25785a7f146d89391a19c9f199414bd13da"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "futures",
- "http 1.4.0",
- "pastey",
- "pin-project-lite",
- "process-wrap",
- "reqwest 0.12.28",
- "rmcp-macros 0.14.0",
- "schemars 1.2.1",
- "serde",
- "serde_json",
- "sse-stream",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
-name = "rmcp"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba6b9d2f0efe2258b23767f1f9e0054cfbcac9c2d6f81a031214143096d7864f"
@@ -7910,19 +7892,6 @@ name = "rmcp-macros"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3f81daaa494eb8e985c9462f7d6ce1ab05e5299f48aafd76cdd3d8b060e6f59"
-dependencies = [
- "darling 0.23.0",
- "proc-macro2",
- "quote",
- "serde_json",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "rmcp-macros"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b79ed92303f9262db79575aa8c3652581668e9d136be6fd0b9ededa78954c95"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -11266,19 +11235,6 @@ dependencies = [
  "indexmap 2.13.0",
  "wasm-encoder",
  "wasmparser",
-]
-
-[[package]]
-name = "wasm-streams"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15053d8d85c7eccdbefef60f06769760a563c7f0a9d6902a13d35c7800b0ad65"
-dependencies = [
- "futures-util",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
