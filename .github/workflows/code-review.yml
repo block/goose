@@ -116,13 +116,14 @@ jobs:
           CONCLUSION="/tmp/conclusion.json"
           COMMENTS="/tmp/comments.json"
 
-          if [ ! -f "$CONCLUSION" ]; then
-            echo "No conclusion produced, skipping review submission."
+          if [ ! -f "$COMMENTS" ]; then
+            echo "No comments produced, skipping review submission."
             exit 0
           fi
 
-          if [ ! -f "$COMMENTS" ]; then
-            echo '[]' > "$COMMENTS"
+          # Default conclusion if finish_review was never called
+          if [ ! -f "$CONCLUSION" ]; then
+            echo '{"body":"","event":"COMMENT"}' > "$CONCLUSION"
           fi
 
           # Build payload using jq file inputs to avoid shell interpolation issues
