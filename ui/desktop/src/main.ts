@@ -1591,9 +1591,7 @@ ipcMain.handle('check-ollama', async () => {
           return resolve(false);
         }
 
-        console.log('Raw stdout from ps|grep command:', output);
         const trimmedOutput = output.trim();
-        console.log('Trimmed stdout:', trimmedOutput);
 
         const isRunning = trimmedOutput.length > 0;
         resolve(isRunning);
@@ -2186,7 +2184,6 @@ async function appMain() {
       // Remove any HTML tags for security
       const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
 
-      console.log('NOTIFY', data);
       const notification = new Notification({
         title: sanitizeText(data.title),
         body: sanitizeText(data.body),
