@@ -15,7 +15,10 @@ export type NavigationPosition = 'top' | 'bottom' | 'left' | 'right';
 export interface NavigationPreferences {
   itemOrder: string[];
   enabledItems: string[];
+  maxRecentSessions?: number;
 }
+
+export const DEFAULT_MAX_RECENT_SESSIONS = 5;
 
 export const DEFAULT_ITEM_ORDER = [
   'home',
