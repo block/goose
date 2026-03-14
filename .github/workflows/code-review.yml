@@ -57,6 +57,7 @@ jobs:
             | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           apt-get update
           apt-get install -y gh
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Get PR metadata and diff
         env:
@@ -82,7 +83,6 @@ jobs:
         run: |
           mkdir -p "$HOME/.local/share/goose/sessions"
           mkdir -p "$HOME/.config/goose"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
           goose run \
             --recipe .github/recipes/code_review.yaml \
