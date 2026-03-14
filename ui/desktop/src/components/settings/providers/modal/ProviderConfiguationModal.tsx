@@ -164,6 +164,12 @@ export default function ProviderConfigurationModal({
       for (const param of params) {
         await remove(param.name, param.secret);
       }
+
+      const hasOAuthKey = params.some((key) => key.oauth_flow);
+      if (hasOAuthKey) {
+        const configuredMarker = `${provider.name}_configured`;
+        await remove(configuredMarker, false);
+      }
     }
 
     onClose();
