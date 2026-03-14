@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio_stream::{StreamExt, wrappers::SplitStream};
+use tokio_stream::{wrappers::SplitStream, StreamExt};
 
 use crate::subprocess::SubprocessExt;
 
