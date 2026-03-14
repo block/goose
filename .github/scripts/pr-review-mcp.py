@@ -15,9 +15,23 @@ server = FastMCP("pr-review")
 output_dir = Path("/tmp")
 
 
+def _append_comment(comment: dict) -> int:
+    """Append a comment to the comments file and return the new total."""
+    comments_file = output_dir / "comments.json"
+    comments = json.loads(comments_file.read_text()) if comments_file.exists() else []
+    comments.append(comment)
+    comments_file.write_text(json.dumps(comments, indent=2))
+    return len(comments)
+
+
 @server.tool()
 def add_comment(
-    path: str, line: int, body: str, side: str = "RIGHT", start_line: int | None = None
+    path: str,
+    line: int,
+    body: str,
+    suggestion: str | None = None,
+    side: str = "RIGHT",
+    start_line: int | None = None,
 ) -> str:
     """Add a review comment on a specific line in the PR diff.
 
@@ -27,24 +41,27 @@ def add_comment(
               For added or modified lines, use the line number in the new version of the file (side=RIGHT).
               For deleted lines, use the line number in the old version of the file (side=LEFT).
         body: The review comment text (Markdown supported).
+        suggestion: Optional replacement code for the line(s). When provided, GitHub renders an
+                    "Apply suggestion" button the author can click. The suggestion replaces the
+                    entire line (or range if start_line is set).
         side: Which version of the file the line number refers to.
               "RIGHT" for the new/modified version (default), "LEFT" for the old/deleted version.
         start_line: For multi-line comments, the first line of the range. When set, `line` is the last line.
     """
-    comments_file = output_dir / "comments.json"
-    if comments_file.exists():
-        comments = json.loads(comments_file.read_text())
-    else:
-        comments = []
+    if suggestion is not None:
+        body = (
+            f"{body}\n\n```suggestion\n{suggestion}\n```"
+            if body
+            else f"```suggestion\n{suggestion}\n```"
+        )
 
     comment = {"path": path, "line": line, "side": side, "body": body}
     if start_line is not None:
         comment["start_line"] = start_line
         comment["start_side"] = side
 
-    comments.append(comment)
-    comments_file.write_text(json.dumps(comments, indent=2))
-    return f"Comment added on {path}:{line} ({len(comments)} total)."
+    total = _append_comment(comment)
+    return f"Comment added on {path}:{line} ({total} total)."
 
 
 @server.tool()
