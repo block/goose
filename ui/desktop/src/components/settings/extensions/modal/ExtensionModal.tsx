@@ -312,7 +312,6 @@ export default function ExtensionModal({
         console.error('Error during submission:', error);
       }
     } else {
-      console.log('Form validation failed');
     }
   };
 

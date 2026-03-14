@@ -161,13 +161,11 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
 
   const handleExtensionRequest = useCallback(async (link: string): Promise<void> => {
     if (processingLinkRef.current === link) {
-      console.log(`Skipping duplicate extension request (already processing): ${link}`);
       return;
     }
     processingLinkRef.current = link;
 
     try {
-      console.log(`Processing extension request: ${link}`);
 
       const command = extractCommand(link);
       const remoteUrl = extractRemoteUrl(link);
@@ -175,7 +173,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       const extensionsList = await getExtensionsRef.current(true);
 
       if (extensionsList?.find((ext) => ext.name === extName)) {
-        console.log(`Extension Already Installed: ${extName}`);
 
         toastService.success({
           title: `Extension '${extName}' Already Installed`,
@@ -183,7 +180,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         });
         return;
       }
-      console.log('Extension not found, continuing to show modal');
 
       const extensionInfo: ExtensionInfo = {
         name: extName,
@@ -235,14 +231,12 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
     setModalState((prev) => ({ ...prev, isPending: true }));
 
     try {
-      console.log(`Confirming installation of extension from: ${pendingLink}`);
 
       if (addExtension) {
         await addExtensionFromDeepLink(
           pendingLink,
           addExtension,
           (view: string, options?: ViewOptions) => {
-            console.log('Extension installation completed, navigating to:', view, options);
             setView(view as View, options);
           }
         );
@@ -260,7 +254,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   }, [pendingLink, dismissModal, addExtension, setView]);
 
   useEffect(() => {
-    console.log('Setting up extension install modal handler');
 
     const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
