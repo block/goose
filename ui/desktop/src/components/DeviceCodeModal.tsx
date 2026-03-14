@@ -20,6 +20,54 @@ interface DeviceCodeModalProps {
   onRetry: () => void;
 }
 
+function pollForOauthCompletion(
+  onAuthorized: () => void,
+  onError: () => void,
+  intervalMs = 5000,
+  maxDurationMs = 180000
+): () => void {
+  let intervalId: ReturnType<typeof setInterval> | null = null;
+  let isPolling = true;
+  const startTime = Date.now();
+
+  const poll = async () => {
+    if (!isPolling) return;
+
+    if (Date.now() - startTime > maxDurationMs) {
+      stopPolling();
+      onError();
+      return;
+    }
+
+    try {
+      const response = await checkOauthCompletion({
+        path: { name: 'github_copilot' },
+      });
+
+      if (response.data?.completed) {
+        stopPolling();
+        onAuthorized();
+      }
+    } catch {
+      // Error likely means authorization not complete yet, keep polling
+    }
+  };
+
+  const stopPolling = () => {
+    isPolling = false;
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+
+  // Start polling immediately, then at intervals
+  poll();
+  intervalId = setInterval(poll, intervalMs);
+
+  return stopPolling;
+}
+
 export function DeviceCodeModal({
   isOpen,
   deviceCodeData,
@@ -31,47 +79,34 @@ export function DeviceCodeModal({
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const browserOpenedRef = useRef(false);
-  const pollingRef = useRef(false);
+  const stopPollingRef = useRef<(() => void) | null>(null);
 
-  const startPolling = useCallback(async () => {
-    if (pollingRef.current) return;
-    pollingRef.current = true;
-    setIsChecking(true);
+  const handleAuthorized = useCallback(() => {
+    setIsChecking(false);
     setError(null);
+    onAuthorized();
+  }, [onAuthorized]);
 
-    // Poll every 5 seconds, up to 3 minutes
-    const maxAttempts = 36;
-    const interval = 5000;
-
-    for (let attempt = 0; attempt < maxAttempts && pollingRef.current; attempt++) {
-      try {
-        // Call the completion check endpoint
-        const response = await checkOauthCompletion({
-          path: { name: 'github_copilot' },
-        });
-
-        const data = response.data;
-
-        // If completed is true, authorization succeeded
-        if (data?.completed) {
-          pollingRef.current = false;
-          setIsChecking(false);
-          onAuthorized();
-          return;
-        }
-      } catch {
-        // Error likely means authorization not complete yet, keep polling
-      }
-
-      // Wait before next poll
-      await new Promise((resolve) => setTimeout(resolve, interval));
-    }
-
-    // Timeout reached
-    pollingRef.current = false;
+  const handleError = useCallback(() => {
     setIsChecking(false);
     setError('Authorization timed out. Please refresh the code or try again.');
-  }, [onAuthorized]);
+  }, []);
+
+  const startPolling = useCallback(() => {
+    if (stopPollingRef.current) {
+      stopPollingRef.current();
+    }
+    setIsChecking(true);
+    setError(null);
+    stopPollingRef.current = pollForOauthCompletion(handleAuthorized, handleError, 5000, 180000);
+  }, [handleAuthorized, handleError]);
+
+  const stopPolling = useCallback(() => {
+    if (stopPollingRef.current) {
+      stopPollingRef.current();
+      stopPollingRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen && deviceCodeData && !browserOpenedRef.current) {
@@ -82,10 +117,11 @@ export function DeviceCodeModal({
     }
     if (!isOpen) {
       browserOpenedRef.current = false;
-      pollingRef.current = false;
+      stopPolling();
       setError(null);
     }
-  }, [isOpen, deviceCodeData, startPolling]);
+    return () => stopPolling();
+  }, [isOpen, deviceCodeData, startPolling, stopPolling]);
 
   const handleCopy = async () => {
     if (deviceCodeData) {
@@ -153,10 +189,7 @@ export function DeviceCodeModal({
               Refresh Code
             </Button>
             <Button
-              onClick={() => {
-                setError(null);
-                startPolling();
-              }}
+              onClick={startPolling}
               className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
             >
               Retry
