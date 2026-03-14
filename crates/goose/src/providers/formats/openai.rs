@@ -645,10 +645,6 @@ where
                 };
 
                 let mut contents = Vec::new();
-                // Emit any reasoning that was NOT already yielded per-chunk.
-                // The accumulator is cleared after every per-chunk yield below,
-                // so anything remaining here came from tool_call-bearing chunks
-                // that bypassed the content/reasoning yield branch.
                 if !accumulated_reasoning_content.is_empty() {
                     contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
                     accumulated_reasoning_content.clear();
@@ -732,8 +728,6 @@ where
                         msg = msg.with_id(id);
                     }
 
-                    // Clear the accumulator so this reasoning isn't re-emitted
-                    // if a tool_call chunk arrives later in the same stream.
                     accumulated_reasoning_content.clear();
 
                     yield (
