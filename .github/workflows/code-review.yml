@@ -9,12 +9,22 @@ on:
         description: 'Pull request number to review'
         required: true
         type: number
+      instructions:
+        description: 'Instructions for the code review'
+        required: false
+        type: string
+        default: 'Review the changes for correctness'
   workflow_call:
     inputs:
       pr_number:
         description: 'Pull request number to review'
         required: true
         type: number
+      instructions:
+        description: 'Instructions for the code review'
+        required: false
+        type: string
+        default: 'Review the changes for correctness'
     secrets:
       ANTHROPIC_API_KEY:
         required: true
@@ -84,7 +94,7 @@ jobs:
           goose run \
             --recipe .github/recipes/code-review.yaml \
             --params pr_directory=/tmp/code-review \
-            --params instructions='Review the changes for correctness'
+            --params instructions='${{ inputs.instructions }}'
 
       - name: Upload review artifacts
         if: always()
