@@ -151,7 +151,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             PlatformExtensionDef {
                 name: warpgrep::EXTENSION_NAME,
                 display_name: "WarpGrep",
-                description: "Semantic codebase search powered by Morph",
+                description: "Agentic codebase search powered by Morph",
                 default_enabled: false,
                 unprefixed_tools: true,
                 client_factory: |ctx| Box::new(warpgrep::WarpGrepClient::new(ctx).unwrap()),

@@ -60,10 +60,12 @@ impl WarpGrepClient {
             },
             instructions: Some(
                 indoc! {"
-                Semantic codebase search powered by Morph's WarpGrep. Use codebase_search
-                to find relevant code using natural language queries. The search agent will
-                explore the repo structure, run ripgrep, read files, and return the most
-                relevant code spans. Prefer this over manual grep for conceptual queries.
+                Agentic codebase search powered by Morph's WarpGrep. Use codebase_search
+                to find relevant code using natural language queries. A search agent will
+                autonomously explore the repo structure, run ripgrep, read files across
+                multiple turns, and return the most relevant code spans. Prefer this over
+                manual grep for broad or conceptual queries like 'how is auth handled' or
+                'where are errors propagated'.
             "}
                 .to_string(),
             ),
@@ -111,7 +113,7 @@ impl McpClientTrait for WarpGrepClient {
     ) -> Result<ListToolsResult, Error> {
         let tool = Tool::new(
             "codebase_search".to_string(),
-            "Semantic codebase search. Finds relevant code using natural language queries by exploring repo structure, running ripgrep, and reading files. Returns the most relevant code spans. Use for conceptual queries like 'where is auth handled' or 'how are errors propagated'.".to_string(),
+            "Agentic codebase search. An agent autonomously explores the repo structure, runs ripgrep, and reads files across multiple turns to find relevant code. Returns the most relevant code spans with line numbers. Use for broad or conceptual queries like 'where is auth handled' or 'how are errors propagated'.".to_string(),
             Self::schema::<CodebaseSearchParams>(),
         )
         .annotate(ToolAnnotations {

@@ -35,18 +35,13 @@ pub async fn execute_tool(name: &str, arguments: &serde_json::Value, working_dir
                 .unwrap_or(".");
             list_directory(path, working_dir)
         }
-        "finish" => {
-            let files = arguments
-                .get("files")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            finish(files, working_dir)
-        }
+        // "finish" is handled directly in client.rs via resolve_finish()
+        "finish" => "Finish handled by client".to_string(),
         _ => format!("Unknown tool: {name}"),
     }
 }
 
-fn resolve_path(path: &str, working_dir: &Path) -> PathBuf {
+pub fn resolve_path(path: &str, working_dir: &Path) -> PathBuf {
     let target = PathBuf::from(path);
     if target.is_absolute() {
         target
@@ -113,9 +108,9 @@ fn read_file(path: &str, lines: Option<&str>, working_dir: &Path) -> String {
 
     let all_lines: Vec<&str> = content.lines().collect();
 
-    match lines {
+    let output = match lines {
         Some(range_str) => {
-            let mut output = String::new();
+            let mut buf = String::new();
             for range in range_str.split(',') {
                 let range = range.trim();
                 if let Some((start_str, end_str)) = range.split_once('-') {
@@ -124,26 +119,27 @@ fn read_file(path: &str, lines: Option<&str>, working_dir: &Path) -> String {
                     let start = start.saturating_sub(1);
                     let end = end.min(all_lines.len());
                     for (i, line) in all_lines[start..end].iter().enumerate() {
-                        output.push_str(&format!("{:>4} | {}\n", start + i + 1, line));
+                        buf.push_str(&format!("{:>4} | {}\n", start + i + 1, line));
                     }
                 }
             }
-            if output.is_empty() {
-                // Fallback: return entire file with line numbers
+            if buf.is_empty() {
                 for (i, line) in all_lines.iter().enumerate() {
-                    output.push_str(&format!("{:>4} | {}\n", i + 1, line));
+                    buf.push_str(&format!("{:>4} | {}\n", i + 1, line));
                 }
             }
-            output
+            buf
         }
         None => {
-            let mut output = String::new();
+            let mut buf = String::new();
             for (i, line) in all_lines.iter().enumerate() {
-                output.push_str(&format!("{:>4} | {}\n", i + 1, line));
+                buf.push_str(&format!("{:>4} | {}\n", i + 1, line));
             }
-            output
+            buf
         }
-    }
+    };
+
+    truncate_output(&output)
 }
 
 fn list_directory(path: &str, working_dir: &Path) -> String {
@@ -183,58 +179,6 @@ fn list_directory(path: &str, working_dir: &Path) -> String {
 
     entries.sort();
     entries.join("\n")
-}
-
-pub fn finish(files: &str, working_dir: &Path) -> String {
-    let mut output = String::new();
-    for line in files.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let (path_str, ranges) = match line.split_once(':') {
-            Some((file_path, range_spec)) => (file_path.trim(), Some(range_spec.trim())),
-            None => (line, None),
-        };
-
-        let resolved = resolve_path(path_str, working_dir);
-        let content = match std::fs::read_to_string(&resolved) {
-            Ok(text) => text,
-            Err(err) => {
-                output.push_str(&format!("--- {path_str} (error: {err}) ---\n"));
-                continue;
-            }
-        };
-
-        let all_lines: Vec<&str> = content.lines().collect();
-
-        output.push_str(&format!("--- {path_str} ---\n"));
-
-        match ranges {
-            Some(ranges) => {
-                for range in ranges.split(',') {
-                    let range = range.trim();
-                    if let Some((start_str, end_str)) = range.split_once('-') {
-                        let start: usize = start_str.trim().parse().unwrap_or(1);
-                        let end: usize = end_str.trim().parse().unwrap_or(all_lines.len());
-                        let start = start.saturating_sub(1);
-                        let end = end.min(all_lines.len());
-                        for (i, line) in all_lines[start..end].iter().enumerate() {
-                            output.push_str(&format!("{:>4} | {}\n", start + i + 1, line));
-                        }
-                    }
-                }
-            }
-            None => {
-                for (i, line) in all_lines.iter().enumerate() {
-                    output.push_str(&format!("{:>4} | {}\n", i + 1, line));
-                }
-            }
-        }
-    }
-
-    output
 }
 
 fn truncate_output(text: &str) -> String {
@@ -299,25 +243,17 @@ mod tests {
     }
 
     #[test]
-    fn finish_parses_file_spans() {
-        let dir = tempdir().unwrap();
-        let content: String = (1..=10).map(|i| format!("line {i}\n")).collect();
-        fs::write(dir.path().join("test.txt"), &content).unwrap();
-
-        let result = finish("test.txt:2-4,8-9", dir.path());
-        assert!(result.contains("--- test.txt ---"));
-        assert!(result.contains("2 | line 2"));
-        assert!(result.contains("4 | line 4"));
-        assert!(result.contains("8 | line 8"));
-        assert!(result.contains("9 | line 9"));
-        assert!(!result.contains("5 | line 5"));
+    fn truncate_output_long_text() {
+        let long = "x".repeat(OUTPUT_CHAR_LIMIT + 1000);
+        let result = truncate_output(&long);
+        assert!(result.len() < long.len());
+        assert!(result.contains("... (output truncated)"));
     }
 
     #[test]
-    fn finish_handles_missing_file() {
-        let dir = tempdir().unwrap();
-        let result = finish("nonexistent.rs:1-5", dir.path());
-        assert!(result.contains("error"));
+    fn truncate_output_short_text() {
+        let short = "hello world";
+        assert_eq!(truncate_output(short), short);
     }
 
     #[test]
