@@ -435,6 +435,7 @@ impl GooseAcpAgent {
             _ => None,
         };
         let skip_developer = acp_developer.is_some();
+        let sid_str = session_id.map(|s| s.0.to_string());
 
         for ext in extensions {
             if skip_developer && ext.name() == "developer" {
@@ -443,7 +444,7 @@ impl GooseAcpAgent {
             let name = ext.name().to_string();
             match agent
                 .extension_manager
-                .add_extension(ext, None, None, None)
+                .add_extension(ext, None, None, sid_str.as_deref())
                 .await
             {
                 Ok(_) => info!(extension = %name, "extension loaded"),

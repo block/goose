@@ -27,6 +27,7 @@ pub struct ClientToProviderConnection {
     session_counter: usize,
     _openai: OpenAiFixture,
     _temp_dir: Option<tempfile::TempDir>,
+    _cwd: Option<tempfile::TempDir>,
 }
 
 #[allow(dead_code)]
@@ -128,12 +129,18 @@ impl Connection for ClientToProviderConnection {
         )
         .await;
 
+        let cwd_path = config
+            .cwd
+            .as_ref()
+            .map(|td| td.path().to_path_buf())
+            .unwrap_or(data_root);
+
         let provider_config = AcpProviderConfig {
             command: "unused".into(),
             args: vec![],
             env: vec![],
             env_remove: vec![],
-            work_dir: data_root,
+            work_dir: cwd_path,
             mcp_servers,
             session_mode_id: None,
             permission_mapping: PermissionMapping::default(),
@@ -159,6 +166,7 @@ impl Connection for ClientToProviderConnection {
             session_counter: 0,
             _openai: openai,
             _temp_dir: temp_dir,
+            _cwd: config.cwd,
         }
     }
 

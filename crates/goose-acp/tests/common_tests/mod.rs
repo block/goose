@@ -689,6 +689,43 @@ pub async fn run_prompt_mcp<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
+pub async fn run_prompt_skill<C: Connection>() {
+    let cwd = tempfile::tempdir().unwrap();
+    let skill_dir = cwd.path().join(".agents/skills/test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: test-skill\ndescription: skill-loaded-in-acp-session\n---\nTest instructions\n",
+    )
+    .unwrap();
+
+    let expected_session_id = C::expected_session_id();
+    let openai = OpenAiFixture::new(
+        vec![(
+            "skill-loaded-in-acp-session".to_string(),
+            include_str!("../test_data/openai_basic.txt"),
+        )],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let config = TestConnectionConfig {
+        builtins: vec!["summon".to_string()],
+        cwd: Some(cwd),
+        ..Default::default()
+    };
+
+    let mut conn = C::new(config, openai).await;
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
+
+    let output = session
+        .prompt("what is 1+1", PermissionDecision::Cancel)
+        .await;
+    assert_eq!(output.text, "2");
+    expected_session_id.assert_matches(&session.session_id().0);
+}
+
 pub async fn run_mode_set_error<C: Connection>(
     mode_id: &str,
     session_id_override: Option<&str>,
