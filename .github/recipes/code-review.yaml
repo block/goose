@@ -32,8 +32,9 @@ prompt: |
   When finished, call the `finish_review` tool.
 
   ** Important **
-  Look for correctness and tips for strict improvements. Don't add nit-pick comments and
-  avoid matters of opinion. Adhere closely to the code review instructions below.
+  Don't add nit-pick comments and avoid matters of opinion.
+  Adhere closely to the code review instructions below.
+  Don't add add feedback outside the scope of the instructions below.
 
   # Code review instructions
     {{ instructions }}
