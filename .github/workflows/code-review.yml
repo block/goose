@@ -115,25 +115,28 @@ jobs:
             exit 0
           fi
 
-          INLINE_COMMENTS=$(if [ -f "$COMMENTS" ]; then cat "$COMMENTS"; else echo '[]'; fi)
+          if [ ! -f "$COMMENTS" ]; then
+            echo '[]' > "$COMMENTS"
+          fi
 
-          # Try submitting with inline comments first
-          PAYLOAD=$(jq -n \
+          # Build payload using jq file inputs to avoid shell interpolation issues
+          jq -n \
             --arg commit_id "$COMMIT_ID" \
-            --argjson conclusion "$(cat "$CONCLUSION")" \
-            --argjson comments "$INLINE_COMMENTS" \
+            --slurpfile conclusion "$CONCLUSION" \
+            --slurpfile comments "$COMMENTS" \
             '{
               commit_id: $commit_id,
-              body: $conclusion.body,
-              event: $conclusion.event,
-              comments: $comments
-            }')
+              body: $conclusion[0].body,
+              event: $conclusion[0].event,
+              comments: $comments[0]
+            }' > /tmp/review-payload.json
 
-          if echo "$PAYLOAD" | gh api \
+          # Try submitting with inline comments first
+          if gh api \
               --method POST \
               -H "Accept: application/vnd.github+json" \
               "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" \
-              --input - 2>/dev/null; then
+              --input /tmp/review-payload.json; then
             echo "Review submitted with inline comments."
             exit 0
           fi
@@ -141,24 +144,19 @@ jobs:
           echo "Inline comments failed, folding into review body."
 
           # Fold inline comments into the review body as a fallback
-          FOLDED_BODY=$(jq -n -r \
-            --argjson conclusion "$(cat "$CONCLUSION")" \
-            --argjson comments "$INLINE_COMMENTS" \
-            '
-              $conclusion.body + "\n\n---\n\n## Inline Comments\n\n" +
-              ([$comments[] |
-                "### `" + .path + "` (line " + (.line | tostring) + ")\n\n" + .body
-              ] | join("\n\n---\n\n"))
-            ')
-
           jq -n \
             --arg commit_id "$COMMIT_ID" \
-            --argjson conclusion "$(cat "$CONCLUSION")" \
-            --arg body "$FOLDED_BODY" \
+            --slurpfile conclusion "$CONCLUSION" \
+            --slurpfile comments "$COMMENTS" \
             '{
               commit_id: $commit_id,
-              body: $body,
-              event: $conclusion.event
+              body: (
+                $conclusion[0].body + "\n\n---\n\n## Inline Comments\n\n" +
+                ([$comments[0][] |
+                  "### `" + .path + "` (line " + (.line | tostring) + ")\n\n" + .body
+                ] | join("\n\n---\n\n"))
+              ),
+              event: $conclusion[0].event
             }' \
           | gh api \
               --method POST \
