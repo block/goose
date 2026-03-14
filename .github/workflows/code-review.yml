@@ -65,9 +65,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
           mkdir -p /tmp/code-review
-          PR_JSON=$(gh pr view "$PR_NUMBER" --json title,body,headRefOid)
-          echo "$PR_JSON" | jq -r '"# " + .title + "\n\n## Description\n\n" + (.body // "(no description)")' > /tmp/code-review/pr.md
-          echo "COMMIT_ID=$(echo "$PR_JSON" | jq -r '.headRefOid')" >> "$GITHUB_ENV"
+          TITLE=$(gh pr view "$PR_NUMBER" --json title --jq '.title')
+          BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body // "(no description)"')
+          COMMIT_ID=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
+          echo "COMMIT_ID=$COMMIT_ID" >> "$GITHUB_ENV"
+          printf '# %s\n\n## Description\n\n%s\n' "$TITLE" "$BODY" > /tmp/code-review/pr.md
           gh pr diff "$PR_NUMBER" > /tmp/code-review/pr.diff
 
       - name: Run goose review
