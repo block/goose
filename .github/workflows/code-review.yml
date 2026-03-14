@@ -87,7 +87,7 @@ jobs:
           mkdir -p "$HOME/.config/goose"
 
           goose run \
-            --recipe .github/recipes/code_review.yaml \
+            --recipe .github/recipes/code-review.yaml \
             --params pr_directory=/tmp/code-review \
             --params instructions='Review the changes for correctness'
 
