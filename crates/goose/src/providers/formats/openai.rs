@@ -645,12 +645,14 @@ where
                 };
 
                 let mut contents = Vec::new();
-                // Note: accumulated_reasoning_content is NOT added here because
-                // reasoning chunks were already yielded individually in the
-                // content/reasoning branch below. Adding them again here would
-                // cause reasoning_content to be duplicated in the final message
-                // after collect_stream merges all yielded messages together.
-                accumulated_reasoning_content.clear();
+                // Emit any reasoning that was NOT already yielded per-chunk.
+                // The accumulator is cleared after every per-chunk yield below,
+                // so anything remaining here came from tool_call-bearing chunks
+                // that bypassed the content/reasoning yield branch.
+                if !accumulated_reasoning_content.is_empty() {
+                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    accumulated_reasoning_content.clear();
+                }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
@@ -729,6 +731,10 @@ where
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
+
+                    // Clear the accumulator so this reasoning isn't re-emitted
+                    // if a tool_call chunk arrives later in the same stream.
+                    accumulated_reasoning_content.clear();
 
                     yield (
                         Some(msg),
