@@ -183,6 +183,54 @@ extensions:
       expect(getResponse.response).toBeOkResponse();
       expect(getResponse.data!.goose_mode).toBe('approve');
     });
+
+    it('should preserve goose_mode after provider swap via /agent/update_provider', async (testContext) => {
+      const configResponse = await readConfig({
+        client: ctx.client,
+        body: { key: 'GOOSE_PROVIDER', is_secret: false },
+      });
+      const providerName = configResponse.data as string | null | undefined;
+      if (!providerName) {
+        testContext.skip('Skipping - no GOOSE_PROVIDER configured');
+        return;
+      }
+
+      const modelResponse = await readConfig({
+        client: ctx.client,
+        body: { key: 'GOOSE_MODEL', is_secret: false },
+      });
+      const modelName = (modelResponse.data as string | null) || undefined;
+
+      const startResponse = await startAgent({
+        client: ctx.client,
+        body: { working_dir: os.tmpdir() },
+      });
+      expect(startResponse.response).toBeOkResponse();
+      const sessionId = startResponse.data!.id;
+
+      const updateResponse = await updateSession({
+        client: ctx.client,
+        body: { session_id: sessionId, goose_mode: 'approve' },
+      });
+      expect(updateResponse.response).toBeOkResponse();
+
+      const providerResponse = await updateAgentProvider({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+          provider: providerName,
+          model: modelName,
+        },
+      });
+      expect(providerResponse.response).toBeOkResponse();
+
+      const getResponse = await getSession({
+        client: ctx.client,
+        path: { session_id: sessionId },
+      });
+      expect(getResponse.response).toBeOkResponse();
+      expect(getResponse.data!.goose_mode).toBe('approve');
+    });
   });
 
   describe('messaging', () => {

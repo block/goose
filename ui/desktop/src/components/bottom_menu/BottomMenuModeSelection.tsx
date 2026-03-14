@@ -9,18 +9,26 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { trackModeChanged } from '../../utils/analytics';
-import { updateSession } from '../../api';
+import { getSession, updateSession } from '../../api';
 
 export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | null }) => {
   const [gooseMode, setGooseMode] = useState('auto');
-  const { config, upsert } = useConfig();
+  const { config } = useConfig();
 
   useEffect(() => {
-    const mode = config.GOOSE_MODE as string | undefined;
-    if (mode) {
-      setGooseMode(mode);
+    if (sessionId) {
+      getSession({ path: { session_id: sessionId } }).then((res) => {
+        if (res.data?.goose_mode) {
+          setGooseMode(res.data.goose_mode);
+        }
+      });
+    } else {
+      const mode = config.GOOSE_MODE as string | undefined;
+      if (mode) {
+        setGooseMode(mode);
+      }
     }
-  }, [config.GOOSE_MODE]);
+  }, [sessionId, config.GOOSE_MODE]);
 
   const handleModeChange = async (newMode: string) => {
     if (gooseMode === newMode) {
@@ -31,7 +39,6 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
       if (sessionId) {
         await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
       }
-      await upsert('GOOSE_MODE', newMode, false);
       setGooseMode(newMode);
       trackModeChanged(gooseMode, newMode);
     } catch (error) {

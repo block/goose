@@ -3,13 +3,12 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 
 let mockConfig: Record<string, unknown> = {};
-const mockUpsert = vi.fn();
 const mockUpdateSession = vi.fn().mockResolvedValue({});
+const mockGetSession = vi.fn().mockResolvedValue({ data: null });
 
 vi.mock('../ConfigContext', () => ({
   useConfig: () => ({
     config: mockConfig,
-    upsert: mockUpsert,
   }),
 }));
 
@@ -19,6 +18,7 @@ vi.mock('../../utils/analytics', () => ({
 
 vi.mock('../../api', () => ({
   updateSession: (...args: unknown[]) => mockUpdateSession(...args),
+  getSession: (...args: unknown[]) => mockGetSession(...args),
 }));
 
 // Radix dropdown doesn't open in jsdom — render children directly
@@ -35,7 +35,7 @@ describe('BottomMenuModeSelection', () => {
     mockConfig = {};
   });
 
-  it('displays mode from config', async () => {
+  it('displays mode from config when no session', async () => {
     mockConfig.GOOSE_MODE = 'approve';
     render(<BottomMenuModeSelection sessionId={null} />);
     await waitFor(() => {
@@ -51,7 +51,19 @@ describe('BottomMenuModeSelection', () => {
     });
   });
 
-  it('calls updateSession when sessionId is present', async () => {
+  it('fetches mode from session when sessionId is present', async () => {
+    mockConfig.GOOSE_MODE = 'auto';
+    mockGetSession.mockResolvedValue({ data: { goose_mode: 'approve' } });
+    render(<BottomMenuModeSelection sessionId="test-session-123" />);
+    await waitFor(() => {
+      expect(screen.getByText('manual')).toBeInTheDocument();
+    });
+    expect(mockGetSession).toHaveBeenCalledWith({
+      path: { session_id: 'test-session-123' },
+    });
+  });
+
+  it('calls updateSession and does not write global config', async () => {
     mockConfig.GOOSE_MODE = 'auto';
     render(<BottomMenuModeSelection sessionId="test-session-123" />);
 
@@ -62,7 +74,6 @@ describe('BottomMenuModeSelection', () => {
         body: { session_id: 'test-session-123', goose_mode: 'approve' },
       });
     });
-    expect(mockUpsert).toHaveBeenCalledWith('GOOSE_MODE', 'approve', false);
   });
 
   it('does not call updateSession when sessionId is null', async () => {
@@ -72,7 +83,7 @@ describe('BottomMenuModeSelection', () => {
     fireEvent.click(screen.getByText('Manual'));
 
     await waitFor(() => {
-      expect(mockUpsert).toHaveBeenCalledWith('GOOSE_MODE', 'approve', false);
+      expect(screen.getByText('manual')).toBeInTheDocument();
     });
     expect(mockUpdateSession).not.toHaveBeenCalled();
   });

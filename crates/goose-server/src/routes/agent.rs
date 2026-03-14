@@ -607,6 +607,18 @@ async fn update_agent_provider(
             )
         })?;
 
+    // Propagate session mode to the new provider
+    let mode = agent.goose_mode().await;
+    agent
+        .update_goose_mode(mode, &payload.session_id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to propagate mode to provider: {}", e),
+            )
+        })?;
+
     Ok(())
 }
 
