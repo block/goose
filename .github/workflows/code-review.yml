@@ -91,6 +91,17 @@ jobs:
             --params pr_directory=/tmp/code-review \
             --params instructions='Review the changes for correctness'
 
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: code-review-output
+          path: |
+            /tmp/conclusion.json
+            /tmp/comments.json
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Submit review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
