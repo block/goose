@@ -87,7 +87,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOSE_SHELL_ENV_SCRUB: ANTHROPIC_API_KEY,GITHUB_TOKEN
           GOOSE_SKIP_CONTEXT_FILES: AGENTS.md
-          GOOSE_SHELL_ALLOWED_COMMANDS: cat,grep,rg,head,tail,wc,ls,find,git
+          GOOSE_SHELL_ALLOWED_COMMANDS: cat,grep,rg,head,tail,wc,ls,git
         run: |
           mkdir -p "$HOME/.local/share/goose/sessions"
           mkdir -p "$HOME/.config/goose"
