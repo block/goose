@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Copy, ExternalLink } from 'lucide-react';
 import type { DeviceCodeResponse } from '../api/types.gen';
 
@@ -18,13 +18,19 @@ export function DeviceCodeModal({
   onRetry,
 }: DeviceCodeModalProps) {
   const [copied, setCopied] = useState(false);
+  const browserOpenedRef = useRef(false);
 
   useEffect(() => {
-    if (deviceCodeData) {
+    if (isOpen && deviceCodeData && !browserOpenedRef.current) {
       // Open browser to verification URL
       window.open(deviceCodeData.verificationUri, '_blank');
+      browserOpenedRef.current = true;
     }
-  }, [deviceCodeData]);
+    // Reset ref when modal closes so we can open again next time
+    if (!isOpen) {
+      browserOpenedRef.current = false;
+    }
+  }, [isOpen, deviceCodeData]);
 
   const handleCopy = async () => {
     if (deviceCodeData) {
