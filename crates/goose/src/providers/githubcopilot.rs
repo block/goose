@@ -676,10 +676,9 @@ impl Provider for GithubCopilotProvider {
         drop(guard);
 
         // No existing code, generate a new one
-        let device_code_info = self
-            .get_device_code()
-            .await
-            .map_err(|e| ProviderError::Authentication(format!("Failed to get device code: {}", e)))?;
+        let device_code_info = self.get_device_code().await.map_err(|e| {
+            ProviderError::Authentication(format!("Failed to get device code: {}", e))
+        })?;
 
         let stored = StoredDeviceCode {
             device_code: device_code_info.device_code.clone(),
@@ -715,7 +714,9 @@ impl Provider for GithubCopilotProvider {
                 Ok(token) => {
                     config
                         .set_secret("GITHUB_COPILOT_TOKEN", &token)
-                        .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
+                        .map_err(|e| {
+                            ProviderError::ExecutionError(format!("Failed to save token: {}", e))
+                        })?;
                     return Ok(true);
                 }
                 Err(_) => {

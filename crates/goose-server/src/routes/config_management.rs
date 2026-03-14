@@ -983,8 +983,14 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
-        .route("/config/providers/{name}/oauth", post(configure_provider_oauth))
-        .route("/config/providers/{name}/oauth/completion", get(check_oauth_completion))
+        .route(
+            "/config/providers/{name}/oauth",
+            post(configure_provider_oauth),
+        )
+        .route(
+            "/config/providers/{name}/oauth/completion",
+            get(check_oauth_completion),
+        )
         .route("/config/provider-catalog", get(get_provider_catalog))
         .route(
             "/config/provider-catalog/{id}",
