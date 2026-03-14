@@ -645,10 +645,12 @@ where
                 };
 
                 let mut contents = Vec::new();
-                if !accumulated_reasoning_content.is_empty() {
-                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
-                    accumulated_reasoning_content.clear();
-                }
+                // Note: accumulated_reasoning_content is NOT added here because
+                // reasoning chunks were already yielded individually in the
+                // content/reasoning branch below. Adding them again here would
+                // cause reasoning_content to be duplicated in the final message
+                // after collect_stream merges all yielded messages together.
+                accumulated_reasoning_content.clear();
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
