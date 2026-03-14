@@ -29,7 +29,9 @@ prompt: |
   The base branch is checked out in the working directory.
   Use the tools you have to review the diff and examine the code changes and context.
   Use the code review tools to add feedback on specific parts of the diff.
-  When finished, call the `finish_review` tool.
+  When finished, call the `finish_review` tool. Don't feel the need to add a summary:
+  only add a body to `finish_review` if it contains new information not in a comment. Most
+  reviews should not include anything in the final body.
 
   ** Important **
   Don't add nit-pick comments and avoid matters of opinion.
