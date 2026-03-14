@@ -3,9 +3,6 @@ name: Code Review
 on:
   # pull_request_target:
   #   types: [opened, synchronize]
-  push:
-    branches:
-      - code-review-security # remove me (this branch)
   workflow_dispatch:
     inputs:
       pr_number:
@@ -34,8 +31,6 @@ jobs:
   review-pr:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
-    if: ${{ github.event_name == 'workflow_dispatch' }}  # remove me
 
     container:
       image: ghcr.io/block/goose:latest
