@@ -111,6 +111,14 @@ impl ModelConfig {
     }
 
     pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
+        // Check predefined models first — these are explicitly configured by the
+        // operator/deployment and should take priority over generic canonical defaults.
+        if let Some(pm) = find_predefined_model(&self.model_name) {
+            if self.context_limit.is_none() {
+                self.context_limit = pm.context_limit;
+            }
+        }
+
         if let Some(canonical) =
             crate::providers::canonical::maybe_get_canonical_model(provider_name, &self.model_name)
         {
@@ -122,13 +130,6 @@ impl ModelConfig {
             }
             if self.reasoning.is_none() {
                 self.reasoning = canonical.reasoning;
-            }
-        }
-
-        // Try filling remaining gaps from predefined models
-        if self.context_limit.is_none() {
-            if let Some(pm) = find_predefined_model(&self.model_name) {
-                self.context_limit = pm.context_limit;
             }
         }
 
