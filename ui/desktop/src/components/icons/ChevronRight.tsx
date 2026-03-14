@@ -1,7 +1,7 @@
-interface Props {
+import React from 'react';
+
+interface Props extends React.SVGProps<SVGSVGElement> {
   className?: string;
-  // eslint-disable-next-line
-  [key: string]: any; // This will allow any other SVG props to pass through
 }
 
 export function ChevronRight({ className = '', ...props }: Props) {
