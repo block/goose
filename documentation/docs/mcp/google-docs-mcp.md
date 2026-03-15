@@ -1,6 +1,6 @@
 ---
 title: Google Docs Extension
-description: Add the Google Docs MCP Server as a Goose Extension to read, write, create, and manage Google Docs
+description: Add the Google Docs MCP Server as a goose Extension to read, write, create, and manage Google Docs
 ---
 
 import Tabs from '@theme/Tabs';
@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-This tutorial covers how to add the [Google Docs MCP Server](https://github.com/hmoses/goose-google-docs-extension) as a Goose extension, giving Goose full read and write access to your Google Docs and Google Drive.
+This tutorial covers how to add the [Google Docs MCP Server](https://github.com/hmoses/goose-google-docs-extension) as a goose extension, giving goose full read and write access to your Google Docs and Google Drive.
 
 > Built by [Harold Moses (@hmoses)](https://github.com/hmoses)
 
@@ -21,20 +21,21 @@ This tutorial covers how to add the [Google Docs MCP Server](https://github.com/
     extensionName="Google Docs"
     description="Read, write, create, and manage Google Docs and Drive files via OAuth 2.0"
     type="stdio"
-    command="python3"
-    args={["-m", "uvx", "--from", "git+https://github.com/hmoses/goose-google-docs-extension", "server"]}
+    command="uvx"
+    args={["--from", "git+https://github.com/hmoses/goose-google-docs-extension", "server"]}
     timeout={300}
   />
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
 
-  **Command**
-  ```sh
-  git clone https://github.com/hmoses/goose-google-docs-extension
-  cd goose-google-docs-extension
-  chmod +x install.sh && ./install.sh
-  ```
+  <CLIExtensionInstructions
+    name="Google Docs"
+    description="Read, write, create, and manage Google Docs and Drive files"
+    type="stdio"
+    command="uvx --from git+https://github.com/hmoses/goose-google-docs-extension server"
+    timeout={300}
+  />
 
   </TabItem>
 </Tabs>
@@ -42,7 +43,7 @@ This tutorial covers how to add the [Google Docs MCP Server](https://github.com/
 
 ## What You Can Do
 
-With this extension, Goose can:
+With this extension, goose can:
 
 | Capability | Tools |
 |------------|-------|
@@ -56,52 +57,13 @@ With this extension, Goose can:
 
 ## Configuration
 
-:::info Prerequisites
-You'll need **Python 3.10+** installed on your system. [uv](https://docs.astral.sh/uv/#installation) is recommended for fast dependency installation but not required.
-:::
+This extension requires a one-time Google OAuth setup. Follow the [setup guide on GitHub](https://github.com/hmoses/goose-google-docs-extension#setup) to:
 
-### Step 1 — Clone and Install
+1. Create a Google Cloud project and enable the Docs and Drive APIs
+2. Create OAuth 2.0 credentials (Desktop app type) and download the JSON file
+3. Place the credentials file at `~/.config/goose/google-docs-extension/credentials.json`
 
-```sh
-git clone https://github.com/hmoses/goose-google-docs-extension
-cd goose-google-docs-extension
-chmod +x install.sh && ./install.sh
-```
-
-The installer will:
-- Create a Python virtual environment with all dependencies
-- Create the credentials directory at `~/.config/goose/google-docs-extension/`
-- Register the extension in `~/.config/goose/config.yaml`
-
-### Step 2 — Create a Google Cloud Project
-
-1. Go to [https://console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate) and create a new project
-2. Enable the **Google Docs API**: [Enable here](https://console.cloud.google.com/apis/library/docs.googleapis.com)
-3. Enable the **Google Drive API**: [Enable here](https://console.cloud.google.com/apis/library/drive.googleapis.com)
-
-### Step 3 — Create OAuth 2.0 Credentials
-
-1. Go to [Credentials](https://console.cloud.google.com/auth/clients/create)
-2. Select **Application type: Desktop app**
-3. Click **Create** and download the JSON file
-4. Move the file to the credentials directory:
-
-```sh
-mv ~/Downloads/client_secret_*.json \
-  ~/.config/goose/google-docs-extension/credentials.json
-```
-
-### Step 4 — Add Yourself as a Test User
-
-If your OAuth consent screen is set to **External**:
-
-1. Go to [OAuth Consent Screen](https://console.cloud.google.com/auth/audience)
-2. Under **Test users**, click **+ Add Users**
-3. Enter your Gmail address and click **Save**
-
-### Step 5 — Authenticate
-
-Restart Goose, then ask it:
+Once credentials are in place, restart goose and authenticate:
 
 > *"Check my Google Docs auth status"*
 
@@ -110,39 +72,6 @@ If not yet authenticated:
 > *"Authenticate with Google Docs"*
 
 A browser window will open — log in with your Google account and grant permissions. Your token is saved automatically and refreshed when it expires.
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-
-  <GooseDesktopInstaller
-    extensionId="google-docs"
-    extensionName="Google Docs"
-    description="Read, write, create, and manage Google Docs and Drive files"
-    type="stdio"
-    command="python3"
-    args={["~/.local/share/goose-google-docs-extension/server.py"]}
-    timeout={300}
-  />
-
-  </TabItem>
-  <TabItem value="cli" label="goose CLI">
-
-  <CLIExtensionInstructions
-    name="Google Docs"
-    description="Read, write, create, and manage Google Docs and Drive files"
-    type="stdio"
-    command="python3 ~/goose-google-docs-extension/server.py"
-    timeout={300}
-    infoNote={
-      <>
-        Follow the setup steps above to install dependencies and configure
-        Google OAuth credentials before running this command.
-      </>
-    }
-  />
-
-  </TabItem>
-</Tabs>
 
 ## Example Usage
 
@@ -232,26 +161,13 @@ query   resume
 
 :::
 
-## Security & Privacy
-
-- Credentials are stored **locally** at `~/.config/goose/google-docs-extension/`
-- OAuth tokens are saved at `~/.config/goose/google-docs-extension/token.json` and auto-refreshed
-- Only these OAuth scopes are requested:
-  - `https://www.googleapis.com/auth/documents` — Read/write Docs
-  - `https://www.googleapis.com/auth/drive` — List/manage files in Drive
-- No data is sent anywhere except **Google's own APIs**
-- Revoke access anytime at [https://myaccount.google.com/permissions](https://myaccount.google.com/permissions)
-
 ## Troubleshooting
 
 **"credentials.json not found"**
-Place your OAuth credentials file at `~/.config/goose/google-docs-extension/credentials.json`.
+Place your OAuth credentials file at `~/.config/goose/google-docs-extension/credentials.json`. See the [setup guide](https://github.com/hmoses/goose-google-docs-extension#setup) for full instructions.
 
 **"Access blocked: app not verified"**
 Add your email as a test user at [https://console.cloud.google.com/auth/audience](https://console.cloud.google.com/auth/audience).
 
 **"Token expired"**
-Delete `~/.config/goose/google-docs-extension/token.json` and re-authenticate.
-
-**Extension not showing in Goose**
-Check `~/.config/goose/config.yaml` for a `google-docs:` block, or re-run `./install.sh`.
+Delete `~/.config/goose/google-docs-extension/token.json` and re-authenticate by asking goose to *"Authenticate with Google Docs"*.
