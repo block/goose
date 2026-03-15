@@ -72,10 +72,23 @@ impl OpenAiProvider {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OPENAI_HOST")
-            .or_else(|_| config.get_param("OPENAI_BASE_URL"))
-            .unwrap_or_else(|_| "https://api.openai.com".to_string());
+        let (host, base_path) = if let Ok(host) = config.get_param::<String>("OPENAI_HOST") {
+            let base_path: String = config
+                .get_param("OPENAI_BASE_PATH")
+                .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string());
+            (host, base_path)
+        } else if let Ok(base_url) = config.get_param::<String>("OPENAI_BASE_URL") {
+            // OPENAI_BASE_URL follows the OpenAI SDK convention where the URL
+            // includes the version path (e.g. "https://api.x.ai/v1"). Extract
+            // the scheme+authority as host and use the URL path as a prefix for
+            // the API endpoint so we don't duplicate the version segment.
+            Self::parse_base_url(&base_url, &config)?
+        } else {
+            (
+                "https://api.openai.com".to_string(),
+                OPEN_AI_DEFAULT_BASE_PATH.to_string(),
+            )
+        };
 
         let secrets = config
             .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
@@ -85,10 +98,6 @@ impl OpenAiProvider {
             .get("OPENAI_CUSTOM_HEADERS")
             .cloned()
             .map(parse_custom_headers);
-
-        let base_path: String = config
-            .get_param("OPENAI_BASE_PATH")
-            .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
@@ -210,6 +219,42 @@ impl OpenAiProvider {
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
         })
+    }
+
+    /// Parse an `OPENAI_BASE_URL` value into `(host, base_path)`.
+    ///
+    /// The OpenAI SDK convention includes the version path in the URL
+    /// (e.g. `https://api.x.ai/v1`).  We split this into a scheme+authority
+    /// host and prepend the URL path to the default chat-completions
+    /// endpoint so that `build_url` produces the correct final URL
+    /// without duplicating path segments like `/v1/v1/…`.
+    fn parse_base_url(
+        base_url: &str,
+        config: &crate::config::Config,
+    ) -> Result<(String, String)> {
+        let parsed = url::Url::parse(base_url)
+            .map_err(|e| anyhow::anyhow!("Invalid OPENAI_BASE_URL '{}': {}", base_url, e))?;
+
+        let host = if let Some(port) = parsed.port() {
+            format!("{}://{}:{}", parsed.scheme(), parsed.host_str().unwrap_or(""), port)
+        } else {
+            format!("{}://{}", parsed.scheme(), parsed.host_str().unwrap_or(""))
+        };
+
+        let base_path: String = if let Ok(explicit) = config.get_param::<String>("OPENAI_BASE_PATH") {
+            explicit
+        } else {
+            // Combine the URL path with the default endpoint.
+            // e.g. "/v1" + "chat/completions" -> "v1/chat/completions"
+            let url_path = parsed.path().trim_matches('/');
+            if url_path.is_empty() {
+                OPEN_AI_DEFAULT_BASE_PATH.to_string()
+            } else {
+                format!("{}/chat/completions", url_path)
+            }
+        };
+
+        Ok((host, base_path))
     }
 
     fn normalize_base_path(base_path: &str) -> String {
@@ -765,5 +810,41 @@ mod tests {
     fn unknown_absolute_path_falls_back_to_absolute_models_path() {
         let models_path = OpenAiProvider::map_base_path("/custom/path", "models", "v1/models");
         assert_eq!(models_path, "/v1/models");
+    }
+
+    #[test]
+    fn parse_base_url_with_v1_path() {
+        let config = crate::config::Config::global();
+        let (host, base_path) =
+            OpenAiProvider::parse_base_url("https://api.x.ai/v1", &config).unwrap();
+        assert_eq!(host, "https://api.x.ai");
+        assert_eq!(base_path, "v1/chat/completions");
+    }
+
+    #[test]
+    fn parse_base_url_without_path() {
+        let config = crate::config::Config::global();
+        let (host, base_path) =
+            OpenAiProvider::parse_base_url("https://api.openai.com", &config).unwrap();
+        assert_eq!(host, "https://api.openai.com");
+        assert_eq!(base_path, "v1/chat/completions");
+    }
+
+    #[test]
+    fn parse_base_url_with_custom_prefix() {
+        let config = crate::config::Config::global();
+        let (host, base_path) =
+            OpenAiProvider::parse_base_url("https://my-proxy.com/openai/v1", &config).unwrap();
+        assert_eq!(host, "https://my-proxy.com");
+        assert_eq!(base_path, "openai/v1/chat/completions");
+    }
+
+    #[test]
+    fn parse_base_url_with_port() {
+        let config = crate::config::Config::global();
+        let (host, base_path) =
+            OpenAiProvider::parse_base_url("http://localhost:8080/v1", &config).unwrap();
+        assert_eq!(host, "http://localhost:8080");
+        assert_eq!(base_path, "v1/chat/completions");
     }
 }
