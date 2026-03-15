@@ -87,4 +87,29 @@ describe('BottomMenuModeSelection', () => {
     });
     expect(mockUpdateSession).not.toHaveBeenCalled();
   });
+
+  it('ignores stale session fetch after sessionId changes', async () => {
+    let resolveA: (value: unknown) => void;
+    const promiseA = new Promise((resolve) => {
+      resolveA = resolve;
+    });
+
+    mockGetSession
+      .mockImplementationOnce(() => promiseA)
+      .mockResolvedValueOnce({ data: { goose_mode: 'auto' } });
+
+    const { rerender } = render(<BottomMenuModeSelection sessionId="session-A" />);
+    rerender(<BottomMenuModeSelection sessionId="session-B" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('autonomous')).toBeInTheDocument();
+    });
+
+    resolveA!({ data: { goose_mode: 'approve' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('autonomous')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('manual')).not.toBeInTheDocument();
+  });
 });

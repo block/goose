@@ -16,9 +16,10 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
   const { config } = useConfig();
 
   useEffect(() => {
+    let cancelled = false;
     if (sessionId) {
       getSession({ path: { session_id: sessionId } }).then((res) => {
-        if (res.data?.goose_mode) {
+        if (!cancelled && res.data?.goose_mode) {
           setGooseMode(res.data.goose_mode);
         }
       });
@@ -28,6 +29,9 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
         setGooseMode(mode);
       }
     }
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId, config.GOOSE_MODE]);
 
   const handleModeChange = async (newMode: string) => {

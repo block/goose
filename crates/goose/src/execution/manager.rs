@@ -173,6 +173,8 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    use test_case::test_case;
+
     use crate::config::GooseMode;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
@@ -394,5 +396,60 @@ mod tests {
         let result = manager.remove_session(&session).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test_case(GooseMode::Approve ; "approve")]
+    #[test_case(GooseMode::Chat ; "chat")]
+    #[test_case(GooseMode::SmartApprove ; "smart_approve")]
+    #[tokio::test]
+    async fn test_agent_inherits_session_mode(mode: GooseMode) {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+
+        let session = manager
+            .session_manager()
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "test".into(),
+                crate::session::SessionType::User,
+                mode,
+            )
+            .await
+            .unwrap();
+
+        let agent = manager.get_or_create_agent(session.id).await.unwrap();
+        assert_eq!(agent.goose_mode().await, mode);
+    }
+
+    #[tokio::test]
+    async fn test_session_mode_isolation() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        let sm = manager.session_manager();
+
+        let s1 = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "s1".into(),
+                crate::session::SessionType::User,
+                GooseMode::Approve,
+            )
+            .await
+            .unwrap();
+        let s2 = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "s2".into(),
+                crate::session::SessionType::User,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+
+        let a1 = manager.get_or_create_agent(s1.id).await.unwrap();
+        let a2 = manager.get_or_create_agent(s2.id).await.unwrap();
+
+        assert_eq!(a1.goose_mode().await, GooseMode::Approve);
+        assert_eq!(a2.goose_mode().await, GooseMode::Auto);
     }
 }

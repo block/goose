@@ -1784,6 +1784,7 @@ impl Agent {
                 .await
                 .map_err(|e| anyhow!("Failed to propagate mode to provider: {}", e))?;
         }
+        *self.current_goose_mode.lock().await = session.goose_mode;
         Ok(())
     }
 
