@@ -84,60 +84,88 @@ This interactive setup will configure your Supabase project and generate your fi
   </TabItem>
 </Tabs>
 
-## MCP Tools
-
-WritBase exposes 11 MCP tools across two permission tiers:
-
-### Worker Tools
-| Tool | Description |
-|------|-------------|
-| `info` | Returns server info and the calling agent's permissions |
-| `get_tasks` | Query tasks with filtering, sorting, and cursor pagination |
-| `add_task` | Create a new task (requires `can_create` permission) |
-| `update_task` | Update an existing task (requires `can_update` or `can_comment` permission) |
-
-### Manager Tools
-| Tool | Description |
-|------|-------------|
-| `manage_agent_keys` | Create, list, rotate, and deactivate agent keys |
-| `manage_agent_permissions` | Grant or revoke scoped permissions for agents |
-| `get_provenance` | View the full audit trail for any task |
-| `manage_projects` | Create and manage projects |
-| `manage_departments` | Create and manage departments within projects |
-| `subscribe` | Register webhook subscriptions for task events |
-| `discover_agents` | List agents and their capabilities in the workspace |
-
 ## Example Usage
 
-### goose Prompt
-```
-Create a new task in the "backend" department titled "Implement rate limiting" with high priority, then list all open tasks assigned to me.
-```
+### Creating and tracking tasks
 
-### goose Output
+#### goose Prompt
 
-```
-I'll create the task and then list your open tasks.
+> _goose, create a high-priority task titled "Implement rate limiting" in the backend department, then show me all open tasks._
 
-1. Creating the task:
+#### goose Output
 
-─── add_task | writbase ──────────────────────────
-title: Implement rate limiting
-departmentId: backend-dept-id
-priority: high
+:::note CLI
 
-Task created successfully with ID: task-12345
+<details>
+    <summary>Tool Calls</summary>
 
-2. Listing your open tasks:
+    ─── add_task | writbase ──────────────────────────
 
-─── get_tasks | writbase ──────────────────────────
-status: ["todo", "in_progress", "blocked"]
+    title: Implement rate limiting
 
-Found 3 open tasks:
-- [high] Implement rate limiting (todo)
-- [medium] Update API documentation (in_progress)
-- [low] Add integration tests (todo)
-```
+    departmentSlug: backend
+
+    priority: high
+
+
+    ─── get_tasks | writbase ──────────────────────────
+
+    status: ["todo", "in_progress", "blocked"]
+
+</details>
+
+Task created successfully:
+- **Title:** Implement rate limiting
+- **Priority:** high
+- **Department:** backend
+- **Status:** todo
+- **ID:** task-a1b2c3d4
+
+Here are all your open tasks:
+
+| Priority | Task | Status |
+|----------|------|--------|
+| high | Implement rate limiting | todo |
+| medium | Update API documentation | in_progress |
+| low | Add integration tests | todo |
+
+:::
+
+### Updating task status
+
+#### goose Prompt
+
+> _goose, mark the "Implement rate limiting" task as in progress and add a note that work has started on the middleware layer._
+
+#### goose Output
+
+:::note CLI
+
+<details>
+    <summary>Tool Calls</summary>
+
+    ─── get_tasks | writbase ──────────────────────────
+
+    search: Implement rate limiting
+
+    status: ["todo"]
+
+
+    ─── update_task | writbase ──────────────────────────
+
+    taskId: task-a1b2c3d4
+
+    status: in_progress
+
+    notes: Work started on the middleware layer
+
+</details>
+
+Done! Updated "Implement rate limiting":
+- **Status:** todo → in_progress
+- **Note added:** Work started on the middleware layer
+
+:::
 
 ## Learn More
 
