@@ -30,7 +30,7 @@ use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
 };
-use super::tool_execution::ToolCallResult;
+use super::tool_execution::{ToolCallContext, ToolCallResult};
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
@@ -1385,13 +1385,12 @@ impl ExtensionManager {
 
     pub async fn dispatch_tool_call(
         &self,
-        session_id: &str,
+        ctx: &super::tool_execution::ToolCallContext,
         tool_call: CallToolRequestParams,
-        working_dir: Option<&std::path::Path>,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         let tool_name_str = tool_call.name.to_string();
-        let resolved = self.resolve_tool(session_id, &tool_name_str).await?;
+        let resolved = self.resolve_tool(&ctx.session_id, &tool_name_str).await?;
 
         if let Some(extension) = self.extensions.lock().await.get(&resolved.extension_name) {
             if !extension
@@ -1413,25 +1412,22 @@ impl ExtensionManager {
         let arguments = tool_call.arguments.clone();
         let client = resolved.client.clone();
         let notifications_receiver = client.subscribe().await;
-        let session_id = session_id.to_string();
         let actual_tool_name = resolved.actual_tool_name;
-        let working_dir_str = working_dir.map(|p| p.to_string_lossy().to_string());
+        let owned_ctx = ToolCallContext::new(
+            ctx.session_id.clone(),
+            ctx.working_dir.clone(),
+            ctx.tool_call_request_id.clone(),
+        );
 
         let fut = async move {
             tracing::debug!(
                 "dispatch_tool_call: calling client.call_tool tool={} session_id={} working_dir={:?}",
                 actual_tool_name,
-                session_id,
-                working_dir_str
+                owned_ctx.session_id,
+                owned_ctx.working_dir,
             );
             client
-                .call_tool(
-                    &session_id,
-                    &actual_tool_name,
-                    arguments,
-                    working_dir_str.as_deref(),
-                    cancellation_token,
-                )
+                .call_tool(&owned_ctx, &actual_tool_name, arguments, cancellation_token)
                 .await
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
@@ -1798,10 +1794,9 @@ mod tests {
 
         async fn call_tool(
             &self,
-            _session_id: &str,
+            _ctx: &ToolCallContext,
             name: &str,
             _arguments: Option<JsonObject>,
-            _working_dir: Option<&str>,
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
@@ -1838,6 +1833,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatch_tool_call() {
+        use super::super::tool_execution::ToolCallContext;
+
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
@@ -1855,16 +1852,17 @@ mod tests {
             .add_mock_extension("client 🚀".to_string(), Arc::new(MockClient {}))
             .await;
 
+        let ctx = ToolCallContext::new(
+            "test-session-id".to_string(),
+            None,
+            Some("test-req-id".to_string()),
+        );
+
         let tool_call =
             CallToolRequestParams::new("test_client__tool".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
             .await;
         assert!(result.is_ok());
 
@@ -1872,12 +1870,7 @@ mod tests {
             .with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
             .await;
         assert!(result.is_ok());
 
@@ -1885,12 +1878,7 @@ mod tests {
             .with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
             .await;
         assert!(result.is_ok());
 
@@ -1898,12 +1886,7 @@ mod tests {
             CallToolRequestParams::new("client___tool".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
             .await;
         assert!(result.is_ok());
 
@@ -1911,12 +1894,7 @@ mod tests {
             CallToolRequestParams::new("client___tools".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                invalid_tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
             let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
@@ -1929,12 +1907,7 @@ mod tests {
             CallToolRequestParams::new("_client__tools".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                invalid_tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
             let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
@@ -2009,6 +1982,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatch_unavailable_tool_returns_error() {
+        use super::super::tool_execution::ToolCallContext;
+
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
@@ -2023,16 +1998,17 @@ mod tests {
             )
             .await;
 
+        let ctx = ToolCallContext::new(
+            "test-session-id".to_string(),
+            None,
+            Some("test-req-id".to_string()),
+        );
+
         let unavailable_tool_call = CallToolRequestParams::new("test_extension__tool".to_string())
             .with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                unavailable_tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, unavailable_tool_call, CancellationToken::default())
             .await;
 
         if let Err(err) = result {
@@ -2048,12 +2024,7 @@ mod tests {
                 .with_arguments(object!({}));
 
         let result = extension_manager
-            .dispatch_tool_call(
-                "test-session-id",
-                available_tool_call,
-                None,
-                CancellationToken::default(),
-            )
+            .dispatch_tool_call(&ctx, available_tool_call, CancellationToken::default())
             .await;
 
         assert!(result.is_ok());

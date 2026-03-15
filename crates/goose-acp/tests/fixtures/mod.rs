@@ -14,8 +14,8 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    AuthMethod, McpServer, ReadTextFileRequest, ReadTextFileResponse, SessionModelState,
-    ToolCallStatus, WriteTextFileRequest, WriteTextFileResponse,
+    AuthMethod, McpServer, ReadTextFileRequest, ReadTextFileResponse, SessionModeState,
+    SessionModelState, ToolCallStatus, WriteTextFileRequest, WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
@@ -38,7 +38,7 @@ impl OpenAiFixture {
     /// On mismatch, returns 417 of the diff in OpenAI error format.
     pub async fn new(
         exchanges: Vec<(String, &'static str)>,
-        expected_session_id: ExpectedSessionId,
+        expected_session_id: Arc<dyn ExpectedSessionId>,
     ) -> Self {
         let mock_server = MockServer::start().await;
         let queue = Arc::new(Mutex::new(VecDeque::from(exchanges.clone())));
@@ -266,6 +266,12 @@ impl FsFixture {
     }
 }
 
+pub struct SessionResult<S> {
+    pub session: S,
+    pub models: Option<SessionModelState>,
+    pub modes: Option<SessionModeState>,
+}
+
 pub struct TestConnectionConfig {
     pub mcp_servers: Vec<McpServer>,
     pub builtins: Vec<String>,
@@ -281,7 +287,7 @@ impl Default for TestConnectionConfig {
         Self {
             mcp_servers: Vec::new(),
             builtins: Vec::new(),
-            goose_mode: GooseMode::Auto,
+            goose_mode: GooseMode::default(),
             data_root: PathBuf::new(),
             provider_factory: None,
             read_text_file: None,
@@ -294,13 +300,16 @@ impl Default for TestConnectionConfig {
 pub trait Connection: Sized {
     type Session: Session;
 
+    fn expected_session_id() -> Arc<dyn ExpectedSessionId>;
     async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self;
-    async fn new_session(&mut self) -> (Self::Session, Option<SessionModelState>);
+    async fn new_session(&mut self) -> SessionResult<Self::Session>;
     async fn load_session(
         &mut self,
         session_id: &str,
         mcp_servers: Vec<McpServer>,
-    ) -> (Self::Session, Option<SessionModelState>);
+    ) -> SessionResult<Self::Session>;
+    async fn set_mode(&self, session_id: &str, mode_id: &str) -> anyhow::Result<()>;
+    async fn set_model(&self, session_id: &str, model_id: &str) -> anyhow::Result<()>;
     fn auth_methods(&self) -> &[AuthMethod];
     fn reset_openai(&self);
     fn reset_permissions(&self);
@@ -317,7 +326,6 @@ pub trait Session {
         mime_type: &str,
         decision: PermissionDecision,
     ) -> TestOutput;
-    async fn set_model(&self, model_id: &str);
 }
 
 #[allow(dead_code)]

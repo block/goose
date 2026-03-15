@@ -530,7 +530,7 @@ mod tests {
                 session_manager.clone(),
                 PermissionManager::instance(),
                 None,
-                GooseMode::Auto,
+                GooseMode::default(),
                 false,
                 GoosePlatform::GooseCli,
             );

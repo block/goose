@@ -5,6 +5,7 @@ pub mod parser;
 
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use ignore::WalkBuilder;
@@ -234,13 +235,12 @@ impl McpClientTrait for AnalyzeClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let working_dir = working_dir.map(Path::new);
+        let working_dir = ctx.working_dir.as_deref();
         match name {
             "analyze" => match Self::parse_args::<AnalyzeParams>(arguments) {
                 Ok(params) => {

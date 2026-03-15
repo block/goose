@@ -37,6 +37,7 @@ serde_json = { workspace = true }
 futures = { workspace = true }
 regex = { workspace = true }
 fs-err = "3"
+strum = { workspace = true }
 url = { workspace = true }
 
 # HTTP server dependencies
