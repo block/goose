@@ -78,7 +78,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
     });
     // Register cleanup functions for providers with cached state
     registry.set_cleanup(
-        "githubcopilot",
+        "github_copilot",
         Arc::new(|| Box::pin(GithubCopilotProvider::cleanup())),
     );
     registry.set_cleanup(
