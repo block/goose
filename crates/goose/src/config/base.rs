@@ -645,10 +645,16 @@ impl Config {
         }
 
         let values = self.load()?;
-        values
+
+        // Try exact key first, then case-insensitive fallback (lowercase/uppercase)
+        // so that e.g. "openai_host" in YAML is found when looking up "OPENAI_HOST"
+        let yaml_value = values
             .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))
-            .and_then(|v| Ok(serde_yaml::from_value(v.clone())?))
+            .or_else(|| values.get(&key.to_lowercase()))
+            .or_else(|| values.get(&key.to_uppercase()))
+            .ok_or_else(|| ConfigError::NotFound(key.to_string()))?;
+
+        Ok(serde_yaml::from_value(yaml_value.clone())?)
     }
 
     /// Set a configuration value in the config file (non-secret).
@@ -718,12 +724,17 @@ impl Config {
             return Ok(serde_json::from_value(value)?);
         }
 
-        // Then check keyring
+        // Then check keyring/secret file
         let values = self.all_secrets()?;
-        values
+
+        // Try exact key first, then case-insensitive fallback
+        let secret_value = values
             .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))
-            .and_then(|v| Ok(serde_json::from_value(v.clone())?))
+            .or_else(|| values.get(&key.to_lowercase()))
+            .or_else(|| values.get(&key.to_uppercase()))
+            .ok_or_else(|| ConfigError::NotFound(key.to_string()))?;
+
+        Ok(serde_json::from_value(secret_value.clone())?)
     }
 
     /// Get secrets. If primary is in env, use env for all keys. Otherwise use secret storage.
@@ -1583,6 +1594,31 @@ mod tests {
 
             assert!(matches!(result, Err(ConfigError::NotFound(_))));
         });
+    }
+
+    #[test]
+    fn test_case_insensitive_config_lookup() -> Result<(), ConfigError> {
+        let config = new_test_config();
+
+        // Store with lowercase key
+        config.set_param("openai_host", "https://custom.example.com")?;
+
+        // Retrieve with uppercase key (as providers do)
+        let value: String = config.get_param("OPENAI_HOST")?;
+        assert_eq!(value, "https://custom.example.com");
+
+        // Store with uppercase key
+        config.set_param("MY_SETTING", "uppercase_value")?;
+
+        // Retrieve with lowercase key
+        let value: String = config.get_param("my_setting")?;
+        assert_eq!(value, "uppercase_value");
+
+        // Exact match still works
+        let value: String = config.get_param("openai_host")?;
+        assert_eq!(value, "https://custom.example.com");
+
+        Ok(())
     }
 
     fn new_test_config() -> Config {

@@ -226,6 +226,7 @@ impl Provider for OpenAiProvider {
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),
                 ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
+                ConfigKey::new("OPENAI_BASE_URL", false, false, None),
                 ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
