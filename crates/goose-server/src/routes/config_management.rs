@@ -711,6 +711,24 @@ pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<Strin
 }
 
 #[utoipa::path(
+    post,
+    path = "/config/providers/{name}/cleanup",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., githubcopilot)")
+    ),
+    responses(
+        (status = 200, description = "Provider cache cleaned up successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn cleanup_provider_cache(
+    Path(name): Path<String>,
+) -> Result<Json<String>, ErrorResponse> {
+    goose::providers::cleanup_provider(&name).await?;
+    Ok(Json(format!("Cleaned up provider cache: {}", name)))
+}
+
+#[utoipa::path(
     put,
     path = "/config/custom-providers/{id}",
     request_body = UpdateCustomProviderRequest,
@@ -907,6 +925,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/config/provider-catalog/{id}",
             get(get_provider_catalog_template),
+        )
+        .route(
+            "/config/providers/{name}/cleanup",
+            post(cleanup_provider_cache),
         )
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))

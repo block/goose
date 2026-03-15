@@ -2069,6 +2069,13 @@ fn remove_provider() -> anyhow::Result<()> {
         .filter_mode()
         .interact()?;
 
+    // Clean up provider-specific cache files (e.g., OAuth tokens) before removing config
+    if let Err(e) =
+        tokio::runtime::Handle::current().block_on(goose::providers::cleanup_provider(selected_id))
+    {
+        tracing::warn!("Failed to clean up provider cache: {}", e);
+    }
+
     remove_custom_provider(selected_id)?;
     cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
     Ok(())

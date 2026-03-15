@@ -12,10 +12,13 @@ pub type ProviderConstructor = Arc<
         + Sync,
 >;
 
+pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
+
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
+    pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
 }
 
@@ -61,6 +64,7 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
+                cleanup: None,
                 provider_type: if preferred {
                     ProviderType::Preferred
                 } else {
@@ -153,9 +157,16 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
+                cleanup: None,
                 provider_type,
             },
         );
+    }
+
+    pub fn set_cleanup(&mut self, name: &str, cleanup: ProviderCleanup) {
+        if let Some(entry) = self.entries.get_mut(name) {
+            entry.cleanup = Some(cleanup);
+        }
     }
 
     pub fn with_providers<F>(mut self, setup: F) -> Self
