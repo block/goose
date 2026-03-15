@@ -1,4 +1,6 @@
 use crate::subprocess::SubprocessExt;
+#[cfg(not(windows))]
+use crate::subprocess::user_login_path;
 #[cfg(target_os = "macos")]
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -863,21 +865,27 @@ impl ComputerControllerServer {
                         )
                     })?
             }
-            _ => Command::new(shell)
-                .arg(shell_arg)
-                .arg(&command)
-                .env("GOOSE_TERMINAL", "1")
-                .env("AGENT", "goose")
-                .set_no_window()
-                .output()
-                .await
-                .map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to run script: {}", e),
-                        None,
-                    )
-                })?,
+            _ => {
+                let mut cmd = Command::new(shell);
+                cmd.arg(shell_arg)
+                    .arg(&command)
+                    .env("GOOSE_TERMINAL", "1")
+                    .env("AGENT", "goose");
+                #[cfg(not(windows))]
+                if let Some(path) = user_login_path() {
+                    cmd.env("PATH", path);
+                }
+                cmd.set_no_window()
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to run script: {}", e),
+                            None,
+                        )
+                    })?
+            },
         };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -1065,9 +1073,12 @@ impl ComputerControllerServer {
 
     #[cfg(target_os = "macos")]
     fn run_peekaboo_cmd(&self, args: &[&str]) -> Result<String, ErrorData> {
-        let output = std::process::Command::new("peekaboo")
-            .args(args)
-            .output()
+        let mut cmd = std::process::Command::new("peekaboo");
+        cmd.args(args);
+        if let Some(path) = user_login_path() {
+            cmd.env("PATH", path);
+        }
+        let output = cmd.output()
             .map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
