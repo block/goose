@@ -338,6 +338,13 @@ fn scan_agents_from_dir(
     }
 }
 
+/// Returns all discovered sources (skills, recipes, agents) from the current working directory.
+/// This is useful for listing what's available without needing a full SummonClient instance.
+pub fn list_installed_sources() -> Vec<Source> {
+    let working_dir = std::env::current_dir().unwrap_or_default();
+    discover_filesystem_sources(&working_dir)
+}
+
 fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     let mut sources: Vec<Source> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();

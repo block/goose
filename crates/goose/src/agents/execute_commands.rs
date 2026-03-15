@@ -33,6 +33,10 @@ static COMMANDS: &[CommandDef] = &[
         name: "clear",
         description: "Clear the conversation history",
     },
+    CommandDef {
+        name: "skills",
+        description: "List installed skills and other available sources",
+    },
 ];
 
 pub fn list_commands() -> &'static [CommandDef] {
@@ -72,6 +76,7 @@ impl Agent {
             "prompt" => self.handle_prompt_command(&params, session_id).await,
             "compact" => self.handle_compact_command(session_id).await,
             "clear" => self.handle_clear_command(session_id).await,
+            "skills" => self.handle_skills_command().await,
             _ => {
                 self.handle_recipe_command(command, params_str, session_id)
                     .await
@@ -127,6 +132,42 @@ impl Agent {
             SystemNotificationType::InlineMessage,
             "Conversation cleared",
         )))
+    }
+
+    async fn handle_skills_command(&self) -> Result<Option<Message>> {
+        use super::platform_extensions::summon::{list_installed_sources, SourceKind};
+
+        let sources = list_installed_sources();
+        let skills: Vec<_> = sources
+            .iter()
+            .filter(|s| matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill))
+            .collect();
+
+        let mut output = String::new();
+        if skills.is_empty() {
+            output.push_str("No skills installed.\n\n");
+            output.push_str("Skills are loaded from SKILL.md files in:\n");
+            output.push_str("  - ~/.claude/skills/\n");
+            output.push_str("  - ~/.config/agents/skills/\n");
+            output.push_str("  - .goose/skills/ (in current directory)\n");
+            output.push_str("  - .claude/skills/ (in current directory)\n");
+            output.push_str("  - .agents/skills/ (in current directory)\n");
+        } else {
+            output.push_str(&format!("**Installed skills ({}):**\n\n", skills.len()));
+            for skill in &skills {
+                let kind_label = if skill.kind == SourceKind::BuiltinSkill {
+                    " *(builtin)*"
+                } else {
+                    ""
+                };
+                output.push_str(&format!(
+                    "- **{}**{}: {}\n",
+                    skill.name, kind_label, skill.description
+                ));
+            }
+        }
+
+        Ok(Some(Message::assistant().with_text(output)))
     }
 
     async fn handle_prompts_command(

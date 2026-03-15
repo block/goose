@@ -17,7 +17,8 @@ const typeOrder: Record<DisplayItemType, number> = {
   Directory: 0,
   File: 1,
   Builtin: 2,
-  Recipe: 3,
+  Skill: 3,
+  Recipe: 4,
 };
 
 export interface DisplayItem {
@@ -441,6 +442,16 @@ const MentionPopover = forwardRef<
         });
     }, [items, query, currentWorkingDir]);
 
+    const getSelectionText = (item: DisplayItem): string => {
+      if (item.itemType === 'Skill') {
+        return `Use the ${item.name} skill to `;
+      }
+      if (['Builtin', 'Recipe'].includes(item.itemType)) {
+        return '/' + item.name;
+      }
+      return item.extra;
+    };
+
     // Expose methods to parent component
     useImperativeHandle(
       ref,
@@ -448,7 +459,7 @@ const MentionPopover = forwardRef<
         getDisplayFiles: () => displayItems,
         selectFile: (index: number) => {
           if (displayItems[index]) {
-            onSelect(displayItems[index].extra);
+            onSelect(getSelectionText(displayItems[index]));
             onClose();
           }
         },
@@ -509,12 +520,7 @@ const MentionPopover = forwardRef<
     const handleItemClick = (index: number) => {
       if (index >= 0 && index < displayItems.length) {
         onSelectedIndexChange(index);
-        const displayItem = displayItems[index];
-        onSelect(
-          ['Builtin', 'Recipe'].includes(displayItem.itemType)
-            ? '/' + displayItem.name
-            : displayItem.extra
-        );
+        onSelect(getSelectionText(displayItems[index]));
         onClose();
       }
     };

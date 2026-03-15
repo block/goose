@@ -136,6 +136,7 @@ pub enum ConfigValueResponse {
 pub enum CommandType {
     Builtin,
     Recipe,
+    Skill,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -421,6 +422,20 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorRe
             help: cmd_def.description.to_string(),
             command_type: CommandType::Builtin,
         });
+    }
+
+    for source in goose::agents::platform_extensions::summon::list_installed_sources() {
+        if matches!(
+            source.kind,
+            goose::agents::platform_extensions::summon::SourceKind::Skill
+                | goose::agents::platform_extensions::summon::SourceKind::BuiltinSkill
+        ) {
+            commands.push(SlashCommand {
+                command: source.name,
+                help: source.description,
+                command_type: CommandType::Skill,
+            });
+        }
     }
 
     Ok(Json(SlashCommandsResponse { commands }))

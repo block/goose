@@ -76,7 +76,7 @@ export type CheckProviderRequest = {
     provider: string;
 };
 
-export type CommandType = 'Builtin' | 'Recipe';
+export type CommandType = 'Builtin' | 'Recipe' | 'Skill';
 
 /**
  * Configuration key metadata for provider setup

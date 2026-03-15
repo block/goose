@@ -3937,7 +3937,8 @@
         "type": "string",
         "enum": [
           "Builtin",
-          "Recipe"
+          "Recipe",
+          "Skill"
         ]
       },
       "ConfigKey": {
