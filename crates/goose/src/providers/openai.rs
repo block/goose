@@ -82,7 +82,7 @@ impl OpenAiProvider {
             // includes the version path (e.g. "https://api.x.ai/v1"). Extract
             // the scheme+authority as host and use the URL path as a prefix for
             // the API endpoint so we don't duplicate the version segment.
-            Self::parse_base_url(&base_url, &config)?
+            Self::parse_base_url(&base_url, config)?
         } else {
             (
                 "https://api.openai.com".to_string(),
@@ -228,20 +228,23 @@ impl OpenAiProvider {
     /// host and prepend the URL path to the default chat-completions
     /// endpoint so that `build_url` produces the correct final URL
     /// without duplicating path segments like `/v1/v1/…`.
-    fn parse_base_url(
-        base_url: &str,
-        config: &crate::config::Config,
-    ) -> Result<(String, String)> {
+    fn parse_base_url(base_url: &str, config: &crate::config::Config) -> Result<(String, String)> {
         let parsed = url::Url::parse(base_url)
             .map_err(|e| anyhow::anyhow!("Invalid OPENAI_BASE_URL '{}': {}", base_url, e))?;
 
         let host = if let Some(port) = parsed.port() {
-            format!("{}://{}:{}", parsed.scheme(), parsed.host_str().unwrap_or(""), port)
+            format!(
+                "{}://{}:{}",
+                parsed.scheme(),
+                parsed.host_str().unwrap_or(""),
+                port
+            )
         } else {
             format!("{}://{}", parsed.scheme(), parsed.host_str().unwrap_or(""))
         };
 
-        let base_path: String = if let Ok(explicit) = config.get_param::<String>("OPENAI_BASE_PATH") {
+        let base_path: String = if let Ok(explicit) = config.get_param::<String>("OPENAI_BASE_PATH")
+        {
             explicit
         } else {
             // Combine the URL path with the default endpoint.
