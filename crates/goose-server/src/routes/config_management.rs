@@ -399,14 +399,23 @@ pub async fn get_provider_models(
     }
 }
 
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct SlashCommandsQuery {
+    /// Optional working directory to discover local skills from
+    pub working_dir: Option<String>,
+}
+
 #[utoipa::path(
     get,
     path = "/config/slash_commands",
+    params(SlashCommandsQuery),
     responses(
         (status = 200, description = "Slash commands retrieved successfully", body = SlashCommandsResponse)
     )
 )]
-pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorResponse> {
+pub async fn get_slash_commands(
+    axum::extract::Query(query): axum::extract::Query<SlashCommandsQuery>,
+) -> Result<Json<SlashCommandsResponse>, ErrorResponse> {
     let mut commands: Vec<_> = slash_commands::list_commands()
         .iter()
         .map(|command| SlashCommand {
@@ -424,7 +433,10 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorRe
         });
     }
 
-    for source in goose::agents::platform_extensions::summon::list_installed_sources() {
+    let working_dir = query.working_dir.map(std::path::PathBuf::from);
+    for source in goose::agents::platform_extensions::summon::list_installed_sources(
+        working_dir.as_deref(),
+    ) {
         if matches!(
             source.kind,
             goose::agents::platform_extensions::summon::SourceKind::Skill

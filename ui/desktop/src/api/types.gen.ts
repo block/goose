@@ -2763,7 +2763,12 @@ export type SetConfigProviderData = {
 export type GetSlashCommandsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Optional working directory to discover local skills from
+         */
+        working_dir?: string | null;
+    };
     url: '/config/slash_commands';
 };
 

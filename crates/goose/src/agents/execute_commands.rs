@@ -137,7 +137,7 @@ impl Agent {
     async fn handle_skills_command(&self) -> Result<Option<Message>> {
         use super::platform_extensions::summon::{list_installed_sources, SourceKind};
 
-        let sources = list_installed_sources();
+        let sources = list_installed_sources(None);
         let skills: Vec<_> = sources
             .iter()
             .filter(|s| matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill))
