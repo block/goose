@@ -1,0 +1,49 @@
+# Example whitelabel config
+# Run with: just run-ui-whitelabel whitelabel/example/whitelabel.yaml
+
+branding:
+  appName: "My Assistant"
+  greeting: "Hello! How can I help you today?"
+  # starterPrompts:
+  #   - icon: "sparkles"
+  #     label: "Get started"
+  #     description: "Try asking me something"
+  #     prompt: "What can you help me with?"
+  #     action: "Ask →"
+
+defaults:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  # workingDir: "~/my-project"
+
+  # System prompt — replaces the default Goose system prompt entirely
+  # systemPrompt: |
+  #   You are a helpful assistant.
+
+  # Extensions — enable/disable built-in and platform extensions
+  # extensions:
+  #   - name: developer
+  #     type: builtin
+  #     enabled: true
+  #   - name: autovisualiser
+  #     type: builtin
+  #     enabled: false
+
+  # Skills — directories with SKILL.md files, discovered by summon extension
+  # skills:
+  #   - name: "My Skill"
+  #     description: "Does something useful"
+  #     path: "./skills/my-skill"
+
+  # Tools — CLI binaries bundled with the app
+  # tools:
+  #   - name: "mytool"
+  #     description: "A custom CLI tool"
+  #     path: "./bin/mytool"
+
+# features:
+#   showModelSelector: false
+#   hiddenNavItems:
+#     - extensions
+#   navigationLabels:
+#     chat: "Tasks"
