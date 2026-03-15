@@ -224,36 +224,36 @@ impl OpenAiProvider {
     /// Parse an `OPENAI_BASE_URL` value into `(host, base_path)`.
     ///
     /// The OpenAI SDK convention includes the version path in the URL
-    /// (e.g. `https://api.x.ai/v1`).  We split this into a scheme+authority
-    /// host and prepend the URL path to the default chat-completions
-    /// endpoint so that `build_url` produces the correct final URL
-    /// without duplicating path segments like `/v1/v1/…`.
+    /// (e.g. `https://api.x.ai/v1`), so `{base_url}/chat/completions` is
+    /// the chat endpoint.  We keep the full URL (including its path) as
+    /// the host for `ApiClient` and use `chat/completions` as the
+    /// base_path.  `ApiClient::build_url` joins host and path, giving
+    /// e.g. `https://api.x.ai/v1/chat/completions` without duplicating
+    /// segments.
+    ///
+    /// When the URL has no path (e.g. `https://api.openai.com`), we fall
+    /// back to the standard `v1/chat/completions` default.
     fn parse_base_url(base_url: &str, config: &crate::config::Config) -> Result<(String, String)> {
         let parsed = url::Url::parse(base_url)
             .map_err(|e| anyhow::anyhow!("Invalid OPENAI_BASE_URL '{}': {}", base_url, e))?;
 
-        let host = if let Some(port) = parsed.port() {
-            format!(
-                "{}://{}:{}",
-                parsed.scheme(),
-                parsed.host_str().unwrap_or(""),
-                port
-            )
-        } else {
-            format!("{}://{}", parsed.scheme(), parsed.host_str().unwrap_or(""))
-        };
+        // Use the full URL (scheme + authority + path) as host so that
+        // proxy path prefixes like /openai/v1 are preserved.
+        let host = base_url.trim_end_matches('/').to_string();
 
         let base_path: String = if let Ok(explicit) = config.get_param::<String>("OPENAI_BASE_PATH")
         {
+            // Explicit OPENAI_BASE_PATH is appended to the host as-is.
             explicit
         } else {
-            // Combine the URL path with the default endpoint.
-            // e.g. "/v1" + "chat/completions" -> "v1/chat/completions"
             let url_path = parsed.path().trim_matches('/');
             if url_path.is_empty() {
+                // No path in URL → need the full default including version.
                 OPEN_AI_DEFAULT_BASE_PATH.to_string()
             } else {
-                format!("{}/chat/completions", url_path)
+                // URL already contains a path (e.g. /v1), so just append
+                // the endpoint without repeating the version prefix.
+                "chat/completions".to_string()
             }
         };
 
@@ -286,7 +286,11 @@ impl OpenAiProvider {
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
         let normalized_base_path = Self::normalize_base_path(base_path);
-        let has_custom_base_path = normalized_base_path != OPEN_AI_DEFAULT_BASE_PATH;
+        // Treat both "v1/chat/completions" and bare "chat/completions"
+        // (used when OPENAI_BASE_URL already contains the version path)
+        // as default / non-custom paths so model-based routing still works.
+        let has_custom_base_path = normalized_base_path != OPEN_AI_DEFAULT_BASE_PATH
+            && normalized_base_path != "chat/completions";
 
         if has_custom_base_path {
             if Self::is_responses_path(&normalized_base_path) {
@@ -820,8 +824,8 @@ mod tests {
         let config = crate::config::Config::global();
         let (host, base_path) =
             OpenAiProvider::parse_base_url("https://api.x.ai/v1", config).unwrap();
-        assert_eq!(host, "https://api.x.ai");
-        assert_eq!(base_path, "v1/chat/completions");
+        assert_eq!(host, "https://api.x.ai/v1");
+        assert_eq!(base_path, "chat/completions");
     }
 
     #[test]
@@ -838,8 +842,8 @@ mod tests {
         let config = crate::config::Config::global();
         let (host, base_path) =
             OpenAiProvider::parse_base_url("https://my-proxy.com/openai/v1", config).unwrap();
-        assert_eq!(host, "https://my-proxy.com");
-        assert_eq!(base_path, "openai/v1/chat/completions");
+        assert_eq!(host, "https://my-proxy.com/openai/v1");
+        assert_eq!(base_path, "chat/completions");
     }
 
     #[test]
@@ -847,7 +851,32 @@ mod tests {
         let config = crate::config::Config::global();
         let (host, base_path) =
             OpenAiProvider::parse_base_url("http://localhost:8080/v1", config).unwrap();
-        assert_eq!(host, "http://localhost:8080");
-        assert_eq!(base_path, "v1/chat/completions");
+        assert_eq!(host, "http://localhost:8080/v1");
+        assert_eq!(base_path, "chat/completions");
+    }
+
+    #[test]
+    fn parse_base_url_trailing_slash_stripped() {
+        let config = crate::config::Config::global();
+        let (host, _) = OpenAiProvider::parse_base_url("https://api.x.ai/v1/", config).unwrap();
+        assert_eq!(host, "https://api.x.ai/v1");
+    }
+
+    #[test]
+    fn bare_chat_completions_allows_responses_routing() {
+        // When OPENAI_BASE_URL provides the version path, base_path is
+        // "chat/completions" — model-based routing should still work.
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-codex",
+            "chat/completions"
+        ));
+    }
+
+    #[test]
+    fn bare_chat_completions_no_responses_for_gpt4o() {
+        assert!(!OpenAiProvider::should_use_responses_api(
+            "gpt-4o",
+            "chat/completions"
+        ));
     }
 }
