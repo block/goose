@@ -51,6 +51,61 @@ pub struct ExecuteWithToolGraph {
     tool_graph: Vec<ToolGraphNode>,
 }
 
+/// Build the execute tool description with platform-appropriate shell examples.
+fn execute_tool_description() -> String {
+    let (list_cmd, read_cmd) = if cfg!(windows) {
+        (r#"dir /b"#, r#"type README.md"#)
+    } else {
+        (r#"ls -la"#, r#"cat ./README.md"#)
+    };
+
+    format!(
+        r#"Execute TypeScript code that calls available functions.
+
+SYNTAX - TypeScript with async run() function:
+```typescript
+async function run() {{
+    // Access functions via Namespace.functionName({{ params }}) — always camelCase
+    const files = await Developer.shell({{ command: "{list_cmd}" }});
+    const readme = await Developer.shell({{ command: "{read_cmd}" }});
+    return {{ files, readme }};
+}}
+```
+
+TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
+Each node has: tool (Namespace.functionName), description (what it does), depends_on (indices of dependencies).
+Example for chained operations:
+[
+  {{"tool": "Developer.shell", "description": "list files", "depends_on": []}},
+  {{"tool": "Developer.shell", "description": "read README.md", "depends_on": []}},
+  {{"tool": "Developer.write", "description": "write output.txt", "depends_on": [0, 1]}}
+]
+
+KEY RULES:
+- Code MUST define an async function named `run()`
+- All function calls are async - use `await`
+- Function names are always camelCase (e.g., Developer.shell, Github.listIssues, Github.createIssue)
+- Return value from `run()` is the result, all `console.log()` output will be returned as well.
+- Only functions from `list_functions()` and `get_function_details()` and `console` methods are available — no `fetch()`, `fs`, or other Node/Deno APIs
+- Variables don't persist between `execute()` calls - return or log anything you need later
+- Code runs in an isolated sandbox with restricted network access
+
+HANDLING RETURN VALUES:
+- If a function returns `any`, do NOT assume its shape - log it first: `console.log(JSON.stringify(result))`
+- Many functions return wrapper objects, not raw arrays - check the response structure before calling .filter(), .map(), etc.
+- Always inspect unfamiliar return values with console.log() before processing them
+
+TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
+To minimize tokens:
+- Filter/map/reduce data IN YOUR CODE before returning
+- Only return specific fields you need (e.g., return {{id: result.id, count: items.length}})
+- Use console.log() for intermediate results instead of returning everything
+- Avoid returning full API responses - extract just what you need
+
+BEFORE CALLING: Use list_functions or get_function_details to check available functions and their parameters."#
+    )
+}
+
 impl CodeExecutionClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
@@ -363,52 +418,7 @@ impl McpClientTrait for CodeExecutionClient {
                 )),
                 McpTool::new(
                     "execute".to_string(),
-                    indoc! {r#"
-                        Execute TypeScript code that calls available functions.
-
-                        SYNTAX - TypeScript with async run() function:
-                        ```typescript
-                        async function run() {
-                            // Access functions via Namespace.functionName({ params }) — always camelCase
-                            const files = await Developer.shell({ command: "ls -la" });
-                            const readme = await Developer.shell({ command: "cat ./README.md" });
-                            return { files, readme };
-                        }
-                        ```
-
-                        TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
-                        Each node has: tool (Namespace.functionName), description (what it does), depends_on (indices of dependencies).
-                        Example for chained operations:
-                        [
-                          {"tool": "Developer.shell", "description": "list files", "depends_on": []},
-                          {"tool": "Developer.shell", "description": "read README.md", "depends_on": []},
-                          {"tool": "Developer.write", "description": "write output.txt", "depends_on": [0, 1]}
-                        ]
-
-                        KEY RULES:
-                        - Code MUST define an async function named `run()`
-                        - All function calls are async - use `await`
-                        - Function names are always camelCase (e.g., Developer.shell, Github.listIssues, Github.createIssue)
-                        - Return value from `run()` is the result, all `console.log()` output will be returned as well.
-                        - Only functions from `list_functions()` and `console` methods are available — no `fetch()`, `fs`, or other Node/Deno APIs
-                        - Variables don't persist between `execute()` calls - return or log anything you need later
-                        - Code runs in an isolated sandbox with restricted network access
-
-                        HANDLING RETURN VALUES:
-                        - If a function returns `any`, do NOT assume its shape - log it first: `console.log(JSON.stringify(result))`
-                        - Many functions return wrapper objects, not raw arrays - check the response structure before calling .filter(), .map(), etc.
-                        - Always inspect unfamiliar return values with console.log() before processing them
-
-                        TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
-                        To minimize tokens:
-                        - Filter/map/reduce data IN YOUR CODE before returning
-                        - Only return specific fields you need (e.g., return {id: result.id, count: items.length})
-                        - Use console.log() for intermediate results instead of returning everything
-                        - Avoid returning full API responses - extract just what you need
-
-                        BEFORE CALLING: Use list_functions or get_function_details to check available functions and their parameters.
-                    "#}
-                    .to_string(),
+                    execute_tool_description(),
                     schema::<ExecuteWithToolGraph>(),
                 )
                 .annotate(ToolAnnotations::from_raw(
