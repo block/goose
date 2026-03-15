@@ -819,7 +819,7 @@ mod tests {
     fn parse_base_url_with_v1_path() {
         let config = crate::config::Config::global();
         let (host, base_path) =
-            OpenAiProvider::parse_base_url("https://api.x.ai/v1", &config).unwrap();
+            OpenAiProvider::parse_base_url("https://api.x.ai/v1", config).unwrap();
         assert_eq!(host, "https://api.x.ai");
         assert_eq!(base_path, "v1/chat/completions");
     }
@@ -828,7 +828,7 @@ mod tests {
     fn parse_base_url_without_path() {
         let config = crate::config::Config::global();
         let (host, base_path) =
-            OpenAiProvider::parse_base_url("https://api.openai.com", &config).unwrap();
+            OpenAiProvider::parse_base_url("https://api.openai.com", config).unwrap();
         assert_eq!(host, "https://api.openai.com");
         assert_eq!(base_path, "v1/chat/completions");
     }
@@ -837,7 +837,7 @@ mod tests {
     fn parse_base_url_with_custom_prefix() {
         let config = crate::config::Config::global();
         let (host, base_path) =
-            OpenAiProvider::parse_base_url("https://my-proxy.com/openai/v1", &config).unwrap();
+            OpenAiProvider::parse_base_url("https://my-proxy.com/openai/v1", config).unwrap();
         assert_eq!(host, "https://my-proxy.com");
         assert_eq!(base_path, "openai/v1/chat/completions");
     }
@@ -846,7 +846,7 @@ mod tests {
     fn parse_base_url_with_port() {
         let config = crate::config::Config::global();
         let (host, base_path) =
-            OpenAiProvider::parse_base_url("http://localhost:8080/v1", &config).unwrap();
+            OpenAiProvider::parse_base_url("http://localhost:8080/v1", config).unwrap();
         assert_eq!(host, "http://localhost:8080");
         assert_eq!(base_path, "v1/chat/completions");
     }
