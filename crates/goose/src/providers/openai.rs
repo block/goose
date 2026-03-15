@@ -74,6 +74,7 @@ impl OpenAiProvider {
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OPENAI_HOST")
+            .or_else(|_| config.get_param("OPENAI_BASE_URL"))
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
 
         let secrets = config
