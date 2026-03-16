@@ -38,8 +38,8 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
         <div className="flex flex-col items-center justify-center min-h-[200px]">
           <Plus className="w-8 h-8 text-gray-400 mb-2" />
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            <div>Add</div>
-            <div>Custom Provider</div>
+            <div className="font-medium">Add Provider</div>
+            <div className="text-xs text-gray-500 mt-1">From template or manual setup</div>
           </div>
         </div>
       }
@@ -196,11 +196,13 @@ function ProviderCards({
   const handleCreateCustomProvider = useCallback(
     async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
-      await createCustomProvider({ body: data, throwOnError: true });
+      const result = await createCustomProvider({ body: data, throwOnError: true });
+      const providerId = result.data?.replace('Custom provider added - ID: ', '') || null;
       setShowCustomProviderModal(false);
       if (refreshProviders) {
-        refreshProviders();
+        await refreshProviders();
       }
+      setSwitchModelProvider(providerId);
       setShowSwitchModelModal(true);
     },
     [refreshProviders]
@@ -234,11 +236,13 @@ function ProviderCards({
     engine: editingProvider.config.engine,
     display_name: editingProvider.config.display_name,
     api_url: editingProvider.config.base_url,
+    base_path: editingProvider.config.base_path ?? undefined,
     api_key: '',
     models: editingProvider.config.models.map((m) => m.name),
     supports_streaming: editingProvider.config.supports_streaming ?? true,
     requires_auth: editingProvider.config.requires_auth ?? true,
     headers: editingProvider.config.headers ?? undefined,
+    catalog_provider_id: editingProvider.config.catalog_provider_id ?? undefined,
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
@@ -262,7 +266,7 @@ function ProviderCards({
             isActiveProvider={isActiveProvider}
           />
         </DialogContent>
-      </Dialog>{' '}
+      </Dialog>
       {configuringProvider && (
         <ProviderConfigurationModal
           provider={configuringProvider}

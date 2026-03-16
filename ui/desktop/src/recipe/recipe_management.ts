@@ -1,10 +1,11 @@
 import { Recipe, saveRecipe as saveRecipeApi, listRecipes, RecipeManifest } from '../api';
+import { stripEmptyExtensions } from '.';
 
 export const saveRecipe = async (recipe: Recipe, recipeId?: string | null): Promise<string> => {
   try {
     let response = await saveRecipeApi({
       body: {
-        recipe,
+        recipe: stripEmptyExtensions(recipe),
         id: recipeId,
       },
       throwOnError: true,
@@ -42,6 +43,14 @@ export const convertToLocaleDateString = (lastModified: string): string => {
 
 export const getStorageDirectory = (isGlobal: boolean): string => {
   if (isGlobal) {
+    const pathRoot = window.appConfig.get('GOOSE_PATH_ROOT') as string | undefined;
+    if (pathRoot) {
+      return `${pathRoot}/config/recipes`;
+    }
+    const configDir = window.appConfig.get('GOOSE_CONFIG_DIR') as string | undefined;
+    if (configDir) {
+      return `${configDir}/recipes`;
+    }
     return '~/.config/goose/recipes';
   } else {
     // For directory recipes, build absolute path using working directory

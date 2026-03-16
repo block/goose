@@ -42,36 +42,50 @@ Object.assign(navigator, {
   },
 });
 
+// Mock settings store for tests
+const mockSettings: Record<string, unknown> = {
+  showMenuBarIcon: true,
+  showDockIcon: true,
+  enableWakelock: false,
+  spellcheckEnabled: true,
+  keyboardShortcuts: {
+    focusWindow: 'CommandOrControl+Alt+G',
+    quickLauncher: 'CommandOrControl+Alt+Shift+G',
+    newChat: 'CommandOrControl+T',
+    newChatWindow: 'CommandOrControl+N',
+    openDirectory: 'CommandOrControl+O',
+    settings: 'CommandOrControl+,',
+    find: 'CommandOrControl+F',
+    findNext: 'CommandOrControl+G',
+    findPrevious: 'CommandOrControl+Shift+G',
+    alwaysOnTop: 'CommandOrControl+Shift+T',
+  },
+  externalGoosed: {
+    enabled: false,
+    url: '',
+    secret: '',
+  },
+  theme: 'light',
+  useSystemTheme: true,
+  responseStyle: 'concise',
+  showPricing: true,
+  sessionSharing: {
+    enabled: false,
+    baseUrl: '',
+  },
+  seenAnnouncementIds: [],
+};
+
 // Mock window.electron for renderer process
 Object.defineProperty(window, 'electron', {
   writable: true,
   value: {
     platform: 'darwin',
-    getSettings: vi.fn(() =>
-      Promise.resolve({
-        envToggles: {
-          GOOSE_SERVER__MEMORY: false,
-          GOOSE_SERVER__COMPUTER_CONTROLLER: false,
-        },
-        showMenuBarIcon: true,
-        showDockIcon: true,
-        enableWakelock: false,
-        spellcheckEnabled: true,
-        keyboardShortcuts: {
-          focusWindow: 'CommandOrControl+Alt+G',
-          quickLauncher: 'CommandOrControl+Alt+Shift+G',
-          newChat: 'CommandOrControl+T',
-          newChatWindow: 'CommandOrControl+N',
-          openDirectory: 'CommandOrControl+O',
-          settings: 'CommandOrControl+,',
-          find: 'CommandOrControl+F',
-          findNext: 'CommandOrControl+G',
-          findPrevious: 'CommandOrControl+Shift+G',
-          alwaysOnTop: 'CommandOrControl+Shift+T',
-        },
-      })
-    ),
-    saveSettings: vi.fn(() => Promise.resolve(true)),
+    getSetting: vi.fn((key: string) => Promise.resolve(mockSettings[key])),
+    setSetting: vi.fn((key: string, value: unknown) => {
+      mockSettings[key] = value;
+      return Promise.resolve();
+    }),
     showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
   },
 });

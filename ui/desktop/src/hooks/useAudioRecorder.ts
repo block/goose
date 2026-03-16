@@ -202,9 +202,32 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      const preferredMic = await read('voice_dictation_preferred_mic', false);
+
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      };
+      if (preferredMic && typeof preferredMic === 'string') {
+        audioConstraints.deviceId = { exact: preferredMic };
+      }
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      } catch (e) {
+        if (
+          preferredMic &&
+          e instanceof DOMException &&
+          (e.name === 'NotFoundError' || e.name === 'OverconstrainedError')
+        ) {
+          delete audioConstraints.deviceId;
+          stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        } else {
+          throw e;
+        }
+      }
       streamRef.current = stream;
 
       const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
@@ -213,7 +236,6 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       await ctx.audioWorklet.addModule(WORKLET_URL);
 
       const source = ctx.createMediaStreamSource(stream);
-      // eslint-disable-next-line no-undef
       const worklet = new AudioWorkletNode(ctx, 'audio-capture');
 
       worklet.port.onmessage = (e: MessageEvent<Float32Array>) => handleSamples(e.data);
@@ -230,7 +252,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       stopRecording();
       onError(errorMessage(error));
     }
-  }, [isEnabled, onError, handleSamples, stopRecording]);
+  }, [isEnabled, onError, handleSamples, stopRecording, read]);
 
   useEffect(() => {
     return () => {

@@ -15,7 +15,7 @@ Server moved
 
 This tutorial will get you started with the [Brave Search MCP Server](https://www.pulsemcp.com/servers/brave-search) as a goose extension to enable interactive searches for both web and local searches.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)

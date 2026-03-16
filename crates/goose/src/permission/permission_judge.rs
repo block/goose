@@ -1,6 +1,3 @@
-use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
-use crate::config::permission::PermissionLevel;
-use crate::config::PermissionManager;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::prompt_template::render_template;
@@ -11,7 +8,6 @@ use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -65,13 +61,7 @@ fn create_read_only_tool() -> Tool {
             },
             "required": []
         })
-    ).annotate(ToolAnnotations {
-        title: Some("Check tool operation".to_string()),
-        read_only_hint: Some(true),
-        destructive_hint: Some(false),
-        idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
+    ).annotate(ToolAnnotations::with_title("Check tool operation".to_string()).read_only(true).destructive(false).idempotent(false).open_world(false))
 }
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.
@@ -169,107 +159,4 @@ pub struct PermissionCheckResult {
     pub approved: Vec<ToolRequest>,
     pub needs_approval: Vec<ToolRequest>,
     pub denied: Vec<ToolRequest>,
-}
-
-pub async fn check_tool_permissions(
-    session_id: &str,
-    candidate_requests: &[ToolRequest],
-    mode: &str,
-    tools_with_readonly_annotation: HashSet<String>,
-    tools_without_annotation: HashSet<String>,
-    permission_manager: &mut PermissionManager,
-    provider: Arc<dyn Provider>,
-) -> (PermissionCheckResult, Vec<String>) {
-    let mut approved = vec![];
-    let mut needs_approval = vec![];
-    let mut denied = vec![];
-    let mut llm_detect_candidates = vec![];
-    let mut extension_request_ids = vec![];
-
-    for request in candidate_requests {
-        if let Ok(tool_call) = request.tool_call.clone() {
-            if mode == "chat" {
-                continue;
-            } else if mode == "auto" {
-                approved.push(request.clone());
-            } else {
-                if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
-                    extension_request_ids.push(request.id.clone());
-                }
-
-                // 1. Check user-defined permission
-                if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
-                    match level {
-                        PermissionLevel::AlwaysAllow => approved.push(request.clone()),
-                        PermissionLevel::AskBefore => needs_approval.push(request.clone()),
-                        PermissionLevel::NeverAllow => denied.push(request.clone()),
-                    }
-                    continue;
-                }
-
-                // 2. Fallback based on mode
-                match mode {
-                    "approve" => {
-                        needs_approval.push(request.clone());
-                    }
-                    "smart_approve" => {
-                        if let Some(level) =
-                            permission_manager.get_smart_approve_permission(&tool_call.name)
-                        {
-                            match level {
-                                PermissionLevel::AlwaysAllow => approved.push(request.clone()),
-                                PermissionLevel::AskBefore => needs_approval.push(request.clone()),
-                                PermissionLevel::NeverAllow => denied.push(request.clone()),
-                            }
-                            continue;
-                        }
-
-                        if tools_with_readonly_annotation.contains(&tool_call.name.to_string()) {
-                            approved.push(request.clone());
-                        } else if tools_without_annotation.contains(&tool_call.name.to_string()) {
-                            llm_detect_candidates.push(request.clone());
-                        } else {
-                            needs_approval.push(request.clone());
-                        }
-                    }
-                    _ => {
-                        needs_approval.push(request.clone());
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. LLM detect
-    if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
-        let detected_readonly_tools =
-            detect_read_only_tools(provider, session_id, llm_detect_candidates.iter().collect())
-                .await;
-        for request in llm_detect_candidates {
-            if let Ok(tool_call) = request.tool_call.clone() {
-                if detected_readonly_tools.contains(&tool_call.name.to_string()) {
-                    approved.push(request.clone());
-                    permission_manager.update_smart_approve_permission(
-                        &tool_call.name,
-                        PermissionLevel::AlwaysAllow,
-                    );
-                } else {
-                    needs_approval.push(request.clone());
-                    permission_manager.update_smart_approve_permission(
-                        &tool_call.name,
-                        PermissionLevel::AskBefore,
-                    );
-                }
-            }
-        }
-    }
-
-    (
-        PermissionCheckResult {
-            approved,
-            needs_approval,
-            denied,
-        },
-        extension_request_ids,
-    )
 }

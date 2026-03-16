@@ -108,8 +108,10 @@ impl DownloadManager {
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
 
-            if downloads.contains_key(&model_id) {
-                anyhow::bail!("Download already in progress");
+            if let Some(existing) = downloads.get(&model_id) {
+                if existing.status == DownloadStatus::Downloading {
+                    anyhow::bail!("Download already in progress");
+                }
             }
 
             downloads.insert(
@@ -162,8 +164,11 @@ impl DownloadManager {
 
                     if let Ok(mut downloads) = downloads.lock() {
                         if let Some(progress) = downloads.get_mut(&model_id_clone) {
-                            progress.status = DownloadStatus::Failed;
-                            progress.error = Some(e.to_string());
+                            // Preserve Cancelled status if already set
+                            if progress.status != DownloadStatus::Cancelled {
+                                progress.status = DownloadStatus::Failed;
+                                progress.error = Some(e.to_string());
+                            }
                         }
                     }
                 }
@@ -217,7 +222,7 @@ impl DownloadManager {
 
             if should_cancel {
                 let _ = tokio::fs::remove_file(&partial_path).await;
-                return Ok(());
+                anyhow::bail!("Download cancelled");
             }
 
             file.write_all(&chunk).await?;

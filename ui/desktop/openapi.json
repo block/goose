@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.24.0"
+    "version": "1.27.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1259,6 +1259,78 @@
         }
       }
     },
+    "/config/provider-catalog": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_catalog",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Filter by provider format (openai, anthropic, ollama)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider catalog retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderCatalogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid format parameter"
+          }
+        }
+      }
+    },
+    "/config/provider-catalog/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_catalog_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Provider ID from models.dev",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider template retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found in catalog"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -1767,7 +1839,7 @@
             "description": "Provider not configured"
           },
           "413": {
-            "description": "Audio file too large (max 25MB)"
+            "description": "Audio file too large (max 50MB)"
           },
           "429": {
             "description": "Rate limit exceeded"
@@ -3799,7 +3871,7 @@
         "type": "object",
         "required": [
           "content",
-          "is_error"
+          "isError"
         ],
         "properties": {
           "_meta": {
@@ -3808,13 +3880,13 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Content"
+              "$ref": "#/components/schemas/ContentBlock"
             }
           },
-          "is_error": {
+          "isError": {
             "type": "boolean"
           },
-          "structured_content": {
+          "structuredContent": {
             "nullable": true
           }
         }
@@ -3826,11 +3898,12 @@
           "session_id"
         ],
         "properties": {
-          "conversation_so_far": {
+          "override_conversation": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
             },
+            "description": "Override the server's conversation history. Only use this when you need absolute control\nover the conversation state (e.g., administrative tools). For normal operations, the server\nis the source of truth - use truncate/fork endpoints to modify conversation history instead.",
             "nullable": true
           },
           "recipe_name": {
@@ -3958,12 +4031,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawTextContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawImageContent"
               }
@@ -3972,6 +4073,20 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawEmbeddedResource"
               }
             ]
@@ -3979,12 +4094,149 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawAudioContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawResource"
+              }
+            ]
+          }
+        ]
+      },
+      "ContentBlock": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawTextContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawImageContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawAudioContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawResource"
               }
@@ -4104,8 +4356,16 @@
           "api_key_env": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "base_url": {
             "type": "string"
+          },
+          "catalog_provider_id": {
+            "type": "string",
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -4114,8 +4374,19 @@
           "display_name": {
             "type": "string"
           },
+          "dynamic_models": {
+            "type": "boolean",
+            "nullable": true
+          },
           "engine": {
             "$ref": "#/components/schemas/ProviderEngine"
+          },
+          "env_vars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvVarConfig"
+            },
+            "nullable": true
           },
           "headers": {
             "type": "object",
@@ -4376,6 +4647,31 @@
         "properties": {
           "deeplink": {
             "type": "string"
+          }
+        }
+      },
+      "EnvVarConfig": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
           }
         }
       },
@@ -5185,7 +5481,6 @@
         "type": "object",
         "required": [
           "id",
-          "display_name",
           "repo_id",
           "filename",
           "quantization",
@@ -5195,9 +5490,6 @@
           "settings"
         ],
         "properties": {
-          "display_name": {
-            "type": "string"
-          },
           "filename": {
             "type": "string"
           },
@@ -5706,6 +5998,29 @@
           }
         }
       },
+      "ModelCapabilities": {
+        "type": "object",
+        "required": [
+          "tool_call",
+          "reasoning",
+          "attachment",
+          "temperature"
+        ],
+        "properties": {
+          "attachment": {
+            "type": "boolean"
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
+          "temperature": {
+            "type": "boolean"
+          },
+          "tool_call": {
+            "type": "boolean"
+          }
+        }
+      },
       "ModelConfig": {
         "type": "object",
         "required": [
@@ -5725,6 +6040,10 @@
           },
           "model_name": {
             "type": "string"
+          },
+          "reasoning": {
+            "type": "boolean",
+            "nullable": true
           },
           "request_params": {
             "type": "object",
@@ -6007,6 +6326,34 @@
           }
         }
       },
+      "ModelTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "context_limit",
+          "capabilities",
+          "deprecated"
+        ],
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "context_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -6114,6 +6461,42 @@
           }
         }
       },
+      "ProviderCatalogEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "api_url",
+          "model_count",
+          "doc_url",
+          "env_var"
+        ],
+        "properties": {
+          "api_url": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "model_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -6158,10 +6541,6 @@
           "config_keys"
         ],
         "properties": {
-          "allows_unlisted_models": {
-            "type": "boolean",
-            "description": "Whether this provider allows entering model names not in the fetched list"
-          },
           "config_keys": {
             "type": "array",
             "items": {
@@ -6195,6 +6574,48 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          }
+        }
+      },
+      "ProviderTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "api_url",
+          "models",
+          "supports_streaming",
+          "env_var",
+          "doc_url"
+        ],
+        "properties": {
+          "api_url": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelTemplate"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean"
           }
         }
       },
@@ -6787,10 +7208,16 @@
       "Role": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "user"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
           }
         ]
       },
@@ -7237,7 +7664,8 @@
           "scheduled",
           "sub_agent",
           "hidden",
-          "terminal"
+          "terminal",
+          "gateway"
         ]
       },
       "SessionsQuery": {
@@ -7522,13 +7950,22 @@
       "TaskSupport": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "optional"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "required"
+            ]
           }
         ]
       },
@@ -7959,6 +8396,14 @@
           },
           "api_url": {
             "type": "string"
+          },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
+          "catalog_provider_id": {
+            "type": "string",
+            "nullable": true
           },
           "display_name": {
             "type": "string"

@@ -50,6 +50,11 @@ export function useAutoSubmit({
     );
   }, [sessionId]);
 
+  const hasUnfilledParameters = useCallback((session: Session) => {
+    const recipe = session.recipe;
+    return recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
+  }, []);
+
   // Auto-submit logic
   useEffect(() => {
     const currentSessionId = searchParams.get('resumeSessionId');
@@ -60,7 +65,6 @@ export function useAutoSubmit({
       return;
     }
 
-    // Don't submit if already streaming or loading
     if (chatState !== ChatState.Idle) {
       return;
     }
@@ -68,9 +72,11 @@ export function useAutoSubmit({
     // Scenario 1: New session with initial message from Hub
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      clearInitialMessage();
+      if (!hasUnfilledParameters(session)) {
+        hasAutoSubmittedRef.current = true;
+        handleSubmit(initialMessage);
+        clearInitialMessage();
+      }
       return;
     }
 
@@ -87,8 +93,11 @@ export function useAutoSubmit({
 
     // Scenario 3: Resume with shouldStartAgent (continue existing conversation)
     if (shouldStartAgent) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit({ msg: '', images: [] });
+      if (!hasUnfilledParameters(session)) {
+        hasAutoSubmittedRef.current = true;
+        handleSubmit({ msg: '', images: [] });
+      }
+      return;
     }
   }, [
     session,
@@ -99,6 +108,7 @@ export function useAutoSubmit({
     messages.length,
     chatState,
     clearInitialMessage,
+    hasUnfilledParameters,
   ]);
 
   return {

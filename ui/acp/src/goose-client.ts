@@ -27,12 +27,17 @@ import {
   type SetSessionModelResponse,
 } from "@agentclientprotocol/sdk";
 import { GooseExtClient } from "./generated/client.gen.js";
+import { createHttpStream } from "./http-stream.js";
 
 export class GooseClient {
   private conn: ClientSideConnection;
   private ext: GooseExtClient;
 
-  constructor(toClient: () => Client, stream: Stream) {
+  constructor(toClient: () => Client, streamOrUrl: Stream | string) {
+    const stream =
+      typeof streamOrUrl === "string"
+        ? createHttpStream(streamOrUrl)
+        : streamOrUrl;
     this.conn = new ClientSideConnection(toClient, stream);
     this.ext = new GooseExtClient(this.conn);
   }

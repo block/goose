@@ -2,14 +2,26 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
+use etcetera::home_dir;
 use goose::session::{generate_diagnostics, Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
+use std::path::Path;
 use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
+
+fn display_path_with_tilde(path: &Path) -> String {
+    #[cfg(not(target_os = "windows"))]
+    if let Ok(home) = home_dir() {
+        if let Ok(stripped) = path.strip_prefix(&home) {
+            return format!("~/{}", stripped.display());
+        }
+    }
+    path.display().to_string()
+}
 
 async fn remove_sessions(session_manager: &SessionManager, sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
@@ -129,6 +141,14 @@ pub async fn handle_session_remove(
     remove_sessions(&session_manager, matched_sessions).await
 }
 
+fn write_line_or_broken_pipe_ok<W: Write>(out: &mut W, line: &str) -> Result<bool> {
+    match writeln!(out, "{line}") {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(false),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub async fn handle_session_list(
     format: String,
     ascending: bool,
@@ -158,20 +178,39 @@ pub async fn handle_session_list(
         sessions.truncate(n);
     }
 
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+
     match format.as_str() {
         "json" => {
-            println!("{}", serde_json::to_string(&sessions)?);
+            let payload = serde_json::to_string(&sessions)?;
+            if !write_line_or_broken_pipe_ok(&mut out, &payload)? {
+                return Ok(());
+            }
         }
         _ => {
             if sessions.is_empty() {
-                println!("No sessions found");
+                if !write_line_or_broken_pipe_ok(&mut out, "No sessions found")? {
+                    return Ok(());
+                }
                 return Ok(());
             }
 
-            println!("Available sessions:");
+            if !write_line_or_broken_pipe_ok(&mut out, "Available sessions:")? {
+                return Ok(());
+            }
+
             for session in sessions {
-                let output = format!("{} - {} - {}", session.id, session.name, session.updated_at);
-                println!("{}", output);
+                let output = format!(
+                    "{} - {} - {} - {}",
+                    session.id,
+                    session.name,
+                    session.updated_at,
+                    display_path_with_tilde(&session.working_dir)
+                );
+                if !write_line_or_broken_pipe_ok(&mut out, &output)? {
+                    return Ok(());
+                }
             }
         }
     }

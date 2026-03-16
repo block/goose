@@ -28,17 +28,9 @@ export const LocalInferenceSettings = () => {
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
-  const { currentModel, currentProvider, setProviderAndModel } = useModelAndProvider();
+  const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
-
-  const getDisplayName = useCallback(
-    (modelId: string): string => {
-      const model = models.find((m) => m.id === modelId);
-      return model?.display_name || modelId;
-    },
-    [models]
-  );
 
   const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
     try {
@@ -68,12 +60,12 @@ export const LocalInferenceSettings = () => {
   }, []);
 
   const selectModel = async (modelId: string) => {
-    setProviderAndModel('local', modelId);
     try {
       await setConfigProvider({
         body: { provider: 'local', model: modelId },
         throwOnError: true,
       });
+      await refreshCurrentModelAndProvider();
     } catch (error) {
       console.error('Failed to select model:', error);
     }
@@ -114,8 +106,13 @@ export const LocalInferenceSettings = () => {
             });
             await loadModels();
             await selectModel(modelId);
-          } else if (progress.status === 'failed') {
+          } else if (progress.status === 'failed' || progress.status === 'cancelled') {
             clearInterval(interval);
+            setDownloads((prev) => {
+              const next = new Map(prev);
+              next.delete(modelId);
+              return next;
+            });
             await loadModels();
           }
         } else {
@@ -135,6 +132,7 @@ export const LocalInferenceSettings = () => {
         next.delete(modelId);
         return next;
       });
+      await loadModels();
     } catch (error) {
       console.error('Failed to cancel download:', error);
     }
@@ -193,7 +191,6 @@ export const LocalInferenceSettings = () => {
           <div className="space-y-2">
             {Array.from(downloads.entries()).map(([modelId, progress]) => {
               if (progress.status === 'completed') return null;
-              const displayName = getDisplayName(modelId);
               return (
                 <div
                   key={modelId}
@@ -201,7 +198,7 @@ export const LocalInferenceSettings = () => {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-text-default truncate">
-                      {displayName}
+                      {modelId}
                     </span>
                     {progress.status === 'downloading' && (
                       <Button
@@ -216,9 +213,9 @@ export const LocalInferenceSettings = () => {
                   </div>
                   {progress.status === 'downloading' && (
                     <div className="space-y-1">
-                      <div className="w-full bg-background-subtle rounded-full h-2">
+                      <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
-                          className="bg-accent-primary h-2 rounded-full transition-all duration-300"
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${progress.progress_percent}%` }}
                         />
                       </div>
@@ -280,9 +277,7 @@ export const LocalInferenceSettings = () => {
                         onChange={() => selectModel(model.id)}
                         className="cursor-pointer"
                       />
-                      <span className="text-sm font-medium text-text-default">
-                        {model.display_name}
-                      </span>
+                      <span className="text-sm font-medium text-text-default">{model.id}</span>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
                       </span>
@@ -331,9 +326,7 @@ export const LocalInferenceSettings = () => {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-medium text-text-default">
-                        {model.display_name}
-                      </h4>
+                      <h4 className="text-sm font-medium text-text-default">{model.id}</h4>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
                       </span>
@@ -398,7 +391,7 @@ export const LocalInferenceSettings = () => {
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Model Settings</DialogTitle>
-            <p className="text-sm text-text-muted">{getDisplayName(settingsOpenFor || '')}</p>
+            <p className="text-sm text-text-muted">{settingsOpenFor || ''}</p>
           </DialogHeader>
           {settingsOpenFor && <ModelSettingsPanel modelId={settingsOpenFor} />}
         </DialogContent>

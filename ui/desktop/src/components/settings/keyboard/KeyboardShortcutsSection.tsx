@@ -74,6 +74,12 @@ const shortcutConfigs: ShortcutConfig[] = [
     description: 'Toggle window always on top',
     category: 'window',
   },
+  {
+    key: 'toggleNavigation',
+    label: 'Toggle Navigation',
+    description: 'Show or hide the navigation menu',
+    category: 'application',
+  },
 ];
 
 const needsRestart = new Set<keyof KeyboardShortcuts>([
@@ -122,8 +128,8 @@ export default function KeyboardShortcutsSection() {
   const [showRestartNotice, setShowRestartNotice] = useState(false);
 
   const loadShortcuts = useCallback(async () => {
-    const settings = await window.electron.getSettings();
-    setShortcuts(settings.keyboardShortcuts || defaultKeyboardShortcuts);
+    const keyboardShortcuts = await window.electron.getSetting('keyboardShortcuts');
+    setShortcuts({ ...defaultKeyboardShortcuts, ...keyboardShortcuts });
   }, []);
 
   useEffect(() => {
@@ -163,15 +169,11 @@ export default function KeyboardShortcutsSection() {
       newShortcuts[key] = null;
     }
 
-    const settings = await window.electron.getSettings();
-    settings.keyboardShortcuts = newShortcuts;
-    const success = await window.electron.saveSettings(settings);
-    if (success) {
-      setShortcuts(newShortcuts);
-      trackSettingToggled(`shortcut_${key}`, enabled);
-      if (needsRestart.has(key)) {
-        setShowRestartNotice(true);
-      }
+    await window.electron.setSetting('keyboardShortcuts', newShortcuts);
+    setShortcuts(newShortcuts);
+    trackSettingToggled(`shortcut_${key}`, enabled);
+    if (needsRestart.has(key)) {
+      setShowRestartNotice(true);
     }
   };
 
@@ -209,15 +211,11 @@ export default function KeyboardShortcutsSection() {
 
     newShortcuts[editingKey] = shortcut || null;
 
-    const settings = await window.electron.getSettings();
-    settings.keyboardShortcuts = newShortcuts;
-    const success = await window.electron.saveSettings(settings);
-    if (success) {
-      setShortcuts(newShortcuts);
-      setEditingKey(null);
-      if (needsRestart.has(editingKey)) {
-        setShowRestartNotice(true);
-      }
+    await window.electron.setSetting('keyboardShortcuts', newShortcuts);
+    setShortcuts(newShortcuts);
+    setEditingKey(null);
+    if (needsRestart.has(editingKey)) {
+      setShowRestartNotice(true);
     }
   };
 
@@ -236,14 +234,10 @@ export default function KeyboardShortcutsSection() {
     });
 
     if (confirmed.response === 0) {
-      const settings = await window.electron.getSettings();
-      settings.keyboardShortcuts = { ...defaultKeyboardShortcuts };
-      const success = await window.electron.saveSettings(settings);
-      if (success) {
-        setShortcuts({ ...defaultKeyboardShortcuts });
-        setShowRestartNotice(true);
-        trackSettingToggled('shortcuts_reset', true);
-      }
+      await window.electron.setSetting('keyboardShortcuts', { ...defaultKeyboardShortcuts });
+      setShortcuts({ ...defaultKeyboardShortcuts });
+      setShowRestartNotice(true);
+      trackSettingToggled('shortcuts_reset', true);
     }
   };
 
@@ -269,8 +263,8 @@ export default function KeyboardShortcutsSection() {
           <CardContent className="pt-4 px-4 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <h3 className="text-text-default text-sm font-medium mb-1">Restart Required</h3>
-                <p className="text-xs text-text-muted">
+                <h3 className="text-text-primary text-sm font-medium mb-1">Restart Required</h3>
+                <p className="text-xs text-text-secondary">
                   Changes to application shortcuts (like New Chat, Settings, etc.) require
                   restarting Goose to take effect. Global shortcuts (Focus Window, Quick Launcher)
                   work immediately.
@@ -304,8 +298,8 @@ export default function KeyboardShortcutsSection() {
               return (
                 <div key={config.key} className="flex items-center justify-between">
                   <div className="flex-1">
-                    <h3 className="text-text-default text-xs">{config.label}</h3>
-                    <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                    <h3 className="text-text-primary text-xs">{config.label}</h3>
+                    <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                       {config.description}
                     </p>
                   </div>
@@ -313,11 +307,11 @@ export default function KeyboardShortcutsSection() {
                     {!isEditing ? (
                       <>
                         {shortcut ? (
-                          <span className="text-xs font-mono px-2 py-1 bg-background-muted rounded min-w-[120px] text-center">
+                          <span className="text-xs font-mono px-2 py-1 bg-background-secondary rounded min-w-[120px] text-center">
                             {formatShortcut(shortcut)}
                           </span>
                         ) : (
-                          <span className="text-xs text-text-muted min-w-[120px] text-center">
+                          <span className="text-xs text-text-secondary min-w-[120px] text-center">
                             Disabled
                           </span>
                         )}
@@ -356,8 +350,8 @@ export default function KeyboardShortcutsSection() {
         <CardContent className="pt-4 px-4 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-sm font-medium">Reset to Defaults</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-sm font-medium">Reset to Defaults</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Restore all keyboard shortcuts to their original configuration
               </p>
             </div>

@@ -21,12 +21,21 @@ const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({ className = '' }) =
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={`${bgColor} w-2 h-2 rounded-full cursor-default ${className}`}
+          className={`relative cursor-default no-drag ${className}`}
           data-testid="environment-badge"
           aria-label={tooltipText}
-        />
+        >
+          <div className="absolute -inset-1" />
+          <div className={`${bgColor} w-2 h-2 rounded-full`} />
+        </div>
       </TooltipTrigger>
-      <TooltipContent side="right">{tooltipText}</TooltipContent>
+      <TooltipContent
+        side="bottom"
+        className={bgColor}
+        arrowClassName={isAlpha ? 'fill-purple-600 bg-purple-600' : 'fill-orange-400 bg-orange-400'}
+      >
+        {tooltipText}
+      </TooltipContent>
     </Tooltip>
   );
 };

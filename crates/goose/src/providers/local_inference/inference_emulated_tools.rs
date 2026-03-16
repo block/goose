@@ -313,12 +313,8 @@ fn send_emulator_action(
             let tool_id = Uuid::new_v4().to_string();
             let mut args = serde_json::Map::new();
             args.insert("command".to_string(), json!(command));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Borrowed(SHELL_TOOL),
-                arguments: Some(args),
-            };
+            let tool_call =
+                CallToolRequestParams::new(Cow::Borrowed(SHELL_TOOL)).with_arguments(args);
             let mut message = Message::assistant();
             message
                 .content
@@ -337,12 +333,8 @@ fn send_emulator_action(
             };
             let mut args = serde_json::Map::new();
             args.insert("code".to_string(), json!(wrapped));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Borrowed(CODE_EXECUTION_TOOL),
-                arguments: Some(args),
-            };
+            let tool_call =
+                CallToolRequestParams::new(Cow::Borrowed(CODE_EXECUTION_TOOL)).with_arguments(args);
             let mut message = Message::assistant();
             message
                 .content
@@ -359,10 +351,19 @@ pub(super) fn generate_with_emulated_tools(
     ctx: &mut GenerationContext<'_>,
     code_mode_enabled: bool,
 ) -> Result<(), ProviderError> {
+    // Use oaicompat variant — its C++ wrapper catches exceptions that would
+    // otherwise abort the process when other native libs disturb the C++ ABI.
     let prompt = ctx
         .loaded
         .model
-        .apply_chat_template(&ctx.loaded.template, ctx.chat_messages, true)
+        .apply_chat_template_with_tools_oaicompat(
+            &ctx.loaded.template,
+            ctx.chat_messages,
+            None, // no tools for emulated path
+            None, // no json_schema
+            true, // add_generation_prompt
+        )
+        .map(|r| r.prompt)
         .map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
         })?;
