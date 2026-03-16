@@ -328,7 +328,10 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
         while merge_end < messages.len() {
             let next = &messages[merge_end];
             let next_matches = next.get("role") == Some(&json!("assistant"))
-                && next.get("tool_calls").and_then(|tc| tc.as_array()).is_some_and(|a| !a.is_empty())
+                && next
+                    .get("tool_calls")
+                    .and_then(|tc| tc.as_array())
+                    .is_some_and(|a| !a.is_empty())
                 && next.get("reasoning_content").cloned() == base_reasoning;
 
             if !next_matches {
@@ -353,7 +356,10 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
             })
             .collect();
 
-        if let Some(base_tc) = messages[i].get_mut("tool_calls").and_then(|tc| tc.as_array_mut()) {
+        if let Some(base_tc) = messages[i]
+            .get_mut("tool_calls")
+            .and_then(|tc| tc.as_array_mut())
+        {
             base_tc.extend(extra_tool_calls);
         }
 
