@@ -37,8 +37,6 @@ export const LocalInferenceSettings = () => {
       const response = await listLocalModels();
       if (response.data) {
         setModels(response.data);
-
-        // Start polling for any models currently downloading
         response.data.forEach((model) => {
           if (model.status.state === 'Downloading') {
             pollDownloadProgress(model.id);
@@ -144,7 +142,6 @@ export const LocalInferenceSettings = () => {
       await deleteLocalModel({ path: { model_id: modelId } });
       const updatedModels = await loadModels();
 
-      // If we deleted the selected model, select another downloaded model
       if (selectedModelId === modelId && updatedModels) {
         const remainingDownloaded = updatedModels.filter(
           (m) => m.id !== modelId && m.status.state === 'Downloaded'

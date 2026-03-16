@@ -164,7 +164,6 @@ impl DownloadManager {
 
                     if let Ok(mut downloads) = downloads.lock() {
                         if let Some(progress) = downloads.get_mut(&model_id_clone) {
-                            // Preserve Cancelled status if already set
                             if progress.status != DownloadStatus::Cancelled {
                                 progress.status = DownloadStatus::Failed;
                                 progress.error = Some(e.to_string());
