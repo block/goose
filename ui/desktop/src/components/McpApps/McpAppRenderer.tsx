@@ -540,8 +540,8 @@ export default function McpAppRenderer({
   );
 
   const handleLoggingMessage = useCallback(
-    ({ level, logger, data }: { level?: string; logger?: string; data?: unknown }) => {
-
+    (_notification: { level?: string; logger?: string; data?: unknown }) => {
+      // Intentionally silent — MCP app logging notifications are not surfaced to the user
     },
     []
   );
