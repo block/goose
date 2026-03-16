@@ -54,7 +54,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   }, [isCheckingProvider, hasProvider]);
 
   const handleConfigured = async (providerName: string, modelId?: string) => {
-    trackOnboardingProviderSelected(providerName);
+    trackOnboardingProviderSelected({ provider: providerName });
     await upsert('GOOSE_PROVIDER', providerName, false);
     if (modelId) {
       await upsert('GOOSE_MODEL', modelId, false);
