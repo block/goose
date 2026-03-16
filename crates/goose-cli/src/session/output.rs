@@ -1416,10 +1416,20 @@ pub fn display_cost_usage(provider: &str, model: &str, input_tokens: usize, outp
     }
 }
 
+fn format_tokens_short(n: usize) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}k", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
+
 pub struct McpSpinners {
     bars: HashMap<String, ProgressBar>,
     log_spinner: Option<ProgressBar>,
-
+    context_bar: Option<ProgressBar>,
     multi_bar: MultiProgress,
 }
 
@@ -1428,8 +1438,41 @@ impl McpSpinners {
         McpSpinners {
             bars: HashMap::new(),
             log_spinner: None,
+            context_bar: None,
             multi_bar: MultiProgress::new(),
         }
+    }
+
+    pub fn update_context(&mut self, used: usize, total: usize) {
+        let pct = if total > 0 {
+            (used as f64 / total as f64 * 100.0) as u64
+        } else {
+            0
+        };
+
+        let color = if pct < 50 {
+            "green"
+        } else if pct < 85 {
+            "yellow"
+        } else {
+            "red"
+        };
+
+        let style = ProgressStyle::with_template(&format!("  {{bar:20.{color}}} {{pos}}% {{msg}}"))
+            .unwrap()
+            .progress_chars("━━╌");
+
+        let bar = self
+            .context_bar
+            .get_or_insert_with(|| self.multi_bar.add(ProgressBar::new(100)));
+
+        bar.set_style(style);
+        bar.set_position(pct);
+        bar.set_message(format!(
+            "{}/{} tokens",
+            format_tokens_short(used),
+            format_tokens_short(total)
+        ));
     }
 
     pub fn log(&mut self, message: &str) {
@@ -1476,6 +1519,7 @@ impl McpSpinners {
         if let Some(spinner) = self.log_spinner.as_mut() {
             spinner.disable_steady_tick();
         }
+        self.context_bar = None;
         self.multi_bar.clear()
     }
 }

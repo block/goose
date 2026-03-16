@@ -155,8 +155,15 @@ pub struct Agent {
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
-    ModelChange { model: String, mode: String },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
     HistoryReplaced(Conversation),
+    ContextUsage {
+        used_tokens: usize,
+        total_tokens: usize,
+    },
 }
 
 impl Default for Agent {
@@ -1214,6 +1221,13 @@ impl Agent {
 
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                if let Some(total) = usage.usage.total_tokens {
+                                    let context_limit = self.provider().await?.get_model_config().context_limit();
+                                    yield AgentEvent::ContextUsage {
+                                        used_tokens: total as usize,
+                                        total_tokens: context_limit,
+                                    };
+                                }
                             }
 
                             if let Some(response) = response {
