@@ -29,6 +29,8 @@ Edit `wrangler.toml` for your upstream:
 | `OIDC_ISSUER` | `https://token.actions.githubusercontent.com` |
 | `OIDC_AUDIENCE` | The audience your workflow requests (e.g. `goose-oidc-proxy`) |
 | `MAX_TOKEN_AGE_SECONDS` | Max age of OIDC token in seconds (default: `1200` = 20 min) |
+| `MAX_REQUESTS_PER_TOKEN` | Max requests per OIDC token (default: `200`) |
+| `RATE_LIMIT_PER_SECOND` | Max requests per second per token (default: `2`) |
 | `ALLOWED_REPOS` | *(optional)* Comma-separated `owner/repo` list |
 | `ALLOWED_REFS` | *(optional)* Comma-separated allowed refs |
 | `UPSTREAM_URL` | The upstream API base URL |
@@ -94,6 +96,15 @@ npm test
 npx wrangler secret put UPSTREAM_API_KEY
 npm run deploy
 ```
+
+## Token budget and rate limiting
+
+Each OIDC token is tracked by its `jti` (JWT ID) claim using a Durable Object. This provides:
+
+- **Budget**: Each token is limited to `MAX_REQUESTS_PER_TOKEN` total requests (default: 200). Once exhausted, the proxy returns `429` with `{"error": "Token budget exhausted"}`.
+- **Rate limit**: Each token is limited to `RATE_LIMIT_PER_SECOND` requests per second (default: 2). When exceeded, the proxy returns `429` with `{"error": "Rate limit exceeded"}` and a `Retry-After: 1` header.
+
+Both limits are enforced atomically — the Durable Object processes one request at a time per token, so there are no race conditions.
 
 ## Token age vs expiry
 

@@ -1,10 +1,58 @@
+export class TokenBucket {
+  constructor(state) {
+    this.state = state;
+    this.count = 0;
+    this.timestamps = [];
+    this.initialized = false;
+  }
+
+  async initialize() {
+    if (this.initialized) return;
+    const stored = await this.state.storage.get("count");
+    if (stored !== undefined) this.count = stored;
+    this.initialized = true;
+  }
+
+  async fetch(request) {
+    await this.initialize();
+
+    const url = new URL(request.url);
+    if (url.pathname === "/check") {
+      const { maxRequests, ratePerSecond } = await request.json();
+
+      if (this.count >= maxRequests) {
+        return Response.json({ allowed: false, error: "budget_exhausted" });
+      }
+
+      const now = Date.now();
+      this.timestamps = this.timestamps.filter((t) => now - t < 1000);
+      if (this.timestamps.length >= ratePerSecond) {
+        return Response.json(
+          { allowed: false, error: "rate_limited" },
+          { headers: { "Retry-After": "1" } },
+        );
+      }
+
+      this.count++;
+      this.timestamps.push(now);
+      await this.state.storage.put("count", this.count);
+
+      return Response.json({
+        allowed: true,
+        remaining: maxRequests - this.count,
+      });
+    }
+
+    return Response.json({ error: "not found" }, { status: 404 });
+  }
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
       return handleCors(env);
     }
 
-    // Accept the OIDC token via x-api-key or Authorization: Bearer
     const token =
       request.headers.get("x-api-key") ||
       request.headers.get("Authorization")?.replace("Bearer ", "");
@@ -17,15 +65,27 @@ export default {
       return jsonResponse(401, { error: result.reason });
     }
 
+    // Check rate limit and budget via Durable Object
+    const bucketCheck = await checkTokenBucket(result.jti, env);
+    if (!bucketCheck.allowed) {
+      if (bucketCheck.error === "rate_limited") {
+        return jsonResponse(
+          429,
+          { error: "Rate limit exceeded" },
+          { "Retry-After": "1" },
+        );
+      }
+      return jsonResponse(429, { error: "Token budget exhausted" });
+    }
+
     const url = new URL(request.url);
     const upstreamUrl = `${env.UPSTREAM_URL}${url.pathname}${url.search}`;
 
     const headers = new Headers(request.headers);
     headers.delete("Authorization");
 
-    // Inject the upstream API key using the configured header
     const authHeader = env.UPSTREAM_AUTH_HEADER || "Authorization";
-    const authPrefix = env.UPSTREAM_AUTH_PREFIX; // e.g. "Bearer " — omit for raw value
+    const authPrefix = env.UPSTREAM_AUTH_PREFIX;
     headers.set(
       authHeader,
       authPrefix
@@ -55,6 +115,23 @@ export default {
     });
   },
 };
+
+// --- Token bucket (Durable Object) ---
+
+async function checkTokenBucket(jti, env) {
+  const maxRequests = parseInt(env.MAX_REQUESTS_PER_TOKEN || "200", 10);
+  const ratePerSecond = parseInt(env.RATE_LIMIT_PER_SECOND || "2", 10);
+
+  const id = env.TOKEN_BUCKET.idFromName(jti);
+  const stub = env.TOKEN_BUCKET.get(id);
+
+  const resp = await stub.fetch("https://bucket/check", {
+    method: "POST",
+    body: JSON.stringify({ maxRequests, ratePerSecond }),
+  });
+
+  return resp.json();
+}
 
 // --- OIDC JWT verification using Web Crypto API ---
 
@@ -114,9 +191,6 @@ async function verifyOidcToken(token, env) {
     const header = decodeJwtPart(headerB64);
     const payload = decodeJwtPart(payloadB64);
 
-    // When MAX_TOKEN_AGE_SECONDS is set, use iat-based age check
-    // (allows recently-expired tokens within the grace period).
-    // Otherwise fall back to strict exp check.
     if (env.MAX_TOKEN_AGE_SECONDS && payload.iat) {
       const age = Date.now() / 1000 - payload.iat;
       if (age > parseInt(env.MAX_TOKEN_AGE_SECONDS, 10)) {
@@ -159,18 +233,27 @@ async function verifyOidcToken(token, env) {
     }
 
     const jwks = await fetchJwks(env.OIDC_ISSUER);
-    const jwk = jwks.keys.find((k) => k.kid === header.kid);
+    let jwk = jwks.keys.find((k) => k.kid === header.kid);
     if (!jwk) {
       jwksCache = null;
       const refreshed = await fetchJwks(env.OIDC_ISSUER);
-      const retryJwk = refreshed.keys.find((k) => k.kid === header.kid);
-      if (!retryJwk) {
+      jwk = refreshed.keys.find((k) => k.kid === header.kid);
+      if (!jwk) {
         return { valid: false, reason: "No matching key in JWKS" };
       }
-      return verifySignature(header, retryJwk, headerB64, payloadB64, sigB64);
     }
 
-    return verifySignature(header, jwk, headerB64, payloadB64, sigB64);
+    const sigResult = await verifySignature(
+      header,
+      jwk,
+      headerB64,
+      payloadB64,
+      sigB64,
+    );
+    if (!sigResult.valid) return sigResult;
+
+    const jti = payload.jti || `${payload.iss}:${payload.iat}:${payload.sub}`;
+    return { valid: true, jti };
   } catch (err) {
     return { valid: false, reason: `Verification error: ${err.message}` };
   }
@@ -215,10 +298,10 @@ async function verifySignature(header, jwk, headerB64, payloadB64, sigB64) {
 
 // --- Helpers ---
 
-function jsonResponse(status, body) {
+function jsonResponse(status, body, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
   });
 }
 
