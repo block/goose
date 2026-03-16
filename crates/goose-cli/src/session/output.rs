@@ -1460,24 +1460,31 @@ fn format_tokens_short(n: usize) -> String {
     }
 }
 
-pub struct McpSpinners {
-    bars: HashMap<String, ProgressBar>,
-    log_spinner: Option<ProgressBar>,
-    context_bar: Option<ProgressBar>,
+pub struct ContextStatusBar {
+    bar: Option<ProgressBar>,
+    last_usage: Option<(usize, usize)>,
     multi_bar: MultiProgress,
 }
 
-impl McpSpinners {
+impl ContextStatusBar {
     pub fn new() -> Self {
-        McpSpinners {
-            bars: HashMap::new(),
-            log_spinner: None,
-            context_bar: None,
+        Self {
+            bar: None,
+            last_usage: None,
             multi_bar: MultiProgress::new(),
         }
     }
 
-    pub fn update_context(&mut self, used: usize, total: usize) {
+    pub fn update(&mut self, used: usize, total: usize) {
+        self.last_usage = Some((used, total));
+        self.redraw();
+    }
+
+    pub fn redraw(&mut self) {
+        let Some((used, total)) = self.last_usage else {
+            return;
+        };
+
         let pct = if total > 0 {
             (used as f64 / total as f64 * 100.0) as u64
         } else {
@@ -1497,7 +1504,7 @@ impl McpSpinners {
             .progress_chars("━━╌");
 
         let bar = self
-            .context_bar
+            .bar
             .get_or_insert_with(|| self.multi_bar.add(ProgressBar::new(100)));
 
         bar.set_style(style);
@@ -1507,6 +1514,28 @@ impl McpSpinners {
             format_tokens_short(used),
             format_tokens_short(total)
         ));
+    }
+
+    pub fn clear(&mut self) {
+        self.bar = None;
+        self.last_usage = None;
+        let _ = self.multi_bar.clear();
+    }
+}
+
+pub struct McpSpinners {
+    bars: HashMap<String, ProgressBar>,
+    log_spinner: Option<ProgressBar>,
+    multi_bar: MultiProgress,
+}
+
+impl McpSpinners {
+    pub fn new() -> Self {
+        McpSpinners {
+            bars: HashMap::new(),
+            log_spinner: None,
+            multi_bar: MultiProgress::new(),
+        }
     }
 
     pub fn log(&mut self, message: &str) {
@@ -1553,16 +1582,7 @@ impl McpSpinners {
         if let Some(spinner) = self.log_spinner.as_mut() {
             spinner.disable_steady_tick();
         }
-        // Keep context_bar alive — only clear MCP spinners
-        let context_bar = self.context_bar.take();
-        let result = self.multi_bar.clear();
-        self.context_bar = context_bar;
-        result
-    }
-
-    pub fn hide_all(&mut self) -> Result<(), Error> {
-        self.context_bar = None;
-        self.hide()
+        self.multi_bar.clear()
     }
 }
 

@@ -966,6 +966,7 @@ impl CliSession {
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
+        let mut context_bar = output::ContextStatusBar::new();
         let cancel_token_clone = cancel_token.clone();
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
         let mut prompted_credits_urls: HashSet<String> = HashSet::new();
@@ -1047,6 +1048,7 @@ impl CliSession {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
                                     output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
+                                    context_bar.redraw();
                                     maybe_open_credits_top_up_url(
                                         &message,
                                         interactive,
@@ -1070,7 +1072,7 @@ impl CliSession {
                             self.messages = updated_conversation;
                         }
                         Some(Ok(AgentEvent::ContextUsage { used_tokens, total_tokens })) => {
-                            progress_bars.update_context(used_tokens, total_tokens);
+                            context_bar.update(used_tokens, total_tokens);
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             if is_stream_json_mode {
@@ -1108,7 +1110,8 @@ impl CliSession {
             }
         }
 
-        let _ = progress_bars.hide_all();
+        let _ = progress_bars.hide();
+        context_bar.clear();
 
         if !is_json_mode && !is_stream_json_mode {
             output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
