@@ -15,7 +15,7 @@ use rmcp::model::Tool;
 const NANOGPT_PROVIDER_NAME: &str = "nano-gpt";
 pub const NANOGPT_API_HOST: &str = "https://nano-gpt.com/api/v1";
 pub const NANOGPT_SUBSCRIPTION_HOST: &str = "https://nano-gpt.com/api/subscription/v1";
-pub const NANOGPT_DEFAULT_MODEL: &str = "mistralai/mistral-large-3-675b-instruct";
+pub const NANOGPT_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4.6";
 pub const NANOGPT_DOC_URL: &str = "https://docs.nano-gpt.com/";
 const NANOGPT_API_KEY: &str = "NANOGPT_API_KEY";
 
@@ -205,7 +205,7 @@ mod tests {
     fn test_metadata() {
         let metadata = NanoGptProvider::metadata();
         assert_eq!(metadata.name, "nano-gpt");
-        assert_eq!(metadata.default_model, "mistralai/mistral-large-3-675b-instruct");
+        assert_eq!(metadata.default_model, "anthropic/claude-sonnet-4.6");
         assert_eq!(metadata.config_keys[0].name, NANOGPT_API_KEY);
         assert!(metadata.config_keys[0].required);
         assert!(metadata.config_keys[0].secret);
