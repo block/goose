@@ -228,12 +228,22 @@ impl TelegramGateway {
     /// Files are stored under `<tmp>/goose_voice/voice_<uuid>.<ext>` so Goose
     /// can access them via its shell tools.  The extension is derived from the
     /// MIME type when available, falling back to `.ogg` for voice notes.
+    ///
+    /// On Unix the directory is created with mode `0700` and files with `0600`
+    /// so other local users cannot read private voice content.
     fn save_voice_file(
         bytes: &[u8],
         mime_type: Option<&str>,
     ) -> anyhow::Result<std::path::PathBuf> {
         let dir = std::env::temp_dir().join("goose_voice");
         std::fs::create_dir_all(&dir)?;
+
+        // Restrict directory permissions to owner-only on Unix.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+        }
 
         let ext = mime_type
             .and_then(|m| m.rsplit('/').next())
@@ -252,6 +262,14 @@ impl TelegramGateway {
         let filename = format!("voice_{}.{ext}", uuid::Uuid::new_v4());
         let path = dir.join(filename);
         std::fs::write(&path, bytes)?;
+
+        // Restrict file permissions to owner-only on Unix.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        }
+
         Ok(path)
     }
 
