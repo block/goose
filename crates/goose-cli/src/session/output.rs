@@ -76,7 +76,13 @@ thread_local! {
                     .unwrap_or(Theme::Ansi)
             )
     );
-    static SHOW_FULL_TOOL_OUTPUT: RefCell<bool> = const { RefCell::new(false) };
+    static SHOW_FULL_TOOL_OUTPUT: RefCell<bool> = RefCell::new(
+        std::env::var("GOOSE_SHOW_FULL_OUTPUT").ok()
+            .map(|val| val == "1" || val.eq_ignore_ascii_case("true"))
+            .unwrap_or_else(||
+                Config::global().get_param::<bool>("GOOSE_SHOW_FULL_OUTPUT").unwrap_or(false)
+            )
+    );
 }
 
 pub fn set_theme(theme: Theme) {
