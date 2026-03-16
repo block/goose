@@ -11,6 +11,11 @@ on:
         description: 'OIDC proxy URL (overrides repo variable)'
         required: false
         type: string
+      review_instructions:
+        description: 'Instructions for the code review'
+        required: false
+        default: 'Review the changes for correctness'
+        type: string
   # pull_request_target:
   #   types: [opened, synchronize, reopened]
 
@@ -109,7 +114,7 @@ jobs:
           goose run \
             --recipe .github/recipes/code-review.yaml \
             --params pr_directory=/tmp/code-review \
-            --params instructions="Review the changes for correctness"
+            --params instructions="${{ github.event.inputs.review_instructions || 'Review the changes for correctness' }}"
 
       - name: Upload review output
         if: always()

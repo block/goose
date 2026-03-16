@@ -32,6 +32,9 @@ prompt: |
   There is no need to call the finish_review tool unless absolutely necessary to add
   summary content not covered by inline comments.
 
+  Be concise with your comments. Just a few sentences per comment at most, with no
+  extra formatting. Just the gist of the problem is enough.
+
   ** Important **
   Don't add nit-pick comments and avoid matters of opinion.
   Adhere closely to the code review instructions below.
