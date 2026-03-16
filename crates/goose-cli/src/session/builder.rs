@@ -584,11 +584,13 @@ async fn configure_session_prompts(
 
     let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
     if let Some(ref path) = system_prompt_file {
-        let override_prompt =
-            std::fs::read_to_string(path).unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to read system prompt file '{}': {}", path, e));
-                process::exit(1);
-            });
+        let override_prompt = std::fs::read_to_string(path).unwrap_or_else(|e| {
+            output::render_error(&format!(
+                "Failed to read system prompt file '{}': {}",
+                path, e
+            ));
+            process::exit(1);
+        });
         session.agent.override_system_prompt(override_prompt).await;
     }
 }
