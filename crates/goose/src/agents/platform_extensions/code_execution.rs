@@ -514,8 +514,11 @@ impl McpClientTrait for CodeExecutionClient {
 }
 
 pub fn get_tool_disclosure() -> ToolDisclosure {
-    let style_env = std::env::var("CODE_MODE_TOOL_DISCLOSURE").unwrap_or("catalog".to_string());
-    serde_json::from_value(serde_json::json!(style_env)).unwrap_or_default()
+    let config = crate::config::Config::global();
+    let tool_disclosure_str: String = config
+        .get_param("CODE_MODE_TOOL_DISCLOSURE")
+        .unwrap_or_else(|_| "catalog".to_string());
+    serde_json::from_value(serde_json::json!(tool_disclosure_str)).unwrap_or_default()
 }
 
 struct CodeModeState {
