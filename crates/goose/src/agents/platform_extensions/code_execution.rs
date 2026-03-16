@@ -97,7 +97,7 @@ impl CodeExecutionClient {
 
             cfgs.push(CallbackConfig {
                 name,
-                namespace,
+                namespace: Some(namespace),
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
                 output_schema: tool.output_schema.as_ref().map(|s| json!(s)),

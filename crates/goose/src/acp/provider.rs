@@ -286,28 +286,33 @@ impl Provider for AcpProvider {
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        let _acp_session_id = self
-            .goose_to_acp_id
-            .lock()
+        let map = self.goose_to_acp_id.lock().await;
+        if map.is_empty() {
+            // Pre-initialization: no ACP session yet, just store the mode.
+            // The shared Arc<Mutex<GooseMode>> is read at session creation time.
+            drop(map);
+        } else if let Some(acp_session_id) = map.get(session_id).map(|r| r.session_id.clone()) {
+            drop(map);
+            self.send_untyped(
+                "session/set_mode",
+                serde_json::json!({
+                    "sessionId": acp_session_id,
+                    "modeId": mode.to_string().to_lowercase()
+                }),
+            )
             .await
-            .get(session_id)
-            .map(|r| r.session_id.clone())
-            .ok_or_else(|| {
-                ProviderError::RequestFailed(format!("Session not found: {session_id}"))
-            })?;
-
-        let current = self
-            .goose_mode
-            .lock()
-            .map_err(|_| ProviderError::RequestFailed("Failed to read mode".into()))?;
-
-        if mode != *current {
-            // TODO: "session/set_mode" when session-scoped mode lands (#7603)
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
+        } else {
             return Err(ProviderError::RequestFailed(format!(
-                "Mode change not supported: session is {}, requested {}",
-                current, mode
+                "Session not found: {session_id}"
             )));
         }
+
+        let mut current = self
+            .goose_mode
+            .lock()
+            .map_err(|_| ProviderError::RequestFailed("Failed to update mode".into()))?;
+        *current = mode;
         Ok(())
     }
 

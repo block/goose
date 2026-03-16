@@ -28,7 +28,7 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read, upsert } = useConfig();
+  const { read, upsert, getProviders } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -111,6 +111,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     try {
       const result = await startChatGptCodexSetup();
       if (result.success) {
+        await getProviders(true);
         setSwitchModelProvider('chatgpt_codex');
         setShowSwitchModelModal(true);
       } else {

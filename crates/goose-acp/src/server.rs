@@ -375,12 +375,14 @@ impl GooseAcpAgent {
         &self,
         cx: Option<&JrConnectionCx<AgentToClient>>,
         session_id: Option<&SessionId>,
+        goose_mode: Option<GooseMode>,
     ) -> Result<Arc<Agent>> {
+        let mode = goose_mode.unwrap_or(self.goose_mode);
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&self.session_manager),
             Arc::clone(&self.permission_manager),
             None,
-            self.goose_mode,
+            mode,
             self.disable_session_naming,
             GoosePlatform::GooseCli,
         ));
@@ -435,6 +437,7 @@ impl GooseAcpAgent {
             _ => None,
         };
         let skip_developer = acp_developer.is_some();
+        let sid_str = session_id.map(|s| s.0.to_string());
 
         for ext in extensions {
             if skip_developer && ext.name() == "developer" {
@@ -443,7 +446,7 @@ impl GooseAcpAgent {
             let name = ext.name().to_string();
             match agent
                 .extension_manager
-                .add_extension(ext, None, None, None)
+                .add_extension(ext, None, None, sid_str.as_deref())
                 .await
             {
                 Ok(_) => info!(extension = %name, "extension loaded"),
@@ -805,6 +808,7 @@ impl GooseAcpAgent {
                 args.cwd.clone(),
                 "ACP Session".to_string(),
                 SessionType::User,
+                self.goose_mode,
             )
             .await
             .map_err(|e| {
@@ -814,7 +818,7 @@ impl GooseAcpAgent {
         let session_id = SessionId::new(goose_session.id.clone());
 
         let agent = self
-            .create_agent_for_session(Some(cx), Some(&session_id))
+            .create_agent_for_session(Some(cx), Some(&session_id), None)
             .await
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
@@ -924,10 +928,11 @@ impl GooseAcpAgent {
                     .data(format!("Failed to load session {}: {}", session_id, e))
             })?;
 
+        let loaded_mode = goose_session.goose_mode;
         let acp_session_id = SessionId::new(session_id.clone());
 
         let agent = self
-            .create_agent_for_session(Some(cx), Some(&acp_session_id))
+            .create_agent_for_session(Some(cx), Some(&acp_session_id), Some(loaded_mode))
             .await
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
@@ -1013,8 +1018,7 @@ impl GooseAcpAgent {
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.clone(), session);
 
-        // TODO: read from goose_session.goose_mode after #7603
-        let goose_mode = self.goose_mode;
+        let goose_mode = loaded_mode;
 
         info!(
             session_id = %session_id,
@@ -1167,15 +1171,13 @@ impl GooseAcpAgent {
             sacp::Error::invalid_params().data(format!("Invalid mode: {}", mode_id))
         })?;
 
-        self.get_session_agent(session_id, None).await?;
-
-        // Reject mode changes until per-session persistence lands (#7603)
-        if mode != self.goose_mode {
-            return Err(sacp::Error::invalid_params().data(format!(
-                "Mode change not supported: session is {}, requested {}",
-                self.goose_mode, mode_id
-            )));
-        }
+        let agent = self.get_session_agent(session_id, None).await?;
+        agent
+            .update_goose_mode(mode, session_id)
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to update mode: {}", e))
+            })?;
 
         Ok(SetSessionModeResponse::new())
     }

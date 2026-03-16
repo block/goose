@@ -8,7 +8,7 @@ use common_tests::{
     run_fs_write_text_file_true, run_initialize_doesnt_hit_provider, run_load_mode, run_load_model,
     run_load_session_mcp, run_mode_set, run_model_list, run_model_set, run_permission_persistence,
     run_prompt_basic, run_prompt_codemode, run_prompt_image, run_prompt_image_attachment,
-    run_prompt_mcp,
+    run_prompt_mcp, run_prompt_skill,
 };
 
 tests_mode_set_error!(ClientToProviderConnection);
@@ -59,7 +59,6 @@ fn test_load_session_mcp() {
 }
 
 #[test]
-#[ignore = "TODO: on_set_mode is a no-op until mode is threaded per-session (#7603)"]
 fn test_mode_set() {
     run_test(async { run_mode_set::<ClientToProviderConnection>().await });
 }
@@ -102,4 +101,9 @@ fn test_prompt_image_attachment() {
 #[test]
 fn test_prompt_mcp() {
     run_test(async { run_prompt_mcp::<ClientToProviderConnection>().await });
+}
+
+#[test]
+fn test_prompt_skill() {
+    run_test(async { run_prompt_skill::<ClientToProviderConnection>().await });
 }

@@ -20,6 +20,7 @@ pub struct ClientToAgentConnection {
     cx: JrConnectionCx<ClientToAgent>,
     // MCP servers from config, consumed by the first new_session call.
     pending_mcp_servers: Vec<McpServer>,
+    cwd: Option<tempfile::TempDir>,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
@@ -222,6 +223,7 @@ impl Connection for ClientToAgentConnection {
         Self {
             cx,
             pending_mcp_servers: config.mcp_servers,
+            cwd: config.cwd,
             updates,
             permission,
             notify,
@@ -233,7 +235,10 @@ impl Connection for ClientToAgentConnection {
     }
 
     async fn new_session(&mut self) -> SessionResult<ClientToAgentSession> {
-        let work_dir = tempfile::tempdir().unwrap();
+        let work_dir = self
+            .cwd
+            .take()
+            .unwrap_or_else(|| tempfile::tempdir().unwrap());
         let mcp_servers = std::mem::take(&mut self.pending_mcp_servers);
         let response = self
             .cx
