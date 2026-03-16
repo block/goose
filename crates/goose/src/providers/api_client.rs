@@ -208,7 +208,10 @@ impl ApiClient {
     }
 
     pub fn with_timeout(host: String, auth: AuthMethod, timeout: Duration) -> Result<Self> {
-        let mut client_builder = Client::builder().timeout(timeout);
+        let mut client_builder = Client::builder()
+            .timeout(timeout)
+            .tcp_keepalive(Duration::from_secs(30))
+            .pool_idle_timeout(timeout);
 
         // Configure TLS if needed
         let tls_config = TlsConfig::from_config()?;
