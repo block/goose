@@ -311,8 +311,6 @@ export default function ExtensionModal({
       } catch (error) {
         console.error('Error during submission:', error);
       }
-    } else {
-    }
   };
 
   // Update title based on current state
