@@ -7,11 +7,13 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use tracing_futures::Instrument;
 use uuid::Uuid;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
+use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
@@ -135,14 +137,14 @@ impl AgentConfig {
 pub struct Agent {
     pub(super) provider: SharedProvider,
     pub config: AgentConfig,
+    pub(super) current_goose_mode: Mutex<GooseMode>,
 
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
-    pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
-    pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
+    pub tool_confirmation_router: ToolConfirmationRouter,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
@@ -202,25 +204,23 @@ where
 
 impl Agent {
     pub fn new() -> Self {
+        let config = Config::global();
         Self::with_config(AgentConfig::new(
             Arc::new(SessionManager::instance()),
             PermissionManager::instance(),
             None,
-            Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            Config::global()
-                .get_goose_disable_session_naming()
-                .unwrap_or(false),
+            config.get_goose_mode().unwrap_or_default(),
+            config.get_goose_disable_session_naming().unwrap_or(false),
             GoosePlatform::GooseCli,
         ))
     }
 
     pub fn with_config(config: AgentConfig) -> Self {
-        // Create channels with buffer size 32 (adjust if needed)
-        let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
         let goose_platform = config.goose_platform.clone();
+        let initial_mode = config.goose_mode;
         let capabilities = match config.goose_platform {
             GoosePlatform::GooseDesktop => ExtensionManagerCapabilities { mcpui: true },
             GoosePlatform::GooseCli => ExtensionManagerCapabilities { mcpui: false },
@@ -230,6 +230,7 @@ impl Agent {
         Self {
             provider: provider.clone(),
             config,
+            current_goose_mode: Mutex::new(initial_mode),
             extension_manager: Arc::new(ExtensionManager::new(
                 provider.clone(),
                 session_manager,
@@ -240,8 +241,7 @@ impl Agent {
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
-            confirmation_tx: confirm_tx,
-            confirmation_rx: Mutex::new(confirm_rx),
+            tool_confirmation_router: ToolConfirmationRouter::new(),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
@@ -353,7 +353,9 @@ impl Agent {
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
-        if self.config.goose_mode == GooseMode::SmartApprove {
+        let goose_mode = *self.current_goose_mode.lock().await;
+
+        if goose_mode == GooseMode::SmartApprove {
             self.tool_inspection_manager.apply_tool_annotations(&tools);
         }
 
@@ -362,7 +364,7 @@ impl Agent {
             tools,
             toolshim_tools,
             system_prompt,
-            goose_mode: self.config.goose_mode,
+            goose_mode,
             tool_call_cut_off: Config::global()
                 .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
                 .unwrap_or(10),
@@ -495,7 +497,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id, session), fields(input, output, session_id = %session.id))]
+    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -861,8 +863,12 @@ impl Agent {
                 return;
             }
         }
-        if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
-            error!("Failed to send confirmation: {}", e);
+        if !self
+            .tool_confirmation_router
+            .deliver(request_id, confirmation)
+            .await
+        {
+            error!("Failed to deliver confirmation");
         }
     }
 
@@ -874,8 +880,8 @@ impl Agent {
     }
 
     #[instrument(
-        skip(self, user_message, session_config),
-        fields(user_message, trace_input)
+        skip(self, user_message, session_config, cancel_token),
+        fields(user_message, trace_input, session.id = %session_config.id)
     )]
     pub async fn reply(
         &self,
@@ -1119,9 +1125,8 @@ impl Agent {
         }
 
         let working_dir = session.working_dir.clone();
-        Ok(Box::pin(async_stream::try_stream! {
-            let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
-            let _stream_guard = reply_stream_span.enter();
+        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", session.id = %session_config.id);
+        let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
                 Config::global()
@@ -1689,7 +1694,8 @@ impl Agent {
             if !last_assistant_text.is_empty() {
                 tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
             }
-        }))
+        }.instrument(reply_stream_span));
+        Ok(inner)
     }
 
     pub async fn extend_system_prompt(&self, key: String, instruction: String) {
@@ -1717,6 +1723,28 @@ impl Agent {
             .apply()
             .await
             .context("Failed to persist provider config to session")
+    }
+
+    pub async fn update_goose_mode(&self, mode: GooseMode, session_id: &str) -> Result<()> {
+        if let Some(provider) = self.provider.lock().await.as_ref() {
+            provider
+                .update_mode(session_id, mode)
+                .await
+                .map_err(|e| anyhow::anyhow!("Provider rejected mode update: {e}"))?;
+        }
+        *self.current_goose_mode.lock().await = mode;
+        self.config
+            .session_manager
+            .clone()
+            .update(session_id)
+            .goose_mode(mode)
+            .apply()
+            .await
+            .context("Failed to persist goose_mode to session")
+    }
+
+    pub async fn goose_mode(&self) -> GooseMode {
+        *self.current_goose_mode.lock().await
     }
 
     /// Restore the provider from session data or fall back to global config
@@ -1750,7 +1778,16 @@ impl Agent {
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 
-        self.update_provider(provider, &session.id).await
+        self.update_provider(provider, &session.id).await?;
+        // Propagate session mode to the new provider
+        if let Some(provider) = self.provider.lock().await.as_ref() {
+            provider
+                .update_mode(&session.id, session.goose_mode)
+                .await
+                .map_err(|e| anyhow!("Failed to propagate mode to provider: {}", e))?;
+        }
+        *self.current_goose_mode.lock().await = session.goose_mode;
+        Ok(())
     }
 
     /// Override the system prompt with a custom template
@@ -1862,12 +1899,14 @@ impl Agent {
         let model_name = &model_config.model_name;
         tracing::debug!("Using model: {}", model_name);
 
+        let goose_mode = *self.current_goose_mode.lock().await;
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
+            .with_goose_mode(goose_mode)
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -2136,7 +2175,7 @@ mod tests {
         *agent.provider.lock().await =
             Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
 
-        // Known request_id → provider handles it, confirmation_tx NOT called
+        // Known request_id → provider handles it, confirmation_router NOT called
         agent
             .handle_confirmation(
                 "known".to_string(),
@@ -2148,7 +2187,12 @@ mod tests {
             .await;
         assert_eq!(provider.handled.lock().await.len(), 1);
 
-        // Unknown request_id → provider returns false, falls through to confirmation_tx
+        // Unknown request_id → provider returns false, falls through to confirmation_router
+        // Register first so deliver() has somewhere to send
+        let rx = agent
+            .tool_confirmation_router
+            .register("unknown".to_string())
+            .await;
         agent
             .handle_confirmation(
                 "unknown".to_string(),
@@ -2159,17 +2203,20 @@ mod tests {
             )
             .await;
         assert_eq!(provider.handled.lock().await.len(), 2);
-        // Verify the fallthrough went to confirmation_rx
-        let mut rx = agent.confirmation_rx.lock().await;
-        let (id, conf) = rx.recv().await.unwrap();
-        assert_eq!(id, "unknown");
+        // Verify the fallthrough went to confirmation_router
+        let conf = rx.await.unwrap();
         assert_eq!(conf.permission, crate::permission::Permission::DenyOnce);
     }
 
     #[tokio::test]
     async fn test_handle_confirmation_noop_provider() {
         let agent = Agent::new();
-        // No provider set → Noop routing, goes straight to confirmation_tx
+        // No provider set → Noop routing, goes straight to confirmation_router
+        // Register first so deliver() has somewhere to send
+        let rx = agent
+            .tool_confirmation_router
+            .register("any".to_string())
+            .await;
         agent
             .handle_confirmation(
                 "any".to_string(),
@@ -2180,9 +2227,8 @@ mod tests {
             )
             .await;
 
-        let mut rx = agent.confirmation_rx.lock().await;
-        let (id, _) = rx.recv().await.unwrap();
-        assert_eq!(id, "any");
+        let conf = rx.await.unwrap();
+        assert_eq!(conf.permission, crate::permission::Permission::AllowOnce);
     }
 
     #[tokio::test]
@@ -2211,7 +2257,10 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.builder().build();
+        let system_prompt = prompt_manager
+            .builder()
+            .with_goose_mode(GooseMode::default())
+            .build();
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

@@ -99,7 +99,9 @@ impl Agent {
                         }
                     });
 
-                let confirmation = Message::assistant()
+                let confirmation_rx = self.tool_confirmation_router.register(request.id.clone()).await;
+
+                let action_required_msg = Message::assistant()
                     .with_action_required(
                         request.id.clone(),
                         tool_call.name.to_string().clone(),
@@ -107,61 +109,58 @@ impl Agent {
                         security_message,
                     )
                     .user_only();
-                yield confirmation;
+                yield action_required_msg;
 
-                let mut rx = self.confirmation_rx.lock().await;
-                while let Some((req_id, confirmation)) = rx.recv().await {
-                    if req_id == request.id {
-                        // Log user decision if this was a security alert
-                        if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
-                            tracing::info!(
-                                monotonic_counter.goose.prompt_injection_user_decisions = 1,
-                                decision = ?confirmation.permission,
-                                finding_id = %finding_id,
-                                tool_request_id = %request.id,
-                                "Prompt injection detection: user decision on command injection finding"
-                            );
-                        }
+                let confirmation = confirmation_rx.await
+                    .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
 
-                        if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                            let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
-                            let mut futures = tool_futures.lock().await;
+                // Log user decision if this was a security alert
+                if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
+                    tracing::info!(
+                        monotonic_counter.goose.prompt_injection_user_decisions = 1,
+                        decision = ?confirmation.permission,
+                        finding_id = %finding_id,
+                        tool_request_id = %request.id,
+                        "Prompt injection detection: user decision on command injection finding"
+                    );
+                }
 
-                            futures.push((req_id, match tool_result {
-                                Ok(result) => tool_stream(
-                                    result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
-                                    result.result,
-                                ),
-                                Err(e) => tool_stream(
-                                    Box::new(stream::empty()),
-                                    futures::future::ready(Err(e)),
-                                ),
-                            }));
+                if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
+                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+                    let mut futures = tool_futures.lock().await;
 
-                            // Update the shared permission manager when user selects "Always Allow"
-                            if confirmation.permission == Permission::AlwaysAllow {
-                                self.tool_inspection_manager
-                                    .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
-                                    .await;
-                            }
-                        } else {
-                            // User declined - update the specific response message for this request
-                            if let Some(response_msg) = request_to_response_map.get(&request.id) {
-                                let mut response = response_msg.lock().await;
-                                *response = response.clone().with_tool_response_with_metadata(
-                                    request.id.clone(),
-                                    Ok(rmcp::model::CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
-                                    request.metadata.as_ref(),
-                                );
-                            }
+                    futures.push((req_id, match tool_result {
+                        Ok(result) => tool_stream(
+                            result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                            result.result,
+                        ),
+                        Err(e) => tool_stream(
+                            Box::new(stream::empty()),
+                            futures::future::ready(Err(e)),
+                        ),
+                    }));
 
-                            if confirmation.permission == Permission::AlwaysDeny {
-                                self.tool_inspection_manager
-                                    .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
-                                    .await;
-                            }
-                        }
-                        break; // Exit the loop once the matching `req_id` is found
+                    // Update the shared permission manager when user selects "Always Allow"
+                    if confirmation.permission == Permission::AlwaysAllow {
+                        self.tool_inspection_manager
+                            .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                            .await;
+                    }
+                } else {
+                    // User declined - update the specific response message for this request
+                    if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                        let mut response = response_msg.lock().await;
+                        *response = response.clone().with_tool_response_with_metadata(
+                            request.id.clone(),
+                            Ok(rmcp::model::CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                            request.metadata.as_ref(),
+                        );
+                    }
+
+                    if confirmation.permission == Permission::AlwaysDeny {
+                        self.tool_inspection_manager
+                            .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
+                            .await;
                     }
                 }
             }

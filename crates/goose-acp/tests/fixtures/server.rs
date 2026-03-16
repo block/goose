@@ -6,10 +6,12 @@ use async_trait::async_trait;
 use goose::config::PermissionManager;
 use goose_test_support::{EnforceSessionId, ExpectedSessionId};
 use sacp::schema::{
-    AuthMethod, ClientCapabilities, ContentBlock, FileSystemCapability, ImageContent,
-    InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest,
-    ProtocolVersion, ReadTextFileRequest, RequestPermissionRequest, SessionNotification,
-    SessionUpdate, StopReason, TextContent, ToolCallStatus, WriteTextFileRequest,
+    AuthMethod, ClientCapabilities, ContentBlock, CreateTerminalRequest, FileSystemCapability,
+    ImageContent, InitializeRequest, KillTerminalCommandRequest, LoadSessionRequest, McpServer,
+    NewSessionRequest, PromptRequest, ProtocolVersion, ReadTextFileRequest, ReleaseTerminalRequest,
+    RequestPermissionRequest, SessionNotification, SessionUpdate, StopReason,
+    TerminalOutputRequest, TextContent, ToolCallStatus, WaitForTerminalExitRequest,
+    WriteTextFileRequest,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -20,6 +22,7 @@ pub struct ClientToAgentConnection {
     cx: JrConnectionCx<ClientToAgent>,
     // MCP servers from config, consumed by the first new_session call.
     pending_mcp_servers: Vec<McpServer>,
+    cwd: Option<tempfile::TempDir>,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
@@ -35,6 +38,7 @@ pub struct ClientToAgentSession {
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
+    _work_dir: tempfile::TempDir,
 }
 
 impl ClientToAgentSession {
@@ -124,6 +128,7 @@ impl Connection for ClientToAgentConnection {
             let permission_clone = permission.clone();
             let read_handler = config.read_text_file;
             let write_handler = config.write_text_file;
+            let terminal = config.terminal;
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
@@ -184,6 +189,68 @@ impl Connection for ClientToAgentConnection {
                         },
                         sacp::on_receive_request!(),
                     )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |req: CreateTerminalRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_create(&req.command)),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |req: WaitForTerminalExitRequest, request_cx, _cx| match t {
+                                Some(ref f) => {
+                                    request_cx.respond(f.on_wait_for_exit(&req.terminal_id))
+                                }
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |req: TerminalOutputRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_output(&req.terminal_id)),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |req: ReleaseTerminalRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_release(&req.terminal_id)),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |req: KillTerminalCommandRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_kill(&req.terminal_id)),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
                     .connect_to(transport)
                     .unwrap()
                     .run_until({
@@ -193,7 +260,11 @@ impl Connection for ClientToAgentConnection {
                             let resp = cx
                                 .send_request(
                                     InitializeRequest::new(ProtocolVersion::LATEST)
-                                        .client_capabilities(ClientCapabilities::new().fs(fs_cap)),
+                                        .client_capabilities(
+                                            ClientCapabilities::new()
+                                                .fs(fs_cap)
+                                                .terminal(terminal.is_some()),
+                                        ),
                                 )
                                 .block_task()
                                 .await
@@ -222,6 +293,7 @@ impl Connection for ClientToAgentConnection {
         Self {
             cx,
             pending_mcp_servers: config.mcp_servers,
+            cwd: config.cwd,
             updates,
             permission,
             notify,
@@ -233,7 +305,10 @@ impl Connection for ClientToAgentConnection {
     }
 
     async fn new_session(&mut self) -> SessionResult<ClientToAgentSession> {
-        let work_dir = tempfile::tempdir().unwrap();
+        let work_dir = self
+            .cwd
+            .take()
+            .unwrap_or_else(|| tempfile::tempdir().unwrap());
         let mcp_servers = std::mem::take(&mut self.pending_mcp_servers);
         let response = self
             .cx
@@ -247,6 +322,7 @@ impl Connection for ClientToAgentConnection {
             updates: self.updates.clone(),
             permission: self.permission.clone(),
             notify: self.notify.clone(),
+            _work_dir: work_dir,
         };
         SessionResult {
             session,
@@ -278,6 +354,7 @@ impl Connection for ClientToAgentConnection {
             updates: self.updates.clone(),
             permission: self.permission.clone(),
             notify: self.notify.clone(),
+            _work_dir: work_dir,
         };
         SessionResult {
             session,
@@ -329,6 +406,17 @@ impl Connection for ClientToAgentConnection {
 impl Session for ClientToAgentSession {
     fn session_id(&self) -> &sacp::schema::SessionId {
         &self.session_id
+    }
+
+    fn notifications(&self) -> Vec<super::Notification> {
+        let updates: Vec<_> = self
+            .updates
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|n| n.update.clone())
+            .collect();
+        super::to_notifications(&updates)
     }
 
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {

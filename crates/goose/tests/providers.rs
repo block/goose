@@ -119,6 +119,7 @@ struct ProviderTestConfig {
     expected_session_id: fn() -> Arc<dyn ExpectedSessionId>,
     test_permissions: bool,
     test_smart_approve: bool,
+    test_mode_update: bool,
     test_context_length_exceeded: bool,
     expect_context_length_exceeded: bool,
     context_length_exceeded: usize,
@@ -141,6 +142,7 @@ impl ProviderTestConfig {
             expected_session_id: || Arc::new(EnforceSessionId::default()),
             test_permissions: true,
             test_smart_approve: true,
+            test_mode_update: true,
             test_context_length_exceeded: true,
             expect_context_length_exceeded: true,
             context_length_exceeded: 600_000,
@@ -188,6 +190,7 @@ impl ProviderTestConfig {
             skip,
             expected_session_id: || Arc::new(IgnoreSessionId),
             test_smart_approve: false,
+            test_mode_update: false,
             test_context_length_exceeded: false,
             ..Self::with_llm_provider(name, model_name, &[])
         }
@@ -246,6 +249,7 @@ impl ProviderFixture {
                 std::env::current_dir()?,
                 "provider_test".to_string(),
                 SessionType::User,
+                GooseMode::default(),
             )
             .await?;
         let session_id = session.id;
@@ -586,6 +590,23 @@ impl ProviderFixture {
         )
         .await
     }
+
+    async fn test_mode_update(&self) -> Result<()> {
+        // Start in Auto mode (fixture default), tools auto-approved.
+        // Switch to Approve mode dynamically via agent.
+        self.agent
+            .update_goose_mode(GooseMode::Approve, &self.session_id)
+            .await?;
+        // Verify tool call now requires permission (ActionRequired).
+        // Cancel prevents the task from completing → tool fails.
+        self.run_permission_test(
+            Permission::Cancel,
+            true,
+            "Use the get_code tool and output only its result.",
+            "mode_update",
+        )
+        .await
+    }
 }
 
 fn load_env() {
@@ -668,6 +689,9 @@ async fn test_provider(config: ProviderTestConfig) -> Result<()> {
                     .test_smart_approve_readonly()
                     .await?;
             }
+        }
+        if config.test_mode_update {
+            run_test(GooseMode::Auto).await?.test_mode_update().await?;
         }
         Ok(())
     }

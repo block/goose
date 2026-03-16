@@ -327,7 +327,8 @@ prepare-release version:
         ui/desktop/pnpm-lock.yaml \
         ui/desktop/openapi.json \
         crates/goose/src/providers/canonical/data/canonical_models.json \
-        crates/goose/src/providers/canonical/data/canonical_mapping_report.json
+        crates/goose/src/providers/canonical/data/canonical_mapping_report.json \
+        crates/goose/src/providers/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:
