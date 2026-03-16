@@ -289,7 +289,77 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         messages_spec.extend(output);
     }
 
+    merge_split_tool_call_messages(&mut messages_spec);
     messages_spec
+}
+
+/// Merge consecutive assistant tool-call messages that share identical
+/// `reasoning_content` back into a single message with multiple `tool_calls`.
+///
+/// The agent splits one assistant response with N tool_calls into N separate
+/// messages, cloning `reasoning_content` onto each. This causes reasoning to
+/// appear N times per turn, growing linearly across turns. This function
+/// reconsolidates them into the standard OpenAI format (one message, multiple
+/// tool_calls, one reasoning_content).
+///
+/// Only merges when `reasoning_content` is present on the messages, so
+/// non-thinking models are unaffected.
+fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
+    let mut i = 0;
+    while i < messages.len() {
+        let has_reasoning = messages[i]
+            .get("reasoning_content")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.is_empty());
+        let has_tool_calls = messages[i]
+            .get("tool_calls")
+            .and_then(|tc| tc.as_array())
+            .is_some_and(|a| !a.is_empty());
+        let is_assistant = messages[i].get("role") == Some(&json!("assistant"));
+
+        if !(is_assistant && has_tool_calls && has_reasoning) {
+            i += 1;
+            continue;
+        }
+
+        let base_reasoning = messages[i].get("reasoning_content").cloned();
+        let mut merge_end = i + 1;
+
+        while merge_end < messages.len() {
+            let next = &messages[merge_end];
+            let next_matches = next.get("role") == Some(&json!("assistant"))
+                && next.get("tool_calls").and_then(|tc| tc.as_array()).is_some_and(|a| !a.is_empty())
+                && next.get("reasoning_content").cloned() == base_reasoning;
+
+            if !next_matches {
+                break;
+            }
+            merge_end += 1;
+        }
+
+        if merge_end == i + 1 {
+            i += 1;
+            continue;
+        }
+
+        // Collect tool_calls from the messages being merged
+        let extra_tool_calls: Vec<Value> = messages[i + 1..merge_end]
+            .iter()
+            .flat_map(|msg| {
+                msg.get("tool_calls")
+                    .and_then(|tc| tc.as_array())
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .collect();
+
+        if let Some(base_tc) = messages[i].get_mut("tool_calls").and_then(|tc| tc.as_array_mut()) {
+            base_tc.extend(extra_tool_calls);
+        }
+
+        messages.drain(i + 1..merge_end);
+        i += 1;
+    }
 }
 
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
