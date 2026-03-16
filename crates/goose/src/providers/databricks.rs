@@ -227,11 +227,8 @@ impl DatabricksProvider {
     }
 
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
+        let token_cache = Arc::new(Mutex::new(Some(api_key.clone())));
         let auth = DatabricksAuth::token(api_key);
-        let token_cache = Arc::new(Mutex::new(match &auth {
-            DatabricksAuth::Token(t) => Some(t.clone()),
-            _ => None,
-        }));
         let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
             auth: auth.clone(),
             token_cache: token_cache.clone(),
