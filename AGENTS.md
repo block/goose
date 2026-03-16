@@ -38,6 +38,11 @@ just run-ui                  # start desktop
 cd ui/desktop && pnpm test   # test UI
 ```
 
+### Git
+```bash
+git commit -s                # required for DCO sign-off
+```
+
 ## Structure
 ```
 crates/
