@@ -10,6 +10,8 @@ const TELEGRAM_API_BASE: &str = "https://api.telegram.org";
 const POLL_TIMEOUT_SECS: u64 = 30;
 const MAX_MESSAGE_LENGTH: usize = 4096;
 const RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(5);
+/// Maximum voice file size we'll attempt to download (20 MB, Telegram's bot API limit).
+const MAX_VOICE_FILE_SIZE: i64 = 20 * 1024 * 1024;
 
 pub struct TelegramGateway {
     bot_token: String,
@@ -28,6 +30,37 @@ struct TelegramMessage {
     from: Option<TelegramUser>,
     chat: TelegramChat,
     text: Option<String>,
+    voice: Option<TelegramVoice>,
+    audio: Option<TelegramAudio>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TelegramVoice {
+    file_id: String,
+    #[allow(dead_code)]
+    duration: Option<i32>,
+    #[allow(dead_code)]
+    mime_type: Option<String>,
+    file_size: Option<i64>,
+}
+
+/// Audio files sent as documents (not inline voice notes).
+#[derive(Debug, Deserialize)]
+struct TelegramAudio {
+    file_id: String,
+    #[allow(dead_code)]
+    duration: Option<i32>,
+    #[allow(dead_code)]
+    mime_type: Option<String>,
+    file_size: Option<i64>,
+}
+
+/// Response from the Telegram `getFile` API.
+#[derive(Debug, Deserialize)]
+struct TelegramFile {
+    #[allow(dead_code)]
+    file_id: String,
+    file_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -146,6 +179,85 @@ impl TelegramGateway {
         Ok(())
     }
 
+    /// Download a file from Telegram by its `file_id`.
+    ///
+    /// This is a two-step process:
+    /// 1. Call `getFile` to obtain the server-side `file_path`.
+    /// 2. Fetch the raw bytes from `https://api.telegram.org/file/bot<TOKEN>/<file_path>`.
+    async fn download_file(&self, file_id: &str) -> anyhow::Result<Vec<u8>> {
+        // Step 1 – resolve file_id → file_path
+        let resp: TelegramResponse<TelegramFile> = self
+            .client
+            .post(self.api_url("getFile"))
+            .json(&serde_json::json!({ "file_id": file_id }))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let tg_file = resp.result.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Telegram getFile error: {}",
+                resp.description.unwrap_or_default()
+            )
+        })?;
+
+        let file_path = tg_file
+            .file_path
+            .ok_or_else(|| anyhow::anyhow!("Telegram getFile returned no file_path"))?;
+
+        // Step 2 – download raw bytes
+        let download_url = format!(
+            "{}/file/bot{}/{}",
+            TELEGRAM_API_BASE, self.bot_token, file_path
+        );
+        let bytes = self.client.get(&download_url).send().await?.bytes().await?;
+        Ok(bytes.to_vec())
+    }
+
+    /// Save voice bytes to a temporary file and return the path.
+    ///
+    /// Files are stored under `<tmp>/goose_voice/voice_<uuid>.ogg` so Goose
+    /// can access them via its shell tools.
+    fn save_voice_file(bytes: &[u8]) -> anyhow::Result<std::path::PathBuf> {
+        let dir = std::env::temp_dir().join("goose_voice");
+        std::fs::create_dir_all(&dir)?;
+
+        let filename = format!("voice_{}.ogg", uuid::Uuid::new_v4());
+        let path = dir.join(filename);
+        std::fs::write(&path, bytes)?;
+        Ok(path)
+    }
+
+    /// Build the text prompt that tells Goose about a voice message file.
+    fn voice_prompt(path: &std::path::Path, duration: Option<i32>) -> String {
+        let duration_hint = duration
+            .map(|d| format!(" (duration: {d}s)"))
+            .unwrap_or_default();
+        format!(
+            "The user sent a voice message{duration_hint}. \
+             The audio file is saved at: {}\n\n\
+             Please transcribe this audio file using available command-line tools \
+             (e.g. whisper, ffmpeg, sox, or any STT utility you can find on this system) \
+             and then respond to what the user said. \
+             The file is in OGG/Opus format. \
+             If no transcription tool is available, let the user know and ask them to type their message instead.",
+            path.display()
+        )
+    }
+
+    /// Extract the `file_id`, `file_size`, and `duration` from either a voice
+    /// note or an audio attachment.  Returns `None` when neither is present.
+    fn voice_info(msg: &TelegramMessage) -> Option<(&str, Option<i64>, Option<i32>)> {
+        if let Some(ref v) = msg.voice {
+            return Some((&v.file_id, v.file_size, v.duration));
+        }
+        if let Some(ref a) = msg.audio {
+            return Some((&a.file_id, a.file_size, a.duration));
+        }
+        None
+    }
+
     fn to_platform_user(tg_msg: &TelegramMessage) -> PlatformUser {
         PlatformUser {
             platform: "telegram".to_string(),
@@ -192,9 +304,48 @@ impl Gateway for TelegramGateway {
                                 let Some(tg_msg) = update.message else {
                                     continue;
                                 };
-                                let text = match tg_msg.text {
-                                    Some(ref t) => t.clone(),
-                                    None => continue,
+
+                                // Determine the text to send to the handler.
+                                // Voice/audio messages are downloaded, saved to
+                                // disk, and converted into a prompt that asks
+                                // Goose to transcribe the file using CLI tools.
+                                let text = if let Some((file_id, file_size, duration)) =
+                                    Self::voice_info(&tg_msg)
+                                {
+                                    // Reject files that exceed the Telegram bot
+                                    // download limit.
+                                    if file_size.unwrap_or(0) > MAX_VOICE_FILE_SIZE {
+                                        tracing::warn!(
+                                            file_size,
+                                            "voice file exceeds size limit, skipping"
+                                        );
+                                        continue;
+                                    }
+
+                                    match self.download_file(file_id).await {
+                                        Ok(bytes) => match Self::save_voice_file(&bytes) {
+                                            Ok(path) => Self::voice_prompt(&path, duration),
+                                            Err(e) => {
+                                                tracing::error!(
+                                                    error = %e,
+                                                    "failed to save voice file"
+                                                );
+                                                continue;
+                                            }
+                                        },
+                                        Err(e) => {
+                                            tracing::error!(
+                                                error = %e,
+                                                "failed to download voice file from Telegram"
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                } else if let Some(ref t) = tg_msg.text {
+                                    t.clone()
+                                } else {
+                                    // Neither text nor voice — skip.
+                                    continue;
                                 };
 
                                 let user = Self::to_platform_user(&tg_msg);
@@ -382,6 +533,127 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].chars().count(), 1024);
         assert_eq!(chunks[1].chars().count(), 1);
+    }
+
+    #[test]
+    fn voice_info_from_voice_message() {
+        let msg = TelegramMessage {
+            message_id: 1,
+            from: None,
+            chat: TelegramChat {
+                id: 123,
+                chat_type: "private".into(),
+            },
+            text: None,
+            voice: Some(TelegramVoice {
+                file_id: "voice_file_123".into(),
+                duration: Some(5),
+                mime_type: Some("audio/ogg".into()),
+                file_size: Some(10000),
+            }),
+            audio: None,
+        };
+        let info = TelegramGateway::voice_info(&msg);
+        assert!(info.is_some());
+        let (file_id, file_size, duration) = info.unwrap();
+        assert_eq!(file_id, "voice_file_123");
+        assert_eq!(file_size, Some(10000));
+        assert_eq!(duration, Some(5));
+    }
+
+    #[test]
+    fn voice_info_from_audio_message() {
+        let msg = TelegramMessage {
+            message_id: 1,
+            from: None,
+            chat: TelegramChat {
+                id: 123,
+                chat_type: "private".into(),
+            },
+            text: None,
+            voice: None,
+            audio: Some(TelegramAudio {
+                file_id: "audio_file_456".into(),
+                duration: Some(120),
+                mime_type: Some("audio/mpeg".into()),
+                file_size: Some(500_000),
+            }),
+        };
+        let info = TelegramGateway::voice_info(&msg);
+        assert!(info.is_some());
+        let (file_id, _, duration) = info.unwrap();
+        assert_eq!(file_id, "audio_file_456");
+        assert_eq!(duration, Some(120));
+    }
+
+    #[test]
+    fn voice_info_none_for_text() {
+        let msg = TelegramMessage {
+            message_id: 1,
+            from: None,
+            chat: TelegramChat {
+                id: 123,
+                chat_type: "private".into(),
+            },
+            text: Some("hello".into()),
+            voice: None,
+            audio: None,
+        };
+        assert!(TelegramGateway::voice_info(&msg).is_none());
+    }
+
+    #[test]
+    fn voice_prefers_voice_over_audio() {
+        let msg = TelegramMessage {
+            message_id: 1,
+            from: None,
+            chat: TelegramChat {
+                id: 123,
+                chat_type: "private".into(),
+            },
+            text: None,
+            voice: Some(TelegramVoice {
+                file_id: "voice_wins".into(),
+                duration: Some(3),
+                mime_type: None,
+                file_size: None,
+            }),
+            audio: Some(TelegramAudio {
+                file_id: "audio_loses".into(),
+                duration: Some(60),
+                mime_type: None,
+                file_size: None,
+            }),
+        };
+        let (file_id, _, _) = TelegramGateway::voice_info(&msg).unwrap();
+        assert_eq!(file_id, "voice_wins");
+    }
+
+    #[test]
+    fn voice_prompt_includes_path_and_duration() {
+        let path = std::path::PathBuf::from("/tmp/goose_voice/voice_test.ogg");
+        let prompt = TelegramGateway::voice_prompt(&path, Some(10));
+        assert!(prompt.contains("/tmp/goose_voice/voice_test.ogg"));
+        assert!(prompt.contains("(duration: 10s)"));
+        assert!(prompt.contains("transcribe"));
+    }
+
+    #[test]
+    fn voice_prompt_without_duration() {
+        let path = std::path::PathBuf::from("/tmp/goose_voice/voice_test.ogg");
+        let prompt = TelegramGateway::voice_prompt(&path, None);
+        assert!(!prompt.contains("duration"));
+        assert!(prompt.contains("/tmp/goose_voice/voice_test.ogg"));
+    }
+
+    #[test]
+    fn save_voice_file_creates_file() {
+        let bytes = b"fake ogg data";
+        let path = TelegramGateway::save_voice_file(bytes).unwrap();
+        assert!(path.exists());
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        // Cleanup
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
