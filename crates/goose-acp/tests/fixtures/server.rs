@@ -204,8 +204,10 @@ impl Connection for ClientToAgentConnection {
                     .on_receive_request(
                         {
                             let t = terminal.clone();
-                            async move |_req: WaitForTerminalExitRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.on_wait_for_exit()),
+                            async move |req: WaitForTerminalExitRequest, request_cx, _cx| match t {
+                                Some(ref f) => {
+                                    request_cx.respond(f.on_wait_for_exit(&req.terminal_id))
+                                }
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -216,8 +218,8 @@ impl Connection for ClientToAgentConnection {
                     .on_receive_request(
                         {
                             let t = terminal.clone();
-                            async move |_req: TerminalOutputRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.on_output()),
+                            async move |req: TerminalOutputRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_output(&req.terminal_id)),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -228,8 +230,8 @@ impl Connection for ClientToAgentConnection {
                     .on_receive_request(
                         {
                             let t = terminal.clone();
-                            async move |_req: ReleaseTerminalRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.on_release()),
+                            async move |req: ReleaseTerminalRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_release(&req.terminal_id)),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -240,8 +242,8 @@ impl Connection for ClientToAgentConnection {
                     .on_receive_request(
                         {
                             let t = terminal.clone();
-                            async move |_req: KillTerminalCommandRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.on_kill()),
+                            async move |req: KillTerminalCommandRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.on_kill(&req.terminal_id)),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }

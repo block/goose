@@ -342,11 +342,23 @@ impl FsFixture {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum TerminalCall {
-    Create(String, String), // (command, terminal_id)
-    WaitForExit(u32),       // exit_code
-    Output(String, u32),    // (text, exit_code)
-    Release,
-    Kill,
+    Create(String, String),      // (command, terminal_id)
+    WaitForExit(String, u32),    // (terminal_id, exit_code)
+    Output(String, String, u32), // (terminal_id, text, exit_code)
+    Release(String),             // terminal_id
+    Kill(String),                // terminal_id
+}
+
+impl TerminalCall {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Create(..) => "create",
+            Self::WaitForExit(..) => "wait_for_exit",
+            Self::Output(..) => "output",
+            Self::Release(_) => "release",
+            Self::Kill(_) => "kill",
+        }
+    }
 }
 
 pub struct TerminalFixture {
@@ -363,21 +375,27 @@ impl TerminalFixture {
     }
 
     fn pop(&self, expected: &str) -> Option<TerminalCall> {
-        let mut queue = self.queue.lock().unwrap();
-        match queue.pop_front() {
-            Some(call) => Some(call),
-            None => {
-                self.errors
-                    .lock()
-                    .unwrap()
-                    .push(format!("unexpected {expected}: queue empty"));
-                None
-            }
+        let Some(call) = self.queue.lock().unwrap().pop_front() else {
+            self.record_error(format!("unexpected {expected}: queue empty"));
+            return None;
+        };
+        if call.name() != expected {
+            self.record_error(format!("expected {expected}, got {}", call.name()));
+            return None;
         }
+        Some(call)
     }
 
     fn record_error(&self, msg: String) {
         self.errors.lock().unwrap().push(msg);
+    }
+
+    fn validate_terminal_id(&self, method: &str, expected: &str, actual: &TerminalId) {
+        if expected != actual.0.as_ref() {
+            self.record_error(format!(
+                "{method}: expected terminal_id {expected}, got {actual}"
+            ));
+        }
     }
 
     pub fn on_create(&self, command: &str) -> CreateTerminalResponse {
@@ -393,16 +411,18 @@ impl TerminalFixture {
         }
     }
 
-    pub fn on_wait_for_exit(&self) -> WaitForTerminalExitResponse {
-        if let Some(TerminalCall::WaitForExit(exit_code)) = self.pop("wait_for_exit") {
+    pub fn on_wait_for_exit(&self, terminal_id: &TerminalId) -> WaitForTerminalExitResponse {
+        if let Some(TerminalCall::WaitForExit(expected_id, exit_code)) = self.pop("wait_for_exit") {
+            self.validate_terminal_id("wait_for_exit", &expected_id, terminal_id);
             WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(exit_code))
         } else {
             WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(1))
         }
     }
 
-    pub fn on_output(&self) -> TerminalOutputResponse {
-        if let Some(TerminalCall::Output(text, exit_code)) = self.pop("output") {
+    pub fn on_output(&self, terminal_id: &TerminalId) -> TerminalOutputResponse {
+        if let Some(TerminalCall::Output(expected_id, text, exit_code)) = self.pop("output") {
+            self.validate_terminal_id("output", &expected_id, terminal_id);
             TerminalOutputResponse::new(text, false)
                 .exit_status(TerminalExitStatus::new().exit_code(exit_code))
         } else {
@@ -410,16 +430,16 @@ impl TerminalFixture {
         }
     }
 
-    pub fn on_release(&self) -> ReleaseTerminalResponse {
-        if let Some(TerminalCall::Release) = self.pop("release") {
-            // expected
+    pub fn on_release(&self, terminal_id: &TerminalId) -> ReleaseTerminalResponse {
+        if let Some(TerminalCall::Release(expected_id)) = self.pop("release") {
+            self.validate_terminal_id("release", &expected_id, terminal_id);
         }
         ReleaseTerminalResponse::new()
     }
 
-    pub fn on_kill(&self) -> KillTerminalCommandResponse {
-        if let Some(TerminalCall::Kill) = self.pop("kill") {
-            // expected
+    pub fn on_kill(&self, terminal_id: &TerminalId) -> KillTerminalCommandResponse {
+        if let Some(TerminalCall::Kill(expected_id)) = self.pop("kill") {
+            self.validate_terminal_id("kill", &expected_id, terminal_id);
         }
         KillTerminalCommandResponse::new()
     }

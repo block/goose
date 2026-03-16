@@ -914,11 +914,12 @@ pub async fn run_shell_terminal_true<C: Connection>() {
 
     let command = format!("echo {SHELL_TEST_CONTENT}");
     let output_text = format!("{SHELL_TEST_CONTENT}\n");
+    let tid = String::from("term-1");
     let terminal = TerminalFixture::new(vec![
-        TerminalCall::Create(command.clone(), "term-1".into()),
-        TerminalCall::WaitForExit(0),
-        TerminalCall::Output(output_text.clone(), 0),
-        TerminalCall::Release,
+        TerminalCall::Create(command.clone(), tid.clone()),
+        TerminalCall::WaitForExit(tid.clone(), 0),
+        TerminalCall::Output(tid.clone(), output_text.clone(), 0),
+        TerminalCall::Release(tid),
     ]);
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
