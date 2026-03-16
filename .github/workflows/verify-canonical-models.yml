@@ -1,0 +1,43 @@
+name: Verify Canonical Models
+
+on:
+  push:
+    branches:
+      - lifei/verify-nanogpt-model-json
+
+jobs:
+  verify-canonical-models:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+      TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: Run build_canonical_models
+        run: cargo run --bin build_canonical_models
+
+      - name: Show NanoGPT model count
+        run: |
+          python3 -c "
+          import json
+          data = json.load(open('crates/goose/src/providers/canonical/data/canonical_models.json'))
+          nanogpt = [m for m in data if m['id'].startswith('nano-gpt/')]
+          print(f'Total models: {len(data)}')
+          print(f'NanoGPT models: {len(nanogpt)}')
+          "
+
+      - name: Show diff
+        run: git diff --stat
