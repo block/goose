@@ -2,43 +2,97 @@
 
 goose is open source!
 
-We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
+We welcome pull requests for general contributions! In these days of AI it is easier than ever to contribute, but
+there are some pitfalls to avoid. This document describes the best practices for new and experienced contributors
+to get work landed as smoothly as possible.
 
 > [!TIP]
 > Beyond code, check out [other ways to contribute](#other-ways-to-contribute)
 
---- 
-
-## 🤖 Quick Responsible AI Tips
-
-If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:  
-
-**✅ Good Uses** 
-
-- Boilerplate code and common patterns  
-- Test generation  
-- Docs and comments  
-- Refactoring for clarity  
-- Utility functions/helpers  
-
-**❌ Avoid AI For** 
-
-- Security-critical logic  
-- Complex business rules you don’t understand  
-- Large architectural or schema changes  
-
-**Quality Checklist**  
-
-- Understand every line of code you submit  
-- All tests pass locally  
-- Code follows Goose’s patterns  
-- Document your changes  
-- Ask for review if security or core code is involved  
-
-👉 Full guide here: [Responsible AI-Assisted Coding Guide](./HOWTOAI.md)
-
 ---
 
+## Getting Started
+
+Your first contribution to goose should probably be a small bug fix. The goose maintainers have a lot of incoming
+PRs to review, and the reputation of the author is an important signal. While contributions to goose are generally
+of remarkably high quality, we do get our fair share of AI slob. When a first-time contributor opens a
+three-thousand-line PR touching twenty files, we have no easy way to tell whether it’s thoughtful work or
+blindly AI-generated without doing a deep dive.
+
+So please start small to establish trust and work your way up from there. A small bug fix or performance improvement
+is a good start. Linking your fix to an existing issue shows that you are responding to a community need.
+
+If your first PR gets closed with a link to this section, please don’t take it personally. 
+It just means the change was too large for a first contribution. Start with something smaller and try again.
+
+## Discussions, Issues and PRs
+
+### Issues
+
+If you spot a bug or have a concrete proposal for a feature, please open an issue. This shows the community and
+the maintainers the direction of your thinking.
+
+For bugs, describe how to reproduce the problem as clearly as possible. If the issue involves an interaction
+with an LLM, include a diagnostics report if possible.
+
+### Discussions
+
+If you have an idea but are not yet sure how it should work, open a discussion instead. Discussions are a good
+place to explore design questions, alternatives, and whether something fits the goals of the project.
+
+If a change is large or touches multiple parts of the codebase, please start with a discussion before opening a PR.
+This helps us align on direction before you spend time implementing something.
+
+### Pull Requests
+
+Open a PR when you have a concrete change ready. For first contributions we strongly recommend starting small
+(see [Getting Started](#getting-started)). Don't open many PRs in quick succession. Submit them in order of 
+your preference and wait for them to land before opening more. 
+
+If the code is still evolving but useful for discussion, open the PR in draft mode. Draft PRs are for discussion, 
+not just unfinished work. If it’s not ready yet, keep the branch local.
+
+### Feature Requests
+
+Before proposing a new feature, consider whether it is something broadly useful or mainly a personal preference.
+Adding features is easy; maintaining them is a long-term cost, so we may decline features that add complexity
+without clear general benefit.
+
+
+## AI Code Reviews
+
+We use codex as an AI code reviewer. AI code reviewing has come a long way and more often than not points
+out real issues. So we expect you to address all of them by either fixing the code or adding a one-line
+answer as to why this is not an issue or not worth fixing.
+
+If not, we might close the PR and/or reply with a link to this section. Once you address the comments, you
+can always reopen.
+
+## Quick Responsible AI Tips
+
+There's no need to tell us you used AI in your work. You are contributing to an agent, it would be odd if 
+you had not. Our general thinking is, use AI anyway you want, but until the robot revolution comes, you
+are responsible for the final code. Before submitting a PR for review, make sure you have reviewed it yourself.
+We'll close any vibe coded submissions that obviously skip this step.
+
+You can use whatever agent and whatever methodology you like as long as you stick to that principle. We hope
+you like goose of course and use that. One thing to watch out for is LLM eagerness. They like to please and
+are in a hurry. 
+
+   * **Think first**. Agents tend to jump straight to code writing. Explain the architecture you want first to 
+      avoid this behavior, based on your own understanding of the code, or have the agent explore the code first and
+      suggest approaches. If the first implementation doesn't look quite right, just start over and use
+      what you learned to do better next time.
+   * **Spot the laziness**. LLMs will make their job easy. They'll write trivial tests, make types wide and
+      optional so the compiler doesn't complain, catch exceptions and just log instead of handling errors
+      and copy local patterns whether appropriate or not. Push back!
+   * **Spot the uncertainty**. As much as the bots declare I see the issue now clearly, they often do not. Call
+      them on it, if you see the agent flailing. Another telltale sign is if the agent starts listing the
+      number of ways it fixed an issue or starts writing overly defensive code.
+   * **Spot the bloat**. Agents like to insert redundant comments or worse, commenting on the change at hand,
+     not the resulting code. They create loads of tests that don't really test anything and if they do,
+     test the implementation, not the intention. They also like to log anything, just in case.
+   
 ## Prerequisites
 
 goose includes Rust binaries alongside an electron app for the GUI.
@@ -107,12 +161,6 @@ cargo clippy --all-targets -- -D warnings # run the linter
 ```
 
 ### Node
-
-> [!NOTE]
-> This project uses **pnpm** (not npm). If you previously had `node_modules` installed via npm, remove them first:
-> ```bash
-> rm -rf ui/desktop/node_modules
-> ```
 
 To run the app:
 
@@ -206,7 +254,8 @@ git push origin my-feature-branch
 
 ## Keeping Your Fork Up-to-Date
 
-To ensure a smooth integration of your contributions, it's important that your fork is kept up-to-date with the main repository. This helps avoid conflicts and allows us to merge your pull requests more quickly. Here’s how you can sync your fork:
+To ensure a smooth integration of your contributions, it's important that your fork is kept up-to-date with the main 
+repository. This helps avoid conflicts and allows us to merge your pull requests more quickly. Here’s how you can sync your fork:
 
 ### Syncing Your Fork with the Main Repository
 
