@@ -226,6 +226,13 @@ pub(super) fn validate_and_compute_context(
             )));
         }
     }
+    if prompt_token_count >= effective_ctx {
+        return Err(ProviderError::ContextLengthExceeded(format!(
+            "Prompt ({} tokens) exceeds context limit ({} tokens). \
+             Try reducing conversation length.",
+            prompt_token_count, effective_ctx,
+        )));
+    }
     Ok((prompt_token_count, effective_ctx))
 }
 

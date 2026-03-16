@@ -39,7 +39,6 @@ import {
   McpAppToolCancelled,
   McpAppToolInput,
   McpAppToolInputPartial,
-  McpAppToolResult,
   DimensionLayout,
   OnDisplayModeChange,
   SamplingCreateMessageParams,
@@ -142,7 +141,7 @@ interface McpAppRendererProps {
   sessionId?: string | null;
   toolInput?: McpAppToolInput;
   toolInputPartial?: McpAppToolInputPartial;
-  toolResult?: McpAppToolResult;
+  toolResult?: CallToolResult;
   toolCancelled?: McpAppToolCancelled;
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
@@ -505,14 +504,13 @@ export default function McpAppRenderer({
         },
       });
 
-      // rmcp serializes Content with a `type` discriminator via #[serde(tag = "type")].
-      // Our generated TS types don't reflect this, but the wire format matches CallToolResult.content.
       return {
         content: (response.data?.content || []) as unknown as CallToolResult['content'],
-        isError: response.data?.is_error || false,
-        structuredContent: response.data?.structured_content as
+        isError: response.data?.isError || false,
+        structuredContent: response.data?.structuredContent as
           | { [key: string]: unknown }
           | undefined,
+        _meta: response.data?._meta as { [key: string]: unknown } | undefined,
       };
     },
     [sessionId, extensionName]
@@ -551,9 +549,27 @@ export default function McpAppRenderer({
     []
   );
 
+  // Track when we *return* to inline from fullscreen/pip so we can briefly
+  // suppress stale size reports. The iframe body reflows from 100vh to natural
+  // height, which triggers a cascade of intermediate size-changed notifications
+  // that cause a visible "slow shrink" animation.
+  const inlineTransitionRef = useRef(false);
+  const wasInlineRef = useRef(isInline);
+  useEffect(() => {
+    const wasInline = wasInlineRef.current;
+    wasInlineRef.current = isInline;
+    // Only suppress when transitioning *back* to inline, not on initial mount.
+    if (!isInline || wasInline) return;
+    inlineTransitionRef.current = true;
+    const timer = setTimeout(() => {
+      inlineTransitionRef.current = false;
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isInline]);
+
   const handleSizeChanged = useCallback(
     ({ height }: McpUiSizeChangedNotification['params']) => {
-      if (height !== undefined && height > 0 && isInline) {
+      if (height !== undefined && height > 0 && isInline && !inlineTransitionRef.current) {
         setIframeHeight(height);
       }
     },
@@ -685,17 +701,6 @@ export default function McpAppRenderer({
     effectiveDisplayModes,
   ]);
 
-  const appToolResult = useMemo((): CallToolResult | undefined => {
-    if (!toolResult) return undefined;
-    // rmcp serializes Content with a `type` discriminator via #[serde(tag = "type")].
-    // Our generated TS types don't reflect this, but the wire format matches CallToolResult.content.
-    return {
-      content: toolResult.content as unknown as CallToolResult['content'],
-      structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
-      _meta: toolResult._meta,
-    };
-  }, [toolResult]);
-
   const isToolCancelled = !!toolCancelled;
   const isError = state.status === 'error';
   const isReady = state.status === 'ready';
@@ -736,7 +741,7 @@ export default function McpAppRenderer({
         toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
         toolCancelled={isToolCancelled}
         hostContext={hostContext}
-        toolResult={appToolResult}
+        toolResult={toolResult}
         onOpenLink={handleOpenLink}
         onMessage={handleMessage}
         onCallTool={handleCallTool}
