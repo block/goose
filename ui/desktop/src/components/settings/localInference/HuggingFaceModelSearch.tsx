@@ -8,6 +8,8 @@ import {
   type HfModelInfo,
   type HfQuantVariant,
 } from '../../../api';
+import { toastError } from '../../../toasts';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return 'unknown';
@@ -178,14 +180,18 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     setDownloading((prev) => new Set(prev).add(key));
     try {
       const response = await downloadHfModel({
-        body: { spec },
+        body: { spec }, throwOnError: true
       });
       if (response.data) {
         onDownloadStarted(response.data);
         setDirectSpec('');
       }
     } catch (e) {
-      console.error('Direct download failed:', e);
+      toastError({
+        title: 'Direct download failed',
+        msg: 'Failed to start the download. Check the spec: ' + errorMessage(e),
+      });
+
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);
