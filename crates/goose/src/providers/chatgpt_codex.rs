@@ -47,6 +47,7 @@ const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
+    "gpt-5.3-codex",
     "gpt-5.2-codex",
     "gpt-5.1-codex",
     "gpt-5.1-codex-mini",
@@ -205,6 +206,8 @@ fn create_codex_request(
             .collect();
 
         payload_obj.insert("tools".to_string(), json!(tools_spec));
+        payload_obj.insert("tool_choice".to_string(), json!("auto"));
+        payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
     }
 
     if let Some(temp) = model_config.temperature {

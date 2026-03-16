@@ -492,6 +492,8 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
+export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
+
 /**
  * A single downloadable GGUF file (used internally and for downloads).
  */
@@ -1200,6 +1202,7 @@ export type Session = {
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
+    goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
     message_count: number;
@@ -1546,6 +1549,11 @@ export type UpdateSessionNameRequest = {
      * Updated name for the session (max 200 characters)
      */
     name: string;
+};
+
+export type UpdateSessionRequest = {
+    goose_mode?: string | null;
+    session_id: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -2075,6 +2083,31 @@ export type UpdateAgentProviderErrors = {
 export type UpdateAgentProviderResponses = {
     /**
      * Provider updated successfully
+     */
+    200: unknown;
+};
+
+export type UpdateSessionData = {
+    body: UpdateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_session';
+};
+
+export type UpdateSessionErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionResponses = {
+    /**
+     * Session updated
      */
     200: unknown;
 };

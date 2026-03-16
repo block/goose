@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::agents::tool_execution::ToolCallContext;
 use async_trait::async_trait;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use rmcp::model::{
@@ -98,10 +99,9 @@ impl McpClientTrait for SummarizeClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if name != "summarize" {
@@ -111,7 +111,7 @@ impl McpClientTrait for SummarizeClient {
             ))]));
         }
 
-        let Some(working_dir) = working_dir else {
+        let Some(working_dir) = ctx.working_dir_str() else {
             return Ok(CallToolResult::error(vec![Content::text(
                 "Error: working_dir is required for summarize",
             )]));
@@ -148,6 +148,7 @@ impl McpClientTrait for SummarizeClient {
             }
         };
 
+        let session_id = &ctx.session_id;
         match execute_summarize(provider, session_id, params, &working_dir).await {
             Ok(result) => Ok(result),
             Err(msg) => Ok(CallToolResult::error(vec![Content::text(format!(

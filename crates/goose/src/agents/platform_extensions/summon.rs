@@ -9,9 +9,10 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -1242,11 +1243,14 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to build task config: {}", e))?;
 
+        // Subagents must use Auto until get_agent_messages forwards
+        // ActionRequired messages to the parent. Until then, any mode
+        // that requires approval will hang on the subagent's confirmation_rx.
         let agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
-            crate::config::GooseMode::Auto,
+            GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
         );
@@ -1258,6 +1262,7 @@ impl SummonClient {
                 working_dir,
                 "Delegated task".to_string(),
                 SessionType::SubAgent,
+                GooseMode::Auto,
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
@@ -1703,11 +1708,14 @@ impl SummonClient {
 
         let description = truncate(&Self::get_task_description(&params), 40);
 
+        // Subagents must use Auto until get_agent_messages forwards
+        // ActionRequired messages to the parent. Until then, any mode
+        // that requires approval will hang on the subagent's confirmation_rx.
         let agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
-            crate::config::GooseMode::Auto,
+            GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
         );
@@ -1715,7 +1723,12 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(working_dir, description.clone(), SessionType::SubAgent)
+            .create_session(
+                working_dir,
+                description.clone(),
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 
@@ -1815,12 +1828,12 @@ impl McpClientTrait for SummonClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let content = match name {
             "load" => self.handle_load(session_id, arguments).await,
             "delegate" => {
@@ -2252,8 +2265,9 @@ You review code."#;
         let names: Vec<_> = result.tools.iter().map(|t| t.name.as_ref()).collect();
         assert!(names.contains(&"load") && names.contains(&"delegate"));
 
+        let ctx = ToolCallContext::new("test".to_string(), None, None);
         let result = client
-            .call_tool("test", "unknown", None, None, CancellationToken::new())
+            .call_tool(&ctx, "unknown", None, CancellationToken::new())
             .await
             .unwrap();
         assert!(result.is_error.unwrap_or(false));

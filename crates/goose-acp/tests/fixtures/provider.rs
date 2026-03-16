@@ -1,20 +1,25 @@
 use super::{
     spawn_acp_server_in_process, Connection, OpenAiFixture, PermissionDecision, Session,
-    TestConnectionConfig, TestOutput,
+    SessionResult, TestConnectionConfig, TestOutput,
 };
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose::acp::{AcpProvider, AcpProviderConfig, PermissionMapping};
+use goose::config::goose_mode::GooseMode;
 use goose::config::PermissionManager;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
-use goose_test_support::TEST_MODEL;
-use sacp::schema::{AuthMethod, McpServer, SessionModelState, ToolCallStatus};
+use goose::providers::errors::ProviderError;
+use goose_test_support::{ExpectedSessionId, IgnoreSessionId, TEST_MODEL};
+use sacp::schema::{AuthMethod, McpServer, SessionUpdate, ToolCallStatus};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+pub type NotificationSink = Arc<std::sync::Mutex<Vec<SessionUpdate>>>;
 
 #[allow(dead_code)]
 pub struct ClientToProviderConnection {
@@ -22,22 +27,25 @@ pub struct ClientToProviderConnection {
     permission_manager: Arc<PermissionManager>,
     auth_methods: Vec<AuthMethod>,
     session_counter: usize,
+    notification_sink: NotificationSink,
     _openai: OpenAiFixture,
     _temp_dir: Option<tempfile::TempDir>,
+    _cwd: Option<tempfile::TempDir>,
 }
 
 #[allow(dead_code)]
 pub struct ClientToProviderSession {
     provider: Arc<Mutex<AcpProvider>>,
-    acp_session_id: sacp::schema::SessionId,
-    session_id: String,
+    session_id: sacp::schema::SessionId,
+    notification_sink: NotificationSink,
 }
 
 impl ClientToProviderSession {
     #[allow(dead_code)]
     async fn send_message(&mut self, message: Message, decision: PermissionDecision) -> TestOutput {
-        let session_id = self.session_id.clone();
+        let session_id = self.session_id.0.clone();
         let provider = self.provider.lock().await;
+        self.notification_sink.lock().unwrap().clear();
         let model_config = provider.get_model_config();
         let mut stream = provider
             .stream(&model_config, &session_id, "", &[message], &[])
@@ -101,6 +109,10 @@ impl ClientToProviderSession {
 impl Connection for ClientToProviderConnection {
     type Session = ClientToProviderSession;
 
+    fn expected_session_id() -> Arc<dyn ExpectedSessionId> {
+        Arc::new(IgnoreSessionId)
+    }
+
     async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self {
         let (data_root, temp_dir) = match config.data_root.as_os_str().is_empty() {
             true => {
@@ -122,15 +134,26 @@ impl Connection for ClientToProviderConnection {
         )
         .await;
 
+        let cwd_path = config
+            .cwd
+            .as_ref()
+            .map(|td| td.path().to_path_buf())
+            .unwrap_or(data_root);
+
+        let notification_sink: NotificationSink = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink_clone = notification_sink.clone();
         let provider_config = AcpProviderConfig {
             command: "unused".into(),
             args: vec![],
             env: vec![],
             env_remove: vec![],
-            work_dir: data_root,
+            work_dir: cwd_path,
             mcp_servers,
             session_mode_id: None,
             permission_mapping: PermissionMapping::default(),
+            notification_callback: Some(Arc::new(move |n| {
+                sink_clone.lock().unwrap().push(n.update.clone());
+            })),
         };
 
         let provider = AcpProvider::connect_with_transport(
@@ -151,12 +174,14 @@ impl Connection for ClientToProviderConnection {
             permission_manager,
             auth_methods,
             session_counter: 0,
+            notification_sink,
             _openai: openai,
             _temp_dir: temp_dir,
+            _cwd: config.cwd,
         }
     }
 
-    async fn new_session(&mut self) -> (ClientToProviderSession, Option<SessionModelState>) {
+    async fn new_session(&mut self) -> SessionResult<ClientToProviderSession> {
         // Tests like run_model_set call new_session() multiple times on the same
         // connection, so each needs a distinct key to avoid returning a cached session.
         self.session_counter += 1;
@@ -171,18 +196,50 @@ impl Connection for ClientToProviderConnection {
 
         let session = ClientToProviderSession {
             provider: Arc::clone(&self.provider),
-            acp_session_id: response.session_id,
-            session_id: goose_id,
+            session_id: sacp::schema::SessionId::new(goose_id),
+            notification_sink: self.notification_sink.clone(),
         };
-        (session, response.models)
+        SessionResult {
+            session,
+            models: response.models,
+            modes: response.modes,
+        }
     }
 
     async fn load_session(
         &mut self,
         _session_id: &str,
         _mcp_servers: Vec<McpServer>,
-    ) -> (ClientToProviderSession, Option<SessionModelState>) {
+    ) -> SessionResult<ClientToProviderSession> {
         unimplemented!("TODO: implement load_session in ACP provider")
+    }
+
+    async fn set_mode(&self, session_id: &str, mode_id: &str) -> anyhow::Result<()> {
+        let mode = GooseMode::from_str(mode_id).map_err(|_| {
+            sacp::Error::invalid_params().data(format!("Invalid mode: {}", mode_id))
+        })?;
+        self.provider
+            .lock()
+            .await
+            .update_mode(session_id, mode)
+            .await
+            .map_err(|e| match e {
+                ProviderError::RequestFailed(msg) => sacp::Error::invalid_params().data(msg),
+                other => sacp::Error::internal_error().data(other.to_string()),
+            })?;
+        Ok(())
+    }
+
+    async fn set_model(&self, session_id: &str, model_id: &str) -> anyhow::Result<()> {
+        let provider = self.provider.lock().await;
+        let response = provider.ensure_session(Some(session_id)).await?;
+        provider
+            .send_untyped(
+                "session/set_model",
+                serde_json::json!({ "sessionId": response.session_id, "modelId": model_id }),
+            )
+            .await?;
+        Ok(())
     }
 
     fn auth_methods(&self) -> &[AuthMethod] {
@@ -201,7 +258,12 @@ impl Connection for ClientToProviderConnection {
 #[async_trait]
 impl Session for ClientToProviderSession {
     fn session_id(&self) -> &sacp::schema::SessionId {
-        &self.acp_session_id
+        &self.session_id
+    }
+
+    fn notifications(&self) -> Vec<super::Notification> {
+        let updates = self.notification_sink.lock().unwrap();
+        super::to_notifications(&updates)
     }
 
     async fn prompt(&mut self, prompt: &str, decision: PermissionDecision) -> TestOutput {
@@ -220,14 +282,5 @@ impl Session for ClientToProviderSession {
             .with_image(image_b64, mime_type)
             .with_text(prompt);
         self.send_message(message, decision).await
-    }
-
-    async fn set_model(&self, model_id: &str) {
-        self.provider
-            .lock()
-            .await
-            .set_model(&self.acp_session_id, model_id)
-            .await
-            .unwrap();
     }
 }
