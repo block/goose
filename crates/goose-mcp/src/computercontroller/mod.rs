@@ -1,6 +1,6 @@
-use crate::subprocess::SubprocessExt;
 #[cfg(not(windows))]
 use crate::subprocess::user_login_path;
+use crate::subprocess::SubprocessExt;
 #[cfg(target_os = "macos")]
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -875,17 +875,14 @@ impl ComputerControllerServer {
                 if let Some(path) = user_login_path() {
                     cmd.env("PATH", path);
                 }
-                cmd.set_no_window()
-                    .output()
-                    .await
-                    .map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to run script: {}", e),
-                            None,
-                        )
-                    })?
-            },
+                cmd.set_no_window().output().await.map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to run script: {}", e),
+                        None,
+                    )
+                })?
+            }
         };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -1078,14 +1075,13 @@ impl ComputerControllerServer {
         if let Some(path) = user_login_path() {
             cmd.env("PATH", path);
         }
-        let output = cmd.output()
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to run peekaboo: {}", e),
-                    None,
-                )
-            })?;
+        let output = cmd.output().map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to run peekaboo: {}", e),
+                None,
+            )
+        })?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         if !output.status.success() {
