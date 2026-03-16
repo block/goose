@@ -181,6 +181,8 @@ impl Agent {
         let provider = self.provider().await?;
         let model_config = provider.get_model_config();
 
+        let goose_mode = *self.current_goose_mode.lock().await;
+
         let prompt_manager = self.prompt_manager.lock().await;
         let mut system_prompt = prompt_manager
             .builder()
@@ -189,6 +191,7 @@ impl Agent {
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
+            .with_goose_mode(goose_mode)
             .build();
 
         // Handle toolshim if enabled
@@ -205,8 +208,12 @@ impl Agent {
         Ok((tools, toolshim_tools, system_prompt))
     }
 
-    /// Stream a response from the LLM provider.
-    /// Handles toolshim transformations if needed
+    // Don't add gen_ai.request.model here — provider.get_model_config()
+    // returns the wrong model for LeadWorkerProvider.
+    #[tracing::instrument(
+        skip(provider, session_id, system_prompt, messages, tools, toolshim_tools),
+        fields(session.id = %session_id)
+    )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
         session_id: &str,
@@ -431,6 +438,7 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::GooseMode;
     use crate::conversation::message::Message;
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderUsage, Usage};
@@ -479,6 +487,7 @@ mod tests {
                 std::env::current_dir().unwrap(),
                 "test-prepare-tools".to_string(),
                 SessionType::Hidden,
+                GooseMode::default(),
             )
             .await?;
 

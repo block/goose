@@ -6,13 +6,19 @@ pub const TEST_MODEL: &str = "gpt-5-nano";
 const NOT_YET_SET: &str = "session-id-not-yet-set";
 pub(crate) const SESSION_ID_HEADER: &str = "agent-session-id";
 
+pub trait ExpectedSessionId: Send + Sync {
+    fn set(&self, id: &str);
+    fn validate(&self, actual: Option<&str>) -> Result<(), String>;
+    fn assert_matches(&self, actual: &str);
+}
+
 #[derive(Clone)]
-pub struct ExpectedSessionId {
+pub struct EnforceSessionId {
     value: Arc<Mutex<String>>,
     errors: Arc<Mutex<Vec<String>>>,
 }
 
-impl Default for ExpectedSessionId {
+impl Default for EnforceSessionId {
     fn default() -> Self {
         Self {
             value: Arc::new(Mutex::new(NOT_YET_SET.to_string())),
@@ -21,12 +27,12 @@ impl Default for ExpectedSessionId {
     }
 }
 
-impl ExpectedSessionId {
-    pub fn set(&self, id: impl Into<String>) {
+impl ExpectedSessionId for EnforceSessionId {
+    fn set(&self, id: &str) {
         *self.value.lock().unwrap() = id.into();
     }
 
-    pub fn validate(&self, actual: Option<&str>) -> Result<(), String> {
+    fn validate(&self, actual: Option<&str>) -> Result<(), String> {
         let expected = self.value.lock().unwrap();
         let err = match actual {
             Some(act) if act == *expected => None,
@@ -44,7 +50,7 @@ impl ExpectedSessionId {
         }
     }
 
-    pub fn assert_matches(&self, actual: &str) {
+    fn assert_matches(&self, actual: &str) {
         let result = self.validate(Some(actual));
         assert!(result.is_ok(), "{}", result.unwrap_err());
         let errors = self.errors.lock().unwrap();
@@ -54,4 +60,15 @@ impl ExpectedSessionId {
             *errors
         );
     }
+}
+
+#[derive(Clone)]
+pub struct IgnoreSessionId;
+
+impl ExpectedSessionId for IgnoreSessionId {
+    fn set(&self, _id: &str) {}
+    fn validate(&self, _actual: Option<&str>) -> Result<(), String> {
+        Ok(())
+    }
+    fn assert_matches(&self, _actual: &str) {}
 }

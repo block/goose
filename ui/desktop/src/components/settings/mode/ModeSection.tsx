@@ -2,14 +2,18 @@ import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
+import { updateSession } from '../../../api';
 
-export const ModeSection = () => {
+export const ModeSection = ({ sessionId }: { sessionId?: string }) => {
   const [currentMode, setCurrentMode] = useState('auto');
   const [maxTurns, setMaxTurns] = useState<number>(1000);
-  const { read, upsert } = useConfig();
+  const { config, read, upsert } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
     try {
+      if (sessionId) {
+        await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
+      }
       await upsert('GOOSE_MODE', newMode, false);
       setCurrentMode(newMode);
     } catch (error) {
@@ -18,16 +22,12 @@ export const ModeSection = () => {
     }
   };
 
-  const fetchCurrentMode = useCallback(async () => {
-    try {
-      const mode = (await read('GOOSE_MODE', false)) as string;
-      if (mode) {
-        setCurrentMode(mode);
-      }
-    } catch (error) {
-      console.error('Error fetching current mode:', error);
+  useEffect(() => {
+    const mode = config.GOOSE_MODE as string | undefined;
+    if (mode) {
+      setCurrentMode(mode);
     }
-  }, [read]);
+  }, [config.GOOSE_MODE]);
 
   const fetchMaxTurns = useCallback(async () => {
     try {
@@ -50,9 +50,8 @@ export const ModeSection = () => {
   };
 
   useEffect(() => {
-    fetchCurrentMode();
     fetchMaxTurns();
-  }, [fetchCurrentMode, fetchMaxTurns]);
+  }, [fetchMaxTurns]);
 
   return (
     <div className="space-y-1">

@@ -684,23 +684,13 @@ mod tests {
         let provider = MockProvider::new(response_message, 1);
         let basic_conversation = vec![
             Message::user().with_text("read hello.txt"),
-            Message::assistant().with_tool_request(
-                "tool_0",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "read_file".into(),
-                    arguments: None,
-                }),
-            ),
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
             Message::user().with_tool_response(
                 "tool_0",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![RawContent::text("hello, world").no_annotation()],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("hello, world").no_annotation(),
+                ])),
             ),
         ];
 
@@ -727,21 +717,13 @@ mod tests {
         for i in 0..10 {
             messages.push(Message::assistant().with_tool_request(
                 format!("tool_{}", i),
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "read_file".into(),
-                    arguments: None,
-                }),
+                Ok(CallToolRequestParams::new("read_file")),
             ));
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![RawContent::text(format!("response{}", i)).no_annotation()],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text(format!("response{}", i)).no_annotation(),
+                ])),
             ));
         }
 

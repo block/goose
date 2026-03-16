@@ -59,11 +59,11 @@ fn create_sample_weather_tool() -> Tool {
             }
         }),
     )
-    .annotate(ToolAnnotations {
-        title: Some("Get weather".to_string()),
-        read_only_hint: Some(true),
-        destructive_hint: Some(false),
-        idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
+    .annotate(
+        ToolAnnotations::with_title("Get weather".to_string())
+            .read_only(true)
+            .destructive(false)
+            .idempotent(false)
+            .open_world(false),
+    )
 }

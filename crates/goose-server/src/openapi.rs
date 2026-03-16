@@ -11,13 +11,13 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderTyp
 use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
-    RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
-    TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
+    RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
+    ResourceContents, Role, TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
 use utoipa::{OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
-    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
+    DeclarativeProviderConfig, EnvVarConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
@@ -36,7 +36,7 @@ use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
 
 macro_rules! derive_utoipa {
     ($inner_type:ident as $schema_name:ident) => {
-        struct $schema_name {}
+        pub struct $schema_name {}
 
         impl<'__s> ToSchema<'__s> for $schema_name {
             fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
@@ -45,6 +45,23 @@ macro_rules! derive_utoipa {
                 let schema = generator.into_root_schema_for::<$inner_type>();
                 let schema = convert_schemars_to_utoipa(schema);
                 (stringify!($inner_type), schema)
+            }
+
+            fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
+                Vec::new()
+            }
+        }
+    };
+    ($inner_type:ident as $schema_name:ident => $output_name:expr) => {
+        pub struct $schema_name {}
+
+        impl<'__s> ToSchema<'__s> for $schema_name {
+            fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+                let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
+                let generator = settings.into_generator();
+                let schema = generator.into_root_schema_for::<$inner_type>();
+                let schema = convert_schemars_to_utoipa(schema);
+                ($output_name, schema)
             }
 
             fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
@@ -89,7 +106,26 @@ fn convert_json_object_to_utoipa(
         return RefOr::T(Schema::OneOf(builder.build()));
     }
 
+    // Handle the discriminated union pattern from schemars: an object with
+    // `type`, `properties`, `required` AND `allOf` (e.g. each variant of a
+    // `#[serde(tag = "type")]` enum). We merge the inline object (which carries
+    // the discriminator property) with the `allOf` refs into a single `allOf`.
     if let Some(Value::Array(all_of)) = obj.get("allOf") {
+        let has_inline_properties = obj.contains_key("properties") || obj.contains_key("type");
+        if has_inline_properties {
+            let mut builder = AllOfBuilder::new();
+            // Build an object schema from the inline properties/required
+            let mut obj_without_allof = obj.clone();
+            obj_without_allof.remove("allOf");
+            builder = builder.item(convert_json_object_to_utoipa(&obj_without_allof));
+            for item in all_of {
+                if let Ok(schema) = rmcp::schemars::Schema::try_from(item.clone()) {
+                    builder = builder.item(convert_schemars_to_utoipa(schema));
+                }
+            }
+            return RefOr::T(Schema::AllOf(builder.build()));
+        }
+
         let mut builder = AllOfBuilder::new();
         for item in all_of {
             if let Ok(schema) = rmcp::schemars::Schema::try_from(item.clone()) {
@@ -215,6 +251,22 @@ fn convert_typed_schema(
         "string" => {
             let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::String);
 
+            if let Some(Value::Array(enum_values)) = obj.get("enum") {
+                let values: Vec<serde_json::Value> = enum_values
+                    .iter()
+                    .filter_map(|v| {
+                        if let Value::String(s) = v {
+                            Some(Value::String(s.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if !values.is_empty() {
+                    object_builder = object_builder.enum_values(Some(values));
+                }
+            }
+
             if let Some(Value::Number(min_length)) = obj.get("minLength") {
                 if let Some(min) = min_length.as_u64() {
                     object_builder = object_builder.min_length(Some(min as usize));
@@ -310,6 +362,7 @@ fn convert_typed_schema(
 
 derive_utoipa!(Role as RoleSchema);
 derive_utoipa!(Content as ContentSchema);
+derive_utoipa!(RawContent as ContentBlockSchema => "ContentBlock");
 derive_utoipa!(EmbeddedResource as EmbeddedResourceSchema);
 derive_utoipa!(ImageContent as ImageContentSchema);
 derive_utoipa!(TextContent as TextContentSchema);
@@ -379,6 +432,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::agent_add_extension,
         super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
+        super::routes::agent::update_session,
         super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
@@ -509,6 +563,7 @@ derive_utoipa!(Icon as IconSchema);
         LoadedProvider,
         ProviderEngine,
         DeclarativeProviderConfig,
+        EnvVarConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,
@@ -525,6 +580,7 @@ derive_utoipa!(Icon as IconSchema);
         ModelInfo,
         ModelConfig,
         Session,
+        goose::config::goose_mode::GooseMode,
         SessionInsights,
         SessionType,
         SystemInfo,
@@ -571,11 +627,13 @@ derive_utoipa!(Icon as IconSchema);
         goose::agents::types::RetryConfig,
         goose::agents::types::SuccessCheck,
         super::routes::agent::UpdateProviderRequest,
+        super::routes::agent::UpdateSessionRequest,
         super::routes::agent::GetToolsQuery,
         super::routes::agent::ReadResourceRequest,
         super::routes::agent::ReadResourceResponse,
         super::routes::agent::CallToolRequest,
         super::routes::agent::CallToolResponse,
+        ContentBlockSchema,
         super::routes::agent::ListAppsRequest,
         super::routes::agent::ListAppsResponse,
         super::routes::agent::ImportAppRequest,

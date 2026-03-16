@@ -165,13 +165,18 @@ impl SecurityManager {
                             tool_request_id: tool_request.id.clone(),
                         });
                     }
-                } else {
+                } else if analysis_result.scanned {
+                    let tool_call_json =
+                        serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
+
                     tracing::info!(
+                        monotonic_counter.goose.prompt_injection_tool_call_passed = 1,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
+                        tool_call_json = %tool_call_json,
                         confidence = analysis_result.confidence,
                         explanation = %sanitized_explanation,
-                        "✅ Current tool call passed security analysis"
+                        "Current tool call passed security analysis"
                     );
                 }
             }

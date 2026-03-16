@@ -28,7 +28,7 @@ export const LocalInferenceSettings = () => {
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
-  const { currentModel, currentProvider, setProviderAndModel } = useModelAndProvider();
+  const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
@@ -67,12 +67,12 @@ export const LocalInferenceSettings = () => {
   }, [models]);
 
   const selectModel = async (modelId: string) => {
-    setProviderAndModel('local', modelId);
     try {
       await setConfigProvider({
         body: { provider: 'local', model: modelId },
         throwOnError: true,
       });
+      await refreshCurrentModelAndProvider();
     } catch (error) {
       console.error('Failed to select model:', error);
     }

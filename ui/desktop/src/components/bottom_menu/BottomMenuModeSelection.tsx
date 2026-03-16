@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tornado } from 'lucide-react';
 import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
 import { useConfig } from '../ConfigContext';
@@ -9,25 +9,30 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { trackModeChanged } from '../../utils/analytics';
+import { getSession, updateSession } from '../../api';
 
-export const BottomMenuModeSelection = () => {
+export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | null }) => {
   const [gooseMode, setGooseMode] = useState('auto');
-  const { read, upsert } = useConfig();
+  const { config } = useConfig();
 
-  const fetchCurrentMode = useCallback(async () => {
-    try {
-      const mode = (await read('GOOSE_MODE', false)) as string;
+  useEffect(() => {
+    let cancelled = false;
+    if (sessionId) {
+      getSession({ path: { session_id: sessionId } }).then((res) => {
+        if (!cancelled && res.data?.goose_mode) {
+          setGooseMode(res.data.goose_mode);
+        }
+      });
+    } else {
+      const mode = config.GOOSE_MODE as string | undefined;
       if (mode) {
         setGooseMode(mode);
       }
-    } catch (error) {
-      console.error('Error fetching current mode:', error);
     }
-  }, [read]);
-
-  useEffect(() => {
-    fetchCurrentMode();
-  }, [fetchCurrentMode]);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, config.GOOSE_MODE]);
 
   const handleModeChange = async (newMode: string) => {
     if (gooseMode === newMode) {
@@ -35,7 +40,9 @@ export const BottomMenuModeSelection = () => {
     }
 
     try {
-      await upsert('GOOSE_MODE', newMode, false);
+      if (sessionId) {
+        await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
+      }
       setGooseMode(newMode);
       trackModeChanged(gooseMode, newMode);
     } catch (error) {

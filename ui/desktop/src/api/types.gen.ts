@@ -54,9 +54,9 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
 };
 
 export type ChatRequest = {
@@ -128,7 +128,29 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
 export type Conversation = Array<Message>;
 
@@ -178,7 +200,9 @@ export type DeclarativeProviderConfig = {
     catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
+    dynamic_models?: boolean | null;
     engine: ProviderEngine;
+    env_vars?: Array<EnvVarConfig> | null;
     headers?: {
         [key: string]: string;
     } | null;
@@ -296,6 +320,14 @@ export type EncodeRecipeRequest = {
 
 export type EncodeRecipeResponse = {
     deeplink: string;
+};
+
+export type EnvVarConfig = {
+    default?: string | null;
+    description?: string | null;
+    name: string;
+    required?: boolean;
+    secret?: boolean;
 };
 
 export type Envs = {
@@ -459,6 +491,8 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServers?: Array<string>;
     prd?: string | null;
 };
+
+export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
 
 /**
  * A single downloadable GGUF file (used internally and for downloads).
@@ -1102,7 +1136,7 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
@@ -1168,6 +1202,7 @@ export type Session = {
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
+    goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
     message_count: number;
@@ -1307,7 +1342,7 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;
@@ -1514,6 +1549,11 @@ export type UpdateSessionNameRequest = {
      * Updated name for the session (max 200 characters)
      */
     name: string;
+};
+
+export type UpdateSessionRequest = {
+    goose_mode?: string | null;
+    session_id: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -2043,6 +2083,31 @@ export type UpdateAgentProviderErrors = {
 export type UpdateAgentProviderResponses = {
     /**
      * Provider updated successfully
+     */
+    200: unknown;
+};
+
+export type UpdateSessionData = {
+    body: UpdateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_session';
+};
+
+export type UpdateSessionErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionResponses = {
+    /**
+     * Session updated
      */
     200: unknown;
 };
