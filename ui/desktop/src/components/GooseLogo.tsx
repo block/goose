@@ -1,5 +1,6 @@
-import { Goose, Rain } from './icons/Goose';
+import { Rain } from './icons/Goose';
 import { cn } from '../utils';
+import { useGlyphPack } from '../contexts/GlyphContext';
 
 interface GooseLogoProps {
   className?: string;
@@ -12,6 +13,8 @@ export default function GooseLogo({
   size = 'default',
   hover = true,
 }: GooseLogoProps) {
+  const { pack } = useGlyphPack();
+
   const sizes = {
     default: {
       frame: 'w-16 h-16',
@@ -43,7 +46,7 @@ export default function GooseLogo({
           hover && 'opacity-0 group-hover/with-hover:opacity-100'
         )}
       />
-      <Goose className={cn(currentSize.goose, 'absolute left-0 bottom-0 z-2')} />
+      <pack.StaticGlyph className={cn(currentSize.goose, 'absolute left-0 bottom-0 z-2')} />
     </div>
   );
 }
