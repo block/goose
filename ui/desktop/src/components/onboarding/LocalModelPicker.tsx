@@ -296,7 +296,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
             <button
               onClick={handlePrimaryAction}
               disabled={!selectedModelId}
-              className="w-full px-4 py-2.5 bg-background-default border rounded-lg text-text-default text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-background-default/80"
+              className="w-full px-4 py-2.5 bg-blue-600 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 cursor-pointer"
             >
               {selectedModel?.status.state === 'Downloaded'
                 ? `Use ${selectedModel.id}`
@@ -308,7 +308,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
             {onBack && (
               <button
                 onClick={onBack}
-                className="w-full px-4 py-2 text-text-muted text-sm hover:text-text-default transition-colors"
+                className="w-full px-4 py-2.5 text-blue-600 dark:text-blue-400 text-sm font-medium border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
               >
                 Back
               </button>
@@ -374,10 +374,13 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
           </div>
         )}
       </div>
-      <p className="text-xs text-text-muted mt-3 px-1 leading-relaxed">
-        Local models keep everything on your machine for full privacy. Performance and context
-        window size may vary compared to cloud providers depending on your hardware and model size.
-      </p>
+      <div className="rounded-lg bg-yellow-50/50 dark:bg-yellow-900/10 p-3 mt-3">
+        <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed">
+          Local models keep everything on your machine for full privacy. Performance and context
+          window size may vary compared to cloud providers depending on your hardware and model
+          size.
+        </p>
+      </div>
     </div>
   );
 }
