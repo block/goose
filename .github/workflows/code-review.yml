@@ -102,6 +102,7 @@ jobs:
           GOOSE_PROVIDER: anthropic-oidc-proxy
           GOOSE_MODEL: ${{ vars.GOOSE_CODE_REVIEW_MODEL || 'claude-opus-4-6' }}
           OIDC_PROXY_URL: ${{ github.event.inputs.oidc_proxy_url || vars.OIDC_PROXY_URL }}
+          REVIEW_INSTRUCTIONS: ${{ github.event.inputs.review_instructions || 'Review the changes for correctness' }}
         run: |
           ANTHROPIC_OIDC_PROXY_API_KEY=$(cat /tmp/code-review/oidc-token.txt)
           export ANTHROPIC_OIDC_PROXY_API_KEY
@@ -114,7 +115,7 @@ jobs:
           goose run \
             --recipe .github/recipes/code-review.yaml \
             --params pr_directory=/tmp/code-review \
-            --params instructions="${{ github.event.inputs.review_instructions || 'Review the changes for correctness' }}"
+            --params instructions="$REVIEW_INSTRUCTIONS"
 
       - name: Upload review output
         if: always()

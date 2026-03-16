@@ -83,6 +83,7 @@ export default {
 
     const headers = new Headers(request.headers);
     headers.delete("Authorization");
+    headers.delete("x-api-key");
 
     const authHeader = env.UPSTREAM_AUTH_HEADER || "Authorization";
     const authPrefix = env.UPSTREAM_AUTH_PREFIX;
@@ -105,9 +106,7 @@ export default {
     // which would cause clients to try decompressing already-decompressed data.
     respHeaders.delete("Content-Encoding");
     respHeaders.delete("Content-Length");
-    if (env.CORS_ORIGIN) {
-      respHeaders.set("Access-Control-Allow-Origin", env.CORS_ORIGIN);
-    }
+    respHeaders.set("Access-Control-Allow-Origin", env.CORS_ORIGIN || "*");
 
     return new Response(response.body, {
       status: response.status,
