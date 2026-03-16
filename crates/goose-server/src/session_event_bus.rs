@@ -78,13 +78,10 @@ impl SessionEventBus {
             // Clamp to the actual buffer max so a stale Last-Event-ID
             // (e.g. from before a server restart) doesn't suppress live events.
             let buf_max = buf.back().map(|e| e.seq).unwrap_or(0);
-            if let Some(last_id) = last_event_id {
-                let events: Vec<_> = buf.iter().filter(|e| e.seq > last_id).cloned().collect();
-                let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id.min(buf_max));
-                (events, max_seq)
-            } else {
-                (Vec::new(), 0)
-            }
+            let last_id = last_event_id.unwrap_or(0);
+            let events: Vec<_> = buf.iter().filter(|e| e.seq > last_id).cloned().collect();
+            let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id.min(buf_max));
+            (events, max_seq)
         };
 
         let rx = self.tx.subscribe();
@@ -165,6 +162,35 @@ mod tests {
         let (replay, replay_max_seq, _rx) = bus.subscribe(Some(2)).await;
         assert_eq!(replay.len(), 1);
         assert_eq!(replay[0].seq, 3);
+        assert_eq!(replay_max_seq, 3);
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_without_last_event_id_replays_all() {
+        let bus = SessionEventBus::new();
+
+        bus.publish(None, MessageEvent::Ping).await;
+        bus.publish(None, MessageEvent::Ping).await;
+
+        // First connect (no Last-Event-ID) should replay all buffered events
+        let (replay, replay_max_seq, _rx) = bus.subscribe(None).await;
+        assert_eq!(replay.len(), 2);
+        assert_eq!(replay_max_seq, 2);
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_with_stale_last_event_id() {
+        let bus = SessionEventBus::new();
+
+        // Buffer has seq 1..3, but client sends Last-Event-ID: 9999
+        bus.publish(None, MessageEvent::Ping).await;
+        bus.publish(None, MessageEvent::Ping).await;
+        bus.publish(None, MessageEvent::Ping).await;
+
+        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(9999)).await;
+        // No replay events (all are below 9999)
+        assert_eq!(replay.len(), 0);
+        // replay_max_seq should be clamped to buf_max (3), not 9999
         assert_eq!(replay_max_seq, 3);
     }
 

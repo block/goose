@@ -118,6 +118,12 @@ impl AppState {
             .clone()
     }
 
+    /// Remove the event bus for a session, freeing its replay buffer.
+    pub async fn remove_event_bus(&self, session_id: &str) {
+        let mut buses = self.session_buses.lock().await;
+        buses.remove(session_id);
+    }
+
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {
         self.agent_manager.get_or_create_agent(session_id).await
     }

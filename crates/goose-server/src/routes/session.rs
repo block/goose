@@ -296,6 +296,9 @@ async fn delete_session(
             }
         })?;
 
+    // Clean up the event bus to free its replay buffer
+    state.remove_event_bus(&session_id).await;
+
     Ok(StatusCode::OK)
 }
 
