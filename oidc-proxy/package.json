@@ -1,0 +1,18 @@
+{
+  "name": "oidc-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "issuer": "node dev/issuer.js",
+    "mint-token": "node dev/mint-token.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0",
+    "vitest": "^3.0.0",
+    "@cloudflare/vitest-pool-workers": "^0.8.0"
+  }
+}
