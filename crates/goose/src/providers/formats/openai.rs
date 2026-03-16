@@ -544,11 +544,12 @@ where
         let mut accumulated_reasoning_content = String::new();
 
         'outer: while let Some(response) = stream.next().await {
-            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                break 'outer;
-            }
             let response_str = response?;
             let line = strip_data_prefix(&response_str);
+
+            if line.is_some_and(|l| l == "[DONE]") {
+                break 'outer;
+            }
 
             if line.is_none() || line.is_some_and(|l| l.is_empty()) {
                 continue
@@ -588,11 +589,11 @@ where
                     let mut done = false;
                     while !done {
                         if let Some(response_chunk) = stream.next().await {
-                            if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                                break 'outer;
-                            }
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
+                                if line == "[DONE]" {
+                                    break 'outer;
+                                }
 
                                 let tool_chunk: StreamingChunk = serde_json::from_str(line)
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
