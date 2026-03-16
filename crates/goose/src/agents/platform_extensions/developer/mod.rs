@@ -63,11 +63,9 @@ fn developer_instructions() -> &'static str {
 
 impl DeveloperClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult::new(
-            ServerCapabilities::builder().enable_tools().build(),
-        )
-        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Developer"))
-        .with_instructions(developer_instructions());
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Developer"))
+            .with_instructions(developer_instructions());
 
         Ok(Self {
             info,
