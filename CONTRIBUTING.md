@@ -16,7 +16,7 @@ to get work landed as smoothly as possible.
 Your first contribution to goose should probably be a small bug fix. The goose maintainers have a lot of incoming
 PRs to review, and the reputation of the author is an important signal. While contributions to goose are generally
 of remarkably high quality, we do get our fair share of AI slop. When a first-time contributor opens a
-three-thousand-line PR touching twenty files, we have no easy way to tell whether it’s thoughtful work or
+3k line PR touching 20 files, we have no easy way to tell whether it’s thoughtful work or
 blindly AI-generated without doing a deep dive.
 
 So please start small to establish trust and work your way up from there. A small bug fix or performance improvement
