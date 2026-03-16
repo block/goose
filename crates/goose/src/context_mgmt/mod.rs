@@ -435,13 +435,16 @@ pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: f64)
     (3 * effective_limit / 20_000).clamp(10, 500)
 }
 
-/// Find tool call IDs to summarize. Returns the oldest unsummarized tool call IDs
-/// that exceed the cutoff, up to `batch_size` at once. Tool calls from the current
-/// turn (identified by `protect_last_n`) are never summarized.
+const SUMMARIZATION_BATCH_SIZE: usize = 10;
+
+/// Find tool call IDs to summarize. Waits until unsummarized tool calls exceed
+/// `cutoff + SUMMARIZATION_BATCH_SIZE`, then returns the oldest `SUMMARIZATION_BATCH_SIZE`
+/// eligible IDs. This avoids constant small summarizations and instead does one
+/// meaningful batch, which is better for KV cache stability. Tool calls from the
+/// current turn (identified by `protect_last_n`) are never summarized.
 pub fn tool_ids_to_summarize(
     conversation: &Conversation,
     cutoff: usize,
-    batch_size: usize,
     protect_last_n: usize,
 ) -> Vec<String> {
     let messages = conversation.messages();
@@ -460,19 +463,16 @@ pub fn tool_ids_to_summarize(
         }
     }
 
-    if tool_call_ids.len() <= cutoff {
-        return Vec::new();
-    }
-
     // Never summarize the last N tool calls (current turn)
     let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
-    if eligible <= cutoff {
+    if eligible <= cutoff + SUMMARIZATION_BATCH_SIZE {
         return Vec::new();
     }
 
-    let excess = eligible - cutoff;
-    let to_summarize = excess.min(batch_size);
-    tool_call_ids.into_iter().take(to_summarize).collect()
+    tool_call_ids
+        .into_iter()
+        .take(SUMMARIZATION_BATCH_SIZE)
+        .collect()
 }
 
 pub async fn summarize_tool_call(
@@ -546,8 +546,7 @@ pub fn maybe_summarize_tool_pairs(
             return Vec::new();
         }
 
-        let batch_size = (cutoff / 5).max(3);
-        let tool_ids = tool_ids_to_summarize(&conversation, cutoff, batch_size, protect_last_n);
+        let tool_ids = tool_ids_to_summarize(&conversation, cutoff, protect_last_n);
         let mut results = Vec::new();
         for tool_id in tool_ids {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
@@ -582,23 +581,15 @@ mod tests {
             Message::assistant()
                 .with_tool_request(
                     call_id,
-                    Ok(CallToolRequestParams {
-                        task: None,
-                        name: tool_name.to_string().into(),
-                        arguments: None,
-                        meta: None,
-                    }),
+                    Ok(CallToolRequestParams::new(tool_name.to_string())),
                 )
                 .with_id(call_id),
             Message::user()
                 .with_tool_response(
                     call_id,
-                    Ok(rmcp::model::CallToolResult {
-                        content: vec![RawContent::text(response_text).no_annotation()],
-                        structured_content: None,
-                        is_error: Some(false),
-                        meta: None,
-                    }),
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        RawContent::text(response_text).no_annotation(),
+                    ])),
                 )
                 .with_id(response_id),
         ]
@@ -743,37 +734,25 @@ mod tests {
             .with_text("Tool call to list files and response with file listing");
         let provider = MockProvider::new(summary_response, 1000);
 
+        // Build a conversation with 13 tool pairs (cutoff=2, need >2+10=12 to trigger)
         let mut messages = vec![Message::user().with_text("list files").with_id("msg_1")];
-        messages.extend(create_tool_pair(
-            "call1",
-            "response1",
-            "shell",
-            "file1.txt\nfile2.txt",
-        ));
-        messages.extend(create_tool_pair(
-            "call2",
-            "response2",
-            "read_file",
-            "content of file1",
-        ));
-        messages.extend(create_tool_pair(
-            "call3",
-            "response3",
-            "read_file",
-            "content of file2",
-        ));
+        for i in 1..=13 {
+            messages.extend(create_tool_pair(
+                &format!("call{}", i),
+                &format!("response{}", i),
+                "read_file",
+                &format!("content of file{}", i),
+            ));
+        }
 
         let conversation = Conversation::new_unvalidated(messages);
 
-        let result = tool_ids_to_summarize(&conversation, 2, 3, 0);
-        assert!(
-            !result.is_empty(),
-            "Should return pairs to summarize when tool calls exceed cutoff"
-        );
+        let result = tool_ids_to_summarize(&conversation, 2, 0);
+        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result[0], "call1");
 
+        // Test the summarization call itself
         let tool_call_id = result[0].clone();
-        assert_eq!(tool_call_id, "call1");
-
         let summary = summarize_tool_call(&provider, "test-session", &conversation, &tool_call_id)
             .await
             .unwrap();
@@ -786,6 +765,7 @@ mod tests {
             "Summary should describe the tool call"
         );
 
+        // Mark the original pair as invisible and add the summary
         let mut updated_messages = conversation.messages().clone();
         for msg in updated_messages.iter_mut() {
             let has_matching_content = msg.content.iter().any(|c| match c {
@@ -834,9 +814,6 @@ mod tests {
             !summary_msg.is_user_visible(),
             "Summary should not be user visible"
         );
-
-        let result = tool_ids_to_summarize(&updated_conversation, 3, 3, 0);
-        assert!(result.is_empty(), "Nothing left to summarize");
     }
 
     #[test]
@@ -859,10 +836,10 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_ids_to_summarize_respects_batch_size() {
+    fn test_tool_ids_to_summarize_triggers_at_cutoff_plus_batch() {
+        // cutoff=5, so we need >5+10=15 to trigger. 15 exactly should NOT trigger.
         let mut messages = vec![Message::user().with_text("hello")];
-        // Add 5 tool pairs, cutoff=2 means 3 should be summarized, but batch_size=2 caps it
-        for i in 0..5 {
+        for i in 0..15 {
             messages.extend(create_tool_pair(
                 &format!("call{}", i),
                 &format!("resp{}", i),
@@ -871,11 +848,24 @@ mod tests {
             ));
         }
         let conversation = Conversation::new_unvalidated(messages);
+        let result = tool_ids_to_summarize(&conversation, 5, 0);
+        assert!(result.is_empty(), "Exactly cutoff+batch should not trigger");
 
-        let result = tool_ids_to_summarize(&conversation, 2, 2, 0);
-        assert_eq!(result.len(), 2, "Should be capped at batch_size=2");
+        // 16 tool calls: now exceeds cutoff+10, should return a batch of 10
+        let mut messages = vec![Message::user().with_text("hello")];
+        for i in 0..16 {
+            messages.extend(create_tool_pair(
+                &format!("call{}", i),
+                &format!("resp{}", i),
+                "read_file",
+                "content",
+            ));
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+        let result = tool_ids_to_summarize(&conversation, 5, 0);
+        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
         assert_eq!(result[0], "call0");
-        assert_eq!(result[1], "call1");
+        assert_eq!(result[9], "call9");
     }
 
     #[test]
@@ -885,15 +875,15 @@ mod tests {
         messages.extend(create_tool_pair("call1", "resp1", "read_file", "content"));
         let conversation = Conversation::new_unvalidated(messages);
 
-        let result = tool_ids_to_summarize(&conversation, 5, 3, 0);
+        let result = tool_ids_to_summarize(&conversation, 5, 0);
         assert!(result.is_empty(), "Under cutoff, nothing to summarize");
     }
 
     #[test]
     fn test_tool_ids_to_summarize_protects_current_turn() {
+        // 20 tool pairs, cutoff=2 → 20 > 12, would normally trigger
         let mut messages = vec![Message::user().with_text("hello")];
-        // 6 tool pairs total, cutoff=2
-        for i in 0..6 {
+        for i in 0..20 {
             messages.extend(create_tool_pair(
                 &format!("call{}", i),
                 &format!("resp{}", i),
@@ -903,20 +893,20 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        // Protect last 3 (current turn) — 6 total, 3 eligible, cutoff 2 → 1 to summarize
-        let result = tool_ids_to_summarize(&conversation, 2, 3, 3);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], "call0");
+        // No protection: 20 eligible, 20 > 12 → batch of 10
+        let result = tool_ids_to_summarize(&conversation, 2, 0);
+        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
 
-        // Protect last 5 — only 1 eligible, under cutoff
-        let result = tool_ids_to_summarize(&conversation, 2, 3, 5);
+        // Protect last 8: 12 eligible, 12 <= 12 → nothing
+        let result = tool_ids_to_summarize(&conversation, 2, 8);
         assert!(
             result.is_empty(),
-            "Should not summarize when protected count leaves too few eligible"
+            "Should not summarize when protected count leaves eligible <= cutoff + batch"
         );
 
-        // Protect all — nothing eligible
-        let result = tool_ids_to_summarize(&conversation, 2, 3, 6);
-        assert!(result.is_empty());
+        // Protect last 7: 13 eligible, 13 > 12 → batch of 10
+        let result = tool_ids_to_summarize(&conversation, 2, 7);
+        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result[0], "call0");
     }
 }
