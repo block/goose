@@ -1012,7 +1012,8 @@ mod tests {
             "Should inherit"
         );
 
-        let tool_response = Message::user().with_tool_response_with_metadata(
+        let mut tool_response = Message::user();
+        tool_response.add_tool_response_with_metadata(
             req1.id.clone(),
             Ok(tool_result("output")),
             req1.metadata.as_ref(),
