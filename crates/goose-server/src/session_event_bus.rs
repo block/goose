@@ -60,21 +60,33 @@ impl SessionEventBus {
     }
 
     /// Subscribe to live events. If `last_event_id` is provided, replay buffered
-    /// events with seq > last_event_id. Returns (replay_events, live_receiver).
+    /// events with seq > last_event_id. Returns (replay_events, replay_max_seq, live_receiver).
+    ///
+    /// The buffer is snapshotted *before* subscribing to live events so that
+    /// any event published between the two steps only appears in `live_rx`.
+    /// The caller should skip live events with `seq <= replay_max_seq` to
+    /// avoid duplicates at the handoff boundary.
     pub async fn subscribe(
         &self,
         last_event_id: Option<u64>,
-    ) -> (Vec<SessionEvent>, broadcast::Receiver<SessionEvent>) {
-        let rx = self.tx.subscribe();
-
-        let replay = if let Some(last_id) = last_event_id {
+    ) -> (Vec<SessionEvent>, u64, broadcast::Receiver<SessionEvent>) {
+        // Snapshot the buffer first, then subscribe. This way an event
+        // published between the snapshot and the subscribe will only appear
+        // in `rx` (not in `replay`), and the caller filters it via seq.
+        let (replay, replay_max_seq) = {
             let buf = self.buffer.lock().await;
-            buf.iter().filter(|e| e.seq > last_id).cloned().collect()
-        } else {
-            Vec::new()
+            if let Some(last_id) = last_event_id {
+                let events: Vec<_> = buf.iter().filter(|e| e.seq > last_id).cloned().collect();
+                let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id);
+                (events, max_seq)
+            } else {
+                (Vec::new(), 0)
+            }
         };
 
-        (replay, rx)
+        let rx = self.tx.subscribe();
+
+        (replay, replay_max_seq, rx)
     }
 
     /// Register a new request and return its cancellation token.
@@ -131,10 +143,11 @@ mod tests {
         .await;
 
         // Subscribe with replay
-        let (replay, _rx) = bus.subscribe(Some(0)).await;
+        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(0)).await;
         assert_eq!(replay.len(), 2);
         assert_eq!(replay[0].seq, 1);
         assert_eq!(replay[1].seq, 2);
+        assert_eq!(replay_max_seq, 2);
     }
 
     #[tokio::test]
@@ -146,9 +159,10 @@ mod tests {
         bus.publish(None, MessageEvent::Ping).await;
 
         // Only get events after seq 2
-        let (replay, _rx) = bus.subscribe(Some(2)).await;
+        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(2)).await;
         assert_eq!(replay.len(), 1);
         assert_eq!(replay[0].seq, 3);
+        assert_eq!(replay_max_seq, 3);
     }
 
     #[tokio::test]

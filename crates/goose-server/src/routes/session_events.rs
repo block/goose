@@ -98,10 +98,10 @@ fn serialize_session_event(seq: u64, request_id: Option<&str>, event: &MessageEv
 
     if let Some(rid) = request_id {
         if let serde_json::Value::Object(ref mut map) = event_json {
-            map.insert(
-                "request_id".to_string(),
-                serde_json::Value::String(rid.to_string()),
-            );
+            // Only insert request_id if the event doesn't already carry one
+            // (e.g. Notification events have their own request_id for tool-call matching)
+            map.entry("request_id")
+                .or_insert_with(|| serde_json::Value::String(rid.to_string()));
         }
     }
 
@@ -134,7 +134,7 @@ pub async fn session_events(
         .and_then(|s| s.parse().ok());
 
     let bus = state.get_or_create_event_bus(&session_id).await;
-    let (replay, mut live_rx) = bus.subscribe(last_event_id).await;
+    let (replay, replay_max_seq, mut live_rx) = bus.subscribe(last_event_id).await;
 
     let (tx, rx) = mpsc::channel::<String>(256);
     let stream = ReceiverStream::new(rx);
@@ -151,13 +151,17 @@ pub async fn session_events(
 
         // Send live events + heartbeat pings
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
+        // Heartbeat uses a local counter — not stored in the replay buffer
+        let mut heartbeat_seq = 0u64;
 
         loop {
             tokio::select! {
                 _ = heartbeat_interval.tick() => {
-                    // Publish a ping through the bus so it gets a sequence number
-                    let seq = bus.publish(None, MessageEvent::Ping).await;
-                    let frame = serialize_session_event(seq, None, &MessageEvent::Ping);
+                    // Send heartbeat directly without publishing to the bus,
+                    // so pings don't evict real events from the replay buffer.
+                    // Use a comment-style SSE id so it won't interfere with Last-Event-ID.
+                    let frame = format!(": ping {}\n\n", heartbeat_seq);
+                    heartbeat_seq += 1;
                     if tx.send(frame).await.is_err() {
                         return;
                     }
@@ -165,8 +169,9 @@ pub async fn session_events(
                 result = live_rx.recv() => {
                     match result {
                         Ok(event) => {
-                            // Skip Ping events from the broadcast — we generate our own
-                            if matches!(event.event, MessageEvent::Ping) {
+                            // Skip events already covered by replay to avoid duplicates
+                            // at the replay/live handoff boundary.
+                            if event.seq <= replay_max_seq {
                                 continue;
                             }
                             let frame = serialize_session_event(
@@ -358,15 +363,11 @@ pub async fn session_reply(
             }
         };
 
-        let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
             tokio::select! {
                 _ = task_cancel.cancelled() => {
                     tracing::info!("Agent task cancelled for request {}", task_request_id);
                     break;
-                }
-                _ = heartbeat_interval.tick() => {
-                    // Heartbeat is handled by the SSE event stream endpoint
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
