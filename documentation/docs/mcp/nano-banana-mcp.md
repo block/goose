@@ -15,7 +15,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 This tutorial covers how to add the [Nano Banana MCP Server](https://github.com/ConechoAI/Nano-Banana-MCP) as a goose extension that provides AI image generation and editing capabilities using Google's Gemini Image API.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=nano-banana-mcp&id=nano-banana&name=Nano%20Banana&description=Image%20generation%20with%20Gemini)

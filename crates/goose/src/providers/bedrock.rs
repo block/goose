@@ -284,10 +284,11 @@ impl BedrockProvider {
                     ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
                 }
                 ConverseError::ValidationException(err)
-                    if err
-                        .message()
-                        .unwrap_or_default()
-                        .contains("Input is too long for requested model.") =>
+                    if {
+                        let msg = err.message().unwrap_or_default();
+                        msg.contains("Input is too long for requested model.")
+                            || msg.contains("prompt is too long")
+                    } =>
                 {
                     ProviderError::ContextLengthExceeded(format!(
                         "Failed to call Bedrock: {:?}",
@@ -322,7 +323,7 @@ impl ProviderDef for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
-                ConfigKey::new("AWS_REGION", false, false, None, true),
+                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1"), true),
                 ConfigKey::new("AWS_BEARER_TOKEN_BEDROCK", false, true, None, true),
                 ConfigKey::new("BEDROCK_ENABLE_CACHING", false, false, Some("false"), false),
             ],
@@ -428,6 +429,7 @@ mod tests {
                 toolshim_model: None,
                 fast_model_config: None,
                 request_params: None,
+                reasoning: None,
             },
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
@@ -454,10 +456,17 @@ mod tests {
             .iter()
             .find(|k| k.name == "AWS_REGION")
             .expect("AWS_REGION config key should exist");
-        assert!(!aws_region.required, "AWS_REGION should not be required");
+        assert!(
+            aws_region.required,
+            "AWS_REGION is required for Bedrock to be marked as configured"
+        );
         assert!(
             !aws_region.secret,
             "AWS_REGION should not be marked as secret"
+        );
+        assert!(
+            aws_region.default.is_some(),
+            "AWS_REGION should have a default value"
         );
 
         let bearer_token = meta

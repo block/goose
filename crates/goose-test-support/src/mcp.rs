@@ -1,7 +1,8 @@
-use crate::session::{ExpectedSessionId, SESSION_ID_HEADER};
+use crate::session::SESSION_ID_HEADER;
+use crate::ExpectedSessionId;
 use rmcp::model::{
-    CallToolResult, ClientNotification, ClientRequest, Content, ErrorCode, Implementation, Meta,
-    ProtocolVersion, ServerCapabilities, ServerInfo,
+    CallToolResult, ClientNotification, ClientRequest, Content, ErrorCode, Implementation,
+    InitializeResult, Meta, ProtocolVersion, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{DynService, NotificationContext, RequestContext, ServiceExt, ServiceRole};
 use rmcp::transport::streamable_http_server::{
@@ -11,6 +12,7 @@ use rmcp::{
     handler::server::router::tool::ToolRouter, tool, tool_handler, tool_router,
     ErrorData as McpError, RoleServer, ServerHandler, Service,
 };
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 pub const FAKE_CODE: &str = "test-uuid-12345-67890";
@@ -35,11 +37,11 @@ impl<R: ServiceRole> HasMeta for NotificationContext<R> {
 
 struct ValidatingService<S> {
     inner: S,
-    expected_session_id: ExpectedSessionId,
+    expected_session_id: Arc<dyn ExpectedSessionId>,
 }
 
 impl<S> ValidatingService<S> {
-    fn new(inner: S, expected_session_id: ExpectedSessionId) -> Self {
+    fn new(inner: S, expected_session_id: Arc<dyn ExpectedSessionId>) -> Self {
         Self {
             inner,
             expected_session_id,
@@ -105,7 +107,7 @@ impl McpFixtureServer {
         }
     }
 
-    #[tool(description = "Get the code")]
+    #[tool(description = "Get the code", annotations(read_only_hint = true))]
     fn get_code(&self) -> Result<CallToolResult, McpError> {
         Ok(CallToolResult::success(vec![Content::text(FAKE_CODE)]))
     }
@@ -122,16 +124,10 @@ impl McpFixtureServer {
 #[tool_handler]
 impl ServerHandler for McpFixtureServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation {
-                name: "mcp-fixture".into(),
-                version: "1.0.0".into(),
-                ..Default::default()
-            },
-            instructions: Some("Test server with get_code and get_image tools.".into()),
-        }
+        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_protocol_version(ProtocolVersion::V_2025_03_26)
+            .with_server_info(Implementation::new("mcp-fixture", "1.0.0"))
+            .with_instructions("Test server with get_code and get_image tools.")
     }
 }
 
@@ -150,16 +146,13 @@ type McpServiceFactory =
     Box<dyn Fn() -> Result<Box<dyn DynService<RoleServer>>, std::io::Error> + Send + Sync>;
 
 impl McpFixture {
-    pub async fn new(expected_session_id: Option<ExpectedSessionId>) -> Self {
-        let service_factory: McpServiceFactory = match expected_session_id {
-            Some(expected_session_id) => Box::new(move || {
-                Ok(
-                    ValidatingService::new(McpFixtureServer::new(), expected_session_id.clone())
-                        .into_dyn(),
-                )
-            }),
-            None => Box::new(|| Ok(McpFixtureServer::new().into_dyn())),
-        };
+    pub async fn new(expected_session_id: Arc<dyn ExpectedSessionId>) -> Self {
+        let service_factory: McpServiceFactory = Box::new(move || {
+            Ok(
+                ValidatingService::new(McpFixtureServer::new(), expected_session_id.clone())
+                    .into_dyn(),
+            )
+        });
 
         let service = StreamableHttpService::new(
             service_factory,

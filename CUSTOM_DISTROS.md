@@ -46,7 +46,7 @@ goose's architecture is designed for extensibility. Organizations can create "re
 |---------------|---------------|------------|
 | Preconfigure a model/provider | `config.yaml`, `init-config.yaml`, environment variables | Low |
 | Add custom AI providers | `crates/goose/src/providers/declarative/` | Low |
-| Bundle custom MCP extensions | `config.yaml` extensions section, `ui/desktop/src/built-in-extensions.json` | Medium |
+| Bundle custom MCP extensions | `config.yaml` extensions section, `ui/desktop/src/built-in-extensions.json`, `ui/desktop/src/components/settings/extensions/bundled-extensions.json` | Medium |
 | Modify system prompts | `crates/goose/src/prompts/` | Low |
 | Customize desktop branding | `ui/desktop/` (icons, names, colors) | Medium |
 | Build a new UI (web, mobile) | Integrate with `goose-server` REST API | High |
@@ -191,7 +191,11 @@ async def query_data_lake(query: str) -> str:
     return results
 ```
 
-2. **Bundle as a built-in extension** by adding to `ui/desktop/src/built-in-extensions.json`:
+2. **Bundle as a built-in extension** by adding to either:
+   - `ui/desktop/src/built-in-extensions.json` (core built-ins surfaced in extension UI)
+   - `ui/desktop/src/components/settings/extensions/bundled-extensions.json` (bundled extension catalog in Settings)
+
+Example:
 
 ```json
 {
@@ -267,6 +271,26 @@ You are an AI assistant called [YourName], created by [YourCompany].
    - Color schemes in CSS/Tailwind config
    - Component text and labels
    - Feature visibility
+
+5. **Align packaging and updater names** when rebranding:
+   - Update static branding metadata in `ui/desktop/package.json` (`productName`, description) and Linux desktop templates (`ui/desktop/forge.deb.desktop`, `ui/desktop/forge.rpm.desktop`)
+
+   - Set build/release environment variables consistently:
+     - `GITHUB_OWNER` and `GITHUB_REPO` for publisher + updater repository lookup
+     - `GOOSE_BUNDLE_NAME` for bundle/debug scripts and updater asset naming (defaults to `Goose`)
+
+Example:
+
+```bash
+export GITHUB_OWNER="your-org"
+export GITHUB_REPO="your-goose-fork"
+export GOOSE_BUNDLE_NAME="InsightStream-goose"
+```
+
+6. **Use this branding consistency checklist** before release:
+   - Application metadata (`forge.config.ts`, `package.json`, `index.html`) uses your distro name
+   - Release artifact names and updater lookup names are consistent
+   - Desktop launchers (Linux `.desktop` templates) point to the same executable name produced by packaging
 
 ### Technical Details
 

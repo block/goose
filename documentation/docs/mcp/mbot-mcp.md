@@ -13,7 +13,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial will get you started with [deemkeen's MQTT MCP server](https://github.com/deemkeen/mbotmcp) for the [MakeBlock mbot2 rover](https://www.makeblock.com/products/buy-mbot2), and outline some code changes we made along the way.
 
-:::tip TLDR
+:::tip Quick Install
   **Command**
   ```sh
   /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar

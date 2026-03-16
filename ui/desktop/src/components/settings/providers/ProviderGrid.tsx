@@ -196,11 +196,13 @@ function ProviderCards({
   const handleCreateCustomProvider = useCallback(
     async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
-      await createCustomProvider({ body: data, throwOnError: true });
+      const result = await createCustomProvider({ body: data, throwOnError: true });
+      const providerId = result.data?.provider_name;
       setShowCustomProviderModal(false);
       if (refreshProviders) {
-        refreshProviders();
+        await refreshProviders();
       }
+      setSwitchModelProvider(providerId);
       setShowSwitchModelModal(true);
     },
     [refreshProviders]
@@ -234,6 +236,7 @@ function ProviderCards({
     engine: editingProvider.config.engine,
     display_name: editingProvider.config.display_name,
     api_url: editingProvider.config.base_url,
+    base_path: editingProvider.config.base_path ?? undefined,
     api_key: '',
     models: editingProvider.config.models.map((m) => m.name),
     supports_streaming: editingProvider.config.supports_streaming ?? true,

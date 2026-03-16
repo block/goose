@@ -54,13 +54,18 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
 };
 
 export type ChatRequest = {
-    conversation_so_far?: Array<Message> | null;
+    /**
+     * Override the server's conversation history. Only use this when you need absolute control
+     * over the conversation state (e.g., administrative tools). For normal operations, the server
+     * is the source of truth - use truncate/fork endpoints to modify conversation history instead.
+     */
+    override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
@@ -123,7 +128,29 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
 export type Conversation = Array<Message>;
 
@@ -172,11 +199,14 @@ export type CspMetadata = {
 
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
+    base_path?: string | null;
     base_url: string;
     catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
+    dynamic_models?: boolean | null;
     engine: ProviderEngine;
+    env_vars?: Array<EnvVarConfig> | null;
     headers?: {
         [key: string]: string;
     } | null;
@@ -294,6 +324,14 @@ export type EncodeRecipeRequest = {
 
 export type EncodeRecipeResponse = {
     deeplink: string;
+};
+
+export type EnvVarConfig = {
+    default?: string | null;
+    description?: string | null;
+    name: string;
+    required?: boolean;
+    secret?: boolean;
 };
 
 export type Envs = {
@@ -687,6 +725,7 @@ export type ModelConfig = {
     context_limit?: number | null;
     max_tokens?: number | null;
     model_name: string;
+    reasoning?: boolean | null;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -1103,7 +1142,7 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
@@ -1219,7 +1258,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
 
 export type SessionsQuery = {
     limit: number;
@@ -1308,7 +1347,7 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;
@@ -1480,6 +1519,7 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    base_path?: string | null;
     catalog_provider_id?: string | null;
     display_name: string;
     engine: string;
@@ -2972,7 +3012,7 @@ export type TranscribeDictationErrors = {
      */
     412: unknown;
     /**
-     * Audio file too large (max 25MB)
+     * Audio file too large (max 50MB)
      */
     413: unknown;
     /**

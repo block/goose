@@ -24,6 +24,10 @@ interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
+  onModelChanged: (override: { model: string; provider: string }) => void;
+  sessionLoaded?: boolean;
 }
 
 export default function ModelsBottomBar({
@@ -31,8 +35,17 @@ export default function ModelsBottomBar({
   dropdownRef,
   setView,
   alerts,
+  sessionModel,
+  sessionProvider,
+  onModelChanged,
+  sessionLoaded,
 }: ModelsBottomBarProps) {
-  const { currentModel, currentProvider } = useModelAndProvider();
+  // ChatInput owns the override state and passes effective model/provider as sessionModel/sessionProvider.
+  // Fall back to config defaults when no session-specific model is available.
+  const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
+  const currentModel = sessionModel ?? configModel;
+  const currentProvider = sessionProvider ?? configProvider;
+
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
@@ -101,6 +114,9 @@ export default function ModelsBottomBar({
     : undefined;
 
   // Determine which model to display - activeModel takes priority when lead/worker is active
+  // Hide label while session data is still being fetched (avoids flashing
+  // the config default before the session's actual model arrives).
+  const isModelLoading = sessionId && !sessionLoaded;
   const displayModel =
     isLeadWorkerActive && currentModelInfo?.model
       ? currentModelInfo.model
@@ -139,6 +155,10 @@ export default function ModelsBottomBar({
     setDisplayModelName(getModelDisplayName(currentModel));
   }, [currentModel]);
 
+  const handleModelSelected = (model: string, provider: string) => {
+    onModelChanged({ model, provider });
+  };
+
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
@@ -146,7 +166,7 @@ export default function ModelsBottomBar({
         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-primary/70 hover:text-text-primary transition-colors">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
             <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
-            <span className="truncate text-xs">
+            <span className={`truncate text-xs${isModelLoading ? ' opacity-0' : ''}`}>
               {displayModel}
               {isLeadWorkerActive && modelMode && (
                 <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
@@ -182,6 +202,9 @@ export default function ModelsBottomBar({
           sessionId={sessionId}
           setView={setView}
           onClose={() => setIsAddModelModalOpen(false)}
+          sessionModel={currentModel}
+          sessionProvider={currentProvider}
+          onModelSelected={(model, provider) => handleModelSelected(model, provider)}
         />
       ) : null}
 

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useConfig } from '../../../ConfigContext';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { Button } from '../../../ui/button';
 import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
@@ -15,7 +14,6 @@ interface LeadWorkerSettingsProps {
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
   const { read, upsert, getProviders, remove } = useConfig();
-  const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
   const [leadProvider, setLeadProvider] = useState<string>('');
@@ -69,12 +67,10 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
         if (fallbackTurnsConfig) setFallbackTurns(Number(fallbackTurnsConfig));
         else setFallbackTurns(2);
 
-        // Set worker model to current model or from config
+        // Set worker model from config
         const workerModelConfig = await read('GOOSE_MODEL', false);
         if (workerModelConfig) {
           setWorkerModel(workerModelConfig as string);
-        } else if (currentModel) {
-          setWorkerModel(currentModel as string);
         } else {
           setWorkerModel('');
         }
@@ -140,7 +136,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, currentModel, isOpen]);
+  }, [read, getProviders, isOpen]);
 
   // If current models are not in the list (e.g., previously set to custom), switch to custom mode
   useEffect(() => {

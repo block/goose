@@ -187,21 +187,11 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
         if !tool_input.is_empty() {
             let input_value = serde_json::from_str::<Value>(&tool_input)
                 .unwrap_or_else(|_| Value::String(tool_input.clone()));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: name.into(),
-                arguments: Some(object(input_value)),
-            };
+            let tool_call = CallToolRequestParams::new(name).with_arguments(object(input_value));
             message = message.with_tool_request(&id, Ok(tool_call));
         } else {
             // Tool with no input - use empty object
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: name.into(),
-                arguments: Some(object!({})),
-            };
+            let tool_call = CallToolRequestParams::new(name).with_arguments(object!({}));
             message = message.with_tool_request(&id, Ok(tool_call));
         }
     }
@@ -258,12 +248,7 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                     .ok_or_else(|| anyhow!("Missing tool input"))?
                     .clone();
 
-                let tool_call = CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: name.into(),
-                    arguments: Some(object(input)),
-                };
+                let tool_call = CallToolRequestParams::new(name).with_arguments(object(input));
                 message = message.with_tool_request(id, Ok(tool_call));
             }
             Some("thinking") => {
@@ -353,11 +338,10 @@ pub fn create_request(
         format_tools(tools)
     };
 
-    let max_tokens = model_config.max_tokens.unwrap_or(4096);
     let mut payload = json!({
         "model": model_config.model_name,
         "messages": snowflake_messages,
-        "max_tokens": max_tokens,
+        "max_tokens": model_config.max_output_tokens(),
     });
 
     // Add tools if present and not a description request
@@ -701,12 +685,8 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
         use crate::conversation::message::Message;
 
         // Create a conversation with text, tool requests, and tool responses
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "calculator".into(),
-            arguments: Some(object!({"expression": "2 + 2"})),
-        };
+        let tool_call = CallToolRequestParams::new("calculator")
+            .with_arguments(object!({"expression": "2 + 2"}));
 
         let messages = vec![
             Message::user().with_text("Calculate 2 + 2"),

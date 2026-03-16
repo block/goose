@@ -55,6 +55,9 @@ jobs:
         with:
           node-version: 24.10.0
 
+      - name: Install pnpm
+        run: npm install -g pnpm@10.30.3
+
       - name: Cache node_modules
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
@@ -62,9 +65,9 @@ jobs:
             node_modules
             ui/desktop/node_modules
             .hermit/node/cache
-          key: windows-npm-cache-v1-${{ runner.os }}-node24-${{ hashFiles('**/package-lock.json') }}
+          key: windows-pnpm-cache-v1-${{ runner.os }}-node24-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            windows-npm-cache-v1-${{ runner.os }}-node24-
+            windows-pnpm-cache-v1-${{ runner.os }}-node24-
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -130,17 +133,17 @@ jobs:
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/"
 
-      - name: Build desktop UI with npm
+      - name: Build desktop UI with pnpm
         shell: bash
         env:
           ELECTRON_PLATFORM: win32
         run: |
           cd ui/desktop
 
-          npm install
+          pnpm install --frozen-lockfile
           node scripts/build-main.js
           node scripts/prepare-platform-binaries.js
-          npm run make -- --platform=win32 --arch=x64
+          pnpm run make -- --platform=win32 --arch=x64
 
       - name: Copy exe to final out folder and prepare flat distribution
         shell: bash
