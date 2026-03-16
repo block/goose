@@ -71,7 +71,7 @@ impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let fast_model_name: String = config
-            .get_param("GOOSE_FAST_MODEL")
+            .get_param("OPENAI_FAST_MODEL")
             .unwrap_or_else(|_| OPEN_AI_DEFAULT_FAST_MODEL.to_string());
         let model = model.with_fast(&fast_model_name, OPEN_AI_PROVIDER_NAME)?;
 
