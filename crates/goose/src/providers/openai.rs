@@ -90,7 +90,16 @@ impl OpenAiProvider {
             .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
+        let timeout_secs: u64 = match config.get_param("OPENAI_TIMEOUT") {
+            Ok(v) => {
+                tracing::info!("OPENAI_TIMEOUT set to {}s", v);
+                v
+            }
+            Err(e) => {
+                tracing::warn!("Failed to parse OPENAI_TIMEOUT ({}), falling back to 600s default", e);
+                600
+            }
+        };
 
         let auth = match api_key {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
