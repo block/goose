@@ -1024,7 +1024,9 @@ impl CliSession {
                                     );
                                     cancel_token_clone.cancel();
                                     drop(stream);
-                                    break;
+                                    return Err(anyhow::anyhow!(
+                                        "Elicitation requested but no interactive terminal is available to collect user input"
+                                    ));
                                 }
 
                                 output::hide_thinking();
