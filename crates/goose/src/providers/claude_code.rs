@@ -275,15 +275,17 @@ pub struct ClaudeCodeProvider {
 }
 
 impl ClaudeCodeProvider {
-    /// Build content blocks from the last user message only — the CLI maintains
-    /// conversation context internally per session_id.
     fn last_user_content_blocks(&self, messages: &[Message]) -> Vec<Value> {
-        let msgs = match messages.iter().rev().find(|m| m.role == Role::User) {
-            Some(msg) => std::slice::from_ref(msg),
-            None => messages,
-        };
+        let (msgs, filter_visibility): (&[Message], bool) =
+            match messages.iter().rev().find(|m| m.role == Role::User) {
+                Some(msg) => (std::slice::from_ref(msg), false),
+                None => (messages, true),
+            };
         let mut blocks: Vec<Value> = Vec::new();
-        for message in msgs.iter().filter(|m| m.is_agent_visible()) {
+        for message in msgs
+            .iter()
+            .filter(|m| !filter_visibility || m.is_agent_visible())
+        {
             let prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
