@@ -463,6 +463,7 @@ mod tests {
                     }
                     Ok(AgentEvent::McpNotification(_)) => {}
                     Ok(AgentEvent::ModelChange { .. }) => {}
+                    Ok(AgentEvent::ContextUsage { .. }) => {}
                     Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
                         // We should update the conversation here, but we're not reading it
                     }
