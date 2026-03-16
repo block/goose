@@ -1069,6 +1069,16 @@ impl CliSession {
                         Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
                             self.messages = updated_conversation;
                         }
+                        Some(Ok(AgentEvent::ContextUsage { used_tokens, total_tokens })) => {
+                            progress_bars.update_context(used_tokens, total_tokens);
+                        }
+                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::ModelChange { model: model.clone(), mode: mode.clone() });
+                            } else if self.debug {
+                                eprintln!("Model changed to {} in {} mode", model, mode);
+                            }
+                        }
                         Some(Err(e)) => {
                             handle_agent_error(&e, is_stream_json_mode);
                             cancel_token_clone.cancel();
