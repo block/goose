@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
@@ -81,16 +81,14 @@ fn resolve_login_shell_path() -> Option<String> {
         })
 }
 
-/// Returns the user's full login shell PATH, resolved once and cached.
 #[cfg(not(windows))]
-fn user_login_path() -> Option<&'static str> {
-    static CACHED: OnceLock<Option<String>> = OnceLock::new();
-    CACHED.get_or_init(resolve_login_shell_path).as_deref()
-}
+static LOGIN_PATH: LazyLock<Option<String>> = LazyLock::new(resolve_login_shell_path);
 
 pub struct ShellTool {
     output_dir: tempfile::TempDir,
     call_index: AtomicUsize,
+    #[cfg(not(windows))]
+    login_path: Option<String>,
 }
 
 impl ShellTool {
@@ -98,6 +96,8 @@ impl ShellTool {
         Ok(Self {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
+            #[cfg(not(windows))]
+            login_path: LOGIN_PATH.clone(),
         })
     }
 
@@ -114,7 +114,19 @@ impl ShellTool {
             return Self::error_result("Command cannot be empty.", None);
         }
 
-        let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
+        #[cfg(not(windows))]
+        let login_path = self.login_path.as_deref();
+        #[cfg(windows)]
+        let login_path: Option<&str> = None;
+
+        let execution = match run_command(
+            &params.command,
+            params.timeout_secs,
+            working_dir,
+            login_path,
+        )
+        .await
+        {
             Ok(execution) => execution,
             Err(error) => return Self::error_result(&error, None),
         };
@@ -226,14 +238,14 @@ async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
+    login_path: Option<&str>,
 ) -> Result<ExecutionOutput, String> {
     let mut command = build_shell_command(command_line);
     if let Some(path) = working_dir {
         command.current_dir(path);
     }
 
-    #[cfg(not(windows))]
-    if let Some(path) = user_login_path() {
+    if let Some(path) = login_path {
         command.env("PATH", path);
     }
 

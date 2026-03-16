@@ -6,7 +6,7 @@
 pub mod fixtures;
 use fixtures::{
     Connection, FsFixture, OpenAiFixture, PermissionDecision, Session, SessionResult,
-    TestConnectionConfig,
+    TerminalFixture, TestConnectionConfig,
 };
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -15,6 +15,8 @@ use goose::providers::provider_registry::ProviderConstructor;
 use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
 use sacp::schema::{McpServer, McpServerHttp, ModelId, SessionModeId, ToolCallStatus};
 use std::sync::Arc;
+
+const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
 
 pub async fn run_config_mcp<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
@@ -277,6 +279,64 @@ pub async fn run_load_model<C: Connection>() {
     assert_eq!(&*models.unwrap().current_model_id.0, "o4-mini");
 }
 
+pub async fn run_load_session_mcp<C: Connection>() {
+    let expected_session_id = C::expected_session_id();
+    let prompt = "Use the get_code tool and output only its result.";
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp_url = mcp.url.clone();
+
+    // Two rounds of tool call + tool result: one for new session, one for loaded session.
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_tool_call.txt"),
+            ),
+            (
+                format!(r#""content":"{FAKE_CODE}""#),
+                include_str!("../test_data/openai_tool_result.txt"),
+            ),
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_tool_call.txt"),
+            ),
+            (
+                format!(r#""content":"{FAKE_CODE}""#),
+                include_str!("../test_data/openai_tool_result.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", &mcp_url))];
+
+    let config = TestConnectionConfig {
+        mcp_servers: mcp_servers.clone(),
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
+
+    // First prompt: tool should work in the new session.
+    let output = session.prompt(prompt, PermissionDecision::Cancel).await;
+    assert_eq!(output.text, FAKE_CODE, "tool call failed in new session");
+
+    // Load the same session with MCP servers re-specified.
+    let session_id = session.session_id().0.to_string();
+    let SessionResult {
+        session: mut loaded_session,
+        ..
+    } = conn.load_session(&session_id, mcp_servers).await;
+
+    // Second prompt: tool should work in the loaded session.
+    let output = loaded_session
+        .prompt(prompt, PermissionDecision::Cancel)
+        .await;
+    assert_eq!(output.text, FAKE_CODE, "tool call failed in loaded session");
+}
+
 pub async fn run_mode_set<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
@@ -333,6 +393,48 @@ pub async fn run_mode_set<C: Connection>() {
     expected_session_id.set(&session_a.session_id().0);
     let output = session_a.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, FAKE_CODE);
+}
+
+pub async fn run_mode_set_error<C: Connection>(
+    mode_id: &str,
+    session_id_override: Option<&str>,
+    expected: sacp::Error,
+) {
+    let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
+    let mut conn = C::new(TestConnectionConfig::default(), openai).await;
+    let SessionResult { session, .. } = conn.new_session().await;
+
+    let target_session_id = session_id_override
+        .map(str::to_string)
+        .unwrap_or_else(|| session.session_id().0.to_string());
+
+    let err = conn
+        .set_mode(&target_session_id, mode_id)
+        .await
+        .unwrap_err();
+
+    let sacp_err = err.downcast::<sacp::Error>().unwrap();
+    assert_eq!(sacp_err, expected);
+}
+
+#[macro_export]
+macro_rules! tests_mode_set_error {
+    ($conn:ty) => {
+        #[test_case::test_case("not_a_mode", None, sacp::Error::invalid_params().data("Invalid mode: not_a_mode") ; "invalid mode")]
+        #[test_case::test_case("auto", Some("nonexistent-session-id"), sacp::Error::invalid_params().data("Session not found: nonexistent-session-id") ; "session not found")]
+        fn test_mode_set_error(
+            mode_id: &'static str,
+            session_id: Option<&'static str>,
+            expected: sacp::Error,
+        ) {
+            common_tests::fixtures::run_test(async move {
+                common_tests::run_mode_set_error::<$conn>(
+                    mode_id, session_id, expected,
+                )
+                .await
+            });
+        }
+    };
 }
 
 pub async fn run_model_list<C: Connection>() {
@@ -595,64 +697,6 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
-pub async fn run_load_session_mcp<C: Connection>() {
-    let expected_session_id = C::expected_session_id();
-    let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
-    let mcp_url = mcp.url.clone();
-
-    // Two rounds of tool call + tool result: one for new session, one for loaded session.
-    let openai = OpenAiFixture::new(
-        vec![
-            (
-                prompt.to_string(),
-                include_str!("../test_data/openai_tool_call.txt"),
-            ),
-            (
-                format!(r#""content":"{FAKE_CODE}""#),
-                include_str!("../test_data/openai_tool_result.txt"),
-            ),
-            (
-                prompt.to_string(),
-                include_str!("../test_data/openai_tool_call.txt"),
-            ),
-            (
-                format!(r#""content":"{FAKE_CODE}""#),
-                include_str!("../test_data/openai_tool_result.txt"),
-            ),
-        ],
-        expected_session_id.clone(),
-    )
-    .await;
-
-    let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", &mcp_url))];
-
-    let config = TestConnectionConfig {
-        mcp_servers: mcp_servers.clone(),
-        ..Default::default()
-    };
-    let mut conn = C::new(config, openai).await;
-    let SessionResult { mut session, .. } = conn.new_session().await;
-    expected_session_id.set(&session.session_id().0);
-
-    // First prompt: tool should work in the new session.
-    let output = session.prompt(prompt, PermissionDecision::Cancel).await;
-    assert_eq!(output.text, FAKE_CODE, "tool call failed in new session");
-
-    // Load the same session with MCP servers re-specified.
-    let session_id = session.session_id().0.to_string();
-    let SessionResult {
-        session: mut loaded_session,
-        ..
-    } = conn.load_session(&session_id, mcp_servers).await;
-
-    // Second prompt: tool should work in the loaded session.
-    let output = loaded_session
-        .prompt(prompt, PermissionDecision::Cancel)
-        .await;
-    assert_eq!(output.text, FAKE_CODE, "tool call failed in loaded session");
-}
-
 pub async fn run_prompt_mcp<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let mcp = McpFixture::new(expected_session_id.clone()).await;
@@ -726,44 +770,69 @@ pub async fn run_prompt_skill<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
-pub async fn run_mode_set_error<C: Connection>(
-    mode_id: &str,
-    session_id_override: Option<&str>,
-    expected: sacp::Error,
-) {
-    let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
-    let mut conn = C::new(TestConnectionConfig::default(), openai).await;
-    let SessionResult { session, .. } = conn.new_session().await;
+pub async fn run_shell_terminal_false<C: Connection>() {
+    let expected_session_id = C::expected_session_id();
+    let prompt = format!("Run the command echo {SHELL_TEST_CONTENT} and output only its result.");
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.clone(),
+                include_str!("../test_data/openai_shell_tool_call.txt"),
+            ),
+            (
+                SHELL_TEST_CONTENT.into(),
+                include_str!("../test_data/openai_shell_tool_result.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
 
-    let target_session_id = session_id_override
-        .map(str::to_string)
-        .unwrap_or_else(|| session.session_id().0.to_string());
+    let config = TestConnectionConfig {
+        builtins: vec!["developer".to_string()],
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
 
-    let err = conn
-        .set_mode(&target_session_id, mode_id)
-        .await
-        .unwrap_err();
-
-    let sacp_err = err.downcast::<sacp::Error>().unwrap();
-    assert_eq!(sacp_err, expected);
+    let output = session.prompt(&prompt, PermissionDecision::AllowOnce).await;
+    assert!(!output.text.is_empty());
+    expected_session_id.assert_matches(&session.session_id().0);
 }
 
-#[macro_export]
-macro_rules! tests_mode_set_error {
-    ($conn:ty) => {
-        #[test_case::test_case("not_a_mode", None, sacp::Error::invalid_params().data("Invalid mode: not_a_mode") ; "invalid mode")]
-        #[test_case::test_case("auto", Some("nonexistent-session-id"), sacp::Error::invalid_params().data("Session not found: nonexistent-session-id") ; "session not found")]
-        fn test_mode_set_error(
-            mode_id: &'static str,
-            session_id: Option<&'static str>,
-            expected: sacp::Error,
-        ) {
-            common_tests::fixtures::run_test(async move {
-                common_tests::run_mode_set_error::<$conn>(
-                    mode_id, session_id, expected,
-                )
-                .await
-            });
-        }
+pub async fn run_shell_terminal_true<C: Connection>() {
+    let expected_session_id = C::expected_session_id();
+    let prompt = format!("Run the command echo {SHELL_TEST_CONTENT} and output only its result.");
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.clone(),
+                include_str!("../test_data/openai_shell_tool_call.txt"),
+            ),
+            (
+                SHELL_TEST_CONTENT.into(),
+                include_str!("../test_data/openai_shell_tool_result.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let command = format!("echo {SHELL_TEST_CONTENT}");
+    let output_text = format!("{SHELL_TEST_CONTENT}\n");
+    let terminal = TerminalFixture::new(&command, "term-1", &output_text, 0);
+    let config = TestConnectionConfig {
+        builtins: vec!["developer".to_string()],
+        terminal: Some(terminal.clone()),
+        ..Default::default()
     };
+    let mut conn = C::new(config, openai).await;
+    let SessionResult { mut session, .. } = conn.new_session().await;
+    expected_session_id.set(&session.session_id().0);
+
+    let output = session.prompt(&prompt, PermissionDecision::AllowOnce).await;
+    assert!(!output.text.is_empty());
+    terminal.assert_called();
+    expected_session_id.assert_matches(&session.session_id().0);
 }

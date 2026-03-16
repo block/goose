@@ -6,10 +6,12 @@ use async_trait::async_trait;
 use goose::config::PermissionManager;
 use goose_test_support::{EnforceSessionId, ExpectedSessionId};
 use sacp::schema::{
-    AuthMethod, ClientCapabilities, ContentBlock, FileSystemCapability, ImageContent,
-    InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest,
-    ProtocolVersion, ReadTextFileRequest, RequestPermissionRequest, SessionNotification,
-    SessionUpdate, StopReason, TextContent, ToolCallStatus, WriteTextFileRequest,
+    AuthMethod, ClientCapabilities, ContentBlock, CreateTerminalRequest, FileSystemCapability,
+    ImageContent, InitializeRequest, KillTerminalCommandRequest, LoadSessionRequest, McpServer,
+    NewSessionRequest, PromptRequest, ProtocolVersion, ReadTextFileRequest, ReleaseTerminalRequest,
+    RequestPermissionRequest, SessionNotification, SessionUpdate, StopReason,
+    TerminalOutputRequest, TextContent, ToolCallStatus, WaitForTerminalExitRequest,
+    WriteTextFileRequest,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -125,6 +127,7 @@ impl Connection for ClientToAgentConnection {
             let permission_clone = permission.clone();
             let read_handler = config.read_text_file;
             let write_handler = config.write_text_file;
+            let terminal = config.terminal;
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
@@ -185,6 +188,76 @@ impl Connection for ClientToAgentConnection {
                         },
                         sacp::on_receive_request!(),
                     )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |req: CreateTerminalRequest, request_cx, _cx| match t {
+                                Some(ref f) => {
+                                    if req.command == f.command {
+                                        f.record_call(Ok(()));
+                                    } else {
+                                        f.record_call(Err(format!(
+                                            "expected command {}, got {}",
+                                            f.command, req.command
+                                        )));
+                                    }
+                                    request_cx.respond(f.create_response())
+                                }
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |_req: WaitForTerminalExitRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.wait_response()),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |_req: TerminalOutputRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.output_response()),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |_req: ReleaseTerminalRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.release_response()),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let t = terminal.clone();
+                            async move |_req: KillTerminalCommandRequest, request_cx, _cx| match t {
+                                Some(ref f) => request_cx.respond(f.kill_response()),
+                                None => {
+                                    request_cx.respond_with_error(sacp::Error::method_not_found())
+                                }
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
                     .connect_to(transport)
                     .unwrap()
                     .run_until({
@@ -194,7 +267,11 @@ impl Connection for ClientToAgentConnection {
                             let resp = cx
                                 .send_request(
                                     InitializeRequest::new(ProtocolVersion::LATEST)
-                                        .client_capabilities(ClientCapabilities::new().fs(fs_cap)),
+                                        .client_capabilities(
+                                            ClientCapabilities::new()
+                                                .fs(fs_cap)
+                                                .terminal(terminal.is_some()),
+                                        ),
                                 )
                                 .block_task()
                                 .await

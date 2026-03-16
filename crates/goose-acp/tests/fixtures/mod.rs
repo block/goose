@@ -14,8 +14,10 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    AuthMethod, McpServer, ReadTextFileRequest, ReadTextFileResponse, SessionModeState,
-    SessionModelState, ToolCallStatus, WriteTextFileRequest, WriteTextFileResponse,
+    AuthMethod, CreateTerminalResponse, KillTerminalCommandResponse, McpServer,
+    ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState,
+    SessionModelState, TerminalExitStatus, TerminalId, TerminalOutputResponse, ToolCallStatus,
+    WaitForTerminalExitResponse, WriteTextFileRequest, WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
@@ -266,6 +268,58 @@ impl FsFixture {
     }
 }
 
+pub struct TerminalFixture {
+    calls: Arc<Mutex<Vec<Result<(), String>>>>,
+    pub command: String,
+    pub terminal_id: TerminalId,
+    pub output: String,
+    pub exit_code: u32,
+}
+
+impl TerminalFixture {
+    pub fn new(command: &str, terminal_id: &str, output: &str, exit_code: u32) -> Arc<Self> {
+        Arc::new(Self {
+            calls: Arc::new(Mutex::new(Vec::new())),
+            command: command.to_string(),
+            terminal_id: TerminalId::new(terminal_id),
+            output: output.to_string(),
+            exit_code,
+        })
+    }
+
+    pub fn record_call(&self, result: Result<(), String>) {
+        self.calls.lock().unwrap().push(result);
+    }
+
+    pub fn assert_called(&self) {
+        let calls = self.calls.lock().unwrap();
+        assert!(!calls.is_empty());
+        let errors: Vec<_> = calls.iter().filter_map(|c| c.as_ref().err()).collect();
+        assert!(errors.is_empty());
+    }
+
+    pub fn create_response(&self) -> CreateTerminalResponse {
+        CreateTerminalResponse::new(self.terminal_id.clone())
+    }
+
+    pub fn wait_response(&self) -> WaitForTerminalExitResponse {
+        WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(self.exit_code))
+    }
+
+    pub fn output_response(&self) -> TerminalOutputResponse {
+        TerminalOutputResponse::new(&self.output, false)
+            .exit_status(TerminalExitStatus::new().exit_code(self.exit_code))
+    }
+
+    pub fn release_response(&self) -> ReleaseTerminalResponse {
+        ReleaseTerminalResponse::new()
+    }
+
+    pub fn kill_response(&self) -> KillTerminalCommandResponse {
+        KillTerminalCommandResponse::new()
+    }
+}
+
 pub struct SessionResult<S> {
     pub session: S,
     pub models: Option<SessionModelState>,
@@ -281,6 +335,7 @@ pub struct TestConnectionConfig {
     pub provider_factory: Option<ProviderConstructor>,
     pub read_text_file: Option<ReadTextFileHandler>,
     pub write_text_file: Option<WriteTextFileHandler>,
+    pub terminal: Option<Arc<TerminalFixture>>,
 }
 
 impl Default for TestConnectionConfig {
@@ -294,6 +349,7 @@ impl Default for TestConnectionConfig {
             provider_factory: None,
             read_text_file: None,
             write_text_file: None,
+            terminal: None,
         }
     }
 }
