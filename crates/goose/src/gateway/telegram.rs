@@ -217,43 +217,68 @@ impl TelegramGateway {
 
     /// Save voice bytes to a temporary file and return the path.
     ///
-    /// Files are stored under `<tmp>/goose_voice/voice_<uuid>.ogg` so Goose
-    /// can access them via its shell tools.
-    fn save_voice_file(bytes: &[u8]) -> anyhow::Result<std::path::PathBuf> {
+    /// Files are stored under `<tmp>/goose_voice/voice_<uuid>.<ext>` so Goose
+    /// can access them via its shell tools.  The extension is derived from the
+    /// MIME type when available, falling back to `.ogg` for voice notes.
+    fn save_voice_file(
+        bytes: &[u8],
+        mime_type: Option<&str>,
+    ) -> anyhow::Result<std::path::PathBuf> {
         let dir = std::env::temp_dir().join("goose_voice");
         std::fs::create_dir_all(&dir)?;
 
-        let filename = format!("voice_{}.ogg", uuid::Uuid::new_v4());
+        let ext = mime_type
+            .and_then(|m| m.rsplit('/').next())
+            .map(|sub| {
+                // Normalise common MIME sub-types to file extensions.
+                match sub {
+                    "mpeg" => "mp3",
+                    "mp4" | "x-m4a" => "m4a",
+                    "ogg" => "ogg",
+                    "wav" | "x-wav" => "wav",
+                    other => other,
+                }
+            })
+            .unwrap_or("ogg");
+
+        let filename = format!("voice_{}.{ext}", uuid::Uuid::new_v4());
         let path = dir.join(filename);
         std::fs::write(&path, bytes)?;
         Ok(path)
     }
 
     /// Build the text prompt that tells Goose about a voice message file.
-    fn voice_prompt(path: &std::path::Path, duration: Option<i32>) -> String {
+    fn voice_prompt(
+        path: &std::path::Path,
+        duration: Option<i32>,
+        mime_type: Option<&str>,
+    ) -> String {
         let duration_hint = duration
             .map(|d| format!(" (duration: {d}s)"))
             .unwrap_or_default();
+        let format_hint = mime_type
+            .map(|m| format!(" The file format is {m}."))
+            .unwrap_or_default();
         format!(
             "The user sent a voice message{duration_hint}. \
-             The audio file is saved at: {}\n\n\
+             The audio file is saved at: {}{format_hint}\n\n\
              Please transcribe this audio file using available command-line tools \
              (e.g. whisper, ffmpeg, sox, or any STT utility you can find on this system) \
              and then respond to what the user said. \
-             The file is in OGG/Opus format. \
              If no transcription tool is available, let the user know and ask them to type their message instead.",
             path.display()
         )
     }
 
-    /// Extract the `file_id`, `file_size`, and `duration` from either a voice
-    /// note or an audio attachment.  Returns `None` when neither is present.
-    fn voice_info(msg: &TelegramMessage) -> Option<(&str, Option<i64>, Option<i32>)> {
+    /// Extract the `file_id`, `file_size`, `duration`, and `mime_type` from
+    /// either a voice note or an audio attachment.  Returns `None` when
+    /// neither is present.
+    fn voice_info(msg: &TelegramMessage) -> Option<(&str, Option<i64>, Option<i32>, Option<&str>)> {
         if let Some(ref v) = msg.voice {
-            return Some((&v.file_id, v.file_size, v.duration));
+            return Some((&v.file_id, v.file_size, v.duration, v.mime_type.as_deref()));
         }
         if let Some(ref a) = msg.audio {
-            return Some((&a.file_id, a.file_size, a.duration));
+            return Some((&a.file_id, a.file_size, a.duration, a.mime_type.as_deref()));
         }
         None
     }
@@ -289,6 +314,21 @@ impl Gateway for TelegramGateway {
 
         tracing::info!("Telegram gateway starting long-poll loop");
 
+        // Spawn a background task that periodically removes stale voice files
+        // (older than 1 hour) so they don't accumulate on disk.
+        let cleanup_cancel = cancel.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
+            loop {
+                tokio::select! {
+                    _ = cleanup_cancel.cancelled() => break,
+                    _ = interval.tick() => {
+                        cleanup_voice_files(std::time::Duration::from_secs(3600));
+                    }
+                }
+            }
+        });
+
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
@@ -309,7 +349,7 @@ impl Gateway for TelegramGateway {
                                 // Voice/audio messages are downloaded, saved to
                                 // disk, and converted into a prompt that asks
                                 // Goose to transcribe the file using CLI tools.
-                                let text = if let Some((file_id, file_size, duration)) =
+                                let text = if let Some((file_id, file_size, duration, mime_type)) =
                                     Self::voice_info(&tg_msg)
                                 {
                                     // Reject files that exceed the Telegram bot
@@ -323,8 +363,8 @@ impl Gateway for TelegramGateway {
                                     }
 
                                     match self.download_file(file_id).await {
-                                        Ok(bytes) => match Self::save_voice_file(&bytes) {
-                                            Ok(path) => Self::voice_prompt(&path, duration),
+                                        Ok(bytes) => match Self::save_voice_file(&bytes, mime_type) {
+                                            Ok(path) => Self::voice_prompt(&path, duration, mime_type),
                                             Err(e) => {
                                                 tracing::error!(
                                                     error = %e,
@@ -421,6 +461,30 @@ impl Gateway for TelegramGateway {
         }
 
         Ok(())
+    }
+}
+
+/// Remove voice files from the temp directory that are older than `max_age`.
+fn cleanup_voice_files(max_age: std::time::Duration) {
+    let dir = std::env::temp_dir().join("goose_voice");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    let cutoff = std::time::SystemTime::now() - max_age;
+    let mut removed = 0u32;
+    for entry in entries.flatten() {
+        if let Ok(meta) = entry.metadata() {
+            if let Ok(modified) = meta.modified() {
+                if modified < cutoff {
+                    if std::fs::remove_file(entry.path()).is_ok() {
+                        removed += 1;
+                    }
+                }
+            }
+        }
+    }
+    if removed > 0 {
+        tracing::debug!(removed, "cleaned up stale voice files");
     }
 }
 
@@ -555,10 +619,11 @@ mod tests {
         };
         let info = TelegramGateway::voice_info(&msg);
         assert!(info.is_some());
-        let (file_id, file_size, duration) = info.unwrap();
+        let (file_id, file_size, duration, mime) = info.unwrap();
         assert_eq!(file_id, "voice_file_123");
         assert_eq!(file_size, Some(10000));
         assert_eq!(duration, Some(5));
+        assert_eq!(mime, Some("audio/ogg"));
     }
 
     #[test]
@@ -581,9 +646,10 @@ mod tests {
         };
         let info = TelegramGateway::voice_info(&msg);
         assert!(info.is_some());
-        let (file_id, _, duration) = info.unwrap();
+        let (file_id, _, duration, mime) = info.unwrap();
         assert_eq!(file_id, "audio_file_456");
         assert_eq!(duration, Some(120));
+        assert_eq!(mime, Some("audio/mpeg"));
     }
 
     #[test]
@@ -625,35 +691,79 @@ mod tests {
                 file_size: None,
             }),
         };
-        let (file_id, _, _) = TelegramGateway::voice_info(&msg).unwrap();
+        let (file_id, _, _, _) = TelegramGateway::voice_info(&msg).unwrap();
         assert_eq!(file_id, "voice_wins");
     }
 
     #[test]
     fn voice_prompt_includes_path_and_duration() {
         let path = std::path::PathBuf::from("/tmp/goose_voice/voice_test.ogg");
-        let prompt = TelegramGateway::voice_prompt(&path, Some(10));
+        let prompt = TelegramGateway::voice_prompt(&path, Some(10), Some("audio/ogg"));
         assert!(prompt.contains("/tmp/goose_voice/voice_test.ogg"));
         assert!(prompt.contains("(duration: 10s)"));
+        assert!(prompt.contains("audio/ogg"));
         assert!(prompt.contains("transcribe"));
     }
 
     #[test]
     fn voice_prompt_without_duration() {
         let path = std::path::PathBuf::from("/tmp/goose_voice/voice_test.ogg");
-        let prompt = TelegramGateway::voice_prompt(&path, None);
+        let prompt = TelegramGateway::voice_prompt(&path, None, None);
         assert!(!prompt.contains("duration"));
         assert!(prompt.contains("/tmp/goose_voice/voice_test.ogg"));
     }
 
     #[test]
-    fn save_voice_file_creates_file() {
+    fn voice_prompt_with_mp3_mime() {
+        let path = std::path::PathBuf::from("/tmp/goose_voice/voice_test.mp3");
+        let prompt = TelegramGateway::voice_prompt(&path, Some(60), Some("audio/mpeg"));
+        assert!(prompt.contains("audio/mpeg"));
+        assert!(!prompt.contains("OGG"));
+    }
+
+    #[test]
+    fn save_voice_file_creates_file_ogg() {
         let bytes = b"fake ogg data";
-        let path = TelegramGateway::save_voice_file(bytes).unwrap();
+        let path = TelegramGateway::save_voice_file(bytes, Some("audio/ogg")).unwrap();
         assert!(path.exists());
+        assert!(path.to_str().unwrap().ends_with(".ogg"));
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
-        // Cleanup
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn save_voice_file_creates_file_mp3() {
+        let bytes = b"fake mp3 data";
+        let path = TelegramGateway::save_voice_file(bytes, Some("audio/mpeg")).unwrap();
+        assert!(path.exists());
+        assert!(path.to_str().unwrap().ends_with(".mp3"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn save_voice_file_defaults_to_ogg() {
+        let bytes = b"unknown format";
+        let path = TelegramGateway::save_voice_file(bytes, None).unwrap();
+        assert!(path.to_str().unwrap().ends_with(".ogg"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn cleanup_preserves_recent_files() {
+        let dir = std::env::temp_dir().join("goose_voice");
+        std::fs::create_dir_all(&dir).unwrap();
+        let recent_file = dir.join("voice_cleanup_recent_test.ogg");
+        std::fs::write(&recent_file, b"recent").unwrap();
+        // With a 1-hour max_age, a just-created file should survive.
+        cleanup_voice_files(std::time::Duration::from_secs(3600));
+        assert!(recent_file.exists());
+        let _ = std::fs::remove_file(&recent_file);
+    }
+
+    #[test]
+    fn cleanup_handles_missing_dir() {
+        // Should not panic even when the directory doesn't exist.
+        cleanup_voice_files(std::time::Duration::from_secs(1));
     }
 
     #[test]
