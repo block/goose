@@ -1269,4 +1269,19 @@ mod tests {
     fn test_default_model() {
         assert_eq!(CODEX_DEFAULT_MODEL, "gpt-5.2-codex");
     }
+
+    #[test_case(GooseMode::Auto, &["--yolo"] ; "auto_yolo")]
+    #[test_case(GooseMode::SmartApprove, &["--full-auto"] ; "smart_approve_full_auto")]
+    #[test_case(GooseMode::Approve, &[] as &[&str] ; "approve_no_flags")]
+    #[test_case(GooseMode::Chat, &["--sandbox", "read-only"] ; "chat_read_only")]
+    fn test_apply_permission_flags(mode: GooseMode, expected: &[&str]) {
+        let mut cmd = tokio::process::Command::new("codex");
+        CodexProvider::apply_permission_flags(&mut cmd, mode).unwrap();
+        let args: Vec<&str> = cmd
+            .as_std()
+            .get_args()
+            .map(|a| a.to_str().unwrap())
+            .collect();
+        assert_eq!(args, expected);
+    }
 }

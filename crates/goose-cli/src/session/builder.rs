@@ -669,6 +669,14 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
+    agent
+        .update_goose_mode(agent.config.goose_mode, &session_id)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to set session mode: {}", e));
+            process::exit(1);
+        });
+
     if let Some(recipe) = session_config.recipe.clone() {
         if let Err(e) = session_manager
             .update(&session_id)
