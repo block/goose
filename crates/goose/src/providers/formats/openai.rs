@@ -525,7 +525,10 @@ fn ensure_valid_json_schema(schema: &mut Value) {
 }
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
-    line.strip_prefix("data: ").map(|s| s.trim())
+    // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
+    line.strip_prefix("data: ")
+        .or_else(|| line.strip_prefix("data:"))
+        .map(|s| s.trim())
 }
 
 pub fn response_to_streaming_message<S>(
