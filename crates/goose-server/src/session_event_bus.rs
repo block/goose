@@ -75,9 +75,12 @@ impl SessionEventBus {
         // in `rx` (not in `replay`), and the caller filters it via seq.
         let (replay, replay_max_seq) = {
             let buf = self.buffer.lock().await;
+            // Clamp to the actual buffer max so a stale Last-Event-ID
+            // (e.g. from before a server restart) doesn't suppress live events.
+            let buf_max = buf.back().map(|e| e.seq).unwrap_or(0);
             if let Some(last_id) = last_event_id {
                 let events: Vec<_> = buf.iter().filter(|e| e.seq > last_id).cloned().collect();
-                let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id);
+                let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id.min(buf_max));
                 (events, max_seq)
             } else {
                 (Vec::new(), 0)

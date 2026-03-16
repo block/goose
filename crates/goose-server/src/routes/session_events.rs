@@ -98,7 +98,13 @@ fn serialize_session_event(seq: u64, request_id: Option<&str>, event: &MessageEv
 
     if let Some(rid) = request_id {
         if let serde_json::Value::Object(ref mut map) = event_json {
-            // Only insert request_id if the event doesn't already carry one
+            // Always insert chat_request_id for routing (the chat UUID that
+            // the frontend registered its listener under).
+            map.insert(
+                "chat_request_id".to_string(),
+                serde_json::Value::String(rid.to_string()),
+            );
+            // Also set request_id if the event doesn't already carry one
             // (e.g. Notification events have their own request_id for tool-call matching)
             map.entry("request_id")
                 .or_insert_with(|| serde_json::Value::String(rid.to_string()));
