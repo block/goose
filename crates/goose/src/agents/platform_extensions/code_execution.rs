@@ -5,8 +5,10 @@ use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
+use pctx_code_mode::config::ToolDisclosure;
 use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInput};
-use pctx_code_mode::{CallbackRegistry, CodeMode};
+use pctx_code_mode::registry::{CallbackFn, PctxRegistry};
+use pctx_code_mode::CodeMode;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
     ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
@@ -105,7 +107,7 @@ impl CodeExecutionClient {
             };
             cfgs.push(CallbackConfig {
                 name,
-                namespace,
+                namespace: Some(namespace),
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
                 output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
@@ -152,7 +154,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         code_mode: &CodeMode,
-    ) -> Result<CallbackRegistry, String> {
+    ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
             .extension_manager
@@ -160,12 +162,12 @@ impl CodeExecutionClient {
             .and_then(|w| w.upgrade())
             .ok_or("Extension manager not available")?;
 
-        let registry = CallbackRegistry::default();
+        let registry = PctxRegistry::default();
         for cfg in code_mode.callbacks() {
-            let full_name = format!("{}__{}", &cfg.namespace, &cfg.name);
+            let full_name = format!("{}__{}", cfg.namespace.as_deref().unwrap_or(""), &cfg.name);
             let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
             registry
-                .add(&cfg.id(), callback)
+                .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
         }
 
@@ -224,7 +226,7 @@ impl CodeExecutionClient {
 
             rt.block_on(async move {
                 code_mode
-                    .execute(&code, Some(registry))
+                    .execute_typescript(&code, ToolDisclosure::default(), Some(registry))
                     .await
                     .map_err(|e| format!("Execution error: {e}"))
             })
@@ -240,7 +242,7 @@ fn create_tool_callback(
     session_id: String,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
-) -> pctx_code_mode::CallbackFn {
+) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let session_id = session_id.clone();
         let full_name = full_name.clone();
