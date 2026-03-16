@@ -137,7 +137,10 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
             continue;
         }
 
-        let json_str = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:")).unwrap(); // Remove "data:" prefix
+        let json_str = line
+            .strip_prefix("data: ")
+            .or_else(|| line.strip_prefix("data:"))
+            .unwrap(); // Remove "data:" prefix
         if json_str.trim().is_empty() || json_str.trim() == "[DONE]" {
             continue;
         }
