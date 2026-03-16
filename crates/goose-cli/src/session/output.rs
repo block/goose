@@ -1553,8 +1553,16 @@ impl McpSpinners {
         if let Some(spinner) = self.log_spinner.as_mut() {
             spinner.disable_steady_tick();
         }
+        // Keep context_bar alive — only clear MCP spinners
+        let context_bar = self.context_bar.take();
+        let result = self.multi_bar.clear();
+        self.context_bar = context_bar;
+        result
+    }
+
+    pub fn hide_all(&mut self) -> Result<(), Error> {
         self.context_bar = None;
-        self.multi_bar.clear()
+        self.hide()
     }
 }
 

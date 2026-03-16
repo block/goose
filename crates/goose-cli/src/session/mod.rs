@@ -1108,6 +1108,8 @@ impl CliSession {
             }
         }
 
+        let _ = progress_bars.hide_all();
+
         if !is_json_mode && !is_stream_json_mode {
             output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
         }
