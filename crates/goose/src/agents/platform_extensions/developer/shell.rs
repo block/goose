@@ -139,7 +139,10 @@ impl ShellTool {
         let output_dir = self.output_dir.path();
         let slot = self.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
         let stdout_result = if raw_stdout.is_empty() {
-            TruncateResult { text: String::new(), truncation: None }
+            TruncateResult {
+                text: String::new(),
+                truncation: None,
+            }
         } else {
             match truncate_output(&raw_stdout, &format!("stdout-{slot}"), output_dir) {
                 Ok(r) => r,
@@ -147,7 +150,10 @@ impl ShellTool {
             }
         };
         let stderr_result = if raw_stderr.is_empty() {
-            TruncateResult { text: String::new(), truncation: None }
+            TruncateResult {
+                text: String::new(),
+                truncation: None,
+            }
         } else {
             match truncate_output(&raw_stderr, &format!("stderr-{slot}"), output_dir) {
                 Ok(r) => r,
@@ -216,9 +222,7 @@ impl ShellTool {
             }
             let mut error_blocks = vec![Content::text(rendered).with_priority(0.0)];
             if !truncation_notices.is_empty() {
-                error_blocks.push(
-                    Content::text(truncation_notices.join("\n")).with_priority(0.0),
-                );
+                error_blocks.push(Content::text(truncation_notices.join("\n")).with_priority(0.0));
             }
             let mut result = CallToolResult::error(error_blocks);
             result.structured_content = structured_content;
@@ -227,9 +231,7 @@ impl ShellTool {
 
         let mut content_blocks = vec![Content::text(rendered).with_priority(0.0)];
         if !truncation_notices.is_empty() {
-            content_blocks.push(
-                Content::text(truncation_notices.join("\n")).with_priority(0.0),
-            );
+            content_blocks.push(Content::text(truncation_notices.join("\n")).with_priority(0.0));
         }
         let mut result = CallToolResult::success(content_blocks);
         result.structured_content = structured_content;
@@ -614,7 +616,10 @@ mod tests {
         assert!(preview.starts_with("line 2450"));
         assert!(preview.contains("line 2499"));
 
-        let info = result.truncation.as_ref().expect("expected truncation info");
+        let info = result
+            .truncation
+            .as_ref()
+            .expect("expected truncation info");
         assert!(info.reason.contains("2000 line limit"));
         assert!(info.reason.contains("2500 lines total"));
 
@@ -634,7 +639,10 @@ mod tests {
         assert!(input.lines().count() <= OUTPUT_LIMIT_LINES);
 
         let result = render_output(&input, "test_bytes", dir.path()).unwrap();
-        let info = result.truncation.as_ref().expect("expected truncation info");
+        let info = result
+            .truncation
+            .as_ref()
+            .expect("expected truncation info");
         assert!(info.reason.contains("byte limit"));
         assert!(info.reason.contains("bytes total"));
 
