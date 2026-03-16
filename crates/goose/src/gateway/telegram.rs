@@ -55,6 +55,14 @@ struct TelegramAudio {
     file_size: Option<i64>,
 }
 
+/// Metadata extracted from a Telegram voice note or audio attachment.
+struct VoiceInfo<'a> {
+    file_id: &'a str,
+    file_size: Option<i64>,
+    duration: Option<i32>,
+    mime_type: Option<&'a str>,
+}
+
 /// Response from the Telegram `getFile` API.
 #[derive(Debug, Deserialize)]
 struct TelegramFile {
@@ -270,15 +278,24 @@ impl TelegramGateway {
         )
     }
 
-    /// Extract the `file_id`, `file_size`, `duration`, and `mime_type` from
-    /// either a voice note or an audio attachment.  Returns `None` when
-    /// neither is present.
-    fn voice_info(msg: &TelegramMessage) -> Option<(&str, Option<i64>, Option<i32>, Option<&str>)> {
+    /// Extract metadata from either a voice note or an audio attachment.
+    /// Returns `None` when neither is present.
+    fn voice_info(msg: &TelegramMessage) -> Option<VoiceInfo<'_>> {
         if let Some(ref v) = msg.voice {
-            return Some((&v.file_id, v.file_size, v.duration, v.mime_type.as_deref()));
+            return Some(VoiceInfo {
+                file_id: &v.file_id,
+                file_size: v.file_size,
+                duration: v.duration,
+                mime_type: v.mime_type.as_deref(),
+            });
         }
         if let Some(ref a) = msg.audio {
-            return Some((&a.file_id, a.file_size, a.duration, a.mime_type.as_deref()));
+            return Some(VoiceInfo {
+                file_id: &a.file_id,
+                file_size: a.file_size,
+                duration: a.duration,
+                mime_type: a.mime_type.as_deref(),
+            });
         }
         None
     }
@@ -349,22 +366,20 @@ impl Gateway for TelegramGateway {
                                 // Voice/audio messages are downloaded, saved to
                                 // disk, and converted into a prompt that asks
                                 // Goose to transcribe the file using CLI tools.
-                                let text = if let Some((file_id, file_size, duration, mime_type)) =
-                                    Self::voice_info(&tg_msg)
-                                {
+                                let text = if let Some(voice) = Self::voice_info(&tg_msg) {
                                     // Reject files that exceed the Telegram bot
                                     // download limit.
-                                    if file_size.unwrap_or(0) > MAX_VOICE_FILE_SIZE {
+                                    if voice.file_size.unwrap_or(0) > MAX_VOICE_FILE_SIZE {
                                         tracing::warn!(
-                                            file_size,
+                                            file_size = voice.file_size,
                                             "voice file exceeds size limit, skipping"
                                         );
                                         continue;
                                     }
 
-                                    match self.download_file(file_id).await {
-                                        Ok(bytes) => match Self::save_voice_file(&bytes, mime_type) {
-                                            Ok(path) => Self::voice_prompt(&path, duration, mime_type),
+                                    match self.download_file(voice.file_id).await {
+                                        Ok(bytes) => match Self::save_voice_file(&bytes, voice.mime_type) {
+                                            Ok(path) => Self::voice_prompt(&path, voice.duration, voice.mime_type),
                                             Err(e) => {
                                                 tracing::error!(
                                                     error = %e,
@@ -473,14 +488,13 @@ fn cleanup_voice_files(max_age: std::time::Duration) {
     let cutoff = std::time::SystemTime::now() - max_age;
     let mut removed = 0u32;
     for entry in entries.flatten() {
-        if let Ok(meta) = entry.metadata() {
-            if let Ok(modified) = meta.modified() {
-                if modified < cutoff {
-                    if std::fs::remove_file(entry.path()).is_ok() {
-                        removed += 1;
-                    }
-                }
-            }
+        let dominated = entry
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .is_some_and(|t| t < cutoff);
+        if dominated && std::fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
         }
     }
     if removed > 0 {
@@ -619,11 +633,11 @@ mod tests {
         };
         let info = TelegramGateway::voice_info(&msg);
         assert!(info.is_some());
-        let (file_id, file_size, duration, mime) = info.unwrap();
-        assert_eq!(file_id, "voice_file_123");
-        assert_eq!(file_size, Some(10000));
-        assert_eq!(duration, Some(5));
-        assert_eq!(mime, Some("audio/ogg"));
+        let v = info.unwrap();
+        assert_eq!(v.file_id, "voice_file_123");
+        assert_eq!(v.file_size, Some(10000));
+        assert_eq!(v.duration, Some(5));
+        assert_eq!(v.mime_type, Some("audio/ogg"));
     }
 
     #[test]
@@ -646,10 +660,10 @@ mod tests {
         };
         let info = TelegramGateway::voice_info(&msg);
         assert!(info.is_some());
-        let (file_id, _, duration, mime) = info.unwrap();
-        assert_eq!(file_id, "audio_file_456");
-        assert_eq!(duration, Some(120));
-        assert_eq!(mime, Some("audio/mpeg"));
+        let v = info.unwrap();
+        assert_eq!(v.file_id, "audio_file_456");
+        assert_eq!(v.duration, Some(120));
+        assert_eq!(v.mime_type, Some("audio/mpeg"));
     }
 
     #[test]
@@ -691,8 +705,8 @@ mod tests {
                 file_size: None,
             }),
         };
-        let (file_id, _, _, _) = TelegramGateway::voice_info(&msg).unwrap();
-        assert_eq!(file_id, "voice_wins");
+        let v = TelegramGateway::voice_info(&msg).unwrap();
+        assert_eq!(v.file_id, "voice_wins");
     }
 
     #[test]
