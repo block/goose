@@ -1048,7 +1048,6 @@ impl CliSession {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
                                     output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
-                                    context_bar.redraw();
                                     maybe_open_credits_top_up_url(
                                         &message,
                                         interactive,

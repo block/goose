@@ -1461,65 +1461,69 @@ fn format_tokens_short(n: usize) -> String {
 }
 
 pub struct ContextStatusBar {
-    bar: Option<ProgressBar>,
     last_usage: Option<(usize, usize)>,
-    multi_bar: MultiProgress,
+    visible: bool,
 }
 
 impl ContextStatusBar {
     pub fn new() -> Self {
         Self {
-            bar: None,
             last_usage: None,
-            multi_bar: MultiProgress::new(),
+            visible: false,
         }
     }
 
     pub fn update(&mut self, used: usize, total: usize) {
         self.last_usage = Some((used, total));
-        self.redraw();
+        self.draw();
     }
 
-    pub fn redraw(&mut self) {
+    fn draw(&mut self) {
         let Some((used, total)) = self.last_usage else {
             return;
         };
 
+        if !std::io::stdout().is_terminal() {
+            return;
+        }
+
         let pct = if total > 0 {
-            (used as f64 / total as f64 * 100.0) as u64
+            (used as f64 / total as f64 * 100.0) as usize
         } else {
             0
         };
 
-        let color = if pct < 50 {
-            "green"
+        let bar_width = 20;
+        let filled = bar_width * pct / 100;
+        let empty = bar_width - filled;
+        let bar_str = format!("{}{}", "━".repeat(filled), "╌".repeat(empty));
+
+        let color_code = if pct < 50 {
+            "32" // green
         } else if pct < 85 {
-            "yellow"
+            "33" // yellow
         } else {
-            "red"
+            "31" // red
         };
 
-        let style = ProgressStyle::with_template(&format!("  {{bar:20.{color}}} {{pos}}% {{msg}}"))
-            .unwrap()
-            .progress_chars("━━╌");
-
-        let bar = self
-            .bar
-            .get_or_insert_with(|| self.multi_bar.add(ProgressBar::new(100)));
-
-        bar.set_style(style);
-        bar.set_position(pct);
-        bar.set_message(format!(
-            "{}/{} tokens",
+        let status = format!(
+            "\x1b[s\x1b[999;1H\x1b[2K  \x1b[{color_code}m{bar_str}\x1b[0m {pct}% {}/{} tokens\x1b[u",
             format_tokens_short(used),
-            format_tokens_short(total)
-        ));
+            format_tokens_short(total),
+        );
+
+        let _ = write!(std::io::stdout(), "{}", status);
+        let _ = std::io::stdout().flush();
+        self.visible = true;
     }
 
     pub fn clear(&mut self) {
-        self.bar = None;
+        if self.visible {
+            let _ = write!(std::io::stdout(), "\x1b[s\x1b[999;1H\x1b[2K\x1b[u");
+            let _ = std::io::stdout().flush();
+            self.visible = false;
+        }
         self.last_usage = None;
-        let _ = self.multi_bar.clear();
     }
 }
 
