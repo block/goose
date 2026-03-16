@@ -5,15 +5,15 @@
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
 use fixtures::{
-    Connection, FsFixture, OpenAiFixture, PermissionDecision, Session, SessionResult,
-    TerminalFixture, TestConnectionConfig,
+    assert_notifications, Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision,
+    Session, SessionResult, TerminalCall, TerminalFixture, TestConnectionConfig,
 };
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
-use sacp::schema::{McpServer, McpServerHttp, ModelId, SessionModeId, ToolCallStatus};
+use sacp::schema::{McpServer, McpServerHttp, ModelId, SessionModeId, ToolCallStatus, ToolKind};
 use std::sync::Arc;
 
 const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
@@ -56,6 +56,15 @@ pub async fn run_config_mcp<C: Connection>() {
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, FAKE_CODE);
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -96,6 +105,15 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, "test-read-content-12345");
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallKind(ToolKind::Read),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     fs.assert_called();
     expected_session_id.assert_matches(&session.session_id().0);
 }
@@ -135,6 +153,15 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
         fs::read_to_string("/tmp/test_acp_write.txt").unwrap(),
         "test-write-content-67890"
     );
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -171,6 +198,16 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
 
     let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
     assert!(!output.text.is_empty());
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallKind(ToolKind::Edit),
+            Notification::ToolCallContent("diff".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     fs.assert_called();
     expected_session_id.assert_matches(&session.session_id().0);
 }
@@ -250,6 +287,15 @@ pub async fn run_load_mode<C: Connection>() {
     expected_session_id.set(&loaded.session_id().0);
     let output = loaded.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.tool_status.unwrap(), ToolCallStatus::Failed);
+    assert_notifications(
+        &loaded.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Failed),
+            Notification::AgentMessage,
+        ],
+    );
 }
 
 pub async fn run_load_model<C: Connection>() {
@@ -584,6 +630,7 @@ pub async fn run_prompt_basic<C: Connection>() {
         .prompt("what is 1+1", PermissionDecision::Cancel)
         .await;
     assert_eq!(output.text, "2");
+    assert_notifications(&session.notifications(), &[Notification::AgentMessage]);
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -667,6 +714,15 @@ pub async fn run_prompt_image<C: Connection>() {
         )
         .await;
     assert_eq!(output.text, "Hello Goose!\nThis is a test image.");
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -694,6 +750,7 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
         )
         .await;
     assert!(output.text.contains("Hello Goose!"));
+    assert_notifications(&session.notifications(), &[Notification::AgentMessage]);
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -730,6 +787,15 @@ pub async fn run_prompt_mcp<C: Connection>() {
         )
         .await;
     assert_eq!(output.text, FAKE_CODE);
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -798,6 +864,15 @@ pub async fn run_shell_terminal_false<C: Connection>() {
 
     let output = session.prompt(&prompt, PermissionDecision::AllowOnce).await;
     assert!(!output.text.is_empty());
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -821,7 +896,12 @@ pub async fn run_shell_terminal_true<C: Connection>() {
 
     let command = format!("echo {SHELL_TEST_CONTENT}");
     let output_text = format!("{SHELL_TEST_CONTENT}\n");
-    let terminal = TerminalFixture::new(&command, "term-1", &output_text, 0);
+    let terminal = TerminalFixture::new(vec![
+        TerminalCall::Create(command.clone(), "term-1".into()),
+        TerminalCall::WaitForExit(0),
+        TerminalCall::Output(output_text.clone(), 0),
+        TerminalCall::Release,
+    ]);
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
         terminal: Some(terminal.clone()),
@@ -832,7 +912,17 @@ pub async fn run_shell_terminal_true<C: Connection>() {
     expected_session_id.set(&session.session_id().0);
 
     let output = session.prompt(&prompt, PermissionDecision::AllowOnce).await;
-    assert!(!output.text.is_empty());
+    assert_eq!(output.tool_status, Some(ToolCallStatus::Completed));
+    assert_notifications(
+        &session.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallKind(ToolKind::Execute),
+            Notification::ToolCallContent("terminal".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
     terminal.assert_called();
     expected_session_id.assert_matches(&session.session_id().0);
 }

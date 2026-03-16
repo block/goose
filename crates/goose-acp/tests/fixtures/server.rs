@@ -38,6 +38,7 @@ pub struct ClientToAgentSession {
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
+    _work_dir: tempfile::TempDir,
 }
 
 impl ClientToAgentSession {
@@ -192,17 +193,7 @@ impl Connection for ClientToAgentConnection {
                         {
                             let t = terminal.clone();
                             async move |req: CreateTerminalRequest, request_cx, _cx| match t {
-                                Some(ref f) => {
-                                    if req.command == f.command {
-                                        f.record_call(Ok(()));
-                                    } else {
-                                        f.record_call(Err(format!(
-                                            "expected command {}, got {}",
-                                            f.command, req.command
-                                        )));
-                                    }
-                                    request_cx.respond(f.create_response())
-                                }
+                                Some(ref f) => request_cx.respond(f.on_create(&req.command)),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -214,7 +205,7 @@ impl Connection for ClientToAgentConnection {
                         {
                             let t = terminal.clone();
                             async move |_req: WaitForTerminalExitRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.wait_response()),
+                                Some(ref f) => request_cx.respond(f.on_wait_for_exit()),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -226,7 +217,7 @@ impl Connection for ClientToAgentConnection {
                         {
                             let t = terminal.clone();
                             async move |_req: TerminalOutputRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.output_response()),
+                                Some(ref f) => request_cx.respond(f.on_output()),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -238,7 +229,7 @@ impl Connection for ClientToAgentConnection {
                         {
                             let t = terminal.clone();
                             async move |_req: ReleaseTerminalRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.release_response()),
+                                Some(ref f) => request_cx.respond(f.on_release()),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -250,7 +241,7 @@ impl Connection for ClientToAgentConnection {
                         {
                             let t = terminal.clone();
                             async move |_req: KillTerminalCommandRequest, request_cx, _cx| match t {
-                                Some(ref f) => request_cx.respond(f.kill_response()),
+                                Some(ref f) => request_cx.respond(f.on_kill()),
                                 None => {
                                     request_cx.respond_with_error(sacp::Error::method_not_found())
                                 }
@@ -329,6 +320,7 @@ impl Connection for ClientToAgentConnection {
             updates: self.updates.clone(),
             permission: self.permission.clone(),
             notify: self.notify.clone(),
+            _work_dir: work_dir,
         };
         SessionResult {
             session,
@@ -360,6 +352,7 @@ impl Connection for ClientToAgentConnection {
             updates: self.updates.clone(),
             permission: self.permission.clone(),
             notify: self.notify.clone(),
+            _work_dir: work_dir,
         };
         SessionResult {
             session,
@@ -411,6 +404,17 @@ impl Connection for ClientToAgentConnection {
 impl Session for ClientToAgentSession {
     fn session_id(&self) -> &sacp::schema::SessionId {
         &self.session_id
+    }
+
+    fn notifications(&self) -> Vec<super::Notification> {
+        let updates: Vec<_> = self
+            .updates
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|n| n.update.clone())
+            .collect();
+        super::to_notifications(&updates)
     }
 
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {

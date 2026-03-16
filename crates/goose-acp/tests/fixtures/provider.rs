@@ -14,10 +14,12 @@ use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose_test_support::{ExpectedSessionId, IgnoreSessionId, TEST_MODEL};
-use sacp::schema::{AuthMethod, McpServer, ToolCallStatus};
+use sacp::schema::{AuthMethod, McpServer, SessionUpdate, ToolCallStatus};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+pub type NotificationSink = Arc<std::sync::Mutex<Vec<SessionUpdate>>>;
 
 #[allow(dead_code)]
 pub struct ClientToProviderConnection {
@@ -25,6 +27,7 @@ pub struct ClientToProviderConnection {
     permission_manager: Arc<PermissionManager>,
     auth_methods: Vec<AuthMethod>,
     session_counter: usize,
+    notification_sink: NotificationSink,
     _openai: OpenAiFixture,
     _temp_dir: Option<tempfile::TempDir>,
     _cwd: Option<tempfile::TempDir>,
@@ -34,6 +37,7 @@ pub struct ClientToProviderConnection {
 pub struct ClientToProviderSession {
     provider: Arc<Mutex<AcpProvider>>,
     session_id: sacp::schema::SessionId,
+    notification_sink: NotificationSink,
 }
 
 impl ClientToProviderSession {
@@ -41,6 +45,7 @@ impl ClientToProviderSession {
     async fn send_message(&mut self, message: Message, decision: PermissionDecision) -> TestOutput {
         let session_id = self.session_id.0.clone();
         let provider = self.provider.lock().await;
+        self.notification_sink.lock().unwrap().clear();
         let model_config = provider.get_model_config();
         let mut stream = provider
             .stream(&model_config, &session_id, "", &[message], &[])
@@ -135,6 +140,8 @@ impl Connection for ClientToProviderConnection {
             .map(|td| td.path().to_path_buf())
             .unwrap_or(data_root);
 
+        let notification_sink: NotificationSink = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink_clone = notification_sink.clone();
         let provider_config = AcpProviderConfig {
             command: "unused".into(),
             args: vec![],
@@ -144,6 +151,9 @@ impl Connection for ClientToProviderConnection {
             mcp_servers,
             session_mode_id: None,
             permission_mapping: PermissionMapping::default(),
+            notification_callback: Some(Arc::new(move |n| {
+                sink_clone.lock().unwrap().push(n.update.clone());
+            })),
         };
 
         let provider = AcpProvider::connect_with_transport(
@@ -164,6 +174,7 @@ impl Connection for ClientToProviderConnection {
             permission_manager,
             auth_methods,
             session_counter: 0,
+            notification_sink,
             _openai: openai,
             _temp_dir: temp_dir,
             _cwd: config.cwd,
@@ -186,6 +197,7 @@ impl Connection for ClientToProviderConnection {
         let session = ClientToProviderSession {
             provider: Arc::clone(&self.provider),
             session_id: sacp::schema::SessionId::new(goose_id),
+            notification_sink: self.notification_sink.clone(),
         };
         SessionResult {
             session,
@@ -247,6 +259,11 @@ impl Connection for ClientToProviderConnection {
 impl Session for ClientToProviderSession {
     fn session_id(&self) -> &sacp::schema::SessionId {
         &self.session_id
+    }
+
+    fn notifications(&self) -> Vec<super::Notification> {
+        let updates = self.notification_sink.lock().unwrap();
+        super::to_notifications(&updates)
     }
 
     async fn prompt(&mut self, prompt: &str, decision: PermissionDecision) -> TestOutput {

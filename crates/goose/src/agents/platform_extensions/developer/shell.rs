@@ -53,32 +53,41 @@ pub struct ShellOutput {
 /// source the user's profile and recover the full PATH.
 #[cfg(not(windows))]
 fn resolve_login_shell_path() -> Option<String> {
+    // Run on a thread with a timeout — login shells can hang on misconfigured profiles.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(login_shell_path());
+    });
+    rx.recv_timeout(Duration::from_secs(5)).ok().flatten()
+}
+
+#[cfg(not(windows))]
+fn login_shell_path() -> Option<String> {
     let shell = if PathBuf::from("/bin/bash").is_file() {
         "/bin/bash".to_string()
     } else {
         std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
     };
 
-    std::process::Command::new(&shell)
+    let output = std::process::Command::new(&shell)
         .args(["-l", "-i", "-c", "echo $PATH"])
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                // Take the last non-empty line — interactive shells may emit
-                // extra output from profile scripts before our echo.
-                String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .rev()
-                    .find(|line| !line.trim().is_empty())
-                    .map(|line| line.trim().to_string())
-                    .filter(|path| !path.is_empty())
-            } else {
-                None
-            }
-        })
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    // Take the last non-empty line — interactive shells may emit
+    // extra output from profile scripts before our echo.
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .map(|line| line.trim().to_string())
+        .filter(|path| !path.is_empty())
 }
 
 #[cfg(not(windows))]

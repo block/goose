@@ -16,8 +16,9 @@ use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
     AuthMethod, CreateTerminalResponse, KillTerminalCommandResponse, McpServer,
     ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState,
-    SessionModelState, TerminalExitStatus, TerminalId, TerminalOutputResponse, ToolCallStatus,
-    WaitForTerminalExitResponse, WriteTextFileRequest, WriteTextFileResponse,
+    SessionModelState, SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse,
+    ToolCallContent, ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
+    WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
@@ -202,6 +203,74 @@ pub struct TestOutput {
     pub tool_status: Option<ToolCallStatus>,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum Notification {
+    UserMessage,
+    AgentMessage,
+    AgentThought,
+    ToolCall,
+    ToolCallKind(ToolKind),
+    ToolCallContent(String),
+    ToolCallStatus(ToolCallStatus),
+    Plan,
+    AvailableCommands,
+    CurrentMode,
+    ConfigOption,
+}
+
+pub fn to_notifications(updates: &[SessionUpdate]) -> Vec<Notification> {
+    let mut out = Vec::new();
+    for u in updates {
+        match u {
+            SessionUpdate::UserMessageChunk(_) => {
+                if out.last() != Some(&Notification::UserMessage) {
+                    out.push(Notification::UserMessage);
+                }
+            }
+            SessionUpdate::AgentMessageChunk(_) => {
+                if out.last() != Some(&Notification::AgentMessage) {
+                    out.push(Notification::AgentMessage);
+                }
+            }
+            SessionUpdate::AgentThoughtChunk(_) => {
+                if out.last() != Some(&Notification::AgentThought) {
+                    out.push(Notification::AgentThought);
+                }
+            }
+            SessionUpdate::ToolCall(_) => out.push(Notification::ToolCall),
+            SessionUpdate::ToolCallUpdate(upd) => {
+                if let Some(kind) = upd.fields.kind {
+                    out.push(Notification::ToolCallKind(kind));
+                }
+                if let Some(ref content) = upd.fields.content {
+                    for c in content {
+                        let tag = match c {
+                            ToolCallContent::Content(_) => "content",
+                            ToolCallContent::Diff(_) => "diff",
+                            ToolCallContent::Terminal(_) => "terminal",
+                            _ => "unknown",
+                        };
+                        out.push(Notification::ToolCallContent(tag.into()));
+                    }
+                }
+                if let Some(status) = upd.fields.status {
+                    out.push(Notification::ToolCallStatus(status));
+                }
+            }
+            SessionUpdate::Plan(_) => out.push(Notification::Plan),
+            SessionUpdate::AvailableCommandsUpdate(_) => out.push(Notification::AvailableCommands),
+            SessionUpdate::CurrentModeUpdate(_) => out.push(Notification::CurrentMode),
+            SessionUpdate::ConfigOptionUpdate(_) => out.push(Notification::ConfigOption),
+            _ => {}
+        }
+    }
+    out
+}
+
+pub fn assert_notifications(actual: &[Notification], expected: &[Notification]) {
+    assert_eq!(actual, expected);
+}
+
 type ReadTextFileHandler =
     Arc<dyn Fn(&ReadTextFileRequest) -> Result<ReadTextFileResponse, String> + Send + Sync>;
 type WriteTextFileHandler =
@@ -268,55 +337,101 @@ impl FsFixture {
     }
 }
 
+/// Expected terminal calls. Each variant carries (expected_input, return_value) data,
+/// like OpenAiFixture's (pattern, response) pairs.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum TerminalCall {
+    Create(String, String), // (command, terminal_id)
+    WaitForExit(u32),       // exit_code
+    Output(String, u32),    // (text, exit_code)
+    Release,
+    Kill,
+}
+
 pub struct TerminalFixture {
-    calls: Arc<Mutex<Vec<Result<(), String>>>>,
-    pub command: String,
-    pub terminal_id: TerminalId,
-    pub output: String,
-    pub exit_code: u32,
+    queue: Arc<Mutex<VecDeque<TerminalCall>>>,
+    errors: Arc<Mutex<Vec<String>>>,
 }
 
 impl TerminalFixture {
-    pub fn new(command: &str, terminal_id: &str, output: &str, exit_code: u32) -> Arc<Self> {
+    pub fn new(calls: Vec<TerminalCall>) -> Arc<Self> {
         Arc::new(Self {
-            calls: Arc::new(Mutex::new(Vec::new())),
-            command: command.to_string(),
-            terminal_id: TerminalId::new(terminal_id),
-            output: output.to_string(),
-            exit_code,
+            queue: Arc::new(Mutex::new(VecDeque::from(calls))),
+            errors: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
-    pub fn record_call(&self, result: Result<(), String>) {
-        self.calls.lock().unwrap().push(result);
+    fn pop(&self, expected: &str) -> Option<TerminalCall> {
+        let mut queue = self.queue.lock().unwrap();
+        match queue.pop_front() {
+            Some(call) => Some(call),
+            None => {
+                self.errors
+                    .lock()
+                    .unwrap()
+                    .push(format!("unexpected {expected}: queue empty"));
+                None
+            }
+        }
     }
 
-    pub fn assert_called(&self) {
-        let calls = self.calls.lock().unwrap();
-        assert!(!calls.is_empty());
-        let errors: Vec<_> = calls.iter().filter_map(|c| c.as_ref().err()).collect();
-        assert!(errors.is_empty());
+    fn record_error(&self, msg: String) {
+        self.errors.lock().unwrap().push(msg);
     }
 
-    pub fn create_response(&self) -> CreateTerminalResponse {
-        CreateTerminalResponse::new(self.terminal_id.clone())
+    pub fn on_create(&self, command: &str) -> CreateTerminalResponse {
+        if let Some(TerminalCall::Create(expect_command, terminal_id)) = self.pop("create") {
+            if command != expect_command {
+                self.record_error(format!(
+                    "create: expected command {expect_command}, got {command}"
+                ));
+            }
+            CreateTerminalResponse::new(TerminalId::new(terminal_id))
+        } else {
+            CreateTerminalResponse::new(TerminalId::new("error"))
+        }
     }
 
-    pub fn wait_response(&self) -> WaitForTerminalExitResponse {
-        WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(self.exit_code))
+    pub fn on_wait_for_exit(&self) -> WaitForTerminalExitResponse {
+        if let Some(TerminalCall::WaitForExit(exit_code)) = self.pop("wait_for_exit") {
+            WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(exit_code))
+        } else {
+            WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(1))
+        }
     }
 
-    pub fn output_response(&self) -> TerminalOutputResponse {
-        TerminalOutputResponse::new(&self.output, false)
-            .exit_status(TerminalExitStatus::new().exit_code(self.exit_code))
+    pub fn on_output(&self) -> TerminalOutputResponse {
+        if let Some(TerminalCall::Output(text, exit_code)) = self.pop("output") {
+            TerminalOutputResponse::new(text, false)
+                .exit_status(TerminalExitStatus::new().exit_code(exit_code))
+        } else {
+            TerminalOutputResponse::new("", false)
+        }
     }
 
-    pub fn release_response(&self) -> ReleaseTerminalResponse {
+    pub fn on_release(&self) -> ReleaseTerminalResponse {
+        if let Some(TerminalCall::Release) = self.pop("release") {
+            // expected
+        }
         ReleaseTerminalResponse::new()
     }
 
-    pub fn kill_response(&self) -> KillTerminalCommandResponse {
+    pub fn on_kill(&self) -> KillTerminalCommandResponse {
+        if let Some(TerminalCall::Kill) = self.pop("kill") {
+            // expected
+        }
         KillTerminalCommandResponse::new()
+    }
+
+    pub fn assert_called(&self) {
+        let errors = self.errors.lock().unwrap();
+        assert!(errors.is_empty(), "terminal fixture errors: {errors:?}");
+        let queue = self.queue.lock().unwrap();
+        assert!(
+            queue.is_empty(),
+            "terminal fixture has unconsumed calls: {queue:?}"
+        );
     }
 }
 
@@ -376,6 +491,7 @@ pub trait Connection: Sized {
 #[async_trait]
 pub trait Session {
     fn session_id(&self) -> &sacp::schema::SessionId;
+    fn notifications(&self) -> Vec<Notification>;
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
     async fn prompt_with_image(
         &mut self,
