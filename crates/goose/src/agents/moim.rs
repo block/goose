@@ -35,11 +35,21 @@ pub async fn inject_moim(
         let has_unexpected_issues = issues.iter().any(|issue| {
             !issue.contains("Merged consecutive user messages")
                 && !issue.contains("Merged consecutive assistant messages")
+                && !issue.contains("Merged text content")
+                && !issue.contains("Removed orphaned tool response")
+                && !issue.contains("Removed orphaned tool request")
+                && !issue.contains("Removed empty message")
+                && !issue.contains("Removed leading assistant message")
+                && !issue.contains("Removed trailing assistant message")
         });
 
         if has_unexpected_issues {
             tracing::warn!("MOIM injection caused unexpected issues: {:?}", issues);
             return conversation;
+        }
+
+        if !issues.is_empty() {
+            tracing::info!("MOIM injection applied conversation fixes: {:?}", issues);
         }
 
         return fixed;
