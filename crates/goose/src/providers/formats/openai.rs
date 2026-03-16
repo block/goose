@@ -4,19 +4,19 @@ use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
-    convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
-    load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
+    ImageFormat, convert_image, detect_image_path, extract_reasoning_effort,
+    is_valid_function_name, load_image_file, safely_parse_json, sanitize_function_name,
 };
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role,
-    Tool,
+    AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -184,14 +184,16 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                     }
                                 }
                             }
-                            let tool_response_content: Value = json!(tool_content
-                                .iter()
-                                .map(|content| match content.deref() {
-                                    RawContent::Text(text) => text.text.clone(),
-                                    _ => String::new(),
-                                })
-                                .collect::<Vec<String>>()
-                                .join(" "));
+                            let tool_response_content: Value = json!(
+                                tool_content
+                                    .iter()
+                                    .map(|content| match content.deref() {
+                                        RawContent::Text(text) => text.text.clone(),
+                                        _ => String::new(),
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(" ")
+                            );
 
                             // First add the tool response with all content
                             output.push(json!({
@@ -293,17 +295,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
     messages_spec
 }
 
-/// Merge consecutive assistant tool-call messages that share identical
-/// `reasoning_content` back into a single message with multiple `tool_calls`.
+/// Reconsolidate split assistant/tool message pairs into the standard OpenAI
+/// format: one assistant message with multiple `tool_calls`, followed by all
+/// tool result messages.
 ///
-/// The agent splits one assistant response with N tool_calls into N separate
-/// messages, cloning `reasoning_content` onto each. This causes reasoning to
-/// appear N times per turn, growing linearly across turns. This function
-/// reconsolidates them into the standard OpenAI format (one message, multiple
-/// tool_calls, one reasoning_content).
+/// The agent splits one assistant response with N tool_calls into N interleaved
+/// pairs: `asst(TC1)/tool_1/asst(TC2)/tool_2/...`, cloning `reasoning_content`
+/// onto each assistant message. This function merges them back into:
+/// `asst(TC1,TC2,...)/tool_1/tool_2/...`
 ///
-/// Only merges when `reasoning_content` is present on the messages, so
-/// non-thinking models are unaffected.
+/// Only merges when `reasoning_content` is present on the assistant messages,
+/// so non-thinking models are unaffected.
 fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
     let mut i = 0;
     while i < messages.len() {
@@ -322,40 +324,55 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
             continue;
         }
 
+        // Scan ahead through interleaved asst/tool pairs that share the same
+        // reasoning_content. Collect extra tool_calls and tool result messages.
         let base_reasoning = messages[i].get("reasoning_content").cloned();
-        let mut merge_end = i + 1;
+        let mut extra_tool_calls: Vec<Value> = Vec::new();
+        let mut tool_results: Vec<Value> = Vec::new();
+        let mut scan = i + 1;
 
-        while merge_end < messages.len() {
-            let next = &messages[merge_end];
-            let next_matches = next.get("role") == Some(&json!("assistant"))
-                && next
+        loop {
+            // Expect a tool result message next
+            if scan >= messages.len() || messages[scan].get("role") != Some(&json!("tool")) {
+                break;
+            }
+            let tool_msg = messages[scan].clone();
+
+            // Then expect another assistant tool-call message with matching reasoning
+            if scan + 1 >= messages.len() {
+                // Last tool result in the sequence — still part of the first
+                // assistant message's tool_calls, not a split pair to merge
+                break;
+            }
+            let next_asst = &messages[scan + 1];
+            let next_is_split = next_asst.get("role") == Some(&json!("assistant"))
+                && next_asst
                     .get("tool_calls")
                     .and_then(|tc| tc.as_array())
                     .is_some_and(|a| !a.is_empty())
-                && next.get("reasoning_content").cloned() == base_reasoning;
+                && next_asst.get("reasoning_content").cloned() == base_reasoning;
 
-            if !next_matches {
+            if !next_is_split {
                 break;
             }
-            merge_end += 1;
+
+            // This is a split pair — collect the tool_calls and tool result
+            tool_results.push(tool_msg);
+            if let Some(tc) = messages[scan + 1]
+                .get("tool_calls")
+                .and_then(|tc| tc.as_array())
+            {
+                extra_tool_calls.extend(tc.iter().cloned());
+            }
+            scan += 2;
         }
 
-        if merge_end == i + 1 {
+        if extra_tool_calls.is_empty() {
             i += 1;
             continue;
         }
 
-        // Collect tool_calls from the messages being merged
-        let extra_tool_calls: Vec<Value> = messages[i + 1..merge_end]
-            .iter()
-            .flat_map(|msg| {
-                msg.get("tool_calls")
-                    .and_then(|tc| tc.as_array())
-                    .cloned()
-                    .unwrap_or_default()
-            })
-            .collect();
-
+        // Merge extra tool_calls into the first assistant message
         if let Some(base_tc) = messages[i]
             .get_mut("tool_calls")
             .and_then(|tc| tc.as_array_mut())
@@ -363,8 +380,14 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
             base_tc.extend(extra_tool_calls);
         }
 
-        messages.drain(i + 1..merge_end);
-        i += 1;
+        let insert_at = i + 1;
+        messages.drain(insert_at..scan);
+        let num_inserted = tool_results.len();
+        for (j, tool_msg) in tool_results.into_iter().enumerate() {
+            messages.insert(insert_at + j, tool_msg);
+        }
+
+        i = insert_at + num_inserted;
     }
 }
 
@@ -1099,10 +1122,14 @@ mod tests {
 
     #[test]
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
-        let mut messages = vec![Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
-        )];
+        let mut messages =
+            vec![
+                Message::assistant().with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("example")
+                        .with_arguments(object!({"param1": "value1"}))),
+                ),
+            ];
 
         // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
@@ -1162,10 +1189,12 @@ mod tests {
 
         let result = format_tools(&[tool1, tool2]);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Duplicate tool name"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate tool name")
+        );
 
         Ok(())
     }
@@ -1203,10 +1232,12 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         assert!(content[0]["text"].as_str().unwrap().contains(png_path_str));
         assert_eq!(content[1]["type"], "image_url");
-        assert!(content[1]["image_url"]["url"]
-            .as_str()
-            .unwrap()
-            .starts_with("data:image/png;base64,"));
+        assert!(
+            content[1]["image_url"]["url"]
+                .as_str()
+                .unwrap()
+                .starts_with("data:image/png;base64,")
+        );
 
         // Create assistant message with same text - should NOT load the image
         let assistant_message =
@@ -1736,10 +1767,12 @@ data: [DONE]
             "Expected 2 tool calls, got {}",
             result.tool_calls.len()
         );
-        assert!(result
-            .tool_calls
-            .iter()
-            .all(|name| name == "developer__shell"));
+        assert!(
+            result
+                .tool_calls
+                .iter()
+                .all(|name| name == "developer__shell")
+        );
 
         assert_usage_yielded_once(&result, 4982, 122, 5104);
 
