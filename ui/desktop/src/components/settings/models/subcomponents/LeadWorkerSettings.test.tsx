@@ -23,13 +23,6 @@ vi.mock('../../../ConfigContext', () => ({
   }),
 }));
 
-// Minimal mock for useModelAndProvider
-vi.mock('../../../ModelAndProviderContext', () => ({
-  useModelAndProvider: () => ({
-    currentModel: null,
-  }),
-}));
-
 describe('LeadWorkerSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();

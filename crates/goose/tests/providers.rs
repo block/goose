@@ -10,8 +10,10 @@ use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
+use goose::providers::claude_acp::CLAUDE_ACP_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
+use goose::providers::codex_acp::CODEX_ACP_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
@@ -22,7 +24,9 @@ use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
 use goose::session::{SessionManager, SessionType};
-use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE};
+use goose_test_support::{
+    EnforceSessionId, ExpectedSessionId, IgnoreSessionId, McpFixture, FAKE_CODE,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -112,9 +116,10 @@ struct ProviderTestConfig {
     image_model: Option<&'static str>,
     clear_env: &'static [&'static str],
     skip: bool,
-    test_session_propagation: bool,
+    expected_session_id: fn() -> Arc<dyn ExpectedSessionId>,
     test_permissions: bool,
     test_smart_approve: bool,
+    test_mode_update: bool,
     test_context_length_exceeded: bool,
     expect_context_length_exceeded: bool,
     context_length_exceeded: usize,
@@ -134,9 +139,10 @@ impl ProviderTestConfig {
             image_model: None,
             clear_env: &[],
             skip: false,
-            test_session_propagation: true,
+            expected_session_id: || Arc::new(EnforceSessionId::default()),
             test_permissions: true,
             test_smart_approve: true,
+            test_mode_update: true,
             test_context_length_exceeded: true,
             expect_context_length_exceeded: true,
             context_length_exceeded: 600_000,
@@ -182,8 +188,9 @@ impl ProviderTestConfig {
         let skip = which::which(binary).is_err();
         Self {
             skip,
-            test_session_propagation: false,
+            expected_session_id: || Arc::new(IgnoreSessionId),
             test_smart_approve: false,
+            test_mode_update: false,
             test_context_length_exceeded: false,
             ..Self::with_llm_provider(name, model_name, &[])
         }
@@ -203,11 +210,7 @@ impl ProviderFixture {
         }
         let guard = env_lock::lock_env(env_vars.into_iter());
 
-        let expected_session_id = if config.test_session_propagation {
-            Some(ExpectedSessionId::default())
-        } else {
-            None
-        };
+        let expected_session_id = (config.expected_session_id)();
         let mcp = McpFixture::new(expected_session_id.clone()).await;
 
         let mcp_extension =
@@ -246,12 +249,11 @@ impl ProviderFixture {
                 std::env::current_dir()?,
                 "provider_test".to_string(),
                 SessionType::User,
+                GooseMode::default(),
             )
             .await?;
         let session_id = session.id;
-        if let Some(ref id) = expected_session_id {
-            id.set(&session_id);
-        }
+        expected_session_id.set(&session_id);
         agent.update_provider(provider.clone(), &session_id).await?;
         agent
             .add_extension(mcp_extension, &session_id)
@@ -326,10 +328,15 @@ impl ProviderFixture {
         };
 
         let params = tool_req.tool_call.as_ref().unwrap().clone();
+        let ctx = goose::agents::ToolCallContext::new(
+            self.session_id.to_string(),
+            None,
+            Some("test-id".to_string()),
+        );
         let result = self
             .agent
             .extension_manager
-            .dispatch_tool_call(&self.session_id, params, None, CancellationToken::new())
+            .dispatch_tool_call(&ctx, params, CancellationToken::new())
             .await
             .unwrap()
             .result
@@ -583,6 +590,23 @@ impl ProviderFixture {
         )
         .await
     }
+
+    async fn test_mode_update(&self) -> Result<()> {
+        // Start in Auto mode (fixture default), tools auto-approved.
+        // Switch to Approve mode dynamically via agent.
+        self.agent
+            .update_goose_mode(GooseMode::Approve, &self.session_id)
+            .await?;
+        // Verify tool call now requires permission (ActionRequired).
+        // Cancel prevents the task from completing → tool fails.
+        self.run_permission_test(
+            Permission::Cancel,
+            true,
+            "Use the get_code tool and output only its result.",
+            "mode_update",
+        )
+        .await
+    }
 }
 
 fn load_env() {
@@ -665,6 +689,9 @@ async fn test_provider(config: ProviderTestConfig) -> Result<()> {
                     .test_smart_approve_readonly()
                     .await?;
             }
+        }
+        if config.test_mode_update {
+            run_test(GooseMode::Auto).await?.test_mode_update().await?;
         }
         Ok(())
     }
@@ -838,6 +865,27 @@ async fn test_claude_code_provider() -> Result<()> {
 async fn test_codex_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("codex", CODEX_DEFAULT_MODEL, "codex")
         .test_permissions(false)
+        .run()
+        .await
+}
+
+// Requires: npm install -g @zed-industries/claude-agent-acp
+#[tokio::test]
+async fn test_claude_acp_provider() -> Result<()> {
+    ProviderTestConfig::with_agentic_provider(
+        "claude-acp",
+        CLAUDE_ACP_DEFAULT_MODEL,
+        "claude-agent-acp",
+    )
+    .model_switch_name("sonnet")
+    .run()
+    .await
+}
+
+// Requires: npm install -g @zed-industries/codex-acp
+#[tokio::test]
+async fn test_codex_acp_provider() -> Result<()> {
+    ProviderTestConfig::with_agentic_provider("codex-acp", CODEX_ACP_DEFAULT_MODEL, "codex-acp")
         .run()
         .await
 }

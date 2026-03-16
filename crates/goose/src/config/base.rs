@@ -158,12 +158,12 @@ pub trait ConfigValue {
 macro_rules! config_value {
     ($key:ident, $type:ty) => {
         impl Config {
-            paste::paste! {
+            pastey::paste! {
                 pub fn [<get_ $key:lower>](&self) -> Result<$type, ConfigError> {
                     self.get_param(stringify!($key))
                 }
             }
-            paste::paste! {
+            pastey::paste! {
                 pub fn [<set_ $key:lower>](&self, v: impl Into<$type>) -> Result<(), ConfigError> {
                     self.set_param(stringify!($key), &v.into())
                 }
@@ -172,7 +172,7 @@ macro_rules! config_value {
     };
 
     ($key:ident, $inner:ty, $default:expr) => {
-        paste::paste! {
+        pastey::paste! {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             #[serde(transparent)]
             pub struct [<$key:camel>]($inner);
@@ -941,17 +941,19 @@ impl Config {
         Ok(())
     }
 
-    fn invalidate_secrets_cache(&self) {
+    pub fn invalidate_secrets_cache(&self) {
         let mut cache = self.secrets_cache.lock().unwrap();
         *cache = None;
     }
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
     fn is_keyring_availability_error(&self, error_str: &str) -> bool {
-        error_str.contains("keyring")
-            || error_str.contains("DBus error")
-            || error_str.contains("org.freedesktop.secrets")
-            || error_str.contains("couldn't access platform secure storage")
+        let lower = error_str.to_lowercase();
+        lower.contains("keyring")
+            || lower.contains("dbus")
+            || lower.contains("org.freedesktop.secrets")
+            || lower.contains("platform secure storage")
+            || lower.contains("no secret service")
     }
 
     /// Get a keyring entry for the specified service

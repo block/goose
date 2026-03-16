@@ -60,7 +60,7 @@ jobs:
           # Update version in package.json
           source ./bin/activate-hermit
           cd ui/desktop
-          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+          pnpm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
@@ -94,18 +94,18 @@ jobs:
         run: |
           cp target/x86_64-apple-darwin/release/goosed ui/desktop/src/bin/goosed
 
-      - name: Cache npm dependencies
+      - name: Cache pnpm dependencies
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: intel-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          key: intel-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/pnpm-lock.yaml') }}
           restore-keys: |
-            intel-npm-cache-v1-${{ runner.os }}-
-            
+            intel-pnpm-cache-v1-${{ runner.os }}-
+
       - name: Install dependencies
-        run: source ../../bin/activate-hermit && npm ci
+        run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
       # Configure Electron builder for Intel architecture
@@ -125,7 +125,7 @@ jobs:
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            npm run bundle:intel && break
+            pnpm run bundle:intel && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5

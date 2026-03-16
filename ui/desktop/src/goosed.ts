@@ -159,6 +159,7 @@ export interface GoosedResult {
   workingDir: string;
   process: ChildProcess | null;
   errorLog: string[];
+  stopErrorLogCollection: () => void;
   cleanup: () => Promise<void>;
   client: Client;
   certFingerprint: string | null;
@@ -199,6 +200,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       workingDir,
       process: null,
       errorLog,
+      stopErrorLogCollection: () => {},
       cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
@@ -217,6 +219,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       workingDir,
       process: null,
       errorLog,
+      stopErrorLogCollection: () => {},
       cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
@@ -300,19 +303,22 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     });
   });
 
-  goosedProcess.stderr?.on('data', (data: Buffer) => {
+  const onStderrData = (data: Buffer) => {
     const lines = data.toString().split('\n');
     for (const line of lines) {
       if (line.trim()) {
         errorLog.push(line);
         if (isFatalError(line)) {
           logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
-        } else {
-          logger.info(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
         }
       }
     }
-  });
+  };
+  goosedProcess.stderr?.on('data', onStderrData);
+
+  const stopErrorLogCollection = () => {
+    goosedProcess.stderr?.off('data', onStderrData);
+  };
 
   goosedProcess.on('exit', (code) => {
     logger.info(`goosed process exited with code ${code} for port ${port} and dir ${workingDir}`);
@@ -363,6 +369,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     workingDir,
     process: goosedProcess,
     errorLog,
+    stopErrorLogCollection,
     cleanup,
     client: goosedClientForUrlAndSecret(baseUrl, serverSecret),
     certFingerprint,
