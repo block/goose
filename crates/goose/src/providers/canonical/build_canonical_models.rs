@@ -54,7 +54,7 @@ fn normalize_provider_name(provider: &str) -> &str {
 struct Args {
     /// Skip the canonical model checker (only build models)
     #[arg(long)]
-    no_check: bool,
+    do_check: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -660,7 +660,7 @@ async fn main() -> Result<()> {
 
     build_canonical_models().await?;
 
-    if !args.no_check {
+    if args.do_check {
         check_canonical_mappings().await?;
     }
 
