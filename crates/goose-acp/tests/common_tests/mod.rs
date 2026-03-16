@@ -433,12 +433,30 @@ pub async fn run_mode_set<C: Connection>() {
     expected_session_id.set(&session_b.session_id().0);
     let output = session_b.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.tool_status.unwrap(), ToolCallStatus::Failed);
+    assert_notifications(
+        &session_b.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Failed),
+            Notification::AgentMessage,
+        ],
+    );
 
     // Auto mode ignores Cancel — tool succeeds without permission prompt
     conn.reset_openai();
     expected_session_id.set(&session_a.session_id().0);
     let output = session_a.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, FAKE_CODE);
+    assert_notifications(
+        &session_a.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
 }
 
 pub async fn run_mode_set_error<C: Connection>(
