@@ -69,9 +69,12 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?;
-
         let config = crate::config::Config::global();
+        let fast_model_name: String = config
+            .get_param("GOOSE_FAST_MODEL")
+            .unwrap_or_else(|_| OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(&fast_model_name, OPEN_AI_PROVIDER_NAME)?;
+
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
