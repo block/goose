@@ -53,41 +53,47 @@ pub struct ShellOutput {
 /// source the user's profile and recover the full PATH.
 #[cfg(not(windows))]
 fn resolve_login_shell_path() -> Option<String> {
-    // Run on a thread with a timeout — login shells can hang on misconfigured profiles.
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(login_shell_path());
-    });
-    rx.recv_timeout(Duration::from_secs(5)).ok().flatten()
-}
-
-#[cfg(not(windows))]
-fn login_shell_path() -> Option<String> {
     let shell = if PathBuf::from("/bin/bash").is_file() {
         "/bin/bash".to_string()
     } else {
         std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
     };
 
-    let output = std::process::Command::new(&shell)
+    let mut child = std::process::Command::new(&shell)
         .args(["-l", "-i", "-c", "echo $PATH"])
         .stdin(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()
+        .spawn()
         .ok()?;
 
-    if !output.status.success() {
-        return None;
-    }
+    let mut stdout = child.stdout.take()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        use std::io::Read;
+        if stdout.read_to_end(&mut buf).is_ok() {
+            let _ = tx.send(buf);
+        }
+    });
 
-    // Take the last non-empty line — interactive shells may emit
-    // extra output from profile scripts before our echo.
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .rev()
-        .find(|line| !line.trim().is_empty())
-        .map(|line| line.trim().to_string())
-        .filter(|path| !path.is_empty())
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(buf) if child.wait().is_ok_and(|s| s.success()) => {
+            // Take the last non-empty line — interactive shells may emit
+            // extra output from profile scripts before our echo.
+            String::from_utf8_lossy(&buf)
+                .lines()
+                .rev()
+                .find(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_string())
+                .filter(|path| !path.is_empty())
+        }
+        _ => {
+            let _ = child.kill();
+            let _ = child.wait();
+            None
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -107,6 +113,16 @@ impl ShellTool {
             call_index: AtomicUsize::new(0),
             #[cfg(not(windows))]
             login_path: LOGIN_PATH.clone(),
+        })
+    }
+
+    #[cfg(test)]
+    pub fn new_for_test() -> std::io::Result<Self> {
+        Ok(Self {
+            output_dir: tempfile::tempdir()?,
+            call_index: AtomicUsize::new(0),
+            #[cfg(not(windows))]
+            login_path: None,
         })
     }
 
@@ -489,7 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn shell_executes_command() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "echo hello".to_string(),
@@ -504,7 +520,7 @@ mod tests {
     #[cfg(not(windows))]
     #[tokio::test]
     async fn shell_returns_error_for_non_zero_exit() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "echo fail && exit 7".to_string(),
@@ -520,7 +536,7 @@ mod tests {
     #[tokio::test]
     async fn shell_uses_working_dir_for_relative_execution() {
         let dir = tempfile::tempdir().unwrap();
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let result = tool
             .shell_with_cwd(
                 ShellParams {
@@ -619,7 +635,7 @@ mod tests {
 
     #[test]
     fn call_index_cycles_through_slots() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         for _cycle in 0..3 {
             for expected in 0..OUTPUT_SLOTS {
                 let slot = tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
@@ -630,7 +646,7 @@ mod tests {
 
     #[test]
     fn concurrent_calls_get_distinct_slots() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let mut slots: Vec<usize> = (0..OUTPUT_SLOTS)
             .map(|_| tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS)
             .collect();
@@ -651,7 +667,7 @@ mod tests {
             }
         }
 
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let start = std::time::Instant::now();
         let result = tool
             .shell(ShellParams {
