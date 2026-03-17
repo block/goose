@@ -58,15 +58,15 @@ ui/desktop/            # Electron app
 ```bash
 # 1. source bin/activate-hermit
 # 2. Make changes
+# 3. cargo fmt
 ```
 
 ### Run these only if the user has asked you to build/test your changes:
 ```
-# 1. cargo fmt
-# 2. cargo build
-# 3. cargo test -p <crate>
-# 4. cargo clippy --all-targets -- -D warnings
-# 5. [if server] just generate-openapi
+# 1. cargo build
+# 2. cargo test -p <crate>
+# 3. cargo clippy --all-targets -- -D warnings
+# 4. [if server] just generate-openapi
 ```
 
 ## Rules
