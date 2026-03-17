@@ -242,6 +242,7 @@ where
             PathBuf::default(),
             "scenario-runner".to_string(),
             SessionType::Hidden,
+            GooseMode::default(),
         )
         .await?;
 

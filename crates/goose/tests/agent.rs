@@ -340,6 +340,7 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::SessionConfig;
+        use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
         use goose::model::ModelConfig;
         use goose::providers::base::{
@@ -372,6 +373,7 @@ mod tests {
                     known_models: vec![],
                     model_doc_link: "".to_string(),
                     config_keys: vec![],
+                    setup_steps: vec![],
                 }
             }
 
@@ -393,12 +395,8 @@ mod tests {
                 _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
-                let tool_call = CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "test_tool".into(),
-                    arguments: Some(object!({"param": "value"})),
-                };
+                let tool_call = CallToolRequestParams::new("test_tool")
+                    .with_arguments(object!({"param": "value"}));
                 let message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
 
                 let usage = ProviderUsage::new(
@@ -431,6 +429,7 @@ mod tests {
                     PathBuf::default(),
                     "max-turn-test".to_string(),
                     SessionType::Hidden,
+                    GooseMode::default(),
                 )
                 .await?;
 
@@ -534,7 +533,7 @@ mod tests {
                 session_manager.clone(),
                 PermissionManager::instance(),
                 None,
-                GooseMode::Auto,
+                GooseMode::default(),
                 false,
                 GoosePlatform::GooseCli,
             );
@@ -546,6 +545,7 @@ mod tests {
                     std::path::PathBuf::from("."),
                     "Test Session".to_string(),
                     SessionType::Hidden,
+                    GooseMode::default(),
                 )
                 .await
                 .expect("Failed to create session");

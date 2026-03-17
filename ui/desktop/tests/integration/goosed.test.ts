@@ -16,6 +16,8 @@ import {
   listSessions,
   getSession,
   updateAgentProvider,
+  updateSession,
+  upsertConfig,
   reply,
 } from '../../src/api';
 import { execSync } from 'child_process';
@@ -110,6 +112,7 @@ extensions:
       const session = startResponse.data!;
       expect(session.id).toBeDefined();
       expect(session.name).toBeDefined();
+      expect(session.goose_mode).toBe('auto');
 
       const getResponse = await getSession({
         client: ctx.client,
@@ -128,6 +131,105 @@ extensions:
       expect(sessionsResponse.data).toBeDefined();
       expect(sessionsResponse.data!.sessions).toBeDefined();
       expect(Array.isArray(sessionsResponse.data!.sessions)).toBe(true);
+    });
+
+    it('should persist goose_mode on the session', async () => {
+      await upsertConfig({
+        client: ctx.client,
+        body: { key: 'GOOSE_MODE', value: 'approve', is_secret: false },
+      });
+
+      try {
+        const startResponse = await startAgent({
+          client: ctx.client,
+          body: { working_dir: os.tmpdir() },
+        });
+        expect(startResponse.response).toBeOkResponse();
+        expect(startResponse.data!.goose_mode).toBe('approve');
+
+        const getResponse = await getSession({
+          client: ctx.client,
+          path: { session_id: startResponse.data!.id },
+        });
+        expect(getResponse.response).toBeOkResponse();
+        expect(getResponse.data!.goose_mode).toBe('approve');
+      } finally {
+        // Restore default so subsequent tests don't inherit approve mode
+        await upsertConfig({
+          client: ctx.client,
+          body: { key: 'GOOSE_MODE', value: 'auto', is_secret: false },
+        });
+      }
+    });
+
+    it('should update goose_mode on an active session via /agent/update_session', async () => {
+      const startResponse = await startAgent({
+        client: ctx.client,
+        body: { working_dir: os.tmpdir() },
+      });
+      expect(startResponse.response).toBeOkResponse();
+      const sessionId = startResponse.data!.id;
+
+      const updateResponse = await updateSession({
+        client: ctx.client,
+        body: { session_id: sessionId, goose_mode: 'approve' },
+      });
+      expect(updateResponse.response).toBeOkResponse();
+
+      const getResponse = await getSession({
+        client: ctx.client,
+        path: { session_id: sessionId },
+      });
+      expect(getResponse.response).toBeOkResponse();
+      expect(getResponse.data!.goose_mode).toBe('approve');
+    });
+
+    it('should preserve goose_mode after provider swap via /agent/update_provider', async (testContext) => {
+      const configResponse = await readConfig({
+        client: ctx.client,
+        body: { key: 'GOOSE_PROVIDER', is_secret: false },
+      });
+      const providerName = configResponse.data as string | null | undefined;
+      if (!providerName) {
+        testContext.skip('Skipping - no GOOSE_PROVIDER configured');
+        return;
+      }
+
+      const modelResponse = await readConfig({
+        client: ctx.client,
+        body: { key: 'GOOSE_MODEL', is_secret: false },
+      });
+      const modelName = (modelResponse.data as string | null) || undefined;
+
+      const startResponse = await startAgent({
+        client: ctx.client,
+        body: { working_dir: os.tmpdir() },
+      });
+      expect(startResponse.response).toBeOkResponse();
+      const sessionId = startResponse.data!.id;
+
+      const updateResponse = await updateSession({
+        client: ctx.client,
+        body: { session_id: sessionId, goose_mode: 'approve' },
+      });
+      expect(updateResponse.response).toBeOkResponse();
+
+      const providerResponse = await updateAgentProvider({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+          provider: providerName,
+          model: modelName,
+        },
+      });
+      expect(providerResponse.response).toBeOkResponse();
+
+      const getResponse = await getSession({
+        client: ctx.client,
+        path: { session_id: sessionId },
+      });
+      expect(getResponse.response).toBeOkResponse();
+      expect(getResponse.data!.goose_mode).toBe('approve');
     });
   });
 

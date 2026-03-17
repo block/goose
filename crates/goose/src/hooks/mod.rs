@@ -326,18 +326,18 @@ impl Hooks {
         // Guard zero timeout — default to 10 minutes
         let effective_timeout = if timeout == 0 { 600 } else { timeout };
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: tool.to_string().into(),
-            arguments: Some(arguments.clone()),
-        };
+        let tool_call = CallToolRequestParams::new(tool.to_string())
+            .with_arguments(arguments.clone());
 
+        let ctx = crate::agents::ToolCallContext::new(
+            invocation.session_id.clone(),
+            Some(working_dir.to_path_buf()),
+            None,
+        );
         let tool_call_result = extension_manager
             .dispatch_tool_call(
-                &invocation.session_id,
+                &ctx,
                 tool_call,
-                Some(working_dir),
                 cancel_token.clone(),
             )
             .await?;

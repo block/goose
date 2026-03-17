@@ -1,15 +1,17 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::get_tool_owner;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
+use pctx_code_mode::config::ToolDisclosure;
 use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInput};
-use pctx_code_mode::{CallbackRegistry, CodeMode};
+use pctx_code_mode::registry::{CallbackFn, PctxRegistry};
+use pctx_code_mode::CodeMode;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
-    ToolAnnotations, ToolsCapability,
+    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -53,29 +55,12 @@ pub struct ExecuteWithToolGraph {
 
 impl CodeExecutionClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Code Mode".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(indoc! {r#"
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string())
+                    .with_title("Code Mode"),
+            )
+            .with_instructions(indoc! {r#"
                 BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
 
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
@@ -90,8 +75,7 @@ impl CodeExecutionClient {
                        all the namespaces returned by list_functions and get_function_details will be available
                     3. Chain results: use output from one tool as input to the next
                     4. Only return and console.log data you need, tools could have very large responses.
-            "#}.to_string()),
-        };
+            "#}.to_string());
 
         Ok(Self {
             info,
@@ -123,7 +107,7 @@ impl CodeExecutionClient {
             };
             cfgs.push(CallbackConfig {
                 name,
-                namespace,
+                namespace: Some(namespace),
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
                 output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
@@ -170,7 +154,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         code_mode: &CodeMode,
-    ) -> Result<CallbackRegistry, String> {
+    ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
             .extension_manager
@@ -178,12 +162,12 @@ impl CodeExecutionClient {
             .and_then(|w| w.upgrade())
             .ok_or("Extension manager not available")?;
 
-        let registry = CallbackRegistry::default();
+        let registry = PctxRegistry::default();
         for cfg in code_mode.callbacks() {
-            let full_name = format!("{}__{}", &cfg.namespace, &cfg.name);
+            let full_name = format!("{}__{}", cfg.namespace.as_deref().unwrap_or(""), &cfg.name);
             let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
             registry
-                .add(&cfg.id(), callback)
+                .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
         }
 
@@ -242,7 +226,7 @@ impl CodeExecutionClient {
 
             rt.block_on(async move {
                 code_mode
-                    .execute(&code, Some(registry))
+                    .execute_typescript(&code, ToolDisclosure::default(), Some(registry))
                     .await
                     .map_err(|e| format!("Execution error: {e}"))
             })
@@ -258,20 +242,26 @@ fn create_tool_callback(
     session_id: String,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
-) -> pctx_code_mode::CallbackFn {
+) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let session_id = session_id.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
         Box::pin(async move {
-            let tool_call = CallToolRequestParams {
-                task: None,
-                meta: None,
-                name: full_name.into(),
-                arguments: args.and_then(|v| v.as_object().cloned()),
+            let tool_call = {
+                let mut params = CallToolRequestParams::new(full_name);
+                if let Some(args) = args.and_then(|v| v.as_object().cloned()) {
+                    params = params.with_arguments(args);
+                }
+                params
             };
+            let ctx = crate::agents::ToolCallContext::new(
+                session_id,
+                None,
+                Some("tool-request-id".to_string()),
+            );
             match manager
-                .dispatch_tool_call(&session_id, tool_call, None, CancellationToken::new())
+                .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
                 .await
             {
                 Ok(dispatch_result) => match dispatch_result.result.await {
@@ -336,22 +326,22 @@ impl McpClientTrait for CodeExecutionClient {
                     "list_functions".to_string(),
                     indoc! {r#"
                         List all available functions across all namespaces.
-                        
+
                         This will not return function input and output types.
                         After determining which functions are needed use
-                        get_function_details to get input and output type 
+                        get_function_details to get input and output type
                         information about specific functions.
                     "#}
                     .to_string(),
                     empty_schema,
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("List functions".to_string()),
-                    read_only_hint: Some(true),
-                    destructive_hint: Some(false),
-                    idempotent_hint: Some(true),
-                    open_world_hint: Some(false),
-                }),
+                .annotate(ToolAnnotations::from_raw(
+                    Some("List functions".to_string()),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                )),
                 McpTool::new(
                     "get_function_details".to_string(),
                     indoc! {r#"
@@ -366,13 +356,13 @@ impl McpClientTrait for CodeExecutionClient {
                     .to_string(),
                     schema::<GetFunctionDetailsInput>(),
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("Get function details".to_string()),
-                    read_only_hint: Some(true),
-                    destructive_hint: Some(false),
-                    idempotent_hint: Some(true),
-                    open_world_hint: Some(false),
-                }),
+                .annotate(ToolAnnotations::from_raw(
+                    Some("Get function details".to_string()),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                )),
                 McpTool::new(
                     "execute".to_string(),
                     indoc! {r#"
@@ -423,13 +413,13 @@ impl McpClientTrait for CodeExecutionClient {
                     .to_string(),
                     schema::<ExecuteWithToolGraph>(),
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("Execute TypeScript".to_string()),
-                    read_only_hint: Some(false),
-                    destructive_hint: Some(true),
-                    idempotent_hint: Some(false),
-                    open_world_hint: Some(true),
-                }),
+                .annotate(ToolAnnotations::from_raw(
+                    Some("Execute TypeScript".to_string()),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                )),
             ],
             next_cursor: None,
             meta: None,
@@ -438,12 +428,12 @@ impl McpClientTrait for CodeExecutionClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let result = match name {
             "list_functions" => self.handle_list_functions(session_id).await,
             "get_function_details" => {

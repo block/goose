@@ -54,9 +54,9 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
 };
 
 export type ChatRequest = {
@@ -128,9 +128,35 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
 export type Conversation = Array<Message>;
+
+export type CreateCustomProviderResponse = {
+    provider_name: string;
+};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -173,11 +199,14 @@ export type CspMetadata = {
 
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
+    base_path?: string | null;
     base_url: string;
     catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
+    dynamic_models?: boolean | null;
     engine: ProviderEngine;
+    env_vars?: Array<EnvVarConfig> | null;
     headers?: {
         [key: string]: string;
     } | null;
@@ -295,6 +324,14 @@ export type EncodeRecipeRequest = {
 
 export type EncodeRecipeResponse = {
     deeplink: string;
+};
+
+export type EnvVarConfig = {
+    default?: string | null;
+    description?: string | null;
+    name: string;
+    required?: boolean;
+    secret?: boolean;
 };
 
 export type Envs = {
@@ -458,6 +495,8 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServers?: Array<string>;
     prd?: string | null;
 };
+
+export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
 
 /**
  * A single downloadable GGUF file (used internally and for downloads).
@@ -688,6 +727,7 @@ export type ModelConfig = {
     context_limit?: number | null;
     max_tokens?: number | null;
     model_name: string;
+    reasoning?: boolean | null;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -891,6 +931,10 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+    /**
+     * step-by-step instructions for set up providers eg: api key
+     */
+    setup_steps?: Array<string>;
 };
 
 export type ProviderTemplate = {
@@ -1100,7 +1144,7 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
@@ -1166,6 +1210,7 @@ export type Session = {
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
+    goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
     message_count: number;
@@ -1305,7 +1350,7 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;
@@ -1477,6 +1522,7 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    base_path?: string | null;
     catalog_provider_id?: string | null;
     display_name: string;
     engine: string;
@@ -1511,6 +1557,11 @@ export type UpdateSessionNameRequest = {
      * Updated name for the session (max 200 characters)
      */
     name: string;
+};
+
+export type UpdateSessionRequest = {
+    goose_mode?: string | null;
+    session_id: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -2044,6 +2095,31 @@ export type UpdateAgentProviderResponses = {
     200: unknown;
 };
 
+export type UpdateSessionData = {
+    body: UpdateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_session';
+};
+
+export type UpdateSessionErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionResponses = {
+    /**
+     * Session updated
+     */
+    200: unknown;
+};
+
 export type UpdateWorkingDirData = {
     body: UpdateWorkingDirRequest;
     path?: never;
@@ -2161,10 +2237,10 @@ export type CreateCustomProviderResponses = {
     /**
      * Custom provider created successfully
      */
-    200: string;
+    200: CreateCustomProviderResponse;
 };
 
-export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+export type CreateCustomProviderResponse2 = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
 
 export type RemoveCustomProviderData = {
     body?: never;
@@ -3002,6 +3078,19 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type StartNanogptSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_nanogpt';
+};
+
+export type StartNanogptSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;

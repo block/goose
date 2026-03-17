@@ -25,6 +25,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | Credential auth: `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`<br /><br />Bearer token auth: `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION`, `AWS_DEFAULT_REGION`, or `AWS_PROFILE` |
 | [Amazon SageMaker TGI](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) | Run Text Generation Inference models through Amazon SageMaker endpoints. **AWS credentials must be configured in advance.** | `SAGEMAKER_ENDPOINT_NAME`, `AWS_REGION` (optional), `AWS_PROFILE` (optional)  |
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
+| [Avian](https://avian.io/)                                                   | Cost-effective inference API with DeepSeek, Kimi, GLM, and MiniMax models. OpenAI-compatible with streaming and function calling support.                                                                                  | `AVIAN_API_KEY`, `AVIAN_HOST` (optional)                                                                                                                                            |
 | [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
 | [ChatGPT Codex](https://chatgpt.com/codex) | Access GPT-5 Codex models optimized for code generation and understanding. **Requires a ChatGPT Plus/Pro subscription.** | No manual key. Uses browser-based OAuth authentication for both CLI and Desktop. |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
@@ -34,6 +35,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Uses [device flow authentication](#github-copilot-authentication) for both CLI and Desktop. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
+| [LM Studio](https://lmstudio.ai/)                                          | Run local models with LM Studio's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).**                                                           | None required. Connects to local server at `localhost:1234` by default.                                                                                                             |
 | [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
@@ -41,12 +43,14 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [OVHcloud AI](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)       | Provides access to open-source models including Qwen, Llama, Mistral, and DeepSeek through AI Endpoints service.                                                       | `OVHCLOUD_API_KEY`                                                                                                                                                                  |
 | [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API is a compatible alternative to Ollama and can be used with the goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [Snowflake](https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model) | Access the latest models using Snowflake Cortex services, including Claude models. **Requires a Snowflake account and programmatic access token (PAT)**.                                                     | `SNOWFLAKE_HOST`, `SNOWFLAKE_TOKEN`                                                                                                                                                                 |
+| [Tanzu AI Services](https://techdocs.broadcom.com/us/en/vmware-tanzu/platform/ai-services/10-3/ai/index.html) | Enterprise-managed LLM access through VMware Tanzu Platform AI Services. Models are fetched dynamically from the endpoint. | `TANZU_AI_API_KEY`, `TANZU_AI_ENDPOINT` |
 | [Tetrate Agent Router Service](https://router.tetrate.ai)                   | Unified API gateway for AI models including Claude, Gemini, GPT, open-weight models, and others. Supports PKCE authentication flow for secure API key generation.                                                                                | `TETRATE_API_KEY`, `TETRATE_HOST` (optional)                                                                                                                                        |
 | [Venice AI](https://venice.ai/home)                                         | Provides access to open source models like Llama, Mistral, and Qwen while prioritizing user privacy. **Requires an account and an [API key](https://docs.venice.ai/overview/guides/generating-api-key)**.                 | `VENICE_API_KEY`, `VENICE_HOST` (optional), `VENICE_BASE_PATH` (optional), `VENICE_MODELS_PATH` (optional)                                                                          |
+| [Cerebras](https://cerebras.ai/)                                            | Fast inference on Cerebras wafer-scale engines with models like Llama, Qwen, and others.                                                                                                                                  | `CEREBRAS_API_KEY`                                                                                                                                                                  |
 | [xAI](https://x.ai/)                                                        | Access to xAI's Grok models including grok-3, grok-3-mini, and grok-3-fast with 131,072 token context window.                                                                                                            | `XAI_API_KEY`, `XAI_HOST` (optional)                                                                                                                                                |
 
 :::tip Prompt Caching for Claude Models
-goose automatically enables Anthropic's [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) when using Claude models via Anthropic, Databricks, OpenRouter, and LiteLLM providers. This adds `cache_control` markers to requests, which can reduce costs for longer conversations by caching frequently-used context. See the [provider implementations](https://github.com/block/goose/tree/main/crates/goose/src/providers) for technical details.
+goose automatically enables Anthropic's [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) when using Claude models via Anthropic, Amazon Bedrock, Databricks, OpenRouter, and LiteLLM providers. This adds `cache_control` markers to requests, which can reduce costs for longer conversations by caching frequently-used context. See the [provider implementations](https://github.com/block/goose/tree/main/crates/goose/src/providers) for technical details.
 :::
 
 ### CLI Providers
@@ -62,6 +66,19 @@ goose also supports special "pass-through" providers that work with existing CLI
 
 :::tip CLI Providers
 CLI providers are cost-effective alternatives that use your existing subscriptions. They work differently from API providers as they execute CLI commands and integrate with the tools' native capabilities. See the [CLI Providers guide](/docs/guides/cli-providers) for detailed setup instructions.
+:::
+
+### ACP Providers
+
+goose supports [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) agents as providers. ACP providers pass goose extensions through to the agent as MCP servers.
+
+| Provider                                                                    | Description                                                                                                                                                                                                               | Requirements                                                                                                                                                                          |
+|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Claude ACP](https://github.com/zed-industries/claude-agent-acp) (`claude-acp`) | Uses Claude Code via ACP. Passes goose extensions to the agent as MCP servers. | `npm install -g @zed-industries/claude-agent-acp`, active Claude Code subscription |
+| [Codex ACP](https://github.com/zed-industries/codex-acp) (`codex-acp`) | Uses OpenAI Codex via ACP. Passes goose extensions to the agent as MCP servers. | `npm install -g @zed-industries/codex-acp`, active ChatGPT Plus/Pro subscription |
+
+:::tip ACP Providers
+See the [ACP Providers guide](/docs/guides/acp-providers) for detailed setup instructions.
 :::
 
 ## Configure Provider and Model
@@ -372,7 +389,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **API URL**: The base URL of the API endpoint
        - **Authentication**:
          - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled or cannot be accessed)
-            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
+            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
     7. Click `Create Provider`
@@ -1033,6 +1050,55 @@ Here are some local providers we support:
       </TabItem>
     </Tabs>
   </TabItem>
+  <TabItem value="lmstudio" label="LM Studio">
+    [LM Studio](https://lmstudio.ai/) lets you run open-source models locally with an OpenAI-compatible API server.
+
+    1. Download and install LM Studio.
+    2. Open LM Studio and download a model that supports tool calling (e.g., Qwen, Llama, or Mistral variants).
+    3. Start the local server in LM Studio. The server runs on `http://localhost:1234` by default
+
+    4. Configure goose to use LM Studio:
+
+    <Tabs groupId="interface">
+      <TabItem value="ui" label="goose Desktop" default>
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click the `Settings` button on the sidebar.
+        3. Click the `Models` tab.
+        4. Click `Configure providers`.
+        5. Choose `LM Studio` from the provider list and click `Configure`.
+        6. Click `Submit` (no API key is needed).
+        7. Select the model you have loaded in LM Studio.
+      </TabItem>
+      <TabItem value="cli" label="goose CLI">
+        1. Run:
+        ```sh
+        goose configure
+        ```
+        2. Select `Configure Providers` from the menu.
+        3. Choose `LM Studio` as the provider.
+        4. Enter the model name that matches the model loaded in LM Studio.
+
+        ```
+        ┌   goose-configure
+        │
+        ◇  What would you like to configure?
+        │  Configure Providers
+        │
+        ◇  Which model provider should we use?
+        │  LM Studio
+        │
+        ◇  Enter a model from that provider:
+        │  qwen2.5-7b-instruct
+        │
+        └  Configuration saved successfully
+        ```
+      </TabItem>
+    </Tabs>
+
+    :::tip Model Name
+    Make sure the model name you enter in goose matches the model identifier shown in LM Studio's server panel.
+    :::
+  </TabItem>
   <TabItem value="docker" label="Docker Model Runner" default>
     1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
     2. [Enable Docker Model Runner](https://docs.docker.com/ai/model-runner/#enable-dmr-in-docker-desktop)
@@ -1197,7 +1263,7 @@ Some models expose their internal reasoning or "chain of thought" as part of the
 | **DeepSeek-R1** (via OpenAI, Ollama, OpenRouter, OVHcloud, etc.) | Reasoning captured from the `reasoning_content` field in the API response |
 | **Kimi** (via Groq or other OpenAI-compatible endpoints) | Reasoning captured from the `reasoning_content` field in the API response |
 | **Gemini CLI** (Google Gemini models with thinking enabled) | Thinking blocks captured from the streaming response |
-| **Claude** (Anthropic, with [extended thinking](/docs/guides/environment-variables#claude-extended-thinking) enabled) | Thinking blocks captured from the API response |
+| **Claude** (Anthropic, with [Claude thinking](/docs/guides/environment-variables#claude-thinking-configuration) enabled) | Thinking blocks captured from the API response |
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>

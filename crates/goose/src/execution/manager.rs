@@ -21,6 +21,7 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
+    default_mode: GooseMode,
 }
 
 impl AgentManager {
@@ -28,6 +29,7 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
+        default_mode: GooseMode,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
@@ -39,6 +41,7 @@ impl AgentManager {
             scheduler,
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
+            default_mode,
         };
 
         Ok(manager)
@@ -47,13 +50,20 @@ impl AgentManager {
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
-                let max_sessions = Config::global()
+                let config = Config::global();
+                let max_sessions = config
                     .get_goose_max_active_agents()
                     .unwrap_or(DEFAULT_MAX_SESSION);
+                let default_mode = config.get_goose_mode().unwrap_or_default();
                 let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let manager =
-                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
+                let manager = Self::new(
+                    session_manager,
+                    schedule_file_path,
+                    Some(max_sessions),
+                    default_mode,
+                )
+                .await?;
                 Ok(Arc::new(manager))
             })
             .await
@@ -82,8 +92,14 @@ impl AgentManager {
             }
         }
 
-        let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
+        let mut mode = self.default_mode;
         let permission_manager = PermissionManager::instance();
+
+        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+            mode = session.goose_mode;
+            info!(goose_mode = %mode, session_id = %session_id, "Session loaded");
+        }
+
         let config = AgentConfig::new(
             Arc::clone(&self.session_manager),
             permission_manager,
@@ -95,10 +111,34 @@ impl AgentManager {
             GoosePlatform::GooseDesktop,
         );
         let agent = Arc::new(Agent::with_config(config));
-        if let Some(provider) = &*self.default_provider.read().await {
-            agent
-                .update_provider(Arc::clone(provider), &session_id)
-                .await?;
+
+        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+            if session.provider_name.is_some() {
+                info!(
+                    "Restoring evicted session {} (provider: {:?})",
+                    session_id, session.provider_name
+                );
+                if let Err(e) = agent.restore_provider_from_session(&session).await {
+                    tracing::warn!(
+                        "Failed to restore provider for session {}: {}",
+                        session_id,
+                        e
+                    );
+                }
+            }
+            agent.load_extensions_from_session(&session).await;
+        }
+
+        if agent.provider().await.is_err() {
+            if let Some(provider) = &*self.default_provider.read().await {
+                agent
+                    .update_provider(Arc::clone(provider), &session_id)
+                    .await?;
+                provider
+                    .update_mode(&session_id, mode)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to propagate mode to provider: {}", e))?;
+            }
         }
 
         let mut sessions = self.sessions.write().await;
@@ -133,6 +173,9 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    use test_case::test_case;
+
+    use crate::config::GooseMode;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
 
@@ -141,9 +184,14 @@ mod tests {
     async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let schedule_path = temp_dir.path().join("schedule.json");
-        AgentManager::new(session_manager, schedule_path, Some(100))
-            .await
-            .unwrap()
+        AgentManager::new(
+            session_manager,
+            schedule_path,
+            Some(100),
+            GooseMode::default(),
+        )
+        .await
+        .unwrap()
     }
 
     #[test]
@@ -348,5 +396,60 @@ mod tests {
         let result = manager.remove_session(&session).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test_case(GooseMode::Approve ; "approve")]
+    #[test_case(GooseMode::Chat ; "chat")]
+    #[test_case(GooseMode::SmartApprove ; "smart_approve")]
+    #[tokio::test]
+    async fn test_agent_inherits_session_mode(mode: GooseMode) {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+
+        let session = manager
+            .session_manager()
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "test".into(),
+                crate::session::SessionType::User,
+                mode,
+            )
+            .await
+            .unwrap();
+
+        let agent = manager.get_or_create_agent(session.id).await.unwrap();
+        assert_eq!(agent.goose_mode().await, mode);
+    }
+
+    #[tokio::test]
+    async fn test_session_mode_isolation() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        let sm = manager.session_manager();
+
+        let s1 = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "s1".into(),
+                crate::session::SessionType::User,
+                GooseMode::Approve,
+            )
+            .await
+            .unwrap();
+        let s2 = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "s2".into(),
+                crate::session::SessionType::User,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+
+        let a1 = manager.get_or_create_agent(s1.id).await.unwrap();
+        let a2 = manager.get_or_create_agent(s2.id).await.unwrap();
+
+        assert_eq!(a1.goose_mode().await, GooseMode::Approve);
+        assert_eq!(a2.goose_mode().await, GooseMode::Auto);
     }
 }

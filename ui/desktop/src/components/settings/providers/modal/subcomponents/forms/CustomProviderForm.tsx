@@ -11,7 +11,7 @@ import ProviderCatalogPicker from '../ProviderCatalogPicker';
 type Step = 'choice' | 'catalog' | 'form';
 
 interface CustomProviderFormProps {
-  onSubmit: (data: UpdateCustomProviderRequest) => void;
+  onSubmit: (data: UpdateCustomProviderRequest) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: () => Promise<void>;
   isActiveProvider?: boolean;
@@ -30,6 +30,7 @@ export default function CustomProviderForm({
   const [engine, setEngine] = useState('openai_compatible');
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
+  const [basePath, setBasePath] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState('');
   const [requiresAuth, setRequiresAuth] = useState(false);
@@ -43,6 +44,7 @@ export default function CustomProviderForm({
     value: false,
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   // Template + step state
@@ -59,6 +61,7 @@ export default function CustomProviderForm({
       setEngine(engineMap[initialData.engine] || 'openai_compatible');
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
+      setBasePath(initialData.base_path ?? '');
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
       setRequiresAuth(initialData.requires_auth ?? true);
@@ -81,6 +84,7 @@ export default function CustomProviderForm({
     // Prefill fields from template
     setDisplayName(template.name);
     setApiUrl(template.api_url);
+    setBasePath('');
     setSupportsStreaming(template.supports_streaming);
     setRequiresAuth(true);
 
@@ -101,6 +105,7 @@ export default function CustomProviderForm({
     setSelectedTemplate(null);
     setDisplayName('');
     setApiUrl('');
+    setBasePath('');
     setModels('');
     setEngine('openai_compatible');
     setSupportsStreaming(true);
@@ -181,8 +186,10 @@ export default function CustomProviderForm({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+    setValidationErrors({});
 
     const errors: Record<string, string> = {};
     if (!displayName) errors.displayName = 'Display name is required';
@@ -223,17 +230,23 @@ export default function CustomProviderForm({
       {} as Record<string, string>
     );
 
-    onSubmit({
-      engine,
-      display_name: displayName,
-      api_url: apiUrl,
-      api_key: apiKey,
-      models: modelList,
-      supports_streaming: supportsStreaming,
-      requires_auth: requiresAuth,
-      headers: headersObject,
-      catalog_provider_id: selectedTemplate?.id ?? initialData?.catalog_provider_id ?? undefined,
-    });
+    try {
+      await onSubmit({
+        engine,
+        display_name: displayName,
+        api_url: apiUrl,
+        api_key: apiKey,
+        models: modelList,
+        supports_streaming: supportsStreaming,
+        requires_auth: requiresAuth,
+        headers: headersObject,
+        catalog_provider_id: selectedTemplate?.id ?? initialData?.catalog_provider_id ?? undefined,
+        base_path: basePath || undefined,
+      });
+    } catch (error) {
+      console.error('Failed to save custom provider:', error);
+      setSubmitError('Failed to save provider. Please check your configuration and try again.');
+    }
   };
 
   // Aggregate capability badges for template models
@@ -438,7 +451,7 @@ export default function CustomProviderForm({
             id="api-url"
             value={apiUrl}
             onChange={(e) => setApiUrl(e.target.value)}
-            placeholder="https://api.example.com/v1"
+            placeholder="https://api.example.com"
             aria-invalid={!!validationErrors.apiUrl}
             aria-describedby={validationErrors.apiUrl ? 'api-url-error' : undefined}
             className={validationErrors.apiUrl ? 'border-red-500' : ''}
@@ -448,6 +461,27 @@ export default function CustomProviderForm({
               {validationErrors.apiUrl}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Base Path */}
+      {isEditable && (
+        <div>
+          <label
+            htmlFor="base-path"
+            className="flex items-center text-sm font-medium text-text-primary mb-2"
+          >
+            API Base Path (optional)
+          </label>
+          <Input
+            id="base-path"
+            value={basePath}
+            onChange={(e) => setBasePath(e.target.value)}
+            placeholder="e.g., v1/chat/completions or project_id/v1"
+          />
+          <p className="text-xs text-textSubtle mt-1">
+            Override the default API path. Leave blank to use the provider's default path.
+          </p>
         </div>
       )}
 
@@ -642,6 +676,8 @@ export default function CustomProviderForm({
       )}
 
       <SecureStorageNotice />
+
+      {submitError && <p className="text-red-500 text-sm">{submitError}</p>}
 
       {showDeleteConfirmation ? (
         <div className="pt-4 space-y-3">

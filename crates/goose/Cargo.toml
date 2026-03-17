@@ -8,7 +8,8 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = []
+default = ["code-mode"]
+code-mode = ["dep:pctx_code_mode"]
 cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 
 [lints]
@@ -25,6 +26,7 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
+oauth2 = "5.0"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
@@ -54,10 +56,11 @@ webbrowser = { workspace = true }
 lazy_static = "1.5.0"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-futures = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
-opentelemetry-appender-tracing = { workspace = true }
 opentelemetry_sdk = { workspace = true }
+opentelemetry-appender-tracing = { workspace = true }
 opentelemetry-otlp = { workspace = true }
 opentelemetry-stdout = { workspace = true }
 keyring = { version = "3.6.2", features = [
@@ -67,6 +70,7 @@ keyring = { version = "3.6.2", features = [
     "vendored",
 ] }
 serde_yaml = { workspace = true }
+strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }
@@ -101,6 +105,8 @@ tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { workspace = true, features = ["compat"] }
+sacp = { workspace = true }
+agent-client-protocol-schema = { version = "0.10", features = ["unstable"] }
 unicode-normalization = "0.1"
 
 # For local Whisper transcription
@@ -109,7 +115,6 @@ candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
 tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
-hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
 zip = "0.6"
@@ -119,17 +124,27 @@ schemars = { workspace = true, features = [
     "derive",
 ] }
 insta = "1.43.2"
-paste = "1.0.0"
-posthog-rs = "0.3.7"
 shellexpand = { workspace = true }
 indexmap = "2.12.0"
 ignore = { workspace = true }
+rayon = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-go = { workspace = true }
+tree-sitter-java = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+tree-sitter-kotlin-ng = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-ruby = { workspace = true }
+tree-sitter-rust = { workspace = true }
+tree-sitter-swift = { workspace = true }
+tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
-pctx_code_mode = "^0.2.3"
-unbinder = "0.1.7"
+pctx_code_mode = { version = "^0.3.0", optional = true }
 pulldown-cmark = "0.13.0"
-llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
 encoding_rs = "0.8.35"
+pastey = "0.2.1"
+shell-words = "1.1.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
@@ -138,7 +153,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"] }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
-llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler", "metal"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
@@ -151,6 +166,7 @@ ctor = "0.2.9"
 test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
+opentelemetry_sdk = { workspace = true, features = ["testing"] }
 goose-test-support = { path = "../goose-test-support" }
 
 [[example]]
@@ -163,5 +179,18 @@ path = "examples/databricks_oauth.rs"
 
 
 [[bin]]
+name = "analyze_cli"
+path = "src/bin/analyze_cli.rs"
+
+[[bin]]
 name = "build_canonical_models"
 path = "src/providers/canonical/build_canonical_models.rs"
+
+[package.metadata.cargo-machete]
+
+ignored = [
+    # Used only on windows
+    "winapi", 
+    # Used to provide sacp additional schemas to deserialization
+    "agent-client-protocol-schema"
+]
