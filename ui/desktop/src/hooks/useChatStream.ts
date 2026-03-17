@@ -334,6 +334,7 @@ export function useChatStream({
   // Track the active request for cancellation (includes the session that started it)
   const activeRequestIdRef = useRef<string | null>(null);
   const activeRequestSessionIdRef = useRef<string | null>(null);
+  const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
   const lastInteractionTimeRef = useRef<number>(Date.now());
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -366,6 +367,7 @@ export function useChatStream({
       }
       activeRequestIdRef.current = null;
       activeRequestSessionIdRef.current = null;
+      activeAbortRef.current = null;
 
       if (namePollingRef.current) {
         clearTimeout(namePollingRef.current);
@@ -439,8 +441,10 @@ export function useChatStream({
       recipeVersion?: string,
     ) => {
       const requestId = uuidv7();
+      const abortController = new AbortController();
       activeRequestIdRef.current = requestId;
       activeRequestSessionIdRef.current = targetSessionId;
+      activeAbortRef.current = abortController;
 
       // Create event processor and register listener BEFORE the POST
       const processEvent = createEventProcessor(
@@ -457,6 +461,7 @@ export function useChatStream({
           activeUnsubscribeRef.current = null;
           activeRequestIdRef.current = null;
           activeRequestSessionIdRef.current = null;
+          activeAbortRef.current = null;
         }
       });
       activeUnsubscribeRef.current = unsubscribe;
@@ -471,14 +476,18 @@ export function useChatStream({
             recipe_name: recipeName,
             recipe_version: recipeVersion,
           },
+          signal: abortController.signal,
           throwOnError: true,
         });
       } catch (error) {
+        // Abort is expected when stopStreaming races with the POST
+        if (abortController.signal.aborted) return;
         // POST failed — clean up listener and report error
         unsubscribe();
         activeUnsubscribeRef.current = null;
         activeRequestIdRef.current = null;
         activeRequestSessionIdRef.current = null;
+        activeAbortRef.current = null;
         onFinish('Submit error: ' + errorMessage(error));
       }
     },
@@ -721,6 +730,13 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     const requestId = activeRequestIdRef.current;
     const requestSessionId = activeRequestSessionIdRef.current;
+
+    // Abort the in-flight POST so the reply never starts if cancel wins the race
+    if (activeAbortRef.current) {
+      activeAbortRef.current.abort();
+      activeAbortRef.current = null;
+    }
+
     if (requestId && requestSessionId) {
       // Cancel against the session that originally started the request,
       // not the current sessionId (which may have changed if user navigated).
