@@ -352,6 +352,13 @@ impl ProviderDef for OpenAiProvider {
                 ConfigKey::new("OPENAI_PROJECT", false, false, None, false),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None, false),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600"), false),
+                ConfigKey::new(
+                    "OPENAI_FAST_MODEL",
+                    true,
+                    false,
+                    Some("gpt-4o-mini"),
+                    false,
+                ),
             ],
         )
     }
