@@ -152,6 +152,88 @@ All MCP servers in `context_servers` are automatically available to goose, provi
 
 If a server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
 :::
+## TUI Client
+
+For terminal-based workflows, goose provides a TUI (Terminal User Interface) client that communicates with goose via ACP. This is useful for developers who prefer working entirely in the terminal or need a lightweight alternative to the desktop app.
+
+### Features
+
+- **Full terminal-based chat interface** - Interactive conversation UI rendered directly in your terminal
+- **Real-time streaming responses** - See goose's responses as they're generated
+- **Tool call visualization** - View tool executions with status indicators, inputs, and outputs
+- **Permission dialogs** - Approve or reject tool permissions inline
+- **Keyboard navigation** - Navigate conversation history and scroll through responses
+- **Markdown rendering** - Formatted output for code blocks, lists, and other markdown elements
+- **Message queuing** - Queue messages while goose is processing
+
+### Installation
+
+```bash
+cd ui/text
+npm install
+```
+
+### Running the TUI
+
+**Option 1: Auto-launch server (recommended)**
+
+The TUI will automatically start the goose-acp-server if you have it installed:
+
+```bash
+npm start
+```
+
+**Option 2: Manual server startup**
+
+Start the ACP server separately, then connect the TUI:
+
+```bash
+# Terminal 1: Start the server
+cargo run -p goose-acp --bin goose-acp-server
+
+# Terminal 2: Start the TUI
+cd ui/text
+npm start
+```
+
+**Option 3: Connect to a custom server**
+
+```bash
+npm start -- --server http://localhost:3284
+```
+
+### Single Prompt Mode
+
+Send a single prompt and exit (useful for scripting):
+
+```bash
+npm start -- --text "What files are in this directory?"
+```
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Send message |
+| `↑` / `↓` | Scroll current response |
+| `Shift+↑` / `Shift+↓` | Navigate conversation history |
+| `Tab` | Expand/collapse tool call details |
+| `Ctrl+C` or `Esc` | Exit (or cancel permission dialog) |
+
+### Permission Dialog
+
+When goose requests permission to use a tool, a dialog appears with these options:
+
+| Key | Action |
+|-----|--------|
+| `y` | Allow once |
+| `a` | Always allow |
+| `n` | Reject once |
+| `N` | Always reject |
+| `↑` / `↓` | Navigate options |
+| `Enter` | Confirm selection |
+| `Esc` | Cancel |
+
 ## Additional Resources
 
 import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
