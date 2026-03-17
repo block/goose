@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::builtin_extension::register_builtin_extensions;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
@@ -356,6 +356,7 @@ async fn get_or_create_session_id(
     identifier: Option<Identifier>,
     resume: bool,
     no_session: bool,
+    goose_mode: GooseMode,
 ) -> Result<Option<String>> {
     if no_session {
         return Ok(None);
@@ -399,6 +400,7 @@ async fn get_or_create_session_id(
                     std::env::current_dir()?,
                     "CLI Session".to_string(),
                     SessionType::User,
+                    goose_mode,
                 )
                 .await?;
             return Ok(Some(session.id));
@@ -411,7 +413,12 @@ async fn get_or_create_session_id(
         let has_user_provided_name = id.name.is_some();
         let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
         let session = session_manager
-            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+            .create_session(
+                std::env::current_dir()?,
+                name.clone(),
+                SessionType::User,
+                goose_mode,
+            )
             .await?;
 
         if has_user_provided_name {
@@ -1129,7 +1136,8 @@ async fn handle_interactive_session(
         }
     }
 
-    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
     if fork {
         if let Some(id) = session_id {
@@ -1342,8 +1350,14 @@ async fn handle_run_command(
         }
     }
 
-    let session_id =
-        get_or_create_session_id(identifier, run_behavior.resume, run_behavior.no_session).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let session_id = get_or_create_session_id(
+        identifier,
+        run_behavior.resume,
+        run_behavior.no_session,
+        goose_mode,
+    )
+    .await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1629,7 +1643,8 @@ async fn handle_default_session() -> Result<()> {
         configure_telemetry_consent_dialog()?;
     }
 
-    let session_id = get_or_create_session_id(None, false, false).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let session_id = get_or_create_session_id(None, false, false, goose_mode).await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,

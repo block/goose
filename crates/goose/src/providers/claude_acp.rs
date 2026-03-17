@@ -61,6 +61,7 @@ impl ProviderDef for ClaudeAcpProvider {
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
                 session_mode_id: Some(map_goose_mode(goose_mode)),
                 permission_mapping,
+                notification_callback: None,
             };
 
             let metadata = Self::metadata();

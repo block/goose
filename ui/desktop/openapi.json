@@ -663,6 +663,35 @@
         }
       }
     },
+    "/agent/update_session": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal error"
+          }
+        }
+      }
+    },
     "/agent/update_working_dir": {
       "post": {
         "tags": [
@@ -5229,6 +5258,15 @@
           }
         ]
       },
+      "GooseMode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "approve",
+          "smart_approve",
+          "chat"
+        ]
+      },
       "HfGgufFile": {
         "type": "object",
         "description": "A single downloadable GGUF file (used internally and for downloads).",
@@ -7516,6 +7554,9 @@
           "extension_data": {
             "$ref": "#/components/schemas/ExtensionData"
           },
+          "goose_mode": {
+            "$ref": "#/components/schemas/GooseMode"
+          },
           "id": {
             "type": "string"
           },
@@ -8531,6 +8572,21 @@
           "name": {
             "type": "string",
             "description": "Updated name for the session (max 200 characters)"
+          }
+        }
+      },
+      "UpdateSessionRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "goose_mode": {
+            "type": "string",
+            "nullable": true
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },

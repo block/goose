@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono;
+use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent, MessageMetadata};
 use goose::session::{SessionManager, SessionType};
 use rmcp::model::Role;
@@ -138,6 +139,7 @@ pub async fn handle_term_init(
                     working_dir,
                     "Goose Term Session".to_string(),
                     SessionType::Terminal,
+                    Config::global().get_goose_mode().unwrap_or_default(),
                 )
                 .await?;
 

@@ -340,6 +340,7 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::SessionConfig;
+        use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
         use goose::model::ModelConfig;
         use goose::providers::base::{
@@ -428,6 +429,7 @@ mod tests {
                     PathBuf::default(),
                     "max-turn-test".to_string(),
                     SessionType::Hidden,
+                    GooseMode::default(),
                 )
                 .await?;
 
@@ -543,6 +545,7 @@ mod tests {
                     std::path::PathBuf::from("."),
                     "Test Session".to_string(),
                     SessionType::Hidden,
+                    GooseMode::default(),
                 )
                 .await
                 .expect("Failed to create session");

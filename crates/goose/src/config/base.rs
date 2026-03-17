@@ -941,7 +941,7 @@ impl Config {
         Ok(())
     }
 
-    fn invalidate_secrets_cache(&self) {
+    pub fn invalidate_secrets_cache(&self) {
         let mut cache = self.secrets_cache.lock().unwrap();
         *cache = None;
     }

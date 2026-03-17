@@ -270,10 +270,12 @@ pub struct ClaudeCodeProvider {
     #[serde(skip)]
     pending_confirmations:
         Arc<tokio::sync::Mutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
+    #[serde(skip)]
+    initial_mode: tokio::sync::Mutex<Option<GooseMode>>,
 }
 
 impl ClaudeCodeProvider {
-    /// Build content blocks from the last user message only — the CLI maintains
+    /// Build content blocks from the last user message only. The CLI maintains
     /// conversation context internally per session_id.
     fn last_user_content_blocks(&self, messages: &[Message]) -> Vec<Value> {
         let msgs = match messages.iter().rev().find(|m| m.role == Role::User) {
@@ -281,7 +283,7 @@ impl ClaudeCodeProvider {
             None => messages,
         };
         let mut blocks: Vec<Value> = Vec::new();
-        for message in msgs.iter().filter(|m| m.is_agent_visible()) {
+        for message in msgs {
             let prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
@@ -623,6 +625,7 @@ impl ProviderDef for ClaudeCodeProvider {
                 mcp_config_file,
                 cli_process: tokio::sync::OnceCell::new(),
                 pending_confirmations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                initial_mode: tokio::sync::Mutex::new(None),
             })
         })
     }
@@ -667,6 +670,19 @@ impl Provider for ClaudeCodeProvider {
         .await;
         let _ = child.kill().await;
         Ok(extract_model_aliases(response.ok().flatten().as_ref()))
+    }
+
+    async fn update_mode(&self, _session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
+        // Mode is baked into the subprocess at spawn; claude-acp replaces
+        // this provider (#7801).
+        let mut guard = self.initial_mode.lock().await;
+        let current = *guard.get_or_insert(mode);
+        if current != mode {
+            return Err(ProviderError::RequestFailed(format!(
+                "Mode change not supported: session is {current}, requested {mode}",
+            )));
+        }
+        Ok(())
     }
 
     fn permission_routing(&self) -> PermissionRouting {
@@ -1033,6 +1049,11 @@ mod tests {
         &[json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})]
         ; "tool_response"
     )]
+    #[test_case(
+        vec![Message::new(Role::User, 0, vec![MessageContent::text("hidden input")]).user_only()],
+        &[json!({"type":"text","text":"Human: hidden input"})]
+        ; "user_only_message_not_dropped"
+    )]
     fn test_last_user_content_blocks(messages: Vec<Message>, expected: &[Value]) {
         let provider = make_provider();
         let blocks = provider.last_user_content_blocks(&messages);
@@ -1192,6 +1213,7 @@ mod tests {
             mcp_config_file: None,
             cli_process: tokio::sync::OnceCell::new(),
             pending_confirmations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            initial_mode: tokio::sync::Mutex::new(None),
         }
     }
 
