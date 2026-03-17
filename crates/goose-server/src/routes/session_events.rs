@@ -252,7 +252,7 @@ pub async fn session_reply(
         .session_manager()
         .get_session(&session_id, false)
         .await
-        .map_err(|_| ErrorResponse::not_found(&format!("Session {} not found", session_id)))?;
+        .map_err(|_| ErrorResponse::not_found(format!("Session {} not found", session_id)))?;
 
     let session_start = std::time::Instant::now();
 

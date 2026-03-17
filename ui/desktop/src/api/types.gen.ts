@@ -4151,6 +4151,13 @@ export type SessionEventsData = {
     url: '/sessions/{id}/events';
 };
 
+export type SessionEventsErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+};
+
 export type SessionEventsResponses = {
     /**
      * SSE event stream
@@ -4177,6 +4184,10 @@ export type SessionReplyErrors = {
      * Invalid request
      */
     400: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
     /**
      * Agent not initialized
      */

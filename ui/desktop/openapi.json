@@ -3308,6 +3308,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Session not found"
           }
         }
       }
@@ -3352,6 +3355,9 @@
           },
           "400": {
             "description": "Invalid request"
+          },
+          "404": {
+            "description": "Session not found"
           },
           "424": {
             "description": "Agent not initialized"
