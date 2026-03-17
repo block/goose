@@ -72,7 +72,9 @@ impl OpenAiProvider {
         let config = crate::config::Config::global();
         let fast_model = config
             .get_param::<String>("OPENAI_FAST_MODEL")
-            .unwrap_or_else(|_| OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| OPEN_AI_DEFAULT_FAST_MODEL.to_string());
         let model = model.with_fast(&fast_model, OPEN_AI_PROVIDER_NAME)?;
 
         let host: String = config
@@ -201,6 +203,17 @@ impl OpenAiProvider {
             }
             api_client = api_client.with_headers(header_map)?;
         }
+
+        // Set up fast model if configured
+        let model = if let Some(ref fast_model_name) = config.fast_model {
+            if !fast_model_name.is_empty() {
+                model.with_fast(fast_model_name, &config.name)?
+            } else {
+                model
+            }
+        } else {
+            model
+        };
 
         Ok(Self {
             api_client,
