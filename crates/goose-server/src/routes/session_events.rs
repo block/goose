@@ -228,6 +228,7 @@ pub async fn session_events(
         (status = 200, description = "Request accepted",
          body = SessionReplyResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Session not found"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error"),
     )
@@ -245,6 +246,13 @@ pub async fn session_reply(
             "request_id must be a valid UUID",
         ));
     }
+
+    // Validate session exists before allocating a bus/registering work
+    state
+        .session_manager()
+        .get_session(&session_id, false)
+        .await
+        .map_err(|_| ErrorResponse::not_found(&format!("Session {} not found", session_id)))?;
 
     let session_start = std::time::Instant::now();
 
