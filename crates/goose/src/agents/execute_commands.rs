@@ -90,7 +90,7 @@ impl Agent {
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
         // Load hooks and fire PreCompact
-        let hooks = Hooks::load(&session.working_dir);
+        let hooks = Hooks::load(&session.working_dir, self.hook_context_fill_state.clone());
         let invocation = crate::hooks::HookInvocation::pre_compact(
             session_id.to_string(),
             conversation.messages().len(),

@@ -28,17 +28,12 @@ pub enum HookEventKind {
 }
 
 impl HookEventKind {
+    /// Events that can block execution when a hook returns exit code 2.
+    /// Only events whose block outcome is actually checked at the call site should be listed.
     pub fn can_block(&self) -> bool {
         matches!(
             self,
-            Self::PreToolUse
-                | Self::PermissionRequest
-                | Self::UserPromptSubmit
-                | Self::Stop
-                | Self::SubagentStop
-                | Self::TeammateIdle
-                | Self::TaskCompleted
-                | Self::ConfigChange
+            Self::PreToolUse | Self::UserPromptSubmit
         )
     }
 }
@@ -292,27 +287,37 @@ impl HookInvocation {
     }
 }
 
+/// Structured result from a hook command's JSON stdout.
+/// Fields marked "Claude Code compat" exist for configuration compatibility
+/// with Claude Code's hook system but are not currently acted upon by goose.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookResult {
+    /// Used by goose: Allow or Block decision (blockable events only).
     #[serde(default)]
     pub decision: Option<HookDecision>,
 
+    /// Used by goose: human-readable reason for block decisions.
     #[serde(default)]
     pub reason: Option<String>,
 
+    /// Claude Code compat: opaque output from the hook (not read by goose).
     #[serde(default)]
     pub hook_specific_output: Option<Value>,
 
+    /// Claude Code compat: whether to continue execution (not read by goose).
     #[serde(default, rename = "continue")]
     pub continue_: Option<bool>,
 
+    /// Claude Code compat: reason for stopping (not read by goose).
     #[serde(default)]
     pub stop_reason: Option<String>,
 
+    /// Used by goose: injected into conversation as hidden context after hook runs.
     #[serde(default)]
     pub additional_context: Option<String>,
 
+    /// Claude Code compat: system-level message (not read by goose).
     #[serde(default)]
     pub system_message: Option<String>,
 }

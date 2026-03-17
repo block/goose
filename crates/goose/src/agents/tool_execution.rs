@@ -147,20 +147,20 @@ impl Agent {
                         .await
                         .unwrap_or_default();
                     if outcome.blocked {
-                        // Hook blocked — treat same as user declining
+                        // Hook blocked — fill declined response and continue to next tool
                         if let Some(response_msg) = request_to_response_map.get(&request.id) {
                             let mut response = response_msg.lock().await;
                             *response = response.clone().with_tool_response_with_metadata(
                                 request.id.clone(),
-                                Err(rmcp::model::ErrorData::new(
-                                    rmcp::model::ErrorCode::INTERNAL_ERROR,
-                                    outcome.reason.as_deref().unwrap_or("Tool execution blocked by hook").to_string(),
-                                    None,
-                                )),
+                                Ok(rmcp::model::CallToolResult::error(vec![
+                                    rmcp::model::Content::text(
+                                        outcome.reason.as_deref().unwrap_or("Tool execution blocked by hook").to_string()
+                                    ),
+                                ])),
                                 request.metadata.as_ref(),
                             );
                         }
-                        break;
+                        continue;
                     }
 
                     let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;

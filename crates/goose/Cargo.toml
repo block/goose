@@ -39,6 +39,7 @@ serde_urlencoded = "0.7"
 jsonschema = "0.30.0"
 uuid = { workspace = true }
 regex = { workspace = true }
+libc = "0.2"
 async-trait = { workspace = true }
 async-stream = { workspace = true }
 minijinja = { version = "2.12.0", features = ["loader"] }

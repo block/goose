@@ -15,18 +15,24 @@ pub struct Hooks {
     settings: HookSettingsFile,
     /// Tracks which ContextFill thresholds have already fired this session.
     /// Prevents re-firing every turn while above the threshold.
-    fired_context_thresholds: std::sync::Mutex<std::collections::HashSet<u32>>,
+    /// Shared via Arc so state persists across Hooks reloads within a session.
+    fired_context_thresholds: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
 }
 
 impl Hooks {
-    pub fn load(working_dir: &Path) -> Self {
+    /// Load hooks config from disk. The `context_fill_state` Arc persists across
+    /// reloads within a session so ContextFill thresholds fire only once per crossing.
+    pub fn load(
+        working_dir: &Path,
+        context_fill_state: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+    ) -> Self {
         let settings = HookSettingsFile::load_merged(working_dir).unwrap_or_else(|e| {
             tracing::debug!("No hooks config loaded: {}", e);
             HookSettingsFile::default()
         });
         Self {
             settings,
-            fired_context_thresholds: std::sync::Mutex::new(std::collections::HashSet::new()),
+            fired_context_thresholds: context_fill_state,
         }
     }
 
@@ -263,22 +269,33 @@ impl Hooks {
                     Ok(Some(HookResult::default()))
                 } else {
                     // Try JSON first, fall back to plain text as additionalContext
-                    Ok(Some(
+                    let mut result =
                         serde_json::from_str::<HookResult>(stdout).unwrap_or_else(|_| {
-                            let mut context = stdout.to_string();
-                            if context.len() > 32_768 {
-                                tracing::warn!(
-                                    "Hook stdout truncated from {} to 32KB",
-                                    context.len()
-                                );
-                                context.truncate(context.floor_char_boundary(32_768));
-                            }
                             HookResult {
-                                additional_context: Some(context),
+                                additional_context: Some(stdout.to_string()),
                                 ..Default::default()
                             }
-                        }),
-                    ))
+                        });
+                    // Cap string fields regardless of parse path to prevent
+                    // oversized context injection from hook output.
+                    const MAX_CONTEXT: usize = 32_768;
+                    const MAX_REASON: usize = 4_096;
+                    if let Some(ref mut ctx) = result.additional_context {
+                        if ctx.len() > MAX_CONTEXT {
+                            tracing::warn!(
+                                "Hook additionalContext truncated from {} to {}",
+                                ctx.len(),
+                                MAX_CONTEXT
+                            );
+                            ctx.truncate(ctx.floor_char_boundary(MAX_CONTEXT));
+                        }
+                    }
+                    if let Some(ref mut r) = result.reason {
+                        if r.len() > MAX_REASON {
+                            r.truncate(r.floor_char_boundary(MAX_REASON));
+                        }
+                    }
+                    Ok(Some(result))
                 }
             }
             Some(2) if event.can_block() => {
@@ -481,7 +498,7 @@ impl Hooks {
     /// Test if `text` matches `pattern` as a full-string regex.
     /// Anchors the pattern to match the entire string (not a substring).
     fn regex_matches(pattern: &str, text: &str) -> bool {
-        let anchored = if pattern.starts_with('^') || pattern.ends_with('$') {
+        let anchored = if pattern.starts_with('^') && pattern.ends_with('$') {
             pattern.to_string()
         } else {
             format!("^(?:{})$", pattern)

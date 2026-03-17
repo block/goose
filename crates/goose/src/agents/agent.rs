@@ -153,6 +153,10 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
+
+    /// Persists across turns so ContextFill hooks fire once per threshold crossing,
+    /// not on every turn while above the threshold.
+    pub(super) hook_context_fill_state: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -252,6 +256,7 @@ impl Agent {
                 provider.clone(),
             ),
             container: Mutex::new(None),
+            hook_context_fill_state: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         }
     }
 
@@ -1098,7 +1103,7 @@ impl Agent {
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
         // Load hooks configuration
-        let hooks = Hooks::load(&session.working_dir);
+        let hooks = Hooks::load(&session.working_dir, self.hook_context_fill_state.clone());
 
         let needs_auto_compact = check_if_compaction_needed(
             self.provider().await?.as_ref(),

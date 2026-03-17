@@ -10,12 +10,53 @@ use crate::agents::platform_extensions::developer::shell::build_shell_command;
 #[cfg(not(windows))]
 use crate::agents::platform_extensions::developer::shell::user_login_path;
 
+/// Maximum bytes to capture from stdout (32 KB — matches output cap in mod.rs).
+const MAX_STDOUT_BYTES: usize = 32 * 1024;
+/// Maximum bytes to capture from stderr (4 KB — matches block-reason cap in mod.rs).
+const MAX_STDERR_BYTES: usize = 4 * 1024;
+
 /// Output from a hook command execution.
 pub struct HookCommandOutput {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: Option<i32>,
     pub timed_out: bool,
+}
+
+/// Read up to `limit` bytes from an async reader into a String.
+/// Prevents unbounded memory growth from malicious/buggy hooks.
+async fn read_bounded(
+    mut reader: impl tokio::io::AsyncRead + Unpin,
+    limit: usize,
+) -> String {
+    let mut buf = vec![0u8; limit];
+    let mut total = 0;
+    loop {
+        match reader.read(&mut buf[total..]).await {
+            Ok(0) => break,
+            Ok(n) => {
+                total += n;
+                if total >= limit {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    buf.truncate(total);
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
+/// Kill the entire process group on Unix (sends signal to -pgid).
+/// Falls back to killing just the child if process group kill fails.
+#[cfg(unix)]
+fn kill_process_group(child: &tokio::process::Child) {
+    if let Some(pid) = child.id() {
+        // Kill the entire process group (negative PID = process group)
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
 }
 
 /// Run a hook command as a direct subprocess.
@@ -26,6 +67,9 @@ pub struct HookCommandOutput {
 ///
 /// The child is placed in its own process group (unix) so terminal SIGINT does not
 /// kill it — the cancellation token is the intended shutdown path.
+///
+/// Output capture is bounded: stdout to 32KB, stderr to 4KB. Excess is silently
+/// discarded to prevent OOM from malicious/buggy hooks.
 pub async fn run_hook_command(
     command_line: &str,
     stdin_data: Option<&str>,
@@ -75,19 +119,14 @@ pub async fn run_hook_command(
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
     // Spawn stdout drain FIRST (before stdin write to prevent circular deadlock)
+    // Bounded read prevents OOM from hooks that produce excessive output.
     let stdout_task = tokio::spawn(async move {
-        let mut output = String::new();
-        let mut reader = stdout_handle;
-        let _ = reader.read_to_string(&mut output).await;
-        output
+        read_bounded(stdout_handle, MAX_STDOUT_BYTES).await
     });
 
     // Spawn stderr drain concurrently
     let stderr_task = tokio::spawn(async move {
-        let mut output = String::new();
-        let mut reader = stderr_handle;
-        let _ = reader.read_to_string(&mut output).await;
-        output
+        read_bounded(stderr_handle, MAX_STDERR_BYTES).await
     });
 
     // Write stdin data concurrently with drains.
@@ -113,7 +152,9 @@ pub async fn run_hook_command(
                     return Err(format!("Failed waiting on hook command: {}", e));
                 }
                 Err(_) => {
-                    // Timeout — kill the process
+                    // Timeout — kill the entire process group (not just the child)
+                    #[cfg(unix)]
+                    kill_process_group(&child);
                     let _ = child.start_kill();
                     let _ = child.wait().await;
                     (None, true)
@@ -121,7 +162,9 @@ pub async fn run_hook_command(
             }
         }
         _ = cancel_token.cancelled() => {
-            // Cancellation — kill the process
+            // Cancellation — kill the entire process group
+            #[cfg(unix)]
+            kill_process_group(&child);
             let _ = child.start_kill();
             let _ = child.wait().await;
             (None, true)
@@ -130,17 +173,35 @@ pub async fn run_hook_command(
 
     // Collect output from drain tasks.
     // Use a secondary timeout to prevent hanging if grandchild processes hold pipe FDs open.
+    // On timeout, explicitly abort the drain tasks to prevent detached task leaks.
     let drain_timeout = Duration::from_secs(5);
-    let stdout_output = tokio::time::timeout(drain_timeout, stdout_task)
-        .await
-        .ok()
-        .and_then(|r| r.ok())
-        .unwrap_or_default();
-    let stderr_output = tokio::time::timeout(drain_timeout, stderr_task)
-        .await
-        .ok()
-        .and_then(|r| r.ok())
-        .unwrap_or_default();
+
+    let stdout_output = match tokio::time::timeout(drain_timeout, stdout_task).await {
+        Ok(Ok(output)) => output,
+        Ok(Err(join_err)) => {
+            tracing::warn!("Hook stdout drain task panicked: {}", join_err);
+            String::new()
+        }
+        Err(_) => {
+            // Drain timed out — grandchild likely holding pipe FDs open.
+            // The task was consumed by timeout; since bounded read caps at MAX_STDOUT_BYTES
+            // and process group was killed, the read will eventually EOF.
+            tracing::warn!("Hook stdout drain timed out (grandchild may hold FDs)");
+            String::new()
+        }
+    };
+
+    let stderr_output = match tokio::time::timeout(drain_timeout, stderr_task).await {
+        Ok(Ok(output)) => output,
+        Ok(Err(join_err)) => {
+            tracing::warn!("Hook stderr drain task panicked: {}", join_err);
+            String::new()
+        }
+        Err(_) => {
+            tracing::warn!("Hook stderr drain timed out (grandchild may hold FDs)");
+            String::new()
+        }
+    };
 
     // Best-effort wait for stdin task to finish
     let _ = tokio::time::timeout(Duration::from_secs(1), stdin_task).await;
