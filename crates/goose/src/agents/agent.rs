@@ -1187,6 +1187,7 @@ impl Agent {
                 ).await?;
 
                 let mut no_tools_called = true;
+                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
@@ -1241,8 +1242,7 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    session_manager.add_message(&session_config.id, &response).await?;
-                                    conversation.push(response);
+                                    messages_to_add.push(response);
                                     continue;
                                 }
 
@@ -1438,8 +1438,7 @@ impl Agent {
                                         response.created,
                                         thinking_content,
                                     ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    session_manager.add_message(&session_config.id, &thinking_msg).await?;
-                                    conversation.push(thinking_msg);
+                                    messages_to_add.push(thinking_msg);
                                 }
 
                                 // Collect reasoning content to attach to tool request messages
@@ -1467,14 +1466,11 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
+                                        messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
-                                        // Persist the tool request and response as a pair
-                                        session_manager.add_message(&session_config.id, &request_msg).await?;
-                                        session_manager.add_message(&session_config.id, &final_response).await?;
-                                        conversation.push(request_msg);
-                                        conversation.push(final_response.clone());
-                                        yield AgentEvent::Message(final_response);
+                                        yield AgentEvent::Message(final_response.clone());
+                                        messages_to_add.push(final_response);
                                     } else {
                                         error!(
                                             "Tool call could not be parsed: {}",
@@ -1618,14 +1614,12 @@ impl Agent {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message.clone());
+                            messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
                             let message = Message::assistant().with_text(output);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message.clone());
+                            messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
@@ -1637,8 +1631,6 @@ impl Agent {
                                 Ok(should_retry) => {
                                     if should_retry {
                                         info!("Retry logic triggered, restarting agent loop");
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
-                                        yield AgentEvent::HistoryReplaced(conversation.clone());
                                     } else {
                                         exit_chat = true;
                                     }
@@ -1680,14 +1672,17 @@ impl Agent {
                             }).await?;
                         }
                         conversation = Conversation::new_unvalidated(updated_messages);
-                        session_manager.add_message(&session_config.id, &summary_msg).await?;
-                        conversation.push(summary_msg);
+                        messages_to_add.push(summary_msg);
                     } else {
                         warn!("Expected a tool request/reply pair, but found {} matching messages",
                             matching.len());
                     }
                 }
 
+                for msg in &messages_to_add {
+                    session_manager.add_message(&session_config.id, msg).await?;
+                }
+                conversation.extend(messages_to_add);
                 if exit_chat {
                     break;
                 }
