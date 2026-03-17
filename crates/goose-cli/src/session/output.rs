@@ -77,11 +77,7 @@ thread_local! {
             )
     );
     static SHOW_FULL_TOOL_OUTPUT: RefCell<bool> = RefCell::new(
-        std::env::var("GOOSE_SHOW_FULL_OUTPUT").ok()
-            .map(|val| val == "1" || val.eq_ignore_ascii_case("true"))
-            .unwrap_or_else(||
-                Config::global().get_param::<bool>("GOOSE_SHOW_FULL_OUTPUT").unwrap_or(false)
-            )
+        Config::global().get_param::<bool>("GOOSE_SHOW_FULL_OUTPUT").unwrap_or(false)
     );
 }
 
