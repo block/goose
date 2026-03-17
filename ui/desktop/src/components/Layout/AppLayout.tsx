@@ -39,7 +39,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   useEffect(() => {
     window.electron.getSetting('navExpandedWidth').then((delta) => {
-      if (delta !== 0) {
+      if (delta !== null) {
         setNavWidth(
           Math.min(
             NAV_DIMENSIONS.MAX_NAV_WIDTH,
