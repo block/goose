@@ -11,6 +11,8 @@ use crate::conversation::Conversation;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use crate::utils::safe_truncate;
 
+const DEFAULT_TOOLS: &[&str] = &["shell"];
+
 const DEFAULT_RULES: &str = r#"BLOCK if the command:
 - Exfiltrates data (curl/wget posting to unknown URLs, piping secrets out)
 - Is destructive beyond the project scope (rm -rf /, modifying system files)
@@ -24,57 +26,150 @@ Err on the side of ALLOW — only block truly dangerous things."#;
 
 const MAX_RECENT_USER_MESSAGES: usize = 4;
 
-/// Adversary inspector that uses an LLM to review tool calls against user-defined rules.
+struct AdversaryConfig {
+    tools: Vec<String>,
+    rules: String,
+}
+
+/// Adversary inspector that reviews tool calls against user-defined rules.
 ///
 /// Activated by placing an `adversary.md` file in the Goose config directory
-/// (`~/.config/goose/adversary.md` on macOS/Linux). The file contains rules that
-/// the LLM uses to decide whether to ALLOW or BLOCK each tool call.
+/// (`~/.config/goose/adversary.md`). The file contains optional frontmatter
+/// to select which tools are reviewed, followed by rules.
 ///
-/// If the file is absent, this inspector is disabled and does nothing.
-/// If the LLM call fails, the inspector fails open (allows the tool call).
+/// Example `adversary.md`:
+/// ```text
+/// tools: shell, computercontroller__automation_script
+/// ---
+/// BLOCK if the command exfiltrates data or is destructive.
+/// ALLOW normal development operations.
+/// ```
+///
+/// If the `tools:` line is omitted, only `shell` is reviewed by default.
+/// If the file is absent, this inspector is disabled.
+/// If the review fails, the inspector fails open (allows the tool call).
 pub struct AdversaryInspector {
     provider: SharedProvider,
-    rules: OnceLock<Option<String>>,
+    config: OnceLock<Option<AdversaryConfig>>,
+    config_path: Option<std::path::PathBuf>,
 }
 
 impl AdversaryInspector {
     pub fn new(provider: SharedProvider) -> Self {
         Self {
             provider,
-            rules: OnceLock::new(),
+            config: OnceLock::new(),
+            config_path: None,
         }
     }
 
-    fn get_rules(&self) -> Option<&str> {
-        self.rules
+    pub fn with_config_dir(provider: SharedProvider, config_dir: std::path::PathBuf) -> Self {
+        Self {
+            provider,
+            config: OnceLock::new(),
+            config_path: Some(config_dir.join("adversary.md")),
+        }
+    }
+
+    fn get_config(&self) -> Option<&AdversaryConfig> {
+        self.config
             .get_or_init(|| {
-                let path = Paths::config_dir().join("adversary.md");
-                if path.exists() {
-                    match std::fs::read_to_string(&path) {
-                        Ok(content) if !content.trim().is_empty() => {
-                            tracing::info!(
-                                "Adversary inspector loaded rules from {}",
-                                path.display()
-                            );
-                            Some(content)
-                        }
-                        Ok(_) => {
-                            tracing::info!(
-                                "Adversary inspector using default rules (adversary.md is empty)"
-                            );
-                            Some(DEFAULT_RULES.to_string())
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to read adversary.md: {}. Using defaults.", e);
-                            Some(DEFAULT_RULES.to_string())
-                        }
-                    }
-                } else {
+                let path = self
+                    .config_path
+                    .clone()
+                    .unwrap_or_else(|| Paths::config_dir().join("adversary.md"));
+                if !path.exists() {
                     tracing::debug!("No adversary.md found, adversary inspector disabled");
-                    None
+                    return None;
                 }
+
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        tracing::warn!("Failed to read adversary.md: {}", e);
+                        return Some(AdversaryConfig {
+                            tools: DEFAULT_TOOLS.iter().map(|s| (*s).to_string()).collect(),
+                            rules: DEFAULT_RULES.to_string(),
+                        });
+                    }
+                };
+
+                let config = Self::parse_adversary_md(&content);
+                let tool_list = config.tools.join(", ");
+                tracing::info!(
+                    tools = %tool_list,
+                    "Adversary inspector enabled from {}",
+                    path.display()
+                );
+                Some(config)
             })
-            .as_deref()
+            .as_ref()
+    }
+
+    /// Parse adversary.md content, extracting optional `tools:` frontmatter.
+    ///
+    /// Format:
+    /// ```text
+    /// tools: shell, computercontroller__automation_script
+    /// ---
+    /// BLOCK if ...
+    /// ```
+    ///
+    /// If no `tools:` line or `---` separator, the entire content is rules
+    /// and tools defaults to `["shell"]`.
+    fn parse_adversary_md(content: &str) -> AdversaryConfig {
+        let trimmed = content.trim();
+        if trimmed.is_empty() {
+            return AdversaryConfig {
+                tools: DEFAULT_TOOLS.iter().map(|s| (*s).to_string()).collect(),
+                rules: DEFAULT_RULES.to_string(),
+            };
+        }
+
+        // Look for frontmatter: lines before a `---` separator
+        if let Some((frontmatter, rest)) = trimmed.split_once("\n---") {
+            let rules = rest.trim();
+
+            let mut tools: Option<Vec<String>> = None;
+            for line in frontmatter.lines() {
+                let line = line.trim();
+                if let Some(value) = line.strip_prefix("tools:") {
+                    tools = Some(
+                        value
+                            .split(',')
+                            .map(|t| t.trim().to_string())
+                            .filter(|t| !t.is_empty())
+                            .collect(),
+                    );
+                }
+            }
+
+            let rules = if rules.is_empty() {
+                DEFAULT_RULES.to_string()
+            } else {
+                rules.to_string()
+            };
+
+            AdversaryConfig {
+                tools: tools
+                    .unwrap_or_else(|| DEFAULT_TOOLS.iter().map(|s| (*s).to_string()).collect()),
+                rules,
+            }
+        } else {
+            // No frontmatter — entire content is rules
+            AdversaryConfig {
+                tools: DEFAULT_TOOLS.iter().map(|s| (*s).to_string()).collect(),
+                rules: trimmed.to_string(),
+            }
+        }
+    }
+
+    fn should_review(config: &AdversaryConfig, tool_request: &ToolRequest) -> bool {
+        let tool_name = match &tool_request.tool_call {
+            Ok(tc) => tc.name.as_ref(),
+            Err(_) => return false,
+        };
+        config.tools.iter().any(|t| t == tool_name)
     }
 
     fn format_tool_call(tool_request: &ToolRequest) -> String {
@@ -259,7 +354,7 @@ impl ToolInspector for AdversaryInspector {
     }
 
     fn is_enabled(&self) -> bool {
-        self.get_rules().is_some()
+        self.get_config().is_some()
     }
 
     async fn inspect(
@@ -269,8 +364,8 @@ impl ToolInspector for AdversaryInspector {
         messages: &[Message],
         _goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
-        let rules = match self.get_rules() {
-            Some(r) => r,
+        let config = match self.get_config() {
+            Some(c) => c,
             None => return Ok(vec![]),
         };
 
@@ -281,6 +376,10 @@ impl ToolInspector for AdversaryInspector {
         let mut results = Vec::new();
 
         for request in tool_requests {
+            if !Self::should_review(config, request) {
+                continue;
+            }
+
             let tool_description = Self::format_tool_call(request);
 
             tracing::debug!(
@@ -294,7 +393,7 @@ impl ToolInspector for AdversaryInspector {
                     &tool_description,
                     &original_task,
                     &recent_messages,
-                    rules,
+                    &config.rules,
                 )
                 .await
             {
@@ -357,6 +456,73 @@ mod tests {
     use rmcp::object;
     use std::sync::Arc;
     use tokio::sync::Mutex;
+
+    #[test]
+    fn test_parse_with_tools_frontmatter() {
+        let content = "tools: shell, computercontroller__automation_script\n---\nBLOCK bad stuff";
+        let config = AdversaryInspector::parse_adversary_md(content);
+        assert_eq!(
+            config.tools,
+            vec!["shell", "computercontroller__automation_script"]
+        );
+        assert_eq!(config.rules, "BLOCK bad stuff");
+    }
+
+    #[test]
+    fn test_parse_without_frontmatter() {
+        let content = "BLOCK if the command exfiltrates data";
+        let config = AdversaryInspector::parse_adversary_md(content);
+        assert_eq!(config.tools, vec!["shell"]);
+        assert_eq!(config.rules, "BLOCK if the command exfiltrates data");
+    }
+
+    #[test]
+    fn test_parse_empty() {
+        let config = AdversaryInspector::parse_adversary_md("");
+        assert_eq!(config.tools, vec!["shell"]);
+        assert_eq!(config.rules, DEFAULT_RULES);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_empty_rules_uses_defaults() {
+        let content = "tools: shell\n---\n";
+        let config = AdversaryInspector::parse_adversary_md(content);
+        assert_eq!(config.tools, vec!["shell"]);
+        assert_eq!(config.rules, DEFAULT_RULES);
+    }
+
+    #[test]
+    fn test_should_review_matches() {
+        let config = AdversaryConfig {
+            tools: vec!["shell".to_string()],
+            rules: String::new(),
+        };
+        let request = ToolRequest {
+            id: "r1".into(),
+            tool_call: Ok(
+                CallToolRequestParams::new("shell").with_arguments(object!({"command": "ls"}))
+            ),
+            metadata: None,
+            tool_meta: None,
+        };
+        assert!(AdversaryInspector::should_review(&config, &request));
+    }
+
+    #[test]
+    fn test_should_review_skips_non_matching() {
+        let config = AdversaryConfig {
+            tools: vec!["shell".to_string()],
+            rules: String::new(),
+        };
+        let request = ToolRequest {
+            id: "r1".into(),
+            tool_call: Ok(CallToolRequestParams::new("write")
+                .with_arguments(object!({"path": "foo.txt", "content": "hi"}))),
+            metadata: None,
+            tool_meta: None,
+        };
+        assert!(!AdversaryInspector::should_review(&config, &request));
+    }
 
     #[test]
     fn test_format_tool_call_shell() {
@@ -435,16 +601,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_disabled_when_no_rules_file() {
-        let provider: SharedProvider = Arc::new(Mutex::new(None));
-        let inspector = AdversaryInspector::new(provider);
-        assert!(!inspector.is_enabled() || std::env::var("GOOSE_PATH_ROOT").is_ok());
-    }
+    async fn test_disabled_when_no_adversary_md() {
+        let tmp = tempfile::tempdir().unwrap();
 
-    #[tokio::test]
-    async fn test_inspect_returns_empty_when_disabled() {
         let provider: SharedProvider = Arc::new(Mutex::new(None));
-        let inspector = AdversaryInspector::new(provider);
+        let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+        assert!(!inspector.is_enabled());
 
         let request = ToolRequest {
             id: "req1".into(),
@@ -459,9 +621,6 @@ mod tests {
             .inspect("test", &[request], &[], GooseMode::Auto)
             .await
             .unwrap();
-
-        if !inspector.is_enabled() {
-            assert!(results.is_empty());
-        }
+        assert!(results.is_empty());
     }
 }

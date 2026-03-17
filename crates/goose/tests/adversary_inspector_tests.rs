@@ -7,72 +7,76 @@ use rmcp::object;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-fn make_shell_request(id: &str, command: &str) -> ToolRequest {
+fn make_request(
+    id: &str,
+    tool: &str,
+    args: serde_json::Map<String, serde_json::Value>,
+) -> ToolRequest {
     ToolRequest {
         id: id.into(),
-        tool_call: Ok(
-            CallToolRequestParams::new("shell").with_arguments(object!({"command": command}))
-        ),
+        tool_call: Ok(CallToolRequestParams::new(tool.to_string()).with_arguments(args)),
         metadata: None,
         tool_meta: None,
     }
 }
 
-#[tokio::test]
-async fn test_adversary_disabled_without_config_file() {
-    let provider = Arc::new(Mutex::new(None));
-    let inspector = AdversaryInspector::new(provider);
-
-    assert_eq!(inspector.name(), "adversary");
-
-    // Without GOOSE_PATH_ROOT pointing to a dir with adversary.md, inspector is disabled
-    if std::env::var("GOOSE_PATH_ROOT").is_err() {
-        assert!(!inspector.is_enabled());
-
-        let results = inspector
-            .inspect(
-                "test-session",
-                &[make_shell_request("r1", "rm -rf /")],
-                &[],
-                GooseMode::SmartApprove,
-            )
-            .await
-            .unwrap();
-
-        assert!(results.is_empty());
-    }
+fn write_adversary_md(dir: &std::path::Path, content: &str) {
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(dir.join("adversary.md"), content).unwrap();
 }
 
 #[tokio::test]
-async fn test_adversary_enabled_with_config_file() {
+async fn test_adversary_disabled_without_config_file() {
     let tmp = tempfile::tempdir().unwrap();
-    let config_dir = tmp.path().join("config");
-    std::fs::create_dir_all(&config_dir).unwrap();
-    std::fs::write(
-        config_dir.join("adversary.md"),
-        "BLOCK everything for testing",
-    )
-    .unwrap();
-
-    // GOOSE_PATH_ROOT redirects Paths::config_dir() to tmp/config
-    std::env::set_var("GOOSE_PATH_ROOT", tmp.path());
 
     let provider = Arc::new(Mutex::new(None));
-    let inspector = AdversaryInspector::new(provider);
+    let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+
+    assert_eq!(inspector.name(), "adversary");
+    assert!(!inspector.is_enabled());
+
+    let results = inspector
+        .inspect(
+            "test-session",
+            &[make_request(
+                "r1",
+                "shell",
+                object!({"command": "rm -rf /"}),
+            )],
+            &[],
+            GooseMode::SmartApprove,
+        )
+        .await
+        .unwrap();
+
+    assert!(results.is_empty());
+}
+
+#[tokio::test]
+async fn test_adversary_enabled_default_tools() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_adversary_md(tmp.path(), "BLOCK everything for testing");
+
+    let provider = Arc::new(Mutex::new(None));
+    let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
 
     assert!(inspector.is_enabled());
 
-    // With no provider available, consult_llm returns allow (fail-open)
     let messages = vec![Message::new(
         rmcp::model::Role::User,
         chrono::Utc::now().timestamp(),
         vec![MessageContent::text("build the project")],
     )];
 
+    // shell is reviewed by default — no provider means fail-open (Allow)
     let results = inspector
         .inspect(
             "test-session",
-            &[make_shell_request("r1", "cargo build")],
+            &[make_request(
+                "r1",
+                "shell",
+                object!({"command": "cargo build"}),
+            )],
             &messages,
             GooseMode::SmartApprove,
         )
@@ -80,11 +84,89 @@ async fn test_adversary_enabled_with_config_file() {
         .unwrap();
 
     assert_eq!(results.len(), 1);
-    // No provider → fail-open → Allow
     assert!(matches!(
         results[0].action,
         goose::tool_inspection::InspectionAction::Allow
     ));
 
-    std::env::remove_var("GOOSE_PATH_ROOT");
+    // write is NOT reviewed by default — skipped entirely
+    let results = inspector
+        .inspect(
+            "test-session",
+            &[make_request(
+                "r1",
+                "write",
+                object!({"path": "foo.txt", "content": "hi"}),
+            )],
+            &messages,
+            GooseMode::SmartApprove,
+        )
+        .await
+        .unwrap();
+
+    assert!(results.is_empty());
+}
+
+#[tokio::test]
+async fn test_adversary_custom_tool_filter() {
+    let tmp = tempfile::tempdir().unwrap();
+    write_adversary_md(
+        tmp.path(),
+        "tools: shell, computercontroller__automation_script\n---\nBLOCK bad stuff",
+    );
+
+    let provider = Arc::new(Mutex::new(None));
+    let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+
+    assert!(inspector.is_enabled());
+
+    let messages = vec![Message::new(
+        rmcp::model::Role::User,
+        chrono::Utc::now().timestamp(),
+        vec![MessageContent::text("do something")],
+    )];
+
+    // shell — reviewed
+    let results = inspector
+        .inspect(
+            "test",
+            &[make_request("r1", "shell", object!({"command": "ls"}))],
+            &messages,
+            GooseMode::Auto,
+        )
+        .await
+        .unwrap();
+    assert_eq!(results.len(), 1);
+
+    // automation_script — reviewed
+    let results = inspector
+        .inspect(
+            "test",
+            &[make_request(
+                "r2",
+                "computercontroller__automation_script",
+                object!({"script": "echo hi", "language": "shell"}),
+            )],
+            &messages,
+            GooseMode::Auto,
+        )
+        .await
+        .unwrap();
+    assert_eq!(results.len(), 1);
+
+    // write — NOT reviewed
+    let results = inspector
+        .inspect(
+            "test",
+            &[make_request(
+                "r3",
+                "write",
+                object!({"path": "x.txt", "content": "y"}),
+            )],
+            &messages,
+            GooseMode::Auto,
+        )
+        .await
+        .unwrap();
+    assert!(results.is_empty());
 }
