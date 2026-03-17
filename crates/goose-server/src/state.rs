@@ -118,6 +118,12 @@ impl AppState {
             .clone()
     }
 
+    /// Get an existing event bus for a session without creating one.
+    pub async fn get_event_bus(&self, session_id: &str) -> Option<Arc<SessionEventBus>> {
+        let buses = self.session_buses.lock().await;
+        buses.get(session_id).cloned()
+    }
+
     /// Remove the event bus for a session, freeing its replay buffer.
     pub async fn remove_event_bus(&self, session_id: &str) {
         let mut buses = self.session_buses.lock().await;

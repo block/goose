@@ -127,13 +127,21 @@ fn serialize_session_event(seq: u64, request_id: Option<&str>, event: &MessageEv
         (status = 200, description = "SSE event stream",
          body = MessageEvent,
          content_type = "text/event-stream"),
+        (status = 404, description = "Session not found"),
     )
 )]
 pub async fn session_events(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     headers: HeaderMap,
-) -> SseEventStream {
+) -> Result<SseEventStream, axum::http::StatusCode> {
+    // Validate the session exists before creating an event bus.
+    state
+        .session_manager()
+        .get_session(&session_id, false)
+        .await
+        .map_err(|_| axum::http::StatusCode::NOT_FOUND)?;
+
     let last_event_id: Option<u64> = headers
         .get("Last-Event-ID")
         .and_then(|v| v.to_str().ok())
@@ -204,7 +212,7 @@ pub async fn session_events(
         }
     });
 
-    SseEventStream::new(stream)
+    Ok(SseEventStream::new(stream))
 }
 
 // ── POST /sessions/{id}/reply ───────────────────────────────────────────
@@ -539,7 +547,10 @@ pub async fn session_cancel(
     Path(session_id): Path<String>,
     Json(request): Json<CancelRequest>,
 ) -> axum::http::StatusCode {
-    let bus = state.get_or_create_event_bus(&session_id).await;
+    let bus = match state.get_event_bus(&session_id).await {
+        Some(bus) => bus,
+        None => return axum::http::StatusCode::NOT_FOUND,
+    };
     bus.cancel_request(&request.request_id).await;
     axum::http::StatusCode::OK
 }
