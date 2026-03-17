@@ -385,7 +385,10 @@ impl Provider for DatabricksProvider {
                 .unwrap()
                 .insert("stream".to_string(), Value::Bool(true));
 
-            if let Some(opts) = payload.get_mut("stream_options").and_then(|v| v.as_object_mut()) {
+            if let Some(opts) = payload
+                .get_mut("stream_options")
+                .and_then(|v| v.as_object_mut())
+            {
                 opts.entry("include_usage").or_insert(json!(true));
             } else {
                 payload
