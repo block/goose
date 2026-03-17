@@ -297,6 +297,21 @@ The following models are recognized and passed to the Claude CLI via the `--mode
 | `approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol (prompts as needed) |
 | `chat` | (none) | Default Claude Code behavior |
 
+:::tip Approve Mode Integration
+When using `approve` or `smart-approve` mode with Claude Code, goose routes Claude Code's permission prompts through goose's confirmation interface. This means:
+
+- **Sensitive operations** (file writes, shell commands, etc.) trigger approval prompts in goose
+- **You review and approve/deny** directly in the goose CLI or Desktop interface
+- **Denied operations** are communicated back to Claude Code, which adapts accordingly
+
+This provides a consistent permission experience across all goose providers while leveraging Claude Code's built-in safety checks.
+
+Example with approve mode:
+```bash
+GOOSE_PROVIDER=claude-code GOOSE_MODE=approve goose session
+```
+:::
+
 ### Cursor Agent Configuration
 
 | Environment Variable | Description | Default |
