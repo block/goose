@@ -180,7 +180,8 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     setDownloading((prev) => new Set(prev).add(key));
     try {
       const response = await downloadHfModel({
-        body: { spec }, throwOnError: true
+        body: { spec },
+        throwOnError: true,
       });
       if (response.data) {
         onDownloadStarted(response.data);
@@ -191,7 +192,6 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         title: 'Direct download failed',
         msg: 'Failed to start the download. Check the spec: ' + errorMessage(e),
       });
-
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);

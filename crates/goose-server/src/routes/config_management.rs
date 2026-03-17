@@ -633,19 +633,24 @@ pub async fn validate_config() -> Result<Json<String>, ErrorResponse> {
 
     Ok(Json("Config file is valid".to_string()))
 }
+#[derive(Serialize, ToSchema)]
+pub struct CreateCustomProviderResponse {
+    pub provider_name: String,
+}
+
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
     request_body = UpdateCustomProviderRequest,
     responses(
-        (status = 200, description = "Custom provider created successfully", body = String),
+        (status = 200, description = "Custom provider created successfully", body = CreateCustomProviderResponse),
         (status = 400, description = "Invalid request"),
         (status = 500, description = "Internal server error")
     )
 )]
 pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
-) -> Result<Json<String>, ErrorResponse> {
+) -> Result<Json<CreateCustomProviderResponse>, ErrorResponse> {
     let config = goose::config::declarative_providers::create_custom_provider(
         goose::config::declarative_providers::CreateCustomProviderParams {
             engine: request.engine,
@@ -663,7 +668,9 @@ pub async fn create_custom_provider(
 
     goose::providers::refresh_custom_providers().await?;
 
-    Ok(Json(format!("Custom provider added - ID: {}", config.id())))
+    Ok(Json(CreateCustomProviderResponse {
+        provider_name: config.id().to_string(),
+    }))
 }
 
 #[utoipa::path(
