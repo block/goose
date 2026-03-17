@@ -670,8 +670,6 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
-}) | (ReasoningContent & {
-    type: 'reasoning';
 });
 
 export type MessageEvent = {
@@ -1007,10 +1005,6 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
-};
-
-export type ReasoningContent = {
-    text: string;
 };
 
 export type Recipe = {

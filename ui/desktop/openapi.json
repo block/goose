@@ -5880,27 +5880,6 @@
                 }
               }
             ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReasoningContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "reasoning"
-                    ]
-                  }
-                }
-              }
-            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -6863,17 +6842,6 @@
             "type": "string"
           },
           "uri": {
-            "type": "string"
-          }
-        }
-      },
-      "ReasoningContent": {
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
             "type": "string"
           }
         }

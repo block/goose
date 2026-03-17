@@ -105,19 +105,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
-                    continue;
+                MessageContent::Thinking(t) => {
+                    reasoning_text.push_str(&t.thinking);
                 }
                 MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
                 MessageContent::SystemNotification(_) => {
                     continue;
-                }
-                MessageContent::Reasoning(r) => {
-                    reasoning_text.push_str(&r.text);
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -346,7 +341,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     if let Some(reasoning_content) = reasoning_value {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
-                content.push(MessageContent::reasoning(reasoning_str));
+                content.push(MessageContent::thinking(reasoning_str, ""));
             }
         }
     }
@@ -646,7 +641,7 @@ where
 
                 let mut contents = Vec::new();
                 if !accumulated_reasoning_content.is_empty() {
-                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    contents.push(MessageContent::thinking(&accumulated_reasoning_content, ""));
                     accumulated_reasoning_content.clear();
                 }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
@@ -706,7 +701,7 @@ where
 
                 if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
                     if !reasoning.is_empty() {
-                        content.push(MessageContent::reasoning(reasoning));
+                        content.push(MessageContent::thinking(reasoning, ""));
                     }
                 }
 
@@ -1837,11 +1832,11 @@ data: [DONE]"#;
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        // First should be reasoning content
-        if let MessageContent::Reasoning(reasoning) = &message.content[0] {
-            assert_eq!(reasoning.text, "Let me think about this step by step...");
+        // First should be thinking content (reasoning is mapped to thinking)
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(thinking.thinking, "Let me think about this step by step...");
         } else {
-            panic!("Expected Reasoning content");
+            panic!("Expected Thinking content, got {:?}", message.content[0]);
         }
 
         // Second should be text content
@@ -1858,7 +1853,10 @@ data: [DONE]"#;
     fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
         // Test that reasoning_content is properly included in formatted messages
         let mut message = Message::assistant()
-            .with_content(MessageContent::reasoning("Thinking through the problem..."))
+            .with_content(MessageContent::thinking(
+                "Thinking through the problem...",
+                "",
+            ))
             .with_text("The result is 42");
 
         // Add a tool call to test that reasoning_content works with tool calls
