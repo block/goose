@@ -240,7 +240,6 @@ impl AdversaryInspector {
 
     async fn consult_llm(
         &self,
-        session_id: &str,
         tool_description: &str,
         original_task: &str,
         recent_messages: &[String],
@@ -295,7 +294,7 @@ impl AdversaryInspector {
         let (response, _usage) = provider
             .complete(
                 &model_config,
-                session_id,
+                "",
                 system_prompt,
                 conversation.messages(),
                 &[],
@@ -359,7 +358,7 @@ impl ToolInspector for AdversaryInspector {
 
     async fn inspect(
         &self,
-        session_id: &str,
+        _session_id: &str,
         tool_requests: &[ToolRequest],
         messages: &[Message],
         _goose_mode: GooseMode,
@@ -389,7 +388,6 @@ impl ToolInspector for AdversaryInspector {
 
             match self
                 .consult_llm(
-                    session_id,
                     &tool_description,
                     &original_task,
                     &recent_messages,
