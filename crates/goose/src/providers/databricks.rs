@@ -385,6 +385,11 @@ impl Provider for DatabricksProvider {
                 .unwrap()
                 .insert("stream".to_string(), Value::Bool(true));
 
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("stream_options".to_string(), json!({"include_usage": true}));
+
             let mut log = RequestLog::start(model_config, &payload)?;
             let response = self
                 .with_retry(|| async {
