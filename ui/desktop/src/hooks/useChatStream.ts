@@ -331,8 +331,9 @@ export function useChatStream({
   // Long-lived SSE connection for this session
   const { addListener } = useSessionEvents(sessionId);
 
-  // Track the active request for cancellation
+  // Track the active request for cancellation (includes the session that started it)
   const activeRequestIdRef = useRef<string | null>(null);
+  const activeRequestSessionIdRef = useRef<string | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
   const lastInteractionTimeRef = useRef<number>(Date.now());
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -364,6 +365,7 @@ export function useChatStream({
         activeUnsubscribeRef.current = null;
       }
       activeRequestIdRef.current = null;
+      activeRequestSessionIdRef.current = null;
 
       if (namePollingRef.current) {
         clearTimeout(namePollingRef.current);
@@ -438,6 +440,7 @@ export function useChatStream({
     ) => {
       const requestId = uuidv7();
       activeRequestIdRef.current = requestId;
+      activeRequestSessionIdRef.current = targetSessionId;
 
       // Create event processor and register listener BEFORE the POST
       const processEvent = createEventProcessor(
@@ -453,6 +456,7 @@ export function useChatStream({
           unsubscribe();
           activeUnsubscribeRef.current = null;
           activeRequestIdRef.current = null;
+          activeRequestSessionIdRef.current = null;
         }
       });
       activeUnsubscribeRef.current = unsubscribe;
@@ -474,6 +478,7 @@ export function useChatStream({
         unsubscribe();
         activeUnsubscribeRef.current = null;
         activeRequestIdRef.current = null;
+        activeRequestSessionIdRef.current = null;
         onFinish('Submit error: ' + errorMessage(error));
       }
     },
@@ -715,10 +720,12 @@ export function useChatStream({
 
   const stopStreaming = useCallback(() => {
     const requestId = activeRequestIdRef.current;
-    if (requestId) {
-      // Send cancel request to the server
+    const requestSessionId = activeRequestSessionIdRef.current;
+    if (requestId && requestSessionId) {
+      // Cancel against the session that originally started the request,
+      // not the current sessionId (which may have changed if user navigated).
       sessionCancel({
-        path: { id: sessionId },
+        path: { id: requestSessionId },
         body: { request_id: requestId },
       }).catch((e) => {
         console.warn('Failed to cancel request:', e);
@@ -731,10 +738,11 @@ export function useChatStream({
       activeUnsubscribeRef.current = null;
     }
     activeRequestIdRef.current = null;
+    activeRequestSessionIdRef.current = null;
 
     dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
     lastInteractionTimeRef.current = Date.now();
-  }, [sessionId]);
+  }, []);
 
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
