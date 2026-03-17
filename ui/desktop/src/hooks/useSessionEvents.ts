@@ -86,6 +86,7 @@ export function useSessionEvents(sessionId: string) {
     return () => {
       abortController.abort();
       abortRef.current = null;
+      listenersRef.current.clear();
       setConnected(false);
     };
   }, [sessionId]);
