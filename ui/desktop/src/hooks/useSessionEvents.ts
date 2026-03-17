@@ -27,12 +27,19 @@ export function useSessionEvents(sessionId: string) {
     (async () => {
       let retryDelay = 500;
       const MAX_RETRY_DELAY = 10_000;
+      let lastEventId: string | undefined;
 
       while (!abortController.signal.aborted) {
         try {
           const { stream } = await sessionEvents({
             path: { id: sessionId },
             signal: abortController.signal,
+            headers: lastEventId ? { 'Last-Event-ID': lastEventId } : undefined,
+            onSseEvent: (event) => {
+              if (event.id) {
+                lastEventId = event.id;
+              }
+            },
           });
 
           setConnected(true);
