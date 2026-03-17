@@ -1262,7 +1262,7 @@ Some models expose their internal reasoning or "chain of thought" as part of the
 | **DeepSeek-R1** (via OpenAI, Ollama, OpenRouter, OVHcloud, etc.) | Reasoning captured from the `reasoning_content` field in the API response |
 | **Kimi** (via Groq or other OpenAI-compatible endpoints) | Reasoning captured from the `reasoning_content` field in the API response |
 | **Gemini CLI** (Google Gemini models with thinking enabled) | Thinking blocks captured from the streaming response |
-| **Claude** (Anthropic, with [extended thinking](/docs/guides/environment-variables#claude-extended-thinking) enabled) | Thinking blocks captured from the API response |
+| **Claude** (Anthropic, with [Claude thinking](/docs/guides/environment-variables#claude-thinking-configuration) enabled) | Thinking blocks captured from the API response |
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
