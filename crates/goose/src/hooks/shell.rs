@@ -173,7 +173,9 @@ pub async fn run_hook_command(
 
     // Collect output from drain tasks.
     // Use a secondary timeout to prevent hanging if grandchild processes hold pipe FDs open.
-    // On timeout, explicitly abort the drain tasks to prevent detached task leaks.
+    // On timeout, the JoinHandle is consumed by the timeout future.
+    // The drain tasks are safe to detach because: (1) reads are bounded by MAX_*_BYTES,
+    // and (2) the process group was killed, so pipe FDs will close and reads will EOF.
     let drain_timeout = Duration::from_secs(5);
 
     let stdout_output = match tokio::time::timeout(drain_timeout, stdout_task).await {

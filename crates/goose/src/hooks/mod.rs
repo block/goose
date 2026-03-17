@@ -403,20 +403,34 @@ impl Hooks {
         if text.trim().is_empty() {
             Ok(Some(HookResult::default()))
         } else {
-            Ok(Some(serde_json::from_str(text.trim()).unwrap_or_else(
+            let mut result = serde_json::from_str::<HookResult>(text.trim()).unwrap_or_else(
                 |e| {
                     tracing::debug!("MCP hook output is not HookResult JSON: {}", e);
-                    let mut context = text.trim().to_string();
-                    if context.len() > 32_768 {
-                        tracing::warn!("MCP hook output truncated from {} to 32KB", context.len());
-                        context.truncate(context.floor_char_boundary(32_768));
-                    }
                     HookResult {
-                        additional_context: Some(context),
+                        additional_context: Some(text.trim().to_string()),
                         ..Default::default()
                     }
                 },
-            )))
+            );
+            // Cap string fields regardless of parse path (same as command hooks)
+            const MAX_CONTEXT: usize = 32_768;
+            const MAX_REASON: usize = 4_096;
+            if let Some(ref mut ctx) = result.additional_context {
+                if ctx.len() > MAX_CONTEXT {
+                    tracing::warn!(
+                        "MCP hook additionalContext truncated from {} to {}",
+                        ctx.len(),
+                        MAX_CONTEXT
+                    );
+                    ctx.truncate(ctx.floor_char_boundary(MAX_CONTEXT));
+                }
+            }
+            if let Some(ref mut r) = result.reason {
+                if r.len() > MAX_REASON {
+                    r.truncate(r.floor_char_boundary(MAX_REASON));
+                }
+            }
+            Ok(Some(result))
         }
     }
 
