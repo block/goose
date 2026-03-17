@@ -71,13 +71,13 @@ cp ../../target/release/goosed src/bin/
 3. Build the application:
 ```bash
 # For ZIP distribution (works on all Linux distributions)
-pnpm run make -- --targets=@electron-forge/maker-zip
+pnpm run make --targets=@electron-forge/maker-zip
 
 # For DEB package (Debian/Ubuntu)
-pnpm run make -- --targets=@electron-forge/maker-deb
+pnpm run make --targets=@electron-forge/maker-deb
 
 # For Flatpak (requires flatpak and flatpak-builder)
-pnpm run make -- --targets=@electron-forge/maker-flatpak
+pnpm run make --targets=@electron-forge/maker-flatpak
 ```
 
 The built application will be available in:
