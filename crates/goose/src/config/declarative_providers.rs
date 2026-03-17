@@ -61,6 +61,8 @@ pub struct DeclarativeProviderConfig {
     pub env_vars: Option<Vec<EnvVarConfig>>,
     #[serde(default)]
     pub dynamic_models: Option<bool>,
+    #[serde(default)]
+    pub fast_model: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -215,6 +217,7 @@ pub fn create_custom_provider(
         base_path: params.base_path,
         env_vars: None,
         dynamic_models: None,
+        fast_model: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -280,6 +283,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             base_path: params.base_path,
             env_vars: existing_config.env_vars,
             dynamic_models: existing_config.dynamic_models,
+            fast_model: existing_config.fast_model,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));
