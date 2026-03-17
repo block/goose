@@ -242,7 +242,6 @@ fn apply_claude_thinking_config(payload: &mut Value, model_config: &ModelConfig)
                 "output_config".to_string(),
                 json!({ "effort": thinking_effort(model_config).to_string() }),
             );
-            obj.insert("temperature".to_string(), json!(2));
             obj.insert(
                 "max_completion_tokens".to_string(),
                 json!(model_config.max_output_tokens()),
@@ -1094,7 +1093,7 @@ mod tests {
 
         assert_eq!(request["thinking"]["type"], "adaptive");
         assert_eq!(request["output_config"]["effort"], "low");
-        assert_eq!(request["temperature"], 2);
+        assert!(request.get("temperature").is_none());
         assert_eq!(request["max_completion_tokens"], 4096);
         assert!(request.get("max_tokens").is_none());
 
