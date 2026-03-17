@@ -270,11 +270,9 @@ impl Hooks {
                 } else {
                     // Try JSON first, fall back to plain text as additionalContext
                     let mut result =
-                        serde_json::from_str::<HookResult>(stdout).unwrap_or_else(|_| {
-                            HookResult {
-                                additional_context: Some(stdout.to_string()),
-                                ..Default::default()
-                            }
+                        serde_json::from_str::<HookResult>(stdout).unwrap_or_else(|_| HookResult {
+                            additional_context: Some(stdout.to_string()),
+                            ..Default::default()
                         });
                     // Cap string fields regardless of parse path to prevent
                     // oversized context injection from hook output.
@@ -343,8 +341,8 @@ impl Hooks {
         // Guard zero timeout — default to 10 minutes
         let effective_timeout = if timeout == 0 { 600 } else { timeout };
 
-        let tool_call = CallToolRequestParams::new(tool.to_string())
-            .with_arguments(arguments.clone());
+        let tool_call =
+            CallToolRequestParams::new(tool.to_string()).with_arguments(arguments.clone());
 
         let ctx = crate::agents::ToolCallContext::new(
             invocation.session_id.clone(),
@@ -352,11 +350,7 @@ impl Hooks {
             None,
         );
         let tool_call_result = extension_manager
-            .dispatch_tool_call(
-                &ctx,
-                tool_call,
-                cancel_token.clone(),
-            )
+            .dispatch_tool_call(&ctx, tool_call, cancel_token.clone())
             .await?;
 
         tokio::select! {
@@ -403,15 +397,13 @@ impl Hooks {
         if text.trim().is_empty() {
             Ok(Some(HookResult::default()))
         } else {
-            let mut result = serde_json::from_str::<HookResult>(text.trim()).unwrap_or_else(
-                |e| {
-                    tracing::debug!("MCP hook output is not HookResult JSON: {}", e);
-                    HookResult {
-                        additional_context: Some(text.trim().to_string()),
-                        ..Default::default()
-                    }
-                },
-            );
+            let mut result = serde_json::from_str::<HookResult>(text.trim()).unwrap_or_else(|e| {
+                tracing::debug!("MCP hook output is not HookResult JSON: {}", e);
+                HookResult {
+                    additional_context: Some(text.trim().to_string()),
+                    ..Default::default()
+                }
+            });
             // Cap string fields regardless of parse path (same as command hooks)
             const MAX_CONTEXT: usize = 32_768;
             const MAX_REASON: usize = 4_096;

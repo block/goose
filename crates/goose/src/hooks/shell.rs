@@ -25,10 +25,7 @@ pub struct HookCommandOutput {
 
 /// Read up to `limit` bytes from an async reader into a String.
 /// Prevents unbounded memory growth from malicious/buggy hooks.
-async fn read_bounded(
-    mut reader: impl tokio::io::AsyncRead + Unpin,
-    limit: usize,
-) -> String {
+async fn read_bounded(mut reader: impl tokio::io::AsyncRead + Unpin, limit: usize) -> String {
     let mut buf = vec![0u8; limit];
     let mut total = 0;
     loop {
@@ -120,14 +117,12 @@ pub async fn run_hook_command(
 
     // Spawn stdout drain FIRST (before stdin write to prevent circular deadlock)
     // Bounded read prevents OOM from hooks that produce excessive output.
-    let stdout_task = tokio::spawn(async move {
-        read_bounded(stdout_handle, MAX_STDOUT_BYTES).await
-    });
+    let stdout_task =
+        tokio::spawn(async move { read_bounded(stdout_handle, MAX_STDOUT_BYTES).await });
 
     // Spawn stderr drain concurrently
-    let stderr_task = tokio::spawn(async move {
-        read_bounded(stderr_handle, MAX_STDERR_BYTES).await
-    });
+    let stderr_task =
+        tokio::spawn(async move { read_bounded(stderr_handle, MAX_STDERR_BYTES).await });
 
     // Write stdin data concurrently with drains.
     // Wrapped in a timeout to prevent hanging if the child stops reading stdin.

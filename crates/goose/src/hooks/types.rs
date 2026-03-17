@@ -31,10 +31,7 @@ impl HookEventKind {
     /// Events that can block execution when a hook returns exit code 2.
     /// Only events whose block outcome is actually checked at the call site should be listed.
     pub fn can_block(&self) -> bool {
-        matches!(
-            self,
-            Self::PreToolUse | Self::UserPromptSubmit
-        )
+        matches!(self, Self::PreToolUse | Self::UserPromptSubmit)
     }
 }
 

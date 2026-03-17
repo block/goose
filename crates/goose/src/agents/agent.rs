@@ -256,7 +256,9 @@ impl Agent {
                 provider.clone(),
             ),
             container: Mutex::new(None),
-            hook_context_fill_state: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            hook_context_fill_state: Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         }
     }
 
@@ -430,7 +432,11 @@ impl Agent {
                 if outcome.blocked {
                     let error_result = Err(rmcp::model::ErrorData::new(
                         rmcp::model::ErrorCode::INTERNAL_ERROR,
-                        outcome.reason.as_deref().unwrap_or("Tool execution blocked by hook").to_string(),
+                        outcome
+                            .reason
+                            .as_deref()
+                            .unwrap_or("Tool execution blocked by hook")
+                            .to_string(),
                         None,
                     ));
                     tool_futures.push((
