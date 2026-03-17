@@ -1187,6 +1187,7 @@ impl Agent {
                 ).await?;
 
                 let mut no_tools_called = true;
+                let mut pending_text_message: Option<Message> = None;
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
@@ -1241,9 +1242,17 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    session_manager.add_message(&session_config.id, &response).await?;
-                                    conversation.push(response);
+                                    // Don't persist streaming text deltas individually;
+                                    // accumulate and persist only the final message to
+                                    // avoid each token showing as a separate message on reload.
+                                    pending_text_message = Some(response);
                                     continue;
+                                }
+
+                                // Flush any pending text message before processing tool requests
+                                if let Some(text_msg) = pending_text_message.take() {
+                                    session_manager.add_message(&session_config.id, &text_msg).await?;
+                                    conversation.push(text_msg);
                                 }
 
                                 let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
@@ -1589,6 +1598,13 @@ impl Agent {
                         }
                     }
                 }
+
+                // Flush any pending text message after the stream ends
+                if let Some(text_msg) = pending_text_message.take() {
+                    session_manager.add_message(&session_config.id, &text_msg).await?;
+                    conversation.push(text_msg);
+                }
+
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
