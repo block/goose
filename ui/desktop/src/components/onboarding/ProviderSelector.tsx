@@ -119,7 +119,7 @@ export default function ProviderSelector({
             Use Free/Local Providers
           </span>
           <p className="text-text-muted text-sm mt-1">
-            Free credits or run locally on your machine
+            Use a local model or a provider with free credits
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export default function ProviderSelector({
         >
           <Key size={20} className="text-text-muted mb-2" />
           <span className="font-medium text-text-default text-base block">
-            Use Your Own Provider
+            Connect to a Provider
           </span>
           <p className="text-text-muted text-sm mt-1">Connect OpenAI, Anthropic, Google, etc</p>
         </div>

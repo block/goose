@@ -55,10 +55,10 @@ impl NanoGptProvider {
 
         let is_subscription = Self::check_subscription(&api_key).await;
         let host = if is_subscription {
-            tracing::info!("NanoGPT subscription active, using subscription endpoint");
+            tracing::debug!("NanoGPT subscription active, using subscription endpoint");
             NANOGPT_SUBSCRIPTION_HOST.to_string()
         } else {
-            tracing::info!("NanoGPT using pay-as-you-go endpoint");
+            tracing::debug!("NanoGPT using pay-as-you-go endpoint");
             NANOGPT_API_HOST.to_string()
         };
 

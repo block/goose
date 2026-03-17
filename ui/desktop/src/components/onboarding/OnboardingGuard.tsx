@@ -28,6 +28,9 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [hasProvider, setHasProvider] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [configuredProvider, setConfiguredProvider] = useState<string | null>(null);
+  const [configuredProviderDisplayName, setConfiguredProviderDisplayName] = useState<string | null>(
+    null
+  );
   const [configuredModel, setConfiguredModel] = useState<string | null>(null);
   const hasTrackedOnboardingStart = useRef(false);
 
@@ -56,19 +59,18 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const handleConfigured = async (providerName: string, modelId?: string) => {
     trackOnboardingProviderSelected({ provider: providerName });
     await upsert('GOOSE_PROVIDER', providerName, false);
+    const providers = await getProviders(true);
+    const matchedProvider = providers.find((p) => p.name === providerName);
     if (modelId) {
       await upsert('GOOSE_MODEL', modelId, false);
       setConfiguredModel(modelId);
-    } else {
-      const providers = await getProviders(true);
-      const matchedProvider = providers.find((p) => p.name === providerName);
-      if (matchedProvider) {
-        await upsert('GOOSE_MODEL', matchedProvider.metadata.default_model, false);
-        setConfiguredModel(matchedProvider.metadata.default_model);
-      }
+    } else if (matchedProvider) {
+      await upsert('GOOSE_MODEL', matchedProvider.metadata.default_model, false);
+      setConfiguredModel(matchedProvider.metadata.default_model);
     }
     await refreshCurrentModelAndProvider();
     setConfiguredProvider(providerName);
+    setConfiguredProviderDisplayName(matchedProvider?.metadata.display_name || providerName);
   };
 
   const finishOnboarding = async (telemetryEnabled: boolean) => {
@@ -96,8 +98,10 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     return <>{children}</>;
   }
 
-  if (configuredProvider) {
-    return <OnboardingSuccess providerName={configuredProvider} onFinish={finishOnboarding} />;
+  if (configuredProviderDisplayName) {
+    return (
+      <OnboardingSuccess providerName={configuredProviderDisplayName} onFinish={finishOnboarding} />
+    );
   }
 
   return (
