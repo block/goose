@@ -62,17 +62,18 @@ impl SessionEventBus {
     /// Subscribe to live events. If `last_event_id` is provided, replay buffered
     /// events with seq > last_event_id. Returns (replay_events, replay_max_seq, live_receiver).
     ///
-    /// The buffer is snapshotted *before* subscribing to live events so that
-    /// any event published between the two steps only appears in `live_rx`.
-    /// The caller should skip live events with `seq <= replay_max_seq` to
-    /// avoid duplicates at the handoff boundary.
+    /// The live receiver is created *before* snapshotting the buffer so that
+    /// no event can fall into the gap between the two steps. The caller must
+    /// skip live events with `seq <= replay_max_seq` to deduplicate.
     pub async fn subscribe(
         &self,
         last_event_id: Option<u64>,
     ) -> (Vec<SessionEvent>, u64, broadcast::Receiver<SessionEvent>) {
-        // Snapshot the buffer first, then subscribe. This way an event
-        // published between the snapshot and the subscribe will only appear
-        // in `rx` (not in `replay`), and the caller filters it via seq.
+        // Subscribe first so that any event published while we hold the
+        // buffer lock is guaranteed to appear in `rx` (possibly duplicating
+        // a replay entry). The caller deduplicates via replay_max_seq.
+        let rx = self.tx.subscribe();
+
         let (replay, replay_max_seq) = {
             let buf = self.buffer.lock().await;
             // Clamp to the actual buffer max so a stale Last-Event-ID
@@ -83,8 +84,6 @@ impl SessionEventBus {
             let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id.min(buf_max));
             (events, max_seq)
         };
-
-        let rx = self.tx.subscribe();
 
         (replay, replay_max_seq, rx)
     }

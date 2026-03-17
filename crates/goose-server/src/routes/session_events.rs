@@ -190,8 +190,10 @@ pub async fn session_events(
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                            tracing::warn!("SSE subscriber lagged by {} events", n);
-                            // Continue — client will reconnect if needed
+                            tracing::warn!("SSE subscriber lagged by {} events, closing stream so client reconnects with Last-Event-ID", n);
+                            // Close the stream so the client reconnects and
+                            // replays missed events from the buffer.
+                            return;
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                             return;
