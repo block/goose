@@ -4614,6 +4614,10 @@
             },
             "nullable": true
           },
+          "fast_model": {
+            "type": "string",
+            "nullable": true
+          },
           "headers": {
             "type": "object",
             "additionalProperties": {
