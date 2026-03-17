@@ -194,7 +194,10 @@ impl DownloadManager {
         downloads: &DownloadMap,
         model_id: &str,
     ) -> Result<(), anyhow::Error> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(30))
+            .read_timeout(std::time::Duration::from_secs(60))
+            .build()?;
         let mut response = client.get(url).send().await?;
 
         if !response.status().is_success() {

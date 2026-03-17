@@ -30,6 +30,7 @@ export const LocalInferenceSettings = () => {
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
   const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
+  const activePolls = useRef(new Set<string>());
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
   const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
@@ -88,6 +89,14 @@ export const LocalInferenceSettings = () => {
   }, []);
 
   const pollDownloadProgress = (modelId: string) => {
+    if (activePolls.current.has(modelId)) return;
+    activePolls.current.add(modelId);
+
+    const stopPolling = (interval: ReturnType<typeof setInterval>) => {
+      clearInterval(interval);
+      activePolls.current.delete(modelId);
+    };
+
     const interval = setInterval(async () => {
       try {
         const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
@@ -96,7 +105,7 @@ export const LocalInferenceSettings = () => {
           setDownloads((prev) => new Map(prev).set(modelId, progress));
 
           if (progress.status === 'completed') {
-            clearInterval(interval);
+            stopPolling(interval);
             setDownloads((prev) => {
               const next = new Map(prev);
               next.delete(modelId);
@@ -105,7 +114,7 @@ export const LocalInferenceSettings = () => {
             await loadModels();
             await selectModel(modelId);
           } else if (progress.status === 'failed' || progress.status === 'cancelled') {
-            clearInterval(interval);
+            stopPolling(interval);
             setDownloads((prev) => {
               const next = new Map(prev);
               next.delete(modelId);
@@ -114,10 +123,10 @@ export const LocalInferenceSettings = () => {
             await loadModels();
           }
         } else {
-          clearInterval(interval);
+          stopPolling(interval);
         }
       } catch {
-        clearInterval(interval);
+        stopPolling(interval);
       }
     }, 1000);
   };
