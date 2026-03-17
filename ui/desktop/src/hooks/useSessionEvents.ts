@@ -25,39 +25,55 @@ export function useSessionEvents(sessionId: string) {
     abortRef.current = abortController;
 
     (async () => {
-      try {
-        const { stream } = await sessionEvents({
-          path: { id: sessionId },
-          signal: abortController.signal,
-        });
+      let retryDelay = 500;
+      const MAX_RETRY_DELAY = 10_000;
 
-        setConnected(true);
+      while (!abortController.signal.aborted) {
+        try {
+          const { stream } = await sessionEvents({
+            path: { id: sessionId },
+            signal: abortController.signal,
+          });
 
-        for await (const event of stream) {
-          if (abortController.signal.aborted) break;
+          setConnected(true);
+          retryDelay = 500; // reset on successful connection
 
-          // The server adds chat_request_id (the chat UUID) and request_id
-          // to the JSON at the SSE framing layer. Route using chat_request_id
-          // so that Notification events (which carry their own MCP tool-call
-          // request_id) still reach the correct handler.
-          const sessionEvent = event as SessionEvent;
-          const routingId = sessionEvent.chat_request_id ?? sessionEvent.request_id;
+          for await (const event of stream) {
+            if (abortController.signal.aborted) break;
 
-          if (routingId) {
-            const handlers = listenersRef.current.get(routingId);
-            if (handlers) {
-              for (const handler of handlers) {
-                handler(sessionEvent);
+            // The server adds chat_request_id (the chat UUID) and request_id
+            // to the JSON at the SSE framing layer. Route using chat_request_id
+            // so that Notification events (which carry their own MCP tool-call
+            // request_id) still reach the correct handler.
+            const sessionEvent = event as SessionEvent;
+            const routingId = sessionEvent.chat_request_id ?? sessionEvent.request_id;
+
+            if (routingId) {
+              const handlers = listenersRef.current.get(routingId);
+              if (handlers) {
+                for (const handler of handlers) {
+                  handler(sessionEvent);
+                }
               }
             }
           }
+
+          // Stream ended normally (e.g. server closed for lagged subscriber).
+          // Reconnect unless we were intentionally aborted.
+          if (abortController.signal.aborted) break;
+          setConnected(false);
+        } catch (error) {
+          if (abortController.signal.aborted) break;
+          console.warn('SSE connection error, reconnecting:', error);
+          setConnected(false);
+
+          // Back off before retrying
+          await new Promise((r) => setTimeout(r, retryDelay));
+          retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
         }
-      } catch (error) {
-        if (abortController.signal.aborted) return;
-        console.warn('SSE connection ended:', error);
-      } finally {
-        setConnected(false);
       }
+
+      setConnected(false);
     })();
 
     return () => {
