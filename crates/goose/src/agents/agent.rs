@@ -1706,14 +1706,14 @@ impl Agent {
                                     metadata.with_agent_invisible()
                                 }).await?;
                             }
-                            conversation = Conversation::new_unvalidated(updated_messages.clone());
                             session_manager.add_message(&session_config.id, &summary_msg).await?;
-                            conversation.push(summary_msg);
+                            updated_messages.push(summary_msg);
                         } else {
                             warn!("Expected a tool request/reply pair, but found {} matching messages",
                                 matching.len());
                         }
                     }
+                    conversation = Conversation::new_unvalidated(updated_messages);
                 }
 
                 if exit_chat {

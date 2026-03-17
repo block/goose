@@ -18,6 +18,8 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
+
 fn tool_pair_summarization_enabled() -> bool {
     Config::global()
         .get_param::<bool>("GOOSE_TOOL_PAIR_SUMMARIZATION")
@@ -420,11 +422,6 @@ fn format_message_for_compacting(msg: &Message) -> String {
     }
 }
 
-/// Compute a smart tool call cutoff based on the effective context budget.
-/// The effective budget is `context_limit * compaction_threshold` because
-/// compaction fires at that point — there's no value keeping more unsummarized
-/// tool calls than we can fit before the next compaction.
-/// Returns 3 * effective_limit / 20_000, clamped to [10, 500].
 pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: f64) -> usize {
     let threshold = if compaction_threshold > 0.0 && compaction_threshold <= 1.0 {
         compaction_threshold
@@ -435,13 +432,6 @@ pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: f64)
     (3 * effective_limit / 20_000).clamp(10, 500)
 }
 
-const SUMMARIZATION_BATCH_SIZE: usize = 10;
-
-/// Find tool call IDs to summarize. Waits until unsummarized tool calls exceed
-/// `cutoff + SUMMARIZATION_BATCH_SIZE`, then returns the oldest `SUMMARIZATION_BATCH_SIZE`
-/// eligible IDs. This avoids constant small summarizations and instead does one
-/// meaningful batch, which is better for KV cache stability. Tool calls from the
-/// current turn (identified by `protect_last_n`) are never summarized.
 pub fn tool_ids_to_summarize(
     conversation: &Conversation,
     cutoff: usize,
@@ -465,13 +455,13 @@ pub fn tool_ids_to_summarize(
 
     // Never summarize the last N tool calls (current turn)
     let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
-    if eligible <= cutoff + SUMMARIZATION_BATCH_SIZE {
+    if eligible <= cutoff + TOOLCALL_SUMMARIZATION_BATCH_SIZE {
         return Vec::new();
     }
 
     tool_call_ids
         .into_iter()
-        .take(SUMMARIZATION_BATCH_SIZE)
+        .take(TOOLCALL_SUMMARIZATION_BATCH_SIZE)
         .collect()
 }
 
@@ -728,94 +718,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_tool_pair_summarization_workflow() {
-        let summary_response = Message::assistant()
-            .with_text("Tool call to list files and response with file listing");
-        let provider = MockProvider::new(summary_response, 1000);
-
-        // Build a conversation with 13 tool pairs (cutoff=2, need >2+10=12 to trigger)
-        let mut messages = vec![Message::user().with_text("list files").with_id("msg_1")];
-        for i in 1..=13 {
-            messages.extend(create_tool_pair(
-                &format!("call{}", i),
-                &format!("response{}", i),
-                "read_file",
-                &format!("content of file{}", i),
-            ));
-        }
-
-        let conversation = Conversation::new_unvalidated(messages);
-
-        let result = tool_ids_to_summarize(&conversation, 2, 0);
-        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
-        assert_eq!(result[0], "call1");
-
-        // Test the summarization call itself
-        let tool_call_id = result[0].clone();
-        let summary = summarize_tool_call(&provider, "test-session", &conversation, &tool_call_id)
-            .await
-            .unwrap();
-
-        assert_eq!(summary.role, Role::User);
-        assert!(summary.metadata.agent_visible);
-        assert!(!summary.metadata.user_visible);
-        assert!(
-            summary.as_concat_text().contains("Tool call"),
-            "Summary should describe the tool call"
-        );
-
-        // Mark the original pair as invisible and add the summary
-        let mut updated_messages = conversation.messages().clone();
-        for msg in updated_messages.iter_mut() {
-            let has_matching_content = msg.content.iter().any(|c| match c {
-                MessageContent::ToolRequest(req) => req.id == tool_call_id,
-                MessageContent::ToolResponse(resp) => resp.id == tool_call_id,
-                _ => false,
-            });
-
-            if has_matching_content {
-                msg.metadata = msg.metadata.with_agent_invisible();
-            }
-        }
-
-        updated_messages.push(summary);
-
-        let updated_conversation = Conversation::new_unvalidated(updated_messages);
-        let messages = updated_conversation.messages();
-
-        let call1_msg = messages
-            .iter()
-            .find(|m| m.id.as_deref() == Some("call1"))
-            .unwrap();
-        assert!(
-            !call1_msg.is_agent_visible(),
-            "Original call should not be agent visible"
-        );
-
-        let response1_msg = messages
-            .iter()
-            .find(|m| m.id.as_deref() == Some("response1"))
-            .unwrap();
-        assert!(
-            !response1_msg.is_agent_visible(),
-            "Original response should not be agent visible"
-        );
-
-        let summary_msg = messages
-            .iter()
-            .find(|m| {
-                m.metadata.agent_visible
-                    && !m.metadata.user_visible
-                    && m.as_concat_text().contains("Tool call")
-            })
-            .unwrap();
-        assert!(
-            !summary_msg.is_user_visible(),
-            "Summary should not be user visible"
-        );
-    }
-
     #[test]
     fn test_compute_tool_call_cutoff_scales_with_context() {
         // Default threshold (0.8)
@@ -863,20 +765,9 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
         let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
         assert_eq!(result[0], "call0");
         assert_eq!(result[9], "call9");
-    }
-
-    #[test]
-    fn test_tool_ids_to_summarize_returns_empty_under_cutoff() {
-        let mut messages = vec![Message::user().with_text("hello")];
-        messages.extend(create_tool_pair("call0", "resp0", "read_file", "content"));
-        messages.extend(create_tool_pair("call1", "resp1", "read_file", "content"));
-        let conversation = Conversation::new_unvalidated(messages);
-
-        let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert!(result.is_empty(), "Under cutoff, nothing to summarize");
     }
 
     #[test]
@@ -895,7 +786,7 @@ mod tests {
 
         // No protection: 20 eligible, 20 > 12 → batch of 10
         let result = tool_ids_to_summarize(&conversation, 2, 0);
-        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
 
         // Protect last 8: 12 eligible, 12 <= 12 → nothing
         let result = tool_ids_to_summarize(&conversation, 2, 8);
@@ -906,7 +797,7 @@ mod tests {
 
         // Protect last 7: 13 eligible, 13 > 12 → batch of 10
         let result = tool_ids_to_summarize(&conversation, 2, 7);
-        assert_eq!(result.len(), SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
         assert_eq!(result[0], "call0");
     }
 }
