@@ -37,6 +37,8 @@ jobs:
   bundle-desktop:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
     permissions:
       id-token: write
       contents: read
@@ -109,6 +111,8 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-deployment-target-14
 
       # Build the project
       - name: Build goosed
