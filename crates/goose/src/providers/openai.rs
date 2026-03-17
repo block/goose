@@ -73,7 +73,8 @@ impl OpenAiProvider {
         let fast_model = config
             .get_param::<String>("OPENAI_FAST_MODEL")
             .ok()
-            .filter(|s| !s.is_empty())
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.trim().to_string())
             .unwrap_or_else(|| OPEN_AI_DEFAULT_FAST_MODEL.to_string());
         let model = model.with_fast(&fast_model, OPEN_AI_PROVIDER_NAME)?;
 
@@ -204,10 +205,10 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        // Set up fast model if configured
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            if !fast_model_name.is_empty() {
-                model.with_fast(fast_model_name, &config.name)?
+            let trimmed = fast_model_name.trim();
+            if !trimmed.is_empty() {
+                model.with_fast(trimmed, &config.name)?
             } else {
                 model
             }
