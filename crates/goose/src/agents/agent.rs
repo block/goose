@@ -1187,6 +1187,7 @@ impl Agent {
                 ).await?;
 
                 let mut no_tools_called = true;
+                let mut accumulated_text = String::new();
                 let mut pending_text_message: Option<Message> = None;
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
@@ -1243,16 +1244,27 @@ impl Agent {
                                         last_assistant_text = text;
                                     }
                                     // Don't persist streaming text deltas individually;
-                                    // accumulate and persist only the final message to
-                                    // avoid each token showing as a separate message on reload.
+                                    // accumulate text and persist only the final
+                                    // message to avoid each token showing as a
+                                    // separate message on reload.
+                                    let delta_text = response.as_concat_text();
+                                    if !delta_text.is_empty() {
+                                        accumulated_text.push_str(&delta_text);
+                                    }
+                                    // Keep the latest message as the template (for id,
+                                    // role, created, metadata) but we'll replace its
+                                    // text content with the full accumulation at flush.
                                     pending_text_message = Some(response);
                                     continue;
                                 }
 
                                 // Flush any pending text message before processing tool requests
-                                if let Some(text_msg) = pending_text_message.take() {
+                                if let Some(mut text_msg) = pending_text_message.take() {
+                                    // Replace delta content with full accumulated text
+                                    text_msg.content = vec![MessageContent::text(&accumulated_text)];
                                     session_manager.add_message(&session_config.id, &text_msg).await?;
                                     conversation.push(text_msg);
+                                    accumulated_text.clear();
                                 }
 
                                 let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
@@ -1600,9 +1612,12 @@ impl Agent {
                 }
 
                 // Flush any pending text message after the stream ends
-                if let Some(text_msg) = pending_text_message.take() {
+                if let Some(mut text_msg) = pending_text_message.take() {
+                    // Replace delta content with full accumulated text
+                    text_msg.content = vec![MessageContent::text(&accumulated_text)];
                     session_manager.add_message(&session_config.id, &text_msg).await?;
                     conversation.push(text_msg);
+                    accumulated_text.clear();
                 }
 
                 if tools_updated {
