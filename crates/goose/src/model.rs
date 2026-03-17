@@ -429,6 +429,10 @@ mod tests {
 
         #[test]
         fn sets_limits_from_canonical_model() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let config = ModelConfig::new_or_fail("gpt-4o").with_canonical_limits("openai");
 
             assert_eq!(config.context_limit, Some(128_000));
@@ -438,6 +442,10 @@ mod tests {
 
         #[test]
         fn does_not_override_existing_context_limit() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let mut config = ModelConfig::new_or_fail("gpt-4o");
             config.context_limit = Some(64_000);
             let config = config.with_canonical_limits("openai");
@@ -447,6 +455,10 @@ mod tests {
 
         #[test]
         fn does_not_override_existing_max_tokens() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let mut config = ModelConfig::new_or_fail("gpt-4o");
             config.max_tokens = Some(1_000);
             let config = config.with_canonical_limits("openai");
@@ -456,6 +468,10 @@ mod tests {
 
         #[test]
         fn unknown_model_leaves_fields_none() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let config =
                 ModelConfig::new_or_fail("totally-unknown-model").with_canonical_limits("openai");
 

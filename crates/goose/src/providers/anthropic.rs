@@ -168,6 +168,11 @@ impl ProviderDef for AnthropicProvider {
                 ),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://platform.claude.com/settings/keys",
+            "Click 'Create Key'",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(

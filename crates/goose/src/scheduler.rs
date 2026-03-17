@@ -819,6 +819,7 @@ async fn execute_job(
             std::env::current_dir()?,
             format!("Scheduled job: {}", job.id),
             SessionType::Scheduled,
+            agent.config.goose_mode,
         )
         .await?;
 

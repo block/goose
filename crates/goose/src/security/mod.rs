@@ -1,3 +1,4 @@
+pub mod adversary_inspector;
 pub mod classification_client;
 pub mod patterns;
 pub mod scanner;

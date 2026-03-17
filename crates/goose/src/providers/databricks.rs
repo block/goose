@@ -6,6 +6,7 @@ use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::pin;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -81,13 +82,30 @@ impl DatabricksAuth {
 
 struct DatabricksAuthProvider {
     auth: DatabricksAuth,
+    token_cache: Arc<Mutex<Option<String>>>,
 }
 
 #[async_trait]
 impl AuthProvider for DatabricksAuthProvider {
     async fn get_auth_header(&self) -> Result<(String, String)> {
         let token = match &self.auth {
-            DatabricksAuth::Token(token) => token.clone(),
+            DatabricksAuth::Token(original) => {
+                let cached = self.token_cache.lock().unwrap().clone();
+                match cached {
+                    Some(t) => t,
+                    None => {
+                        // Cache was cleared by refresh_credentials(); re-read
+                        // from config which may have a sidecar-rotated token.
+                        // Fall back to the constructor-provided token if config
+                        // lookup fails (e.g. from_params usage).
+                        let fresh = crate::config::Config::global()
+                            .get_secret::<String>("DATABRICKS_TOKEN")
+                            .unwrap_or_else(|_| original.clone());
+                        *self.token_cache.lock().unwrap() = Some(fresh.clone());
+                        fresh
+                    }
+                }
+            }
             DatabricksAuth::OAuth {
                 host,
                 client_id,
@@ -112,6 +130,8 @@ pub struct DatabricksProvider {
     fast_retry_config: RetryConfig,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    token_cache: Arc<Mutex<Option<String>>>,
 }
 
 impl DatabricksProvider {
@@ -140,8 +160,15 @@ impl DatabricksProvider {
             DatabricksAuth::oauth(host.clone())
         };
 
-        let auth_method =
-            AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));
+        let token_cache = Arc::new(Mutex::new(match &auth {
+            DatabricksAuth::Token(t) => Some(t.clone()),
+            _ => None,
+        }));
+
+        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
+            auth: auth.clone(),
+            token_cache: token_cache.clone(),
+        }));
 
         let api_client =
             ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
@@ -154,6 +181,7 @@ impl DatabricksProvider {
             retry_config,
             fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
+            token_cache,
         };
         provider.model =
             model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
@@ -199,9 +227,12 @@ impl DatabricksProvider {
     }
 
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
+        let token_cache = Arc::new(Mutex::new(Some(api_key.clone())));
         let auth = DatabricksAuth::token(api_key);
-        let auth_method =
-            AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));
+        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
+            auth: auth.clone(),
+            token_cache: token_cache.clone(),
+        }));
 
         let api_client = ApiClient::with_timeout(host, auth_method, Duration::from_secs(600))?;
 
@@ -213,6 +244,7 @@ impl DatabricksProvider {
             retry_config: RetryConfig::default(),
             fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
             name: DATABRICKS_PROVIDER_NAME.to_string(),
+            token_cache,
         })
     }
 
@@ -283,6 +315,13 @@ impl Provider for DatabricksProvider {
 
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
+    }
+
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        crate::config::Config::global().invalidate_secrets_cache();
+        *self.token_cache.lock().unwrap() = None;
+        tracing::info!("Invalidated secrets cache and token cache for credential refresh");
+        Ok(())
     }
 
     fn get_model_config(&self) -> ModelConfig {

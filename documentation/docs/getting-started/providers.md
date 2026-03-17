@@ -46,10 +46,11 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Tanzu AI Services](https://techdocs.broadcom.com/us/en/vmware-tanzu/platform/ai-services/10-3/ai/index.html) | Enterprise-managed LLM access through VMware Tanzu Platform AI Services. Models are fetched dynamically from the endpoint. | `TANZU_AI_API_KEY`, `TANZU_AI_ENDPOINT` |
 | [Tetrate Agent Router Service](https://router.tetrate.ai)                   | Unified API gateway for AI models including Claude, Gemini, GPT, open-weight models, and others. Supports PKCE authentication flow for secure API key generation.                                                                                | `TETRATE_API_KEY`, `TETRATE_HOST` (optional)                                                                                                                                        |
 | [Venice AI](https://venice.ai/home)                                         | Provides access to open source models like Llama, Mistral, and Qwen while prioritizing user privacy. **Requires an account and an [API key](https://docs.venice.ai/overview/guides/generating-api-key)**.                 | `VENICE_API_KEY`, `VENICE_HOST` (optional), `VENICE_BASE_PATH` (optional), `VENICE_MODELS_PATH` (optional)                                                                          |
+| [Cerebras](https://cerebras.ai/)                                            | Fast inference on Cerebras wafer-scale engines with models like Llama, Qwen, and others.                                                                                                                                  | `CEREBRAS_API_KEY`                                                                                                                                                                  |
 | [xAI](https://x.ai/)                                                        | Access to xAI's Grok models including grok-3, grok-3-mini, and grok-3-fast with 131,072 token context window.                                                                                                            | `XAI_API_KEY`, `XAI_HOST` (optional)                                                                                                                                                |
 
 :::tip Prompt Caching for Claude Models
-goose automatically enables Anthropic's [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) when using Claude models via Anthropic, Databricks, OpenRouter, and LiteLLM providers. This adds `cache_control` markers to requests, which can reduce costs for longer conversations by caching frequently-used context. See the [provider implementations](https://github.com/block/goose/tree/main/crates/goose/src/providers) for technical details.
+goose automatically enables Anthropic's [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) when using Claude models via Anthropic, Amazon Bedrock, Databricks, OpenRouter, and LiteLLM providers. This adds `cache_control` markers to requests, which can reduce costs for longer conversations by caching frequently-used context. See the [provider implementations](https://github.com/block/goose/tree/main/crates/goose/src/providers) for technical details.
 :::
 
 ### CLI Providers
@@ -1262,7 +1263,7 @@ Some models expose their internal reasoning or "chain of thought" as part of the
 | **DeepSeek-R1** (via OpenAI, Ollama, OpenRouter, OVHcloud, etc.) | Reasoning captured from the `reasoning_content` field in the API response |
 | **Kimi** (via Groq or other OpenAI-compatible endpoints) | Reasoning captured from the `reasoning_content` field in the API response |
 | **Gemini CLI** (Google Gemini models with thinking enabled) | Thinking blocks captured from the streaming response |
-| **Claude** (Anthropic, with [extended thinking](/docs/guides/environment-variables#claude-extended-thinking) enabled) | Thinking blocks captured from the API response |
+| **Claude** (Anthropic, with [Claude thinking](/docs/guides/environment-variables#claude-thinking-configuration) enabled) | Thinking blocks captured from the API response |
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>

@@ -886,7 +886,7 @@ impl CliSession {
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
-                    let curr_goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+                    let curr_goose_mode = config.get_goose_mode().unwrap_or_default();
                     if curr_goose_mode != GooseMode::Auto {
                         config.set_goose_mode(GooseMode::Auto).unwrap();
                     }

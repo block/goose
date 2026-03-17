@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, SessionConfig};
+use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
@@ -190,6 +191,7 @@ impl ProviderDef for MockCompactionProvider {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            setup_steps: vec![],
         }
     }
 
@@ -215,6 +217,7 @@ async fn setup_test_session(
             temp_dir.path().to_path_buf(),
             session_name.to_string(),
             SessionType::Hidden,
+            GooseMode::default(),
         )
         .await?;
 

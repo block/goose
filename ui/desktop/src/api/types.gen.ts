@@ -154,6 +154,10 @@ export type ContentBlock = ({
 
 export type Conversation = Array<Message>;
 
+export type CreateCustomProviderResponse = {
+    provider_name: string;
+};
+
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -491,6 +495,8 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServers?: Array<string>;
     prd?: string | null;
 };
+
+export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
 
 /**
  * A single downloadable GGUF file (used internally and for downloads).
@@ -925,6 +931,10 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+    /**
+     * step-by-step instructions for set up providers eg: api key
+     */
+    setup_steps?: Array<string>;
 };
 
 export type ProviderTemplate = {
@@ -1200,6 +1210,7 @@ export type Session = {
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
+    goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
     message_count: number;
@@ -1546,6 +1557,11 @@ export type UpdateSessionNameRequest = {
      * Updated name for the session (max 200 characters)
      */
     name: string;
+};
+
+export type UpdateSessionRequest = {
+    goose_mode?: string | null;
+    session_id: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -2079,6 +2095,31 @@ export type UpdateAgentProviderResponses = {
     200: unknown;
 };
 
+export type UpdateSessionData = {
+    body: UpdateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_session';
+};
+
+export type UpdateSessionErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionResponses = {
+    /**
+     * Session updated
+     */
+    200: unknown;
+};
+
 export type UpdateWorkingDirData = {
     body: UpdateWorkingDirRequest;
     path?: never;
@@ -2196,10 +2237,10 @@ export type CreateCustomProviderResponses = {
     /**
      * Custom provider created successfully
      */
-    200: string;
+    200: CreateCustomProviderResponse;
 };
 
-export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+export type CreateCustomProviderResponse2 = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
 
 export type RemoveCustomProviderData = {
     body?: never;
@@ -3037,6 +3078,19 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type StartNanogptSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_nanogpt';
+};
+
+export type StartNanogptSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;

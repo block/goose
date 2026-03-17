@@ -48,6 +48,12 @@ impl ErrorResponse {
 
 impl IntoResponse for ErrorResponse {
     fn into_response(self) -> Response {
+        if self.status.is_server_error() {
+            tracing::error!(status = %self.status, message = %self.message, "server error response");
+        } else if self.status.is_client_error() {
+            tracing::warn!(status = %self.status, message = %self.message, "client error response");
+        }
+
         let body = Json(serde_json::json!({
             "message": self.message,
         }));
