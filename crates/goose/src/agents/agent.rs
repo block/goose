@@ -1631,6 +1631,9 @@ impl Agent {
                                 Ok(should_retry) => {
                                     if should_retry {
                                         info!("Retry logic triggered, restarting agent loop");
+                                        messages_to_add = Conversation::default();
+                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                        yield AgentEvent::HistoryReplaced(conversation.clone());
                                     } else {
                                         exit_chat = true;
                                     }

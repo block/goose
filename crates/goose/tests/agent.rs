@@ -599,7 +599,7 @@ mod tests {
         use goose::agents::{AgentConfig, SessionConfig};
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
-        use goose::conversation::message::{Message, MessageContent};
+        use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{
             MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
@@ -613,16 +613,6 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use tokio_util::sync::CancellationToken;
 
-        /// Mock provider whose behaviour changes on each successive `stream()` call
-        /// within a single `reply()` invocation:
-        ///
-        ///   Call 0 → single tool-call message   (agent executes the tool and loops)
-        ///   Call 1 → 5 streamed text deltas     (no tool calls → agent exits loop)
-        ///   Call 2 → 5 text deltas; fires the cancellation token after the 1st
-        ///            token so the agent is interrupted mid-stream
-        ///
-        /// Call 2 is only reached if a second `reply()` is issued with the same
-        /// provider (the cancellation round).
         struct MultiStepProvider {
             call_count: AtomicUsize,
             cancel_token: CancellationToken,
@@ -731,28 +721,6 @@ mod tests {
             }
         }
 
-        /// Helper: auto-approve any tool-confirmation action-required messages.
-        async fn approve_if_needed(agent: &Agent, msg: &Message) {
-            if let Some(MessageContent::ActionRequired(action)) = msg.content.first() {
-                if let goose::conversation::message::ActionRequiredData::ToolConfirmation {
-                    id,
-                    ..
-                } = &action.data
-                {
-                    agent
-                        .handle_confirmation(
-                            id.clone(),
-                            goose::permission::PermissionConfirmation {
-                                principal_type:
-                                    goose::permission::permission_confirmation::PrincipalType::Tool,
-                                permission: goose::permission::Permission::AllowOnce,
-                            },
-                        )
-                        .await;
-                }
-            }
-        }
-
         #[tokio::test]
         async fn test_streaming_text_not_persisted_per_token() -> Result<()> {
             let cancel_token = CancellationToken::new();
@@ -762,7 +730,7 @@ mod tests {
                 session_manager.clone(),
                 PermissionManager::instance(),
                 None,
-                GooseMode::default(),
+                GooseMode::Auto,
                 true, // disable session naming so it doesn't consume a provider call
                 GoosePlatform::GooseCli,
             );
@@ -808,7 +776,7 @@ mod tests {
 
             while let Some(event) = reply_stream.next().await {
                 match event {
-                    Ok(AgentEvent::Message(ref msg)) => approve_if_needed(&agent, msg).await,
+                    Ok(AgentEvent::Message(_)) => {}
                     Ok(_) => {}
                     Err(e) => return Err(e),
                 }
