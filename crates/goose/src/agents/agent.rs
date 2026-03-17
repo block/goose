@@ -1484,17 +1484,33 @@ impl Agent {
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
-                                        error!(
-                                            "Tool call could not be parsed: {}",
-                                            request.tool_call.as_ref().unwrap_err(),
-                                        );
-                                        yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
+                                        let err = request.tool_call.as_ref().unwrap_err();
+                                        warn!("Tool call could not be parsed: {}", err);
+                                        let error_msg = format!("Tool call could not be parsed: {}", err);
+                                        let mut request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()));
+                                        request_msg = request_msg
+                                            .with_tool_request_with_metadata(
+                                                request.id.clone(),
+                                                request.tool_call.clone(),
+                                                request.metadata.as_ref(),
+                                                request.tool_meta.clone(),
+                                            );
+                                        let error_response = Message::user()
+                                            .with_tool_response(
+                                                request.id.clone(),
+                                                Err(ErrorData {
+                                                    code: ErrorCode::INVALID_PARAMS,
+                                                    message: std::borrow::Cow::from(error_msg),
+                                                    data: None,
+                                                }),
                                             )
-                                        );
-                                        exit_chat = true;
-                                        break;
+                                            .with_id(format!("msg_{}", Uuid::new_v4()));
+                                        session_manager.add_message(&session_config.id, &request_msg).await?;
+                                        session_manager.add_message(&session_config.id, &error_response).await?;
+                                        conversation.push(request_msg);
+                                        conversation.push(error_response.clone());
+                                        yield AgentEvent::Message(error_response);
                                     }
                                 }
 
