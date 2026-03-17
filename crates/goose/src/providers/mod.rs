@@ -48,6 +48,7 @@ pub mod venice;
 pub mod xai;
 
 pub use init::{
-    create, create_with_default_model, create_with_named_model, providers, refresh_custom_providers,
+    cleanup_provider, create, create_with_default_model, create_with_named_model, providers,
+    refresh_custom_providers,
 };
 pub use retry::{retry_operation, RetryConfig};

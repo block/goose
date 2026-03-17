@@ -76,6 +76,16 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<VeniceProvider>(false);
         registry.register::<XaiProvider>(false);
     });
+    // Register cleanup functions for providers with cached state
+    registry.set_cleanup(
+        "github_copilot",
+        Arc::new(|| Box::pin(GithubCopilotProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "databricks",
+        Arc::new(|| Box::pin(DatabricksProvider::cleanup())),
+    );
+
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
         tracing::warn!("Failed to load custom providers: {}", e);
     }
@@ -144,6 +154,20 @@ pub async fn create_with_default_model(
         .await?
         .create_with_default_model(extensions)
         .await
+}
+
+pub async fn cleanup_provider(name: &str) -> Result<()> {
+    let cleanup_fn = {
+        let registry = get_registry().await.read().unwrap();
+        registry
+            .entries
+            .get(name)
+            .and_then(|entry| entry.cleanup.clone())
+    };
+    if let Some(cleanup) = cleanup_fn {
+        return cleanup().await;
+    }
+    Ok(())
 }
 
 pub async fn create_with_named_model(

@@ -408,6 +408,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::remove_custom_provider,
         super::routes::config_management::get_provider_catalog,
         super::routes::config_management::get_provider_catalog_template,
+        super::routes::config_management::cleanup_provider_cache,
         super::routes::config_management::check_provider,
         super::routes::config_management::set_config_provider,
         super::routes::config_management::configure_provider_oauth,
