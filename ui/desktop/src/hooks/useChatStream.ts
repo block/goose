@@ -188,6 +188,21 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
       incomingMsg.content.length === 1
     ) {
       lastContent.text += newContent.text;
+    } else if (
+      lastContent?.type === 'thinking' &&
+      newContent?.type === 'thinking' &&
+      incomingMsg.content.length === 1 &&
+      'thinking' in lastContent &&
+      'thinking' in newContent
+    ) {
+      // For thinking blocks: if the new block has a signature, it's the complete
+      // block from content_block_stop — replace entirely. Otherwise append the delta.
+      if ('signature' in newContent && newContent.signature) {
+        lastContent.thinking = newContent.thinking;
+        lastContent.signature = newContent.signature;
+      } else {
+        lastContent.thinking += newContent.thinking;
+      }
     } else {
       lastMsg.content.push(...incomingMsg.content);
     }
