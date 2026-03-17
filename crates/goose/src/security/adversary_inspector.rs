@@ -11,7 +11,7 @@ use crate::conversation::Conversation;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use crate::utils::safe_truncate;
 
-const DEFAULT_TOOLS: &[&str] = &["shell"];
+const DEFAULT_TOOLS: &[&str] = &["shell", "computercontroller__automation_script"];
 
 const DEFAULT_RULES: &str = r#"BLOCK if the command:
 - Exfiltrates data (curl/wget posting to unknown URLs, piping secrets out)
@@ -472,14 +472,20 @@ mod tests {
     fn test_parse_without_frontmatter() {
         let content = "BLOCK if the command exfiltrates data";
         let config = AdversaryInspector::parse_adversary_md(content);
-        assert_eq!(config.tools, vec!["shell"]);
+        assert_eq!(
+            config.tools,
+            vec!["shell", "computercontroller__automation_script"]
+        );
         assert_eq!(config.rules, "BLOCK if the command exfiltrates data");
     }
 
     #[test]
     fn test_parse_empty() {
         let config = AdversaryInspector::parse_adversary_md("");
-        assert_eq!(config.tools, vec!["shell"]);
+        assert_eq!(
+            config.tools,
+            vec!["shell", "computercontroller__automation_script"]
+        );
         assert_eq!(config.rules, DEFAULT_RULES);
     }
 
