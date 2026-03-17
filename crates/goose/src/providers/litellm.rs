@@ -34,21 +34,18 @@ pub struct LiteLLMProvider {
 impl LiteLLMProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let secrets = config
-            .get_secrets("LITELLM_API_KEY", &["LITELLM_CUSTOM_HEADERS"])
-            .unwrap_or_default();
-        let api_key = secrets.get("LITELLM_API_KEY").cloned().unwrap_or_default();
+        let api_key = config.get_litellm_api_key().unwrap_or_default();
         let host: String = config
-            .get_param("LITELLM_HOST")
+            .get_litellm_host()
             .unwrap_or_else(|_| "https://api.litellm.ai".to_string());
         let base_path: String = config
-            .get_param("LITELLM_BASE_PATH")
+            .get_litellm_base_path()
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("LITELLM_CUSTOM_HEADERS")
-            .cloned()
+        let custom_headers: Option<HashMap<String, String>> = config
+            .get_litellm_custom_headers()
+            .ok()
             .map(parse_custom_headers);
-        let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
+        let timeout_secs: u64 = config.get_litellm_timeout().unwrap_or(600);
 
         let auth = if api_key.is_empty() {
             AuthMethod::NoAuth

@@ -46,7 +46,7 @@ pub struct OllamaProvider {
 }
 fn resolve_ollama_num_ctx(model_config: &ModelConfig) -> Option<usize> {
     let config = crate::config::Config::global();
-    let input_limit = match config.get_param::<usize>("GOOSE_INPUT_LIMIT") {
+    let input_limit = match config.get_goose_input_limit() {
         Ok(limit) if limit > 0 => Some(limit),
         Ok(_) => None,
         Err(crate::config::ConfigError::NotFound(_)) => None,
@@ -76,11 +76,11 @@ impl OllamaProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let host: String = config
-            .get_param("OLLAMA_HOST")
+            .get_ollama_host()
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
 
         let timeout: Duration =
-            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+            Duration::from_secs(config.get_ollama_timeout().unwrap_or(OLLAMA_TIMEOUT));
 
         let base = if host.starts_with("http://") || host.starts_with("https://") {
             host.clone()

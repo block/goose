@@ -75,14 +75,14 @@ impl ProviderDef for AzureProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
-            let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
-            let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
+            let endpoint: String = config.get_azure_openai_endpoint()?;
+            let deployment_name: String = config.get_azure_openai_deployment_name()?;
             let api_version: String = config
-                .get_param("AZURE_OPENAI_API_VERSION")
+                .get_azure_openai_api_version()
                 .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
             let api_key = config
-                .get_secret("AZURE_OPENAI_API_KEY")
+                .get_azure_openai_api_key()
                 .ok()
                 .filter(|key: &String| !key.is_empty());
             let auth = AzureAuth::new(api_key).map_err(|e| match e {

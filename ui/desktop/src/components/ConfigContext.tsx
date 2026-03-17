@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  readAllConfig,
   readConfig,
-  removeConfig,
-  upsertConfig,
+  updateConfig,
   getExtensions as apiGetExtensions,
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
@@ -11,9 +9,8 @@ import {
 } from '../api';
 import { syncBundledExtensions } from './settings/extensions';
 import type {
-  ConfigResponse,
-  UpsertConfigQuery,
-  ConfigKeyQuery,
+  GooseConfigResponse,
+  GooseConfigUpdate,
   ExtensionResponse,
   ProviderDetails,
   ExtensionQuery,
@@ -28,13 +25,11 @@ export type FixedExtensionEntry = ExtensionConfig & {
 };
 
 interface ConfigContextType {
-  config: ConfigResponse['config'];
+  config: GooseConfigResponse;
   providersList: ProviderDetails[];
   extensionsList: FixedExtensionEntry[];
   extensionWarnings: string[];
-  upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
-  read: (key: string, is_secret: boolean) => Promise<unknown>;
-  remove: (key: string, is_secret: boolean) => Promise<void>;
+  update: (patch: GooseConfigUpdate) => Promise<void>;
   addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
   toggleExtension: (name: string) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
@@ -59,7 +54,7 @@ export class MalformedConfigError extends Error {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
-  const [config, setConfig] = useState<ConfigResponse['config']>({});
+  const [config, setConfig] = useState<GooseConfigResponse>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
   const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);
@@ -69,39 +64,13 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   providersListRef.current = providersList;
 
   const reloadConfig = useCallback(async () => {
-    const response = await readAllConfig();
-    setConfig(response.data?.config || {});
+    const response = await readConfig();
+    setConfig(response.data ?? {});
   }, []);
 
-  const upsert = useCallback(
-    async (key: string, value: unknown, isSecret: boolean = false) => {
-      const query: UpsertConfigQuery = {
-        key: key,
-        value: value,
-        is_secret: isSecret,
-      };
-      await upsertConfig({
-        body: query,
-      });
-      await reloadConfig();
-    },
-    [reloadConfig]
-  );
-
-  const read = useCallback(async (key: string, is_secret: boolean = false) => {
-    const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-    const response = await readConfig({
-      body: query,
-    });
-    return response.data;
-  }, []);
-
-  const remove = useCallback(
-    async (key: string, is_secret: boolean) => {
-      const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-      await removeConfig({
-        body: query,
-      });
+  const update = useCallback(
+    async (patch: GooseConfigUpdate) => {
+      await updateConfig({ body: patch });
       await reloadConfig();
     },
     [reloadConfig]
@@ -189,8 +158,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     // Load all configuration data and providers on mount
     (async () => {
       // Load config
-      const configResponse = await readAllConfig();
-      setConfig(configResponse.data?.config || {});
+      const configResponse = await readConfig();
+      setConfig(configResponse.data ?? {});
 
       // Load providers
       try {
@@ -208,11 +177,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         let extensions = extensionsResponse.data?.extensions || [];
 
         // Always sync bundled extensions from bundled-extensions.json
-        // This ensures:
-        // 1. Fresh installs get the default extensions (developer, computercontroller, etc.)
-        // 2. Existing users get NEW bundled extensions added in subsequent releases
-        // The syncBundledExtensions function skips extensions that already exist and are marked as bundled
-        // Platform extensions (code_execution, todo, etc.) are handled by the backend
         const addExtensionForSync = async (
           name: string,
           config: ExtensionConfig,
@@ -257,9 +221,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       providersList,
       extensionsList,
       extensionWarnings,
-      upsert,
-      read,
-      remove,
+      update,
       addExtension,
       removeExtension,
       toggleExtension,
@@ -273,9 +235,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     providersList,
     extensionsList,
     extensionWarnings,
-    upsert,
-    read,
-    remove,
+    update,
     addExtension,
     removeExtension,
     toggleExtension,

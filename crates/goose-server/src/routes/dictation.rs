@@ -264,8 +264,8 @@ pub async fn download_model(Path(model_id): Path<String>) -> Result<StatusCode, 
             model.url.to_string(),
             model.local_path(),
             Some(Box::new(move || {
-                let _ = goose::config::Config::global()
-                    .set_param(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY, model_id_for_config);
+                let _ =
+                    goose::config::Config::global().set_local_whisper_model(model_id_for_config);
             })),
         )
         .await

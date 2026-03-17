@@ -1,5 +1,4 @@
 use crate::config::paths::Paths;
-use crate::config::GooseMode;
 use fs2::FileExt;
 use keyring::Entry;
 use once_cell::sync::OnceCell;
@@ -155,22 +154,10 @@ pub trait ConfigValue {
     const DEFAULT: &'static str;
 }
 
-macro_rules! config_value {
-    ($key:ident, $type:ty) => {
-        impl Config {
-            pastey::paste! {
-                pub fn [<get_ $key:lower>](&self) -> Result<$type, ConfigError> {
-                    self.get_param(stringify!($key))
-                }
-            }
-            pastey::paste! {
-                pub fn [<set_ $key:lower>](&self, v: impl Into<$type>) -> Result<(), ConfigError> {
-                    self.set_param(stringify!($key), &v.into())
-                }
-            }
-        }
-    };
-
+/// Generates a newtype wrapper with a `ConfigValue` impl for use with
+/// `ConfigKey::from_value_type`. Does NOT generate get/set accessors —
+/// those come from the registry in `config/registry.rs`.
+macro_rules! config_newtype {
     ($key:ident, $inner:ty, $default:expr) => {
         pastey::paste! {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -219,8 +206,6 @@ macro_rules! config_value {
                     value.0
                 }
             }
-
-            config_value!($key, [<$key:camel>]);
         }
     };
 }
@@ -737,19 +722,7 @@ impl Config {
         self.save_values(&values)
     }
 
-    /// Delete a configuration value in the config file.
-    ///
-    /// This will immediately write the value to the config file. The value
-    /// can be any type that can be serialized to JSON/YAML.
-    ///
-    /// Note that this does not affect environment variables - those can only
-    /// be set through the system environment.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - There is an error reading or writing the config file
-    /// - There is an error serializing the value
+    /// Delete a configuration value from the config file.
     pub fn delete(&self, key: &str) -> Result<(), ConfigError> {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
@@ -865,16 +838,7 @@ impl Config {
         Ok(())
     }
 
-    /// Delete a secret from the system keyring.
-    ///
-    /// This will remove the specified key from the JSON object in the system keyring.
-    /// Other secrets will remain unchanged.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - There is an error accessing the keyring
-    /// - There is an error serializing the remaining values
+    /// Delete a secret from storage.
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
@@ -1005,25 +969,16 @@ impl Config {
     }
 }
 
-config_value!(CLAUDE_CODE_COMMAND, String, "claude");
-config_value!(GEMINI_CLI_COMMAND, String, "gemini");
-config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
-config_value!(CODEX_COMMAND, String, "codex");
-config_value!(CODEX_REASONING_EFFORT, String, "high");
-config_value!(CODEX_ENABLE_SKILLS, String, "true");
-config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
-
-config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
-config_value!(GOOSE_MODE, GooseMode);
-config_value!(GOOSE_PROVIDER, String);
-config_value!(GOOSE_MODEL, String);
-config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
-config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
-config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
-config_value!(GEMINI3_THINKING_LEVEL, String);
-config_value!(CLAUDE_THINKING_TYPE, String);
-config_value!(CLAUDE_THINKING_EFFORT, String);
-config_value!(CLAUDE_THINKING_BUDGET, i32);
+// Newtypes for provider ConfigKey::from_value_type usage.
+// Get/set accessors for ALL config keys (including these) are generated
+// by the registry in config/registry.rs.
+config_newtype!(CLAUDE_CODE_COMMAND, String, "claude");
+config_newtype!(GEMINI_CLI_COMMAND, String, "gemini");
+config_newtype!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
+config_newtype!(CODEX_COMMAND, String, "codex");
+config_newtype!(CODEX_REASONING_EFFORT, String, "high");
+config_newtype!(CODEX_ENABLE_SKILLS, String, "true");
+config_newtype!(CODEX_SKIP_GIT_CHECK, String, "false");
 
 fn find_workspace_or_exe_root() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;

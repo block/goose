@@ -12,7 +12,6 @@ import {
   type DownloadProgress,
 } from '../../../api';
 
-const LOCAL_WHISPER_MODEL_CONFIG_KEY = 'LOCAL_WHISPER_MODEL';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -30,7 +29,7 @@ export const LocalModelManager = () => {
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAllModels, setShowAllModels] = useState(false);
-  const { read, upsert } = useConfig();
+  const { config, update } = useConfig();
 
   useEffect(() => {
     loadModels();
@@ -40,7 +39,7 @@ export const LocalModelManager = () => {
 
   const loadSelectedModel = async () => {
     try {
-      const value = await read(LOCAL_WHISPER_MODEL_CONFIG_KEY, false);
+      const value = config.LOCAL_WHISPER_MODEL;
       if (value && typeof value === 'string') {
         setSelectedModelId(value);
       } else {
@@ -53,7 +52,7 @@ export const LocalModelManager = () => {
   };
 
   const selectModel = async (modelId: string) => {
-    await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, modelId, false);
+    await update({ LOCAL_WHISPER_MODEL: modelId });
     setSelectedModelId(modelId);
   };
 
@@ -123,7 +122,7 @@ export const LocalModelManager = () => {
     try {
       await deleteModelApi({ path: { model_id: modelId } });
       if (selectedModelId === modelId) {
-        await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, '', false);
+        await update({ LOCAL_WHISPER_MODEL: '' });
         setSelectedModelId(null);
       }
       loadModels();

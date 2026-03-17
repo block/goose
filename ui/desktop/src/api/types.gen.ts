@@ -110,17 +110,6 @@ export type ConfigKey = {
     secret: boolean;
 };
 
-export type ConfigKeyQuery = {
-    is_secret: boolean;
-    key: string;
-};
-
-export type ConfigResponse = {
-    config: {
-        [key: string]: unknown;
-    };
-};
-
 export type ConfirmToolActionRequest = {
     action: Permission;
     id: string;
@@ -490,6 +479,263 @@ export type GetToolsQuery = {
 export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServers?: Array<string>;
     prd?: string | null;
+};
+
+/**
+ * All non-secret configuration values.
+ * Returned by `GET /config` — every field is `Option` because
+ * any value may be unset.
+ */
+export type GooseConfigResponse = {
+    ANTHROPIC_HOST?: string | null;
+    AVIAN_HOST?: string | null;
+    AWS_PROFILE?: string | null;
+    AWS_REGION?: string | null;
+    AZURE_OPENAI_API_VERSION?: string | null;
+    AZURE_OPENAI_DEPLOYMENT_NAME?: string | null;
+    AZURE_OPENAI_ENDPOINT?: string | null;
+    BEDROCK_BACKOFF_MULTIPLIER?: number | null;
+    BEDROCK_ENABLE_CACHING?: boolean | null;
+    BEDROCK_INITIAL_RETRY_INTERVAL_MS?: number | null;
+    BEDROCK_MAX_RETRIES?: number | null;
+    BEDROCK_MAX_RETRY_INTERVAL_MS?: number | null;
+    CLAUDE_CODE_COMMAND?: string | null;
+    CLAUDE_THINKING_BUDGET?: number | null;
+    CLAUDE_THINKING_EFFORT?: string | null;
+    CLAUDE_THINKING_TYPE?: string | null;
+    CODEX_COMMAND?: string | null;
+    CODEX_ENABLE_SKILLS?: string | null;
+    CODEX_REASONING_EFFORT?: string | null;
+    CODEX_SKIP_GIT_CHECK?: string | null;
+    CONTEXT_FILE_NAMES?: Array<string> | null;
+    CURSOR_AGENT_COMMAND?: string | null;
+    DATABRICKS_BACKOFF_MULTIPLIER?: number | null;
+    DATABRICKS_HOST?: string | null;
+    DATABRICKS_INITIAL_RETRY_INTERVAL_MS?: number | null;
+    DATABRICKS_MAX_RETRIES?: number | null;
+    DATABRICKS_MAX_RETRY_INTERVAL_MS?: number | null;
+    EDIT_MODE?: string | null;
+    GCP_BACKOFF_MULTIPLIER?: number | null;
+    GCP_INITIAL_RETRY_INTERVAL_MS?: number | null;
+    GCP_LOCATION?: string | null;
+    GCP_MAX_RETRIES?: number | null;
+    GCP_MAX_RETRY_INTERVAL_MS?: number | null;
+    GCP_PROJECT_ID?: string | null;
+    GEMINI3_THINKING_LEVEL?: string | null;
+    GEMINI_CLI_COMMAND?: string | null;
+    GOOGLE_HOST?: string | null;
+    GOOSE_AUTO_COMPACT_THRESHOLD?: number | null;
+    GOOSE_CA_CERT_PATH?: string | null;
+    GOOSE_CLIENT_CERT_PATH?: string | null;
+    GOOSE_CLIENT_KEY_PATH?: string | null;
+    GOOSE_CLI_DARK_THEME?: string | null;
+    GOOSE_CLI_LIGHT_THEME?: string | null;
+    GOOSE_CLI_MIN_PRIORITY?: number | null;
+    GOOSE_CLI_NEWLINE_KEY?: string | null;
+    GOOSE_CLI_SHOW_COST?: boolean | null;
+    GOOSE_CLI_THEME?: string | null;
+    GOOSE_CONTEXT_LIMIT?: number | null;
+    GOOSE_DEBUG?: boolean | null;
+    GOOSE_DISABLE_KEYRING?: string | null;
+    GOOSE_DISABLE_SESSION_NAMING?: boolean | null;
+    GOOSE_INPUT_LIMIT?: number | null;
+    GOOSE_LEAD_FAILURE_THRESHOLD?: number | null;
+    GOOSE_LEAD_FALLBACK_TURNS?: number | null;
+    GOOSE_LEAD_MODEL?: string | null;
+    GOOSE_LEAD_PROVIDER?: string | null;
+    GOOSE_LEAD_TURNS?: number | null;
+    GOOSE_MAX_ACTIVE_AGENTS?: number | null;
+    GOOSE_MAX_TOKENS?: number | null;
+    GOOSE_MAX_TURNS?: number | null;
+    GOOSE_MODE?: GooseMode | null;
+    GOOSE_MODEL?: string | null;
+    GOOSE_PLANNER_MODEL?: string | null;
+    GOOSE_PLANNER_PROVIDER?: string | null;
+    GOOSE_PROMPT_EDITOR?: string | null;
+    GOOSE_PROVIDER?: string | null;
+    GOOSE_RECIPE_GITHUB_REPO?: string | null;
+    GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS?: number | null;
+    GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS?: number | null;
+    GOOSE_SEARCH_PATHS?: Array<string> | null;
+    GOOSE_STATUS_HOOK?: string | null;
+    GOOSE_SUBAGENT_MAX_TURNS?: number | null;
+    GOOSE_SUBAGENT_MODEL?: string | null;
+    GOOSE_SUBAGENT_PROVIDER?: string | null;
+    GOOSE_SYSTEM_PROMPT_FILE_PATH?: string | null;
+    GOOSE_TELEMETRY_ENABLED?: boolean | null;
+    GOOSE_TOOL_CALL_CUTOFF?: number | null;
+    GOOSE_WORKER_CONTEXT_LIMIT?: number | null;
+    LITELLM_BASE_PATH?: string | null;
+    LITELLM_HOST?: string | null;
+    LITELLM_TIMEOUT?: number | null;
+    LOCAL_WHISPER_MODEL?: string | null;
+    OLLAMA_HOST?: string | null;
+    OLLAMA_TIMEOUT?: number | null;
+    OPENAI_BASE_PATH?: string | null;
+    OPENAI_HOST?: string | null;
+    OPENAI_ORGANIZATION?: string | null;
+    OPENAI_PROJECT?: string | null;
+    OPENAI_TIMEOUT?: number | null;
+    OPENROUTER_HOST?: string | null;
+    RANDOM_THINKING_MESSAGES?: boolean | null;
+    SAGEMAKER_ENDPOINT_NAME?: string | null;
+    SECURITY_COMMAND_CLASSIFIER_ENABLED?: boolean | null;
+    SECURITY_COMMAND_CLASSIFIER_ENDPOINT?: string | null;
+    SECURITY_PROMPT_CLASSIFIER_ENABLED?: boolean | null;
+    SECURITY_PROMPT_CLASSIFIER_ENDPOINT?: string | null;
+    SECURITY_PROMPT_CLASSIFIER_MODEL?: string | null;
+    SECURITY_PROMPT_ENABLED?: boolean | null;
+    SECURITY_PROMPT_THRESHOLD?: number | null;
+    SNOWFLAKE_HOST?: string | null;
+    TETRATE_HOST?: string | null;
+    VENICE_BASE_PATH?: string | null;
+    VENICE_HOST?: string | null;
+    VENICE_MODELS_PATH?: string | null;
+    XAI_HOST?: string | null;
+    otel_exporter_otlp_endpoint?: string | null;
+    otel_exporter_otlp_timeout?: number | null;
+    tunnel_auto_start?: boolean | null;
+    voice_dictation_preferred_mic?: string | null;
+    voice_dictation_provider?: string | null;
+};
+
+/**
+ * Partial config update. Send only the fields you want to change.
+ * Includes secret fields — the server handles storing them securely.
+ */
+export type GooseConfigUpdate = {
+    ANTHROPIC_API_KEY?: string | null;
+    ANTHROPIC_HOST?: string | null;
+    AVIAN_API_KEY?: string | null;
+    AVIAN_HOST?: string | null;
+    AWS_BEARER_TOKEN_BEDROCK?: string | null;
+    AWS_PROFILE?: string | null;
+    AWS_REGION?: string | null;
+    AZURE_OPENAI_API_KEY?: string | null;
+    AZURE_OPENAI_API_VERSION?: string | null;
+    AZURE_OPENAI_DEPLOYMENT_NAME?: string | null;
+    AZURE_OPENAI_ENDPOINT?: string | null;
+    BEDROCK_BACKOFF_MULTIPLIER?: number | null;
+    BEDROCK_ENABLE_CACHING?: boolean | null;
+    BEDROCK_INITIAL_RETRY_INTERVAL_MS?: number | null;
+    BEDROCK_MAX_RETRIES?: number | null;
+    BEDROCK_MAX_RETRY_INTERVAL_MS?: number | null;
+    CLAUDE_CODE_COMMAND?: string | null;
+    CLAUDE_THINKING_BUDGET?: number | null;
+    CLAUDE_THINKING_EFFORT?: string | null;
+    CLAUDE_THINKING_TYPE?: string | null;
+    CODEX_COMMAND?: string | null;
+    CODEX_ENABLE_SKILLS?: string | null;
+    CODEX_REASONING_EFFORT?: string | null;
+    CODEX_SKIP_GIT_CHECK?: string | null;
+    CONTEXT_FILE_NAMES?: Array<string> | null;
+    CURSOR_AGENT_COMMAND?: string | null;
+    DATABRICKS_BACKOFF_MULTIPLIER?: number | null;
+    DATABRICKS_HOST?: string | null;
+    DATABRICKS_INITIAL_RETRY_INTERVAL_MS?: number | null;
+    DATABRICKS_MAX_RETRIES?: number | null;
+    DATABRICKS_MAX_RETRY_INTERVAL_MS?: number | null;
+    DATABRICKS_TOKEN?: string | null;
+    EDIT_MODE?: string | null;
+    ELEVENLABS_API_KEY?: string | null;
+    GCP_BACKOFF_MULTIPLIER?: number | null;
+    GCP_INITIAL_RETRY_INTERVAL_MS?: number | null;
+    GCP_LOCATION?: string | null;
+    GCP_MAX_RETRIES?: number | null;
+    GCP_MAX_RETRY_INTERVAL_MS?: number | null;
+    GCP_PROJECT_ID?: string | null;
+    GEMINI3_THINKING_LEVEL?: string | null;
+    GEMINI_CLI_COMMAND?: string | null;
+    GITHUB_COPILOT_TOKEN?: string | null;
+    GOOGLE_API_KEY?: string | null;
+    GOOGLE_HOST?: string | null;
+    GOOSE_AUTO_COMPACT_THRESHOLD?: number | null;
+    GOOSE_CA_CERT_PATH?: string | null;
+    GOOSE_CLIENT_CERT_PATH?: string | null;
+    GOOSE_CLIENT_KEY_PATH?: string | null;
+    GOOSE_CLI_DARK_THEME?: string | null;
+    GOOSE_CLI_LIGHT_THEME?: string | null;
+    GOOSE_CLI_MIN_PRIORITY?: number | null;
+    GOOSE_CLI_NEWLINE_KEY?: string | null;
+    GOOSE_CLI_SHOW_COST?: boolean | null;
+    GOOSE_CLI_THEME?: string | null;
+    GOOSE_CONTEXT_LIMIT?: number | null;
+    GOOSE_DEBUG?: boolean | null;
+    GOOSE_DISABLE_KEYRING?: string | null;
+    GOOSE_DISABLE_SESSION_NAMING?: boolean | null;
+    GOOSE_INPUT_LIMIT?: number | null;
+    GOOSE_LEAD_FAILURE_THRESHOLD?: number | null;
+    GOOSE_LEAD_FALLBACK_TURNS?: number | null;
+    GOOSE_LEAD_MODEL?: string | null;
+    GOOSE_LEAD_PROVIDER?: string | null;
+    GOOSE_LEAD_TURNS?: number | null;
+    GOOSE_MAX_ACTIVE_AGENTS?: number | null;
+    GOOSE_MAX_TOKENS?: number | null;
+    GOOSE_MAX_TURNS?: number | null;
+    GOOSE_MODE?: GooseMode | null;
+    GOOSE_MODEL?: string | null;
+    GOOSE_PLANNER_MODEL?: string | null;
+    GOOSE_PLANNER_PROVIDER?: string | null;
+    GOOSE_PROMPT_EDITOR?: string | null;
+    GOOSE_PROVIDER?: string | null;
+    GOOSE_RECIPE_GITHUB_REPO?: string | null;
+    GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS?: number | null;
+    GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS?: number | null;
+    GOOSE_SEARCH_PATHS?: Array<string> | null;
+    GOOSE_STATUS_HOOK?: string | null;
+    GOOSE_SUBAGENT_MAX_TURNS?: number | null;
+    GOOSE_SUBAGENT_MODEL?: string | null;
+    GOOSE_SUBAGENT_PROVIDER?: string | null;
+    GOOSE_SYSTEM_PROMPT_FILE_PATH?: string | null;
+    GOOSE_TELEMETRY_ENABLED?: boolean | null;
+    GOOSE_TOOL_CALL_CUTOFF?: number | null;
+    GOOSE_WORKER_CONTEXT_LIMIT?: number | null;
+    GROQ_API_KEY?: string | null;
+    LITELLM_API_KEY?: string | null;
+    LITELLM_BASE_PATH?: string | null;
+    LITELLM_CUSTOM_HEADERS?: string | null;
+    LITELLM_HOST?: string | null;
+    LITELLM_TIMEOUT?: number | null;
+    LOCAL_WHISPER_MODEL?: string | null;
+    OLLAMA_HOST?: string | null;
+    OLLAMA_TIMEOUT?: number | null;
+    OPENAI_API_KEY?: string | null;
+    OPENAI_BASE_PATH?: string | null;
+    OPENAI_CUSTOM_HEADERS?: string | null;
+    OPENAI_HOST?: string | null;
+    OPENAI_ORGANIZATION?: string | null;
+    OPENAI_PROJECT?: string | null;
+    OPENAI_TIMEOUT?: number | null;
+    OPENROUTER_API_KEY?: string | null;
+    OPENROUTER_HOST?: string | null;
+    RANDOM_THINKING_MESSAGES?: boolean | null;
+    SAGEMAKER_ENDPOINT_NAME?: string | null;
+    SECURITY_COMMAND_CLASSIFIER_ENABLED?: boolean | null;
+    SECURITY_COMMAND_CLASSIFIER_ENDPOINT?: string | null;
+    SECURITY_COMMAND_CLASSIFIER_TOKEN?: string | null;
+    SECURITY_PROMPT_CLASSIFIER_ENABLED?: boolean | null;
+    SECURITY_PROMPT_CLASSIFIER_ENDPOINT?: string | null;
+    SECURITY_PROMPT_CLASSIFIER_MODEL?: string | null;
+    SECURITY_PROMPT_CLASSIFIER_TOKEN?: string | null;
+    SECURITY_PROMPT_ENABLED?: boolean | null;
+    SECURITY_PROMPT_THRESHOLD?: number | null;
+    SNOWFLAKE_HOST?: string | null;
+    SNOWFLAKE_TOKEN?: string | null;
+    TETRATE_API_KEY?: string | null;
+    TETRATE_HOST?: string | null;
+    VENICE_API_KEY?: string | null;
+    VENICE_BASE_PATH?: string | null;
+    VENICE_HOST?: string | null;
+    VENICE_MODELS_PATH?: string | null;
+    XAI_API_KEY?: string | null;
+    XAI_HOST?: string | null;
+    otel_exporter_otlp_endpoint?: string | null;
+    otel_exporter_otlp_timeout?: number | null;
+    tunnel_agent_id?: string | null;
+    tunnel_auto_start?: boolean | null;
+    tunnel_secret?: string | null;
+    voice_dictation_preferred_mic?: string | null;
+    voice_dictation_provider?: string | null;
 };
 
 export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
@@ -1574,12 +1820,6 @@ export type UpdateWorkingDirRequest = {
     working_dir: string;
 };
 
-export type UpsertConfigQuery = {
-    is_secret: boolean;
-    key: string;
-    value: unknown;
-};
-
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
@@ -2145,21 +2385,44 @@ export type UpdateWorkingDirResponses = {
     200: unknown;
 };
 
-export type ReadAllConfigData = {
+export type ReadConfigData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/config';
 };
 
-export type ReadAllConfigResponses = {
+export type ReadConfigResponses = {
     /**
-     * All configuration values retrieved successfully
+     * All typed configuration settings
      */
-    200: ConfigResponse;
+    200: GooseConfigResponse;
 };
 
-export type ReadAllConfigResponse = ReadAllConfigResponses[keyof ReadAllConfigResponses];
+export type ReadConfigResponse = ReadConfigResponses[keyof ReadConfigResponses];
+
+export type UpdateConfigData = {
+    body: GooseConfigUpdate;
+    path?: never;
+    query?: never;
+    url: '/config';
+};
+
+export type UpdateConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateConfigResponses = {
+    /**
+     * Settings updated successfully
+     */
+    200: GooseConfigResponse;
+};
+
+export type UpdateConfigResponse = UpdateConfigResponses[keyof UpdateConfigResponses];
 
 export type BackupConfigData = {
     body?: never;
@@ -2715,27 +2978,6 @@ export type ConfigureProviderOauthResponses = {
     200: unknown;
 };
 
-export type ReadConfigData = {
-    body: ConfigKeyQuery;
-    path?: never;
-    query?: never;
-    url: '/config/read';
-};
-
-export type ReadConfigErrors = {
-    /**
-     * Unable to get the configuration value
-     */
-    500: unknown;
-};
-
-export type ReadConfigResponses = {
-    /**
-     * Configuration value retrieved successfully
-     */
-    200: unknown;
-};
-
 export type RecoverConfigData = {
     body?: never;
     path?: never;
@@ -2759,33 +3001,6 @@ export type RecoverConfigResponses = {
 
 export type RecoverConfigResponse = RecoverConfigResponses[keyof RecoverConfigResponses];
 
-export type RemoveConfigData = {
-    body: ConfigKeyQuery;
-    path?: never;
-    query?: never;
-    url: '/config/remove';
-};
-
-export type RemoveConfigErrors = {
-    /**
-     * Configuration key not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type RemoveConfigResponses = {
-    /**
-     * Configuration value removed successfully
-     */
-    200: string;
-};
-
-export type RemoveConfigResponse = RemoveConfigResponses[keyof RemoveConfigResponses];
-
 export type SetConfigProviderData = {
     body: SetProviderRequest;
     path?: never;
@@ -2808,29 +3023,6 @@ export type GetSlashCommandsResponses = {
 };
 
 export type GetSlashCommandsResponse = GetSlashCommandsResponses[keyof GetSlashCommandsResponses];
-
-export type UpsertConfigData = {
-    body: UpsertConfigQuery;
-    path?: never;
-    query?: never;
-    url: '/config/upsert';
-};
-
-export type UpsertConfigErrors = {
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpsertConfigResponses = {
-    /**
-     * Configuration value upserted successfully
-     */
-    200: string;
-};
-
-export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
 
 export type ValidateConfigData = {
     body?: never;

@@ -89,15 +89,15 @@ pub struct VeniceProvider {
 impl VeniceProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("VENICE_API_KEY")?;
+        let api_key: String = config.get_venice_api_key()?;
         let host: String = config
-            .get_param("VENICE_HOST")
+            .get_venice_host()
             .unwrap_or_else(|_| VENICE_DEFAULT_HOST.to_string());
         let base_path: String = config
-            .get_param("VENICE_BASE_PATH")
+            .get_venice_base_path()
             .unwrap_or_else(|_| VENICE_DEFAULT_BASE_PATH.to_string());
         let models_path: String = config
-            .get_param("VENICE_MODELS_PATH")
+            .get_venice_models_path()
             .unwrap_or_else(|_| VENICE_DEFAULT_MODELS_PATH.to_string());
 
         let auth = AuthMethod::BearerToken(api_key);

@@ -100,7 +100,7 @@ export const SwitchModelModal = ({
   sessionModel,
   sessionProvider,
 }: SwitchModelModalProps) => {
-  const { getProviders, read, upsert } = useConfig();
+  const { getProviders, config, update } = useConfig();
   const {
     changeModel,
     currentModel: configModel,
@@ -150,24 +150,10 @@ export const SwitchModelModal = ({
   }, [modelName, showClaudeThinking, modelSupportsAdaptive, claudeThinkingType]);
 
   useEffect(() => {
-    const readConfig = async (key: string): Promise<string | null> => {
-      try {
-        const val = (await read(key, false)) as string;
-        return val || null;
-      } catch (e) {
-        console.warn(`Could not read ${key}, using default:`, e);
-        return null;
-      }
-    };
-    (async () => {
-      const tt = await readConfig('CLAUDE_THINKING_TYPE');
-      if (tt) setClaudeThinkingType(tt);
-      const effort = await readConfig('CLAUDE_THINKING_EFFORT');
-      if (effort) setClaudeThinkingEffort(effort);
-      const budget = await readConfig('CLAUDE_THINKING_BUDGET');
-      if (budget) setClaudeThinkingBudget(budget);
-    })();
-  }, [read]);
+    if (config.CLAUDE_THINKING_TYPE) setClaudeThinkingType(config.CLAUDE_THINKING_TYPE);
+    if (config.CLAUDE_THINKING_EFFORT) setClaudeThinkingEffort(config.CLAUDE_THINKING_EFFORT);
+    if (config.CLAUDE_THINKING_BUDGET != null) setClaudeThinkingBudget(String(config.CLAUDE_THINKING_BUDGET));
+  }, [config]);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -241,15 +227,13 @@ export const SwitchModelModal = ({
         }
         modelObj = { ...modelObj, request_params: params };
 
-        upsert('CLAUDE_THINKING_TYPE', claudeThinkingType, false).catch(console.warn);
+        update({ CLAUDE_THINKING_TYPE: claudeThinkingType }).catch(console.warn);
         if (claudeThinkingType === 'adaptive') {
-          upsert('CLAUDE_THINKING_EFFORT', claudeThinkingEffort, false).catch(console.warn);
+          update({ CLAUDE_THINKING_EFFORT: claudeThinkingEffort }).catch(console.warn);
         } else if (claudeThinkingType === 'enabled') {
-          upsert(
-            'CLAUDE_THINKING_BUDGET',
-            parseInt(claudeThinkingBudget, 10) || 16000,
-            false
-          ).catch(console.warn);
+          update({
+            CLAUDE_THINKING_BUDGET: parseInt(claudeThinkingBudget, 10) || 16000,
+          }).catch(console.warn);
         }
       }
 
@@ -380,7 +364,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read]);
+  }, [getProviders, usePredefinedModels]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)

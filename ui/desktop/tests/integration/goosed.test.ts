@@ -10,6 +10,7 @@ import { setupGoosed, type GoosedTestContext } from './setup';
 import {
   status,
   readConfig,
+  updateConfig,
   providers,
   startAgent,
   stopAgent,
@@ -17,7 +18,6 @@ import {
   getSession,
   updateAgentProvider,
   updateSession,
-  upsertConfig,
   reply,
 } from '../../src/api';
 import { execSync } from 'child_process';
@@ -77,15 +77,12 @@ extensions:
   });
 
   describe('configuration', () => {
-    it('should read config value (or return null for missing key)', async () => {
+    it('should read config values', async () => {
       const response = await readConfig({
         client: ctx.client,
-        body: {
-          key: 'GOOSE_PROVIDER',
-          is_secret: false,
-        },
       });
       expect(response.response).toBeOkResponse();
+      expect(response.data).toBeDefined();
     });
   });
 
@@ -134,9 +131,9 @@ extensions:
     });
 
     it('should persist goose_mode on the session', async () => {
-      await upsertConfig({
+      await updateConfig({
         client: ctx.client,
-        body: { key: 'GOOSE_MODE', value: 'approve', is_secret: false },
+        body: { GOOSE_MODE: 'approve' },
       });
 
       try {
@@ -155,9 +152,9 @@ extensions:
         expect(getResponse.data!.goose_mode).toBe('approve');
       } finally {
         // Restore default so subsequent tests don't inherit approve mode
-        await upsertConfig({
+        await updateConfig({
           client: ctx.client,
-          body: { key: 'GOOSE_MODE', value: 'auto', is_secret: false },
+          body: { GOOSE_MODE: 'auto' },
         });
       }
     });
@@ -187,19 +184,14 @@ extensions:
     it('should preserve goose_mode after provider swap via /agent/update_provider', async (testContext) => {
       const configResponse = await readConfig({
         client: ctx.client,
-        body: { key: 'GOOSE_PROVIDER', is_secret: false },
       });
-      const providerName = configResponse.data as string | null | undefined;
+      const providerName = configResponse.data?.GOOSE_PROVIDER;
       if (!providerName) {
         testContext.skip('Skipping - no GOOSE_PROVIDER configured');
         return;
       }
 
-      const modelResponse = await readConfig({
-        client: ctx.client,
-        body: { key: 'GOOSE_MODEL', is_secret: false },
-      });
-      const modelName = (modelResponse.data as string | null) || undefined;
+      const modelName = configResponse.data?.GOOSE_MODEL || undefined;
 
       const startResponse = await startAgent({
         client: ctx.client,
@@ -298,29 +290,18 @@ extensions:
         expect.fail(`Could not find a path entry not in ${CONSTRAINED_PATH}`);
       }
 
-      let configResponse = await readConfig({
+      const configResponse = await readConfig({
         client: ctx.client,
-        body: {
-          key: 'GOOSE_PROVIDER',
-          is_secret: false,
-        },
       });
 
-      let providerName = configResponse.data as string | null | undefined;
+      const providerName = configResponse.data?.GOOSE_PROVIDER;
 
       if (!providerName) {
         testContext.skip('Skipping tool execution test - no GOOSE_PROVIDER configured');
         return;
       }
 
-      const modelResponse = await readConfig({
-        client: ctx.client,
-        body: {
-          key: 'GOOSE_MODEL',
-          is_secret: false,
-        },
-      });
-      const modelName = (modelResponse.data as string | null) || undefined;
+      const modelName = configResponse.data?.GOOSE_MODEL || undefined;
 
       const startResponse = await startAgent({
         client: ctx.client,

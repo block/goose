@@ -16,9 +16,6 @@ use uuid::Uuid;
 const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
 const POSTHOG_CAPTURE_URL: &str = "https://us.i.posthog.com/capture/";
 
-/// Config key for telemetry opt-out preference
-pub const TELEMETRY_ENABLED_KEY: &str = "GOOSE_TELEMETRY_ENABLED";
-
 static TELEMETRY_DISABLED_BY_ENV: Lazy<AtomicBool> = Lazy::new(|| {
     std::env::var("GOOSE_TELEMETRY_OFF")
         .map(|v| v == "1" || v.to_lowercase() == "true")
@@ -36,7 +33,7 @@ pub fn get_telemetry_choice() -> Option<bool> {
     }
 
     let config = Config::global();
-    config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
+    config.get_goose_telemetry_enabled().ok()
 }
 
 /// Check if telemetry is enabled.
@@ -355,10 +352,10 @@ async fn send_error_event(
     }
 
     let config = Config::global();
-    if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
+    if let Ok(provider) = config.get_goose_provider() {
         insert(&mut props, "provider", provider);
     }
-    if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
+    if let Ok(model) = config.get_goose_model() {
         insert(&mut props, "model", model);
     }
 
@@ -407,37 +404,41 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
     insert(&mut props, "days_since_install", days_since_install);
 
     let config = Config::global();
-    if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
+    if let Ok(provider) = config.get_goose_provider() {
         insert(&mut props, "provider", provider);
     }
-    if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
+    if let Ok(model) = config.get_goose_model() {
         insert(&mut props, "model", model);
     }
 
-    if let Ok(mode) = config.get_param::<String>("GOOSE_MODE") {
-        insert(&mut props, "setting_mode", mode);
+    if let Ok(mode) = config.get_goose_mode() {
+        insert(&mut props, "setting_mode", mode.to_string());
     }
-    if let Ok(max_turns) = config.get_param::<i64>("GOOSE_MAX_TURNS") {
-        insert(&mut props, "setting_max_turns", max_turns);
+    if let Ok(max_turns) = config.get_goose_max_turns() {
+        insert(
+            &mut props,
+            "setting_max_turns",
+            serde_json::json!(max_turns),
+        );
     }
 
-    if let Ok(lead_model) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
+    if let Ok(lead_model) = config.get_goose_lead_model() {
         insert(&mut props, "setting_lead_model", lead_model);
     }
-    if let Ok(lead_provider) = config.get_param::<String>("GOOSE_LEAD_PROVIDER") {
+    if let Ok(lead_provider) = config.get_goose_lead_provider() {
         insert(&mut props, "setting_lead_provider", lead_provider);
     }
-    if let Ok(lead_turns) = config.get_param::<i64>("GOOSE_LEAD_TURNS") {
+    if let Ok(lead_turns) = config.get_goose_lead_turns() {
         insert(&mut props, "setting_lead_turns", lead_turns);
     }
-    if let Ok(lead_failure_threshold) = config.get_param::<i64>("GOOSE_LEAD_FAILURE_THRESHOLD") {
+    if let Ok(lead_failure_threshold) = config.get_goose_lead_failure_threshold() {
         insert(
             &mut props,
             "setting_lead_failure_threshold",
             lead_failure_threshold,
         );
     }
-    if let Ok(lead_fallback_turns) = config.get_param::<i64>("GOOSE_LEAD_FALLBACK_TURNS") {
+    if let Ok(lead_fallback_turns) = config.get_goose_lead_fallback_turns() {
         insert(
             &mut props,
             "setting_lead_fallback_turns",

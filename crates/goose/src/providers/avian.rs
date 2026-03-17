@@ -42,9 +42,9 @@ impl ProviderDef for AvianProvider {
     ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
-            let api_key: String = config.get_secret("AVIAN_API_KEY")?;
+            let api_key: String = config.get_avian_api_key()?;
             let host: String = config
-                .get_param("AVIAN_HOST")
+                .get_avian_host()
                 .unwrap_or_else(|_| AVIAN_API_HOST.to_string());
 
             let api_client = ApiClient::new(host, AuthMethod::BearerToken(api_key))?;

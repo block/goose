@@ -616,13 +616,11 @@ impl ProviderDef for CodexProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
-            let command: String = config.get_codex_command().unwrap_or_default().into();
+            let command: String = config.get_codex_command().unwrap_or_default();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
-            // Get reasoning effort from config, default to "high"
             let reasoning_effort = config
                 .get_codex_reasoning_effort()
-                .map(String::from)
                 .unwrap_or_else(|_| "high".to_string());
 
             // Validate reasoning effort

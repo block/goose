@@ -14,7 +14,7 @@ pub fn get_context_filenames() -> Vec<String> {
     use crate::config::Config;
 
     Config::global()
-        .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+        .get_context_file_names()
         .unwrap_or_else(|_| {
             vec![
                 GOOSE_HINTS_FILENAME.to_string(),

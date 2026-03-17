@@ -3,18 +3,16 @@ import { BaseModal } from './ui/BaseModal';
 import { Button } from './ui/button';
 import { Goose } from './icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../updates';
-import { toastService } from '../toasts';
 import { useConfig } from './ConfigContext';
 import { trackTelemetryPreference } from '../utils/analytics';
 
-const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 type TelemetryOptOutModalProps =
   | { controlled: false }
   | { controlled: true; isOpen: boolean; onClose: () => void };
 
 export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
-  const { read, upsert } = useConfig();
+  const { config, update } = useConfig();
   const isControlled = props.controlled;
   const controlledIsOpen = isControlled ? props.isOpen : undefined;
   const onClose = isControlled ? props.onClose : undefined;
@@ -25,36 +23,21 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
   useEffect(() => {
     if (isControlled) return;
 
-    const checkTelemetryChoice = async () => {
-      try {
-        const provider = await read('GOOSE_PROVIDER', false);
+    const provider = config.GOOSE_PROVIDER;
+    if (!provider || provider === '') {
+      return;
+    }
 
-        if (!provider || provider === '') {
-          return;
-        }
-
-        const telemetryEnabled = await read(TELEMETRY_CONFIG_KEY, false);
-
-        if (telemetryEnabled === null) {
-          setShowModal(true);
-        }
-      } catch (error) {
-        console.error('Failed to check telemetry config:', error);
-        toastService.error({
-          title: 'Configuration Error',
-          msg: 'Failed to check telemetry configuration.',
-          traceback: error instanceof Error ? error.stack || '' : '',
-        });
-      }
-    };
-
-    checkTelemetryChoice();
-  }, [isControlled, read]);
+    const telemetryEnabled = config.GOOSE_TELEMETRY_ENABLED;
+    if (telemetryEnabled === null || telemetryEnabled === undefined) {
+      setShowModal(true);
+    }
+  }, [isControlled, config.GOOSE_PROVIDER, config.GOOSE_TELEMETRY_ENABLED]);
 
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);
     try {
-      await upsert(TELEMETRY_CONFIG_KEY, enabled, false);
+      await update({ GOOSE_TELEMETRY_ENABLED: enabled });
       trackTelemetryPreference(enabled, 'modal');
       setShowModal(false);
       onClose?.();

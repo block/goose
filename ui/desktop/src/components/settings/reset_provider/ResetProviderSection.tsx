@@ -8,12 +8,11 @@ interface ResetProviderSectionProps {
 }
 
 export default function ResetProviderSection(_props: ResetProviderSectionProps) {
-  const { remove } = useConfig();
+  const { update } = useConfig();
 
   const handleResetProvider = async () => {
     try {
-      await remove('GOOSE_PROVIDER', false);
-      await remove('GOOSE_MODEL', false);
+      await update({ GOOSE_PROVIDER: null, GOOSE_MODEL: null });
 
       // Refresh the page to trigger the ProviderGuard check
       window.location.reload();

@@ -35,20 +35,18 @@ impl SecurityManager {
     pub fn is_prompt_injection_detection_enabled(&self) -> bool {
         let config = Config::global();
 
-        config
-            .get_param::<bool>("SECURITY_PROMPT_ENABLED")
-            .unwrap_or(false)
+        config.get_security_prompt_enabled().unwrap_or(false)
     }
 
     fn is_ml_scanning_enabled(&self) -> bool {
         let config = Config::global();
 
         let prompt_enabled = config
-            .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+            .get_security_prompt_classifier_enabled()
             .unwrap_or(false);
 
         let command_enabled = config
-            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+            .get_security_command_classifier_enabled()
             .unwrap_or(false);
 
         prompt_enabled || command_enabled
@@ -70,10 +68,10 @@ impl SecurityManager {
         let scanner = self.scanner.get_or_init(|| {
             let config = Config::global();
             let command_classifier_enabled = config
-                .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                .get_security_command_classifier_enabled()
                 .unwrap_or(false);
             let prompt_classifier_enabled = config
-                .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+                .get_security_prompt_classifier_enabled()
                 .unwrap_or(false);
 
             tracing::info!(

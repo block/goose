@@ -69,7 +69,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   const [isEnabled, setIsEnabled] = useState(false);
   const [provider, setProvider] = useState<DictationProvider | null>(null);
 
-  const { read, config } = useConfig();
+  const { config } = useConfig();
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -92,7 +92,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   useEffect(() => {
     const check = async () => {
       try {
-        const val = await read('voice_dictation_provider', false);
+        const val = config.voice_dictation_provider;
         const pref = (val as DictationProvider) || null;
         if (!pref) {
           setIsEnabled(false);
@@ -109,7 +109,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       }
     };
     check();
-  }, [read, config]);
+  }, [config]);
 
   const transcribeChunk = useCallback(async (samples: Float32Array) => {
     const prov = providerRef.current;
@@ -202,7 +202,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     }
 
     try {
-      const preferredMic = await read('voice_dictation_preferred_mic', false);
+      const preferredMic = config.voice_dictation_preferred_mic;
 
       const audioConstraints: MediaTrackConstraints = {
         echoCancellation: true,
@@ -252,7 +252,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       stopRecording();
       onError(errorMessage(error));
     }
-  }, [isEnabled, onError, handleSamples, stopRecording, read]);
+  }, [isEnabled, onError, handleSamples, stopRecording, config]);
 
   useEffect(() => {
     return () => {

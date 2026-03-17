@@ -57,9 +57,9 @@ impl ProviderDef for XaiProvider {
     ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
-            let api_key: String = config.get_secret("XAI_API_KEY")?;
+            let api_key: String = config.get_xai_api_key()?;
             let host: String = config
-                .get_param("XAI_HOST")
+                .get_xai_host()
                 .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
             let api_client = ApiClient::new(host, AuthMethod::BearerToken(api_key))?;

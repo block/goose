@@ -60,32 +60,17 @@ pub struct SnowflakeProvider {
 impl SnowflakeProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
-        if host.is_err() {
-            host = config.get_secret("SNOWFLAKE_HOST")
-        }
-        if host.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find SNOWFLAKE_HOST in either config file or keyring".to_string(),
-            )
-            .into());
-        }
+        let mut host = config.get_snowflake_host().map_err(|_| {
+            ConfigError::NotFound("SNOWFLAKE_HOST not found in config or environment".to_string())
+        })?;
 
-        let mut host = host?;
-
-        // Convert host to lowercase
         host = host.to_lowercase();
 
-        // Ensure host ends with snowflakecomputing.com
         if !host.ends_with("snowflakecomputing.com") {
             host = format!("{}.snowflakecomputing.com", host);
         }
 
-        let mut token: Result<String, ConfigError> = config.get_param("SNOWFLAKE_TOKEN");
-
-        if token.is_err() {
-            token = config.get_secret("SNOWFLAKE_TOKEN")
-        }
+        let token: Result<String, ConfigError> = config.get_snowflake_token();
 
         if token.is_err() {
             return Err(ConfigError::NotFound(

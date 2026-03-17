@@ -606,7 +606,7 @@ impl ProviderDef for ClaudeCodeProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
-            let command: String = config.get_claude_code_command().unwrap_or_default().into();
+            let command: String = config.get_claude_code_command().unwrap_or_default();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
             let mut resolved = Vec::with_capacity(extensions.len());

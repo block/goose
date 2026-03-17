@@ -15,7 +15,8 @@ import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
-import { upsertConfig } from '../../../../api';
+import { updateConfig } from '../../../../api';
+import type { GooseConfigUpdate } from '../../../../api';
 import { ConfirmationModal } from '../../../ui/ConfirmationModal';
 
 interface ExtensionModalProps {
@@ -194,12 +195,8 @@ export default function ExtensionModal({
   // Function to store a secret value
   const storeSecret = async (key: string, value: string) => {
     try {
-      await upsertConfig({
-        body: {
-          is_secret: true,
-          key: key,
-          value: value,
-        },
+      await updateConfig({
+        body: { [key]: value } as GooseConfigUpdate,
       });
       return true;
     } catch (error) {

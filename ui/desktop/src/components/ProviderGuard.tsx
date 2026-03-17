@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
+import type { GooseConfigUpdate } from '../api';
 import { startTetrateSetup } from '../utils/tetrateSetup';
 import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
-import { toastService } from '../toasts';
 import { LocalModelSetup } from './LocalModelSetup';
 import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
@@ -28,7 +28,7 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read, upsert, getProviders } = useConfig();
+  const { config, update, getProviders } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -138,8 +138,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
     trackOnboardingProviderSelected('api_key');
     const keyName = `${provider.toUpperCase()}_API_KEY`;
-    await upsert(keyName, apiKey, true);
-    await upsert('GOOSE_PROVIDER', provider, false);
+    await update({ [keyName]: apiKey, GOOSE_PROVIDER: provider } as GooseConfigUpdate);
 
     setSwitchModelProvider(provider);
     setShowSwitchModelModal(true);
@@ -225,38 +224,22 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   useEffect(() => {
-    const checkProvider = async () => {
-      try {
-        const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
-        const hasConfiguredProvider = provider.trim() !== '';
+    const provider = ((config.GOOSE_PROVIDER as string) ?? '').trim();
+    const hasConfiguredProvider = provider !== '';
 
-        // If user is actively testing keys, don't redirect
-        if (userInActiveSetup) {
-          setHasProvider(false);
-          setShowFirstTimeSetup(true);
-        } else if (hasConfiguredProvider || didSelectProvider) {
-          setHasProvider(true);
-          setShowFirstTimeSetup(false);
-        } else {
-          setHasProvider(false);
-          setShowFirstTimeSetup(true);
-        }
-      } catch (error) {
-        console.error('Error checking provider:', error);
-        toastService.error({
-          title: 'Configuration Error',
-          msg: 'Failed to check provider configuration.',
-          traceback: error instanceof Error ? error.stack || '' : '',
-        });
-        setHasProvider(false);
-        setShowFirstTimeSetup(true);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-
-    checkProvider();
-  }, [read, didSelectProvider, userInActiveSetup]);
+    // If user is actively testing keys, don't redirect
+    if (userInActiveSetup) {
+      setHasProvider(false);
+      setShowFirstTimeSetup(true);
+    } else if (hasConfiguredProvider || didSelectProvider) {
+      setHasProvider(true);
+      setShowFirstTimeSetup(false);
+    } else {
+      setHasProvider(false);
+      setShowFirstTimeSetup(true);
+    }
+    setIsChecking(false);
+  }, [config.GOOSE_PROVIDER, didSelectProvider, userInActiveSetup]);
 
   useEffect(() => {
     if (!isChecking && !hasProvider && showFirstTimeSetup && !onboardingTracked.current) {

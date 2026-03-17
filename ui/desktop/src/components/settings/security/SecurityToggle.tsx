@@ -96,7 +96,7 @@ const ClassifierEndpointInputs = ({
 };
 
 export const SecurityToggle = () => {
-  const { config, upsert } = useConfig();
+  const { config, update } = useConfig();
 
   const modelMapping = useMemo(() => {
     const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
@@ -164,53 +164,53 @@ export const SecurityToggle = () => {
   }, [configThreshold, mlEndpoint, mlToken, commandEndpoint, commandToken]);
 
   const handleToggle = async (enabled: boolean) => {
-    await upsert('SECURITY_PROMPT_ENABLED', enabled, false);
+    await update({ SECURITY_PROMPT_ENABLED: enabled });
     trackSettingToggled('prompt_injection_detection', enabled);
   };
 
   const handleThresholdChange = async (threshold: number) => {
     const validThreshold = Math.max(0, Math.min(1, threshold));
-    await upsert('SECURITY_PROMPT_THRESHOLD', validThreshold, false);
+    await update({ SECURITY_PROMPT_THRESHOLD: validThreshold });
   };
 
   const handleMlToggle = async (enabled: boolean) => {
-    await upsert('SECURITY_PROMPT_CLASSIFIER_ENABLED', enabled, false);
+    await update({ SECURITY_PROMPT_CLASSIFIER_ENABLED: enabled });
 
     if (enabled) {
       if (showModelDropdown) {
         const modelToSet = mlModel || availablePromptModels[0]?.value;
         if (modelToSet) {
-          await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', modelToSet, false);
+          await update({ SECURITY_PROMPT_CLASSIFIER_MODEL: modelToSet });
         }
       } else {
-        await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', '', false);
+        await update({ SECURITY_PROMPT_CLASSIFIER_MODEL: '' });
       }
     }
   };
 
   const handleModelChange = async (model: string) => {
-    await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', model, false);
+    await update({ SECURITY_PROMPT_CLASSIFIER_MODEL: model });
   };
 
   const handleEndpointChange = async (endpoint: string) => {
-    await upsert('SECURITY_PROMPT_CLASSIFIER_ENDPOINT', endpoint, false);
+    await update({ SECURITY_PROMPT_CLASSIFIER_ENDPOINT: endpoint });
   };
 
   const handleTokenChange = async (token: string) => {
-    await upsert('SECURITY_PROMPT_CLASSIFIER_TOKEN', token, true); // true = secret
+    await update({ SECURITY_PROMPT_CLASSIFIER_TOKEN: token }); // true = secret
   };
 
   const handleCommandClassifierToggle = async (enabled: boolean) => {
-    await upsert('SECURITY_COMMAND_CLASSIFIER_ENABLED', enabled, false);
+    await update({ SECURITY_COMMAND_CLASSIFIER_ENABLED: enabled });
     trackSettingToggled('command_classifier', enabled);
   };
 
   const handleCommandEndpointChange = async (endpoint: string) => {
-    await upsert('SECURITY_COMMAND_CLASSIFIER_ENDPOINT', endpoint, false);
+    await update({ SECURITY_COMMAND_CLASSIFIER_ENDPOINT: endpoint });
   };
 
   const handleCommandTokenChange = async (token: string) => {
-    await upsert('SECURITY_COMMAND_CLASSIFIER_TOKEN', token, true); // true = secret
+    await update({ SECURITY_COMMAND_CLASSIFIER_TOKEN: token }); // true = secret
   };
 
   return (

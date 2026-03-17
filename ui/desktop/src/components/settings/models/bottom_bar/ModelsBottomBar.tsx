@@ -47,7 +47,7 @@ export default function ModelsBottomBar({
   const currentProvider = sessionProvider ?? configProvider;
 
   const currentModelInfo = useCurrentModelInfo();
-  const { read, getProviders } = useConfig();
+  const { config, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
@@ -58,34 +58,16 @@ export default function ModelsBottomBar({
 
   // Check if lead/worker mode is active
   useEffect(() => {
-    const checkLeadWorker = async () => {
-      try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        setIsLeadWorkerActive(!!leadModel);
-      } catch (error) {
-        console.error('Error checking lead model:', error);
-        setIsLeadWorkerActive(false);
-      }
-    };
-    checkLeadWorker();
-  }, [read]);
+    setIsLeadWorkerActive(!!config.GOOSE_LEAD_MODEL);
+  }, [config.GOOSE_LEAD_MODEL]);
 
   // Refresh lead/worker status when modal closes
   const handleLeadWorkerModalClose = () => {
     setIsLeadWorkerModalOpen(false);
-    const checkLeadWorker = async () => {
-      try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        const currentModel = await read('GOOSE_MODEL', false);
-        setIsLeadWorkerActive(!!leadModel);
-        setLeadModelName((leadModel as string) || '');
-        setCurrentActiveModel((currentModel as string) || '');
-      } catch (error) {
-        console.error('Error checking lead model after modal close:', error);
-        setIsLeadWorkerActive(false);
-      }
-    };
-    checkLeadWorker();
+    // Config state will auto-refresh via ConfigContext; sync local state
+    setIsLeadWorkerActive(!!config.GOOSE_LEAD_MODEL);
+    setLeadModelName((config.GOOSE_LEAD_MODEL as string) || '');
+    setCurrentActiveModel((config.GOOSE_MODEL as string) || '');
   };
 
   const [leadModelName, setLeadModelName] = useState<string>('');
@@ -93,18 +75,9 @@ export default function ModelsBottomBar({
 
   // Get lead model name and current model for comparison
   useEffect(() => {
-    const getModelInfo = async () => {
-      try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        const currentModel = await read('GOOSE_MODEL', false);
-        setLeadModelName((leadModel as string) || '');
-        setCurrentActiveModel((currentModel as string) || '');
-      } catch (error) {
-        console.error('Error getting model info:', error);
-      }
-    };
-    getModelInfo();
-  }, [read]);
+    setLeadModelName((config.GOOSE_LEAD_MODEL as string) || '');
+    setCurrentActiveModel((config.GOOSE_MODEL as string) || '');
+  }, [config.GOOSE_LEAD_MODEL, config.GOOSE_MODEL]);
 
   // Determine the mode based on which model is currently active
   const modelMode = isLeadWorkerActive

@@ -1,20 +1,20 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
-import { updateSession } from '../../../api';
+import { updateSession, type GooseMode } from '../../../api';
 
 export const ModeSection = ({ sessionId }: { sessionId?: string }) => {
   const [currentMode, setCurrentMode] = useState('auto');
   const [maxTurns, setMaxTurns] = useState<number>(1000);
-  const { config, read, upsert } = useConfig();
+  const { config, update } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
     try {
       if (sessionId) {
         await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
       }
-      await upsert('GOOSE_MODE', newMode, false);
+      await update({ GOOSE_MODE: newMode as GooseMode });
       setCurrentMode(newMode);
     } catch (error) {
       console.error('Error updating goose mode:', error);
@@ -29,29 +29,21 @@ export const ModeSection = ({ sessionId }: { sessionId?: string }) => {
     }
   }, [config.GOOSE_MODE]);
 
-  const fetchMaxTurns = useCallback(async () => {
-    try {
-      const turns = (await read('GOOSE_MAX_TURNS', false)) as number;
-      if (turns) {
-        setMaxTurns(turns);
-      }
-    } catch (error) {
-      console.error('Error fetching max turns:', error);
+  useEffect(() => {
+    const turns = config.GOOSE_MAX_TURNS;
+    if (turns !== undefined && turns !== null) {
+      setMaxTurns(Number(turns));
     }
-  }, [read]);
+  }, [config.GOOSE_MAX_TURNS]);
 
   const handleMaxTurnsChange = async (value: number) => {
     try {
-      await upsert('GOOSE_MAX_TURNS', value, false);
+      await update({ GOOSE_MAX_TURNS: value });
       setMaxTurns(value);
     } catch (error) {
       console.error('Error updating max turns:', error);
     }
   };
-
-  useEffect(() => {
-    fetchMaxTurns();
-  }, [fetchMaxTurns]);
 
   return (
     <div className="space-y-1">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { DictationProvider, getDictationConfig, DictationProviderStatus } from '../../../api';
+import { DictationProvider, getDictationConfig, DictationProviderStatus, type GooseConfigUpdate } from '../../../api';
 import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
@@ -24,7 +24,7 @@ export const DictationSettings = () => {
   const [preferredMic, setPreferredMic] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [isEditingKey, setIsEditingKey] = useState(false);
-  const { read, upsert, remove } = useConfig();
+  const { config, update } = useConfig();
 
   const refreshStatuses = async () => {
     const audioConfig = await getDictationConfig();
@@ -33,7 +33,7 @@ export const DictationSettings = () => {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const providerValue = await read('voice_dictation_provider', false);
+      const providerValue = config.voice_dictation_provider;
       let loadedProvider: DictationProvider | null = (providerValue as DictationProvider) || null;
 
       if (
@@ -42,30 +42,30 @@ export const DictationSettings = () => {
         !DICTATION_ALLOWED_PROVIDERS.includes(loadedProvider)
       ) {
         loadedProvider = null;
-        await upsert('voice_dictation_provider', '', false);
+        await update({ voice_dictation_provider: '' });
       }
 
       setProvider(loadedProvider);
 
-      const micValue = await read('voice_dictation_preferred_mic', false);
+      const micValue = config.voice_dictation_preferred_mic;
       setPreferredMic((micValue as string) || null);
 
       await refreshStatuses();
     };
 
     loadSettings();
-  }, [read, upsert]);
+  }, [config.voice_dictation_provider, config.voice_dictation_preferred_mic, update]);
 
   const handleProviderChange = (value: string) => {
     const newProvider = value === 'disabled' ? null : (value as DictationProvider);
     setProvider(newProvider);
-    upsert('voice_dictation_provider', newProvider || '', false);
+    update({ voice_dictation_provider: newProvider || '' });
     trackSettingToggled('voice_dictation', newProvider !== null);
   };
 
   const handleMicChange = (deviceId: string | null) => {
     setPreferredMic(deviceId);
-    upsert('voice_dictation_preferred_mic', deviceId || '', false);
+    update({ voice_dictation_preferred_mic: deviceId || '' });
   };
 
   const handleSaveKey = async () => {
@@ -77,7 +77,7 @@ export const DictationSettings = () => {
     if (!trimmedKey) return;
 
     const keyName = providerConfig.config_key!;
-    await upsert(keyName, trimmedKey, true);
+    await update({ [keyName]: trimmedKey } as GooseConfigUpdate);
     setApiKey('');
     setIsEditingKey(false);
     await refreshStatuses();
@@ -89,7 +89,7 @@ export const DictationSettings = () => {
     if (!providerConfig || providerConfig.uses_provider_config) return;
 
     const keyName = providerConfig.config_key!;
-    await remove(keyName, true);
+    await update({ [keyName]: null } as GooseConfigUpdate);
     setApiKey('');
     setIsEditingKey(false);
     await refreshStatuses();

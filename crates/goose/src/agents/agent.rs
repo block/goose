@@ -365,9 +365,7 @@ impl Agent {
             toolshim_tools,
             system_prompt,
             goose_mode,
-            tool_call_cut_off: Config::global()
-                .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
-                .unwrap_or(10),
+            tool_call_cut_off: Config::global().get_goose_tool_call_cutoff().unwrap_or(10),
             initial_messages,
         })
     }
@@ -1024,7 +1022,7 @@ impl Agent {
             } else {
                 let config = Config::global();
                 let threshold = config
-                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .get_goose_auto_compact_threshold()
                     .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
                 let threshold_percentage = (threshold * 100.0) as u32;
 
@@ -1130,7 +1128,8 @@ impl Agent {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
                 Config::global()
-                    .get_param::<u32>("GOOSE_MAX_TURNS")
+                    .get_goose_max_turns()
+                    .map(|v| v as u32)
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
             let mut compaction_attempts = 0;

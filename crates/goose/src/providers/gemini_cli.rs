@@ -49,7 +49,7 @@ pub struct GeminiCliProvider {
 impl GeminiCliProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = Config::global();
-        let command: String = config.get_gemini_cli_command().unwrap_or_default().into();
+        let command: String = config.get_gemini_cli_command().unwrap_or_default();
         let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {

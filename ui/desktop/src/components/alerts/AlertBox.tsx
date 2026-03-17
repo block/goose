@@ -4,7 +4,6 @@ import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { cn } from '../../utils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { Alert, AlertType } from './types';
-import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
@@ -37,27 +36,19 @@ const formatTokenCount = (count: number): string => {
 };
 
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
-  const { read } = useConfig();
+  const { config, update } = useConfig();
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
   const [loadedThreshold, setLoadedThreshold] = useState<number>(0.8);
   const [thresholdValue, setThresholdValue] = useState(80);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const loadThreshold = async () => {
-      try {
-        const threshold = await read('GOOSE_AUTO_COMPACT_THRESHOLD', false);
-        if (threshold !== undefined && threshold !== null && typeof threshold === 'number') {
-          setLoadedThreshold(threshold);
-          setThresholdValue(Math.max(1, Math.round(threshold * 100)));
-        }
-      } catch (err) {
-        console.error('Error fetching auto-compact threshold:', err);
-      }
-    };
-
-    loadThreshold();
-  }, [read]);
+    const threshold = config.GOOSE_AUTO_COMPACT_THRESHOLD;
+    if (threshold !== undefined && threshold !== null && typeof threshold === 'number') {
+      setLoadedThreshold(threshold);
+      setThresholdValue(Math.max(1, Math.round(threshold * 100)));
+    }
+  }, [config.GOOSE_AUTO_COMPACT_THRESHOLD]);
 
   const currentThreshold = loadedThreshold;
 
@@ -73,13 +64,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
     try {
       const newThreshold = validThreshold / 100; // Convert percentage to decimal
 
-      await upsertConfig({
-        body: {
-          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
-          value: newThreshold,
-          is_secret: false,
-        },
-      });
+      await update({ GOOSE_AUTO_COMPACT_THRESHOLD: newThreshold });
 
       setIsEditingThreshold(false);
       setLoadedThreshold(newThreshold);

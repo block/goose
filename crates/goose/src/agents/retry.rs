@@ -30,12 +30,6 @@ pub enum RetryResult {
     Retried,
 }
 
-/// Environment variable for configuring retry timeout globally
-const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS";
-
-/// Environment variable for configuring on_failure timeout globally
-const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS";
-
 /// Manages retry state and operations for agent execution
 #[derive(Debug)]
 pub struct RetryManager {
@@ -168,7 +162,7 @@ fn get_retry_timeout(retry_config: &RetryConfig) -> Duration {
         .timeout_seconds
         .or_else(|| {
             let config = Config::global();
-            config.get_param(GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS).ok()
+            config.get_goose_recipe_retry_timeout_seconds().ok()
         })
         .unwrap_or(DEFAULT_RETRY_TIMEOUT_SECONDS);
 
@@ -182,9 +176,7 @@ fn get_on_failure_timeout(retry_config: &RetryConfig) -> Duration {
         .on_failure_timeout_seconds
         .or_else(|| {
             let config = Config::global();
-            config
-                .get_param(GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS)
-                .ok()
+            config.get_goose_recipe_on_failure_timeout_seconds().ok()
         })
         .unwrap_or(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS);
 

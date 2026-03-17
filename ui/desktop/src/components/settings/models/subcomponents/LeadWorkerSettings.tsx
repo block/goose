@@ -13,7 +13,7 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, remove } = useConfig();
+  const { config, update, getProviders } = useConfig();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
   const [leadProvider, setLeadProvider] = useState<string>('');
@@ -37,50 +37,28 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     const loadConfig = async () => {
       try {
         setIsLoading(true);
-        const [
-          leadModelConfig,
-          leadProviderConfig,
-          leadTurnsConfig,
-          failureThresholdConfig,
-          fallbackTurnsConfig,
-        ] = await Promise.all([
-          read('GOOSE_LEAD_MODEL', false),
-          read('GOOSE_LEAD_PROVIDER', false),
-          read('GOOSE_LEAD_TURNS', false),
-          read('GOOSE_LEAD_FAILURE_THRESHOLD', false),
-          read('GOOSE_LEAD_FALLBACK_TURNS', false),
-        ]);
+
+        const leadModelConfig = config.GOOSE_LEAD_MODEL as string | undefined;
+        const leadProviderConfig = config.GOOSE_LEAD_PROVIDER as string | undefined;
+        const leadTurnsConfig = config.GOOSE_LEAD_TURNS;
+        const failureThresholdConfig = config.GOOSE_LEAD_FAILURE_THRESHOLD;
+        const fallbackTurnsConfig = config.GOOSE_LEAD_FALLBACK_TURNS;
 
         if (leadModelConfig) {
-          setLeadModel(leadModelConfig as string);
+          setLeadModel(leadModelConfig);
           setIsEnabled(true);
         } else {
           setLeadModel('');
           setIsEnabled(false);
         }
-        if (leadProviderConfig) setLeadProvider(leadProviderConfig as string);
-        else setLeadProvider('');
-        if (leadTurnsConfig) setLeadTurns(Number(leadTurnsConfig));
-        else setLeadTurns(3);
-        if (failureThresholdConfig) setFailureThreshold(Number(failureThresholdConfig));
-        else setFailureThreshold(2);
-        if (fallbackTurnsConfig) setFallbackTurns(Number(fallbackTurnsConfig));
-        else setFallbackTurns(2);
+        setLeadProvider(leadProviderConfig || '');
+        setLeadTurns(leadTurnsConfig ? Number(leadTurnsConfig) : 3);
+        setFailureThreshold(failureThresholdConfig ? Number(failureThresholdConfig) : 2);
+        setFallbackTurns(fallbackTurnsConfig ? Number(fallbackTurnsConfig) : 2);
 
         // Set worker model from config
-        const workerModelConfig = await read('GOOSE_MODEL', false);
-        if (workerModelConfig) {
-          setWorkerModel(workerModelConfig as string);
-        } else {
-          setWorkerModel('');
-        }
-
-        const workerProviderConfig = await read('GOOSE_PROVIDER', false);
-        if (workerProviderConfig) {
-          setWorkerProvider(workerProviderConfig as string);
-        } else {
-          setWorkerProvider('');
-        }
+        setWorkerModel((config.GOOSE_MODEL as string) || '');
+        setWorkerProvider((config.GOOSE_PROVIDER as string) || '');
 
         // Load available models
         const options: { value: string; label: string; provider: string }[] = [];
@@ -136,7 +114,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, isOpen]);
+  }, [config, getProviders, isOpen]);
 
   // If current models are not in the list (e.g., previously set to custom), switch to custom mode
   useEffect(() => {
@@ -155,23 +133,23 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
       if (isEnabled && leadModel && workerModel) {
         // Save lead/worker configuration
         await Promise.all([
-          upsert('GOOSE_LEAD_MODEL', leadModel, false),
-          leadProvider && upsert('GOOSE_LEAD_PROVIDER', leadProvider, false),
-          upsert('GOOSE_MODEL', workerModel, false),
-          workerProvider && upsert('GOOSE_PROVIDER', workerProvider, false),
-          upsert('GOOSE_LEAD_TURNS', leadTurns, false),
-          upsert('GOOSE_LEAD_FAILURE_THRESHOLD', failureThreshold, false),
-          upsert('GOOSE_LEAD_FALLBACK_TURNS', fallbackTurns, false),
+          update({ GOOSE_LEAD_MODEL: leadModel }),
+          leadProvider && update({ GOOSE_LEAD_PROVIDER: leadProvider }),
+          update({ GOOSE_MODEL: workerModel }),
+          workerProvider && update({ GOOSE_PROVIDER: workerProvider }),
+          update({ GOOSE_LEAD_TURNS: leadTurns }),
+          update({ GOOSE_LEAD_FAILURE_THRESHOLD: failureThreshold }),
+          update({ GOOSE_LEAD_FALLBACK_TURNS: fallbackTurns }),
         ]);
       } else {
         // Remove lead/worker configuration
-        await Promise.all([
-          remove('GOOSE_LEAD_MODEL', false),
-          remove('GOOSE_LEAD_PROVIDER', false),
-          remove('GOOSE_LEAD_TURNS', false),
-          remove('GOOSE_LEAD_FAILURE_THRESHOLD', false),
-          remove('GOOSE_LEAD_FALLBACK_TURNS', false),
-        ]);
+        await update({
+          GOOSE_LEAD_MODEL: null,
+          GOOSE_LEAD_PROVIDER: null,
+          GOOSE_LEAD_TURNS: null,
+          GOOSE_LEAD_FAILURE_THRESHOLD: null,
+          GOOSE_LEAD_FALLBACK_TURNS: null,
+        });
       }
       onClose();
     } catch (error) {

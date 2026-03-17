@@ -113,17 +113,15 @@ impl TunnelManager {
     }
 
     fn get_auto_start() -> bool {
-        Config::global()
-            .get_param("tunnel_auto_start")
-            .unwrap_or(false)
+        Config::global().get_tunnel_auto_start().unwrap_or(false)
     }
 
     fn get_secret() -> Option<String> {
-        Config::global().get_secret("tunnel_secret").ok()
+        Config::global().get_tunnel_secret().ok()
     }
 
     fn get_agent_id() -> Option<String> {
-        Config::global().get_secret("tunnel_agent_id").ok()
+        Config::global().get_tunnel_agent_id().ok()
     }
 
     pub async fn check_auto_start(&self) {
@@ -200,19 +198,19 @@ impl TunnelManager {
 
     pub fn set_auto_start(auto_start: bool) -> anyhow::Result<()> {
         Config::global()
-            .set_param("tunnel_auto_start", auto_start)
+            .set_tunnel_auto_start(auto_start)
             .map_err(|e| anyhow::anyhow!("Failed to save tunnel config: {}", e))
     }
 
     pub fn set_secret(secret: &str) -> anyhow::Result<()> {
         Config::global()
-            .set_secret("tunnel_secret", &secret.to_string())
+            .set_tunnel_secret(secret.to_string())
             .map_err(|e| anyhow::anyhow!("Failed to save tunnel secret: {}", e))
     }
 
     pub fn set_agent_id(agent_id: &str) -> anyhow::Result<()> {
         Config::global()
-            .set_secret("tunnel_agent_id", &agent_id.to_string())
+            .set_tunnel_agent_id(agent_id.to_string())
             .map_err(|e| anyhow::anyhow!("Failed to save tunnel agent_id: {}", e))
     }
 

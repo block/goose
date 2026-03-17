@@ -38,7 +38,7 @@ pub struct CursorAgentProvider {
 impl CursorAgentProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let command: String = config.get_cursor_agent_command().unwrap_or_default().into();
+        let command: String = config.get_cursor_agent_command().unwrap_or_default();
         let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {

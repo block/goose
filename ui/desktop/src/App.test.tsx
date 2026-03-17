@@ -45,7 +45,7 @@ vi.mock('./api', () => {
 
   return {
     initConfig: vi.fn().mockResolvedValue(undefined),
-    readAllConfig: vi.fn().mockResolvedValue(undefined),
+    readConfig: vi.fn().mockResolvedValue({ data: {} }),
     backupConfig: vi.fn().mockResolvedValue(undefined),
     recoverConfig: vi.fn().mockResolvedValue(undefined),
     validateConfig: vi.fn().mockResolvedValue(undefined),
@@ -284,9 +284,9 @@ describe('App Component - Brand New State', () => {
 
   it('should handle config recovery gracefully', async () => {
     // Mock config error that triggers recovery
-    const { readAllConfig, recoverConfig } = await import('./api');
+    const { readConfig, recoverConfig } = await import('./api');
     console.log(recoverConfig);
-    vi.mocked(readAllConfig).mockRejectedValueOnce(new Error('Config read error'));
+    vi.mocked(readConfig).mockRejectedValueOnce(new Error('Config read error'));
 
     mockElectron.getConfig.mockReturnValue({
       GOOSE_DEFAULT_PROVIDER: null,

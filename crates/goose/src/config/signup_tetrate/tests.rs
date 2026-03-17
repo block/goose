@@ -74,10 +74,7 @@ fn test_configure_tetrate() {
     configure_tetrate(&config, test_key.clone()).unwrap();
 
     // Verify the configuration was set correctly
-    assert_eq!(
-        config.get_secret::<String>("TETRATE_API_KEY").unwrap(),
-        test_key
-    );
+    assert_eq!(config.get_tetrate_api_key().unwrap(), test_key);
     assert_eq!(config.get_goose_provider().unwrap(), "tetrate");
     assert_eq!(
         config.get_goose_model().unwrap(),

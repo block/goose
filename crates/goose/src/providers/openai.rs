@@ -73,24 +73,21 @@ impl OpenAiProvider {
 
         let config = crate::config::Config::global();
         let host: String = config
-            .get_param("OPENAI_HOST")
+            .get_openai_host()
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
 
-        let secrets = config
-            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
-            .unwrap_or_default();
-        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("OPENAI_CUSTOM_HEADERS")
-            .cloned()
+        let api_key: Option<String> = config.get_openai_api_key().ok();
+        let custom_headers: Option<HashMap<String, String>> = config
+            .get_openai_custom_headers()
+            .ok()
             .map(parse_custom_headers);
 
         let base_path: String = config
-            .get_param("OPENAI_BASE_PATH")
+            .get_openai_base_path()
             .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string());
-        let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
-        let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
+        let organization: Option<String> = config.get_openai_organization().ok();
+        let project: Option<String> = config.get_openai_project().ok();
+        let timeout_secs: u64 = config.get_openai_timeout().unwrap_or(600);
 
         let auth = match api_key {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),

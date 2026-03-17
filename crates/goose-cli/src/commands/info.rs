@@ -71,21 +71,23 @@ pub fn handle_info(verbose: bool) -> Result<()> {
 
     if verbose {
         println!("\n{}", style("goose Configuration:").cyan().bold());
-        let values = config.all_values()?;
-        if values.is_empty() {
-            println!("  No configuration values set");
-            println!(
-                "  Run '{}' to configure goose",
-                style("goose configure").cyan()
-            );
-        } else {
-            let sorted_values: std::collections::BTreeMap<_, _> =
-                values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-
-            if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
+        let settings = goose::config::GooseConfigResponse::from_config(config);
+        if let Ok(yaml) = serde_yaml::to_string(&settings) {
+            let has_values = yaml
+                .lines()
+                .any(|l| !l.trim().is_empty() && l.trim() != "---");
+            if has_values {
                 for line in yaml.lines() {
-                    println!("  {}", line);
+                    if line.trim() != "---" {
+                        println!("  {}", line);
+                    }
                 }
+            } else {
+                println!("  No configuration values set");
+                println!(
+                    "  Run '{}' to configure goose",
+                    style("goose configure").cyan()
+                );
             }
         }
     }

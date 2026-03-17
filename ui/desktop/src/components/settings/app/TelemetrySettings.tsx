@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { useConfig } from '../../ConfigContext';
@@ -10,41 +10,25 @@ import {
   trackTelemetryPreference,
 } from '../../../utils/analytics';
 
-const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 interface TelemetrySettingsProps {
   isWelcome: boolean;
 }
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
-  const { read, upsert } = useConfig();
+  const { config, update } = useConfig();
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  const loadTelemetryStatus = useCallback(async () => {
-    try {
-      const value = await read(TELEMETRY_CONFIG_KEY, false);
-      setTelemetryEnabled(value === null ? true : Boolean(value));
-    } catch (error) {
-      console.error('Failed to load telemetry status:', error);
-      toastService.error({
-        title: 'Configuration Error',
-        msg: 'Failed to load telemetry settings.',
-        traceback: error instanceof Error ? error.stack || '' : '',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [read]);
-
   useEffect(() => {
-    loadTelemetryStatus();
-  }, [loadTelemetryStatus]);
+    const value = config.GOOSE_TELEMETRY_ENABLED;
+    setTelemetryEnabled(value === null || value === undefined ? true : Boolean(value));
+  }, [config.GOOSE_TELEMETRY_ENABLED]);
 
   const handleTelemetryToggle = async (checked: boolean) => {
     try {
-      await upsert(TELEMETRY_CONFIG_KEY, checked, false);
+      await update({ GOOSE_TELEMETRY_ENABLED: checked });
       setTelemetryEnabled(checked);
       setAnalyticsTelemetryEnabled(checked);
       trackTelemetryPreference(checked, isWelcome ? 'onboarding' : 'settings');
@@ -60,7 +44,6 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
 
   const handleModalClose = () => {
     setShowModal(false);
-    loadTelemetryStatus();
   };
 
   if (!TELEMETRY_UI_ENABLED) {

@@ -99,7 +99,7 @@ impl AuthProvider for DatabricksAuthProvider {
                         // Fall back to the constructor-provided token if config
                         // lookup fails (e.g. from_params usage).
                         let fresh = crate::config::Config::global()
-                            .get_secret::<String>("DATABRICKS_TOKEN")
+                            .get_databricks_token()
                             .unwrap_or_else(|_| original.clone());
                         *self.token_cache.lock().unwrap() = Some(fresh.clone());
                         fresh
@@ -138,23 +138,13 @@ impl DatabricksProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
-        let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
-        if host.is_err() {
-            host = config.get_secret("DATABRICKS_HOST")
-        }
-
-        if host.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find DATABRICKS_HOST in either config file or keyring".to_string(),
-            )
-            .into());
-        }
-
-        let host = host?;
+        let host = config.get_databricks_host().map_err(|_| {
+            ConfigError::NotFound("DATABRICKS_HOST not found in config or environment".to_string())
+        })?;
         let retry_config = Self::load_retry_config(config);
         let fast_retry_config = Self::load_fast_retry_config(config);
 
-        let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
+        let auth = if let Ok(api_key) = config.get_databricks_token() {
             DatabricksAuth::token(api_key)
         } else {
             DatabricksAuth::oauth(host.clone())
@@ -190,27 +180,19 @@ impl DatabricksProvider {
 
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
         let max_retries = config
-            .get_param("DATABRICKS_MAX_RETRIES")
-            .ok()
-            .and_then(|v: String| v.parse::<usize>().ok())
+            .get_databricks_max_retries()
             .unwrap_or(DEFAULT_MAX_RETRIES);
 
         let initial_interval_ms = config
-            .get_param("DATABRICKS_INITIAL_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
+            .get_databricks_initial_retry_interval_ms()
             .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
 
         let backoff_multiplier = config
-            .get_param("DATABRICKS_BACKOFF_MULTIPLIER")
-            .ok()
-            .and_then(|v: String| v.parse::<f64>().ok())
+            .get_databricks_backoff_multiplier()
             .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
 
         let max_interval_ms = config
-            .get_param("DATABRICKS_MAX_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
+            .get_databricks_max_retry_interval_ms()
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
 
         RetryConfig {

@@ -10,7 +10,7 @@ use axum::{
 use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
-use goose::config::{Config, ConfigError};
+use goose::config::{Config, GooseConfigResponse, GooseConfigUpdate};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
@@ -26,7 +26,6 @@ use goose::{
     slash_commands,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use serde_yaml;
 use std::{collections::HashMap, sync::Arc};
 use utoipa::ToSchema;
@@ -43,24 +42,6 @@ pub struct ExtensionQuery {
     pub name: String,
     pub config: ExtensionConfig,
     pub enabled: bool,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct UpsertConfigQuery {
-    pub key: String,
-    pub value: Value,
-    pub is_secret: bool,
-}
-
-#[derive(Deserialize, Serialize, ToSchema)]
-pub struct ConfigKeyQuery {
-    pub key: String,
-    pub is_secret: bool,
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct ConfigResponse {
-    pub config: HashMap<String, Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -119,19 +100,6 @@ pub struct SetProviderRequest {
     pub model: String,
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct MaskedSecret {
-    pub masked_value: String,
-}
-
-#[derive(Serialize, ToSchema)]
-#[serde(untagged)]
-pub enum ConfigValueResponse {
-    Value(Value),
-    MaskedValue(MaskedSecret),
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub enum CommandType {
     Builtin,
@@ -159,98 +127,11 @@ pub struct DetectProviderResponse {
     pub provider_name: String,
     pub models: Vec<String>,
 }
-#[utoipa::path(
-    post,
-    path = "/config/upsert",
-    request_body = UpsertConfigQuery,
-    responses(
-        (status = 200, description = "Configuration value upserted successfully", body = String),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn upsert_config(
-    Json(query): Json<UpsertConfigQuery>,
-) -> Result<Json<Value>, ErrorResponse> {
-    let config = Config::global();
-    config.set(&query.key, &query.value, query.is_secret)?;
-    Ok(Json(Value::String(format!("Upserted key {}", query.key))))
-}
-
-#[utoipa::path(
-    post,
-    path = "/config/remove",
-    request_body = ConfigKeyQuery,
-    responses(
-        (status = 200, description = "Configuration value removed successfully", body = String),
-        (status = 404, description = "Configuration key not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn remove_config(
-    Json(query): Json<ConfigKeyQuery>,
-) -> Result<Json<String>, ErrorResponse> {
-    let config = Config::global();
-
-    if query.is_secret {
-        config.delete_secret(&query.key)?;
-    } else {
-        config.delete(&query.key)?;
-    }
-
-    Ok(Json(format!("Removed key {}", query.key)))
-}
-
-const SECRET_MASK_SHOW_LEN: usize = 8;
-
-fn mask_secret(secret: Value) -> String {
-    let as_string = match secret {
-        Value::String(s) => s,
-        _ => serde_json::to_string(&secret).unwrap_or_else(|_| secret.to_string()),
-    };
-
-    let chars: Vec<_> = as_string.chars().collect();
-    let show_len = std::cmp::min(chars.len() / 2, SECRET_MASK_SHOW_LEN);
-    let visible: String = chars.iter().take(show_len).collect();
-    let mask = "*".repeat(chars.len() - show_len);
-
-    format!("{}{}", visible, mask)
-}
-
 fn is_valid_provider_name(provider_name: &str) -> bool {
     !provider_name.is_empty()
         && provider_name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
-#[utoipa::path(
-    post,
-    path = "/config/read",
-    request_body = ConfigKeyQuery,
-    responses(
-        (status = 200, description = "Configuration value retrieved successfully", body = Value),
-        (status = 500, description = "Unable to get the configuration value"),
-    )
-)]
-pub async fn read_config(
-    Json(query): Json<ConfigKeyQuery>,
-) -> Result<Json<ConfigValueResponse>, ErrorResponse> {
-    let config = Config::global();
-
-    let response_value = match config.get(&query.key, query.is_secret) {
-        Ok(value) => {
-            if query.is_secret {
-                ConfigValueResponse::MaskedValue(MaskedSecret {
-                    masked_value: mask_secret(value),
-                })
-            } else {
-                ConfigValueResponse::Value(value)
-            }
-        }
-        Err(ConfigError::NotFound(_)) => ConfigValueResponse::Value(Value::Null),
-        Err(e) => return Err(e.into()),
-    };
-    Ok(Json(response_value))
 }
 
 #[utoipa::path(
@@ -320,15 +201,29 @@ pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, 
     get,
     path = "/config",
     responses(
-        (status = 200, description = "All configuration values retrieved successfully", body = ConfigResponse)
+        (status = 200, description = "All typed configuration settings", body = GooseConfigResponse)
     )
 )]
-pub async fn read_all_config() -> Result<Json<ConfigResponse>, ErrorResponse> {
+pub async fn read_config() -> Result<Json<GooseConfigResponse>, ErrorResponse> {
     let config = Config::global();
-    let values = config
-        .all_values()
-        .map_err(|e| ErrorResponse::unprocessable(e.to_string()))?;
-    Ok(Json(ConfigResponse { config: values }))
+    Ok(Json(GooseConfigResponse::from_config(config)))
+}
+
+#[utoipa::path(
+    patch,
+    path = "/config",
+    request_body = GooseConfigUpdate,
+    responses(
+        (status = 200, description = "Settings updated successfully", body = GooseConfigResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn update_config(
+    Json(update): Json<GooseConfigUpdate>,
+) -> Result<Json<GooseConfigResponse>, ErrorResponse> {
+    let config = Config::global();
+    update.apply(config)?;
+    Ok(Json(GooseConfigResponse::from_config(config)))
 }
 
 #[utoipa::path(
@@ -887,10 +782,7 @@ pub async fn configure_provider_oauth(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/config", get(read_all_config))
-        .route("/config/upsert", post(upsert_config))
-        .route("/config/remove", post(remove_config))
-        .route("/config/read", post(read_config))
+        .route("/config", get(read_config).patch(update_config))
         .route("/config/extensions", get(get_extensions))
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/{name}", delete(remove_extension))

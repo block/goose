@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '../../../../../ui/input';
 import { useConfig } from '../../../../../ConfigContext';
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
@@ -47,35 +47,28 @@ export default function DefaultProviderSetupForm({
   );
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
-  const { read } = useConfig();
-
-  const loadConfigValues = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const values: { [k: string]: ConfigInput } = {};
-
-      for (const parameter of parameters) {
-        const configKey = `${parameter.name}`;
-        const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
-
-        if (configValue) {
-          values[parameter.name] = { serverValue: configValue };
-        } else if (parameter.default !== undefined && parameter.default !== null) {
-          values[parameter.name] = { value: parameter.default };
-        }
-      }
-
-      setConfigValues((prev) => ({
-        ...prev,
-        ...values,
-      }));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [parameters, read, setConfigValues]);
+  const { config } = useConfig();
 
   useEffect(() => {
-    loadConfigValues();
+    setIsLoading(true);
+    const values: { [k: string]: ConfigInput } = {};
+
+    for (const parameter of parameters) {
+      const key = parameter.name as keyof typeof config;
+      const configValue = config[key] as ConfigValue | undefined;
+
+      if (configValue) {
+        values[parameter.name] = { serverValue: configValue };
+      } else if (parameter.default !== undefined && parameter.default !== null) {
+        values[parameter.name] = { value: parameter.default };
+      }
+    }
+
+    setConfigValues((prev) => ({
+      ...prev,
+      ...values,
+    }));
+    setIsLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

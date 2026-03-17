@@ -32,7 +32,7 @@ const formatSize = (bytes: number): string => {
 type SetupPhase = 'loading' | 'select' | 'downloading' | 'error';
 
 export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
-  const { upsert } = useConfig();
+  const { update } = useConfig();
   const [phase, setPhase] = useState<SetupPhase>('loading');
   const [models, setModels] = useState<LocalModelResponse[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -77,8 +77,8 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
   }, []);
 
   const finishSetup = async (modelId: string) => {
-    await upsert('GOOSE_PROVIDER', 'local', false);
-    await upsert('GOOSE_MODEL', modelId, false);
+    await update({ GOOSE_PROVIDER: 'local' });
+    await update({ GOOSE_MODEL: modelId });
     toastService.success({
       title: 'Local Model Ready',
       msg: `Running entirely on your machine with ${modelId}.`,

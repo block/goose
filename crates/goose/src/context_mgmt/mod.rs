@@ -189,7 +189,7 @@ pub async fn check_if_compaction_needed(
     let config = Config::global();
     let threshold = threshold_override.unwrap_or_else(|| {
         config
-            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+            .get_goose_auto_compact_threshold()
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 

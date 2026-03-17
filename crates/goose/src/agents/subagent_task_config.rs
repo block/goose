@@ -44,7 +44,7 @@ impl TaskConfig {
             extensions,
             max_turns: Some(
                 Config::global()
-                    .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
+                    .get_goose_subagent_max_turns()
                     .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
             ),
         }

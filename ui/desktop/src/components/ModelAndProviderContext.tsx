@@ -37,7 +37,7 @@ const ModelAndProviderContext = createContext<ModelAndProviderContextType | unde
 export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> = ({ children }) => {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
-  const { read, getProviders } = useConfig();
+  const { config, getProviders } = useConfig();
 
   const changeModel = useCallback(async (sessionId: string | null, model: Model) => {
     const modelName = model.name;
@@ -114,23 +114,15 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   }, []);
 
   const getCurrentModelAndProvider = useCallback(async () => {
-    let model: string;
-    let provider: string;
+    const model = config.GOOSE_MODEL as string | undefined;
+    const provider = config.GOOSE_PROVIDER as string | undefined;
 
-    // read from config
-    try {
-      model = (await read('GOOSE_MODEL', false)) as string;
-      provider = (await read('GOOSE_PROVIDER', false)) as string;
-    } catch {
-      console.error(`Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config`);
-      throw new Error('Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config');
-    }
     if (!model || !provider) {
       console.log('[getCurrentModelAndProvider] Checking app environment as fallback');
       return getFallbackModelAndProvider();
     }
-    return { model: model, provider: provider };
-  }, [read, getFallbackModelAndProvider]);
+    return { model, provider };
+  }, [config.GOOSE_MODEL, config.GOOSE_PROVIDER, getFallbackModelAndProvider]);
 
   const getCurrentModelAndProviderForDisplay = useCallback(async () => {
     const modelProvider = await getCurrentModelAndProvider();
@@ -151,28 +143,29 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   }, [getCurrentModelAndProvider, getProviders]);
 
   const getCurrentModelDisplayName = useCallback(async () => {
-    try {
-      const currentModelName = (await read('GOOSE_MODEL', false)) as string;
+    const currentModelName = config.GOOSE_MODEL as string | undefined;
+    if (currentModelName) {
       return getModelDisplayName(currentModelName);
-    } catch {
-      return 'Select Model';
     }
-  }, [read]);
+    return 'Select Model';
+  }, [config.GOOSE_MODEL]);
 
   const getCurrentProviderDisplayName = useCallback(async () => {
-    try {
-      const currentModelName = (await read('GOOSE_MODEL', false)) as string;
+    const currentModelName = config.GOOSE_MODEL as string | undefined;
+    if (currentModelName) {
       const providerDisplayName = getProviderDisplayName(currentModelName);
       if (providerDisplayName) {
         return providerDisplayName;
       }
-      // Fall back to regular provider display name lookup
+    }
+    // Fall back to regular provider display name lookup
+    try {
       const { provider } = await getCurrentModelAndProviderForDisplay();
       return provider;
     } catch {
       return '';
     }
-  }, [read, getCurrentModelAndProviderForDisplay]);
+  }, [config.GOOSE_MODEL, getCurrentModelAndProviderForDisplay]);
 
   const refreshCurrentModelAndProvider = useCallback(async () => {
     try {

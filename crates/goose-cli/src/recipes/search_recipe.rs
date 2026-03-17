@@ -4,7 +4,6 @@ use goose::recipe::read_recipe_file_content::RecipeFile;
 
 use super::github_recipe::{
     list_github_recipes, retrieve_recipe_from_github, RecipeInfo, RecipeSource,
-    GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY,
 };
 use goose::recipe::local_recipes::{list_local_recipes, load_local_recipe_file};
 
@@ -20,10 +19,7 @@ pub fn load_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
 
 fn configured_github_recipe_repo() -> Option<String> {
     let config = Config::global();
-    match config.get_param(GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY) {
-        Ok(Some(recipe_repo_full_name)) => Some(recipe_repo_full_name),
-        _ => None,
-    }
+    config.get_goose_recipe_github_repo().ok()
 }
 
 /// Lists all available recipes from local paths and GitHub repositories

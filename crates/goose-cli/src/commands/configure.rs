@@ -1,4 +1,3 @@
-use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 use cliclack::spinner;
 use console::style;
 use goose::agents::extension::{ToolInfo, PLATFORM_EXTENSIONS};
@@ -20,13 +19,12 @@ use goose::config::{
     PermissionManager,
 };
 use goose::model::ModelConfig;
-use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
+use goose::posthog::get_telemetry_choice;
 use goose::providers::base::ConfigKey;
 use goose::providers::formats::anthropic::supports_adaptive_thinking;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
-use serde_json::Value;
 use std::collections::HashMap;
 
 // useful for light themes where there is no discernible colour contrast between
@@ -93,7 +91,7 @@ pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
         .initial_value(true)
         .interact()?;
 
-    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+    config.set_goose_telemetry_enabled(enabled)?;
 
     if enabled {
         let _ = cliclack::log::success("Thank you for helping improve goose!");
@@ -1382,7 +1380,7 @@ pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
         .initial_value(current_choice.unwrap_or(true))
         .interact()?;
 
-    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+    config.set_goose_telemetry_enabled(enabled)?;
 
     if enabled {
         cliclack::outro("Telemetry enabled - thank you for helping improve goose!")?;
@@ -1407,15 +1405,15 @@ pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
 
     match tool_log_level {
         "high" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.8)?;
+            config.set_goose_cli_min_priority(0.8)?;
             cliclack::outro("Showing tool output of high importance only.")?;
         }
         "medium" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.2)?;
+            config.set_goose_cli_min_priority(0.2)?;
             cliclack::outro("Showing tool output of medium importance.")?;
         }
         "all" => {
-            config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.0)?;
+            config.set_goose_cli_min_priority(0.0)?;
             cliclack::outro("Showing all tool output.")?;
         }
         _ => unreachable!(),
@@ -1431,7 +1429,7 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
         let _ = cliclack::log::info("Notice: GOOSE_DISABLE_KEYRING environment variable is set and will override the configuration here.");
     }
 
-    let currently_disabled = config.get_param::<String>("GOOSE_DISABLE_KEYRING").is_ok();
+    let currently_disabled = config.get_goose_disable_keyring().is_ok();
 
     let current_status = if currently_disabled {
         "Disabled (using file-based storage)"
@@ -1458,14 +1456,14 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
     match storage_option {
         "keyring" => {
             // Set to empty string to enable keyring (absence or empty = enabled)
-            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("".to_string()))?;
+            config.set_goose_disable_keyring("")?;
             cliclack::outro("Secret storage set to system keyring (secure)")?;
             let _ =
                 cliclack::log::info("You may need to restart goose for this change to take effect");
         }
         "file" => {
             // Set the disable flag to use file storage
-            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("true".to_string()))?;
+            config.set_goose_disable_keyring("true")?;
             cliclack::outro(
                 "Secret storage set to file (~/.config/goose/secrets.yaml). Keep this file secure!",
             )?;
@@ -1689,11 +1687,10 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
 }
 
 fn configure_recipe_dialog() -> anyhow::Result<()> {
-    let key_name = GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
     let config = Config::global();
-    let default_recipe_repo = std::env::var(key_name)
+    let default_recipe_repo = std::env::var("GOOSE_RECIPE_GITHUB_REPO")
         .ok()
-        .or_else(|| config.get_param(key_name).unwrap_or(None));
+        .or_else(|| config.get_goose_recipe_github_repo().ok());
     let mut recipe_repo_input = cliclack::input(
         "Enter your goose recipe GitHub repo (owner/repo): eg: my_org/goose-recipes",
     )
@@ -1702,10 +1699,10 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
         recipe_repo_input = recipe_repo_input.default_input(&recipe_repo);
     }
     let input_value: String = recipe_repo_input.interact()?;
-    if input_value.clone().trim().is_empty() {
-        config.delete(key_name)?;
+    if input_value.trim().is_empty() {
+        config.delete("GOOSE_RECIPE_GITHUB_REPO")?;
     } else {
-        config.set_param(key_name, &input_value)?;
+        config.set_goose_recipe_github_repo(input_value)?;
     }
     Ok(())
 }
@@ -1713,7 +1710,10 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
 pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
-    let current_max_turns: u32 = config.get_param("GOOSE_MAX_TURNS").unwrap_or(1000);
+    let current_max_turns: u32 = config
+        .get_goose_max_turns()
+        .map(|v| v as u32)
+        .unwrap_or(1000);
 
     let max_turns_input: String =
         cliclack::input("Set maximum number of agent turns without user input:")
@@ -1732,7 +1732,7 @@ pub fn configure_max_turns_dialog() -> anyhow::Result<()> {
             .interact()?;
 
     let max_turns: u32 = max_turns_input.parse()?;
-    config.set_param("GOOSE_MAX_TURNS", max_turns)?;
+    config.set_goose_max_turns(max_turns)?;
 
     cliclack::outro(format!(
         "Set maximum turns to {} - goose will ask for input after {} consecutive actions",

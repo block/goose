@@ -7,6 +7,7 @@ import { Save, RotateCcw, FileText, Settings } from 'lucide-react';
 import { toastSuccess, toastError } from '../../../toasts';
 import { getUiNames, providerPrefixes } from '../../../utils/configUtils';
 import type { ConfigData, ConfigValue } from '../../../types/config';
+import type { GooseConfigUpdate } from '../../../api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import {
   Dialog,
@@ -20,7 +21,7 @@ import {
 import { errorMessage } from '../../../utils/conversionUtils';
 
 export default function ConfigSettings() {
-  const { config, upsert } = useConfig();
+  const { config, update } = useConfig();
   const typedConfig = config as ConfigData;
   const [configValues, setConfigValues] = useState<ConfigData>({});
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
@@ -68,7 +69,7 @@ export default function ConfigSettings() {
   const handleSave = async (key: string) => {
     setSaving(key);
     try {
-      await upsert(key, configValues[key], false);
+      await update({ [key]: configValues[key] } as GooseConfigUpdate);
       toastSuccess({
         title: 'Configuration Updated',
         msg: `Successfully saved "${getUiNames(key)}"`,

@@ -33,7 +33,7 @@ export default function ProviderConfigurationModal({
   onConfigured,
 }: ProviderConfigurationModalProps) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const { upsert, remove } = useConfig();
+  const { update } = useConfig();
   const { getCurrentModelAndProvider } = useModelAndProvider();
   const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -117,7 +117,7 @@ export default function ProviderConfigurationModal({
     );
 
     try {
-      await providerConfigSubmitHandler(upsert, provider, toSubmit);
+      await providerConfigSubmitHandler(update, provider, toSubmit);
       if (onConfigured) {
         onConfigured(provider);
       } else {
@@ -161,9 +161,11 @@ export default function ProviderConfigurationModal({
       });
     } else {
       const params = provider.metadata.config_keys;
+      const patch: Record<string, null> = {};
       for (const param of params) {
-        await remove(param.name, param.secret);
+        patch[param.name] = null;
       }
+      await update(patch as import('../../../../api').GooseConfigUpdate);
     }
 
     onClose();

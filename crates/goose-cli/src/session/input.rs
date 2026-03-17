@@ -81,7 +81,7 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
 
 pub fn get_newline_key() -> char {
     Config::global()
-        .get_param::<String>("GOOSE_CLI_NEWLINE_KEY")
+        .get_goose_cli_newline_key()
         .ok()
         .and_then(|s| s.chars().next())
         .map(|c| c.to_ascii_lowercase())

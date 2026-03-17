@@ -48,9 +48,9 @@ pub struct TetrateProvider {
 impl TetrateProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("TETRATE_API_KEY")?;
+        let api_key: String = config.get_tetrate_api_key()?;
         let host: String = config
-            .get_param("TETRATE_HOST")
+            .get_tetrate_host()
             .unwrap_or_else(|_| "https://api.router.tetrate.ai".to_string());
 
         let auth = AuthMethod::BearerToken(api_key);

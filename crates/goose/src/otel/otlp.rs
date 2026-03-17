@@ -83,12 +83,12 @@ pub fn signal_exporter(signal: &str) -> Option<ExporterType> {
 /// Promotes goose config-file OTel settings to env vars before exporter build.
 pub fn promote_config_to_env(config: &crate::config::Config) {
     if env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_err() {
-        if let Ok(endpoint) = config.get_param::<String>("otel_exporter_otlp_endpoint") {
+        if let Ok(endpoint) = config.get_otel_exporter_otlp_endpoint() {
             env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
         }
     }
     if env::var("OTEL_EXPORTER_OTLP_TIMEOUT").is_err() {
-        if let Ok(timeout) = config.get_param::<u64>("otel_exporter_otlp_timeout") {
+        if let Ok(timeout) = config.get_otel_exporter_otlp_timeout() {
             env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", timeout.to_string());
         }
     }

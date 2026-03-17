@@ -68,27 +68,43 @@ impl PromptInjectionScanner {
             ClassifierType::Prompt => "PROMPT",
         };
 
-        let enabled = config
-            .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
-            .unwrap_or(false);
+        let (enabled, model_name, endpoint, token) = match classifier_type {
+            ClassifierType::Command => (
+                config
+                    .get_security_command_classifier_enabled()
+                    .unwrap_or(false),
+                None::<String>, // command classifier doesn't use model name
+                config
+                    .get_security_command_classifier_endpoint()
+                    .ok()
+                    .filter(|s| !s.trim().is_empty()),
+                config
+                    .get_security_command_classifier_token()
+                    .ok()
+                    .filter(|s| !s.trim().is_empty()),
+            ),
+            ClassifierType::Prompt => (
+                config
+                    .get_security_prompt_classifier_enabled()
+                    .unwrap_or(false),
+                config
+                    .get_security_prompt_classifier_model()
+                    .ok()
+                    .filter(|s| !s.trim().is_empty()),
+                config
+                    .get_security_prompt_classifier_endpoint()
+                    .ok()
+                    .filter(|s| !s.trim().is_empty()),
+                config
+                    .get_security_prompt_classifier_token()
+                    .ok()
+                    .filter(|s| !s.trim().is_empty()),
+            ),
+        };
 
         if !enabled {
             anyhow::bail!("{} classifier not enabled", prefix);
         }
-
-        let model_name = config
-            .get_param::<String>(&format!("SECURITY_{}_CLASSIFIER_MODEL", prefix))
-            .ok()
-            .filter(|s| !s.trim().is_empty());
-
-        let endpoint = config
-            .get_param::<String>(&format!("SECURITY_{}_CLASSIFIER_ENDPOINT", prefix))
-            .ok()
-            .filter(|s| !s.trim().is_empty());
-        let token = config
-            .get_secret::<String>(&format!("SECURITY_{}_CLASSIFIER_TOKEN", prefix))
-            .ok()
-            .filter(|s| !s.trim().is_empty());
 
         if let Some(model) = model_name {
             return ClassificationClient::from_model_name(&model, None);
@@ -114,7 +130,7 @@ impl PromptInjectionScanner {
 
     pub fn get_threshold_from_config(&self) -> f32 {
         Config::global()
-            .get_param::<f64>("SECURITY_PROMPT_THRESHOLD")
+            .get_security_prompt_threshold()
             .unwrap_or(0.8) as f32
     }
 

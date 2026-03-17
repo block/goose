@@ -44,7 +44,7 @@ impl SageMakerTgiProvider {
         let config = crate::config::Config::global();
 
         // Get SageMaker endpoint name (just the name, not full URL)
-        let endpoint_name: String = config.get_param("SAGEMAKER_ENDPOINT_NAME").map_err(|_| {
+        let endpoint_name: String = config.get_sagemaker_endpoint_name().map_err(|_| {
             anyhow::anyhow!("SAGEMAKER_ENDPOINT_NAME is required for SageMaker TGI provider")
         })?;
 

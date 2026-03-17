@@ -58,8 +58,8 @@ impl TlsConfig {
         let mut tls_config = TlsConfig::new();
         let mut has_tls_config = false;
 
-        let client_cert_path = config.get_param::<String>("GOOSE_CLIENT_CERT_PATH").ok();
-        let client_key_path = config.get_param::<String>("GOOSE_CLIENT_KEY_PATH").ok();
+        let client_cert_path = config.get_goose_client_cert_path().ok();
+        let client_key_path = config.get_goose_client_key_path().ok();
 
         // Validate that both cert and key are provided if either is provided
         match (client_cert_path, client_key_path) {
@@ -83,7 +83,7 @@ impl TlsConfig {
             (None, None) => {}
         }
 
-        if let Ok(ca_cert_path) = config.get_param::<String>("GOOSE_CA_CERT_PATH") {
+        if let Ok(ca_cert_path) = config.get_goose_ca_cert_path() {
             tls_config = tls_config.with_ca_cert(std::path::PathBuf::from(ca_cert_path));
             has_tls_config = true;
         }

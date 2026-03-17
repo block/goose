@@ -1309,9 +1309,7 @@ impl CliSession {
         let context_limit = model_config.context_limit();
 
         let config = Config::global();
-        let show_cost = config
-            .get_param::<bool>("GOOSE_CLI_SHOW_COST")
-            .unwrap_or(false);
+        let show_cost = config.get_goose_cli_show_cost().unwrap_or(false);
 
         let provider_name = config
             .get_goose_provider()
@@ -1704,7 +1702,7 @@ fn format_logging_notification(
                     Some("response_generated") => {
                         let config = Config::global();
                         let min_priority = config
-                            .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                            .get_goose_cli_min_priority()
                             .ok()
                             .unwrap_or(output::DEFAULT_MIN_PRIORITY);
 
@@ -1768,7 +1766,7 @@ fn display_log_notification(
         } else if ntype == "shell_output" {
             let config = Config::global();
             let min_priority = config
-                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                .get_goose_cli_min_priority()
                 .ok()
                 .unwrap_or(output::DEFAULT_MIN_PRIORITY);
 
@@ -1875,7 +1873,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let config = Config::global();
 
     // Try planner-specific provider first, fall back to default provider
-    let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
+    let provider = if let Ok(provider) = config.get_goose_planner_provider() {
         provider
     } else {
         println!("WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider...");
@@ -1885,7 +1883,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     };
 
     // Try planner-specific model first, fall back to default model
-    let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
+    let model = if let Ok(model) = config.get_goose_planner_model() {
         model
     } else {
         println!("WARNING: GOOSE_PLANNER_MODEL not found. Using default model...");

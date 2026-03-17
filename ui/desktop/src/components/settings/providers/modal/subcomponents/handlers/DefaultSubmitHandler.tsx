@@ -1,11 +1,12 @@
 import { getProviderModels, readConfig } from '../../../../../../api';
+import type { GooseConfigUpdate, GooseConfigResponse } from '../../../../../../api';
 
 /**
  * Standalone function to submit provider configuration
  * Useful for components that don't want to use the hook
  */
 export const providerConfigSubmitHandler = async (
-  upsertFn: (key: string, value: unknown, isSecret: boolean) => Promise<void>,
+  updateFn: (patch: GooseConfigUpdate) => Promise<void>,
   provider: {
     name: string;
     metadata: {
@@ -22,28 +23,19 @@ export const providerConfigSubmitHandler = async (
   const parameters = provider.metadata.config_keys || [];
 
   // Save current NON-SECRET config values for rollback on failure
-  // We skip secrets because readConfig returns masked values for secrets,
-  // and upserting those masked values would corrupt the actual secret
-  const previousConfigValues: Record<string, { value: unknown; isSecret: boolean }> = {};
+  // We skip secrets because readConfig returns null for secrets,
+  // and upserting those null values would corrupt the actual secret
+  let previousConfig: GooseConfigResponse = {};
   const nonSecretParams = parameters.filter((param) => !param.secret);
 
-  await Promise.all(
-    nonSecretParams.map(async (param) => {
-      try {
-        const currentValue = await readConfig({
-          body: { key: param.name, is_secret: false },
-        });
-        if (currentValue.data) {
-          previousConfigValues[param.name] = {
-            value: currentValue.data,
-            isSecret: false,
-          };
-        }
-      } catch {
-        // No previous value exists, that's fine
-      }
-    })
-  );
+  if (nonSecretParams.length > 0) {
+    try {
+      const currentConfig = await readConfig();
+      previousConfig = currentConfig.data ?? {};
+    } catch {
+      // No previous config, that's fine
+    }
+  }
 
   const requiredParams = parameters.filter((param) => param.required);
   if (requiredParams.length === 0 && parameters.length > 0) {
@@ -51,49 +43,37 @@ export const providerConfigSubmitHandler = async (
       (param) => !param.required && param.default !== undefined
     );
     if (allOptionalWithDefaults) {
-      const promises: Promise<void>[] = [];
-
+      const patch: Record<string, unknown> = {};
       for (const param of parameters) {
         if (param.default !== undefined) {
-          const value =
+          patch[param.name] =
             configValues[param.name] !== undefined ? configValues[param.name] : param.default;
-          promises.push(upsertFn(param.name, value, param.secret === true));
         }
       }
-
-      await Promise.all(promises);
+      await updateFn(patch as GooseConfigUpdate);
       return;
     }
   }
 
-  const upsertPromises = parameters.map(
-    async (parameter: {
-      name: string;
-      required?: boolean;
-      default?: unknown;
-      secret?: boolean;
-    }) => {
-      if (!configValues[parameter.name] && !parameter.required) {
-        return;
-      }
-
-      const value =
-        configValues[parameter.name] !== undefined
-          ? configValues[parameter.name]
-          : parameter.default;
-
-      if (value === undefined || value === null) {
-        return;
-      }
-
-      const configKey = `${parameter.name}`;
-      const isSecret = parameter.secret === true;
-
-      await upsertFn(configKey, value, isSecret);
+  const patch: Record<string, unknown> = {};
+  for (const parameter of parameters) {
+    if (!configValues[parameter.name] && !parameter.required) {
+      continue;
     }
-  );
 
-  await Promise.all(upsertPromises);
+    const value =
+      configValues[parameter.name] !== undefined
+        ? configValues[parameter.name]
+        : parameter.default;
+
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    patch[parameter.name] = value;
+  }
+
+  await updateFn(patch as GooseConfigUpdate);
 
   try {
     await getProviderModels({
@@ -101,11 +81,17 @@ export const providerConfigSubmitHandler = async (
       throwOnError: true,
     });
   } catch (error) {
-    const rollbackPromises: Promise<void>[] = [];
-    for (const [key, { value, isSecret }] of Object.entries(previousConfigValues)) {
-      rollbackPromises.push(upsertFn(key, value, isSecret));
+    // Rollback non-secret params to their previous values
+    const rollbackPatch: Record<string, unknown> = {};
+    for (const param of nonSecretParams) {
+      const key = param.name as keyof GooseConfigResponse;
+      if (key in previousConfig) {
+        rollbackPatch[param.name] = previousConfig[key];
+      }
     }
-    await Promise.all(rollbackPromises);
+    if (Object.keys(rollbackPatch).length > 0) {
+      await updateFn(rollbackPatch as GooseConfigUpdate);
+    }
 
     throw error;
   }

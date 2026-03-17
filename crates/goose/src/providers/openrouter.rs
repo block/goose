@@ -50,9 +50,9 @@ impl OpenRouterProvider {
         let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL, OPENROUTER_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
+        let api_key: String = config.get_openrouter_api_key()?;
         let host: String = config
-            .get_param("OPENROUTER_HOST")
+            .get_openrouter_host()
             .unwrap_or_else(|_| "https://openrouter.ai".to_string());
 
         let auth = AuthMethod::BearerToken(api_key);

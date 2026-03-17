@@ -20,7 +20,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [provider, setProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { read, getProviders } = useConfig();
+  const { config, getProviders } = useConfig();
   const {
     getCurrentModelDisplayName,
     getCurrentProviderDisplayName,
@@ -42,7 +42,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
         setProvider(providerDisplayName);
       } else {
         // Fallback to original provider lookup
-        const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
+        const gooseProvider = (config.GOOSE_PROVIDER as string) || '';
         const providers = await getProviders(true);
         const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
 
@@ -62,7 +62,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [read, getProviders, getCurrentModelDisplayName, getCurrentProviderDisplayName]);
+  }, [config, getProviders, getCurrentModelDisplayName, getCurrentProviderDisplayName]);
 
   useEffect(() => {
     loadModelData();
