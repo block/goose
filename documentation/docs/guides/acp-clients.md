@@ -17,8 +17,10 @@ The client manages the goose lifecycle automatically, including:
 
 - **Initialization**: The client runs the `goose acp` command to initialize the connection
 - **Communication**: The client communicates with goose over stdio using JSON-RPC
-- **Multiple Sessions**: The client manages multiple concurrent goose conversations simultaneously
-- **Session Isolation**: Each session maintains its own isolated state, including conversation history, agent context, and extension configurations, allowing concurrent sessions to run without interference
+- **Multiple Sessions**: The client manages multiple concurrent conversations, each with isolated state
+- **Model and Mode Switching**: The client can switch models and modes mid-session without restarting
+- **File Operations**: The client handles file reads and writes, so goose sees changes not yet saved to disk and edits show as native diffs
+- **Terminal**: The client runs commands in its own terminal, so output appears alongside the conversation
 
 :::info Session Persistence
 ACP sessions are saved to goose's session history where you can access and manage them using goose. Access to session history in ACP clients might vary.
@@ -42,7 +44,7 @@ Ensure you have both Zed and goose CLI installed:
 - **Zed**: Download from [zed.dev](https://zed.dev/)
 - **goose CLI**: Follow the [installation guide](/docs/getting-started/installation)
 
-  - ACP support works best with version 1.16.0 or later - check with `goose --version`.
+  - Verify goose is installed: `goose --version`
 
   - Temporarily run `goose acp` to test that ACP support is working:
 
