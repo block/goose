@@ -46,6 +46,9 @@ pub struct DownloadProgress {
     pub eta_seconds: Option<u64>,
     /// Error message if failed
     pub error: Option<String>,
+    /// Whether the background download task has exited
+    #[serde(skip)]
+    pub task_exited: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
@@ -112,6 +115,11 @@ impl DownloadManager {
                 if existing.status == DownloadStatus::Downloading {
                     anyhow::bail!("Download already in progress");
                 }
+                if existing.status == DownloadStatus::Cancelled && !existing.task_exited {
+                    anyhow::bail!(
+                        "Download is being cancelled; wait for it to finish before restarting"
+                    );
+                }
             }
 
             downloads.insert(
@@ -125,6 +133,7 @@ impl DownloadManager {
                     speed_bps: None,
                     eta_seconds: None,
                     error: None,
+                    task_exited: false,
                 },
             );
         }
@@ -150,6 +159,7 @@ impl DownloadManager {
                         if let Some(progress) = downloads.get_mut(&model_id_clone) {
                             progress.status = DownloadStatus::Completed;
                             progress.progress_percent = 100.0;
+                            progress.task_exited = true;
                         }
                     }
 
@@ -166,8 +176,9 @@ impl DownloadManager {
                         if let Some(progress) = downloads.get_mut(&model_id_clone) {
                             if progress.status != DownloadStatus::Cancelled {
                                 progress.status = DownloadStatus::Failed;
-                                progress.error = Some(e.to_string());
                             }
+                            progress.error = Some(e.to_string());
+                            progress.task_exited = true;
                         }
                     }
                 }
@@ -268,10 +279,10 @@ impl DownloadManager {
     pub fn clear_completed(&self, model_id: &str) {
         if let Ok(mut downloads) = self.downloads.lock() {
             if let Some(progress) = downloads.get(model_id) {
-                if progress.status == DownloadStatus::Completed
+                let is_terminal = progress.status == DownloadStatus::Completed
                     || progress.status == DownloadStatus::Failed
-                    || progress.status == DownloadStatus::Cancelled
-                {
+                    || progress.status == DownloadStatus::Cancelled;
+                if is_terminal && progress.task_exited {
                     downloads.remove(model_id);
                 }
             }
