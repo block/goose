@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -39,18 +40,13 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             .content
                             .iter()
                             .filter_map(|c| {
-                                // Extract text from Text content
                                 if let Some(t) = c.as_text() {
                                     return Some(t.text.clone());
                                 }
-                                // Extract text from Resource content (embedded text resources)
                                 if let Some(r) = c.as_resource() {
-                                    if let rmcp::model::ResourceContents::TextResourceContents {
-                                        text,
-                                        ..
-                                    } = &r.resource
-                                    {
-                                        return Some(text.clone());
+                                    let text = extract_text_from_resource(&r.resource);
+                                    if !text.is_empty() {
+                                        return Some(text);
                                     }
                                 }
                                 None

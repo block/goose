@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -137,21 +138,19 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                MessageContent::ToolResponse(tool_response) => {
-                    match &tool_response.tool_result {
-                        Ok(result) => {
-                            let text = result
+                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
+                    Ok(result) => {
+                        let text = result
                             .content
                             .iter()
                             .filter_map(|c| {
-                                // Extract text from Text content
                                 if let Some(t) = c.as_text() {
                                     return Some(t.text.clone());
                                 }
-                                // Extract text from Resource content (embedded text resources)
                                 if let Some(r) = c.as_resource() {
-                                    if let rmcp::model::ResourceContents::TextResourceContents { text, .. } = &r.resource {
-                                        return Some(text.clone());
+                                    let text = extract_text_from_resource(&r.resource);
+                                    if !text.is_empty() {
+                                        return Some(text);
                                     }
                                 }
                                 None
@@ -159,22 +158,21 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             .collect::<Vec<_>>()
                             .join("\n");
 
-                            content.push(json!({
-                                TYPE_FIELD: TOOL_RESULT_TYPE,
-                                TOOL_USE_ID_FIELD: tool_response.id,
-                                CONTENT_FIELD: text
-                            }));
-                        }
-                        Err(tool_error) => {
-                            content.push(json!({
-                                TYPE_FIELD: TOOL_RESULT_TYPE,
-                                TOOL_USE_ID_FIELD: tool_response.id,
-                                CONTENT_FIELD: format!("Error: {}", tool_error),
-                                IS_ERROR_FIELD: true
-                            }));
-                        }
+                        content.push(json!({
+                            TYPE_FIELD: TOOL_RESULT_TYPE,
+                            TOOL_USE_ID_FIELD: tool_response.id,
+                            CONTENT_FIELD: text
+                        }));
                     }
-                }
+                    Err(tool_error) => {
+                        content.push(json!({
+                            TYPE_FIELD: TOOL_RESULT_TYPE,
+                            TOOL_USE_ID_FIELD: tool_response.id,
+                            CONTENT_FIELD: format!("Error: {}", tool_error),
+                            IS_ERROR_FIELD: true
+                        }));
+                    }
+                },
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }

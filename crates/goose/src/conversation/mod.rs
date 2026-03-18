@@ -306,27 +306,18 @@ fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) 
     (filtered_messages, issues)
 }
 
-/// Extracts text from tool result content, handling both Text and Resource content types.
-/// Returns the concatenated text from all content items.
-fn extract_tool_result_text(content: &[Content]) -> String {
-    content
-        .iter()
-        .filter_map(|c| {
-            // First try to get text directly
-            if let Some(text) = c.as_text() {
-                return Some(text.text.clone());
-            }
-            // Then try to get text from embedded resources
-            if let Some(resource) = c.as_resource() {
-                let text = extract_text_from_resource(&resource.resource);
-                if !text.is_empty() {
-                    return Some(text);
-                }
-            }
-            None
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+/// Checks whether tool result content has any meaningful payload.
+/// Text and resources must contain non-empty strings; images are always meaningful.
+fn has_tool_result_content(content: &[Content]) -> bool {
+    content.iter().any(|c| {
+        if let Some(t) = c.as_text() {
+            return !t.text.is_empty();
+        }
+        if let Some(r) = c.as_resource() {
+            return !extract_text_from_resource(&r.resource).is_empty();
+        }
+        c.as_image().is_some()
+    })
 }
 
 /// Fix tool results that would be empty when formatted for LLM APIs.
@@ -341,8 +332,7 @@ fn fix_empty_tool_results(messages: Vec<Message>) -> (Vec<Message>, Vec<String>)
             for content in &mut message.content {
                 if let MessageContent::ToolResponse(ref mut tool_response) = content {
                     if let Ok(ref mut result) = tool_response.tool_result {
-                        let text = extract_tool_result_text(&result.content);
-                        if text.is_empty() {
+                        if !has_tool_result_content(&result.content) {
                             // Add a placeholder text content so the tool result isn't empty
                             result.content.push(Content::text("(empty result)"));
                             issues.push(format!(
