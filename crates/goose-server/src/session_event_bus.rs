@@ -107,6 +107,14 @@ impl SessionEventBus {
         }
     }
 
+    /// Cancel all active requests (e.g. when deleting a session).
+    pub async fn cancel_all_requests(&self) {
+        let requests = self.active_requests.lock().await;
+        for token in requests.values() {
+            token.cancel();
+        }
+    }
+
     /// Remove the cancellation token for a completed request.
     pub async fn cleanup_request(&self, request_id: &str) {
         let mut requests = self.active_requests.lock().await;

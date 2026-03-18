@@ -296,7 +296,11 @@ async fn delete_session(
             }
         })?;
 
-    // Clean up the event bus to free its replay buffer
+    // Cancel any in-flight replies before dropping the bus, so spawned
+    // agent tasks stop consuming tokens for a deleted session.
+    if let Some(bus) = state.get_event_bus(&session_id).await {
+        bus.cancel_all_requests().await;
+    }
     state.remove_event_bus(&session_id).await;
 
     Ok(StatusCode::OK)

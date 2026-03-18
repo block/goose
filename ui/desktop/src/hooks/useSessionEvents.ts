@@ -27,6 +27,8 @@ export function useSessionEvents(sessionId: string) {
     (async () => {
       let retryDelay = 500;
       const MAX_RETRY_DELAY = 10_000;
+      const MAX_CONSECUTIVE_ERRORS = 10;
+      let consecutiveErrors = 0;
       let lastEventId: string | undefined;
 
       while (!abortController.signal.aborted) {
@@ -44,6 +46,7 @@ export function useSessionEvents(sessionId: string) {
 
           setConnected(true);
           retryDelay = 500; // reset on successful connection
+          consecutiveErrors = 0;
 
           for await (const event of stream) {
             if (abortController.signal.aborted) break;
@@ -71,8 +74,28 @@ export function useSessionEvents(sessionId: string) {
           setConnected(false);
         } catch (error) {
           if (abortController.signal.aborted) break;
-          console.warn('SSE connection error, reconnecting:', error);
+          consecutiveErrors++;
+          console.warn(
+            `SSE connection error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}), reconnecting:`,
+            error,
+          );
           setConnected(false);
+
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            console.error('SSE reconnect limit reached, notifying active listeners');
+            // Send an error event to all active listeners so they can
+            // transition out of streaming state.
+            const errorEvent: SessionEvent = {
+              type: 'Error',
+              error: 'Lost connection to server',
+            } as SessionEvent;
+            for (const [routingId, handlers] of listenersRef.current) {
+              for (const handler of handlers) {
+                handler({ ...errorEvent, request_id: routingId, chat_request_id: routingId });
+              }
+            }
+            break;
+          }
 
           // Back off before retrying
           await new Promise((r) => setTimeout(r, retryDelay));
