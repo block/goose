@@ -476,12 +476,19 @@ export function useChatStream({
       throwOnError: true,
     }).then((response) => {
       const session = response.data as Session;
-      if (session?.conversation) {
-        dispatch({ type: 'SET_MESSAGES', payload: session.conversation });
+      const messages = session?.conversation || [];
+      if (messages.length > 0) {
+        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      }
+      reloadingConversationRef.current = false;
+      // If ActiveRequests arrived during the reload, complete the
+      // deferred reattach now that we have fresh messages.
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, messages);
       }
     }).catch((e) => {
       console.warn('Failed to reload conversation after buffer overflow:', e);
-    }).finally(() => {
       reloadingConversationRef.current = false;
     });
   }, [sessionId]);
@@ -558,8 +565,6 @@ export function useChatStream({
     setActiveRequestsHandler((requestIds: string[]) => {
       // Only reattach if we don't already have an active request
       if (activeRequestIdRef.current) return;
-      // Don't reattach while reloading after buffer overflow
-      if (reloadingConversationRef.current) return;
       if (requestIds.length === 0) return;
 
       // Reattach to the most recent active request (uuidv7 is time-ordered,
@@ -569,10 +574,11 @@ export function useChatStream({
       const requestId = sorted[sorted.length - 1];
       const currentMessages = stateRef.current.messages;
 
-      if (currentMessages.length === 0) {
-        // Cold mount: resumeAgent hasn't populated messages yet.
-        // Defer event processing until session load completes so the
-        // processor starts with the full conversation history.
+      if (currentMessages.length === 0 || reloadingConversationRef.current) {
+        // Either cold mount (resumeAgent hasn't populated messages) or
+        // overflow reload (getSession is replacing stale messages).
+        // Defer event processing until the load completes so the
+        // processor starts with the correct conversation history.
         // Register a buffering listener NOW so replayed events aren't
         // lost while we wait.
         pendingReattachRequestIdRef.current = requestId;
