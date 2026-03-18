@@ -699,4 +699,112 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
         }
     }
+
+    mod active_reply_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_chat_request_deserializes_without_reply_id() {
+            let json = r#"{
+                "user_message": {"role": "user", "created": 0, "content": [{"type": "text", "text": "hello"}], "metadata": {"userVisible": true, "agentVisible": true}},
+                "session_id": "test-session"
+            }"#;
+            let request: ChatRequest = serde_json::from_str(json).unwrap();
+            assert!(request.reply_id.is_none());
+            assert_eq!(request.session_id, "test-session");
+        }
+
+        #[tokio::test]
+        async fn test_chat_request_deserializes_with_reply_id() {
+            let json = r#"{
+                "user_message": {"role": "user", "created": 0, "content": [{"type": "text", "text": "hello"}], "metadata": {"userVisible": true, "agentVisible": true}},
+                "session_id": "test-session",
+                "reply_id": "abc-123"
+            }"#;
+            let request: ChatRequest = serde_json::from_str(json).unwrap();
+            assert_eq!(request.reply_id, Some("abc-123".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_chat_request_deserializes_with_null_reply_id() {
+            let json = r#"{
+                "user_message": {"role": "user", "created": 0, "content": [{"type": "text", "text": "hello"}], "metadata": {"userVisible": true, "agentVisible": true}},
+                "session_id": "test-session",
+                "reply_id": null
+            }"#;
+            let request: ChatRequest = serde_json::from_str(json).unwrap();
+            assert!(request.reply_id.is_none());
+        }
+
+        #[tokio::test]
+        async fn test_active_reply_buffers_events() {
+            let cancel_token = CancellationToken::new();
+            let ar = ActiveReply::new(cancel_token);
+
+            // Simulate buffering events
+            let event_id = ar.next_event_id.fetch_add(1, Ordering::Relaxed);
+            let buffered = BufferedEvent {
+                id: event_id,
+                json: r#"{"type":"Ping"}"#.to_string(),
+            };
+            ar.event_buffer.write().await.push(buffered.clone());
+            let _ = ar.event_tx.send(buffered);
+
+            let event_id = ar.next_event_id.fetch_add(1, Ordering::Relaxed);
+            let buffered = BufferedEvent {
+                id: event_id,
+                json: r#"{"type":"Message","message":{},"token_state":{}}"#.to_string(),
+            };
+            ar.event_buffer.write().await.push(buffered.clone());
+            let _ = ar.event_tx.send(buffered);
+
+            // Verify buffer contents
+            let buffer = ar.event_buffer.read().await;
+            assert_eq!(buffer.len(), 2);
+            assert_eq!(buffer[0].id, 0);
+            assert_eq!(buffer[1].id, 1);
+        }
+
+        #[tokio::test]
+        async fn test_active_reply_finished_flag() {
+            let cancel_token = CancellationToken::new();
+            let ar = ActiveReply::new(cancel_token);
+
+            assert!(!*ar.finished.read().await);
+            *ar.finished.write().await = true;
+            assert!(*ar.finished.read().await);
+        }
+
+        #[tokio::test]
+        async fn test_active_reply_broadcast_reaches_subscriber() {
+            let cancel_token = CancellationToken::new();
+            let ar = ActiveReply::new(cancel_token);
+
+            let mut rx = ar.event_tx.subscribe();
+
+            let buffered = BufferedEvent {
+                id: 0,
+                json: r#"{"type":"Ping"}"#.to_string(),
+            };
+            let _ = ar.event_tx.send(buffered.clone());
+
+            let received = rx.recv().await.unwrap();
+            assert_eq!(received.id, 0);
+            assert_eq!(received.json, r#"{"type":"Ping"}"#);
+        }
+
+        #[tokio::test]
+        async fn test_event_id_monotonically_increases() {
+            let cancel_token = CancellationToken::new();
+            let ar = ActiveReply::new(cancel_token);
+
+            let id1 = ar.next_event_id.fetch_add(1, Ordering::Relaxed);
+            let id2 = ar.next_event_id.fetch_add(1, Ordering::Relaxed);
+            let id3 = ar.next_event_id.fetch_add(1, Ordering::Relaxed);
+
+            assert_eq!(id1, 0);
+            assert_eq!(id2, 1);
+            assert_eq!(id3, 2);
+        }
+    }
 }

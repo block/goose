@@ -68,6 +68,12 @@ export type ChatRequest = {
     override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
+    /**
+     * Client-generated idempotency key. If provided, duplicate submissions
+     * with the same (session_id, reply_id) will reconnect to the in-flight
+     * reply instead of starting a new turn.
+     */
+    reply_id?: string | null;
     session_id: string;
     user_message: Message;
 };

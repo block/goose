@@ -28,6 +28,17 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
+/**
+ * Generate a unique reply ID for idempotent turn submission.
+ * Uses crypto.randomUUID when available, falls back to timestamp + random.
+ */
+function generateReplyId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
 interface UseChatStreamProps {
@@ -617,14 +628,18 @@ export function useChatStream({
       abortControllerRef.current = new AbortController();
 
       try {
+        const replyId = generateReplyId();
         const { stream } = await reply({
           body: {
             session_id: sessionId,
             user_message: newMessage,
+            reply_id: replyId,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
-          sseMaxRetryAttempts: 0,
+          // Safe to retry with reply_id: duplicate submissions reconnect to the
+          // in-flight reply instead of starting a new agent turn.
+          sseMaxRetryAttempts: 3,
         });
 
         await streamFromResponse(
@@ -666,14 +681,18 @@ export function useChatStream({
       abortControllerRef.current = new AbortController();
 
       try {
+        const replyId = generateReplyId();
         const { stream } = await reply({
           body: {
             session_id: sessionId,
             user_message: responseMessage,
+            reply_id: replyId,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
-          sseMaxRetryAttempts: 0,
+          // Safe to retry with reply_id: duplicate submissions reconnect to the
+          // in-flight reply instead of starting a new agent turn.
+          sseMaxRetryAttempts: 3,
         });
 
         await streamFromResponse(
@@ -813,14 +832,18 @@ export function useChatStream({
             abortControllerRef.current = new AbortController();
 
             try {
+              const replyId = generateReplyId();
               const { stream } = await reply({
                 body: {
                   session_id: targetSessionId,
                   user_message: updatedUserMessage,
+                  reply_id: replyId,
                 },
                 throwOnError: true,
                 signal: abortControllerRef.current.signal,
-                sseMaxRetryAttempts: 0,
+                // Safe to retry with reply_id: duplicate submissions reconnect to the
+                // in-flight reply instead of starting a new agent turn.
+                sseMaxRetryAttempts: 3,
               });
 
               await streamFromResponse(

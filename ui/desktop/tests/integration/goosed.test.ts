@@ -287,6 +287,117 @@ extensions:
         },
       });
     });
+
+    it('should reconnect to in-flight reply with same reply_id', async () => {
+      // Start a session
+      const startResponse = await startAgent({
+        client: ctx.client,
+        body: {
+          working_dir: os.tmpdir(),
+        },
+      });
+      expect(startResponse.response).toBeOkResponse();
+      const sessionId = startResponse.data!.id;
+
+      const replyId = `test-${Date.now()}`;
+      const abortController1 = new AbortController();
+
+      // First request: start a reply with a reply_id
+      const { stream: stream1 } = await reply({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+          user_message: {
+            role: 'user',
+            created: Math.floor(Date.now() / 1000),
+            content: [
+              {
+                type: 'text',
+                text: 'Say exactly: "hello world"',
+              },
+            ],
+            metadata: {
+              userVisible: true,
+              agentVisible: true,
+            },
+          },
+          reply_id: replyId,
+        },
+        throwOnError: true,
+        signal: abortController1.signal,
+      });
+
+      // Read a few events from the first stream, then abort (simulating disconnect)
+      let firstStreamEventCount = 0;
+      const timeout1 = setTimeout(() => abortController1.abort(), 500);
+      try {
+        for await (const event of stream1) {
+          firstStreamEventCount++;
+          if (firstStreamEventCount >= 2) {
+            abortController1.abort();
+            break;
+          }
+        }
+      } catch {
+        // Expected abort
+      }
+      clearTimeout(timeout1);
+
+      // Second request: reconnect with the SAME reply_id
+      const abortController2 = new AbortController();
+      const { stream: stream2 } = await reply({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+          user_message: {
+            role: 'user',
+            created: Math.floor(Date.now() / 1000),
+            content: [
+              {
+                type: 'text',
+                text: 'Say exactly: "hello world"',
+              },
+            ],
+            metadata: {
+              userVisible: true,
+              agentVisible: true,
+            },
+          },
+          reply_id: replyId,
+        },
+        throwOnError: true,
+        signal: abortController2.signal,
+      });
+
+      // The second stream should replay buffered events + continue
+      let reconnectEventCount = 0;
+      const timeout2 = setTimeout(() => abortController2.abort(), 5000);
+      try {
+        for await (const event of stream2) {
+          reconnectEventCount++;
+          // We should get at least the replayed events
+          expect(event).toBeDefined();
+          if (reconnectEventCount >= firstStreamEventCount) {
+            abortController2.abort();
+            break;
+          }
+        }
+      } catch {
+        // Expected abort
+      }
+      clearTimeout(timeout2);
+
+      // The reconnected stream should have received at least as many events
+      // as the first stream saw (replayed from buffer)
+      expect(reconnectEventCount).toBeGreaterThanOrEqual(firstStreamEventCount);
+
+      await stopAgent({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+        },
+      });
+    });
   });
 
   describe('the developer tool', () => {

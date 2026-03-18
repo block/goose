@@ -3997,6 +3997,11 @@
             "type": "string",
             "nullable": true
           },
+          "reply_id": {
+            "type": "string",
+            "description": "Client-generated idempotency key. If provided, duplicate submissions\nwith the same (session_id, reply_id) will reconnect to the in-flight\nreply instead of starting a new turn.",
+            "nullable": true
+          },
           "session_id": {
             "type": "string"
           },
