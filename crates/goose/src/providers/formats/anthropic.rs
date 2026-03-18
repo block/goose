@@ -573,11 +573,12 @@ where
             let line = line_result?;
 
             // Skip empty lines and non-data lines
-            if line.trim().is_empty() || !line.starts_with("data: ") {
+            // Note: SSE spec allows both "data: value" and "data:value" (space is optional)
+            if line.trim().is_empty() || !line.starts_with("data:") {
                 continue;
             }
 
-            let data_part = line.strip_prefix("data: ").unwrap_or(&line);
+            let data_part = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:")).unwrap_or(&line);
 
             // Handle end of stream
             if data_part.trim() == "[DONE]" {

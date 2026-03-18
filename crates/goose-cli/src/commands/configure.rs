@@ -316,7 +316,7 @@ async fn handle_existing_config() -> anyhow::Result<()> {
         "remove" => remove_extension_dialog(),
         "settings" => configure_settings_dialog().await,
         "providers" => configure_provider_dialog().await.map(|_| ()),
-        "custom_providers" => configure_custom_provider_dialog(),
+        "custom_providers" => configure_custom_provider_dialog().await,
         _ => unreachable!(),
     }
 }
@@ -2046,7 +2046,7 @@ fn add_provider() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn remove_provider() -> anyhow::Result<()> {
+async fn remove_provider() -> anyhow::Result<()> {
     let custom_providers_dir = goose::config::declarative_providers::custom_providers_dir();
     let custom_providers = if custom_providers_dir.exists() {
         goose::config::declarative_providers::load_custom_providers(&custom_providers_dir)?
@@ -2069,12 +2069,17 @@ fn remove_provider() -> anyhow::Result<()> {
         .filter_mode()
         .interact()?;
 
+    // Clean up provider-specific cache files (e.g., OAuth tokens) before removing config
+    if let Err(e) = goose::providers::cleanup_provider(selected_id).await {
+        tracing::warn!("Failed to clean up provider cache: {}", e);
+    }
+
     remove_custom_provider(selected_id)?;
     cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
     Ok(())
 }
 
-pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
+pub async fn configure_custom_provider_dialog() -> anyhow::Result<()> {
     let action = cliclack::select("What would you like to do?")
         .item(
             "add",
@@ -2090,7 +2095,7 @@ pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
 
     match action {
         "add" => add_provider(),
-        "remove" => remove_provider(),
+        "remove" => remove_provider().await,
         _ => unreachable!(),
     }?;
 

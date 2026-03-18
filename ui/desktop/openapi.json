@@ -1383,6 +1383,40 @@
         }
       }
     },
+    "/config/providers/{name}/cleanup": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "cleanup_provider_cache",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., githubcopilot)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider cache cleaned up successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers/{name}/models": {
       "get": {
         "tags": [
