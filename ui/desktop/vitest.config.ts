@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import { resolve } from 'node:path'
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'node:path';
 
 const cfg = {
   plugins: [react()],
@@ -15,8 +15,11 @@ const cfg = {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: true,
-    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    include: [
+      'src/**/*.{test,spec}.{js,jsx,ts,tsx}',
+      'tests/integration/**/*.{test,spec}.{js,jsx,ts,tsx}',
+    ],
   },
-} satisfies Record<string, any>
+} satisfies Record<string, any>;
 
-export default defineConfig(cfg as any)
+export default defineConfig(cfg as any);
