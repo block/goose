@@ -453,6 +453,18 @@ export function useChatStream({
   // Reload the full conversation from the server, e.g. after the SSE
   // stream indicates the client fell too far behind the replay buffer.
   const reloadConversation = useCallback(() => {
+    // Clear active request state so the SSE reconnect doesn't reattach
+    // to the same request and replay buffered deltas on top of the
+    // freshly-loaded conversation.
+    if (activeUnsubscribeRef.current) {
+      activeUnsubscribeRef.current();
+      activeUnsubscribeRef.current = null;
+    }
+    activeRequestIdRef.current = null;
+    activeRequestSessionIdRef.current = null;
+    pendingReattachRequestIdRef.current = null;
+    pendingReattachBufferRef.current = [];
+
     getSession({
       path: { session_id: sessionId },
       throwOnError: true,
@@ -540,9 +552,11 @@ export function useChatStream({
       if (activeRequestIdRef.current) return;
       if (requestIds.length === 0) return;
 
-      // Reattach to the first (most recent) active request.
+      // Reattach to the most recent active request (uuidv7 is time-ordered,
+      // so the lexicographically largest ID is the newest).
       // Multiple concurrent requests per session aren't supported in the UI.
-      const requestId = requestIds[0];
+      const sorted = [...requestIds].sort();
+      const requestId = sorted[sorted.length - 1];
       const currentMessages = stateRef.current.messages;
 
       if (currentMessages.length === 0) {
@@ -778,6 +792,17 @@ export function useChatStream({
 
     return () => {
       cancelled = true;
+      // Reset request-tracking state so the previous session's in-flight
+      // request doesn't leak into the next session.
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
+      }
+      activeRequestIdRef.current = null;
+      activeRequestSessionIdRef.current = null;
+      activeAbortRef.current = null;
+      pendingReattachRequestIdRef.current = null;
+      pendingReattachBufferRef.current = [];
     };
   }, [sessionId, onSessionLoaded]);
 
