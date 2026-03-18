@@ -1,5 +1,7 @@
 use std::sync::{Arc, RwLock};
 
+#[cfg(feature = "local-inference")]
+use super::local_inference::LocalInferenceProvider;
 use super::{
     anthropic::AnthropicProvider,
     avian::AvianProvider,
@@ -30,8 +32,6 @@ use super::{
     venice::VeniceProvider,
     xai::XaiProvider,
 };
-#[cfg(feature = "local-inference")]
-use super::local_inference::LocalInferenceProvider;
 use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
