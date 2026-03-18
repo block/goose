@@ -1185,20 +1185,6 @@ impl Agent {
                     break;
                 }
 
-                let current_turn_tool_count = conversation.messages().iter()
-                    .flat_map(|m| m.content.iter())
-                    .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-                    .count()
-                    .saturating_sub(pre_turn_tool_count);
-
-                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
-                    self.provider().await?,
-                    session_config.id.clone(),
-                    conversation.clone(),
-                    tool_call_cut_off,
-                    current_turn_tool_count,
-                );
-
                 let conversation_with_moim = super::moim::inject_moim(
                     &session_config.id,
                     conversation.clone(),
@@ -1214,6 +1200,20 @@ impl Agent {
                     &tools,
                     &toolshim_tools,
                 ).await?;
+
+                let current_turn_tool_count = conversation.messages().iter()
+                    .flat_map(|m| m.content.iter())
+                    .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+                    .count()
+                    .saturating_sub(pre_turn_tool_count);
+
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
+                    self.provider().await?,
+                    session_config.id.clone(),
+                    conversation.clone(),
+                    tool_call_cut_off,
+                    current_turn_tool_count,
+                );
 
                 let mut no_tools_called = true;
                 let mut messages_to_add = Conversation::default();
@@ -1669,6 +1669,10 @@ impl Agent {
                             }
                         }
                     }
+                }
+
+                if is_token_cancelled(&cancel_token) {
+                    tool_pair_summarization_task.abort();
                 }
 
                 if let Ok(summaries) = tool_pair_summarization_task.await {
