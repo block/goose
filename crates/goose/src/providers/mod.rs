@@ -25,7 +25,6 @@ pub mod gemini_cli;
 pub mod githubcopilot;
 pub mod google;
 mod init;
-pub mod lead_worker;
 pub mod litellm;
 pub mod local_inference;
 pub mod nanogpt;

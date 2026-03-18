@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use super::streaming_buffer::MarkdownBuffer;
@@ -1251,7 +1251,6 @@ pub fn display_session_info(
     provider: &str,
     model: &str,
     session_id: &Option<String>,
-    provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
     set_terminal_title();
 
@@ -1263,16 +1262,7 @@ pub fn display_session_info(
         "new session"
     };
 
-    let model_display = if let Some(provider_inst) = provider_instance {
-        if let Some(lead_worker) = provider_inst.as_lead_worker() {
-            let (lead_model, worker_model) = lead_worker.get_model_info();
-            format!("{} → {}", lead_model, worker_model)
-        } else {
-            model.to_string()
-        }
-    } else {
-        model.to_string()
-    };
+    let model_display = model.to_string();
 
     let cwd_display = std::env::current_dir()
         .ok()

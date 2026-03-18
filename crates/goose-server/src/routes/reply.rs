@@ -137,10 +137,6 @@ pub enum MessageEvent {
         reason: String,
         token_state: TokenState,
     },
-    ModelChange {
-        model: String,
-        mode: String,
-    },
     Notification {
         request_id: String,
         #[schema(value_type = Object)]
@@ -358,9 +354,6 @@ pub async fn reply(
                             all_messages = new_messages.clone();
                             stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
 
-                        }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
                             stream_event(MessageEvent::Notification{

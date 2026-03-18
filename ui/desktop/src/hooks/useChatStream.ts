@@ -304,9 +304,6 @@ async function streamFromResponse(
           onFinish();
           return;
         }
-        case 'ModelChange': {
-          break;
-        }
         case 'UpdateConversation': {
           currentMessages = event.conversation;
           if (!reduceMotion) {
