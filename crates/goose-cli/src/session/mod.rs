@@ -1070,6 +1070,9 @@ impl CliSession {
                         Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
                             self.messages = updated_conversation;
                         }
+                        Some(Ok(AgentEvent::ContextUsage { used_tokens, total_tokens })) => {
+                            progress_bars.update_context(used_tokens, total_tokens);
+                        }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             if is_stream_json_mode {
                                 emit_stream_event(&StreamEvent::ModelChange { model: model.clone(), mode: mode.clone() });
@@ -1105,6 +1108,8 @@ impl CliSession {
                 }
             }
         }
+
+        let _ = progress_bars.hide_all();
 
         if !is_json_mode && !is_stream_json_mode {
             output::flush_markdown_buffer_current_theme(&mut markdown_buffer);

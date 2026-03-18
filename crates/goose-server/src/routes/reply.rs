@@ -368,6 +368,7 @@ pub async fn reply(
                                 message: n,
                             }, &tx, &cancel_token).await;
                         }
+                        Ok(Some(Ok(AgentEvent::ContextUsage { .. }))) => {}
 
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
