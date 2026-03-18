@@ -462,13 +462,6 @@ pub async fn session_reply(
                             )
                             .await;
                         }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            publish(
-                                Some(task_request_id.clone()),
-                                MessageEvent::ModelChange { model, mode },
-                            )
-                            .await;
-                        }
                         Ok(Some(Ok(AgentEvent::McpNotification((notification_request_id, n))))) => {
                             publish(
                                 Some(task_request_id.clone()),
