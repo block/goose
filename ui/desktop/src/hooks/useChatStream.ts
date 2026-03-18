@@ -362,11 +362,16 @@ export function useChatStream({
   const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
   const lastInteractionTimeRef = useRef<number>(Date.now());
+  // When ActiveRequests fires before resumeAgent populates messages (cold mount),
+  // defer the reattach until the session is loaded so the event processor has
+  // the full conversation history.
+  const pendingReattachRequestIdRef = useRef<string | null>(null);
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
+  const doReattachRef = useRef<((requestId: string, messages: Message[]) => void) | null>(null);
 
   useEffect(() => {
     return () => {
@@ -460,28 +465,19 @@ export function useChatStream({
     });
   }, [sessionId]);
 
-  // Reattach to in-flight replies discovered via the SSE ActiveRequests event.
-  // This handles the case where the chat view remounts while a reply is still
-  // running on the server — the new hook instance picks up the existing request
-  // and starts processing its events.
-  useEffect(() => {
-    setActiveRequestsHandler((requestIds: string[]) => {
-      // Only reattach if we don't already have an active request
-      if (activeRequestIdRef.current) return;
-      if (requestIds.length === 0) return;
-
-      // Reattach to the first (most recent) active request.
-      // Multiple concurrent requests per session aren't supported in the UI.
-      const requestId = requestIds[0];
-      const currentMessages = stateRef.current.messages;
-
+  // Perform the actual reattach: wire up an event processor and listener
+  // for a request that is already in-flight on the server.
+  const doReattach = useCallback(
+    (requestId: string, messages: Message[]) => {
       activeRequestIdRef.current = requestId;
       activeRequestSessionIdRef.current = sessionId;
+      pendingReattachRequestIdRef.current = null;
 
       dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+      dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
 
       const processEvent = createEventProcessor(
-        currentMessages,
+        messages,
         dispatch,
         onFinish,
         sessionId,
@@ -500,12 +496,45 @@ export function useChatStream({
         }
       });
       activeUnsubscribeRef.current = unsubscribe;
+    },
+    [sessionId, addListener, onFinish, reloadConversation],
+  );
+  doReattachRef.current = doReattach;
+
+  // Reattach to in-flight replies discovered via the SSE ActiveRequests event.
+  // This handles the case where the chat view remounts while a reply is still
+  // running on the server — the new hook instance picks up the existing request
+  // and starts processing its events.
+  useEffect(() => {
+    setActiveRequestsHandler((requestIds: string[]) => {
+      // Only reattach if we don't already have an active request
+      if (activeRequestIdRef.current) return;
+      if (requestIds.length === 0) return;
+
+      // Reattach to the first (most recent) active request.
+      // Multiple concurrent requests per session aren't supported in the UI.
+      const requestId = requestIds[0];
+      const currentMessages = stateRef.current.messages;
+
+      if (currentMessages.length === 0) {
+        // Cold mount: resumeAgent hasn't populated messages yet.
+        // Defer reattach until session load completes so the event
+        // processor starts with the full conversation history.
+        pendingReattachRequestIdRef.current = requestId;
+        activeRequestIdRef.current = requestId;
+        activeRequestSessionIdRef.current = sessionId;
+        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+        dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+        return;
+      }
+
+      doReattach(requestId, currentMessages);
     });
 
     return () => {
       setActiveRequestsHandler(null);
     };
-  }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler]);
+  }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
 
   /**
    * Submit a message via the new POST+SSE pattern.
@@ -633,14 +662,34 @@ export function useChatStream({
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
 
-        // If an in-flight reply was reattached via ActiveRequests while
-        // resumeAgent was in flight, the event processor has already been
-        // updating messages with fresh streaming content. Only load the
-        // session metadata — don't overwrite messages with the stale DB
-        // snapshot.
+        const pendingRequestId = pendingReattachRequestIdRef.current;
         const reattachedToActiveRequest = activeRequestIdRef.current !== null;
 
-        if (reattachedToActiveRequest) {
+        if (pendingRequestId) {
+          // Cold-mount reattach: ActiveRequests arrived before resumeAgent
+          // returned. Load session state first, then complete the reattach
+          // with the full conversation so the event processor has context.
+          dispatch({
+            type: 'SESSION_LOADED',
+            payload: {
+              session: loadedSession!,
+              messages: loadedSession?.conversation || [],
+              tokenState: {
+                inputTokens: loadedSession?.input_tokens ?? 0,
+                outputTokens: loadedSession?.output_tokens ?? 0,
+                totalTokens: loadedSession?.total_tokens ?? 0,
+                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
+                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
+                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+              },
+            },
+          });
+          // Now complete the deferred reattach with the loaded messages
+          doReattachRef.current?.(pendingRequestId, loadedSession?.conversation || []);
+        } else if (reattachedToActiveRequest) {
+          // ActiveRequests already wired up an event processor with existing
+          // messages — only load session metadata, don't overwrite messages
+          // with the stale DB snapshot.
           dispatch({ type: 'SET_SESSION', payload: loadedSession });
           dispatch({
             type: 'SET_TOKEN_STATE',
