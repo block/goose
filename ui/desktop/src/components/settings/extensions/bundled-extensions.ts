@@ -39,20 +39,26 @@ export async function syncBundledExtensions(
     // Cast the imported JSON data to the expected type
     const bundledExtensions = bundledExtensionsData as BundledExtension[];
 
-    for (let i = existingExtensions.length - 1; i >= 0; i--) {
-      const ext = existingExtensions[i];
-      if (ext.type == 'builtin' && DEPRECATED_BUILTINS.includes(ext.name)) {
-        existingExtensions.splice(i, 1);
-      }
-    }
-
     // Process each bundled extension
     for (const bundledExt of bundledExtensions) {
       // Find if this extension already exists
       const existingExt = existingExtensions.find((ext) => nameToKey(ext.name) === bundledExt.id);
 
-      // Skip if extension exists and is already marked as bundled
-      if (existingExt && 'bundled' in existingExt && existingExt.bundled) continue;
+      const existingExtIsDeprecatedBuiltin =
+        !!existingExt &&
+        existingExt.type === 'builtin' &&
+        DEPRECATED_BUILTINS.includes(nameToKey(existingExt.name));
+
+      // Skip if extension exists and is already marked as bundled, except when
+      // we must migrate deprecated builtin extensions (e.g. Google Drive) to stdio.
+      if (
+        existingExt &&
+        'bundled' in existingExt &&
+        existingExt.bundled &&
+        !existingExtIsDeprecatedBuiltin
+      ) {
+        continue;
+      }
 
       // Create the config for this extension
       let extConfig: ExtensionConfig;
