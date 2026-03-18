@@ -230,8 +230,14 @@ goose 需要依赖[支持的 LLM providers](/zh-CN/docs/getting-started/provider
    └  Configuration saved successfully
    ```
    <RateLimits
-     title="Provider rate limits"
-     description="不同 provider 的限流策略差异很大。如果你频繁遇到速率限制，可以换一个模型，或切到有自动故障切换的 provider。"
+     title="Provider 速率限制"
+     providerLinkText="不同 provider"
+     providerLinkHref="/zh-CN/docs/getting-started/providers"
+     providerText=" 的限流策略差异很大。开始时可以先选择你最熟悉、也最稳定的 provider。"
+     rateLimitsText="如果你频繁遇到速率限制，可以参考"
+     guideLinkText="处理速率限制"
+     guideHref="/zh-CN/docs/guides/handling-llm-rate-limits-with-goose"
+     guideText="这篇指南，或者切换模型，或改用支持自动故障切换的 provider。"
    />
    <ModelSelectionTip
      title="模型选择建议"
