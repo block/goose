@@ -235,17 +235,28 @@ Hooks live in `.goose/settings.json` inside the nest. They fire when goose start
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./build-catalog"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-| Hook | When | Injects |
-|------|------|---------|
-| `SessionStart` | Session begins | TOP_OF_MIND.md (working state) + NEST.md (conventions) + CATALOG.md (full index) |
-| `PostCompact` | After compaction | TOP_OF_MIND.md + NEST.md (working state + conventions — no full catalog) |
+| Hook | When | What |
+|------|------|------|
+| `SessionStart` | Session begins | Injects TOP_OF_MIND.md + NEST.md + CATALOG.md |
+| `PostCompact` | After compaction | Re-injects TOP_OF_MIND.md + NEST.md (no catalog — save context) |
+| `SessionEnd` | Session terminates | Runs `./build-catalog` to regenerate the index |
 
-Injection order matters: TOP_OF_MIND.md first (most relevant to this session), then NEST.md (how the nest works), then CATALOG.md (what exists). PostCompact skips CATALOG.md to save context space.
+Injection order matters: TOP_OF_MIND.md first (most relevant), then NEST.md (conventions), then CATALOG.md (index). PostCompact skips CATALOG.md to save context space. SessionEnd rebuilds the catalog so the next session always starts with a fresh index — even if the agent forgot to run it manually.
 
 ## Bootstrap
 
@@ -366,6 +377,16 @@ cat > "$NEST/.goose/settings.json" << 'EOF'
           {
             "type": "command",
             "command": "cat TOP_OF_MIND.md && echo '---' && cat NEST.md"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./build-catalog"
           }
         ]
       }
