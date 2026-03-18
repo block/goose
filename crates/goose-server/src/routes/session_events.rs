@@ -184,10 +184,8 @@ pub async fn session_events(
             let event = MessageEvent::ActiveRequests {
                 request_ids: active_ids,
             };
-            let json_str = serde_json::to_string(
-                &serde_json::to_value(&event).unwrap_or_default(),
-            )
-            .unwrap_or_default();
+            let json_str = serde_json::to_string(&serde_json::to_value(&event).unwrap_or_default())
+                .unwrap_or_default();
             let frame = format!("data: {}\n\n", json_str);
             if tx.send(frame).await.is_err() {
                 return;
