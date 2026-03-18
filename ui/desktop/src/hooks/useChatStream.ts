@@ -367,6 +367,10 @@ export function useChatStream({
   // the full conversation history. Events are buffered in the meantime.
   const pendingReattachRequestIdRef = useRef<string | null>(null);
   const pendingReattachBufferRef = useRef<SessionEvent[]>([]);
+  // Suppress ActiveRequests reattach while reloading conversation after
+  // buffer overflow — the reload replaces messages and we don't want the
+  // SSE reconnect to reattach with stale state before that completes.
+  const reloadingConversationRef = useRef(false);
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to access latest state in callbacks (avoids stale closures)
@@ -464,6 +468,8 @@ export function useChatStream({
     activeRequestSessionIdRef.current = null;
     pendingReattachRequestIdRef.current = null;
     pendingReattachBufferRef.current = [];
+    // Suppress reattach until the reload completes
+    reloadingConversationRef.current = true;
 
     getSession({
       path: { session_id: sessionId },
@@ -475,6 +481,8 @@ export function useChatStream({
       }
     }).catch((e) => {
       console.warn('Failed to reload conversation after buffer overflow:', e);
+    }).finally(() => {
+      reloadingConversationRef.current = false;
     });
   }, [sessionId]);
 
@@ -550,6 +558,8 @@ export function useChatStream({
     setActiveRequestsHandler((requestIds: string[]) => {
       // Only reattach if we don't already have an active request
       if (activeRequestIdRef.current) return;
+      // Don't reattach while reloading after buffer overflow
+      if (reloadingConversationRef.current) return;
       if (requestIds.length === 0) return;
 
       // Reattach to the most recent active request (uuidv7 is time-ordered,
@@ -665,6 +675,24 @@ export function useChatStream({
     },
     [addListener, onFinish, reloadConversation]
   );
+
+  // Reset request-tracking state when switching sessions so the previous
+  // session's in-flight request doesn't leak into the next one.
+  // This runs for ALL session changes (including cache hits).
+  useEffect(() => {
+    return () => {
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
+      }
+      activeRequestIdRef.current = null;
+      activeRequestSessionIdRef.current = null;
+      activeAbortRef.current = null;
+      pendingReattachRequestIdRef.current = null;
+      pendingReattachBufferRef.current = [];
+      reloadingConversationRef.current = false;
+    };
+  }, [sessionId]);
 
   // Load session on mount or sessionId change
   useEffect(() => {
@@ -792,17 +820,6 @@ export function useChatStream({
 
     return () => {
       cancelled = true;
-      // Reset request-tracking state so the previous session's in-flight
-      // request doesn't leak into the next session.
-      if (activeUnsubscribeRef.current) {
-        activeUnsubscribeRef.current();
-        activeUnsubscribeRef.current = null;
-      }
-      activeRequestIdRef.current = null;
-      activeRequestSessionIdRef.current = null;
-      activeAbortRef.current = null;
-      pendingReattachRequestIdRef.current = null;
-      pendingReattachBufferRef.current = [];
     };
   }, [sessionId, onSessionLoaded]);
 
