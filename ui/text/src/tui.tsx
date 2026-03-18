@@ -1133,7 +1133,7 @@ async function waitForServer(url: string, timeoutMs = 10_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(`${url}/status`);
+      const res = await fetch(`${url}/health`);
       if (res.ok) return;
     } catch {
       // server not ready yet
