@@ -7,8 +7,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
+use crate::routes::reply::ActiveReply;
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
 use goose::gateway::manager::GatewayManager;
@@ -26,6 +28,9 @@ pub struct AppState {
     pub gateway_manager: Arc<GatewayManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
     pub inference_runtime: Arc<InferenceRuntime>,
+    /// Tracks in-flight replies for idempotent reconnection.
+    /// Key is "{session_id}:{reply_id}".
+    pub active_replies: Arc<RwLock<HashMap<String, Arc<ActiveReply>>>>,
 }
 
 impl AppState {
@@ -44,6 +49,7 @@ impl AppState {
             gateway_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             inference_runtime: InferenceRuntime::get_or_init(),
+            active_replies: Arc::new(RwLock::new(HashMap::new())),
         }))
     }
 

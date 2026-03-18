@@ -21,6 +21,7 @@ use std::{
     convert::Infallible,
     pin::Pin,
     sync::Arc,
+    sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
     time::Duration,
 };
@@ -76,6 +77,40 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     }
 }
 
+/// A buffered SSE event with its monotonic sequence ID.
+#[derive(Clone)]
+pub struct BufferedEvent {
+    pub id: u64,
+    pub json: String,
+}
+
+/// Tracks an in-flight or completed reply so clients can reconnect.
+pub struct ActiveReply {
+    /// Monotonic event counter for SSE `id:` field.
+    pub next_event_id: AtomicU64,
+    /// All events emitted so far (for replay on reconnect).
+    pub event_buffer: tokio::sync::RwLock<Vec<BufferedEvent>>,
+    /// Whether the reply has finished (Finish or Error event sent).
+    pub finished: tokio::sync::RwLock<bool>,
+    /// Broadcast channel for live-tailing new events.
+    pub event_tx: tokio::sync::broadcast::Sender<BufferedEvent>,
+    /// Cancellation token for the agent task.
+    pub cancel_token: CancellationToken,
+}
+
+impl ActiveReply {
+    pub fn new(cancel_token: CancellationToken) -> Self {
+        let (event_tx, _) = tokio::sync::broadcast::channel(256);
+        Self {
+            next_event_id: AtomicU64::new(0),
+            event_buffer: tokio::sync::RwLock::new(Vec::new()),
+            finished: tokio::sync::RwLock::new(false),
+            event_tx,
+            cancel_token,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
     user_message: Message,
@@ -87,6 +122,11 @@ pub struct ChatRequest {
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
+    /// Client-generated idempotency key. If provided, duplicate submissions
+    /// with the same (session_id, reply_id) will reconnect to the in-flight
+    /// reply instead of starting a new turn.
+    #[serde(default)]
+    reply_id: Option<String>,
 }
 
 pub struct SseResponse {
@@ -179,6 +219,15 @@ async fn stream_event(
     tx: &mpsc::Sender<String>,
     cancel_token: &CancellationToken,
 ) {
+    stream_event_with_active_reply(event, tx, cancel_token, None).await;
+}
+
+async fn stream_event_with_active_reply(
+    event: MessageEvent,
+    tx: &mpsc::Sender<String>,
+    cancel_token: &CancellationToken,
+    active_reply: Option<&Arc<ActiveReply>>,
+) {
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
         format!(
             r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
@@ -186,7 +235,22 @@ async fn stream_event(
         )
     });
 
-    if tx.send(format!("data: {}\n\n", json)).await.is_err() {
+    let formatted = if let Some(ar) = active_reply {
+        let event_id = ar.next_event_id.fetch_add(1, Ordering::Relaxed);
+        let buffered = BufferedEvent {
+            id: event_id,
+            json: json.clone(),
+        };
+        // Buffer the event for replay on reconnect.
+        ar.event_buffer.write().await.push(buffered.clone());
+        // Broadcast to any live-tailing subscribers (ignore error if no receivers).
+        let _ = ar.event_tx.send(buffered);
+        format!("id: {}\ndata: {}\n\n", event_id, json)
+    } else {
+        format!("data: {}\n\n", json)
+    };
+
+    if tx.send(formatted).await.is_err() {
         tracing::info!("client hung up");
         cancel_token.cancel();
     }
@@ -209,6 +273,28 @@ pub async fn reply(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, ErrorResponse> {
+    let session_id = request.session_id.clone();
+    let reply_id = request.reply_id.clone();
+
+    // If reply_id is provided, check for an existing in-flight reply to reconnect to.
+    if let Some(ref rid) = reply_id {
+        let key = format!("{}:{}", session_id, rid);
+        let existing = {
+            let replies = state.active_replies.read().await;
+            replies.get(&key).cloned()
+        };
+
+        if let Some(active_reply) = existing {
+            tracing::info!(
+                reply_id = %rid,
+                session_id = %session_id,
+                "Reconnecting to existing in-flight reply"
+            );
+            return Ok(build_reconnect_stream(&active_reply).await);
+        }
+    }
+
+    // No existing reply found (or no reply_id). Start a new agent turn.
     let session_start = std::time::Instant::now();
 
     tracing::info!(
@@ -217,8 +303,6 @@ pub async fn reply(
         interface = "ui",
         "Session started"
     );
-
-    let session_id = request.session_id.clone();
 
     if let Some(recipe_name) = request.recipe_name.clone() {
         if state.mark_recipe_run_if_absent(&session_id).await {
@@ -242,23 +326,36 @@ pub async fn reply(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
+    // If reply_id is provided, create and register an ActiveReply for idempotent reconnection.
+    let active_reply: Option<Arc<ActiveReply>> = if let Some(ref rid) = reply_id {
+        let ar = Arc::new(ActiveReply::new(cancel_token.clone()));
+        let key = format!("{}:{}", session_id, rid);
+        state.active_replies.write().await.insert(key.clone(), ar.clone());
+        Some(ar)
+    } else {
+        None
+    };
+
     let user_message = request.user_message;
     let override_conversation = request.override_conversation;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
+    let task_active_reply = active_reply.clone();
+    let task_reply_key = reply_id.as_ref().map(|rid| format!("{}:{}", session_id, rid));
 
     drop(tokio::spawn(async move {
         let agent = match state.get_agent(session_id.clone()).await {
             Ok(agent) => agent,
             Err(e) => {
                 tracing::error!("Failed to get session agent: {}", e);
-                let _ = stream_event(
+                let _ = stream_event_with_active_reply(
                     MessageEvent::Error {
                         error: format!("Failed to get session agent: {}", e),
                     },
                     &task_tx,
                     &task_cancel,
+                    task_active_reply.as_ref(),
                 )
                 .await;
                 return;
@@ -269,12 +366,13 @@ pub async fn reply(
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session for {}: {}", session_id, e);
-                let _ = stream_event(
+                let _ = stream_event_with_active_reply(
                     MessageEvent::Error {
                         error: format!("Failed to read session: {}", e),
                     },
                     &task_tx,
                     &cancel_token,
+                    task_active_reply.as_ref(),
                 )
                 .await;
                 return;
@@ -319,12 +417,13 @@ pub async fn reply(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
-                stream_event(
+                stream_event_with_active_reply(
                     MessageEvent::Error {
                         error: e.to_string(),
                     },
                     &task_tx,
                     &cancel_token,
+                    task_active_reply.as_ref(),
                 )
                 .await;
                 return;
@@ -339,7 +438,7 @@ pub async fn reply(
                     break;
                 }
                 _ = heartbeat_interval.tick() => {
-                    stream_event(MessageEvent::Ping, &tx, &cancel_token).await;
+                    stream_event_with_active_reply(MessageEvent::Ping, &tx, &cancel_token, task_active_reply.as_ref()).await;
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
@@ -352,31 +451,32 @@ pub async fn reply(
 
                             let token_state = get_token_state(state.session_manager(), &session_id).await;
 
-                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
+                            stream_event_with_active_reply(MessageEvent::Message { message, token_state }, &tx, &cancel_token, task_active_reply.as_ref()).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
-                            stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
+                            stream_event_with_active_reply(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token, task_active_reply.as_ref()).await;
 
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
+                            stream_event_with_active_reply(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token, task_active_reply.as_ref()).await;
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                            stream_event(MessageEvent::Notification{
+                            stream_event_with_active_reply(MessageEvent::Notification{
                                 request_id: request_id.clone(),
                                 message: n,
-                            }, &tx, &cancel_token).await;
+                            }, &tx, &cancel_token, task_active_reply.as_ref()).await;
                         }
 
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
-                            stream_event(
+                            stream_event_with_active_reply(
                                 MessageEvent::Error {
                                     error: e.to_string(),
                                 },
                                 &tx,
                                 &cancel_token,
+                                task_active_reply.as_ref(),
                             ).await;
                             break;
                         }
@@ -446,17 +546,109 @@ pub async fn reply(
 
         let final_token_state = get_token_state(state.session_manager(), &session_id).await;
 
-        let _ = stream_event(
+        stream_event_with_active_reply(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
                 token_state: final_token_state,
             },
             &task_tx,
             &cancel_token,
+            task_active_reply.as_ref(),
         )
         .await;
+
+        // Mark the reply as finished and schedule cleanup.
+        if let Some(ref ar) = task_active_reply {
+            *ar.finished.write().await = true;
+        }
+        if let Some(key) = task_reply_key {
+            let cleanup_state = state.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                cleanup_state.active_replies.write().await.remove(&key);
+                tracing::debug!(reply_key = %key, "Cleaned up finished active reply");
+            });
+        }
     }));
     Ok(SseResponse::new(stream))
+}
+
+/// Build a reconnect SSE stream for an existing `ActiveReply`.
+///
+/// Replays all buffered events, then live-tails new events from the broadcast channel
+/// until the reply finishes.
+async fn build_reconnect_stream(active_reply: &Arc<ActiveReply>) -> SseResponse {
+    let (tx, rx) = mpsc::channel::<String>(100);
+    let stream = ReceiverStream::new(rx);
+
+    let ar = active_reply.clone();
+    tokio::spawn(async move {
+        // 1. Replay buffered events.
+        {
+            let buffer = ar.event_buffer.read().await;
+            for event in buffer.iter() {
+                let formatted = format!("id: {}\ndata: {}\n\n", event.id, event.json);
+                if tx.send(formatted).await.is_err() {
+                    return; // client disconnected
+                }
+            }
+        }
+
+        // 2. If already finished, we're done after replay.
+        if *ar.finished.read().await {
+            return;
+        }
+
+        // 3. Subscribe to live events and forward them.
+        // We need to get the current buffer length to know which events to skip
+        // (they were already replayed above).
+        let replayed_up_to = {
+            let buffer = ar.event_buffer.read().await;
+            buffer.last().map(|e| e.id)
+        };
+
+        let mut rx_broadcast = ar.event_tx.subscribe();
+
+        loop {
+            match rx_broadcast.recv().await {
+                Ok(event) => {
+                    // Skip events we already replayed.
+                    if let Some(last_id) = replayed_up_to {
+                        if event.id <= last_id {
+                            continue;
+                        }
+                    }
+                    let formatted = format!("id: {}\ndata: {}\n\n", event.id, event.json);
+                    if tx.send(formatted).await.is_err() {
+                        return; // client disconnected
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::warn!("Reconnect stream lagged by {} events, some may be lost", n);
+                    // Continue receiving; the client can reconnect again if needed.
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    // The producer is done. Drain any remaining buffered events
+                    // that might have been added after our replay snapshot.
+                    let buffer = ar.event_buffer.read().await;
+                    for event in buffer.iter() {
+                        if let Some(last_id) = replayed_up_to {
+                            if event.id <= last_id {
+                                continue;
+                            }
+                        }
+                        let formatted = format!("id: {}\ndata: {}\n\n", event.id, event.json);
+                        if tx.send(formatted).await.is_err() {
+                            return;
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+    });
+
+    SseResponse::new(stream)
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -496,6 +688,7 @@ mod tests {
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,
+                        reply_id: None,
                     })
                     .unwrap(),
                 ))
