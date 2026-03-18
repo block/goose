@@ -79,8 +79,10 @@ function getTargetDocsPath(
 
 export default function DocsLanguageDropdownNavbarItem({
   mobile = false,
+  onClick,
 }: {
   mobile?: boolean;
+  onClick?: () => void;
 }) {
   const {siteConfig} = useDocusaurusContext();
   const location = useLocation();
@@ -150,6 +152,7 @@ export default function DocsLanguageDropdownNavbarItem({
     return (
       <DropdownNavbarItem
         mobile
+        onClick={onClick}
         label={`🌐 ${
           LANGUAGE_OPTIONS.find((option) => option.key === currentLanguage)
             ?.label ?? "Language"
