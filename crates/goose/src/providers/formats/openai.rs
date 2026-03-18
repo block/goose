@@ -302,28 +302,24 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 /// onto each assistant message. This function merges them back into:
 /// `asst(TC1,TC2,...)/tool_1/tool_2/...`
 ///
-/// Only merges when `reasoning_content` is present on the assistant messages,
-/// so non-thinking models are unaffected.
+/// Works for both thinking and non-thinking models to ensure OpenAI format
+/// compliance in all cases.
 fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
     let mut i = 0;
     while i < messages.len() {
-        let has_reasoning = messages[i]
-            .get("reasoning_content")
-            .and_then(|v| v.as_str())
-            .is_some_and(|s| !s.is_empty());
         let has_tool_calls = messages[i]
             .get("tool_calls")
             .and_then(|tc| tc.as_array())
             .is_some_and(|a| !a.is_empty());
         let is_assistant = messages[i].get("role") == Some(&json!("assistant"));
 
-        if !(is_assistant && has_tool_calls && has_reasoning) {
+        if !(is_assistant && has_tool_calls) {
             i += 1;
             continue;
         }
 
-        // Scan ahead through interleaved asst/tool pairs that share the same
-        // reasoning_content. Collect extra tool_calls and tool result messages.
+        // Scan ahead through interleaved asst/tool pairs that were split from
+        // the same turn. Collect extra tool_calls and tool result messages.
         let base_reasoning = messages[i].get("reasoning_content").cloned();
         let mut extra_tool_calls: Vec<Value> = Vec::new();
         let mut tool_results: Vec<Value> = Vec::new();
@@ -336,18 +332,22 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
             }
             let tool_msg = messages[scan].clone();
 
-            // Then expect another assistant tool-call message with matching reasoning
+            // Then expect another assistant tool-call message from the same split
             if scan + 1 >= messages.len() {
                 // Last tool result in the sequence — still part of the first
                 // assistant message's tool_calls, not a split pair to merge
                 break;
             }
             let next_asst = &messages[scan + 1];
+            let next_has_no_content = next_asst
+                .get("content")
+                .map_or(true, |c| c.is_null() || c.as_str().is_some_and(|s| s.is_empty()));
             let next_is_split = next_asst.get("role") == Some(&json!("assistant"))
                 && next_asst
                     .get("tool_calls")
                     .and_then(|tc| tc.as_array())
                     .is_some_and(|a| !a.is_empty())
+                && next_has_no_content
                 && next_asst.get("reasoning_content").cloned() == base_reasoning;
 
             if !next_is_split {
