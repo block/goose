@@ -373,9 +373,11 @@ export function useChatStream({
   const reloadingConversationRef = useRef(false);
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ref to access latest state in callbacks (avoids stale closures)
+  // Ref to access latest state/sessionId in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
   const doReattachRef = useRef<((requestId: string, messages: Message[]) => void) | null>(null);
 
   useEffect(() => {
@@ -471,10 +473,17 @@ export function useChatStream({
     // Suppress reattach until the reload completes
     reloadingConversationRef.current = true;
 
+    // Capture the session ID so we can guard against session switches
+    // that happen while getSession is in flight.
+    const reloadSessionId = sessionId;
+
     getSession({
-      path: { session_id: sessionId },
+      path: { session_id: reloadSessionId },
       throwOnError: true,
     }).then((response) => {
+      // Session switched while we were reloading — discard stale result
+      if (reloadSessionId !== sessionIdRef.current) return;
+
       const session = response.data as Session;
       const messages = session?.conversation || [];
       if (messages.length > 0) {
@@ -490,6 +499,13 @@ export function useChatStream({
     }).catch((e) => {
       console.warn('Failed to reload conversation after buffer overflow:', e);
       reloadingConversationRef.current = false;
+      // Best-effort recovery: if ActiveRequests arrived during the failed
+      // reload, reattach with current messages so the reply isn't lost.
+      if (reloadSessionId !== sessionIdRef.current) return;
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, stateRef.current.messages);
+      }
     });
   }, [sessionId]);
 
