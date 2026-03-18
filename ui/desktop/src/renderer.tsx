@@ -7,7 +7,8 @@ import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
 import { applyThemeTokens } from './theme/theme-tokens';
-import './i18n';
+import { applyLanguagePreference } from './i18n';
+import type { LanguagePreference } from './utils/settings';
 
 // Apply theme tokens to :root before first paint.
 applyThemeTokens();
@@ -45,6 +46,15 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
     } catch (error) {
       console.warn('[Analytics] Failed to initialize analytics:', error);
     }
+  }
+
+  try {
+    const languagePreference = (await window.electron.getSetting('language')) as
+      | LanguagePreference
+      | undefined;
+    applyLanguagePreference(languagePreference);
+  } catch (error) {
+    console.warn('[i18n] Failed to load language setting:', error);
   }
 
   ReactDOM.createRoot(document.getElementById('root')!).render(

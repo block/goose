@@ -43,5 +43,14 @@
     "description": "Anonymous usage data helps us understand how goose is used and identify areas for improvement.",
     "whatWeCollectTitle": "What we collect:",
     "privacyNote": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings."
+  },
+  "settings": {
+    "language": {
+      "label": "Language",
+      "description": "Choose the language used in the app",
+      "system": "System default",
+      "en": "English",
+      "zhCN": "Chinese (Simplified)"
+    }
   }
 }

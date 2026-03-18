@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
+import { Select } from '../../ui/Select';
 import { Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
@@ -17,6 +19,8 @@ import { NavigationStyleSelector } from './NavigationStyleSelector';
 import { NavigationPositionSelector } from './NavigationPositionSelector';
 import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
 import { NavigationProvider, useNavigationContextSafe } from '../../Layout/NavigationContext';
+import { applyLanguagePreference } from '../../../i18n';
+import type { LanguagePreference } from '../../../utils/settings';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -91,6 +95,7 @@ const NavigationSettingsCard: React.FC = () => {
 };
 
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
+  const { t } = useTranslation();
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
   const [wakelockEnabled, setWakelockEnabled] = useState(true);
@@ -99,6 +104,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [languagePreference, setLanguagePreference] = useState<LanguagePreference>('system');
   const updateSectionRef = useRef<HTMLDivElement>(null);
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
 
@@ -124,6 +130,17 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
   useEffect(() => {
     window.electron.getSetting('showPricing').then(setShowPricing);
+  }, []);
+
+  useEffect(() => {
+    window.electron
+      .getSetting('language')
+      .then((value) => {
+        if (value) setLanguagePreference(value);
+      })
+      .catch((error) => {
+        console.warn('[Settings] Failed to load language setting:', error);
+      });
   }, []);
 
   useEffect(() => {
@@ -209,6 +226,23 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     window.dispatchEvent(new CustomEvent('showPricingChanged'));
   };
 
+  const languageOptions = [
+    { value: 'system', label: t('settings.language.system') },
+    { value: 'en', label: t('settings.language.en') },
+    { value: 'zh-CN', label: t('settings.language.zhCN') },
+  ];
+
+  const selectedLanguageOption = languageOptions.find(
+    (option) => option.value === languagePreference
+  );
+
+  const handleLanguageChange = (option: { value: LanguagePreference; label: string } | null) => {
+    const nextLanguage = option?.value ?? 'system';
+    setLanguagePreference(nextLanguage);
+    void window.electron.setSetting('language', nextLanguage);
+    applyLanguagePreference(nextLanguage);
+  };
+
   return (
     <div className="space-y-4 pr-4 pb-8 mt-1">
       <Card className="rounded-lg">
@@ -246,6 +280,23 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                 <Settings />
                 Open Settings
               </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-text-primary text-xs">{t('settings.language.label')}</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                {t('settings.language.description')}
+              </p>
+            </div>
+            <div className="w-56">
+              <Select
+                options={languageOptions}
+                value={selectedLanguageOption}
+                onChange={handleLanguageChange}
+                isSearchable={false}
+              />
             </div>
           </div>
 

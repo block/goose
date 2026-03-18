@@ -1322,6 +1322,7 @@ const validSettingKeys: Set<string> = new Set([
   'responseStyle',
   'showPricing',
   'sessionSharing',
+  'language',
   'seenAnnouncementIds',
 ]);
 

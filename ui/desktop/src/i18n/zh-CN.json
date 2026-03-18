@@ -43,5 +43,14 @@
     "description": "匿名使用数据有助于我们了解 goose 的使用方式并发现改进点。",
     "whatWeCollectTitle": "我们收集：",
     "privacyNote": "我们不会收集你的对话、代码、工具参数、错误消息或任何个人数据。你可以随时在设置中更改此选项。"
+  },
+  "settings": {
+    "language": {
+      "label": "语言",
+      "description": "选择应用使用的语言",
+      "system": "跟随系统",
+      "en": "英语",
+      "zhCN": "简体中文"
+    }
   }
 }

@@ -27,6 +27,8 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
+export type LanguagePreference = 'system' | 'en' | 'zh-CN';
+
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
@@ -78,6 +80,7 @@ export const defaultSettings: Settings = {
   // UI preferences
   theme: 'light',
   useSystemTheme: true,
+  language: 'system',
   responseStyle: 'concise',
   showPricing: true,
   sessionSharing: {
