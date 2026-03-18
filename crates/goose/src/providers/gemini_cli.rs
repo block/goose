@@ -185,6 +185,10 @@ impl Provider for GeminiCliProvider {
         &self.name
     }
 
+    fn manages_own_context(&self) -> bool {
+        true
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
