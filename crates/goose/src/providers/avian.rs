@@ -12,7 +12,7 @@ pub const AVIAN_KNOWN_MODELS: &[&str] = &[
     "deepseek/deepseek-v3.2",
     "moonshotai/kimi-k2.5",
     "z-ai/glm-5",
-    "minimax/minimax-m2.5",
+    "minimax/minimax-m2.7",
 ];
 pub const AVIAN_DOC_URL: &str = "https://avian.io/docs";
 
