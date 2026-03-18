@@ -10,7 +10,16 @@ The nest is a **goose workspace**. You start goose with the nest as your working
 cd ~/.goose/nest && goose
 ```
 
-That's it. Hooks fire. Context is injected. Knowledge compounds.
+On session start, two things happen automatically:
+
+1. **Hooks inject context.** The SessionStart hook cats three files into the conversation:
+   `TOP_OF_MIND.md` (what you're working on), `NEST.md` (how the nest works),
+   and `CATALOG.md` (what knowledge exists). The agent starts every session knowing
+   the current focus, the conventions, and the full index — without being asked.
+
+2. **The gooseclaw orchestrator skill loads.** This gives the agent the ability to
+   manage top-level agents, coordinate work across sessions, and follow the nest's
+   conventions for writing research, guides, plans, and work logs.
 
 If you're working in a different directory (a repo, a project), the nest is not active. You can still read nest files manually, but hooks won't fire. This is intentional — the nest is opt-in per session via working directory.
 
