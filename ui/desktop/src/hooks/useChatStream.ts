@@ -27,6 +27,7 @@ import {
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
+import { useHealthCheck } from './useHealthCheck';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -365,6 +366,27 @@ export function useChatStream({
   // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Periodic health check — active when session is loaded and not streaming.
+  // Detects backend unavailability between user messages so we can surface
+  // a warning before the user's next submit fails silently.
+  useHealthCheck({
+    enabled: !!state.session && state.chatState === ChatState.Idle,
+    onRecovered: useCallback(() => {
+      // Attempt to restore the agent when backend comes back
+      if (sessionId) {
+        resumeAgent({
+          body: {
+            session_id: sessionId,
+            load_model_and_extensions: true,
+          },
+          throwOnError: true,
+        }).catch((err) => {
+          console.warn('Failed to restore agent after health recovery:', err);
+        });
+      }
+    }, [sessionId]),
+  });
 
   useEffect(() => {
     return () => {
