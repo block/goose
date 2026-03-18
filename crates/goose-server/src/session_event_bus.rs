@@ -7,6 +7,14 @@ use tokio_util::sync::CancellationToken;
 const BROADCAST_CAPACITY: usize = 256;
 const REPLAY_BUFFER_CAPACITY: usize = 512;
 
+/// Error returned by [`SessionEventBus::subscribe`].
+#[derive(Debug)]
+pub enum SubscribeError {
+    /// The client's `Last-Event-ID` has been evicted from the replay buffer,
+    /// so events have been irrecoverably lost.
+    ClientTooFarBehind,
+}
+
 #[derive(Clone, Debug)]
 pub struct SessionEvent {
     /// Monotonic sequence number, written as SSE `id:` frame (not in JSON payload).
@@ -64,13 +72,17 @@ impl SessionEventBus {
     /// Subscribe to live events. If `last_event_id` is provided, replay buffered
     /// events with seq > last_event_id. Returns (replay_events, replay_max_seq, live_receiver).
     ///
+    /// Returns `Err(SubscribeError::ClientTooFarBehind)` when `last_event_id`
+    /// refers to an event that has already been evicted from the replay buffer,
+    /// meaning the client has irrecoverably missed events.
+    ///
     /// The live receiver is created *before* snapshotting the buffer so that
     /// no event can fall into the gap between the two steps. The caller must
     /// skip live events with `seq <= replay_max_seq` to deduplicate.
     pub async fn subscribe(
         &self,
         last_event_id: Option<u64>,
-    ) -> (Vec<SessionEvent>, u64, broadcast::Receiver<SessionEvent>) {
+    ) -> Result<(Vec<SessionEvent>, u64, broadcast::Receiver<SessionEvent>), SubscribeError> {
         // Subscribe first so that any event published while we hold the
         // buffer lock is guaranteed to appear in `rx` (possibly duplicating
         // a replay entry). The caller deduplicates via replay_max_seq.
@@ -78,16 +90,24 @@ impl SessionEventBus {
 
         let (replay, replay_max_seq) = {
             let buf = self.buffer.lock().await;
+            let buf_max = buf.back().map(|e| e.seq).unwrap_or(0);
+            let buf_min = buf.front().map(|e| e.seq).unwrap_or(0);
+            let last_id = last_event_id.unwrap_or(0);
+
+            // If the client sent a Last-Event-ID that has been evicted from
+            // the buffer, they have irrecoverably missed events.
+            if last_id > 0 && buf_min > 0 && last_id < buf_min {
+                return Err(SubscribeError::ClientTooFarBehind);
+            }
+
             // Clamp to the actual buffer max so a stale Last-Event-ID
             // (e.g. from before a server restart) doesn't suppress live events.
-            let buf_max = buf.back().map(|e| e.seq).unwrap_or(0);
-            let last_id = last_event_id.unwrap_or(0);
             let events: Vec<_> = buf.iter().filter(|e| e.seq > last_id).cloned().collect();
             let max_seq = events.last().map(|e| e.seq).unwrap_or(last_id.min(buf_max));
             (events, max_seq)
         };
 
-        (replay, replay_max_seq, rx)
+        Ok((replay, replay_max_seq, rx))
     }
 
     /// Register a new request and return its cancellation token.
@@ -152,7 +172,7 @@ mod tests {
         .await;
 
         // Subscribe with replay
-        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(0)).await;
+        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(0)).await.unwrap();
         assert_eq!(replay.len(), 2);
         assert_eq!(replay[0].seq, 1);
         assert_eq!(replay[1].seq, 2);
@@ -168,7 +188,7 @@ mod tests {
         bus.publish(None, MessageEvent::Ping).await;
 
         // Only get events after seq 2
-        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(2)).await;
+        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(2)).await.unwrap();
         assert_eq!(replay.len(), 1);
         assert_eq!(replay[0].seq, 3);
         assert_eq!(replay_max_seq, 3);
@@ -182,7 +202,7 @@ mod tests {
         bus.publish(None, MessageEvent::Ping).await;
 
         // First connect (no Last-Event-ID) should replay all buffered events
-        let (replay, replay_max_seq, _rx) = bus.subscribe(None).await;
+        let (replay, replay_max_seq, _rx) = bus.subscribe(None).await.unwrap();
         assert_eq!(replay.len(), 2);
         assert_eq!(replay_max_seq, 2);
     }
@@ -196,7 +216,7 @@ mod tests {
         bus.publish(None, MessageEvent::Ping).await;
         bus.publish(None, MessageEvent::Ping).await;
 
-        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(9999)).await;
+        let (replay, replay_max_seq, _rx) = bus.subscribe(Some(9999)).await.unwrap();
         // No replay events (all are below 9999)
         assert_eq!(replay.len(), 0);
         // replay_max_seq should be clamped to buf_max (3), not 9999

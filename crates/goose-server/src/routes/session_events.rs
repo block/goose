@@ -148,7 +148,25 @@ pub async fn session_events(
         .and_then(|s| s.parse().ok());
 
     let bus = state.get_or_create_event_bus(&session_id).await;
-    let (replay, replay_max_seq, mut live_rx) = bus.subscribe(last_event_id).await;
+
+    let (replay, replay_max_seq, mut live_rx) = match bus.subscribe(last_event_id).await {
+        Ok(result) => result,
+        Err(_) => {
+            // Client's Last-Event-ID has been evicted from the replay buffer.
+            // Send a single error event so the client knows to reload.
+            let (tx, rx) = mpsc::channel::<String>(1);
+            let stream = ReceiverStream::new(rx);
+            let seq = 0;
+            let error_event = MessageEvent::Error {
+                error: "Client too far behind — reload conversation".to_string(),
+            };
+            let frame = serialize_session_event(seq, None, &error_event);
+            tokio::spawn(async move {
+                let _ = tx.send(frame).await;
+            });
+            return Ok(SseEventStream::new(stream));
+        }
+    };
 
     let (tx, rx) = mpsc::channel::<String>(256);
     let stream = ReceiverStream::new(rx);

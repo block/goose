@@ -61,7 +61,15 @@ export function useSessionEvents(sessionId: string) {
             const sessionEvent = event as SessionEvent;
             const routingId = sessionEvent.chat_request_id ?? sessionEvent.request_id;
 
-            if (routingId) {
+            // Server-level errors without a request ID (e.g. "client too far
+            // behind") affect all active listeners — broadcast to everyone.
+            if (!routingId && sessionEvent.type === 'Error') {
+              for (const [id, handlers] of listenersRef.current) {
+                for (const handler of handlers) {
+                  handler({ ...sessionEvent, request_id: id, chat_request_id: id });
+                }
+              }
+            } else if (routingId) {
               const handlers = listenersRef.current.get(routingId);
               if (handlers) {
                 for (const handler of handlers) {

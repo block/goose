@@ -227,6 +227,7 @@ function createEventProcessor(
   dispatch: React.Dispatch<StreamAction>,
   onFinish: (error?: string) => void,
   sessionId: string,
+  onReloadNeeded?: () => void,
 ) {
   let currentMessages = initialMessages;
   const reduceMotion = prefersReducedMotion();
@@ -300,7 +301,13 @@ function createEventProcessor(
       }
       case 'Error': {
         flushBatchedUpdates();
-        onFinish('Stream error: ' + (event as Record<string, unknown>).error);
+        const errorMsg = String((event as Record<string, unknown>).error ?? '');
+        onFinish('Stream error: ' + errorMsg);
+        // Server indicated we missed events — reload the full conversation
+        // so the UI reflects the actual state.
+        if (errorMsg.includes('too far behind') && onReloadNeeded) {
+          onReloadNeeded();
+        }
         return true;
       }
       case 'Finish': {
@@ -439,6 +446,22 @@ export function useChatStream({
     [onStreamFinish, sessionId]
   );
 
+  // Reload the full conversation from the server, e.g. after the SSE
+  // stream indicates the client fell too far behind the replay buffer.
+  const reloadConversation = useCallback(() => {
+    updateFromSession({
+      body: { session_id: sessionId },
+      throwOnError: true,
+    }).then((response) => {
+      const messages = (response.data as Record<string, unknown>)?.messages as Message[] | undefined;
+      if (messages) {
+        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      }
+    }).catch((e) => {
+      console.warn('Failed to reload conversation after buffer overflow:', e);
+    });
+  }, [sessionId]);
+
   /**
    * Submit a message via the new POST+SSE pattern.
    * 1. Generate request_id
@@ -467,6 +490,7 @@ export function useChatStream({
         dispatch,
         onFinish,
         targetSessionId,
+        reloadConversation,
       );
 
       const unsubscribe = addListener(requestId, (event) => {
@@ -506,7 +530,7 @@ export function useChatStream({
         onFinish('Submit error: ' + errorMessage(error));
       }
     },
-    [addListener, onFinish]
+    [addListener, onFinish, reloadConversation]
   );
 
   // Load session on mount or sessionId change
