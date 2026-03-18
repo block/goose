@@ -2,6 +2,32 @@ import { describe, it, expect, vi } from 'vitest';
 import { isDeprecatedGoogleDriveExtension, syncBundledExtensions } from './bundled-extensions';
 import type { FixedExtensionEntry } from '../../ConfigContext';
 
+vi.mock('./bundled-extensions.json', () => ({
+  default: [
+    {
+      id: 'developer',
+      name: 'developer',
+      display_name: 'Developer',
+      description: 'General development tools.',
+      enabled: true,
+      type: 'builtin',
+      timeout: 300,
+    },
+    {
+      id: 'googledrive',
+      name: 'googledrive',
+      display_name: 'Google Drive',
+      description: 'Google Drive integration.',
+      enabled: true,
+      type: 'stdio',
+      cmd: 'googledrive-mcp',
+      args: [],
+      env_keys: [],
+      timeout: 300,
+    },
+  ],
+}));
+
 describe('isDeprecatedGoogleDriveExtension', () => {
   it('returns true for builtin googledrive', () => {
     const ext = {
@@ -108,7 +134,11 @@ describe('syncBundledExtensions', () => {
 
     await syncBundledExtensions(existingExtensions, addExtensionFn);
 
-    expect(addExtensionFn).toHaveBeenCalled();
+    expect(addExtensionFn).toHaveBeenCalledWith(
+      'googledrive',
+      expect.objectContaining({ type: 'stdio', bundled: true }),
+      true
+    );
   });
 
   it('overwrites stdio googledrive with deprecated env keys', async () => {
@@ -128,7 +158,11 @@ describe('syncBundledExtensions', () => {
 
     await syncBundledExtensions(existingExtensions, addExtensionFn);
 
-    expect(addExtensionFn).toHaveBeenCalled();
+    expect(addExtensionFn).toHaveBeenCalledWith(
+      'googledrive',
+      expect.objectContaining({ type: 'stdio', bundled: true, env_keys: [] }),
+      true
+    );
   });
 
   it('skips already bundled non-deprecated extensions', async () => {
