@@ -15,15 +15,21 @@ export const RateLimits = ({
   guideText =
     " guide to learn how to efficiently manage these limits while using goose.",
 }) => {
+  const isExternalProviderLink = /^(?:[a-z]+:)?\/\//i.test(providerLinkHref);
+
   return (
     <Admonition type="info" title={title}>
-      <a
-        href={providerLinkHref}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {providerLinkText}
-      </a>{" "}
+      {isExternalProviderLink ? (
+        <a
+          href={providerLinkHref}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {providerLinkText}
+        </a>
+      ) : (
+        <Link to={providerLinkHref}>{providerLinkText}</Link>
+      )}{" "}
       {providerText}
       <br />
       <br />
