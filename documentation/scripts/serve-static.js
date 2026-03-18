@@ -50,7 +50,8 @@ const server = http.createServer((req, res) => {
     // Serve directory index files directly so local preview works with or without
     // a trailing slash and does not depend on browser redirect caching.
     if (!path.extname(pathname) && !pathname.endsWith('/')) {
-      const candidateDir = path.join(buildDir, pathname);
+      const relativePathname = pathname.replace(/^\/+/, '');
+      const candidateDir = path.join(buildDir, relativePathname);
       if (fs.existsSync(candidateDir) && fs.statSync(candidateDir).isDirectory()) {
         servedUrl = `${pathname}/index.html`;
       } else {

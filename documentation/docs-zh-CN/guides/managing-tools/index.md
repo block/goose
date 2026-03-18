@@ -34,7 +34,7 @@ import styles from "@site/src/components/Card/styles.module.css";
     <Card
       title="Ollama Tool Shim"
       description="通过实验性的本地解释器模型方案，为原生不支持工具调用的模型启用 tool calling。"
-      link="/docs/experimental/ollama"
+      link="/zh-CN/docs/experimental/ollama"
     />
   </div>
 </div>

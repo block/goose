@@ -42,7 +42,7 @@ import styles from "@site/src/components/Card/styles.module.css";
     <Card
       title="Using goose in ACP Clients"
       description="在 Zed 等 ACP-compatible 客户端中原生使用 goose。"
-      link="/docs/guides/acp-clients"
+      link="/zh-CN/docs/guides/acp-clients"
     />
   </div>
 </div>
