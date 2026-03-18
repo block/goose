@@ -20,7 +20,7 @@ jobs:
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
-        ref: ${{ github.event.pull_request.base.ref }}
+        ref: ${{ github.event.pull_request.merge_commit_sha }}
         fetch-depth: 0
 
     - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
