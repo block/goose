@@ -31,6 +31,7 @@ If you're working in a different directory (a repo, a project), the nest is not 
 ├── RESEARCH/        # "What do we know about X?" — findings, analysis
 ├── PLANS/           # "What should we build?" — specs, proposals
 ├── WORK_LOGS/       # "What happened?" — session decision logs
+├── UTILITIES/       # Scripts and tools the orchestrator uses for repeatable tasks
 ├── REPOS/           # Cloned repos (working copies, not knowledge)
 ├── .scratch/        # Ephemeral intermediate files (deletable)
 ├── TOP_OF_MIND.md   # Working memory — current focus, in-flight, open questions
@@ -266,7 +267,7 @@ fi
 NEST="$HOME/.goose/nest"
 
 # ── Create directory structure ──────────────────────────────────────
-mkdir -p "$NEST"/{GUIDES,RESEARCH,PLANS,WORK_LOGS,REPOS,.scratch,.goose}
+mkdir -p "$NEST"/{GUIDES,RESEARCH,PLANS,WORK_LOGS,UTILITIES,REPOS,.scratch,.goose}
 
 # ── TAGS.md — seed vocabulary ───────────────────────────────────────
 cat > "$NEST/TAGS.md" << 'EOF'
@@ -323,6 +324,7 @@ persists across sessions.
 | RESEARCH/ | Findings and analysis — "What do we know about X?" |
 | PLANS/ | Specs and proposals — "What should we build?" |
 | WORK_LOGS/ | Session decision logs — "What happened and why?" |
+| UTILITIES/ | Scripts and tools for repeatable tasks |
 | .scratch/ | Temporary working files (deletable) |
 
 ## Conventions
