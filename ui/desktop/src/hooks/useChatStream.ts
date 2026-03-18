@@ -385,14 +385,9 @@ export function useChatStream({
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
-      // Unsubscribe from event listener
-      if (activeUnsubscribeRef.current) {
-        activeUnsubscribeRef.current();
-        activeUnsubscribeRef.current = null;
-      }
-      activeRequestIdRef.current = null;
-      activeRequestSessionIdRef.current = null;
-      activeAbortRef.current = null;
+      // Note: SSE listener/ref cleanup is handled by the terminal-event
+      // handler in each listener closure (which guards on requestId) so
+      // that overlapping requests don't clobber each other's state.
 
       if (namePollingRef.current) {
         clearTimeout(namePollingRef.current);
@@ -497,9 +492,11 @@ export function useChatStream({
         const isTerminal = processEvent(event);
         if (isTerminal) {
           unsubscribe();
-          activeUnsubscribeRef.current = null;
-          activeRequestIdRef.current = null;
-          activeRequestSessionIdRef.current = null;
+          if (activeRequestIdRef.current === requestId) {
+            activeUnsubscribeRef.current = null;
+            activeRequestIdRef.current = null;
+            activeRequestSessionIdRef.current = null;
+          }
         }
       });
       activeUnsubscribeRef.current = unsubscribe;
@@ -545,10 +542,14 @@ export function useChatStream({
         const isTerminal = processEvent(event);
         if (isTerminal) {
           unsubscribe();
-          activeUnsubscribeRef.current = null;
-          activeRequestIdRef.current = null;
-          activeRequestSessionIdRef.current = null;
-          activeAbortRef.current = null;
+          // Only clear global refs if this request is still the active one.
+          // A newer request may have already replaced them.
+          if (activeRequestIdRef.current === requestId) {
+            activeUnsubscribeRef.current = null;
+            activeRequestIdRef.current = null;
+            activeRequestSessionIdRef.current = null;
+            activeAbortRef.current = null;
+          }
         }
       });
       activeUnsubscribeRef.current = unsubscribe;
@@ -632,12 +633,18 @@ export function useChatStream({
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
 
-        dispatch({
-          type: 'SESSION_LOADED',
-          payload: {
-            session: loadedSession!,
-            messages: loadedSession?.conversation || [],
-            tokenState: {
+        // If an in-flight reply was reattached via ActiveRequests while
+        // resumeAgent was in flight, the event processor has already been
+        // updating messages with fresh streaming content. Only load the
+        // session metadata — don't overwrite messages with the stale DB
+        // snapshot.
+        const reattachedToActiveRequest = activeRequestIdRef.current !== null;
+
+        if (reattachedToActiveRequest) {
+          dispatch({ type: 'SET_SESSION', payload: loadedSession });
+          dispatch({
+            type: 'SET_TOKEN_STATE',
+            payload: {
               inputTokens: loadedSession?.input_tokens ?? 0,
               outputTokens: loadedSession?.output_tokens ?? 0,
               totalTokens: loadedSession?.total_tokens ?? 0,
@@ -645,8 +652,24 @@ export function useChatStream({
               accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
               accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
             },
-          },
-        });
+          });
+        } else {
+          dispatch({
+            type: 'SESSION_LOADED',
+            payload: {
+              session: loadedSession!,
+              messages: loadedSession?.conversation || [],
+              tokenState: {
+                inputTokens: loadedSession?.input_tokens ?? 0,
+                outputTokens: loadedSession?.output_tokens ?? 0,
+                totalTokens: loadedSession?.total_tokens ?? 0,
+                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
+                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
+                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+              },
+            },
+          });
+        }
 
         listApps({
           throwOnError: true,
