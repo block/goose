@@ -364,8 +364,9 @@ export function useChatStream({
   const lastInteractionTimeRef = useRef<number>(Date.now());
   // When ActiveRequests fires before resumeAgent populates messages (cold mount),
   // defer the reattach until the session is loaded so the event processor has
-  // the full conversation history.
+  // the full conversation history. Events are buffered in the meantime.
   const pendingReattachRequestIdRef = useRef<string | null>(null);
+  const pendingReattachBufferRef = useRef<SessionEvent[]>([]);
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to access latest state in callbacks (avoids stale closures)
@@ -484,6 +485,34 @@ export function useChatStream({
         reloadConversation,
       );
 
+      // Replay any events that were buffered during cold-mount wait
+      const buffered = pendingReattachBufferRef.current;
+      pendingReattachBufferRef.current = [];
+      let finished = false;
+      for (const event of buffered) {
+        if (processEvent(event)) {
+          finished = true;
+          break;
+        }
+      }
+
+      if (finished) {
+        // The reply already completed while we were waiting for session load.
+        // Clean up — the buffering listener will be replaced below but the
+        // old one captured into activeUnsubscribeRef should be removed.
+        if (activeUnsubscribeRef.current) {
+          activeUnsubscribeRef.current();
+          activeUnsubscribeRef.current = null;
+        }
+        activeRequestIdRef.current = null;
+        activeRequestSessionIdRef.current = null;
+        return;
+      }
+
+      // Replace the buffering listener with a real processing listener
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+      }
       const unsubscribe = addListener(requestId, (event) => {
         const isTerminal = processEvent(event);
         if (isTerminal) {
@@ -518,13 +547,21 @@ export function useChatStream({
 
       if (currentMessages.length === 0) {
         // Cold mount: resumeAgent hasn't populated messages yet.
-        // Defer reattach until session load completes so the event
+        // Defer event processing until session load completes so the
         // processor starts with the full conversation history.
+        // Register a buffering listener NOW so replayed events aren't
+        // lost while we wait.
         pendingReattachRequestIdRef.current = requestId;
+        pendingReattachBufferRef.current = [];
         activeRequestIdRef.current = requestId;
         activeRequestSessionIdRef.current = sessionId;
         dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
         dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+
+        const unsubscribe = addListener(requestId, (event) => {
+          pendingReattachBufferRef.current.push(event);
+        });
+        activeUnsubscribeRef.current = unsubscribe;
         return;
       }
 
@@ -599,12 +636,16 @@ export function useChatStream({
       } catch (error) {
         // Abort is expected when stopStreaming races with the POST
         if (abortController.signal.aborted) return;
-        // POST failed — clean up listener and report error
+        // POST failed — clean up listener and report error.
+        // Only clear global refs if this request is still the active one;
+        // a newer request may have already replaced them.
         unsubscribe();
-        activeUnsubscribeRef.current = null;
-        activeRequestIdRef.current = null;
-        activeRequestSessionIdRef.current = null;
-        activeAbortRef.current = null;
+        if (activeRequestIdRef.current === requestId) {
+          activeUnsubscribeRef.current = null;
+          activeRequestIdRef.current = null;
+          activeRequestSessionIdRef.current = null;
+          activeAbortRef.current = null;
+        }
         onFinish('Submit error: ' + errorMessage(error));
       }
     },
