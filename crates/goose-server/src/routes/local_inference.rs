@@ -48,7 +48,6 @@ pub struct LocalModelResponse {
     pub status: ModelDownloadStatus,
     pub recommended: bool,
     pub settings: ModelSettings,
-    /// Estimated inference speed tier (fast/medium/slow)
     pub speed_tier: SpeedTier,
 }
 
