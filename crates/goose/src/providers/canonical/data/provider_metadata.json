@@ -19,7 +19,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 10
   },
   {
     "id": "alibaba-coding-plan",
@@ -195,7 +195,18 @@
     "env": [
       "SCALEWAY_API_KEY"
     ],
-    "model_count": 14
+    "model_count": 16
+  },
+  {
+    "id": "dinference",
+    "display_name": "DInference",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.dinference.com/v1",
+    "doc": "https://dinference.com",
+    "env": [
+      "DINFERENCE_API_KEY"
+    ],
+    "model_count": 3
   },
   {
     "id": "kuae-cloud-coding-plan",
@@ -250,7 +261,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 6
   },
   {
     "id": "novita-ai",
@@ -272,7 +283,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 43
+    "model_count": 45
   },
   {
     "id": "poe",
@@ -305,7 +316,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 6
   },
   {
     "id": "bailing",
@@ -372,7 +383,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 6
   },
   {
     "id": "kimi-for-coding",
@@ -526,7 +537,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 24
+    "model_count": 25
   },
   {
     "id": "moonshotai",
@@ -604,7 +615,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 10
+    "model_count": 11
   },
   {
     "id": "opencode-go",
@@ -747,7 +758,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 6
   },
   {
     "id": "vultr",
@@ -758,7 +769,7 @@
     "env": [
       "VULTR_API_KEY"
     ],
-    "model_count": 5
+    "model_count": 10
   },
   {
     "id": "baseten",
@@ -803,6 +814,17 @@
       "HF_TOKEN"
     ],
     "model_count": 20
+  },
+  {
+    "id": "tencent-coding-plan",
+    "display_name": "Tencent Coding Plan (China)",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.lkeap.cloud.tencent.com/coding/v3",
+    "doc": "https://cloud.tencent.com/document/product/1772/128947",
+    "env": [
+      "TENCENT_CODING_PLAN_API_KEY"
+    ],
+    "model_count": 8
   },
   {
     "id": "friendli",
