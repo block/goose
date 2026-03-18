@@ -532,7 +532,7 @@ pub fn maybe_summarize_tool_pairs(
     protect_last_n: usize,
 ) -> JoinHandle<Vec<(Message, String)>> {
     tokio::spawn(async move {
-        if !tool_pair_summarization_enabled() {
+        if !tool_pair_summarization_enabled() || provider.manages_own_context() {
             return Vec::new();
         }
 
