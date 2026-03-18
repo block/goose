@@ -22,7 +22,7 @@ To trigger the release, find [the corresponding PR](https://github.com/block/goo
 
 ## Patch version releases
 
-When a minor release is tagged, automation creates a patch release branch ready for hotfixes. Cherry-pick fixes into this branch, then trigger a patch release.
+When a minor release is tagged, automation immediately creates the next patch release branch (e.g. `release/1.25.1` from `release/1.25.0`) with the version already bumped and a release PR open. Cherry-pick fixes into this branch, then tag when ready.
 
 To trigger the release, find [the corresponding PR](https://github.com/block/goose/pulls?q=is%3Apr+%22chore%28release%29%22+%22%28patch%29%22+author%3Aapp%2Fgithub-actions+) and follow the instructions in the PR description.
 
@@ -43,5 +43,8 @@ git tag v<V> origin/release/<V> && git push origin v<V>
   │
   ├─► release PR auto-closed (no merge needed)
   ├─► release.yml builds & publishes
-  └─► next patch release branch auto-created
+  └─► patch release/<V+1> branch + PR auto-created
+        │
+        ▼ (cherry-pick fixes, then when ready)
+        git tag v<V+1> origin/release/<V+1> && git push origin v<V+1>
 ```

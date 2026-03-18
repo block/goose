@@ -6,7 +6,6 @@ on:
       - closed
     branches:
       - main
-      - release/**
 
 permissions:
   contents: write
