@@ -174,23 +174,30 @@ pub async fn session_events(
 
     tokio::spawn(async move {
         let bus = task_bus;
-        // Send replayed events
-        for event in &replay {
-            let frame =
-                serialize_session_event(event.seq, event.request_id.as_deref(), &event.event);
-            if tx.send(frame).await.is_err() {
-                return;
-            }
-        }
 
-        // Notify the client about any in-flight requests so it can
-        // reattach event handlers after a remount / reconnect.
+        // Notify the client about any in-flight requests BEFORE replay
+        // so it can register event handlers before replayed events arrive.
+        // Emitted without an SSE `id:` field so it doesn't regress the
+        // client's Last-Event-ID cursor.
         let active_ids = bus.active_request_ids().await;
         if !active_ids.is_empty() {
             let event = MessageEvent::ActiveRequests {
                 request_ids: active_ids,
             };
-            let frame = serialize_session_event(0, None, &event);
+            let json_str = serde_json::to_string(
+                &serde_json::to_value(&event).unwrap_or_default(),
+            )
+            .unwrap_or_default();
+            let frame = format!("data: {}\n\n", json_str);
+            if tx.send(frame).await.is_err() {
+                return;
+            }
+        }
+
+        // Send replayed events
+        for event in &replay {
+            let frame =
+                serialize_session_event(event.seq, event.request_id.as_deref(), &event.event);
             if tx.send(frame).await.is_err() {
                 return;
             }
