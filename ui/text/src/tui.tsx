@@ -16,7 +16,7 @@ import type {
   ToolCallStatus,
   ToolKind,
 } from "@agentclientprotocol/sdk";
-import { GooseClient } from "@block/goose-acp";
+import { GooseClient } from "@goose-ai/acp";
 import { renderMarkdown } from "./markdown.js";
 import { buildToolCallCardLines, ToolCallCompact, findFeaturedToolCallId } from "./toolcall.js";
 import type { ToolCallInfo } from "./toolcall.js";
@@ -1206,4 +1206,3 @@ main().catch((err) => {
   cleanup();
   process.exit(1);
 });
-

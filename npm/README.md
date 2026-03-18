@@ -7,11 +7,11 @@ This directory contains the npm package scaffolding for distributing the
 
 | Package | Platform |
 |---------|----------|
-| `@block/goose-acp-server-darwin-arm64` | macOS Apple Silicon |
-| `@block/goose-acp-server-darwin-x64` | macOS Intel |
-| `@block/goose-acp-server-linux-arm64` | Linux ARM64 |
-| `@block/goose-acp-server-linux-x64` | Linux x64 |
-| `@block/goose-acp-server-win32-x64` | Windows x64 |
+| `@goose-ai/acp-server-darwin-arm64` | macOS Apple Silicon |
+| `@goose-ai/acp-server-darwin-x64` | macOS Intel |
+| `@goose-ai/acp-server-linux-arm64` | Linux ARM64 |
+| `@goose-ai/acp-server-linux-x64` | Linux x64 |
+| `@goose-ai/acp-server-win32-x64` | Windows x64 |
 
 ## Building
 

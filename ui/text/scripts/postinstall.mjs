@@ -13,19 +13,31 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
 const PLATFORMS = {
-  "darwin-arm64": "@block/goose-acp-server-darwin-arm64",
-  "darwin-x64": "@block/goose-acp-server-darwin-x64",
-  "linux-arm64": "@block/goose-acp-server-linux-arm64",
-  "linux-x64": "@block/goose-acp-server-linux-x64",
-  "win32-x64": "@block/goose-acp-server-win32-x64",
+  "darwin-arm64": "@goose-ai/acp-server-darwin-arm64",
+  "darwin-x64": "@goose-ai/acp-server-darwin-x64",
+  "linux-arm64": "@goose-ai/acp-server-linux-arm64",
+  "linux-x64": "@goose-ai/acp-server-linux-x64",
+  "win32-x64": "@goose-ai/acp-server-win32-x64",
 };
+
+function warnLoud(message) {
+  const indent = "    ";
+  const lines = [
+    "",
+    `${indent}⚠️  @goose-ai/cli WARNING`,
+    "",
+    ...message.split("\n").map((l) => `${indent}${l}`),
+    "",
+  ];
+  process.stderr.write(lines.join("\n") + "\n");
+}
 
 const key = `${process.platform}-${process.arch}`;
 const pkg = PLATFORMS[key];
 
 if (!pkg) {
-  console.warn(
-    `@block/goose: no prebuilt goose-acp-server binary for ${key}. ` +
+  warnLoud(
+    `No prebuilt goose-acp-server binary for ${key}.\n` +
       `You will need to provide a server URL manually with --server.`,
   );
   process.exit(0);
@@ -33,15 +45,13 @@ if (!pkg) {
 
 let binaryPath;
 try {
-  // Resolve the package directory, then point at the binary inside it
   const pkgDir = dirname(require.resolve(`${pkg}/package.json`));
   const binName =
     process.platform === "win32" ? "goose-acp-server.exe" : "goose-acp-server";
   binaryPath = join(pkgDir, "bin", binName);
 } catch {
-  // The optional dependency wasn't installed (e.g. wrong platform). That's fine.
-  console.warn(
-    `@block/goose: optional dependency ${pkg} not installed. ` +
+  warnLoud(
+    `Optional dependency ${pkg} not installed (wrong platform?).\n` +
       `You will need to provide a server URL manually with --server.`,
   );
   process.exit(0);
@@ -54,4 +64,4 @@ writeFileSync(
   JSON.stringify({ binaryPath }, null, 2) + "\n",
 );
 
-console.log(`@block/goose: found native server binary at ${binaryPath}`);
+console.log(`@goose-ai/cli: found native server binary at ${binaryPath}`);

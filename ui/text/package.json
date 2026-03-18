@@ -1,5 +1,5 @@
 {
-  "name": "@block/goose",
+  "name": "@goose-ai/cli",
   "version": "0.1.0",
   "description": "Goose - an open-source AI agent",
   "license": "Apache-2.0",
@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
-    "@block/goose-acp": "^0.1.0",
+    "@goose-ai/acp": "workspace:*",
     "ink": "^5.1.0",
     "ink-text-input": "^6.0.0",
     "marked": "^15.0.12",
@@ -33,11 +33,11 @@
     "react": "^18.3.1"
   },
   "optionalDependencies": {
-    "@block/goose-acp-server-darwin-arm64": "0.1.0",
-    "@block/goose-acp-server-darwin-x64": "0.1.0",
-    "@block/goose-acp-server-linux-arm64": "0.1.0",
-    "@block/goose-acp-server-linux-x64": "0.1.0",
-    "@block/goose-acp-server-win32-x64": "0.1.0"
+    "@goose-ai/acp-server-darwin-arm64": "0.1.0",
+    "@goose-ai/acp-server-darwin-x64": "0.1.0",
+    "@goose-ai/acp-server-linux-arm64": "0.1.0",
+    "@goose-ai/acp-server-linux-x64": "0.1.0",
+    "@goose-ai/acp-server-win32-x64": "0.1.0"
   },
   "devDependencies": {
     "@types/marked-terminal": "^6.1.1",

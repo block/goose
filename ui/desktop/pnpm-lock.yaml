@@ -98,7 +98,7 @@ importers:
         version: 12.34.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       goose-acp-types:
         specifier: file:../acp
-        version: '@block/goose-acp@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))'
+        version: '@goose-ai/acp@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))'
       katex:
         specifier: ^0.16.33
         version: 0.16.33
@@ -439,11 +439,6 @@ packages:
   '@bcoe/v8-coverage@1.0.2':
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
-
-  '@block/goose-acp@file:../acp':
-    resolution: {directory: ../acp, type: directory}
-    peerDependencies:
-      '@agentclientprotocol/sdk': '*'
 
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
@@ -888,6 +883,11 @@ packages:
 
   '@gar/promisify@1.1.3':
     resolution: {integrity: sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==}
+
+  '@goose-ai/acp@file:../acp':
+    resolution: {directory: ../acp, type: directory}
+    peerDependencies:
+      '@agentclientprotocol/sdk': '*'
 
   '@hey-api/codegen-core@0.7.0':
     resolution: {integrity: sha512-HglL4B4QwpzocE+c8qDU6XK8zMf8W8Pcv0RpFDYxHuYALWLTnpDUuEsglC7NQ4vC1maoXsBpMbmwpco0N4QviA==}
@@ -6633,11 +6633,6 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@block/goose-acp@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))':
-    dependencies:
-      '@agentclientprotocol/sdk': 0.15.0(zod@3.25.76)
-      zod: 3.25.76
-
   '@bramus/specificity@2.4.2':
     dependencies:
       css-tree: 3.1.0
@@ -7290,6 +7285,11 @@ snapshots:
   '@floating-ui/utils@0.2.10': {}
 
   '@gar/promisify@1.1.3': {}
+
+  '@goose-ai/acp@file:../acp(@agentclientprotocol/sdk@0.15.0(zod@3.25.76))':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.15.0(zod@3.25.76)
+      zod: 3.25.76
 
   '@hey-api/codegen-core@0.7.0(magicast@0.5.2)(typescript@5.9.3)':
     dependencies:

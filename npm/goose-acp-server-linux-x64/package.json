@@ -1,5 +1,5 @@
 {
-  "name": "@block/goose-acp-server-linux-x64",
+  "name": "@goose-ai/acp-server-linux-x64",
   "version": "0.1.0",
   "description": "Goose ACP server binary for Linux x64",
   "license": "Apache-2.0",
