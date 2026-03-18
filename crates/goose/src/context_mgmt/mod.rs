@@ -406,7 +406,6 @@ fn format_message_for_compacting(msg: &Message) -> String {
             MessageContent::SystemNotification(notification) => {
                 Some(format!("system_notification: {}", notification.msg))
             }
-            MessageContent::Reasoning(_) => None,
         })
         .collect();
 

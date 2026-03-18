@@ -6,7 +6,7 @@ unlisted: true
 ---
 
 :::info Archived
-goose Mobile has been archived. Mobile access to goose is now supported for [iOS devices via tunneling](/docs/experimental/mobile-access).
+goose Mobile has been archived. Mobile access to goose is now supported for [iOS devices via tunneling](/docs/experimental/remote-access/mobile-access).
 :::
 
 goose Mobile is an experimental Android project inspired by the goose application. It acts as an open agent on your phone, automating multistep tasks, responding to notifications, and even replacing your home screen for maximum efficiency.

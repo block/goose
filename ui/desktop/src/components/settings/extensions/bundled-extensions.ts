@@ -20,7 +20,29 @@ type BundledExtension = {
   allow_configure?: boolean;
 };
 
-const DEPRECATED_BUILTINS = ['googledrive', 'google_drive'];
+const DEPRECATED_GOOGLE_DRIVE_IDS = ['googledrive', 'google_drive'];
+const DEPRECATED_GOOGLE_DRIVE_ENV_KEYS = [
+  'GOOGLE_DRIVE_CREDENTIALS_PATH',
+  'GOOGLE_DRIVE_OAUTH_PATH',
+];
+
+export function isDeprecatedGoogleDriveExtension(ext: FixedExtensionEntry): boolean {
+  if (!DEPRECATED_GOOGLE_DRIVE_IDS.includes(nameToKey(ext.name))) {
+    return false;
+  }
+  if (ext.type === 'builtin') {
+    return true;
+  }
+  if (
+    ext.type === 'stdio' &&
+    'env_keys' in ext &&
+    Array.isArray(ext.env_keys) &&
+    ext.env_keys.some((key: string) => DEPRECATED_GOOGLE_DRIVE_ENV_KEYS.includes(key))
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Synchronizes built-in extensions with the config system.
@@ -39,20 +61,21 @@ export async function syncBundledExtensions(
     // Cast the imported JSON data to the expected type
     const bundledExtensions = bundledExtensionsData as BundledExtension[];
 
-    for (let i = existingExtensions.length - 1; i >= 0; i--) {
-      const ext = existingExtensions[i];
-      if (ext.type == 'builtin' && DEPRECATED_BUILTINS.includes(ext.name)) {
-        existingExtensions.splice(i, 1);
-      }
-    }
-
     // Process each bundled extension
     for (const bundledExt of bundledExtensions) {
       // Find if this extension already exists
       const existingExt = existingExtensions.find((ext) => nameToKey(ext.name) === bundledExt.id);
 
-      // Skip if extension exists and is already marked as bundled
-      if (existingExt && 'bundled' in existingExt && existingExt.bundled) continue;
+      // Skip if extension exists and is already marked as bundled, except when
+      // we must migrate deprecated extensions.
+      if (
+        existingExt &&
+        'bundled' in existingExt &&
+        existingExt.bundled &&
+        !isDeprecatedGoogleDriveExtension(existingExt)
+      ) {
+        continue;
+      }
 
       // Create the config for this extension
       let extConfig: ExtensionConfig;

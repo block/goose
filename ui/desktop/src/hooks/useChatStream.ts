@@ -187,6 +187,21 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
       incomingMsg.content.length === 1
     ) {
       lastContent.text += newContent.text;
+    } else if (
+      lastContent?.type === 'thinking' &&
+      newContent?.type === 'thinking' &&
+      incomingMsg.content.length === 1 &&
+      'thinking' in lastContent &&
+      'thinking' in newContent
+    ) {
+      // For thinking blocks: if the new block has a signature, it's the complete
+      // block from content_block_stop — replace entirely. Otherwise append the delta.
+      if ('signature' in newContent && newContent.signature) {
+        lastContent.thinking = newContent.thinking;
+        lastContent.signature = newContent.signature;
+      } else {
+        lastContent.thinking += newContent.thinking;
+      }
     } else {
       lastMsg.content.push(...incomingMsg.content);
     }
@@ -612,7 +627,14 @@ export function useChatStream({
           sseMaxRetryAttempts: 0,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId, abortControllerRef.current.signal);
+        await streamFromResponse(
+          stream,
+          currentMessages,
+          dispatch,
+          onFinish,
+          sessionId,
+          abortControllerRef.current.signal
+        );
       } catch (error) {
         // AbortError is expected when user stops streaming
         if (error instanceof Error && error.name === 'AbortError') {
@@ -654,7 +676,14 @@ export function useChatStream({
           sseMaxRetryAttempts: 0,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId, abortControllerRef.current.signal);
+        await streamFromResponse(
+          stream,
+          currentMessages,
+          dispatch,
+          onFinish,
+          sessionId,
+          abortControllerRef.current.signal
+        );
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
@@ -794,7 +823,14 @@ export function useChatStream({
                 sseMaxRetryAttempts: 0,
               });
 
-              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId, abortControllerRef.current.signal);
+              await streamFromResponse(
+                stream,
+                messagesForUI,
+                dispatch,
+                onFinish,
+                targetSessionId,
+                abortControllerRef.current.signal
+              );
             } catch (error) {
               if (error instanceof Error && error.name === 'AbortError') {
                 dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });

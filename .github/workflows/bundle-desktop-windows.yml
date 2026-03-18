@@ -143,7 +143,7 @@ jobs:
           pnpm install --frozen-lockfile
           node scripts/build-main.js
           node scripts/prepare-platform-binaries.js
-          pnpm run make -- --platform=win32 --arch=x64
+          pnpm run make --platform=win32 --arch=x64
 
       - name: Copy exe to final out folder and prepare flat distribution
         shell: bash

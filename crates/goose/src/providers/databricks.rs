@@ -135,6 +135,10 @@ pub struct DatabricksProvider {
 }
 
 impl DatabricksProvider {
+    pub async fn cleanup() -> Result<()> {
+        super::oauth::cleanup_oauth_cache()
+    }
+
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
