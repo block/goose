@@ -1,0 +1,8 @@
+{
+  "label": "工具管理",
+  "position": 15,
+  "link": {
+    "type": "doc",
+    "id": "guides/managing-tools/index"
+  }
+}

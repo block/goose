@@ -1,0 +1,9 @@
+{
+  "label": "开始",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "slug": "/category/getting-started",
+    "description": "快速完成 goose 的安装、模型配置与扩展接入。"
+  }
+}

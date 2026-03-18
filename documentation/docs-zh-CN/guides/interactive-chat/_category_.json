@@ -1,0 +1,8 @@
+{
+  "label": "交互式聊天",
+  "position": 55,
+  "link": {
+    "type": "doc",
+    "id": "guides/interactive-chat/index"
+  }
+}

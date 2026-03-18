@@ -1,0 +1,423 @@
+---
+title: Subagents
+description: 介绍如何使用 subagents 让多个专业 agent 协作完成任务。
+sidebar_position: 50
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import ContentCardCarousel from "@site/src/components/ContentCardCarousel";
+import subagentsVsSubrecipes from "@site/blog/2025-09-26-subagents-vs-subrecipes/subrecipes-vs-subagents.png";
+import agentCoordination from "@site/blog/2025-08-14-agent-coordination-patterns/agent-coordination.png";
+
+Subagents 是独立运行的实例，用来在保持主对话干净、聚焦的前提下执行任务。你可以把它理解为临时助手：它们接管特定工作，把过程隔离到单独实例中，从而减少主会话里的噪音，并保留主上下文的清晰度。
+
+<details>
+  <summary>Subagents Walkthrough</summary>
+  <iframe
+    class="aspect-ratio"
+    src="https://youtube.com/embed/Uk4TtJUykK4"
+    title="Subagents Explained"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</details>
+
+## 如何使用 Subagents
+
+:::tip Autonomous Subagent Creation
+在默认的自动权限模式下，goose 会在判断 subagent 对当前任务有帮助时自动创建它们，所以你并不一定每次都要显式提出。manual approval、smart approval 和 chat-only 模式默认会禁用 subagents。
+:::
+
+使用 subagents 时，你只需要用自然语言告诉 goose 该如何委派工作。goose 会自己决定何时拉起 subagent，并负责其生命周期。你可以：
+
+1. **请求专业化帮助**：“Use a code reviewer to analyze this function for security issues”
+2. **引用特定 recipe**：“Use the 'security-auditor' recipe to scan this endpoint”
+3. **运行并行任务**：“Create three HTML templates simultaneously”
+4. **委派复杂工作**：“Research quantum computing developments and summarize findings”
+5. **控制扩展访问范围**：“Create a subagent with only the developer extension to refactor the code”
+
+你可以顺序运行多个 subagent，也可以并行执行。
+
+| 类型 | 说明 | 触发关键词 | 示例 |
+|---|---|---|---|
+| **Sequential**（默认） | 任务按顺序一个接一个执行 | `first...then`、`after` | `"First analyze the code, then generate documentation"` |
+| **Parallel** | 多个任务同时执行 | `parallel`、`simultaneously`、`at the same time`、`concurrently` | `"Create three HTML templates in parallel"` |
+
+## 观察 Subagent 活动
+
+当 goose 把工作交给 subagent 时，你可以实时看到它的工具调用。这种透明度可以帮助你判断 subagent 正在做什么，以及它是不是在正确方向上推进。
+
+<Tabs groupId="interface">
+  <TabItem value="desktop" label="goose Desktop" default>
+    在 Desktop 中，subagent 的工具调用会以可展开区域显示在对话里。展开后你可以查看：
+
+    - 当前调用的工具名
+    - 传给工具的参数
+    - 工具执行结果与输出
+  </TabItem>
+
+  <TabItem value="cli" label="goose CLI">
+    在 CLI 中，subagent 的工具调用会以内联标记显示，例如：
+
+    ```text
+    [subagent:16] text_editor | developer
+    ```
+
+    每一条信息通常包含：
+
+    - subagent 标识（例如 `subagent:16`）
+    - 工具名（例如 `text_editor`）
+    - 提供该工具的扩展名（例如 `developer`）
+  </TabItem>
+</Tabs>
+
+:::info
+如果某个 subagent 失败或超时（默认 5 分钟），你不会收到该 subagent 的输出。对于并行执行场景，如果其中一个 subagent 失败，你通常只能拿到成功部分的结果。
+:::
+
+## 内部 Subagents
+
+内部 subagent 会拉起新的 goose 实例，并复用当前会话的上下文和扩展。配置和执行内部 subagent 通常有两种方式：
+
+1. **Direct Prompts**：一次性自然语言委派，适合临时任务
+2. **Recipes**：把更稳定、可复用的 subagent 行为固化为配置
+
+### Direct Prompts
+
+Direct prompt 适合一次性任务。主 agent 会根据你的自然语言要求自动为 subagent 配置执行环境。
+
+**goose Prompt：**
+
+```text
+Use 2 subagents to create hello.html with 'Hello World' content and goodbye.html with 'Goodbye World' content in parallel
+```
+
+**Tool Output：**
+
+```json
+{
+  "execution_summary": {
+    "total_tasks": 2,
+    "successful_tasks": 2,
+    "failed_tasks": 0,
+    "execution_time_seconds": 16.2
+  },
+  "task_results": [
+    {
+      "task_id": "create_hello_html",
+      "status": "success",
+      "result": "Successfully created hello.html with Hello World content"
+    },
+    {
+      "task_id": "create_goodbye_html",
+      "status": "success",
+      "result": "Successfully created goodbye.html with Goodbye World content"
+    }
+  ]
+}
+```
+
+### Recipes
+
+你也可以用 [recipe](/zh-CN/docs/guides/recipes) 文件来定义 subagent 的专用指令、可用扩展和执行行为。recipe 适合做可复用、可分享的专业化 subagent 配置。
+
+**创建 recipe 文件**
+
+`code-reviewer.yaml`
+
+```yaml
+id: code-reviewer
+version: 1.0.0
+title: "Code Review Assistant"
+description: "Specialized subagent for code quality and security analysis"
+instructions: |
+  You are a code review assistant. Analyze code and provide feedback on:
+  - Code quality and readability
+  - Security vulnerabilities
+  - Performance issues
+  - Best practices adherence
+activities:
+  - Analyze code structure
+  - Check for security issues
+  - Review performance patterns
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+parameters:
+  - key: focus_area
+    input_type: string
+    requirement: optional
+    description: "Specific area to focus on (security, performance, readability, etc.)"
+    default: "general"
+prompt: |
+  Please review the following code focusing on {{focus_area}} aspects.
+  Provide specific, actionable feedback with examples.
+```
+
+**把 recipe 文件放到 goose 能找到的位置**
+
+- 通过环境变量 [`GOOSE_RECIPE_PATH`](/zh-CN/docs/guides/recipes/recipe-reference) 指向你的 recipe 目录
+- 或者直接放到当前工作目录
+
+**goose Prompt**
+
+```text
+Use the "code-reviewer" recipe to analyze the authentication feature I implemented
+```
+
+**goose Output**
+
+```text
+I'll use your code-reviewer recipe to create a specialized subagent for this analysis.
+
+🤖 Subagent created using code-reviewer recipe
+💭 Analyzing authentication function for security issues...
+🔧 Scanning code structure and patterns...
+⚠️  Security vulnerabilities detected!
+
+## Code Review Results
+
+### Critical Issues Found:
+1. **SQL Injection Vulnerability**: Direct string interpolation in SQL query
+2. **Missing Password Hashing**: Plain text password comparison
+
+### Recommendations:
+- Use parameterized queries or ORM
+- Implement proper password hashing (bcrypt, scrypt)
+- Add input validation and sanitization
+```
+
+## 外部 Subagents
+
+外部 subagent 允许你把其他 provider 和平台上的 agent 纳入工作流，让 goose 与更广泛的 agent 生态协作。下面这个例子展示了如何把 Codex 作为 subagent：本质上是先把 Codex 作为 MCP server 接入，再由 goose 进行协调。
+
+**[goose 配置文件](/zh-CN/docs/guides/config-files)**（`.~/.config/goose/config.yaml`）：
+
+```yaml
+subagent:
+  args:
+  - mcp-server
+  bundled: true
+  cmd: codex
+  description: OpenAI Codex CLI Subagent
+  enabled: true
+  env_keys:
+  - OPENAI_API_KEY
+  envs: {}
+  name: subagent
+  timeout: 300
+  type: stdio
+```
+
+**外部工具配置**（`~/.codex/config.toml`）：
+
+```toml
+# Use fast model for quick responses
+# model = "codex-mini-latest"
+disable_response_storage = true
+
+# Never prompt for approval - auto-execute
+approval_policy = "never"
+
+[sandbox]
+mode = "workspace-write"
+```
+
+**goose Prompt：**
+
+```text
+Use the codex subagent to analyze my codebase structure and identify the main components
+```
+
+**goose Output：**
+
+```md
+Based on my analysis of your codebase, here are the main components:
+
+1. **Core Agent System** (`crates/goose/src/agents/`)
+   - Agent orchestration and session management
+   - Tool execution framework
+   - Extension system integration
+
+2. **CLI Interface** (`crates/goose-cli/`)
+   - Command-line interface and session handling
+   - Configuration management
+
+3. **Server Components** (`crates/goose-server/`)
+   - HTTP API endpoints
+   - WebSocket communication for real-time interaction
+
+4. **Desktop UI** (`ui/desktop/`)
+   - Electron-based desktop application
+   - TypeScript frontend with React components
+
+The architecture follows a modular design with clear separation between the core agent logic, interfaces, and UI components.
+```
+
+## 推荐使用场景
+
+**独立任务**
+
+- 同时创建多个结构相似的文件
+- 简单的数据处理任务
+- 文件转换和生成
+
+**上下文保留**
+
+- 会产生大量工具输出的复杂分析
+- 更适合由专门 agent 处理的专业任务
+- 希望主会话只聚焦高层决策
+
+**进程隔离**
+
+- 可能失败但不想影响主流程的任务
+- 需要不同配置或不同扩展组合的任务
+- 探索性、实验性工作
+
+## 生命周期与清理
+
+Subagent 是临时实例，只在任务执行期间存在。任务完成后不需要你手动清理。
+
+## 配置
+
+Subagent 默认会使用一组预配置参数，但你可以通过自然语言要求来覆盖默认值。
+
+### 默认设置
+
+| 参数 | 默认值 | 如何自定义 |
+|---|---|---|
+| **Max Turns** | 25 | 用自然语言提出要求，设置 `GOOSE_SUBAGENT_MAX_TURNS`，或在 [recipes](/zh-CN/docs/guides/recipes/recipe-reference#settings) / subagent tool call 中配置 `settings.max_turns` |
+| **Timeout** | 5 分钟 | 在 prompt 中要求更长超时时间 |
+| **Extensions** | 继承自父会话 | 在 prompt 中明确指定想使用哪些扩展 |
+| **Return Mode** | 所有 subagent 信息都返回到主会话 | 在 prompt 中说明你希望看到多少细节 |
+
+:::tip 高级自定义
+你还可以通过编辑 `subagent_system.md` [prompt template](/zh-CN/docs/guides/prompt-templates) 来更深度地定制 subagent 行为。
+:::
+
+### 在 Prompt 中覆盖默认设置
+
+你可以直接在自然语言请求里写出想覆盖的设置，goose 会尽量按你的要求配置 subagent。
+
+**示例：**
+
+```text
+Use subagents to analyze code, limit each to 5 turns
+```
+
+```text
+Use a research subagent with 30 turns and 20-minute timeout to investigate quantum computing trends
+```
+
+**环境变量：** 也可以通过设置 `GOOSE_SUBAGENT_MAX_TURNS`，统一改变所有 subagent 的默认最大轮数。
+
+### 控制扩展访问
+
+你可以控制 subagent 能访问哪些工具和能力。默认情况下，subagent 会继承主会话里的全部扩展；但为了安全性、聚焦度或性能，你也可以显式限制它。
+
+**示例：**
+
+```text
+Create a subagent to write a summary, but don't give it file access
+```
+
+```text
+Use a subagent with only code editing tools to refactor main.py
+```
+
+### 控制返回模式
+
+你可以决定主会话里要看到多少 subagent 信息。
+
+**完整细节（默认）**：显示全部工具执行与调查过程
+
+```text
+Create a subagent to debug this issue - I want to see the full investigation process
+```
+
+**只要摘要**：只返回最终结果，保持主会话整洁
+
+```text
+Use a subagent to research this topic and summarize the key findings
+```
+
+## 安全约束
+
+Subagent 的工具访问范围受到限制，以确保它们可以安全执行任务，同时不会干扰主会话或修改系统级状态。
+
+### 允许的操作
+
+Subagent 可以执行这些相对安全的操作：
+
+- **扩展发现**：搜索当前可用扩展，理解自己有哪些工具
+- **资源访问**：读取和列出已启用扩展暴露出的资源，用于获取上下文
+- **扩展工具调用**：使用 recipe 指定或从父会话继承来的扩展工具
+
+### 受限的操作
+
+下面这些操作会被阻止，以防 subagent 跑偏或影响主流程：
+
+- **继续创建 subagent**：禁止无限递归生成更多 subagent
+- **管理扩展**：不能启用、禁用或修改扩展，避免和主会话配置冲突
+- **管理计划任务**：不能创建、修改或删除 schedule，避免干扰父工作流
+
+:::info
+Subagent 可以浏览扩展并提出建议，但不能自己启用扩展，以免意外修改父会话。
+:::
+
+## 附加资源
+
+<ContentCardCarousel
+  items={[
+    {
+      type: "blog",
+      title: "Agents, Subagents, and Multi Agents: What They Are and When to Use Them",
+      description: "对比 agents、subagents 与 multi agents 在 AI 工作流里的不同角色，了解它们如何协作，以及各自适合的场景。",
+      thumbnailUrl: agentCoordination,
+      linkUrl: "/goose/blog/2025/08/14/agent-coordination-patterns",
+      date: "2025-08-14",
+      duration: "4 min read",
+    },
+    {
+      type: "video",
+      title: "How I Built an App with 6 Subagents",
+      description: "深入了解 goose subagents，看看如何用 6 个专业化 AI agent 协作搭建一个应用。",
+      thumbnailUrl: "https://img.youtube.com/vi/yIBrD5AxtTc/maxresdefault.jpg",
+      linkUrl: "https://www.youtube.com/watch?v=yIBrD5AxtTc",
+      date: "2025-10-01",
+      duration: "6:53",
+    },
+    {
+      type: "tutorial",
+      title: "教程：使用 Subagents",
+      description: "拉起一组 subagents，协作构建一个可运行的应用。",
+      thumbnailUrl: "https://block.github.io/goose/assets/images/tutorial-using-subagents-ef265627024db73e73d80e5799ed0c1a.png",
+      linkUrl: "/goose/docs/tutorials/subagents",
+      date: "2026-01-27",
+      duration: "1 hour",
+    },
+    {
+      type: "video",
+      title: "Flight School - Choosing the Right Tools for AI Work",
+      description: "了解 subagents 与 subrecipes 的差异，判断哪一种更适合你的工作流。",
+      thumbnailUrl: "https://img.youtube.com/vi/joePzlkARjs/maxresdefault.jpg",
+      linkUrl: "https://www.youtube.com/watch?v=joePzlkARjs",
+      date: "2025-09-29",
+      duration: "6:13",
+    },
+    {
+      type: "blog",
+      title: "How to Choose Between Subagents and Subrecipes in goose",
+      description: "更系统地比较 subagents 与 subrecipes 的可复用性、配置复杂度，以及实际选择建议。",
+      thumbnailUrl: subagentsVsSubrecipes,
+      linkUrl: "/goose/blog/2025/09/26/subagents-vs-subrecipes",
+      date: "2025-09-26",
+      duration: "6 min read",
+    },
+  ]}
+/>

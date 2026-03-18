@@ -1,0 +1,8 @@
+{
+  "label": "会话管理",
+  "position": 1,
+  "link": {
+    "type": "doc",
+    "id": "guides/sessions/index"
+  }
+}

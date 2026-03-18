@@ -1,0 +1,116 @@
+.wrapper {
+  position: relative;
+  margin-right: 0.5rem;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 42px;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--background-subtle);
+  color: var(--text-standard);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.trigger:hover {
+  background: var(--background-standard);
+  border-color: var(--border-standard);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 16, 16, 0.12);
+}
+
+.flag {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.label {
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chevron {
+  font-size: 0.9rem;
+  color: var(--text-subtle);
+  transition: transform 0.18s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  z-index: 200;
+  min-width: 210px;
+  margin: 0;
+  padding: 0.5rem;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.25rem;
+  background: var(--background-app);
+  box-shadow: 0 18px 36px rgba(16, 16, 16, 0.12);
+}
+
+.menuItemWrapper {
+  margin: 0;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.95rem;
+  color: var(--text-standard);
+  text-decoration: none;
+  font-size: 1.1rem;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.menuItem:hover {
+  background: var(--background-subtle);
+  color: var(--text-prominent);
+  text-decoration: none;
+}
+
+.menuItemActive {
+  color: #ef5a29;
+  font-weight: 500;
+}
+
+.check {
+  margin-left: auto;
+  font-size: 1.25rem;
+}
+
+[data-theme="dark"] .trigger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="dark"] .menu {
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.42);
+}
+
+@media (max-width: 996px) {
+  .wrapper {
+    display: none;
+  }
+}

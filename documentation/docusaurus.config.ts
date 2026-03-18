@@ -95,6 +95,15 @@ const config: Config = {
   plugins: [
     require.resolve("./plugins/custom-webpack.cjs"),
     [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "zh-CN",
+        path: "docs-zh-CN",
+        routeBasePath: "zh-CN/docs",
+        sidebarPath: "./sidebars.zh-CN.ts",
+      },
+    ],
+    [
       "@docusaurus/plugin-client-redirects",
       {
         redirects: [

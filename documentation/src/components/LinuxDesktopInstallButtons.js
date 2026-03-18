@@ -4,11 +4,16 @@ import { useState, useEffect } from "react";
 
 const FALLBACK_URL = "https://github.com/block/goose/releases/latest";
 
-const LinuxDesktopInstallButtons = () => {
+const LinuxDesktopInstallButtons = ({
+  introText = "Click one of the buttons below to download goose Desktop for Linux:",
+  debLabel = "DEB Package (Ubuntu/Debian)",
+  rpmLabel = "RPM Package (RHEL/Fedora)",
+  flatpakLabel = "Flatpak (Universal)",
+}) => {
   const [downloadUrls, setDownloadUrls] = useState({
     deb: FALLBACK_URL,
     rpm: FALLBACK_URL,
-    flatpak: FALLBACK_URL
+    flatpak: FALLBACK_URL,
   });
 
   useEffect(() => {
@@ -58,25 +63,25 @@ const LinuxDesktopInstallButtons = () => {
 
   return (
     <div>
-      <p>Click one of the buttons below to download goose Desktop for Linux:</p>
-      <div className="pill-button" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <p>{introText}</p>
+      <div className="pill-button" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <Link
           className="button button--primary button--lg"
           to={downloadUrls.deb}
         >
-          <IconDownload /> DEB Package (Ubuntu/Debian)
+          <IconDownload /> {debLabel}
         </Link>
         <Link
           className="button button--primary button--lg"
           to={downloadUrls.rpm}
         >
-          <IconDownload /> RPM Package (RHEL/Fedora)
+          <IconDownload /> {rpmLabel}
         </Link>
         <Link
           className="button button--primary button--lg"
           to={downloadUrls.flatpak}
         >
-          <IconDownload /> Flatpak (Universal)
+          <IconDownload /> {flatpakLabel}
         </Link>
       </div>
     </div>

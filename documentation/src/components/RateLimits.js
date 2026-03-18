@@ -1,27 +1,35 @@
 import React from "react";
+import Link from "@docusaurus/Link";
 import Admonition from "@theme/Admonition";
 
-export const RateLimits = () => {
+export const RateLimits = ({
+  title = "Billing",
+  providerLinkText = "Google Gemini",
+  providerLinkHref = "https://aistudio.google.com/app/apikey",
+  providerText =
+    " offers a free tier you can get started with. Otherwise, you'll need to ensure that you have credits available in your LLM Provider account to successfully make requests.",
+  rateLimitsText =
+    "Some providers also have rate limits on API usage, which can affect your experience. Check out our ",
+  guideLinkText = "Handling Rate Limits",
+  guideHref = "/docs/guides/handling-llm-rate-limits-with-goose",
+  guideText =
+    " guide to learn how to efficiently manage these limits while using goose.",
+}) => {
   return (
-    <Admonition type="info" title="Billing">
+    <Admonition type="info" title={title}>
       <a
-        href="https://aistudio.google.com/app/apikey"
+        href={providerLinkHref}
         target="_blank"
         rel="noopener noreferrer"
       >
-        Google Gemini
+        {providerLinkText}
       </a>{" "}
-      offers a free tier you can get started with. Otherwise, you'll need to
-      ensure that you have credits available in your LLM Provider account to
-      successfully make requests.
+      {providerText}
       <br />
       <br />
-      Some providers also have rate limits on API usage, which can affect your
-      experience. Check out our{" "}
-      <a href="/goose/docs/guides/handling-llm-rate-limits-with-goose" target="_blank">
-        Handling Rate Limits
-      </a>{" "}
-      guide to learn how to efficiently manage these limits while using goose.
+      {rateLimitsText}
+      <Link to={guideHref}>{guideLinkText}</Link>
+      {guideText}
     </Admonition>
   );
 };

@@ -1,0 +1,8 @@
+{
+  "label": "MCP Servers",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "了解如何把 MCP Servers 作为 goose 扩展接入和使用。"
+  }
+}

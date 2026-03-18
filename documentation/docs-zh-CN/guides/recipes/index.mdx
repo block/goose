@@ -1,0 +1,123 @@
+---
+title: Recipes
+hide_title: true
+description: 可复用、可分享的 AI 工作流
+---
+
+import Card from "@site/src/components/Card";
+import styles from "@site/src/components/Card/styles.module.css";
+import VideoCarousel from "@site/src/components/VideoCarousel";
+
+<h1 className={styles.pageTitle}>Recipes</h1>
+<p className={styles.pageDescription}>
+  Recipes 是可复用的工作流封装，它把扩展、提示词和设置组合在一起。你可以把验证过的工作流分享给团队，并持续复现成功结果。
+</p>
+
+<div className="video-container margin-bottom--lg">
+  <iframe
+    width="100%"
+    height="400"
+    src="https://www.youtube.com/embed/8rTliYrQ6Iw"
+    title="用 Recipes 创建可复用 AI Agent"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 文档与指南</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="可分享 Recipes"
+      description="把 goose 会话设置打包成一个可复用 recipe，别人可以一键启动。"
+      link="/zh-CN/docs/guides/recipes/session-recipes"
+    />
+    <Card
+      title="Recipe 参考指南"
+      description="通过 CLI 创建和定制 recipes 的完整技术参考。"
+      link="/zh-CN/docs/guides/recipes/recipe-reference"
+    />
+    <Card
+      title="自定义 Slash Commands"
+      description="通过简单的 slash commands，在任意会话中快速运行 recipes。"
+      link="/zh-CN/docs/guides/context-engineering/slash-commands"
+    />
+    <Card
+      title="Recipes 教程"
+      description="了解如何使用 prompts、参数、MCP servers 等构建和运行 goose recipes。"
+      link="/zh-CN/docs/tutorials/recipes-tutorial"
+    />
+    <Card
+      title="Subrecipes"
+      description="了解 recipe 如何通过 subrecipes 完成更具体的任务。"
+      link="/zh-CN/docs/guides/recipes/subrecipes"
+    />
+    <Card
+      title="保存 Recipes"
+      description="了解如何保存、组织和查找 goose recipes。"
+      link="/zh-CN/docs/guides/recipes/storing-recipes"
+    />
+    <Card
+      title="并行运行 Subrecipes"
+      description="了解如何并发运行多个 subrecipe 实例。"
+      link="/zh-CN/docs/tutorials/subrecipes-in-parallel"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🛠️ 工具与生成器</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Recipe Generator"
+      description="使用交互式工具生成可分享的 goose recipe URL，让别人一键启动带有预设参数的会话。"
+      link="/recipe-generator"
+    />
+    <Card
+      title="Recipe Cookbook"
+      description="浏览现成可用的 recipes，并针对常见开发场景快速改造成自己的版本。"
+      link="/recipes"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 精选博客文章</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Championship Driven Development"
+      description="看看 recipes 如何加速团队开发流程，缩短从想法到交付的距离。"
+      link="/blog/2025/05/09/developers-ai-playbook-for-team-efficiency"
+    />
+    <Card
+      title="A Recipe for Success"
+      description="了解为什么 recipes 适合把 agent 工作流扩展到团队和组织层面。"
+      link="/blog/2025/05/06/recipe-for-success"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 更多视频</h2>
+
+  <VideoCarousel
+    id="more-videos"
+    videos={[
+      {
+        type: "iframe",
+        src: "https://youtube.com/embed/1szmJSKInnU",
+        title: "Recipes / Subrecipes 高级技巧",
+        description: "更深入地掌握 recipes 和 subrecipes 的设计与使用方式",
+        duration: "10:07",
+      },
+      {
+        type: "iframe",
+        src: "https://youtube.com/embed/gvg7DomaJuA",
+        title: "Headless goose：并行 Subagent Recipe 调度",
+        description: "了解如何调度一个会并行运行两个 subagent 的 recipe",
+        duration: "5:50",
+      },
+    ]}
+  />
+</div>

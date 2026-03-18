@@ -1,0 +1,50 @@
+---
+title: 安全使用 goose
+hide_title: true
+description: 通过内置安全能力和最佳实践，保护你的 goose 工作流
+---
+
+import Card from "@site/src/components/Card";
+import styles from "@site/src/components/Card/styles.module.css";
+
+<h1 className={styles.pageTitle}>安全使用 goose</h1>
+<p className={styles.pageDescription}>
+  了解常见安全风险并遵循最佳实践，可以帮助你更安全地使用 goose 搭建工作流。
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 文档与指南</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Prompt Injection Detection"
+      description="在潜在有害命令真正运行前，先检测并阻止它们。"
+      link="/zh-CN/docs/guides/security/prompt-injection-detection"
+    />
+    <Card
+      title="Classification API Specification"
+      description="用于自托管基于机器学习的 Prompt Injection 检测端点的 API 规范。"
+      link="/zh-CN/docs/guides/security/classification-api-spec"
+    />
+    <Card
+      title="macOS Sandbox for goose Desktop"
+      description="利用 Apple 的 sandbox 技术控制 goose Desktop 的文件访问、网络连接和进程限制。"
+      link="/docs/guides/sandbox"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 精选博客文章</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="How to Determine If An MCP Server Is Safe"
+      description="在把 agent 接到任意一个 MCP Server 之前，先学会判断它是否真的安全。"
+      link="/blog/2025/03/26/mcp-security"
+    />
+    <Card
+      title="Securing the Model Context Protocol"
+      description="了解 Block 如何围绕 Model Context Protocol (MCP) 构建安全且强大的 AI 集成。"
+      link="/blog/2025/03/31/securing-mcp"
+    />
+  </div>
+</div>

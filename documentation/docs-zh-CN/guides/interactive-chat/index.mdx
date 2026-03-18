@@ -1,0 +1,118 @@
+---
+title: 交互式聊天：MCP Apps 与 MCP-UI
+hide_title: true
+description: 使用 MCP Apps 与 MCP-UI 在 goose Desktop 中渲染交互式界面
+---
+
+import Card from "@site/src/components/Card";
+import styles from "@site/src/components/Card/styles.module.css";
+import VideoCarousel from "@site/src/components/VideoCarousel";
+
+<h1 className={styles.pageTitle}>交互式聊天：MCP Apps 与 MCP-UI</h1>
+<p className={styles.pageDescription}>
+  goose Desktop 支持把纯文本响应扩展成交互式图形界面。你不再只是阅读列表和描述，而是可以直接点击、探索并操作聊天中的 UI 组件。
+</p>
+
+<div className="video-container margin-bottom--lg">
+  <iframe
+    class="aspect-ratio"
+    src="https://www.youtube.com/embed/QJHGvsVXhjw"
+    title="把任意 AI 聊天变成交互式体验 | MCP-UI"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 文档与指南</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="构建 MCP Apps"
+      description="一步一步创建可在 goose Desktop 中渲染的交互式 UI 应用。"
+      link="/zh-CN/docs/tutorials/building-mcp-apps"
+    />
+    <Card
+      title="使用 MCP Apps 和 MCP-UI"
+      description="了解 goose 如何把文本响应转成可交互的图形体验。"
+      link="/zh-CN/docs/guides/interactive-chat/mcp-ui"
+    />
+    <Card
+      title="Auto Visualiser 扩展"
+      description="在 goose 中自动生成交互式数据可视化。"
+      link="/zh-CN/docs/mcp/autovisualiser-mcp"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 精选博客文章</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="从 MCP-UI 到 MCP Apps：交互式 Agent UI 的演进"
+      description="了解从 MCP-UI 迁移到 MCP Apps 时最重要的 4 个变化、踩坑点，以及这次转变为什么重要。"
+      link="/blog/2026/01/22/mcp-ui-to-mcp-apps"
+    />
+    <Card
+      title="goose 正式支持 MCP Apps"
+      description="介绍 goose 对 MCP Apps 草案规范的早期支持，以及它如何与交互式 UI 的新标准保持一致。"
+      link="/blog/2026/01/06/mcp-apps"
+    />
+    <Card
+      title="MCP UI：把浏览器带进 Agent"
+      description="了解 goose Desktop 如何把 MCP-UI server 返回的内容渲染成丰富、可嵌入的 UI。"
+      link="/blog/2025/08/11/mcp-ui-post-browser-world"
+    />
+    <Card
+      title="MCP-UI：Agentic Interface 的未来"
+      description="为什么 AI agent 不能只停留在一面文字墙，而要走向更丰富、可交互的体验。"
+      link="/blog/2025/08/25/mcp-ui-future-agentic-interfaces"
+    />
+    <Card
+      title="借助 MCP-UI 使用 Auto Visualiser"
+      description="边交互边自动把数据渲染成可视化结果。"
+      link="/blog/2025/08/27/autovisualiser-with-mcp-ui"
+    />
+    <Card
+      title="如何让一个 MCP Server 支持 MCP-UI"
+      description="只需几行代码，就能让现有 MCP server 具备 MCP-UI 兼容能力。"
+      link="/blog/2025/09/08/turn-any-mcp-server-mcp-ui-compatible"
+    />
+    <Card
+      title="为用户设计 AI，而不只是为 LLM 设计"
+      description="使用 MCP-UI 构建以用户意图为中心的 AI 体验。"
+      link="/blog/2025/10/14/designing-ai-for-humans"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 更多视频</h2>
+
+  <VideoCarousel
+    id="more-videos"
+    videos={[
+      {
+        type: "iframe",
+        src: "https://youtube.com/embed/QcojQ3Fwqsw",
+        title: "什么是 MCP Apps？",
+        description: "为什么 MCP Apps 和 MCP-UI 不同，以及它为什么更便携、更安全、更标准化。",
+        duration: "1:53",
+      },
+      {
+        type: "iframe",
+        src: "https://youtube.com/embed/Kxj-vFBO_9U",
+        title: "从零构建一个 MCP-UI Server",
+        description: "学习如何从头搭建自己的 MCP-UI server。",
+        duration: "40:07",
+      },
+      {
+        type: "iframe",
+        src: "https://youtube.com/embed/GS-kmreZDgU",
+        title: "直播：MCP-UI，Agentic Interface 的未来",
+        description: "goose 团队与 MCP-UI 的创建者一起讨论可视化交互界面的未来。",
+        duration: "55:32",
+      },
+    ]}
+  />
+</div>

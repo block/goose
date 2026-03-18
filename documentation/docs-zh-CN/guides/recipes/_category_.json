@@ -1,0 +1,8 @@
+{
+  "label": "Recipes",
+  "position": 5,
+  "link": {
+    "type": "doc",
+    "id": "guides/recipes/index"
+  }
+}

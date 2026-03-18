@@ -1,0 +1,75 @@
+---
+title: 多模型配置
+hide_title: true
+description: 通过模型切换策略在成本、性能和效果之间做权衡
+---
+
+import Card from "@site/src/components/Card";
+import styles from "@site/src/components/Card/styles.module.css";
+import VideoCarousel from "@site/src/components/VideoCarousel";
+
+<h1 className={styles.pageTitle}>多模型配置</h1>
+<p className={styles.pageDescription}>
+  goose 支持在单个会话里组合使用不同模型，让你在成本、性能和任务专长之间做平衡。可选策略既包括手动切换、按轮次切换，也包括更动态、与上下文相关的模型切换方式。
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 文档与指南</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Lead/Worker 多模型协作"
+      description="自动在两个模型之间切换：lead model 负责前几轮规划，worker model 负责后续执行。"
+      link="/zh-CN/docs/tutorials/lead-worker"
+    />
+    <Card
+      title="开工前先创建计划"
+      description="使用手动 planning mode，并可选专门模型先把复杂项目拆成详细、可执行的步骤。"
+      link="/zh-CN/docs/guides/creating-plans"
+    />
+    <Card
+      title="规划复杂任务"
+      description="通过 Plan 功能，把复杂 devcontainer 配置问题转成一份系统化、可执行的路线图。"
+      link="/zh-CN/docs/tutorials/plan-feature-devcontainer-setup"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 精选博客文章</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Treating LLMs Like Tools in a Toolbox: A Multi-Model Approach to Smarter AI Agents"
+      description="把 LLM 当成工具箱里的不同工具，多模型协作能构建更聪明、也更高效的 AI agent。"
+      link="/blog/2025/06/16/multi-model-in-goose"
+    />
+    <Card
+      title="LLM Tag Team: Who Plans, Who Executes?"
+      description="了解 lead/worker 配置如何让一个模型负责规划、另一个模型负责执行，组成高效协作的 AI 双人组。"
+      link="/blog/2025/08/11/llm-tag-team-lead-worker-model"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 更多视频</h2>
+
+  <VideoCarousel
+    id="more-videos"
+    videos={[
+      {
+        type: "iframe",
+        src: "https://www.youtube.com/embed/ZyhUTsChFUw",
+        title: "goose 的多模型配置",
+        description: "从配置方式到最佳实践，完整了解 lead/worker 模式",
+        duration: "5:01",
+      },
+      {
+        type: "iframe",
+        src: "https://www.youtube.com/embed/SJ6EZpyCKrk",
+        title: "直播：LLM Tag Team，谁规划，谁执行？",
+        description: "实时演示如何用 lead/worker 模式给 goose docs 增加新功能",
+        duration: "9:36",
+      },
+    ]}
+  />
+</div>

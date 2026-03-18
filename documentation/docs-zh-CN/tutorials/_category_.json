@@ -1,0 +1,9 @@
+{
+  "label": "教程",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "slug": "/category/tutorials",
+    "description": "了解如何在不同场景里使用 goose。"
+  }
+}

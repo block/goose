@@ -1,0 +1,8 @@
+{
+  "label": "实验功能",
+  "position": 7,
+  "link": {
+    "type": "doc",
+    "id": "experimental/index"
+  }
+}

@@ -6,6 +6,7 @@
  */
 
 const http = require('http');
+const fs = require('fs');
 const serveStatic = require('serve-static');
 const path = require('path');
 
@@ -25,8 +26,60 @@ const serve = serveStatic(buildDir, {
 const server = http.createServer((req, res) => {
   // Handle requests to /goose/ by serving from the build directory
   if (req.url.startsWith('/goose/')) {
+    const originalUrl = req.url;
+    const strippedUrl = req.url.substring(6) || '/';
+    const pathname = decodeURIComponent(strippedUrl.split('?')[0]);
+    let servedUrl = strippedUrl;
+
+    // Serve directory index files directly so local preview works with or without
+    // a trailing slash and does not depend on browser redirect caching.
+    if (!path.extname(pathname) && !pathname.endsWith('/')) {
+      const candidateDir = path.join(buildDir, pathname);
+      if (fs.existsSync(candidateDir) && fs.statSync(candidateDir).isDirectory()) {
+        servedUrl = `${pathname}/index.html`;
+      } else {
+        // Preserve the /goose base path when the static handler emits redirects.
+        const originalWriteHead = res.writeHead.bind(res);
+        res.writeHead = (statusCode, statusMessage, headers) => {
+          let nextStatusMessage = statusMessage;
+          let nextHeaders = headers;
+
+          if (typeof nextStatusMessage === 'object' && nextHeaders === undefined) {
+            nextHeaders = nextStatusMessage;
+            nextStatusMessage = undefined;
+          }
+
+          const location =
+            (nextHeaders && nextHeaders.Location) ||
+            (nextHeaders && nextHeaders.location) ||
+            res.getHeader('Location') ||
+            res.getHeader('location');
+
+          if (typeof location === 'string' && location.startsWith('/') && !location.startsWith('/goose/')) {
+            const rewrittenLocation = `/goose${location}`;
+            if (nextHeaders) {
+              if (nextHeaders.Location) {
+                nextHeaders.Location = rewrittenLocation;
+              } else if (nextHeaders.location) {
+                nextHeaders.location = rewrittenLocation;
+              } else {
+                nextHeaders.Location = rewrittenLocation;
+              }
+            } else {
+              res.setHeader('Location', rewrittenLocation);
+            }
+          }
+
+          if (nextStatusMessage === undefined) {
+            return originalWriteHead(statusCode, nextHeaders);
+          }
+          return originalWriteHead(statusCode, nextStatusMessage, nextHeaders);
+        };
+      }
+    }
+
     // Strip /goose/ prefix and serve the file
-    req.url = req.url.substring(6); // Remove '/goose'
+    req.url = servedUrl;
     serve(req, res, () => {
       res.statusCode = 404;
       res.end('Not found');

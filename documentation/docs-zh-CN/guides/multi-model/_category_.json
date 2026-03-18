@@ -1,0 +1,5 @@
+{
+  "label": "多模型配置",
+  "position": 100,
+  "description": "配置多个模型与 provider，用于模型切换与任务分工策略。"
+}

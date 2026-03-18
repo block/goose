@@ -1,0 +1,9 @@
+{
+  "label": "指南",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "slug": "/category/guides",
+    "description": "了解使用 goose 的核心指南、技巧和推荐做法。"
+  }
+}

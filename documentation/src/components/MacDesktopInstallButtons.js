@@ -1,26 +1,30 @@
 import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
 
-const DesktopInstallButtons = () => {
+const MacDesktopInstallButtons = ({
+  introText = "Click one of the buttons below to download goose Desktop for macOS:",
+  siliconLabel = "macOS Silicon",
+  intelLabel = "macOS Intel",
+}) => {
   return (
     <div>
-      <p>Click one of the buttons below to download goose Desktop for macOS:</p>
-      <div className="pill-button" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <p>{introText}</p>
+      <div className="pill-button" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <Link
           className="button button--primary button--lg"
           to="https://github.com/block/goose/releases/download/stable/Goose.zip"
         >
-          <IconDownload /> macOS Silicon
+          <IconDownload /> {siliconLabel}
         </Link>
         <Link
           className="button button--primary button--lg"
           to="https://github.com/block/goose/releases/download/stable/Goose_intel_mac.zip"
         >
-          <IconDownload /> macOS Intel
+          <IconDownload /> {intelLabel}
         </Link>
       </div>
     </div>
   );
 };
 
-export default DesktopInstallButtons;
+export default MacDesktopInstallButtons;

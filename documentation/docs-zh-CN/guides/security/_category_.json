@@ -1,0 +1,8 @@
+{
+  "label": "安全",
+  "position": 43,
+  "link": {
+    "type": "doc",
+    "id": "guides/security/index"
+  }
+}

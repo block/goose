@@ -1,15 +1,61 @@
 import React from "react";
 
-export const OnboardingProviderSetup = () => {
+const renderLabel = ({ label, href }) => {
+  if (!href) {
+    return label;
+  }
+
+  return <a href={href}>{label}</a>;
+};
+
+export const OnboardingProviderSetup = ({
+  quickSetupLabel = "Quick Setup with API Key",
+  quickSetupDescription = "goose will automatically configure your provider based on your API key",
+  chatGptLabel = "ChatGPT Subscription",
+  chatGptHref = "https://chatgpt.com/codex",
+  chatGptDescription = "Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models",
+  agentRouterLabel = "Agent Router by Tetrate",
+  agentRouterHref = "https://tetrate.io/products/tetrate-agent-router-service",
+  agentRouterDescription = "Access multiple AI models with automatic setup",
+  openRouterLabel = "OpenRouter",
+  openRouterHref = "https://openrouter.ai/",
+  openRouterDescription = "Access 200+ models with one API using pay-per-use pricing",
+  otherProvidersLabel = "Other Providers",
+  otherProvidersDescription = "Manually configure additional providers through settings",
+}) => {
+  const items = [
+    {
+      label: quickSetupLabel,
+      description: quickSetupDescription,
+    },
+    {
+      label: chatGptLabel,
+      href: chatGptHref,
+      description: chatGptDescription,
+    },
+    {
+      label: agentRouterLabel,
+      href: agentRouterHref,
+      description: agentRouterDescription,
+    },
+    {
+      label: openRouterLabel,
+      href: openRouterHref,
+      description: openRouterDescription,
+    },
+    {
+      label: otherProvidersLabel,
+      description: otherProvidersDescription,
+    },
+  ];
+
   return (
-    <>
-      <ul>
-        <li><strong>Quick Setup with API Key</strong> - goose will automatically configure your provider based on your API key</li>
-        <li><strong><a href="https://chatgpt.com/codex">ChatGPT Subscription</a></strong> - Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models</li>
-        <li><strong><a href="https://tetrate.io/products/tetrate-agent-router-service">Agent Router by Tetrate</a></strong> - Access multiple AI models with automatic setup</li>
-        <li><strong><a href="https://openrouter.ai/">OpenRouter</a></strong> - Access 200+ models with one API using pay-per-use pricing</li>
-        <li><strong>Other Providers</strong> - Manually configure additional providers through settings</li>
-      </ul>
-    </>
+    <ul>
+      {items.map((item) => (
+        <li key={item.label}>
+          <strong>{renderLabel(item)}</strong> - {item.description}
+        </li>
+      ))}
+    </ul>
   );
 };

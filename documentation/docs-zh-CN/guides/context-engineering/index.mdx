@@ -1,0 +1,70 @@
+---
+title: Context Engineering
+hide_title: true
+description: 为 goose 提供知识、偏好和工作流，让它更高效地协作
+---
+
+import Card from "@site/src/components/Card";
+import styles from "@site/src/components/Card/styles.module.css";
+
+<h1 className={styles.pageTitle}>Context Engineering</h1>
+<p className={styles.pageDescription}>
+  Context engineering 的目标，是把背景知识、偏好和工作方式提前教给 goose。这样你不需要在每一轮都重复说明，而是可以一次定义、持续复用。
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 文档与指南</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="为 goose 提供 Hints"
+      description="使用 AGENTS.md、.goosehints 等文件，为 goose 提供项目上下文、偏好和自动加载的指令。"
+      link="/zh-CN/docs/guides/context-engineering/using-goosehints"
+    />
+    <Card
+      title="使用 Skills"
+      description="创建可复用的 instruction sets、脚本和资源，让 goose 按需加载。"
+      link="/zh-CN/docs/guides/context-engineering/using-skills"
+    />
+    <Card
+      title="自定义 Slash Commands"
+      description="通过简单的 slash commands，在任意会话里快速运行复用指令。"
+      link="/zh-CN/docs/guides/context-engineering/slash-commands"
+    />
+    <Card
+      title="持久指令"
+      description="在每轮交互中持续注入关键提醒，适合安全边界和行为约束。"
+      link="/zh-CN/docs/guides/using-persistent-instructions"
+    />
+    <Card
+      title="Memory 扩展"
+      description="让 goose 在跨会话场景中记住命令、代码片段和偏好。"
+      link="/zh-CN/docs/mcp/memory-mcp"
+    />
+    <Card
+      title="Research → Plan → Implement 模式"
+      description="了解 slash commands 如何帮助你在交互式 RPI 工作流中复用指令。"
+      link="/zh-CN/docs/tutorials/rpi"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 精选博客文章</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="What's in my .goosehints file"
+      description="深入理解 .goosehints 与 Memory Extension 的分工，以及如何优化 goose 配置。"
+      link="/blog/2025/06/05/whats-in-my-goosehints-file"
+    />
+    <Card
+      title="Stop Your AI Agent From Making Unwanted Changes"
+      description="了解如何通过更明确的上下文和提交节奏，避免 AI agent 产生不想要的修改。"
+      link="/blog/2025/12/10/stop-ai-agent-unwanted-changes"
+    />
+    <Card
+      title="The AI Skeptic's Guide to Context Windows"
+      description="理解 context windows、tokens，以及 goose 如何帮助你管理记忆和长对话。"
+      link="/blog/2025/08/18/understanding-context-windows"
+    />
+  </div>
+</div>

@@ -1,0 +1,50 @@
+---
+title: 故障排查
+hide_title: true
+description: 获取帮助、报告问题，并排查 goose 的常见问题。
+---
+
+import Card from "@site/src/components/Card";
+import styles from "@site/src/components/Card/styles.module.css";
+
+<h1 className={styles.pageTitle}>故障排查</h1>
+<p className={styles.pageDescription}>
+  当你需要帮助时，可以在这里查看内置诊断、提交问题、请求新功能，并找到常见问题的解决方案。goose 提供了内置诊断能力以及直达支持渠道的链接。
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🛠️ 获取帮助</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Diagnostics and Reporting"
+      description="使用内置诊断、报告问题并提交新功能请求。包含生成排障数据的分步骤说明。"
+      link="/docs/troubleshooting/diagnostics-and-reporting"
+    />
+    <Card
+      title="Known Issues"
+      description="系统性的故障排查指南，覆盖常见问题、错误提示和平台特定问题，并提供逐步解决方案。"
+      link="/docs/troubleshooting/known-issues"
+    />
+    <Card
+      title="Logs"
+      description="了解如何访问并解读 goose 会话日志和系统日志，以便进行调试和排障。"
+      link="/docs/guides/logs"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>💬 社区支持</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Discord Community"
+      description="加入活跃的 Discord 社区，实时获取帮助，并与 goose 用户和维护者交流。"
+      link="https://discord.gg/goose-oss"
+    />
+    <Card
+      title="GitHub Issues"
+      description="浏览已有 issue、参与讨论，或在 GitHub 仓库中创建新的 bug 报告与功能请求。"
+      link="https://github.com/block/goose/issues"
+    />
+  </div>
+</div>
