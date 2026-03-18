@@ -302,11 +302,14 @@ function createEventProcessor(
       case 'Error': {
         flushBatchedUpdates();
         const errorMsg = String((event as Record<string, unknown>).error ?? '');
-        onFinish('Stream error: ' + errorMsg);
-        // Server indicated we missed events — reload the full conversation
-        // so the UI reflects the actual state.
         if (errorMsg.includes('too far behind') && onReloadNeeded) {
+          // Server indicated we missed events — end streaming without setting
+          // an error (which would show a blocking error screen), then reload
+          // the full conversation so the UI reflects the actual state.
+          onFinish();
           onReloadNeeded();
+        } else {
+          onFinish('Stream error: ' + errorMsg);
         }
         return true;
       }
@@ -449,13 +452,13 @@ export function useChatStream({
   // Reload the full conversation from the server, e.g. after the SSE
   // stream indicates the client fell too far behind the replay buffer.
   const reloadConversation = useCallback(() => {
-    updateFromSession({
-      body: { session_id: sessionId },
+    getSession({
+      path: { session_id: sessionId },
       throwOnError: true,
     }).then((response) => {
-      const messages = (response.data as Record<string, unknown>)?.messages as Message[] | undefined;
-      if (messages) {
-        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      const session = response.data as Session;
+      if (session?.conversation) {
+        dispatch({ type: 'SET_MESSAGES', payload: session.conversation });
       }
     }).catch((e) => {
       console.warn('Failed to reload conversation after buffer overflow:', e);

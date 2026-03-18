@@ -47,12 +47,19 @@ export function useSessionEvents(sessionId: string) {
             },
           });
 
-          setConnected(true);
-          retryDelay = 500; // reset on successful connection
-          consecutiveErrors = 0;
+          let receivedEvent = false;
 
           for await (const event of stream) {
             if (abortController.signal.aborted) break;
+
+            // Only mark as connected after the first real event arrives,
+            // since the HTTP request doesn't happen until iteration starts.
+            if (!receivedEvent) {
+              receivedEvent = true;
+              setConnected(true);
+              retryDelay = 500;
+              consecutiveErrors = 0;
+            }
 
             // The server adds chat_request_id (the chat UUID) and request_id
             // to the JSON at the SSE framing layer. Route using chat_request_id
@@ -79,10 +86,34 @@ export function useSessionEvents(sessionId: string) {
             }
           }
 
-          // Stream ended normally (e.g. server closed for lagged subscriber).
-          // Reconnect unless we were intentionally aborted.
+          // Stream ended. Reconnect unless we were intentionally aborted.
           if (abortController.signal.aborted) break;
           setConnected(false);
+
+          // If the stream ended without delivering any events, the connection
+          // likely failed silently (e.g. 404 with sseMaxRetryAttempts: 1).
+          // Treat it as an error so backoff and error counting apply.
+          if (!receivedEvent) {
+            consecutiveErrors++;
+            console.warn(
+              `SSE stream ended with no events (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS})`
+            );
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+              console.error('SSE reconnect limit reached, notifying active listeners');
+              const errorEvent: SessionEvent = {
+                type: 'Error',
+                error: 'Lost connection to server',
+              } as SessionEvent;
+              for (const [routingId, handlers] of listenersRef.current) {
+                for (const handler of handlers) {
+                  handler({ ...errorEvent, request_id: routingId, chat_request_id: routingId });
+                }
+              }
+              consecutiveErrors = 0;
+            }
+            await new Promise((r) => setTimeout(r, retryDelay));
+            retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
+          }
         } catch (error) {
           if (abortController.signal.aborted) break;
           consecutiveErrors++;
