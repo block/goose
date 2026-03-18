@@ -84,7 +84,8 @@ export function useSessionEvents(sessionId: string) {
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             console.error('SSE reconnect limit reached, notifying active listeners');
             // Send an error event to all active listeners so they can
-            // transition out of streaming state.
+            // transition out of streaming state. Reset the counter so
+            // the loop keeps reconnecting for future requests.
             const errorEvent: SessionEvent = {
               type: 'Error',
               error: 'Lost connection to server',
@@ -94,7 +95,7 @@ export function useSessionEvents(sessionId: string) {
                 handler({ ...errorEvent, request_id: routingId, chat_request_id: routingId });
               }
             }
-            break;
+            consecutiveErrors = 0;
           }
 
           // Back off before retrying

@@ -36,27 +36,29 @@ impl SessionEventBus {
     }
 
     /// Publish an event to the bus. Assigns a monotonic sequence number.
+    ///
+    /// The sequence ID is assigned under the buffer lock so that concurrent
+    /// callers cannot reorder events (i.e. seq=2 published before seq=1).
     pub async fn publish(&self, request_id: Option<String>, event: MessageEvent) -> u64 {
-        let seq = self.next_seq.fetch_add(1, Ordering::Relaxed);
-        let session_event = SessionEvent {
-            seq,
-            request_id,
-            event,
-        };
-
-        // Append to replay buffer
-        {
+        let session_event = {
             let mut buf = self.buffer.lock().await;
+            let seq = self.next_seq.fetch_add(1, Ordering::Relaxed);
+            let session_event = SessionEvent {
+                seq,
+                request_id,
+                event,
+            };
             buf.push_back(session_event.clone());
             while buf.len() > REPLAY_BUFFER_CAPACITY {
                 buf.pop_front();
             }
-        }
+            session_event
+        };
 
         // Send on broadcast channel (ignore error if no subscribers)
-        let _ = self.tx.send(session_event);
+        let _ = self.tx.send(session_event.clone());
 
-        seq
+        session_event.seq
     }
 
     /// Subscribe to live events. If `last_event_id` is provided, replay buffered
