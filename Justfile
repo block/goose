@@ -125,7 +125,7 @@ copy-binary-windows:
 run-ui:
     @just release-binary
     @echo "Running UI..."
-    cd ui/desktop && pnpm install && pnpm run start-gui
+    cd ui/desktop && pnpm install && ENABLE_PLAYWRIGHT=true pnpm run start-gui
 
 run-ui-playwright:
     #!/usr/bin/env sh

@@ -277,6 +277,9 @@ importers:
       '@vitest/ui':
         specifier: ^4.0.18
         version: 4.0.18(vitest@4.0.18)
+      agent-browser:
+        specifier: ^0.20.14
+        version: 0.20.14
       autoprefixer:
         specifier: ^10.4.24
         version: 10.4.24(postcss@8.5.6)
@@ -2773,6 +2776,10 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  agent-browser@0.20.14:
+    resolution: {integrity: sha512-Z/6uCtDJXsKpr7XkY+ljHbz7QGjorFDQR54v30AMPgs0ocTWT9noId2k3Lwj0XHCZIVpbri3PE7XGOmmJSv6Rg==}
+    hasBin: true
 
   agentkeepalive@4.6.0:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
@@ -9279,6 +9286,8 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
+
+  agent-browser@0.20.14: {}
 
   agentkeepalive@4.6.0:
     dependencies:
