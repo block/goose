@@ -94,10 +94,7 @@ export default function DocsLanguageDropdownNavbarItem({
     [location.pathname, siteConfig.baseUrl],
   );
 
-  if (!isDocsPath(relativePath)) {
-    return null;
-  }
-
+  const docsPath = isDocsPath(relativePath);
   const currentLanguage = getCurrentLanguage(relativePath);
 
   const items = useMemo(() => {
@@ -117,7 +114,7 @@ export default function DocsLanguageDropdownNavbarItem({
   }, [currentLanguage, relativePath]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!docsPath || !isOpen) {
       return undefined;
     }
 
@@ -146,7 +143,11 @@ export default function DocsLanguageDropdownNavbarItem({
       document.removeEventListener("touchstart", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen]);
+  }, [docsPath, isOpen]);
+
+  if (!docsPath) {
+    return null;
+  }
 
   if (mobile) {
     return (

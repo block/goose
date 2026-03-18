@@ -1,4 +1,5 @@
 import React from "react";
+import BrowserOnly from "@docusaurus/BrowserOnly";
 import clsx from "clsx";
 import {
   useThemeConfig,
@@ -81,7 +82,9 @@ export default function NavbarContent() {
       }
       right={
         <>
-          <DocsLanguageDropdown />
+          <BrowserOnly fallback={null}>
+            {() => <DocsLanguageDropdown />}
+          </BrowserOnly>
           <NavbarItems items={rightItems} />
           <NavbarColorModeToggle className={styles.colorModeToggle} />
           {!searchBarItem && (

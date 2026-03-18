@@ -1,4 +1,5 @@
 import React from "react";
+import BrowserOnly from "@docusaurus/BrowserOnly";
 import {useThemeConfig} from "@docusaurus/theme-common";
 import {useNavbarMobileSidebar} from "@docusaurus/theme-common/internal";
 import NavbarItem from "@theme/NavbarItem";
@@ -14,7 +15,11 @@ export default function NavbarMobilePrimaryMenu() {
 
   return (
     <ul className="menu__list">
-      <DocsLanguageDropdown mobile onClick={() => mobileSidebar.toggle()} />
+      <BrowserOnly fallback={null}>
+        {() => (
+          <DocsLanguageDropdown mobile onClick={() => mobileSidebar.toggle()} />
+        )}
+      </BrowserOnly>
       {items.map((item, i) => (
         <NavbarItem
           mobile
