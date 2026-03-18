@@ -24,6 +24,7 @@ If you're working in a different directory (a repo, a project), the nest is not 
 ├── WORK_LOGS/       # "What happened?" — session decision logs
 ├── REPOS/           # Cloned repos (working copies, not knowledge)
 ├── .scratch/        # Ephemeral intermediate files (deletable)
+├── TOP_OF_MIND.md   # Working memory — current focus, in-flight, open questions
 ├── CATALOG.md       # Generated index (never hand-edit)
 ├── TAGS.md          # Canonical tag vocabulary
 ├── NEST.md          # Static conventions reference
@@ -94,6 +95,106 @@ A **static** file in the nest root. Not generated. Contains an abridged version 
 
 NEST.md is short (~30 lines) and stable. It tells the agent: here's what the nest is, here's how to use it, read CATALOG.md for what's in it.
 
+## TOP_OF_MIND.md
+
+The "RAM" of the nest. A single file that answers: **what am I working on right now?**
+
+The nest's knowledge directories (GUIDES/, RESEARCH/, etc.) are long-term storage — "disk."
+CATALOG.md is the index. NEST.md is the boot prompt. TOP_OF_MIND.md is working memory:
+the state that matters *this session* and the next few sessions after it.
+
+```text
+Memory hierarchy:
+
+  NEST.md          → Boot prompt (what is this place, how does it work)
+  TOP_OF_MIND.md   → RAM (what am I doing, what's in flight, what to avoid)
+  CATALOG.md       → Disk index (what exists in the nest)
+  GUIDES/RESEARCH/ → Disk (the actual knowledge)
+```
+
+### Template
+
+TOP_OF_MIND.md has **five sections** with strict entry formats. The first line is
+always a `Last Updated` timestamp so any reader can tell if the file is fresh.
+
+```markdown
+# Top of Mind
+Last updated: 2026-03-18 11:30
+
+## Current Focus
+Implementing the nest bootstrap script and testing hooks integration.
+(1-3 sentences max. Updated whenever focus shifts.)
+
+## In Flight
+- [ ] Nest hooks PR — status: draft | next: get Douwe's review | src: PLANS/GOOSECLAW_NEST_SPEC.md
+- [ ] build-catalog edge cases — status: blocked | next: wait for pyyaml fix | src: .scratch/catalog-bugs.md
+- [x] Bootstrap script — done 2026-03-18 (graduate to WORK_LOGS/)
+(Max 7 items. Each has: status + next step/trigger + source link. Completed items graduate out.)
+
+## Recent Decisions
+- 2026-03-18: Nest is a workspace, not global overlay — src: PLANS/GOOSECLAW_NEST_SPEC.md
+- 2026-03-17: Use uv inline scripts for build-catalog, not stdlib — src: WORK_LOGS/20260317_NEST.md
+(Last 5-10. Each has: date + one-line decision + source. Older decisions graduate to WORK_LOGS/.)
+
+## Open Questions
+- How should the orchestrator extension discover the nest path?
+- Should PostCompact re-inject CATALOG.md if context is low?
+(Unresolved questions blocking or informing current work.)
+
+## Do Not Revisit
+- Config API as nest summary store — tried 2026-03-18, creates stale trust-eroding UI — src: RESEARCH/GOOSECLAW_VISION.md
+- Vector search for nest — overkill until 500+ files — src: PLANS/GOOSECLAW_NEST_SPEC.md
+(Dead ends with date + reason + source. Max 20 entries. Prevents re-investigating.)
+```
+
+### Rules
+
+1. **Size cap: soft 120 lines, hard 200.** If over 120, prune before session end.
+   If over 200, graduate material immediately. Move completed In Flight items to
+   WORK_LOGS/, move old decisions to RESEARCH/, prune Do Not Revisit to last 20.
+   TOP_OF_MIND is an index, not a store — Builderclaw's failure was noise from bloat.
+
+2. **Update on state transitions, not just session end.** Required mid-session triggers:
+   - New task created → add to In Flight
+   - Task blocked or unblocked → update In Flight status
+   - Decision made → add to Recent Decisions
+   - Dead end confirmed → add to Do Not Revisit
+   - Current focus changed → update Current Focus
+   - Cleanup pass at session end (graduate completed items, prune)
+
+3. **The human can edit it too.** Between sessions, the user can update Current Focus
+   to steer the next session. This is the primary human→agent steering mechanism
+   outside of the chat prompt itself.
+
+4. **It's the first thing injected.** The SessionStart hook injects TOP_OF_MIND.md
+   before NEST.md and CATALOG.md. It's the most valuable context for session
+   continuity — it tells the agent what matters *right now* rather than everything
+   that exists.
+
+5. **No frontmatter.** TOP_OF_MIND.md is not a knowledge file — it's working state.
+   It doesn't appear in CATALOG.md. It doesn't have tags or status.
+
+6. **Every entry has provenance.** Dates and source links on all nontrivial entries.
+   Entries without provenance decay into unsupported lore and get pruned.
+
+7. **Single writer.** Only the primary session (or orchestrator) edits TOP_OF_MIND.md.
+   Delegates and subagents do not write to it directly — they report findings via their
+   own output, and the orchestrator incorporates what matters. This prevents concurrent
+   writes from thrashing the file. The human is also a valid writer between sessions.
+
+### Why This Matters
+
+Without TOP_OF_MIND.md, every session starts by reading CATALOG.md and guessing
+what to work on. With it, the session starts with: "You were working on X, these
+tasks are in flight, these questions are open, don't revisit these dead ends."
+
+This is the pattern that makes Builderclaw work: the Top of Mind issue is the first
+thing read on every heartbeat. It's what prevents duplicate investigations, what
+tracks the cooldown on pending tasks, and what carries the Do Not Revisit list.
+NanoClaw achieves similar continuity via per-group CLAUDE.md files. Gas Town uses
+CONTEXT.md as an operator-injected steering file. The pattern is universal across
+every system we studied: **working memory must be explicit and injected, not inferred.**
+
 ## Hooks
 
 Hooks live in `.goose/settings.json` inside the nest. They fire when goose starts with the nest as working directory.
@@ -110,7 +211,7 @@ Hooks live in `.goose/settings.json` inside the nest. They fire when goose start
         "hooks": [
           {
             "type": "command",
-            "command": "cat NEST.md && echo '---' && cat CATALOG.md"
+            "command": "cat TOP_OF_MIND.md && echo '---' && cat NEST.md && echo '---' && cat CATALOG.md"
           }
         ]
       }
@@ -120,7 +221,7 @@ Hooks live in `.goose/settings.json` inside the nest. They fire when goose start
         "hooks": [
           {
             "type": "command",
-            "command": "cat NEST.md"
+            "command": "cat TOP_OF_MIND.md && echo '---' && cat NEST.md"
           }
         ]
       }
@@ -131,10 +232,10 @@ Hooks live in `.goose/settings.json` inside the nest. They fire when goose start
 
 | Hook | When | Injects |
 |------|------|---------|
-| `SessionStart` | Session begins | NEST.md (conventions) + CATALOG.md (full index) |
-| `PostCompact` | After compaction | NEST.md only (keeps agent nest-aware without re-injecting full catalog) |
+| `SessionStart` | Session begins | TOP_OF_MIND.md (working state) + NEST.md (conventions) + CATALOG.md (full index) |
+| `PostCompact` | After compaction | TOP_OF_MIND.md + NEST.md (working state + conventions — no full catalog) |
 
-PostCompact fires on all compaction events (auto and manual). No matcher needed.
+Injection order matters: TOP_OF_MIND.md first (most relevant to this session), then NEST.md (how the nest works), then CATALOG.md (what exists). PostCompact skips CATALOG.md to save context space.
 
 ## Bootstrap
 
@@ -175,6 +276,27 @@ cat > "$NEST/TAGS.md" << 'EOF'
 | `research` | Research findings, landscape analysis |
 | `security` | Security patterns, sandboxing, access control |
 | `testing` | Test patterns, coverage, CI |
+EOF
+
+# ── TOP_OF_MIND.md — working memory ─────────────────────────────────
+cat > "$NEST/TOP_OF_MIND.md" << 'EOF'
+# Top of Mind
+Last updated: (not yet)
+
+## Current Focus
+New nest — just set up. No active work yet.
+
+## In Flight
+(nothing yet)
+
+## Recent Decisions
+(none yet)
+
+## Open Questions
+(none yet)
+
+## Do Not Revisit
+(nothing yet)
 EOF
 
 # ── NEST.md — static conventions (injected by hooks) ───────────────
@@ -222,7 +344,7 @@ cat > "$NEST/.goose/settings.json" << 'EOF'
         "hooks": [
           {
             "type": "command",
-            "command": "cat NEST.md && echo '---' && cat CATALOG.md"
+            "command": "cat TOP_OF_MIND.md && echo '---' && cat NEST.md && echo '---' && cat CATALOG.md"
           }
         ]
       }
@@ -232,7 +354,7 @@ cat > "$NEST/.goose/settings.json" << 'EOF'
         "hooks": [
           {
             "type": "command",
-            "command": "cat NEST.md"
+            "command": "cat TOP_OF_MIND.md && echo '---' && cat NEST.md"
           }
         ]
       }
