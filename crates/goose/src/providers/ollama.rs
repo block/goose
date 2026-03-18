@@ -5,7 +5,6 @@ use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
-use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::ollama::{create_request, response_to_streaming_message_ollama};
@@ -220,19 +219,11 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let config = crate::config::Config::global();
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-        let filtered_tools = if goose_mode == GooseMode::Chat {
-            &[]
-        } else {
-            tools
-        };
-
         let mut payload = create_request(
             model_config,
             system,
             messages,
-            filtered_tools,
+            tools,
             &ImageFormat::OpenAi,
             true,
         )?;

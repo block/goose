@@ -168,6 +168,11 @@ impl ProviderDef for OpenRouterProvider {
                 ),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://openrouter.ai/settings/keys",
+            "Click 'Create' or use an existing API key",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(

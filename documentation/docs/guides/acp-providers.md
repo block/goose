@@ -29,7 +29,7 @@ Wraps [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp), an
 
 ### Codex ACP
 
-Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter for OpenAI's Codex. Uses the same ChatGPT subscription as the `codex` CLI provider. Codex's sandbox blocks network by default — goose automatically enables network access when HTTP MCP servers are configured.
+Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter for OpenAI's Codex. Uses the same ChatGPT subscription as the `codex` CLI provider. Codex's sandbox blocks network by default; goose automatically enables network access when HTTP MCP servers are configured.
 
 **Requirements:**
 - Node.js and npm
@@ -142,6 +142,7 @@ GOOSE_PROVIDER=codex-acp goose run \
 |----------------------|---------------------|-----------|
 | `GOOSE_PROVIDER`     | Set to `claude-acp` | None      |
 | `GOOSE_MODEL`        | Model to use        | `default` |
+| `GOOSE_MODE`         | Permission mode     | `auto`    |
 
 **Known Models:**
 - `default` (opus)
@@ -165,6 +166,7 @@ See [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp) for s
 |----------------------|--------------------|-----------------|
 | `GOOSE_PROVIDER`     | Set to `codex-acp` | None            |
 | `GOOSE_MODEL`        | Model to use       | `gpt-5.2-codex` |
+| `GOOSE_MODE`         | Permission mode    | `auto`          |
 
 **Known Models:**
 - `gpt-5.2-codex`

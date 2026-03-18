@@ -7,6 +7,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use tracing_futures::Instrument;
 use uuid::Uuid;
 
 use super::container::Container;
@@ -43,6 +44,7 @@ use crate::providers::base::{PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::security::adversary_inspector::AdversaryInspector;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
@@ -136,6 +138,7 @@ impl AgentConfig {
 pub struct Agent {
     pub(super) provider: SharedProvider,
     pub config: AgentConfig,
+    pub(super) current_goose_mode: Mutex<GooseMode>,
 
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
@@ -202,14 +205,13 @@ where
 
 impl Agent {
     pub fn new() -> Self {
+        let config = Config::global();
         Self::with_config(AgentConfig::new(
             Arc::new(SessionManager::instance()),
             PermissionManager::instance(),
             None,
-            Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            Config::global()
-                .get_goose_disable_session_naming()
-                .unwrap_or(false),
+            config.get_goose_mode().unwrap_or_default(),
+            config.get_goose_disable_session_naming().unwrap_or(false),
             GoosePlatform::GooseCli,
         ))
     }
@@ -219,6 +221,7 @@ impl Agent {
         let provider = Arc::new(Mutex::new(None));
 
         let goose_platform = config.goose_platform.clone();
+        let initial_mode = config.goose_mode;
         let capabilities = match config.goose_platform {
             GoosePlatform::GooseDesktop => ExtensionManagerCapabilities { mcpui: true },
             GoosePlatform::GooseCli => ExtensionManagerCapabilities { mcpui: false },
@@ -228,6 +231,7 @@ impl Agent {
         Self {
             provider: provider.clone(),
             config,
+            current_goose_mode: Mutex::new(initial_mode),
             extension_manager: Arc::new(ExtensionManager::new(
                 provider.clone(),
                 session_manager,
@@ -259,6 +263,9 @@ impl Agent {
 
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+
+        // Add adversary inspector (LLM-based review, enabled by ~/.config/goose/adversary.md)
+        tool_inspection_manager.add_inspector(Box::new(AdversaryInspector::new(provider.clone())));
 
         // Add permission inspector (medium-high priority)
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
@@ -350,7 +357,9 @@ impl Agent {
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
-        if self.config.goose_mode == GooseMode::SmartApprove {
+        let goose_mode = *self.current_goose_mode.lock().await;
+
+        if goose_mode == GooseMode::SmartApprove {
             self.tool_inspection_manager.apply_tool_annotations(&tools);
         }
 
@@ -359,7 +368,7 @@ impl Agent {
             tools,
             toolshim_tools,
             system_prompt,
-            goose_mode: self.config.goose_mode,
+            goose_mode,
             tool_call_cut_off: Config::global()
                 .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
                 .unwrap_or(10),
@@ -491,7 +500,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id, session), fields(input, output, session_id = %session.id))]
+    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -874,8 +883,8 @@ impl Agent {
     }
 
     #[instrument(
-        skip(self, user_message, session_config),
-        fields(user_message, trace_input)
+        skip(self, user_message, session_config, cancel_token),
+        fields(user_message, trace_input, session.id = %session_config.id)
     )]
     pub async fn reply(
         &self,
@@ -1119,9 +1128,8 @@ impl Agent {
         }
 
         let working_dir = session.working_dir.clone();
-        Ok(Box::pin(async_stream::try_stream! {
-            let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
-            let _stream_guard = reply_stream_span.enter();
+        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", session.id = %session_config.id);
+        let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
                 Config::global()
@@ -1178,6 +1186,7 @@ impl Agent {
                 ).await?;
 
                 let mut no_tools_called = true;
+                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
@@ -1232,8 +1241,7 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    session_manager.add_message(&session_config.id, &response).await?;
-                                    conversation.push(response);
+                                    messages_to_add.push(response);
                                     continue;
                                 }
 
@@ -1419,13 +1427,12 @@ impl Agent {
                                         response.created,
                                         thinking_content,
                                     ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    session_manager.add_message(&session_config.id, &thinking_msg).await?;
-                                    conversation.push(thinking_msg);
+                                    messages_to_add.push(thinking_msg);
                                 }
 
                                 // Collect reasoning content to attach to tool request messages
                                 let reasoning_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Reasoning(_)))
+                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
                                     .collect();
 
@@ -1447,14 +1454,12 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
+                                        messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
-                                        session_manager.add_message(&session_config.id, &request_msg).await?;
-                                        session_manager.add_message(&session_config.id, &final_response).await?;
-                                        conversation.push(request_msg);
-                                        conversation.push(final_response.clone());
-                                        yield AgentEvent::Message(final_response);
+                                        yield AgentEvent::Message(final_response.clone());
+                                        messages_to_add.push(final_response);
                                     } else {
                                         error!(
                                             "Tool call could not be parsed: {}",
@@ -1598,14 +1603,12 @@ impl Agent {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message.clone());
+                            messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
                             let message = Message::assistant().with_text(output);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message.clone());
+                            messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
@@ -1617,6 +1620,7 @@ impl Agent {
                                 Ok(should_retry) => {
                                     if should_retry {
                                         info!("Retry logic triggered, restarting agent loop");
+                                        messages_to_add = Conversation::default();
                                         session_manager.replace_conversation(&session_config.id, &conversation).await?;
                                         yield AgentEvent::HistoryReplaced(conversation.clone());
                                     } else {
@@ -1660,14 +1664,17 @@ impl Agent {
                             }).await?;
                         }
                         conversation = Conversation::new_unvalidated(updated_messages);
-                        session_manager.add_message(&session_config.id, &summary_msg).await?;
-                        conversation.push(summary_msg);
+                        messages_to_add.push(summary_msg);
                     } else {
                         warn!("Expected a tool request/reply pair, but found {} matching messages",
                             matching.len());
                     }
                 }
 
+                for msg in &messages_to_add {
+                    session_manager.add_message(&session_config.id, msg).await?;
+                }
+                conversation.extend(messages_to_add);
                 if exit_chat {
                     break;
                 }
@@ -1678,7 +1685,8 @@ impl Agent {
             if !last_assistant_text.is_empty() {
                 tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
             }
-        }))
+        }.instrument(reply_stream_span));
+        Ok(inner)
     }
 
     pub async fn extend_system_prompt(&self, key: String, instruction: String) {
@@ -1706,6 +1714,28 @@ impl Agent {
             .apply()
             .await
             .context("Failed to persist provider config to session")
+    }
+
+    pub async fn update_goose_mode(&self, mode: GooseMode, session_id: &str) -> Result<()> {
+        if let Some(provider) = self.provider.lock().await.as_ref() {
+            provider
+                .update_mode(session_id, mode)
+                .await
+                .map_err(|e| anyhow::anyhow!("Provider rejected mode update: {e}"))?;
+        }
+        *self.current_goose_mode.lock().await = mode;
+        self.config
+            .session_manager
+            .clone()
+            .update(session_id)
+            .goose_mode(mode)
+            .apply()
+            .await
+            .context("Failed to persist goose_mode to session")
+    }
+
+    pub async fn goose_mode(&self) -> GooseMode {
+        *self.current_goose_mode.lock().await
     }
 
     /// Restore the provider from session data or fall back to global config
@@ -1739,7 +1769,16 @@ impl Agent {
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 
-        self.update_provider(provider, &session.id).await
+        self.update_provider(provider, &session.id).await?;
+        // Propagate session mode to the new provider
+        if let Some(provider) = self.provider.lock().await.as_ref() {
+            provider
+                .update_mode(&session.id, session.goose_mode)
+                .await
+                .map_err(|e| anyhow!("Failed to propagate mode to provider: {}", e))?;
+        }
+        *self.current_goose_mode.lock().await = session.goose_mode;
+        Ok(())
     }
 
     /// Override the system prompt with a custom template
@@ -1851,12 +1890,14 @@ impl Agent {
         let model_name = &model_config.model_name;
         tracing::debug!("Using model: {}", model_name);
 
+        let goose_mode = *self.current_goose_mode.lock().await;
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
+            .with_goose_mode(goose_mode)
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -2207,7 +2248,10 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.builder().build();
+        let system_prompt = prompt_manager
+            .builder()
+            .with_goose_mode(GooseMode::default())
+            .build();
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =
@@ -2234,6 +2278,10 @@ mod tests {
         assert!(
             inspector_names.contains(&"security"),
             "Tool inspection manager should contain security inspector"
+        );
+        assert!(
+            inspector_names.contains(&"adversary"),
+            "Tool inspection manager should contain adversary inspector"
         );
 
         Ok(())

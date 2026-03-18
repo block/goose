@@ -5,7 +5,7 @@ use super::CliSession;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{get_all_extensions, Config, ExtensionConfig};
+use goose::config::{get_all_extensions, Config, ExtensionConfig, GooseMode};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -201,6 +201,7 @@ async fn offer_extension_debugging_help(
             std::env::current_dir()?,
             "CLI Session".to_string(),
             SessionType::Hidden,
+            debug_agent.config.goose_mode,
         )
         .await?;
 
@@ -400,11 +401,17 @@ fn resolve_provider_and_model(
 async fn resolve_session_id(
     session_config: &SessionBuilderConfig,
     session_manager: &goose::session::session_manager::SessionManager,
+    goose_mode: GooseMode,
 ) -> String {
     if session_config.no_session {
         let working_dir = std::env::current_dir().expect("Could not get working directory");
         let session = session_manager
-            .create_session(working_dir, "CLI Session".to_string(), SessionType::Hidden)
+            .create_session(
+                working_dir,
+                "CLI Session".to_string(),
+                SessionType::Hidden,
+                goose_mode,
+            )
             .await
             .expect("Could not create session");
         session.id
@@ -606,7 +613,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
-    let session_id = resolve_session_id(&session_config, &session_manager).await;
+    let session_id =
+        resolve_session_id(&session_config, &session_manager, agent.config.goose_mode).await;
 
     if session_config.resume {
         handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
@@ -658,6 +666,14 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .await
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
+
+    agent
+        .update_goose_mode(agent.config.goose_mode, &session_id)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to set session mode: {}", e));
             process::exit(1);
         });
 
