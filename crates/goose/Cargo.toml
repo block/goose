@@ -185,6 +185,10 @@ path = "examples/agent.rs"
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
 
+[[example]]
+name = "test_whisper"
+path = "examples/test_whisper.rs"
+required-features = ["local-inference"]
 
 [[bin]]
 name = "analyze_cli"

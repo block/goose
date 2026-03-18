@@ -85,6 +85,20 @@ pub const LOCAL_PROVIDER_DEF: DictationProviderDef = DictationProviderDef {
     settings_path: None,
 };
 
+/// Returns all provider definitions, including Local when the `local-inference` feature is enabled.
+pub fn all_providers() -> Vec<&'static DictationProviderDef> {
+    #[cfg(not(feature = "local-inference"))]
+    {
+        PROVIDERS.iter().collect()
+    }
+    #[cfg(feature = "local-inference")]
+    {
+        let mut all: Vec<&DictationProviderDef> = PROVIDERS.iter().collect();
+        all.push(&LOCAL_PROVIDER_DEF);
+        all
+    }
+}
+
 pub fn get_provider_def(provider: DictationProvider) -> &'static DictationProviderDef {
     #[cfg(feature = "local-inference")]
     if provider == DictationProvider::Local {

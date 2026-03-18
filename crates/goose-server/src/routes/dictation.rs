@@ -8,7 +8,7 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use goose::dictation::providers::{
-    is_configured, transcribe_local, transcribe_with_provider, DictationProvider, PROVIDERS,
+    all_providers, is_configured, transcribe_local, transcribe_with_provider, DictationProvider,
 };
 use goose::dictation::whisper;
 use goose::download_manager::{get_download_manager, DownloadProgress};
@@ -189,7 +189,7 @@ pub async fn get_dictation_config(
     let config = goose::config::Config::global();
     let mut providers = HashMap::new();
 
-    for def in PROVIDERS {
+    for def in all_providers() {
         let provider = def.provider;
         let configured = is_configured(provider);
 
