@@ -8,9 +8,19 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = ["code-mode"]
+default = ["code-mode", "local-inference"]
 code-mode = ["dep:pctx_code_mode"]
-cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
+local-inference = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:llama-cpp-2",
+    "dep:tokenizers",
+    "dep:symphonia",
+    "dep:rubato",
+    "dep:byteorder",
+]
+cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 
 [lints]
 workspace = true
@@ -107,14 +117,14 @@ sacp = { workspace = true }
 agent-client-protocol-schema = { version = "0.10", features = ["unstable"] }
 unicode-normalization = "0.1"
 
-# For local Whisper transcription
-candle-core = { version = "0.9", default-features = false }
-candle-nn = { version = "0.9", default-features = false }
-candle-transformers = { version = "0.9", default-features = false }
-byteorder = "1.5.0"
-tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
-symphonia = { version = "0.5", features = ["all"] }
-rubato = "0.16"
+# For local Whisper transcription (optional, behind "local-inference" feature)
+candle-core = { version = "0.9", default-features = false, optional = true }
+candle-nn = { version = "0.9", default-features = false, optional = true }
+candle-transformers = { version = "0.9", default-features = false, optional = true }
+byteorder = { version = "1.5.0", optional = true }
+tokenizers = { version = "0.21.0", default-features = false, features = ["onig"], optional = true }
+symphonia = { version = "0.5", features = ["all"], optional = true }
+rubato = { version = "0.16", optional = true }
 zip = "0.6"
 sys-info = "0.9"
 
@@ -139,7 +149,7 @@ tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = { version = "^0.3.0", optional = true }
 pulldown-cmark = "0.13.0"
-llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler"], optional = true }
 encoding_rs = "0.8.35"
 pastey = "0.2.1"
 shell-words = "1.1.1"
@@ -149,9 +159,9 @@ winapi = { version = "0.3", features = ["wincred"] }
 
 # Platform-specific GPU acceleration for Whisper and local inference
 [target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version = "0.9", default-features = false, features = ["metal"] }
-candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
-llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"] }
+candle-core = { version = "0.9", default-features = false, features = ["metal"], optional = true }
+candle-nn = { version = "0.9", default-features = false, features = ["metal"], optional = true }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"], optional = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }

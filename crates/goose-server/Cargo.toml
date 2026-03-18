@@ -11,8 +11,9 @@ description.workspace = true
 workspace = true
 
 [features]
-default = ["code-mode"]
+default = ["code-mode", "local-inference"]
 code-mode = ["goose/code-mode"]
+local-inference = ["goose/local-inference"]
 cuda = ["goose/cuda"]
 
 [dependencies]
