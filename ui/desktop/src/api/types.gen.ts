@@ -154,6 +154,10 @@ export type ContentBlock = ({
 
 export type Conversation = Array<Message>;
 
+export type CreateCustomProviderResponse = {
+    provider_name: string;
+};
+
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -666,8 +670,6 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
-}) | (ReasoningContent & {
-    type: 'reasoning';
 });
 
 export type MessageEvent = {
@@ -927,6 +929,10 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+    /**
+     * step-by-step instructions for set up providers eg: api key
+     */
+    setup_steps?: Array<string>;
 };
 
 export type ProviderTemplate = {
@@ -999,10 +1005,6 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
-};
-
-export type ReasoningContent = {
-    text: string;
 };
 
 export type Recipe = {
@@ -2229,10 +2231,10 @@ export type CreateCustomProviderResponses = {
     /**
      * Custom provider created successfully
      */
-    200: string;
+    200: CreateCustomProviderResponse;
 };
 
-export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+export type CreateCustomProviderResponse2 = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
 
 export type RemoveCustomProviderData = {
     body?: never;
@@ -2653,6 +2655,34 @@ export type ProvidersResponses = {
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
 
+export type CleanupProviderCacheData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., githubcopilot)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/cleanup';
+};
+
+export type CleanupProviderCacheErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CleanupProviderCacheResponses = {
+    /**
+     * Provider cache cleaned up successfully
+     */
+    200: string;
+};
+
+export type CleanupProviderCacheResponse = CleanupProviderCacheResponses[keyof CleanupProviderCacheResponses];
+
 export type GetProviderModelsData = {
     body?: never;
     path: {
@@ -3070,6 +3100,19 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type StartNanogptSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_nanogpt';
+};
+
+export type StartNanogptSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;

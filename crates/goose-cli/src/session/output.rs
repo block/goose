@@ -240,7 +240,6 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
             MessageContent::Thinking(t) => render_thinking(&t.thinking, theme),
-            MessageContent::Reasoning(r) => render_thinking(&r.text, theme),
             MessageContent::RedactedThinking(_) => {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
@@ -280,10 +279,7 @@ pub fn render_message_streaming(
     let theme = get_theme();
 
     for content in &message.content {
-        if !matches!(
-            content,
-            MessageContent::Thinking(_) | MessageContent::Reasoning(_)
-        ) {
+        if !matches!(content, MessageContent::Thinking(_)) {
             *thinking_header_shown = false;
         }
 
@@ -321,9 +317,6 @@ pub fn render_message_streaming(
             }
             MessageContent::Thinking(t) => {
                 render_thinking_streaming(&t.thinking, buffer, thinking_header_shown, theme);
-            }
-            MessageContent::Reasoning(r) => {
-                render_thinking_streaming(&r.text, buffer, thinking_header_shown, theme);
             }
             MessageContent::RedactedThinking(_) => {
                 flush_markdown_buffer(buffer, theme);

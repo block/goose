@@ -16,6 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
+import OnboardingGuard from './components/onboarding/OnboardingGuard';
+import { USE_NEW_ONBOARDING } from './featureFlags';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -174,7 +176,13 @@ const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
     viewOptions.section = sectionFromUrl;
   }
 
-  return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={{...viewOptions, sessionId: activeSessionId}} />;
+  return (
+    <SettingsView
+      onClose={() => navigate('/')}
+      setView={setView}
+      viewOptions={{ ...viewOptions, sessionId: activeSessionId }}
+    />
+  );
 };
 
 const SessionsRoute = () => {
@@ -650,11 +658,19 @@ export function AppInner() {
             <Route
               path="/"
               element={
-                <ProviderGuard didSelectProvider={didSelectProvider}>
-                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                    <AppLayout activeSessions={activeSessions} />
-                  </ChatProvider>
-                </ProviderGuard>
+                USE_NEW_ONBOARDING ? (
+                  <OnboardingGuard>
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                      <AppLayout activeSessions={activeSessions} />
+                    </ChatProvider>
+                  </OnboardingGuard>
+                ) : (
+                  <ProviderGuard didSelectProvider={didSelectProvider}>
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                      <AppLayout activeSessions={activeSessions} />
+                    </ChatProvider>
+                  </ProviderGuard>
+                )
               }
             >
               <Route index element={<HubRouteWrapper />} />
@@ -667,7 +683,14 @@ export function AppInner() {
                   />
                 }
               />
-              <Route path="settings" element={<SettingsRoute activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId} />} />
+              <Route
+                path="settings"
+                element={
+                  <SettingsRoute
+                    activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId}
+                  />
+                }
+              />
               <Route
                 path="extensions"
                 element={

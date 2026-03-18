@@ -176,6 +176,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// step-by-step instructions for set up providers eg: api key
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
 }
 
 impl ProviderMetadata {
@@ -208,6 +211,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -228,6 +232,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -240,7 +245,13 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            setup_steps: vec![],
         }
+    }
+
+    pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
+        self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
+        self
     }
 }
 
@@ -611,6 +622,14 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Whether the provider manages its own conversation context (e.g. CLI
+    /// wrappers like Claude Code or Gemini CLI). When true, goose-side
+    /// context management such as tool-pair summarization is skipped because
+    /// the provider's internal state is the source of truth.
+    fn manages_own_context(&self) -> bool {
+        false
+    }
+
     async fn supports_cache_control(&self) -> bool {
         false
     }
@@ -704,6 +723,12 @@ pub trait Provider: Send + Sync {
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
+        ))
+    }
+
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "credential refresh not supported by this provider".to_string(),
         ))
     }
 

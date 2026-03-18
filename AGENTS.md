@@ -38,6 +38,11 @@ just run-ui                  # start desktop
 cd ui/desktop && pnpm test   # test UI
 ```
 
+### Git
+```bash
+git commit -s                # required for DCO sign-off
+```
+
 ## Structure
 ```
 crates/
@@ -59,10 +64,14 @@ ui/desktop/            # Electron app
 # 1. source bin/activate-hermit
 # 2. Make changes
 # 3. cargo fmt
-# 4. cargo build
-# 5. cargo test -p <crate>
-# 6. cargo clippy --all-targets -- -D warnings
-# 7. [if server] just generate-openapi
+```
+
+### Run these only if the user has asked you to build/test your changes:
+```
+# 1. cargo build
+# 2. cargo test -p <crate>
+# 3. cargo clippy --all-targets -- -D warnings
+# 4. [if server] just generate-openapi
 ```
 
 ## Rules

@@ -289,11 +289,7 @@ fn create_tool_callback(
                 }
                 params
             };
-            let ctx = crate::agents::ToolCallContext::new(
-                session_id,
-                None,
-                Some("tool-request-id".to_string()),
-            );
+            let ctx = crate::agents::ToolCallContext::new(session_id, None, None);
             match manager
                 .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
                 .await

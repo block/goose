@@ -84,6 +84,7 @@ impl ProviderDef for CodexAcpProvider {
                 // Disabled until https://github.com/zed-industries/codex-acp/issues/179 is fixed.
                 session_mode_id: None,
                 permission_mapping,
+                notification_callback: None,
             };
 
             let metadata = Self::metadata();

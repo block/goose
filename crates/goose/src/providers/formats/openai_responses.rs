@@ -41,7 +41,7 @@ fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
     if text.is_empty() {
         None
     } else {
-        Some(MessageContent::reasoning(text))
+        Some(MessageContent::thinking(text, ""))
     }
 }
 
@@ -684,9 +684,12 @@ where
 
             // Parse SSE format: "event: <type>\ndata: <json>"
             // For now, we only care about the data line
+            // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
             let data_line = if response_str.starts_with("data: ") {
                 response_str.strip_prefix("data: ").unwrap()
-            } else if response_str.starts_with("event: ") {
+            } else if response_str.starts_with("data:") {
+                response_str.strip_prefix("data:").unwrap()
+            } else if response_str.starts_with("event: ") || response_str.starts_with("event:") {
                 // Skip event type lines
                 continue;
             } else {
@@ -881,10 +884,10 @@ mod tests {
 
         let message = responses_api_to_message(&response)?;
 
-        let reasoning = message.content.iter().find_map(|c| c.as_reasoning());
-        assert!(reasoning.is_some(), "should contain reasoning content");
+        let thinking = message.content.iter().find_map(|c| c.as_thinking());
+        assert!(thinking.is_some(), "should contain thinking content");
         assert_eq!(
-            reasoning.unwrap().text,
+            thinking.unwrap().thinking,
             "Thinking about the question...\nThe answer is straightforward."
         );
 
@@ -938,7 +941,7 @@ mod tests {
         let messages = responses_api_to_streaming_message(response_stream);
         futures::pin_mut!(messages);
 
-        let mut reasoning_parts = Vec::new();
+        let mut thinking_parts = Vec::new();
         let mut text_parts = Vec::new();
 
         while let Some(item) = messages.next().await {
@@ -946,7 +949,7 @@ mod tests {
             if let Some(msg) = message {
                 for content in msg.content {
                     match &content {
-                        MessageContent::Reasoning(r) => reasoning_parts.push(r.text.clone()),
+                        MessageContent::Thinking(t) => thinking_parts.push(t.thinking.clone()),
                         MessageContent::Text(t) => text_parts.push(t.text.clone()),
                         _ => {}
                     }
@@ -955,10 +958,10 @@ mod tests {
         }
 
         assert!(
-            !reasoning_parts.is_empty(),
-            "should capture reasoning from stream"
+            !thinking_parts.is_empty(),
+            "should capture thinking from stream"
         );
-        assert_eq!(reasoning_parts.join(""), "Let me think step by step.");
+        assert_eq!(thinking_parts.join(""), "Let me think step by step.");
         assert!(text_parts.concat().contains("Paris."));
 
         Ok(())

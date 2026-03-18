@@ -255,7 +255,7 @@ fn process_response_part_impl(
         if is_thought {
             match signature {
                 Some(sig) => Some(MessageContent::thinking(text.to_string(), sig.to_string())),
-                None => Some(MessageContent::reasoning(text.to_string())),
+                None => Some(MessageContent::thinking(text.to_string(), "")),
             }
         } else {
             Some(MessageContent::text(text.to_string()))
@@ -1012,7 +1012,8 @@ mod tests {
             "Should inherit"
         );
 
-        let tool_response = Message::user().with_tool_response_with_metadata(
+        let mut tool_response = Message::user();
+        tool_response.add_tool_response_with_metadata(
             req1.id.clone(),
             Ok(tool_result("output")),
             req1.metadata.as_ref(),
@@ -1050,14 +1051,14 @@ mod tests {
     }
 
     #[test]
-    fn test_thought_without_signature_maps_to_reasoning() {
+    fn test_thought_without_signature_maps_to_thinking() {
         let response = google_response(vec![json!({
             "text": "Working through options...",
             "thought": true
         })]);
         let native = response_to_message(response).unwrap();
         assert_eq!(native.content.len(), 1);
-        assert!(native.content[0].as_reasoning().is_some());
+        assert!(native.content[0].as_thinking().is_some());
     }
 
     #[test]
@@ -1188,30 +1189,28 @@ mod tests {
     async fn test_streaming_with_thought_signature() {
         use futures::StreamExt;
 
-        async fn collect_streaming_text(raw: &str) -> (String, usize, usize) {
+        async fn collect_streaming_text(raw: &str) -> (String, usize) {
             let lines: Vec<Result<String, anyhow::Error>> =
                 raw.lines().map(|l| Ok(l.to_string())).collect();
             let stream = Box::pin(futures::stream::iter(lines));
             let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
             let mut text = String::new();
             let mut thinking = 0usize;
-            let mut reasoning = 0usize;
             while let Some(Ok((message, _))) = msg_stream.next().await {
                 if let Some(msg) = message {
                     for c in &msg.content {
                         match c {
                             MessageContent::Text(t) => text.push_str(&t.text),
                             MessageContent::Thinking(_) => thinking += 1,
-                            MessageContent::Reasoning(_) => reasoning += 1,
                             _ => {}
                         }
                     }
                 }
             }
-            (text, thinking, reasoning)
+            (text, thinking)
         }
 
-        let (text, thinking, reasoning) = collect_streaming_text(concat!(
+        let (text, thinking) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "Hello", "thoughtSignature": "sig1"}]}}], "#,
             r#""modelVersion": "gemini-3-flash-preview"}"#,
@@ -1221,10 +1220,9 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 0);
-        assert_eq!(reasoning, 0);
         assert_eq!(text, "Hello world");
 
-        let (text, thinking, reasoning) = collect_streaming_text(concat!(
+        let (text, thinking) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "SECURITY.md: Project"}]}}], "#,
             r#""modelVersion": "gemini-3-flash-preview"}"#,
@@ -1235,10 +1233,9 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 0);
-        assert_eq!(reasoning, 0);
         assert_eq!(text, "SECURITY.md: Project policies.\n\nRead it?");
 
-        let (text, thinking, reasoning) = collect_streaming_text(concat!(
+        let (text, thinking) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "one "}]}}], "modelVersion": "gemini-3-flash-preview"}"#,
             "\n",
@@ -1250,10 +1247,9 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 0);
-        assert_eq!(reasoning, 0);
         assert_eq!(text, "one two three");
 
-        let (text, thinking, reasoning) = collect_streaming_text(concat!(
+        let (text, thinking) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "internal chain", "thought": true, "thoughtSignature": "sig4"}]}}]}"#,
             "\n",
@@ -1262,7 +1258,6 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 1);
-        assert_eq!(reasoning, 0);
         assert_eq!(text, "visible");
     }
 

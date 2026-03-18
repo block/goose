@@ -28,7 +28,6 @@ use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
 
-#[derive(Clone, Debug)]
 pub struct AcpProviderConfig {
     pub command: PathBuf,
     pub args: Vec<String>,
@@ -38,6 +37,7 @@ pub struct AcpProviderConfig {
     pub mcp_servers: Vec<McpServer>,
     pub session_mode_id: Option<String>,
     pub permission_mapping: PermissionMapping,
+    pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
 
 enum ClientRequest {
@@ -522,12 +522,16 @@ impl AcpClientLoop {
             goose_mode,
             prompt_response_tx,
         } = self;
+        let notification_callback = config.notification_callback.clone();
 
         ClientToAgent::builder()
             .on_receive_notification(
                 {
                     let prompt_response_tx = prompt_response_tx.clone();
                     async move |notification: SessionNotification, _cx| {
+                        if let Some(ref cb) = notification_callback {
+                            cb(notification.clone());
+                        }
                         // stream() reads goose_mode at call time, so it must
                         // reflect any prior set_mode before the next prompt.
                         if let SessionUpdate::CurrentModeUpdate(update) = &notification.update {

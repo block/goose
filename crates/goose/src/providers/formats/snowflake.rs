@@ -65,10 +65,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::FrontendToolRequest(_tool_request) => {
                     // Skip frontend tool requests
                 }
-                MessageContent::Reasoning(_reasoning) => {
-                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
-                    // Snowflake doesn't use this format, so skip
-                }
             }
         }
 
@@ -132,13 +128,15 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
 
     // Parse each SSE event
     for line in sse_data.lines() {
-        if !line.starts_with("data: ") {
+        // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
+        if !line.starts_with("data:") {
             continue;
         }
 
-        let Some(json_str) = line.get(6..) else {
-            continue;
-        }; // Remove "data: " prefix
+        let json_str = line
+            .strip_prefix("data: ")
+            .or_else(|| line.strip_prefix("data:"))
+            .unwrap(); // Remove "data:" prefix
         if json_str.trim().is_empty() || json_str.trim() == "[DONE]" {
             continue;
         }

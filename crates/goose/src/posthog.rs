@@ -581,15 +581,14 @@ pub async fn emit_event(
     event_name: &str,
     mut properties: HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
-    if !is_telemetry_enabled() {
+    // Only onboarding events are enabled for now. These bypass the telemetry
+    // check so we can track the funnel before the user makes their choice.
+    let is_onboarding_event =
+        event_name.starts_with("onboarding_") || event_name == "telemetry_preference_set";
+    if !is_onboarding_event {
         return Ok(());
     }
 
-    // Temporarily disabled - only session_started events are sent
-    let _ = (event_name, &mut properties);
-    return Ok(());
-
-    #[allow(unreachable_code)]
     let installation = load_or_create_installation();
 
     insert(&mut properties, "os", std::env::consts::OS);

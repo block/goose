@@ -146,7 +146,7 @@ jobs:
           echo "Building Linux packages (.deb, .rpm, and .flatpak)..."
 
           # Build all configured packages
-          pnpm run make -- --platform=linux --arch=x64
+          pnpm run make --platform=linux --arch=x64
 
           echo "Build completed. Checking output..."
           ls -la out/
