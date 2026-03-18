@@ -1,6 +1,6 @@
 {
   "name": "@goose-ai/cli",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Goose - an open-source AI agent",
   "license": "Apache-2.0",
   "repository": {
