@@ -50,10 +50,24 @@ pub(crate) fn generate_simple_session_description(
             })
         })
         .map(|text| {
-            text.split_whitespace()
+            // Strip the wrapper added by generate_session_name so we get
+            // the actual user content instead of "---BEGIN USER MESSAGES---".
+            let stripped = text
+                .strip_prefix("---BEGIN USER MESSAGES---")
+                .unwrap_or(text)
+                .trim_start_matches(|c: char| c == '\n' || c == '\r');
+            let stripped = stripped
+                .strip_suffix("---END USER MESSAGES---\n\nGenerate a short title for the above messages.")
+                .or_else(|| stripped.strip_suffix("---END USER MESSAGES---"))
+                .unwrap_or(stripped)
+                .trim();
+
+            let desc: String = stripped
+                .split_whitespace()
                 .take(4)
                 .collect::<Vec<_>>()
-                .join(" ")
+                .join(" ");
+            if desc.is_empty() { "Simple task".to_string() } else { desc }
         })
         .unwrap_or_else(|| "Simple task".to_string());
 
