@@ -8,15 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       target_branch:
-        description: 'Target branch for hotfix'
+        description: 'Release branch for patch (e.g. release/1.25.0)'
         required: true
         type: string
 
 jobs:
   hotfix:
-    uses: ./.github/workflows/create-release-pr.yaml
+    uses: ./.github/workflows/create-version-bump-pr.yaml
     with:
-      bump_type: "patch"
       target_branch: ${{ inputs.target_branch }}
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

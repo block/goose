@@ -306,20 +306,23 @@ get-next-minor-version:
 get-next-patch-version:
     @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')" $(just get-tag-version)
 
-# set cargo and app versions, must be semver
-prepare-release version:
+# update version numbers in all manifests
+bump-version version:
     @just validate {{ version }} || exit 1
-
-    @git switch -c "release/{{ version }}"
     @uvx --from=toml-cli toml set --toml-path=Cargo.toml "workspace.package.version" {{ version }}
-
     @cd ui/desktop && pnpm version {{ version }} --no-git-tag-version --allow-same-version
-
-    # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
-    # used to update Cargo.lock after we've bumped versions in Cargo.toml
+    # update Cargo.lock after bumping versions in Cargo.toml
     @cargo update --workspace
     @just set-openapi-version {{ version }}
+
+# rebuild canonical model registry and mapping report from models.dev
+build-canonical-models:
     @cargo run --bin build_canonical_models
+
+# bump version, rebuild canonical models, and commit
+prepare-release version:
+    @just bump-version {{ version }}
+    @just build-canonical-models
     @git add \
         Cargo.toml \
         Cargo.lock \

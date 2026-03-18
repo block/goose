@@ -1,14 +1,10 @@
-name: Release Workflow
+name: Create Version Bump PR
 
 on:
   workflow_call:
     inputs:
-      bump_type:
-        description: 'Type of version bump (minor or patch)'
-        required: true
-        type: string
       target_branch:
-        description: 'Target branch for the pull request'
+        description: 'Branch to bump version on (main for minor, release/* for patch)'
         required: false
         type: string
         default: 'main'
@@ -31,34 +27,26 @@ permissions:
   pull-requests: write
 
 jobs:
-  create-release:
+  create-version-bump:
     runs-on: ubuntu-latest
     env:
-      BUMP_TYPE: ${{ inputs.bump_type }}
       TARGET_BRANCH: ${{ inputs.target_branch }}
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
         ref: ${{ inputs.target_branch }}
-        fetch-depth: 0 # to generate complete release log
+        fetch-depth: 0
 
     - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
     - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
-
-    - name: Validate input and set old version
-      run: |
-        if [[ "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "patch" ]]; then
-          echo "Error: bump_type must be 'minor' or 'patch'"
-          exit 1
-        fi
 
     - name: install dependencies
       run: |
         sudo apt update -y
         sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-    - name: create release branch
+    - name: Compute version and create bump branch
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -67,52 +55,40 @@ jobs:
         XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
       run: |
-        PRIOR_VERSION=$(just get-tag-version)
-        if [[ "$BUMP_TYPE" == "minor" ]]; then
+        # Determine bump type from target branch
+        if [[ "$TARGET_BRANCH" == "main" ]]; then
+          BUMP_TYPE="minor"
           VERSION=$(just get-next-minor-version)
         else
+          BUMP_TYPE="patch"
           VERSION=$(just get-next-patch-version)
         fi
 
-        echo "prior_ref=v$PRIOR_VERSION" >> $GITHUB_ENV
+        echo "bump_type=$BUMP_TYPE" >> $GITHUB_ENV
         echo "version=$VERSION" >> $GITHUB_ENV
-        echo "Version: $VERSION"
+        echo "Version: $VERSION ($BUMP_TYPE bump on $TARGET_BRANCH)"
 
         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
 
-        just prepare-release $VERSION
-        BRANCH_NAME=$(git branch --show-current)
-        HEAD_REF=$(git rev-parse HEAD)
-        echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
-        echo "head_ref=$HEAD_REF" >> $GITHUB_ENV
-        echo "Branch: $BRANCH_NAME"
+        BRANCH_NAME="version-bump/$VERSION"
+        git switch -c "$BRANCH_NAME"
 
-    - name: push release branch
+        just prepare-release $VERSION
+
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+
+    - name: Push bump branch
       run: |
         git push origin "${{ env.branch_name }}"
-
-    - name: Generate release notes
-      uses: ./.github/actions/generate-release-pr-body
-      with:
-        version: ${{ env.version }}
-        head_ref: ${{ env.head_ref }}
-        prior_ref: ${{ env.prior_ref }}
 
     - name: Create Pull Request
       run: |
         PR_URL=$(gh pr create \
           -B "$TARGET_BRANCH" \
           -H "${{ env.branch_name }}" \
-          --title "chore(release): release version ${{ env.version }} ($BUMP_TYPE)" \
-          --body-file pr_body.txt)
+          --title "chore(release): bump version to ${{ env.version }} (${{ env.bump_type }})" \
+          --body "Bumps version to **${{ env.version }}**. Merging this PR will trigger creation of the \`release/${{ env.version }}\` branch and release PR.")
         echo "pr_url=$PR_URL" >> $GITHUB_ENV
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Post release checklist comment
-      run: |
-        sed 's/{{VERSION}}/${{ env.version }}/g' RELEASE_CHECKLIST.md > checklist_comment.md
-        gh pr comment "${{ env.pr_url }}" --body-file checklist_comment.md
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
