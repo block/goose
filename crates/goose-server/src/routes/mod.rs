@@ -1,7 +1,6 @@
 pub mod action_required;
 pub mod agent;
 pub mod config_management;
-#[cfg(feature = "local-inference")]
 pub mod dictation;
 pub mod errors;
 pub mod gateway;
@@ -44,12 +43,11 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
-        .merge(sampling::routes(state.clone()));
+        .merge(sampling::routes(state.clone()))
+        .merge(dictation::routes(state.clone()));
 
     #[cfg(feature = "local-inference")]
-    let router = router
-        .merge(dictation::routes(state.clone()))
-        .merge(local_inference::routes(state));
+    let router = router.merge(local_inference::routes(state));
 
     router
 }

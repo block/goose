@@ -14,7 +14,7 @@ workspace = true
 default = ["code-mode", "local-inference"]
 code-mode = ["goose/code-mode"]
 local-inference = ["goose/local-inference"]
-cuda = ["goose/cuda"]
+cuda = ["goose/cuda", "local-inference"]
 
 [dependencies]
 goose = { path = "../goose", default-features = false }
