@@ -97,13 +97,13 @@ import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
       type: 'topic',
       title: 'Recipes',
       description: '查看 Recipes 指南，了解更多文档、工具和资源，掌握 goose recipes 的使用方式。',
-      linkUrl: '/goose/docs/guides/recipes'
+      linkUrl: '/goose/zh-CN/docs/guides/recipes'
     },
     {
       type: 'topic',
       title: 'Research → Plan → Implement Patterns',
       description: '了解 slash commands 如何轻松融入交互式的 RPI 工作流。',
-      linkUrl: '/goose/docs/tutorials/rpi'
+      linkUrl: '/goose/zh-CN/docs/tutorials/rpi'
     }
   ]}
 />
