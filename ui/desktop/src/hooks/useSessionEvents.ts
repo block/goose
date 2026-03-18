@@ -37,6 +37,9 @@ export function useSessionEvents(sessionId: string) {
             path: { id: sessionId },
             signal: abortController.signal,
             headers: lastEventId ? { 'Last-Event-ID': lastEventId } : undefined,
+            // Disable the inner retry loop so errors surface to our outer
+            // loop which tracks consecutive failures and notifies listeners.
+            sseMaxRetryAttempts: 1,
             onSseEvent: (event) => {
               if (event.id) {
                 lastEventId = event.id;
