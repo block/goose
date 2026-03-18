@@ -32,12 +32,12 @@ The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses th
 
 Traditional MCP tool calling and Code Mode are two different approaches to the same goal: giving goose access to tools.
 
-| Aspect             | Traditional                                                                                                                                                                                                                   | Code Mode                                                                                                                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tool Discovery** | All tools from enabled extensions, for example:<br/>• `developer.shell`<br/>• `developer.text_editor`<br/>• `github.list_issues`<br/>• `github.get_pull_request`<br/>• `slack.send_message`<br/>• ... _potentially many more_ | Code Mode extension's meta-tools:<br/>• `list_functions`<br/>• `get_function_details`<br/>• `execute`<br/><br/>The LLM uses these tools to discover tools from other enabled extensions as needed |
-| **Tool Calling**   | • Sequential tool calls<br/>• Each result sent to the LLM before the next call                                                                                                                                                | • May require tool discovery calls<br/>• Multiple tool calls batched in one execution<br/>• Intermediate results are chained and processed locally                                                |
-| **Context Window** | Every LLM call includes all tool definitions from enabled extensions                                                                                                                                                          | Every LLM call includes the 3 meta-tool definitions, plus any tool definitions previously discovered in the session                                                                               |
-| **Best For**       | • 1-3 enabled extensions<br/>• Simple tasks using 1-2 tools                                                                                                                                                                   | • 5+ extensions<br/>• Well-defined multi-step workflows                                                                                                                                           |
+| Aspect | Traditional | Code Mode |
+|--------|------------------|-----------|
+| **Tool Discovery** | All tools from enabled extensions, for example:<br/>• `developer.shell`<br/>• `developer.text_editor`<br/>• `github.list_issues`<br/>• `github.get_pull_request`<br/>• `slack.send_message`<br/>• ... *potentially many more* | Code Mode extension's meta-tools:<br/>• `list_functions`<br/>• `get_function_details`<br/>• `execute_typescript`<br/><br/>The LLM uses these tools to discover tools from other enabled extensions as needed |
+| **Tool Calling** | • Sequential tool calls<br/>• Each result sent to the LLM before the next call | • May require tool discovery calls<br/>• Multiple tool calls batched in one execution<br/>• Intermediate results are chained and processed locally |
+| **Context Window** | Every LLM call includes all tool definitions from enabled extensions | Every LLM call includes the 3 meta-tool definitions, plus any tool definitions previously discovered in the session |
+| **Best For** | • 1-3 enabled extensions<br/>• Simple tasks using 1-2 tools | • 5+ extensions<br/>• Well-defined multi-step workflows |
 
 :::info Text-Only Results
 Code Mode only supports text content from tool results. Images, binary data, and other content types are ignored.
@@ -50,24 +50,24 @@ import gooseCodeMode from '@site/blog/2025-12-15-code-mode-mcp/header-image.jpg'
 import notMcpReplacement from '@site/blog/2025-12-21-code-mode-doesnt-replace-mcp/header-image.png';
 
 <ContentCardCarousel
-items={[
-{
-type: 'blog',
-title: 'Code Mode for MCP',
-description: 'Learn about the code execution approach to MCP tool calling.',
-thumbnailUrl: gooseCodeMode,
-linkUrl: '/goose/blog/2025/12/15/code-mode-mcp',
-date: '2025-12-15',
-duration: '5 min read'
-},
-{
-type: 'blog',
-title: 'Code Mode Doesn\'t Replace MCP',
-description: 'Understanding how Code Mode and MCP work together.',
-thumbnailUrl: notMcpReplacement,
-linkUrl: '/goose/blog/2025/12/21/code-mode-doesnt-replace-mcp',
-date: '2025-12-21',
-duration: '8 min read'
-}
-]}
+  items={[
+    {
+      type: 'blog',
+      title: 'Code Mode for MCP',
+      description: 'Learn about the code execution approach to MCP tool calling.',
+      thumbnailUrl: gooseCodeMode,
+      linkUrl: '/goose/blog/2025/12/15/code-mode-mcp',
+      date: '2025-12-15',
+      duration: '5 min read'
+    },
+    {
+      type: 'blog',
+      title: 'Code Mode Doesn\'t Replace MCP',
+      description: 'Understanding how Code Mode and MCP work together.',
+      thumbnailUrl: notMcpReplacement,
+      linkUrl: '/goose/blog/2025/12/21/code-mode-doesnt-replace-mcp',
+      date: '2025-12-21',
+      duration: '8 min read'
+    }
+  ]}
 />
