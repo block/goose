@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import i18n from '../i18n';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getSession, listSessions } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
@@ -10,6 +11,8 @@ import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
 
 const MAX_RECENT_SESSIONS = 5;
+
+const t = (key: string) => i18n.t(key);
 
 interface UseNavigationSessionsOptions {
   onNavigate?: () => void;
@@ -208,12 +211,12 @@ export function getSessionDisplayName(session: Session): string {
     return session.recipe.title;
   }
   if (shouldShowNewChatTitle(session)) {
-    return 'New Chat';
+    return t('chat.newChat');
   }
   return session.name;
 }
 
 export function truncateMessage(msg?: string, maxLen = 20): string {
-  if (!msg) return 'New Chat';
+  if (!msg) return t('chat.newChat');
   return msg.length > maxLen ? msg.substring(0, maxLen) + '...' : msg;
 }

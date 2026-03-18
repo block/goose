@@ -7,6 +7,7 @@ import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
 import { applyThemeTokens } from './theme/theme-tokens';
+import './i18n';
 
 // Apply theme tokens to :root before first paint.
 applyThemeTokens();

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from './ui/button';
 
 interface SetupModalProps {
@@ -20,6 +21,8 @@ export function SetupModal({
   autoClose,
   onClose,
 }: SetupModalProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (autoClose && onClose) {
       const timer = window.setTimeout(() => {
@@ -45,7 +48,7 @@ export function SetupModal({
         {onClose && (
           <div className="mb-4">
             <Button onClick={onClose} className="w-full">
-              Close
+              {t('setupModal.close')}
             </Button>
             <br />
           </div>
@@ -53,7 +56,7 @@ export function SetupModal({
 
         {showRetry && onRetry && (
           <Button onClick={onRetry} className="w-full">
-            Retry Setup
+            {t('setupModal.retrySetup')}
           </Button>
         )}
       </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu } from 'lucide-react';
@@ -20,6 +21,7 @@ interface AppLayoutContentProps {
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
   const location = useLocation();
+  const { t } = useTranslation();
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const chatContext = useChatContext();
   const isOnPairRoute = location.pathname === '/pair';
@@ -123,7 +125,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           className="no-drag hover:!bg-background-tertiary"
           variant="ghost"
           size="xs"
-          title={isNavExpanded ? 'Close navigation' : 'Open navigation'}
+          title={isNavExpanded ? t('nav.closeNavigation') : t('nav.openNavigation')}
         >
           <Menu className="w-5 h-5" />
         </Button>

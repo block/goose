@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "home": "主页",
+    "chat": "聊天",
+    "recipes": "配方",
+    "apps": "应用",
+    "scheduler": "计划任务",
+    "extensions": "扩展",
+    "settings": "设置",
+    "openNavigation": "打开导航",
+    "closeNavigation": "关闭导航"
+  },
+  "chat": {
+    "newChat": "新聊天",
+    "startNewChat": "开始新聊天",
+    "showAll": "显示全部",
+    "untitledSession": "未命名会话"
+  },
+  "setupModal": {
+    "close": "关闭",
+    "retrySetup": "重试设置"
+  },
+  "telemetry": {
+    "title": "帮助改进 goose",
+    "description": "是否愿意分享匿名使用数据来帮助改进 goose？这些数据有助于我们了解 goose 的使用方式并发现改进点。",
+    "yesShare": "是的，分享匿名使用数据",
+    "noThanks": "不，谢谢",
+    "whatWeCollectTitle": "我们收集：",
+    "collectItems": {
+      "os": "操作系统、版本和架构",
+      "version": "goose 版本和安装方式",
+      "provider": "使用的提供商与模型",
+      "extensions": "扩展与工具使用次数（仅名称）",
+      "sessionMetrics": "会话指标（时长、交互次数、令牌用量）",
+      "errorTypes": "错误类型（如“rate_limit”“auth”，不含细节）"
+    },
+    "privacyNote": "我们不会收集你的对话、代码、工具参数、错误消息或任何个人数据。你可以随时在“设置 → 应用”中更改此选项。",
+    "configErrorTitle": "配置错误",
+    "configErrorMessage": "无法检查遥测配置。"
+  },
+  "privacy": {
+    "title": "隐私详情",
+    "description": "匿名使用数据有助于我们了解 goose 的使用方式并发现改进点。",
+    "whatWeCollectTitle": "我们收集：",
+    "privacyNote": "我们不会收集你的对话、代码、工具参数、错误消息或任何个人数据。你可以随时在设置中更改此选项。"
+  }
+}

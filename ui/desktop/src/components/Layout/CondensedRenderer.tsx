@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GripVertical, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils';
@@ -27,6 +28,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
   navFocusRef,
 }) => {
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
+  const { t } = useTranslation();
 
   const isVertical = navigationPosition === 'left' || navigationPosition === 'right';
   const isTopPosition = navigationPosition === 'top';
@@ -176,7 +178,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                                 'bg-background-tertiary hover:bg-background-inverse hover:text-text-inverse',
                                 'flex items-center justify-center'
                               )}
-                              title="New Chat"
+                              title={t('chat.newChat')}
                             >
                               <Plus className="w-4 h-4" />
                             </motion.button>

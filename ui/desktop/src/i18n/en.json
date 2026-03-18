@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "home": "Home",
+    "chat": "Chat",
+    "recipes": "Recipes",
+    "apps": "Apps",
+    "scheduler": "Scheduler",
+    "extensions": "Extensions",
+    "settings": "Settings",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation"
+  },
+  "chat": {
+    "newChat": "New Chat",
+    "startNewChat": "Start New Chat",
+    "showAll": "Show All",
+    "untitledSession": "Untitled session"
+  },
+  "setupModal": {
+    "close": "Close",
+    "retrySetup": "Retry Setup"
+  },
+  "telemetry": {
+    "title": "Help improve goose",
+    "description": "Would you like to help improve goose by sharing anonymous usage data? This helps us understand how goose is used and identify areas for improvement.",
+    "yesShare": "Yes, share anonymous usage data",
+    "noThanks": "No thanks",
+    "whatWeCollectTitle": "What we collect:",
+    "collectItems": {
+      "os": "Operating system, version, and architecture",
+      "version": "goose version and install method",
+      "provider": "Provider and model used",
+      "extensions": "Extensions and tool usage counts (names only)",
+      "sessionMetrics": "Session metrics (duration, interaction count, token usage)",
+      "errorTypes": "Error types (e.g., \"rate_limit\", \"auth\" - no details)"
+    },
+    "privacyNote": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings → App.",
+    "configErrorTitle": "Configuration Error",
+    "configErrorMessage": "Failed to check telemetry configuration."
+  },
+  "privacy": {
+    "title": "Privacy details",
+    "description": "Anonymous usage data helps us understand how goose is used and identify areas for improvement.",
+    "whatWeCollectTitle": "What we collect:",
+    "privacyNote": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings."
+  }
+}
