@@ -701,6 +701,9 @@ export type MessageEvent = {
     conversation: Conversation;
     type: 'UpdateConversation';
 } | {
+    request_ids: Array<string>;
+    type: 'ActiveRequests';
+} | {
     type: 'Ping';
 };
 

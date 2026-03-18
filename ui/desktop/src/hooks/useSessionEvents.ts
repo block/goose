@@ -12,9 +12,11 @@ export type SessionEvent = MessageEvent & {
 };
 
 type EventHandler = (event: SessionEvent) => void;
+type ActiveRequestsHandler = (requestIds: string[]) => void;
 
 export function useSessionEvents(sessionId: string) {
   const listenersRef = useRef(new Map<string, Set<EventHandler>>());
+  const activeRequestsHandlerRef = useRef<ActiveRequestsHandler | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [connected, setConnected] = useState(false);
 
@@ -67,6 +69,14 @@ export function useSessionEvents(sessionId: string) {
             // request_id) still reach the correct handler.
             const sessionEvent = event as SessionEvent;
             const routingId = sessionEvent.chat_request_id ?? sessionEvent.request_id;
+
+            // ActiveRequests events notify the client about in-flight requests
+            // it can reattach to (e.g. after a remount).
+            if (sessionEvent.type === 'ActiveRequests') {
+              const ids = (sessionEvent as unknown as { request_ids: string[] }).request_ids;
+              activeRequestsHandlerRef.current?.(ids);
+              continue;
+            }
 
             // Server-level errors without a request ID (e.g. "client too far
             // behind") affect all active listeners — broadcast to everyone.
@@ -178,5 +188,9 @@ export function useSessionEvents(sessionId: string) {
     []
   );
 
-  return { connected, addListener };
+  const setActiveRequestsHandler = useCallback((handler: ActiveRequestsHandler | null) => {
+    activeRequestsHandlerRef.current = handler;
+  }, []);
+
+  return { connected, addListener, setActiveRequestsHandler };
 }

@@ -170,12 +170,27 @@ pub async fn session_events(
 
     let (tx, rx) = mpsc::channel::<String>(256);
     let stream = ReceiverStream::new(rx);
+    let task_bus = bus.clone();
 
     tokio::spawn(async move {
+        let bus = task_bus;
         // Send replayed events
         for event in &replay {
             let frame =
                 serialize_session_event(event.seq, event.request_id.as_deref(), &event.event);
+            if tx.send(frame).await.is_err() {
+                return;
+            }
+        }
+
+        // Notify the client about any in-flight requests so it can
+        // reattach event handlers after a remount / reconnect.
+        let active_ids = bus.active_request_ids().await;
+        if !active_ids.is_empty() {
+            let event = MessageEvent::ActiveRequests {
+                request_ids: active_ids,
+            };
+            let frame = serialize_session_event(0, None, &event);
             if tx.send(frame).await.is_err() {
                 return;
             }

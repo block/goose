@@ -110,6 +110,12 @@ impl SessionEventBus {
         Ok((replay, replay_max_seq, rx))
     }
 
+    /// Return the IDs of all currently active (in-flight) requests.
+    pub async fn active_request_ids(&self) -> Vec<String> {
+        let requests = self.active_requests.lock().await;
+        requests.keys().cloned().collect()
+    }
+
     /// Register a new request and return its cancellation token.
     pub async fn register_request(&self, request_id: String) -> CancellationToken {
         let token = CancellationToken::new();

@@ -6177,6 +6177,28 @@
           },
           {
             "type": "object",
+            "description": "Sent at the start of an SSE stream to inform the client about\nin-flight requests it can reattach to.",
+            "required": [
+              "request_ids",
+              "type"
+            ],
+            "properties": {
+              "request_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ActiveRequests"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "required": [
               "type"
             ],

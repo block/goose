@@ -149,6 +149,11 @@ pub enum MessageEvent {
     UpdateConversation {
         conversation: Conversation,
     },
+    /// Sent at the start of an SSE stream to inform the client about
+    /// in-flight requests it can reattach to.
+    ActiveRequests {
+        request_ids: Vec<String>,
+    },
     Ping,
 }
 

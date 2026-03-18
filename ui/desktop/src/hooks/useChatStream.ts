@@ -354,7 +354,7 @@ export function useChatStream({
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
   // Long-lived SSE connection for this session
-  const { addListener } = useSessionEvents(sessionId);
+  const { addListener, setActiveRequestsHandler } = useSessionEvents(sessionId);
 
   // Track the active request for cancellation (includes the session that started it)
   const activeRequestIdRef = useRef<string | null>(null);
@@ -464,6 +464,51 @@ export function useChatStream({
       console.warn('Failed to reload conversation after buffer overflow:', e);
     });
   }, [sessionId]);
+
+  // Reattach to in-flight replies discovered via the SSE ActiveRequests event.
+  // This handles the case where the chat view remounts while a reply is still
+  // running on the server — the new hook instance picks up the existing request
+  // and starts processing its events.
+  useEffect(() => {
+    setActiveRequestsHandler((requestIds: string[]) => {
+      // Only reattach if we don't already have an active request
+      if (activeRequestIdRef.current) return;
+      if (requestIds.length === 0) return;
+
+      // Reattach to the first (most recent) active request.
+      // Multiple concurrent requests per session aren't supported in the UI.
+      const requestId = requestIds[0];
+      const currentMessages = stateRef.current.messages;
+
+      activeRequestIdRef.current = requestId;
+      activeRequestSessionIdRef.current = sessionId;
+
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+
+      const processEvent = createEventProcessor(
+        currentMessages,
+        dispatch,
+        onFinish,
+        sessionId,
+        reloadConversation,
+      );
+
+      const unsubscribe = addListener(requestId, (event) => {
+        const isTerminal = processEvent(event);
+        if (isTerminal) {
+          unsubscribe();
+          activeUnsubscribeRef.current = null;
+          activeRequestIdRef.current = null;
+          activeRequestSessionIdRef.current = null;
+        }
+      });
+      activeUnsubscribeRef.current = unsubscribe;
+    });
+
+    return () => {
+      setActiveRequestsHandler(null);
+    };
+  }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler]);
 
   /**
    * Submit a message via the new POST+SSE pattern.
