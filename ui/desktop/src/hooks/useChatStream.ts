@@ -339,7 +339,7 @@ async function streamFromResponse(
     if (!signal?.aborted) {
       toastError({
         title: 'Connection lost',
-        msg: 'The response may be incomplete. You can try sending your message again.',
+        msg: 'The response may be incomplete and the turn may have partially executed on the backend. Reload the session to check the latest state before retrying — resending may duplicate tool actions.',
       });
     }
   } catch (error) {
@@ -624,6 +624,7 @@ export function useChatStream({
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          // Do not retry /reply — the endpoint is not idempotent and retrying can duplicate tool calls
           sseMaxRetryAttempts: 0,
         });
 
@@ -640,7 +641,20 @@ export function useChatStream({
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
         } else {
-          // Unexpected error during fetch setup (streamFromResponse handles its own errors)
+          // The submit failed — attempt to restore the agent (it may have been
+          // evicted from the LRU cache or the server may have restarted) so the
+          // session is in a usable state for the user's next manual attempt.
+          try {
+            await resumeAgent({
+              body: {
+                session_id: sessionId,
+                load_model_and_extensions: true,
+              },
+              throwOnError: true,
+            });
+          } catch {
+            // resumeAgent also failed — nothing more we can do automatically
+          }
           onFinish('Submit error: ' + errorMessage(error));
         }
       }
@@ -673,6 +687,7 @@ export function useChatStream({
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
+          // Do not retry /reply — the endpoint is not idempotent and retrying can duplicate tool calls
           sseMaxRetryAttempts: 0,
         });
 
@@ -688,6 +703,18 @@ export function useChatStream({
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
         } else {
+          // Restore the agent so the session is usable for the user's next manual attempt
+          try {
+            await resumeAgent({
+              body: {
+                session_id: sessionId,
+                load_model_and_extensions: true,
+              },
+              throwOnError: true,
+            });
+          } catch {
+            // resumeAgent also failed — nothing more we can do automatically
+          }
           onFinish('Submit error: ' + errorMessage(error));
         }
       }
@@ -820,6 +847,7 @@ export function useChatStream({
                 },
                 throwOnError: true,
                 signal: abortControllerRef.current.signal,
+                // Do not retry /reply — the endpoint is not idempotent and retrying can duplicate tool calls
                 sseMaxRetryAttempts: 0,
               });
 
