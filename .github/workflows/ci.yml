@@ -95,7 +95,7 @@ jobs:
           # play nicely with hermit-managed rust
           hermit uninstall rustup
           export CARGO_INCREMENTAL=0
-          cargo clippy --all-targets -- -D warnings
+          cargo clippy --workspace --all-targets --exclude v8 -- -D warnings
 
       - name: Check for banned TLS crates
         run: ./scripts/check-no-native-tls.sh
