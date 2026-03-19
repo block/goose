@@ -1340,24 +1340,14 @@ async fn delete_app(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
+    // Scope lookup to the "apps" extension to avoid cross-extension URI collisions
     let app = apps
         .into_iter()
-        .find(|a| a.resource.uri == params.uri)
+        .find(|a| a.resource.uri == params.uri && a.mcp_servers.contains(&"apps".to_string()))
         .ok_or_else(|| ErrorResponse {
             message: format!("App with URI '{}' not found", params.uri),
             status: StatusCode::NOT_FOUND,
         })?;
-
-    // Only apps from the "apps" platform extension can be deleted
-    if !app.mcp_servers.contains(&"apps".to_string()) {
-        return Err(ErrorResponse {
-            message: format!(
-                "Cannot delete app '{}': only apps from the apps extension can be deleted",
-                app.resource.name
-            ),
-            status: StatusCode::BAD_REQUEST,
-        });
-    }
 
     let default_names = McpAppCache::default_app_names();
     if default_names.contains(&app.resource.name) {
@@ -1367,17 +1357,8 @@ async fn delete_app(
         });
     }
 
-    // Delete from cache
-    for extension_name in &app.mcp_servers {
-        cache
-            .delete_app(extension_name, &app.resource.uri)
-            .map_err(|e| ErrorResponse {
-                message: format!("Failed to delete app: {}", e),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
-    }
-
-    // Also delete the HTML file if it exists (for Goose-created apps).
+    // Delete the HTML file first (for Goose-created apps), so that if this
+    // fails the cache entry is preserved and the state stays consistent.
     // Reject names with path separators to prevent directory traversal.
     let app_name = &app.resource.name;
     if !app_name.contains('/')
@@ -1394,6 +1375,16 @@ async fn delete_app(
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
         }
+    }
+
+    // Delete from cache after the file is successfully removed
+    for extension_name in &app.mcp_servers {
+        cache
+            .delete_app(extension_name, &app.resource.uri)
+            .map_err(|e| ErrorResponse {
+                message: format!("Failed to delete app: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
     }
 
     Ok(Json(DeleteAppResponse {
