@@ -308,6 +308,19 @@ fn spawn_reply_task(
         };
         all_messages.push(user_message.clone());
 
+        // Save the conversation (including the new user message) before
+        // notifying other clients, so getSession returns the latest state.
+        if let Err(e) = state
+            .session_manager()
+            .replace_conversation(&session_id, &all_messages)
+            .await
+        {
+            tracing::warn!("Failed to save user message to session {}: {}", session_id, e);
+        }
+
+        // Notify connected clients that a new request is active.
+        task_bus.publish_active_requests().await;
+
         let mut stream = match agent
             .reply(user_message, session_config, Some(cancel_token.clone()))
             .await
