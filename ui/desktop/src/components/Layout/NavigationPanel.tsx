@@ -51,6 +51,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     handleSessionClick,
   } = useNavigationSessions({
     onNavigate: isOverlayMode ? () => setIsNavExpanded(false) : undefined,
+    maxRecentSessions: preferences.maxRecentSessions,
   });
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
