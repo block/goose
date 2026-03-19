@@ -55,18 +55,9 @@ goose automatically enables Anthropic's [prompt caching](https://platform.claude
 
 ### CLI Providers
 
-goose also supports special "pass-through" providers that work with existing CLI tools, allowing you to use your subscriptions instead of paying per token:
-
 | Provider                                                                    | Description                                                                                                                                                                                                               | Requirements                                                                                                                                                                          |
 |-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Claude Code](https://www.anthropic.com/claude-code) (`claude-code`)                       | **Deprecated: use `claude-acp` instead.** Uses Anthropic's Claude CLI tool with your Claude Code subscription.                                                                                      | Claude CLI installed and authenticated, active Claude Code subscription                                                                                                              |
-| [OpenAI Codex](https://developers.openai.com/codex/cli) (`codex`)          | **Deprecated: use `chatgpt_codex` or `codex-acp` instead.** Uses OpenAI's Codex CLI tool with your ChatGPT Plus/Pro subscription.                                                                         | Codex CLI installed and authenticated, active ChatGPT Plus/Pro subscription                                                                                                          |
 | [Cursor Agent](https://docs.cursor.com/en/cli/overview) (`cursor-agent`)   | Uses Cursor's AI CLI tool with your Cursor subscription. Provides access to GPT-5, Claude 4, and other models through the cursor-agent command-line interface.                                              | cursor-agent CLI installed and authenticated                                                                                                         |
-| [Gemini CLI](https://ai.google.dev/gemini-api/docs) (`gemini-cli`)         | **Deprecated: use `gemini-acp` instead.** Uses Google's Gemini CLI tool with your Google AI subscription.                                                                                               | Gemini CLI installed and authenticated                                                                                                                |
-
-:::tip CLI Providers — Prefer ACP
-CLI providers are deprecated in favor of [ACP providers](#acp-providers), which support goose extensions and use the standardized Agent Client Protocol. CLI providers are kept for backward compatibility but do not support MCP extensions. See the [ACP Providers guide](/docs/guides/acp-providers) for setup instructions.
-:::
 
 ### ACP Providers
 

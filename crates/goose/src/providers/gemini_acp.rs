@@ -13,7 +13,6 @@ use crate::providers::base::{ProviderDef, ProviderMetadata};
 const GEMINI_ACP_PROVIDER_NAME: &str = "gemini-acp";
 pub const GEMINI_ACP_DEFAULT_MODEL: &str = "default";
 const GEMINI_ACP_DOC_URL: &str = "https://github.com/google-gemini/gemini-cli";
-const GEMINI_ACP_BINARY: &str = "gemini";
 
 pub struct GeminiAcpProvider;
 
@@ -38,9 +37,8 @@ impl ProviderDef for GeminiAcpProvider {
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
-            let resolved_command = SearchPaths::builder()
-                .with_npm()
-                .resolve(GEMINI_ACP_BINARY)?;
+            let command_name: String = config.get_gemini_cli_command().unwrap_or_default().into();
+            let resolved_command = SearchPaths::builder().with_npm().resolve(&command_name)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
             let permission_mapping = PermissionMapping {
@@ -49,9 +47,15 @@ impl ProviderDef for GeminiAcpProvider {
                 rejected_tool_status: sacp::schema::ToolCallStatus::Failed,
             };
 
+            let mut args = vec!["--acp".to_string()];
+            if model.model_name != "default" {
+                args.push("--model".to_string());
+                args.push(model.model_name.clone());
+            }
+
             let provider_config = AcpProviderConfig {
                 command: resolved_command,
-                args: vec!["--acp".to_string()],
+                args,
                 env: vec![],
                 env_remove: vec![],
                 work_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
