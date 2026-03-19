@@ -39,10 +39,9 @@ jobs:
           exit 0
         fi
 
-        # Check if all unique commits are empty commits (release branch markers)
         ALL_EMPTY=true
         for commit in $MISSING_COMMITS; do
-          if ! git diff-tree --no-commit-id --name-only -r "$commit" | head -1 | grep -q '^$'; then
+          if [ -n "$(git diff-tree --no-commit-id --name-only -r "$commit")" ]; then
             ALL_EMPTY=false
             break
           fi
