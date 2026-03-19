@@ -2330,6 +2330,63 @@ mod tests {
         assert_eq!(id, "any");
     }
 
+    // --- derive_call_reason / format_messages_for_log UTF-8 safety ---
+
+    #[test]
+    fn test_derive_call_reason_ascii_truncation() {
+        let long_ascii = "a".repeat(200);
+        let conv = Conversation::new_unvalidated([Message::user().with_text(&long_ascii)]);
+        let result = derive_call_reason(1, &conv);
+        // Should contain "..." and not panic
+        assert!(result.contains("..."));
+    }
+
+    #[test]
+    fn test_derive_call_reason_multibyte_boundary() {
+        // Each emoji is 4 bytes; 26 emojis = 104 bytes, crossing the old byte-100 boundary
+        let emoji_text = "🎉".repeat(26);
+        let conv = Conversation::new_unvalidated([Message::user().with_text(&emoji_text)]);
+        // Must not panic
+        let result = derive_call_reason(1, &conv);
+        assert!(result.contains("..."));
+    }
+
+    #[test]
+    fn test_derive_call_reason_short_message() {
+        let conv = Conversation::new_unvalidated([Message::user().with_text("hello")]);
+        let result = derive_call_reason(1, &conv);
+        assert!(result.contains("hello"));
+        assert!(!result.contains("..."));
+    }
+
+    #[test]
+    fn test_format_messages_for_log_multibyte_boundary() {
+        use crate::conversation::message::MessageContent;
+        use rmcp::model::{AnnotateAble, CallToolResult, RawContent};
+
+        // Build a tool-response message whose content body crosses the old byte-2000 boundary.
+        // Each "日" is 3 bytes; 700 of them = 2100 bytes, so the old `&text[..2000]` would
+        // land mid-character at byte 2000 (which is not a char boundary).
+        let long_body = "日".repeat(700);
+        let tool_result = CallToolResult {
+            content: vec![RawContent::text(long_body).no_annotation()],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        };
+        let response_content = MessageContent::ToolResponse(
+            crate::conversation::message::ToolResponse {
+                id: "test-id".to_string(),
+                tool_result: Ok(tool_result),
+                metadata: None,
+            },
+        );
+        let msg = Message::new(rmcp::model::Role::User, 0, vec![response_content]);
+        // Must not panic
+        let log = format_messages_for_log(&[msg]);
+        assert!(log.contains("truncated"));
+    }
+
     #[tokio::test]
     async fn test_add_final_output_tool() -> Result<()> {
         let agent = Agent::new();
