@@ -1032,7 +1032,6 @@ function App({
     <Box
       flexDirection="column"
       width={termWidth}
-      height={termHeight}
       paddingX={GUTTER}
     >
       <Header
