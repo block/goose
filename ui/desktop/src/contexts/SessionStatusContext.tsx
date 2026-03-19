@@ -1,3 +1,7 @@
+// TODO: This context is a stopgap — BaseChat pushes stream state up, NavigationPanel reads it.
+// The proper fix is for the sidebar to subscribe to the SSE bus per session and derive
+// streaming/unread state directly, eliminating this context entirely.
+
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
 export type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
