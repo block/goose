@@ -92,6 +92,20 @@ impl McpAppCache {
             .and_then(|content| serde_json::from_str::<GooseApp>(&content).ok())
     }
 
+    pub fn delete_app(&self, extension_name: &str, resource_uri: &str) -> Result<(), std::io::Error> {
+        let cache_key = Self::cache_key(extension_name, resource_uri);
+        let app_path = self.cache_dir.join(format!("{}.json", cache_key));
+
+        if !app_path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("App not found in cache: {}::{}", extension_name, resource_uri),
+            ));
+        }
+
+        fs::remove_file(app_path)
+    }
+
     pub fn delete_extension_apps(&self, extension_name: &str) -> Result<usize, std::io::Error> {
         let mut deleted_count = 0;
 

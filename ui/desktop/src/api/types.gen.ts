@@ -229,6 +229,11 @@ export type DecodeRecipeResponse = {
     recipe: Recipe;
 };
 
+export type DeleteAppResponse = {
+    message: string;
+    name: string;
+};
+
 export type DeleteRecipeRequest = {
     id: string;
 };
@@ -1722,6 +1727,40 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type DeleteAppData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the app to delete
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agent/delete_app/{name}';
+};
+
+export type DeleteAppErrors = {
+    /**
+     * App not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type DeleteAppError = DeleteAppErrors[keyof DeleteAppErrors];
+
+export type DeleteAppResponses = {
+    /**
+     * App deleted successfully
+     */
+    200: DeleteAppResponse;
+};
+
+export type DeleteAppResponse2 = DeleteAppResponses[keyof DeleteAppResponses];
 
 export type ExportAppData = {
     body?: never;

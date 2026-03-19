@@ -7,7 +7,7 @@ use axum::response::IntoResponse;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use goose::agents::{Container, ExtensionLoadResult};
@@ -1284,6 +1284,65 @@ async fn import_app(
     ))
 }
 
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteAppResponse {
+    pub name: String,
+    pub message: String,
+}
+
+#[utoipa::path(
+    delete,
+    path = "/agent/delete_app/{name}",
+    params(
+        ("name" = String, Path, description = "Name of the app to delete")
+    ),
+    responses(
+        (status = 200, description = "App deleted successfully", body = DeleteAppResponse),
+        (status = 404, description = "App not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Agent"
+)]
+async fn delete_app(
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<Json<DeleteAppResponse>, ErrorResponse> {
+    let cache = McpAppCache::new().map_err(|e| ErrorResponse {
+        message: format!("Failed to access app cache: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    let apps = cache.list_apps().map_err(|e| ErrorResponse {
+        message: format!("Failed to list apps: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    let app = apps
+        .into_iter()
+        .find(|a| a.resource.name == name)
+        .ok_or_else(|| ErrorResponse {
+            message: format!("App '{}' not found", name),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    for extension_name in &app.mcp_servers {
+        cache
+            .delete_app(extension_name, &app.resource.uri)
+            .map_err(|e| ErrorResponse {
+                message: format!("Failed to delete app: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
+    }
+
+    Ok(Json(DeleteAppResponse {
+        name: name.clone(),
+        message: format!("App '{}' deleted successfully", name),
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -1296,6 +1355,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/list_apps", get(list_apps))
         .route("/agent/export_app/{name}", get(export_app))
         .route("/agent/import_app", post(import_app))
+        .route("/agent/delete_app/{name}", delete(delete_app))
         .route("/agent/update_provider", post(update_agent_provider))
         .route("/agent/update_session", post(update_session))
         .route("/agent/update_from_session", post(update_from_session))

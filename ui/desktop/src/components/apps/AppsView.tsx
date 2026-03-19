@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Download, Play, Upload } from 'lucide-react';
-import { exportApp, GooseApp, importApp, listApps } from '../../api';
+import { Download, Play, Trash2, Upload } from 'lucide-react';
+import { deleteApp, exportApp, GooseApp, importApp, listApps } from '../../api';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -25,6 +26,7 @@ export default function AppsView() {
   const [apps, setApps] = useState<GooseApp[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [appToDelete, setAppToDelete] = useState<GooseApp | null>(null);
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
 
@@ -159,6 +161,28 @@ export default function AppsView() {
     }
   };
 
+  const handleDeleteApp = async (app: GooseApp) => {
+    try {
+      await deleteApp({
+        throwOnError: true,
+        path: { name: app.name },
+      });
+
+      // Refresh apps list
+      const response = await listApps({
+        throwOnError: true,
+      });
+      const cachedApps = response.data?.apps || [];
+      setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
+      setError(null);
+    } catch (err) {
+      console.error('Failed to delete app:', err);
+      setError(errorMessage(err, 'Failed to delete app'));
+    } finally {
+      setAppToDelete(null);
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -284,14 +308,24 @@ export default function AppsView() {
                         Launch
                       </Button>
                       {isCustomApp && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadApp(app)}
-                          className="flex items-center gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadApp(app)}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAppToDelete(app)}
+                            className="flex items-center gap-2 text-red-500 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -301,6 +335,17 @@ export default function AppsView() {
           )}
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={appToDelete !== null}
+        title="Delete App"
+        message={`Are you sure you want to delete "${appToDelete ? formatAppName(appToDelete.name) : ''}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmVariant="destructive"
+        onConfirm={() => appToDelete && handleDeleteApp(appToDelete)}
+        onCancel={() => setAppToDelete(null)}
+      />
     </MainPanelLayout>
   );
 }
