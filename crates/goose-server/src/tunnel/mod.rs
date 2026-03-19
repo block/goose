@@ -1,8 +1,5 @@
 pub mod lapstone;
 
-#[cfg(test)]
-mod lapstone_test;
-
 use crate::configuration::Settings;
 use fs2::FileExt as _;
 use goose::config::{paths::Paths, Config};
@@ -91,16 +88,18 @@ pub struct TunnelManager {
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     lock_file: Arc<std::sync::Mutex<Option<File>>>,
+    scheme: String,
+    server_secret: Arc<RwLock<Option<String>>>,
 }
 
 impl Default for TunnelManager {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
 impl TunnelManager {
-    pub fn new() -> Self {
+    pub fn new(tls: bool) -> Self {
         TunnelManager {
             state: Arc::new(RwLock::new(TunnelState::Idle)),
             info: Arc::new(RwLock::new(None)),
@@ -108,6 +107,8 @@ impl TunnelManager {
             restart_tx: Arc::new(RwLock::new(None)),
             watchdog_handle: Arc::new(RwLock::new(None)),
             lock_file: Arc::new(std::sync::Mutex::new(None)),
+            scheme: if tls { "https" } else { "http" }.to_string(),
+            server_secret: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -193,6 +194,10 @@ impl TunnelManager {
         }
     }
 
+    pub async fn set_server_secret(&self, secret: String) {
+        *self.server_secret.write().await = Some(secret);
+    }
+
     pub fn set_auto_start(auto_start: bool) -> anyhow::Result<()> {
         Config::global()
             .set_param("tunnel_auto_start", auto_start)
@@ -214,8 +219,12 @@ impl TunnelManager {
     async fn start_tunnel_internal(&self) -> anyhow::Result<(TunnelInfo, mpsc::Receiver<()>)> {
         let server_port = get_server_port()?;
         let tunnel_secret = Self::get_secret().unwrap_or_else(generate_secret);
-        let server_secret =
-            std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
+        let server_secret = self
+            .server_secret
+            .read()
+            .await
+            .clone()
+            .expect("server_secret must be set before starting tunnel");
         let agent_id = Self::get_agent_id().unwrap_or_else(generate_agent_id);
 
         Self::set_secret(&tunnel_secret)?;
@@ -229,6 +238,7 @@ impl TunnelManager {
             tunnel_secret,
             server_secret,
             agent_id,
+            &self.scheme,
             self.lapstone_handle.clone(),
             restart_tx,
         )
@@ -316,6 +326,8 @@ impl TunnelManager {
             restart_tx: self.restart_tx.clone(),
             watchdog_handle: self.watchdog_handle.clone(),
             lock_file: self.lock_file.clone(),
+            scheme: self.scheme.clone(),
+            server_secret: self.server_secret.clone(),
         }
     }
 

@@ -184,7 +184,7 @@ elif [ "$OS" = "windows" ]; then
     echo "Error: Windows currently only supports x86_64 architecture."
     exit 1
   fi
-  FILE="goose-$ARCH-pc-windows-gnu.zip"
+  FILE="goose-$ARCH-pc-windows-msvc.zip"
   EXTRACT_CMD="unzip"
   OUT_FILE="goose.exe"
 else
@@ -235,7 +235,7 @@ set +e  # Disable immediate exit on error
 if [ "$EXTRACT_CMD" = "tar" ]; then
   tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
   extract_exit_code=$?
-  
+
   # Check for tar errors
   if [ $extract_exit_code -ne 0 ]; then
     if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
@@ -252,7 +252,7 @@ else
   # Use unzip for Windows
   unzip -q "$FILE" -d "$TMP_DIR" 2> unzip_error.log
   extract_exit_code=$?
-  
+
   # Check for unzip errors
   if [ $extract_exit_code -ne 0 ]; then
     echo "Error: Failed to extract $FILE. See details below:"
@@ -322,7 +322,7 @@ fi
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
   echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
-  
+
   if [ "$OS" = "windows" ]; then
     echo "To add goose to your PATH in PowerShell:"
     echo ""
@@ -382,9 +382,6 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
     fi
 
   fi
-  
+
   echo ""
 fi
-
-
-

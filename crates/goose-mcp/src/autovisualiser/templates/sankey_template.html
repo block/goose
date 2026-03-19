@@ -5,279 +5,233 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sankey Diagram</title>
 
-    <script>
-        {{D3_MIN}}
-    </script>
-    <script>
-        {{D3_SANKY}}
-    </script>
-    
+    <script>{{D3_MIN}}</script>
+    <script>{{D3_SANKY}}</script>
 
-    
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        
-        .container {
-            margin: 0 auto;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        
-        #sankey {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            display: block;
-            margin: 0 auto;
-        }
-        
+        body { padding: 16px; }
+
         .node rect {
             cursor: pointer;
-            stroke: #000;
-            stroke-width: 1px;
+            stroke-width: 0;
         }
-        
+
         .node text {
             pointer-events: none;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: var(--font-text-xs-size);
+            font-weight: var(--font-weight-medium);
+            fill: var(--color-text-primary);
         }
-        
+
         .link {
             fill: none;
-            stroke-opacity: 0.5;
+            stroke-opacity: 0.35;
             cursor: pointer;
+            transition: stroke-opacity 0.15s ease;
         }
-        
+
         .link:hover {
-            stroke-opacity: 0.8;
-        }
-        
-        .tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 1000;
+            stroke-opacity: 0.6;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <svg id="sankey"></svg>
-        <div class="tooltip" id="tooltip"></div>
-    </div>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <svg id="sankey" style="width:100%;"></svg>
+    <div class="av-tooltip" id="tooltip"></div>
 
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-        // Data will be injected here
-        const sankeyData = {{SANKEY_DATA}};
+    (function () {
+        "use strict";
 
-        // Sankey variables
-        let svg, sankey, tooltip;
-        const width = 500;
-        const height = 400;
-        const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+        var svg, sankey, tooltip;
+        var margin = { top: 16, right: 16, bottom: 16, left: 16 };
 
-        // Color schemes for different categories
-        const colorSchemes = {
-            source: "#ff6b6b",
-            income: "#4ecdc4",
-            input: "#45b7d1",
-            generation: "#f9ca24",
-            process: "#f0932b",
-            pool: "#6c5ce7",
-            distribution: "#a29bfe",
-            logistics: "#fd79a8",
-            landing: "#00b894",
-            page: "#00cec9",
-            storage: "#fdcb6e",
-            retail: "#e17055",
-            consumption: "#74b9ff",
-            expense: "#fd79a8",
-            conversion: "#00b894",
-            end: "#00b894",
-            savings: "#55a3ff",
-            loss: "#636e72",
-            exit: "#636e72",
-            reverse: "#ddd",
-            waste: "#636e72",
-            default: "#69b3a2"
-        };
+        function getWidth() {
+            return document.body.clientWidth - 32 || 500;
+        }
 
-        // Initialize SVG
+        function getHeight() {
+            if (McpAppBridge.displayMode === "fullscreen" || McpAppBridge.displayMode === "pip") {
+                return window.innerHeight - 64;
+            }
+            return 420;
+        }
+
+        var palette = [
+            "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
+            "#9b8afb", "#e87fa0", "#3cc0e0", "#8bba5a",
+        ];
+
+        function nodeColor(d) {
+            return palette[Math.abs(hashCode(d.name)) % palette.length];
+        }
+
+        function hashCode(str) {
+            var h = 0;
+            for (var i = 0; i < str.length; i++) {
+                h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+            }
+            return h;
+        }
+
         function initializeSVG() {
-            svg = d3.select("#sankey")
-                .attr("width", width)
-                .attr("height", height);
-            
+            var width = getWidth();
+            var height = getHeight();
+            svg = d3.select("#sankey").attr("width", width).attr("height", height);
             svg.selectAll("*").remove();
-            
-            sankey = d3.sankey()
-                .nodeWidth(20)
-                .nodePadding(10)
+            sankey = d3.sankey().nodeWidth(18).nodePadding(12)
                 .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
-            
             tooltip = d3.select("#tooltip");
         }
 
-        // Draw the Sankey diagram
+        function prepareGraph(data) {
+            var nodes = data.nodes.map(function (d) { return Object.assign({}, d); });
+            var links = [];
+            var nameToIdx = new Map();
+            nodes.forEach(function (n, i) { nameToIdx.set(n.name, i); });
+
+            // Filter out links with unknown nodes or invalid values
+            data.links.forEach(function (link) {
+                if (nameToIdx.has(link.source) && nameToIdx.has(link.target) && link.value > 0) {
+                    links.push({ source: link.source, target: link.target, value: link.value });
+                }
+            });
+
+            // Detect and break cycles by creating synthetic return nodes.
+            // d3-sankey doesn't support circular links so we redirect back-edges
+            // to a new "Target → Source" node to preserve the data visually.
+            var adj = new Map();
+            links.forEach(function (l) {
+                if (!adj.has(l.source)) adj.set(l.source, []);
+                adj.get(l.source).push(l.target);
+            });
+
+            var WHITE = 0, GRAY = 1, BLACK = 2;
+            var color = new Map();
+            nodes.forEach(function (n) { color.set(n.name, WHITE); });
+            var backEdges = new Set();
+
+            function dfs(u) {
+                color.set(u, GRAY);
+                (adj.get(u) || []).forEach(function (v) {
+                    if (color.get(v) === GRAY) {
+                        backEdges.add(u + "\0" + v);
+                    } else if (color.get(v) === WHITE) {
+                        dfs(v);
+                    }
+                });
+                color.set(u, BLACK);
+            }
+            nodes.forEach(function (n) {
+                if (color.get(n.name) === WHITE) dfs(n.name);
+            });
+
+            if (backEdges.size > 0) {
+                var fixedLinks = [];
+                links.forEach(function (l) {
+                    var key = l.source + "\0" + l.target;
+                    if (backEdges.has(key)) {
+                        var syntheticName = l.target + " ↩";
+                        if (!nameToIdx.has(syntheticName)) {
+                            nameToIdx.set(syntheticName, nodes.length);
+                            nodes.push({ name: syntheticName, category: "cycle" });
+                        }
+                        fixedLinks.push({ source: l.source, target: syntheticName, value: l.value });
+                    } else {
+                        fixedLinks.push(l);
+                    }
+                });
+                links = fixedLinks;
+            }
+
+            // Rebuild index map after possible new nodes
+            var idxMap = new Map();
+            nodes.forEach(function (n, i) { idxMap.set(n.name, i); });
+
+            var processedLinks = links.map(function (l) {
+                return { source: idxMap.get(l.source), target: idxMap.get(l.target), value: l.value };
+            });
+
+            return { nodes: nodes, links: processedLinks };
+        }
+
         function drawSankey(data) {
-            // Create a map of node names to indices
-            const nodeMap = new Map();
-            data.nodes.forEach((node, index) => {
-                nodeMap.set(node.name, index);
+            var prepared = prepareGraph(data);
+
+            var graph = sankey({
+                nodes: prepared.nodes,
+                links: prepared.links,
             });
 
-            // Process data for D3 Sankey - convert node names to indices in links
-            const processedLinks = data.links.map(link => ({
-                source: nodeMap.get(link.source),
-                target: nodeMap.get(link.target),
-                value: link.value
-            }));
-
-            const graph = sankey({
-                nodes: data.nodes.map(d => ({ ...d })),
-                links: processedLinks
-            });
-
-            // Draw links
-            svg.append("g")
-                .selectAll("path")
-                .data(graph.links)
-                .enter().append("path")
+            svg.append("g").selectAll("path").data(graph.links).enter().append("path")
                 .attr("class", "link")
                 .attr("d", d3.sankeyLinkHorizontal())
-                .attr("stroke", d => {
-                    const sourceCategory = d.source.category;
-                    return colorSchemes[sourceCategory] || colorSchemes.default;
+                .attr("stroke", function (d) { return nodeColor(d.source); })
+                .attr("stroke-width", function (d) { return Math.max(1, d.width); })
+                .on("mouseover", function (event, d) {
+                    tooltip.style("opacity", 1)
+                        .html("<strong>" + d.source.name + " → " + d.target.name + "</strong><br/>" + d.value.toLocaleString());
+                    McpAppBridge.positionTooltip(tooltip, event);
                 })
-                .attr("stroke-width", d => Math.max(1, d.width))
-                .on("mouseover", function(event, d) {
-                    showLinkTooltip(event, d);
-                })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", function () { tooltip.style("opacity", 0); });
 
-            // Draw nodes
-            const node = svg.append("g")
-                .selectAll("g")
-                .data(graph.nodes)
-                .enter().append("g")
-                .attr("class", "node");
+            var node = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g").attr("class", "node");
 
             node.append("rect")
-                .attr("x", d => d.x0)
-                .attr("y", d => d.y0)
-                .attr("height", d => d.y1 - d.y0)
-                .attr("width", d => d.x1 - d.x0)
-                .attr("fill", d => colorSchemes[d.category] || colorSchemes.default)
-                .on("mouseover", function(event, d) {
-                    showNodeTooltip(event, d);
+                .attr("x", function (d) { return d.x0; }).attr("y", function (d) { return d.y0; })
+                .attr("height", function (d) { return d.y1 - d.y0; }).attr("width", function (d) { return d.x1 - d.x0; })
+                .attr("fill", function (d) { return nodeColor(d); })
+                .attr("rx", 2)
+                .on("mouseover", function (event, d) {
+                    var totalIn = d.targetLinks.reduce(function (s, l) { return s + l.value; }, 0);
+                    var totalOut = d.sourceLinks.reduce(function (s, l) { return s + l.value; }, 0);
+                    tooltip.style("opacity", 1)
+                        .html("<strong>" + d.name + "</strong>" +
+                            (totalIn ? "<br/>In: " + totalIn.toLocaleString() : "") +
+                            (totalOut ? "<br/>Out: " + totalOut.toLocaleString() : ""));
+                    McpAppBridge.positionTooltip(tooltip, event);
                 })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", function () { tooltip.style("opacity", 0); });
 
-            // Add node labels
+            var w = getWidth();
             node.append("text")
-                .attr("x", d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
-                .attr("y", d => (d.y1 + d.y0) / 2)
+                .attr("x", function (d) { return d.x0 < w / 2 ? d.x1 + 8 : d.x0 - 8; })
+                .attr("y", function (d) { return (d.y1 + d.y0) / 2; })
                 .attr("dy", "0.35em")
-                .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
-                .text(d => d.name)
-                .style("font-size", "12px")
-                .style("fill", "#333");
+                .attr("text-anchor", function (d) { return d.x0 < w / 2 ? "start" : "end"; })
+                .text(function (d) { return d.name; });
         }
 
-        // Tooltip functions
-        function showNodeTooltip(event, d) {
-            const totalIn = d.targetLinks.reduce((sum, link) => sum + link.value, 0);
-            const totalOut = d.sourceLinks.reduce((sum, link) => sum + link.value, 0);
-            
-            tooltip.style("opacity", 1)
-                .html(`
-                    <strong>${d.name}</strong><br/>
-                    Category: ${d.category || 'N/A'}<br/>
-                    Total In: ${totalIn.toLocaleString()}<br/>
-                    Total Out: ${totalOut.toLocaleString()}<br/>
-                    Net: ${(totalIn - totalOut).toLocaleString()}
-                `)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 10) + "px");
-        }
-
-        function showLinkTooltip(event, d) {
-            tooltip.style("opacity", 1)
-                .html(`
-                    <strong>Flow</strong><br/>
-                    From: ${d.source.name}<br/>
-                    To: ${d.target.name}<br/>
-                    Value: ${d.value.toLocaleString()}<br/>
-                    Width: ${d.width.toFixed(1)}px
-                `)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 10) + "px");
-        }
-
-        function hideTooltip() {
-            tooltip.style("opacity", 0);
-        }
-
-        // Function to measure and report content size for iframe auto-resizing
-        function reportContentSize() {
-            // Get the actual content height
-            const contentHeight = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            
-            // Send size change message to parent window (for MCP-UI iframe auto-resize)
-            // The message format must match what the MCP-UI client expects
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'ui-size-change',  // lowercase as expected by MCP-UI client
-                    payload: {
-                        height: contentHeight
-                        // width is optional, we're not setting it to allow responsive design
-                    }
-                }, '*');
-            }
-        }
-
-        // Initialize and render on load
-        window.onload = function() {
+        function renderData(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
             initializeSVG();
-            drawSankey(sankeyData);
-            
-            // Report initial size
-            setTimeout(reportContentSize, 100);
-            
-            // Watch for size changes using ResizeObserver if available
-            if (typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    reportContentSize();
-                });
-                resizeObserver.observe(document.body);
-                resizeObserver.observe(document.documentElement);
+            try {
+                if (!data.nodes || !data.nodes.length || !data.links || !data.links.length) {
+                    throw new Error("Sankey data must include at least one node and one link.");
+                }
+                drawSankey(data);
+            } catch (e) {
+                svg.append("text")
+                    .attr("x", getWidth() / 2).attr("y", getHeight() / 2)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", McpAppBridge.cssVar("--color-text-secondary") || "#878787")
+                    .attr("font-size", "14px")
+                    .text("Unable to render diagram: " + (e.message || e));
             }
-            
-            // Fallback: also report on window resize
-            window.addEventListener('resize', reportContentSize);
-        };
+            setTimeout(McpAppBridge.reportSize, 80);
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-sankey",
+            onData: renderData,
+            onTheme: function () {
+                if (McpAppBridge.currentData) renderData(McpAppBridge.currentData);
+            },
+        });
+    })();
     </script>
 </body>
 </html>

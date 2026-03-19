@@ -32,7 +32,7 @@ export function RecipeWarningModal({
   hasSecurityWarnings = false,
 }: RecipeWarningModalProps) {
   return (
-    <Dialog open={isOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content

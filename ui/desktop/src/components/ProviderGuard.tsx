@@ -7,7 +7,6 @@ import { startTetrateSetup } from '../utils/tetrateSetup';
 import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
-import { OllamaSetup } from './OllamaSetup';
 import { LocalModelSetup } from './LocalModelSetup';
 import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
@@ -29,12 +28,11 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read, upsert } = useConfig();
+  const { read, upsert, getProviders } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
-  const [showOllamaSetup, setShowOllamaSetup] = useState(false);
   const [showLocalModelSetup, setShowLocalModelSetup] = useState(false);
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
@@ -81,7 +79,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   } | null>(null);
 
   const handleTetrateSetup = async () => {
-    trackOnboardingProviderSelected('tetrate');
+    trackOnboardingProviderSelected({ method: 'tetrate' });
     try {
       const result = await startTetrateSetup();
       if (result.success) {
@@ -109,10 +107,11 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleChatGptCodexSetup = async () => {
-    trackOnboardingProviderSelected('chatgpt_codex');
+    trackOnboardingProviderSelected({ method: 'chatgpt_codex' });
     try {
       const result = await startChatGptCodexSetup();
       if (result.success) {
+        await getProviders(true);
         setSwitchModelProvider('chatgpt_codex');
         setShowSwitchModelModal(true);
       } else {
@@ -137,7 +136,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
-    trackOnboardingProviderSelected('api_key');
+    trackOnboardingProviderSelected({ method: 'api_key' });
     const keyName = `${provider.toUpperCase()}_API_KEY`;
     await upsert(keyName, apiKey, true);
     await upsert('GOOSE_PROVIDER', provider, false);
@@ -162,7 +161,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOpenRouterSetup = async () => {
-    trackOnboardingProviderSelected('openrouter');
+    trackOnboardingProviderSelected({ method: 'openrouter' });
     try {
       const result = await startOpenRouterSetup();
       if (result.success) {
@@ -187,19 +186,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         showRetry: true,
       });
     }
-  };
-
-  const handleOllamaComplete = () => {
-    trackOnboardingCompleted('ollama');
-    setShowOllamaSetup(false);
-    setShowFirstTimeSetup(false);
-    setHasProvider(true);
-    navigate('/', { replace: true });
-  };
-
-  const handleOllamaCancel = () => {
-    trackOnboardingAbandoned('ollama_setup');
-    setShowOllamaSetup(false);
   };
 
   const handleLocalModelComplete = () => {
@@ -296,10 +282,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     );
   }
 
-  if (showOllamaSetup) {
-    return <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />;
-  }
-
   if (showLocalModelSetup) {
     return (
       <div className="h-screen w-full bg-background-default overflow-hidden">
@@ -357,7 +339,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </div>
                 <div
                   onClick={() => {
-                    trackOnboardingProviderSelected('local');
+                    trackOnboardingProviderSelected({ method: 'local' });
                     setShowLocalModelSetup(true);
                   }}
                   className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"

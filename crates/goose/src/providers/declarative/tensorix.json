@@ -1,0 +1,53 @@
+{
+  "name": "custom_tensorix",
+  "engine": "openai",
+  "display_name": "Tensorix",
+  "description": "50+ open-source models with EU-hosted inference and zero data retention",
+  "api_key_env": "TENSORIX_API_KEY",
+  "base_url": "https://api.tensorix.ai/v1",
+  "models": [
+    {
+      "name": "z-ai/glm-5",
+      "context_limit": 203000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "deepseek/deepseek-chat-v3.1",
+      "context_limit": 164000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "deepseek/deepseek-r1-0528",
+      "context_limit": 164000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "minimax/minimax-m2.5",
+      "context_limit": 197000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "moonshotai/kimi-k2.5",
+      "context_limit": 262000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    }
+  ],
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true
+}

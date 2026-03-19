@@ -24,7 +24,7 @@ fn asset_name() -> &'static str {
     }
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
-        "goose-x86_64-pc-windows-gnu.zip"
+        "goose-x86_64-pc-windows-msvc.zip"
     }
 }
 

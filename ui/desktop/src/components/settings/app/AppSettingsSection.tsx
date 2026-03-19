@@ -335,7 +335,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       {/* Navigation Settings */}
       <NavigationSettingsCard />
 
-
       <TelemetrySettings isWelcome={false} />
 
       <Card className="rounded-lg">

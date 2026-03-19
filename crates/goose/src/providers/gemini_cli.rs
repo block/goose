@@ -161,7 +161,7 @@ impl ProviderDef for GeminiCliProvider {
         ProviderMetadata::new(
             GEMINI_CLI_PROVIDER_NAME,
             "Gemini CLI",
-            "Execute Gemini models via gemini CLI tool",
+            "[Deprecated: use gemini-acp instead] Execute Gemini models via gemini CLI tool. Requires gemini CLI installed.",
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
@@ -185,6 +185,10 @@ impl Provider for GeminiCliProvider {
         &self.name
     }
 
+    fn manages_own_context(&self) -> bool {
+        true
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -196,10 +200,6 @@ impl Provider for GeminiCliProvider {
             .collect())
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, _tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn stream(
         &self,
         model_config: &ModelConfig,

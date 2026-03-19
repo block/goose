@@ -51,6 +51,9 @@ You can turn a successful session into a reusable "[recipe](/docs/guides/recipes
 ### Embrace an experimental mindset
 You don’t need to get it right the first time. Iterating on prompts and tools is part of the workflow.
 
+### Customize the sidebar
+goose Desktop lets you [customize the sidebar](/docs/guides/desktop-navigation) to match how you like to work. Adjust its position, appearance, and which items are visible.
+
 ### Keep goose updated
 Regularly [update](/docs/guides/updating-goose) goose to benefit from the latest features, bug fixes, and performance improvements.
 

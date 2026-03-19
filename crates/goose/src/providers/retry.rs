@@ -76,6 +76,7 @@ pub fn should_retry(error: &ProviderError) -> bool {
         error,
         ProviderError::RateLimitExceeded { .. }
             | ProviderError::ServerError(_)
+            | ProviderError::NetworkError(_)
             | ProviderError::RequestFailed(_)
     )
 }
@@ -121,7 +122,9 @@ where
     }
 }
 
-/// Trait for retry functionality to keep Provider dyn-compatible
+/// Trait for retry functionality to keep Provider dyn-compatible.
+///
+/// All `Provider` implementors get this via the blanket impl below.
 #[async_trait]
 pub trait ProviderRetry {
     fn retry_config(&self) -> RetryConfig {
@@ -145,14 +148,53 @@ pub trait ProviderRetry {
     where
         F: Fn() -> Fut + Send,
         Fut: Future<Output = Result<T, ProviderError>> + Send,
+        T: Send;
+}
+
+#[async_trait]
+impl<P: Provider> ProviderRetry for P {
+    fn retry_config(&self) -> RetryConfig {
+        Provider::retry_config(self)
+    }
+
+    async fn with_retry_config<F, Fut, T>(
+        &self,
+        operation: F,
+        config: RetryConfig,
+    ) -> Result<T, ProviderError>
+    where
+        F: Fn() -> Fut + Send,
+        Fut: Future<Output = Result<T, ProviderError>> + Send,
         T: Send,
     {
         let mut attempts = 0;
+        let mut auth_retried = false;
 
         loop {
             return match operation().await {
                 Ok(result) => Ok(result),
                 Err(error) => {
+                    // Auth retry is separate from transient-error retries: we get
+                    // at most 1 credential refresh, independent of max_retries.
+                    if matches!(error, ProviderError::Authentication(_)) && !auth_retried {
+                        auth_retried = true;
+                        match self.refresh_credentials().await {
+                            Ok(()) => {
+                                tracing::warn!(
+                                    "Credentials refreshed after auth error, retrying: {:?}",
+                                    error
+                                );
+                                continue;
+                            }
+                            Err(refresh_err) => {
+                                tracing::warn!(
+                                    "Credential refresh failed, returning original auth error: {:?}",
+                                    refresh_err
+                                );
+                            }
+                        }
+                    }
+
                     if should_retry(&error) && attempts < config.max_retries {
                         attempts += 1;
                         tracing::warn!(
@@ -188,11 +230,5 @@ pub trait ProviderRetry {
                 }
             };
         }
-    }
-}
-
-impl<P: Provider> ProviderRetry for P {
-    fn retry_config(&self) -> RetryConfig {
-        Provider::retry_config(self)
     }
 }

@@ -26,13 +26,31 @@ where
 {
     use serde::de::Error;
 
-    let mut raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+    let raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
 
-    // Filter out old "conversationCompacted" messages from pre-14.0
-    raw.retain(|item| item.get("type").and_then(|v| v.as_str()) != Some("conversationCompacted"));
+    let mut migrated = Vec::with_capacity(raw.len());
+    for item in raw {
+        match item.get("type").and_then(|v| v.as_str()) {
+            // Filter out old "conversationCompacted" messages from pre-14.0
+            Some("conversationCompacted") => {}
+            // Migrate old "reasoning" content to "thinking". Invalid legacy reasoning
+            // blocks are dropped so they don't fail deserialization.
+            Some("reasoning") => {
+                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                    migrated.push(serde_json::json!({
+                        "type": "thinking",
+                        "thinking": text,
+                        "signature": ""
+                    }));
+                }
+            }
+            _ => migrated.push(item),
+        }
+    }
 
-    let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
-        .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
+    let mut content: Vec<MessageContent> =
+        serde_json::from_value(serde_json::Value::Array(migrated))
+            .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
         if let MessageContent::Text(text_content) = message_content {
@@ -177,11 +195,6 @@ pub struct SystemNotificationContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ReasoningContent {
-    pub text: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -195,7 +208,6 @@ pub enum MessageContent {
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
     SystemNotification(SystemNotificationContent),
-    Reasoning(ReasoningContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -237,7 +249,6 @@ impl fmt::Display for MessageContent {
             MessageContent::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
-            MessageContent::Reasoning(r) => write!(f, "[Reasoning: {}]", r.text),
         }
     }
 }
@@ -295,12 +306,11 @@ impl MessageContent {
 
                 // Preserve ToolResponse even when content is empty - some providers
                 // (like Google) need to handle empty tool responses specially
+                let mut tool_result = result.clone();
+                tool_result.content = filtered_content;
                 Some(MessageContent::ToolResponse(ToolResponse {
                     id: res.id.clone(),
-                    tool_result: Ok(CallToolResult {
-                        content: filtered_content,
-                        ..result.clone()
-                    }),
+                    tool_result: Ok(tool_result),
                     metadata: res.metadata.clone(),
                 }))
             }
@@ -451,10 +461,6 @@ impl MessageContent {
         })
     }
 
-    pub fn reasoning<S: Into<String>>(text: S) -> Self {
-        MessageContent::Reasoning(ReasoningContent { text: text.into() })
-    }
-
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
         if let MessageContent::SystemNotification(ref notification) = self {
             Some(notification)
@@ -523,14 +529,6 @@ impl MessageContent {
     pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
         match self {
             MessageContent::RedactedThinking(redacted) => Some(redacted),
-            _ => None,
-        }
-    }
-
-    /// Get the reasoning content if this is a ReasoningContent variant
-    pub fn as_reasoning(&self) -> Option<&ReasoningContent> {
-        match self {
-            MessageContent::Reasoning(reasoning) => Some(reasoning),
             _ => None,
         }
     }
@@ -776,7 +774,6 @@ impl Message {
         }))
     }
 
-    /// Add a tool response to the message
     pub fn with_tool_response<S: Into<String>>(
         self,
         id: S,
@@ -785,15 +782,16 @@ impl Message {
         self.with_content(MessageContent::tool_response(id, result))
     }
 
-    pub fn with_tool_response_with_metadata<S: Into<String>>(
-        self,
+    pub fn add_tool_response_with_metadata<S: Into<String>>(
+        &mut self,
         id: S,
         result: ToolResult<CallToolResult>,
         metadata: Option<&ProviderMetadata>,
-    ) -> Self {
-        self.with_content(MessageContent::tool_response_with_metadata(
-            id, result, metadata,
-        ))
+    ) {
+        self.content
+            .push(MessageContent::tool_response_with_metadata(
+                id, result, metadata,
+            ));
     }
 
     /// Add an action required message for tool confirmation
@@ -999,12 +997,8 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "test_tool".into(),
-                    arguments: Some(object!({"param": "value"})),
-                }),
+                Ok(CallToolRequestParams::new("test_tool")
+                    .with_arguments(object!({"param": "value"}))),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -1115,15 +1109,56 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialization_migrates_reasoning_to_thinking() {
+        let json = serde_json::json!({
+            "role": "assistant",
+            "created": 1740171566,
+            "content": [
+                { "type": "reasoning", "text": "step by step" },
+                { "type": "text", "text": "final answer" }
+            ],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        });
+
+        let message: Message = serde_json::from_value(json).unwrap();
+        assert_eq!(message.content.len(), 2);
+
+        let MessageContent::Thinking(thinking) = &message.content[0] else {
+            panic!("Expected Thinking content");
+        };
+        assert_eq!(thinking.thinking, "step by step");
+        assert!(thinking.signature.is_empty());
+    }
+
+    #[test]
+    fn test_deserialization_drops_invalid_reasoning_blocks() {
+        let json = serde_json::json!({
+            "role": "assistant",
+            "created": 1740171566,
+            "content": [
+                { "type": "reasoning" },
+                { "type": "reasoning", "text": 42 },
+                { "type": "text", "text": "still here" }
+            ],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        });
+
+        let message: Message = serde_json::from_value(json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        let MessageContent::Text(text) = &message.content[0] else {
+            panic!("Expected Text content");
+        };
+        assert_eq!(text.text, "still here");
+    }
+
+    #[test]
     fn test_from_prompt_message_text() {
         let prompt_content = PromptMessageContent::Text {
             text: "Hello, world!".to_string(),
         };
 
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
+        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
@@ -1145,10 +1180,7 @@ mod tests {
             .no_annotation(),
         };
 
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
+        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
@@ -1177,10 +1209,7 @@ mod tests {
             .no_annotation(),
         };
 
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
+        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
@@ -1194,12 +1223,12 @@ mod tests {
     #[test]
     fn test_from_prompt_message() {
         // Test user message conversion
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: PromptMessageContent::Text {
+        let prompt_message = PromptMessage::new(
+            PromptMessageRole::User,
+            PromptMessageContent::Text {
                 text: "Hello, world!".to_string(),
             },
-        };
+        );
 
         let message = Message::from(prompt_message);
         assert_eq!(message.role, Role::User);
@@ -1207,12 +1236,12 @@ mod tests {
         assert_eq!(message.as_concat_text(), "Hello, world!");
 
         // Test assistant message conversion
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::Assistant,
-            content: PromptMessageContent::Text {
+        let prompt_message = PromptMessage::new(
+            PromptMessageRole::Assistant,
+            PromptMessageContent::Text {
                 text: "I can help with that.".to_string(),
             },
-        };
+        );
 
         let message = Message::from(prompt_message);
         assert_eq!(message.role, Role::Assistant);
@@ -1228,12 +1257,7 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_tool".into(),
-            arguments: Some(object!({})),
-        });
+        let tool_call = Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({})));
 
         let message = Message::assistant().with_tool_request("req1", tool_call);
         assert!(message.is_tool_call());
