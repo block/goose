@@ -1158,19 +1158,6 @@ async fn list_apps(
             .flat_map(|app| app.mcp_servers.iter().cloned())
             .collect();
 
-        // Before wiping the cache, save imported apps (cache-only) so they survive the refresh.
-        // These are apps with mcp_servers=["apps"] whose URIs don't appear in the live MCP response.
-        let live_uris: HashSet<&str> = apps.iter().map(|a| a.resource.uri.as_str()).collect();
-        let imported_apps: Vec<GooseApp> = cache
-            .list_apps()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|a| {
-                a.mcp_servers.contains(&"apps".to_string())
-                    && !live_uris.contains(a.resource.uri.as_str())
-            })
-            .collect();
-
         for extension_name in active_extensions {
             if let Err(e) = cache.delete_extension_apps(&extension_name) {
                 warn!(
@@ -1185,32 +1172,9 @@ async fn list_apps(
                 warn!("Failed to cache app {}: {}", app.resource.name, e);
             }
         }
-
-        // Restore imported apps back to cache
-        for app in &imported_apps {
-            if let Err(e) = cache.store_app(app) {
-                warn!(
-                    "Failed to restore imported app {}: {}",
-                    app.resource.name, e
-                );
-            }
-        }
     }
 
     let mut apps = apps;
-    // Merge imported apps into the response
-    if let Some(cache) = cache.as_ref() {
-        let live_uris: HashSet<String> = apps.iter().map(|a| a.resource.uri.clone()).collect();
-        let imported: Vec<GooseApp> = cache
-            .list_apps()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|a| {
-                a.mcp_servers.contains(&"apps".to_string()) && !live_uris.contains(&a.resource.uri)
-            })
-            .collect();
-        apps.extend(imported);
-    }
     mark_deletable_apps(&mut apps);
 
     Ok(Json(ListAppsResponse { apps }))
@@ -1320,6 +1284,23 @@ async fn import_app(
 
     cache.store_app(&app).map_err(|e| ErrorResponse {
         message: format!("Failed to store app: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    // Also save the HTML file so the app is picked up by the MCP server
+    // and survives session-backed cache refreshes.
+    let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
+    std::fs::create_dir_all(&apps_dir).map_err(|e| ErrorResponse {
+        message: format!("Failed to create apps directory: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+    let html = app.to_html().map_err(|e| ErrorResponse {
+        message: format!("Failed to generate HTML: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+    let html_path = apps_dir.join(format!("{}.html", app.resource.name));
+    std::fs::write(&html_path, html).map_err(|e| ErrorResponse {
+        message: format!("Failed to save app file: {}", e),
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
