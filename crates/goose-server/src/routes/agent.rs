@@ -1348,6 +1348,17 @@ async fn delete_app(
             status: StatusCode::NOT_FOUND,
         })?;
 
+    // Only apps from the "apps" platform extension can be deleted
+    if !app.mcp_servers.contains(&"apps".to_string()) {
+        return Err(ErrorResponse {
+            message: format!(
+                "Cannot delete app '{}': only apps from the apps extension can be deleted",
+                app.resource.name
+            ),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
+
     let default_names = McpAppCache::default_app_names();
     if default_names.contains(&app.resource.name) {
         return Err(ErrorResponse {
