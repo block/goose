@@ -27,7 +27,7 @@ If you have a Claude Code subscription, you can use it through goose via the [Ag
 npm install -g @zed-industries/claude-agent-acp
 ```
 
-Then configure goose to use it via the claude acp extenssion (CLI or GUI)
+Then configure goose to use it via the claude acp extension (CLI or GUI)
 
 
 Or set it via environment variables:
@@ -49,13 +49,13 @@ The recommended model is `gpt-5.3-codex`, which is the default. You can also sel
 
 ## Gemini — via ACP (native)
 
-If you have a Google account with Gemini access, the Gemini CLI speaks ACP natively — no adapter package needed, just the CLI itself:
+If you have a Google account with Gemini access, the Gemini CLI speaks ACP natively — no separate adapter needed. Just install the Gemini CLI itself:
 
 ```bash
 npm install -g @google/gemini-cli
 ```
 
-... and run gemini at least once. 
+... and run `gemini` at least once. 
 
 On first run, Gemini CLI will ask you to authenticate with your Google account. After that, goose passes your extensions directly through to Gemini via ACP. 
 
