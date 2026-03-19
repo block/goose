@@ -1367,6 +1367,7 @@ export default function ChatInput({
                       size="sm"
                       shape="round"
                       variant="outline"
+                      data-testid="send-button"
                       disabled={isSubmitButtonDisabled}
                       className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                         isSubmitButtonDisabled
