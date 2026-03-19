@@ -1339,9 +1339,10 @@ async fn delete_app(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
+    // Scope lookup to the "apps" extension to avoid collision with other extensions
     let app = apps
         .into_iter()
-        .find(|a| a.resource.name == name)
+        .find(|a| a.resource.name == name && a.mcp_servers.contains(&"apps".to_string()))
         .ok_or_else(|| ErrorResponse {
             message: format!("App '{}' not found", name),
             status: StatusCode::NOT_FOUND,
@@ -1361,7 +1362,10 @@ async fn delete_app(
     let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
     let html_path = apps_dir.join(format!("{}.html", name));
     if html_path.exists() {
-        let _ = std::fs::remove_file(&html_path);
+        std::fs::remove_file(&html_path).map_err(|e| ErrorResponse {
+            message: format!("Failed to delete app file: {}", e),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
     }
 
     Ok(Json(DeleteAppResponse {
