@@ -165,7 +165,7 @@ export default function AppsView() {
     try {
       await deleteApp({
         throwOnError: true,
-        path: { name: app.name },
+        query: { uri: app.uri },
       });
 
       // Close the app window if it's open

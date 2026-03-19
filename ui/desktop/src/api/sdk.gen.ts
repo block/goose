@@ -45,7 +45,7 @@ export const callTool = <ThrowOnError extends boolean = false>(options: Options<
     }
 });
 
-export const deleteApp = <ThrowOnError extends boolean = false>(options: Options<DeleteAppData, ThrowOnError>) => (options.client ?? client).delete<DeleteAppResponses, DeleteAppErrors, ThrowOnError>({ url: '/agent/delete_app/{name}', ...options });
+export const deleteApp = <ThrowOnError extends boolean = false>(options: Options<DeleteAppData, ThrowOnError>) => (options.client ?? client).delete<DeleteAppResponses, DeleteAppErrors, ThrowOnError>({ url: '/agent/delete_app', ...options });
 
 export const exportApp = <ThrowOnError extends boolean = false>(options: Options<ExportAppData, ThrowOnError>) => (options.client ?? client).get<ExportAppResponses, ExportAppErrors, ThrowOnError>({ url: '/agent/export_app/{name}', ...options });
 

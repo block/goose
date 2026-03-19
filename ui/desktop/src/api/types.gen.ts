@@ -1731,17 +1731,21 @@ export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
 
 export type DeleteAppData = {
     body?: never;
-    path: {
+    path?: never;
+    query: {
         /**
-         * Name of the app to delete
+         * URI of the app to delete (e.g. "ui://apps/my_app")
          */
-        name: string;
+        uri: string;
     };
-    query?: never;
-    url: '/agent/delete_app/{name}';
+    url: '/agent/delete_app';
 };
 
 export type DeleteAppErrors = {
+    /**
+     * Cannot delete default app
+     */
+    400: ErrorResponse;
     /**
      * App not found
      */

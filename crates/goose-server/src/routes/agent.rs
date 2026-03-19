@@ -1296,6 +1296,13 @@ async fn import_app(
     ))
 }
 
+#[derive(Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteAppRequest {
+    /// URI of the app to delete (e.g. "ui://apps/my_app")
+    pub uri: String,
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteAppResponse {
@@ -1305,12 +1312,13 @@ pub struct DeleteAppResponse {
 
 #[utoipa::path(
     delete,
-    path = "/agent/delete_app/{name}",
+    path = "/agent/delete_app",
     params(
-        ("name" = String, Path, description = "Name of the app to delete")
+        DeleteAppRequest
     ),
     responses(
         (status = 200, description = "App deleted successfully", body = DeleteAppResponse),
+        (status = 400, description = "Cannot delete default app", body = ErrorResponse),
         (status = 404, description = "App not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse),
     ),
@@ -1320,15 +1328,8 @@ pub struct DeleteAppResponse {
     tag = "Agent"
 )]
 async fn delete_app(
-    axum::extract::Path(name): axum::extract::Path<String>,
+    Query(params): Query<DeleteAppRequest>,
 ) -> Result<Json<DeleteAppResponse>, ErrorResponse> {
-    if McpAppCache::default_app_names().contains(&name) {
-        return Err(ErrorResponse {
-            message: format!("Cannot delete default app '{}'", name),
-            status: StatusCode::BAD_REQUEST,
-        });
-    }
-
     let cache = McpAppCache::new().map_err(|e| ErrorResponse {
         message: format!("Failed to access app cache: {}", e),
         status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -1339,14 +1340,21 @@ async fn delete_app(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
-    // Scope lookup to the "apps" extension to avoid collision with other extensions
     let app = apps
         .into_iter()
-        .find(|a| a.resource.name == name && a.mcp_servers.contains(&"apps".to_string()))
+        .find(|a| a.resource.uri == params.uri)
         .ok_or_else(|| ErrorResponse {
-            message: format!("App '{}' not found", name),
+            message: format!("App with URI '{}' not found", params.uri),
             status: StatusCode::NOT_FOUND,
         })?;
+
+    let default_names = McpAppCache::default_app_names();
+    if default_names.contains(&app.resource.name) {
+        return Err(ErrorResponse {
+            message: format!("Cannot delete default app '{}'", app.resource.name),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
 
     // Delete from cache
     for extension_name in &app.mcp_servers {
@@ -1360,7 +1368,7 @@ async fn delete_app(
 
     // Also delete the HTML file if it exists (for Goose-created apps)
     let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
-    let html_path = apps_dir.join(format!("{}.html", name));
+    let html_path = apps_dir.join(format!("{}.html", app.resource.name));
     if html_path.exists() {
         std::fs::remove_file(&html_path).map_err(|e| ErrorResponse {
             message: format!("Failed to delete app file: {}", e),
@@ -1369,8 +1377,8 @@ async fn delete_app(
     }
 
     Ok(Json(DeleteAppResponse {
-        name: name.clone(),
-        message: format!("App '{}' deleted successfully", name),
+        name: app.resource.name.clone(),
+        message: format!("App '{}' deleted successfully", app.resource.name),
     }))
 }
 
@@ -1386,7 +1394,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/list_apps", get(list_apps))
         .route("/agent/export_app/{name}", get(export_app))
         .route("/agent/import_app", post(import_app))
-        .route("/agent/delete_app/{name}", delete(delete_app))
+        .route("/agent/delete_app", delete(delete_app))
         .route("/agent/update_provider", post(update_agent_provider))
         .route("/agent/update_session", post(update_session))
         .route("/agent/update_from_session", post(update_from_session))
