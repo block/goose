@@ -45,7 +45,7 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
-pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
+pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.3-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
     "gpt-5.4",
     "gpt-5.3-codex",
