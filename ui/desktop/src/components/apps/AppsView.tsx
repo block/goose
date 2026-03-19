@@ -268,6 +268,9 @@ export default function AppsView() {
                 Applications from your MCP servers and Apps build by goose itself. You can ask it to
                 create new apps through the chat interface and they will appear here.
               </p>
+              {error && apps.length > 0 && (
+                <p className="text-sm text-red-500 mt-2">{error}</p>
+              )}
             </div>
           </div>
         </div>
