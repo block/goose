@@ -8,8 +8,8 @@ import {
   Message,
   resumeAgent,
   Session,
-  sessionCancel,
-  sessionReply,
+  streamCancel,
+  streamReply,
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
@@ -364,11 +364,13 @@ export function useChatStream({
   // the full conversation history. Events are buffered in the meantime.
   const pendingReattachRequestIdRef = useRef<string | null>(null);
   const pendingReattachBufferRef = useRef<SessionEvent[]>([]);
+  const reloadingConversationRef = useRef(false);
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
   const doReattachRef = useRef<((requestId: string, messages: Message[]) => void) | null>(null);
 
   useEffect(() => {
@@ -405,11 +407,6 @@ export function useChatStream({
           title: 'goose finished the task.',
           body: 'Click here to expand.',
         });
-      }
-
-      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
-      if (isNewSession) {
-        window.dispatchEvent(new CustomEvent(AppEvents.MESSAGE_STREAM_FINISHED));
       }
 
       // Refresh session name after each reply for the first 3 user messages
@@ -450,16 +447,77 @@ export function useChatStream({
   // Reload the full conversation from the server, e.g. after the SSE
   // stream indicates the client fell too far behind the replay buffer.
   const reloadConversation = useCallback(() => {
+    if (activeUnsubscribeRef.current) {
+      activeUnsubscribeRef.current();
+      activeUnsubscribeRef.current = null;
+    }
+    activeRequestIdRef.current = null;
+    activeRequestSessionIdRef.current = null;
+    pendingReattachRequestIdRef.current = null;
+    pendingReattachBufferRef.current = [];
+    reloadingConversationRef.current = true;
+
+    const reloadSessionId = sessionId;
+
     getSession({
-      path: { session_id: sessionId },
+      path: { session_id: reloadSessionId },
       throwOnError: true,
     }).then((response) => {
+      if (reloadSessionId !== sessionIdRef.current) return;
+
       const session = response.data as Session;
-      if (session?.conversation) {
-        dispatch({ type: 'SET_MESSAGES', payload: session.conversation });
+      const messages = session?.conversation || [];
+      if (messages.length > 0) {
+        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      }
+      reloadingConversationRef.current = false;
+
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, messages);
       }
     }).catch((e) => {
       console.warn('Failed to reload conversation after buffer overflow:', e);
+      reloadingConversationRef.current = false;
+      if (reloadSessionId !== sessionIdRef.current) return;
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, stateRef.current.messages);
+      }
+    });
+  }, [sessionId]);
+
+  // Reload conversation and then reattach to a pending request.
+  // Unlike reloadConversation() (which resets all tracking state for the
+  // "client too far behind" case), this preserves the pending reattach
+  // refs and the buffering listener so events aren't lost.
+  const reloadAndReattach = useCallback(() => {
+    reloadingConversationRef.current = true;
+    const reloadSessionId = sessionId;
+
+    getSession({
+      path: { session_id: reloadSessionId },
+      throwOnError: true,
+    }).then((response) => {
+      if (reloadSessionId !== sessionIdRef.current) return;
+      const session = response.data as Session;
+      const messages = session?.conversation || [];
+      if (messages.length > 0) {
+        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      }
+      reloadingConversationRef.current = false;
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, messages);
+      }
+    }).catch((e) => {
+      console.warn('Failed to reload conversation for cross-window reattach:', e);
+      reloadingConversationRef.current = false;
+      if (reloadSessionId !== sessionIdRef.current) return;
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, stateRef.current.messages);
+      }
     });
   }, [sessionId]);
 
@@ -528,47 +586,54 @@ export function useChatStream({
   doReattachRef.current = doReattach;
 
   // Reattach to in-flight replies discovered via the SSE ActiveRequests event.
-  // This handles the case where the chat view remounts while a reply is still
-  // running on the server — the new hook instance picks up the existing request
-  // and starts processing its events.
+  // Fires on initial connection (remount while reply is running) AND whenever
+  // a new request starts on the same session from another window.
   useEffect(() => {
     setActiveRequestsHandler((requestIds: string[]) => {
-      // Only reattach if we don't already have an active request
-      if (activeRequestIdRef.current) return;
       if (requestIds.length === 0) return;
+      if (reloadingConversationRef.current) return;
 
-      // Reattach to the first (most recent) active request.
-      // Multiple concurrent requests per session aren't supported in the UI.
-      const requestId = requestIds[0];
-      const currentMessages = stateRef.current.messages;
+      const sorted = [...requestIds].sort();
+      const requestId = sorted[sorted.length - 1];
 
-      if (currentMessages.length === 0) {
-        // Cold mount: resumeAgent hasn't populated messages yet.
-        // Defer event processing until session load completes so the
-        // processor starts with the full conversation history.
-        // Register a buffering listener NOW so replayed events aren't
-        // lost while we wait.
-        pendingReattachRequestIdRef.current = requestId;
-        pendingReattachBufferRef.current = [];
-        activeRequestIdRef.current = requestId;
-        activeRequestSessionIdRef.current = sessionId;
-        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
-        dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+      // Already tracking this exact request — nothing to do.
+      if (activeRequestIdRef.current === requestId) return;
 
-        const unsubscribe = addListener(requestId, (event) => {
-          pendingReattachBufferRef.current.push(event);
-        });
-        activeUnsubscribeRef.current = unsubscribe;
-        return;
+      // A different request is now active — clean up the old listener
+      // before reattaching to the new one.
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
       }
+      activeRequestIdRef.current = null;
+      activeRequestSessionIdRef.current = null;
 
-      doReattach(requestId, currentMessages);
+      // Buffer events while we reload the conversation to pick up any
+      // messages we don't have yet (e.g. user message sent from another window).
+      pendingReattachRequestIdRef.current = requestId;
+      pendingReattachBufferRef.current = [];
+      activeRequestIdRef.current = requestId;
+      activeRequestSessionIdRef.current = sessionId;
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+      dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+
+      const unsubscribe = addListener(requestId, (event) => {
+        pendingReattachBufferRef.current.push(event);
+      });
+      activeUnsubscribeRef.current = unsubscribe;
+
+      // If we already have messages, reload to get the latest state
+      // (the new user message from the other window) then reattach.
+      // Cold-mount (no messages) will reattach after resumeAgent loads the session.
+      if (stateRef.current.messages.length > 0) {
+        reloadAndReattach();
+      }
     });
 
     return () => {
       setActiveRequestsHandler(null);
     };
-  }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
+  }, [sessionId, addListener, setActiveRequestsHandler, reloadAndReattach]);
 
   /**
    * Submit a message via the new POST+SSE pattern.
@@ -618,8 +683,8 @@ export function useChatStream({
       activeUnsubscribeRef.current = unsubscribe;
 
       try {
-        await sessionReply({
-          path: { id: targetSessionId },
+        await streamReply({
+          path: { session_id: targetSessionId },
           body: {
             request_id: requestId,
             user_message: userMessage,
@@ -648,6 +713,21 @@ export function useChatStream({
     },
     [addListener, onFinish, reloadConversation]
   );
+
+  useEffect(() => {
+    return () => {
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
+      }
+      activeRequestIdRef.current = null;
+      activeRequestSessionIdRef.current = null;
+      activeAbortRef.current = null;
+      pendingReattachRequestIdRef.current = null;
+      pendingReattachBufferRef.current = [];
+      reloadingConversationRef.current = false;
+    };
+  }, [sessionId]);
 
   // Load session on mount or sessionId change
   useEffect(() => {
@@ -796,10 +876,8 @@ export function useChatStream({
 
       lastInteractionTimeRef.current = Date.now();
 
-      // Emit session-created event for first message in a new session
+      // Poll for session name after first message
       if (!hasExistingMessages && hasNewMessage) {
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
-
         const pollForName = async (attempts = 0) => {
           if (attempts >= 20) return;
 
@@ -937,8 +1015,8 @@ export function useChatStream({
     if (requestId && requestSessionId) {
       // Cancel against the session that originally started the request,
       // not the current sessionId (which may have changed if user navigated).
-      sessionCancel({
-        path: { id: requestSessionId },
+      streamCancel({
+        path: { session_id: requestSessionId },
         body: { request_id: requestId },
       }).catch((e) => {
         console.warn('Failed to cancel request:', e);

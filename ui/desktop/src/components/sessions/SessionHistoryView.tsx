@@ -12,6 +12,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { resumeSession } from '../../sessions';
+import { useActiveSessions } from '../../contexts/ActiveSessionsContext';
 import { Button } from '../ui/button';
 import { toast } from 'react-toastify';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
@@ -149,6 +150,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const messages = session.conversation || [];
 
   const setView = useNavigation();
+  const { addActiveSession } = useActiveSessions();
 
   useEffect(() => {
     window.electron.getSetting('sessionSharing').then((config) => {
@@ -201,7 +203,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
   const handleResumeSession = () => {
     try {
-      resumeSession(session, setView);
+      resumeSession(session, setView, addActiveSession);
     } catch (error) {
       toast.error(`Could not launch session: ${errorMessage(error)}`);
     }

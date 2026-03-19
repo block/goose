@@ -119,9 +119,22 @@ impl SessionEventBus {
     /// Register a new request and return its cancellation token.
     pub async fn register_request(&self, request_id: String) -> CancellationToken {
         let token = CancellationToken::new();
-        let mut requests = self.active_requests.lock().await;
-        requests.insert(request_id, token.clone());
+        self.active_requests
+            .lock()
+            .await
+            .insert(request_id, token.clone());
         token
+    }
+
+    pub async fn publish_active_requests(&self) {
+        let active_ids = self.active_request_ids().await;
+        self.publish(
+            None,
+            MessageEvent::ActiveRequests {
+                request_ids: active_ids,
+            },
+        )
+        .await;
     }
 
     /// Cancel a specific request by request_id.

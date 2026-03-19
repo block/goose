@@ -1,25 +1,14 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
 import { ChatType } from '../types/chat';
-import { UserInput } from '../types/message';
+import { useActiveSessions } from '../contexts/ActiveSessionsContext';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
-  activeSessions: Array<{
-    sessionId: string;
-    initialMessage?: UserInput;
-  }>;
 }
 
-/**
- * Container that mounts ALL active chat sessions to keep them alive.
- * Uses CSS to show/hide sessions based on the current URL parameter.
- * This allows multiple sessions to stream simultaneously in the background.
- */
-export default function ChatSessionsContainer({
-  setChat,
-  activeSessions,
-}: ChatSessionsContainerProps) {
+export default function ChatSessionsContainer({ setChat }: ChatSessionsContainerProps) {
+  const { activeSessions } = useActiveSessions();
   const [searchParams] = useSearchParams();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 

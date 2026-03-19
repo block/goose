@@ -540,12 +540,99 @@ let appConfig = {
 };
 
 const windowMap = new Map<number, BrowserWindow>();
-const goosedClients = new Map<number, Client>();
 const appWindows = new Map<string, BrowserWindow>();
 
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
-// Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
+
+// Single shared goosed server — started once, reused by all windows.
+let sharedGoosedBaseUrl: string | null = null;
+let sharedGoosedClient: Client | null = null;
+let sharedGoosedCleanup: (() => Promise<void>) | null = null;
+
+async function ensureGoosed(): Promise<{ baseUrl: string; client: Client }> {
+  if (sharedGoosedBaseUrl && sharedGoosedClient) {
+    return { baseUrl: sharedGoosedBaseUrl, client: sharedGoosedClient };
+  }
+
+  const settings = getSettings();
+  const serverSecret = getServerSecret(settings);
+
+  const goosedResult = await startGoosed({
+    serverSecret,
+    dir: os.homedir(),
+    env: {
+      GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+    },
+    externalGoosed: settings.externalGoosed,
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    logger: log,
+  });
+
+  if (goosedResult.certFingerprint) {
+    pinnedCertFingerprint = goosedResult.certFingerprint;
+  }
+
+  sharedGoosedBaseUrl = goosedResult.baseUrl;
+  sharedGoosedCleanup = goosedResult.cleanup;
+
+  // Stop collecting stderr after startup — avoids unbounded memory growth.
+  const serverReady = await checkServerStatus(goosedResult.client, goosedResult.errorLog);
+  if (!serverReady) {
+    const isUsingExternalBackend = settings.externalGoosed?.enabled;
+    if (isUsingExternalBackend) {
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Unreachable',
+        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
+        detail: 'The external goosed server may not be running.',
+        buttons: ['Disable External Backend & Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (response === 0) {
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
+        // Reset so next call retries with local server.
+        sharedGoosedBaseUrl = null;
+        sharedGoosedClient = null;
+        sharedGoosedCleanup = null;
+        return ensureGoosed();
+      }
+    } else {
+      dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'Goose Failed to Start',
+        message: 'The backend server failed to start.',
+        detail: goosedResult.errorLog.join('\n'),
+        buttons: ['OK'],
+      });
+    }
+    app.quit();
+    throw new Error('goosed failed to start');
+  }
+
+  goosedResult.stopErrorLogCollection();
+  goosedResult.errorLog.length = 0;
+
+  // Re-create client with Electron's net.fetch for cert handling.
+  sharedGoosedClient = createClient(
+    createConfig({
+      baseUrl: sharedGoosedBaseUrl,
+      fetch: net.fetch as unknown as typeof globalThis.fetch,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': serverSecret,
+      },
+    })
+  );
+
+  return { baseUrl: sharedGoosedBaseUrl, client: sharedGoosedClient };
+}
 
 interface CreateChatOptions {
   initialMessage?: string;
@@ -570,38 +657,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     recipeParameters,
   } = options;
   const settings = getSettings();
-  const serverSecret = getServerSecret(settings);
-
-  const goosedResult = await startGoosed({
-    serverSecret,
-    dir: dir || os.homedir(),
-    env: {
-      GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
-    },
-    externalGoosed: settings.externalGoosed,
-    isPackaged: app.isPackaged,
-    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
-    logger: log,
-  });
-
-  // Pin the certificate fingerprint so the cert handlers above only accept
-  // the exact cert that *this* goosed instance generated.
-  if (goosedResult.certFingerprint) {
-    pinnedCertFingerprint = goosedResult.certFingerprint;
-  }
-
-  app.on('will-quit', async () => {
-    log.info('App quitting, terminating goosed server');
-    await goosedResult.cleanup();
-  });
-
-  const {
-    baseUrl,
-    workingDir,
-    process: goosedProcess,
-    errorLog,
-    stopErrorLogCollection,
-  } = goosedResult;
+  const { baseUrl } = await ensureGoosed();
+  const workingDir = dir || os.homedir();
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -654,61 +711,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       .then(() => log.info('added react dev tools'))
       .catch((err) => log.info('failed to install react dev tools:', err));
   }
-
-  // Re-create the client with Electron's net.fetch so requests to the local
-  // self-signed HTTPS server go through the session's certificate handling.
-  const goosedClient = createClient(
-    createConfig({
-      baseUrl,
-      fetch: net.fetch as unknown as typeof globalThis.fetch,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': serverSecret,
-      },
-    })
-  );
-  goosedClients.set(mainWindow.id, goosedClient);
-
-  const serverReady = await checkServerStatus(goosedClient, errorLog);
-  if (!serverReady) {
-    const isUsingExternalBackend = settings.externalGoosed?.enabled;
-
-    if (isUsingExternalBackend) {
-      const response = dialog.showMessageBoxSync({
-        type: 'error',
-        title: 'External Backend Unreachable',
-        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
-        detail: 'The external goosed server may not be running.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
-        defaultId: 0,
-        cancelId: 1,
-      });
-
-      if (response === 0) {
-        updateSettings((s) => {
-          if (s.externalGoosed) {
-            s.externalGoosed.enabled = false;
-          }
-        });
-        mainWindow.destroy();
-        return createChat(app, { initialMessage, dir });
-      }
-    } else {
-      dialog.showMessageBoxSync({
-        type: 'error',
-        title: 'Goose Failed to Start',
-        message: 'The backend server failed to start.',
-        detail: errorLog.join('\n'),
-        buttons: ['OK'],
-      });
-    }
-    app.quit();
-  }
-
-  // errorLog is only needed during startup to detect fatal errors.
-  // Stop collecting stderr to avoid unbounded memory growth over long sessions.
-  stopErrorLogCollection();
-  errorLog.length = 0;
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -907,9 +909,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       windowPowerSaveBlockers.delete(windowId);
     }
 
-    if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
-      goosedProcess.kill();
-    }
   });
   return mainWindow;
 };
@@ -1348,16 +1347,8 @@ ipcMain.handle('get-secret-key', () => {
   return getServerSecret(settings);
 });
 
-ipcMain.handle('get-goosed-host-port', async (event) => {
-  const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
-  if (!windowId) {
-    return null;
-  }
-  const client = goosedClients.get(windowId);
-  if (!client) {
-    return null;
-  }
-  return client.getConfig().baseUrl || null;
+ipcMain.handle('get-goosed-host-port', async () => {
+  return sharedGoosedBaseUrl;
 });
 
 // Handle menu bar icon visibility
@@ -2347,12 +2338,6 @@ async function appMain() {
         throw new Error('Could not find launching window');
       }
 
-      const launchingWindowId = launchingWindow.id;
-      const launchingClient = goosedClients.get(launchingWindowId);
-      if (!launchingClient) {
-        throw new Error('No client found for launching window');
-      }
-
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
@@ -2368,11 +2353,9 @@ async function appMain() {
         },
       });
 
-      goosedClients.set(appWindow.id, launchingClient);
       appWindows.set(gooseApp.name, appWindow);
 
       appWindow.on('close', () => {
-        goosedClients.delete(appWindow.id);
         appWindows.delete(gooseApp.name);
       });
 
@@ -2478,19 +2461,17 @@ app.on('will-quit', async () => {
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
       powerSaveBlocker.stop(blockerId);
-      console.log(
-        `[Main] Stopped power save blocker ${blockerId} for window ${windowId} during app quit`
-      );
-    } catch (error) {
-      console.error(
-        `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-        error
-      );
+    } catch {
+      // already stopped
     }
   }
   windowPowerSaveBlockers.clear();
-
   globalShortcut.unregisterAll();
+
+  if (sharedGoosedCleanup) {
+    log.info('App quitting, terminating goosed server');
+    await sharedGoosedCleanup();
+  }
 });
 
 app.on('window-all-closed', () => {

@@ -1,6 +1,6 @@
-import { AppEvents } from '../constants/events';
 import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useActiveSessions } from '../contexts/ActiveSessionsContext';
 import { Session } from '../api';
 import { Message } from '../api';
 import { ChatState } from '../types/chatState';
@@ -35,20 +35,16 @@ export function useAutoSubmit({
   handleSubmit,
 }: UseAutoSubmitProps): UseAutoSubmitReturn {
   const [searchParams] = useSearchParams();
+  const { clearInitialMessage: clearFromContext } = useActiveSessions();
   const hasAutoSubmittedRef = useRef(false);
 
-  // Reset auto-submit flag when session changes
   useEffect(() => {
     hasAutoSubmittedRef.current = false;
   }, [sessionId]);
 
   const clearInitialMessage = useCallback(() => {
-    window.dispatchEvent(
-      new CustomEvent(AppEvents.CLEAR_INITIAL_MESSAGE, {
-        detail: { sessionId },
-      })
-    );
-  }, [sessionId]);
+    clearFromContext(sessionId);
+  }, [sessionId, clearFromContext]);
 
   const hasUnfilledParameters = useCallback((session: Session) => {
     const recipe = session.recipe;

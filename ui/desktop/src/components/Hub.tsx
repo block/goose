@@ -1,4 +1,4 @@
-import { AppEvents } from '../constants/events';
+import { useActiveSessions } from '../contexts/ActiveSessionsContext';
 /**
  * Hub Component
  *
@@ -37,6 +37,7 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const { extensionsList } = useConfig();
+  const { addActiveSession } = useActiveSessions();
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
@@ -53,12 +54,7 @@ export default function Hub({
           allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
         });
 
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
-        window.dispatchEvent(
-          new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-            detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
-          })
-        );
+        addActiveSession(session.id, { msg: userMessage, images });
 
         setView('pair', {
           disableAnimation: true,
