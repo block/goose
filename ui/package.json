@@ -2,6 +2,15 @@
   "private": true,
   "workspaces": [
     "acp",
-    "text"
-  ]
+    "text",
+    "goose-acp-server/*"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1"
+  }
 }
