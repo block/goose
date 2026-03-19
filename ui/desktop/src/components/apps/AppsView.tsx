@@ -173,12 +173,13 @@ export default function AppsView() {
         console.error('Failed to close app window:', err);
       });
 
-      // Refresh apps list
+      // Refresh apps list through the active session if available
       const response = await listApps({
         throwOnError: true,
+        query: { session_id: sessionId },
       });
-      const cachedApps = response.data?.apps || [];
-      setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
+      const freshApps = response.data?.apps || [];
+      setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
     } catch (err) {
       console.error('Failed to delete app:', err);

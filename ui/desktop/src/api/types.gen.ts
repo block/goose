@@ -501,6 +501,9 @@ export type GetToolsQuery = {
 };
 
 export type GooseApp = McpAppResource & (WindowProps | null) & {
+    /**
+     * Whether this app can be deleted by the user (i.e. not a bundled default)
+     */
     deletable?: boolean;
     mcpServers?: Array<string>;
     prd?: string | null;

@@ -128,7 +128,7 @@
         }
       }
     },
-    "/agent/delete_app/{name}": {
+    "/agent/delete_app": {
       "delete": {
         "tags": [
           "Agent"
@@ -136,9 +136,9 @@
         "operationId": "delete_app",
         "parameters": [
           {
-            "name": "name",
-            "in": "path",
-            "description": "Name of the app to delete",
+            "name": "uri",
+            "in": "query",
+            "description": "URI of the app to delete (e.g. \"ui://apps/my_app\")",
             "required": true,
             "schema": {
               "type": "string"
@@ -152,6 +152,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete default app",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5481,6 +5491,10 @@
           {
             "type": "object",
             "properties": {
+              "deletable": {
+                "type": "boolean",
+                "description": "Whether this app can be deleted by the user (i.e. not a bundled default)"
+              },
               "mcpServers": {
                 "type": "array",
                 "items": {
