@@ -11,6 +11,7 @@ use axum::{
     Json, Router,
 };
 use goose::agents::{Container, ExtensionLoadResult};
+use goose::config::paths::Paths;
 use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
@@ -1098,6 +1099,17 @@ pub struct ListAppsResponse {
     pub apps: Vec<GooseApp>,
 }
 
+/// Mark apps as imported if they don't exist as files in the apps data directory.
+/// Apps managed by the MCP server (Goose-built and defaults) are stored as HTML files;
+/// imported apps exist only in the cache.
+fn mark_imported_apps(apps: &mut [GooseApp]) {
+    let apps_dir = Paths::in_data_dir("apps");
+    for app in apps.iter_mut() {
+        let file_path = apps_dir.join(format!("{}.html", app.resource.name));
+        app.imported = !file_path.exists();
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/agent/list_apps",
@@ -1121,10 +1133,11 @@ async fn list_apps(
     let cache = McpAppCache::new().ok();
 
     let Some(session_id) = params.session_id else {
-        let apps = cache
+        let mut apps = cache
             .as_ref()
             .and_then(|c| c.list_apps().ok())
             .unwrap_or_default();
+        mark_imported_apps(&mut apps);
         return Ok(Json(ListAppsResponse { apps }));
     };
 
@@ -1164,6 +1177,9 @@ async fn list_apps(
             }
         }
     }
+
+    let mut apps = apps;
+    mark_imported_apps(&mut apps);
 
     Ok(Json(ListAppsResponse { apps }))
 }

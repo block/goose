@@ -284,7 +284,6 @@ export default function AppsView() {
             <GridLayout>
               {apps.map((app) => {
                 const isCustomApp = app.mcpServers?.includes('apps') ?? false;
-                const isImportedApp = isCustomApp && app.uri?.startsWith('ui://');
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
@@ -323,7 +322,7 @@ export default function AppsView() {
                           >
                             <Download className="h-4 w-4" />
                           </Button>
-                          {isImportedApp && (
+                          {app.imported && (
                             <Button
                               variant="outline"
                               size="sm"
