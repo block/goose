@@ -3,5 +3,8 @@
   "workspaces": [
     "acp",
     "text"
-  ]
+  ],
+  "overrides": {
+    "react": "19.2.4"
+  }
 }
