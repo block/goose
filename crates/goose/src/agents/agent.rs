@@ -83,12 +83,19 @@ fn derive_call_reason(turns_taken: u32, conversation: &Conversation) -> String {
             })
             .unwrap_or_default();
         let truncated = if user_text.chars().count() > 100 {
-            let end = user_text.char_indices().nth(100).map(|(i, _)| i).unwrap_or(user_text.len());
+            let end = user_text
+                .char_indices()
+                .nth(100)
+                .map(|(i, _)| i)
+                .unwrap_or(user_text.len());
             format!("{}...", &user_text[..end])
         } else {
             user_text
         };
-        format!("Responding to user message: \"{}\"", truncated.replace('\n', " "))
+        format!(
+            "Responding to user message: \"{}\"",
+            truncated.replace('\n', " ")
+        )
     } else {
         // Find tool names from the most recent assistant tool-request messages
         let tool_names: Vec<String> = conversation
@@ -109,7 +116,10 @@ fn derive_call_reason(turns_taken: u32, conversation: &Conversation) -> String {
         if tool_names.is_empty() {
             "Continuing after context compaction or recovery".to_string()
         } else {
-            format!("Processing results from tool call(s): {}", tool_names.join(", "))
+            format!(
+                "Processing results from tool call(s): {}",
+                tool_names.join(", ")
+            )
         }
     }
 }
@@ -149,12 +159,18 @@ fn format_messages_for_log(messages: &[Message]) -> String {
                 MessageContent::ToolResponse(r) => {
                     let body = match &r.tool_result {
                         Ok(res) => {
-                            let text = res.content.iter()
+                            let text = res
+                                .content
+                                .iter()
                                 .map(|c| format!("{c:?}"))
                                 .collect::<Vec<_>>()
                                 .join("\n");
                             if text.len() > 2000 {
-                                let end = text.char_indices().nth(2000).map(|(i, _)| i).unwrap_or(text.len());
+                                let end = text
+                                    .char_indices()
+                                    .nth(2000)
+                                    .map(|(i, _)| i)
+                                    .unwrap_or(text.len());
                                 format!("{}...[{} chars truncated]", &text[..end], text.len() - end)
                             } else {
                                 text
@@ -182,7 +198,9 @@ fn log_llm_call_request(
     system_prompt: &str,
     messages: &[Message],
 ) {
-    let Some(mut file) = open_log_file() else { return };
+    let Some(mut file) = open_log_file() else {
+        return;
+    };
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
     let sep = "=".repeat(72);
     let _ = writeln!(file, "\n{sep}");
@@ -200,20 +218,28 @@ fn log_llm_call_request(
 
 /// Write a streaming text token directly to the log file (no newline — tokens flow inline).
 fn log_response_token(text: &str) {
-    if text.is_empty() { return; }
-    let Some(mut file) = open_log_file() else { return };
+    if text.is_empty() {
+        return;
+    }
+    let Some(mut file) = open_log_file() else {
+        return;
+    };
     let _ = write!(file, "{text}");
 }
 
 /// Write a tool request that arrived mid-stream to the log file.
 fn log_response_tool_request(r: &str) {
-    let Some(mut file) = open_log_file() else { return };
+    let Some(mut file) = open_log_file() else {
+        return;
+    };
     let _ = writeln!(file, "\n[assistant→tool] {r}");
 }
 
 /// Write the timing footer after the stream finishes.
 fn log_response_end(duration: std::time::Duration) {
-    let Some(mut file) = open_log_file() else { return };
+    let Some(mut file) = open_log_file() else {
+        return;
+    };
     let sep = "=".repeat(72);
     let _ = writeln!(file, "\n--- COMPLETE ({}ms) ---", duration.as_millis());
     let _ = writeln!(file, "{sep}");
@@ -2374,13 +2400,12 @@ mod tests {
             is_error: Some(false),
             meta: None,
         };
-        let response_content = MessageContent::ToolResponse(
-            crate::conversation::message::ToolResponse {
+        let response_content =
+            MessageContent::ToolResponse(crate::conversation::message::ToolResponse {
                 id: "test-id".to_string(),
                 tool_result: Ok(tool_result),
                 metadata: None,
-            },
-        );
+            });
         let msg = Message::new(rmcp::model::Role::User, 0, vec![response_content]);
         // Must not panic
         let log = format_messages_for_log(&[msg]);
