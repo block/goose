@@ -11,6 +11,10 @@ goose supports [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) a
 
 ACP providers pass goose [extensions](/docs/getting-started/using-extensions) through to the agent as MCP servers, so the agent can call your extensions directly.
 
+:::tip Use Your Existing Subscriptions
+ACP providers let you use goose with your existing Claude Code, ChatGPT Plus/Pro, or Google Gemini subscriptions — no per-token API costs. They are the recommended replacement for the deprecated [CLI providers](/docs/guides/cli-providers).
+:::
+
 :::warning Limitations
 - **No session fork or resume**: You can start new sessions, but `goose session resume` and `goose session fork` are not supported yet.
 - **ACP session ID differs from goose session ID**: Telemetry fields may not correlate across the two.
@@ -20,7 +24,7 @@ ACP providers pass goose [extensions](/docs/getting-started/using-extensions) th
 
 ### Claude ACP
 
-Wraps [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp), an ACP adapter for Anthropic's Claude Code. Uses the same Claude subscription as the `claude-code` CLI provider.
+Wraps [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp), an ACP adapter for Anthropic's Claude Code. Uses the same Claude subscription as the deprecated `claude-code` CLI provider.
 
 **Requirements:**
 - Node.js and npm
@@ -29,12 +33,21 @@ Wraps [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp), an
 
 ### Codex ACP
 
-Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter for OpenAI's Codex. Uses the same ChatGPT subscription as the `codex` CLI provider. Codex's sandbox blocks network by default; goose automatically enables network access when HTTP MCP servers are configured.
+Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter for OpenAI's Codex. Uses the same ChatGPT subscription as the deprecated `codex` CLI provider. Codex's sandbox blocks network by default; goose automatically enables network access when HTTP MCP servers are configured.
 
 **Requirements:**
 - Node.js and npm
 - Active ChatGPT Plus/Pro subscription or OpenAI API credits
 - Authenticated with your OpenAI account (`codex` CLI working)
+
+### Gemini ACP
+
+Uses Google's [Gemini CLI](https://github.com/google-gemini/gemini-cli) directly via its native `--acp` flag. No shim needed — Gemini CLI speaks ACP natively. Replaces the deprecated `gemini-cli` CLI provider.
+
+**Requirements:**
+- Node.js and npm
+- Gemini CLI installed (`npm install -g @google/gemini-cli`)
+- Authenticated with your Google account (run `gemini` once to authenticate via browser)
 
 ## Setup Instructions
 
@@ -110,6 +123,42 @@ Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter f
    │  gpt-5.2-codex
    ```
 
+### Gemini ACP
+
+1. **Install Gemini CLI**
+
+   ```bash
+   npm install -g @google/gemini-cli
+   ```
+
+2. **Authenticate with Google**
+
+   Run `gemini` once and follow the browser-based authentication flow.
+
+3. **Configure goose**
+
+   Set the provider environment variable:
+   ```bash
+   export GOOSE_PROVIDER=gemini-acp
+   ```
+
+   Or configure through the goose CLI using `goose configure`:
+
+   ```bash
+   ┌   goose-configure
+   │
+   ◇  What would you like to configure?
+   │  Configure Providers
+   │
+   ◇  Which model provider should we use?
+   │  Gemini CLI (ACP)
+   │
+   ◇  Model fetch complete
+   │
+   ◇  Enter a model from that provider:
+   │  default
+   ```
+
 ## Usage Examples
 
 ### Basic Usage
@@ -132,6 +181,12 @@ GOOSE_PROVIDER=claude-acp goose run \
 GOOSE_PROVIDER=codex-acp goose run \
   --with-streamable-http-extension 'https://mcp.kiwi.com' \
   -t 'Search for flights from BKI to SYD tomorrow'
+```
+
+```bash
+GOOSE_PROVIDER=gemini-acp goose run \
+  --with-extension 'npx -y @modelcontextprotocol/server-everything' \
+  -t 'Use the echo tool to say hello'
 ```
 
 ## Configuration Options
@@ -185,13 +240,32 @@ See [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp) for s
 
 See [codex-acp](https://github.com/zed-industries/codex-acp) for approval policy and sandbox details.
 
+### Gemini ACP Configuration
+
+| Environment Variable | Description         | Default     |
+|----------------------|---------------------|-------------|
+| `GOOSE_PROVIDER`     | Set to `gemini-acp` | None        |
+| `GOOSE_MODEL`        | Model to use        | `default`   |
+| `GOOSE_MODE`         | Permission mode     | `auto`      |
+
+**Permission Modes (`GOOSE_MODE`):**
+
+| Mode            | Gemini Mode  | Behavior                                                      |
+|-----------------|-------------|---------------------------------------------------------------|
+| `auto`          | `yolo`      | Auto-approves all tool calls                                  |
+| `smart-approve` | `auto_edit` | Auto-approves file edits, prompts for other operations        |
+| `approve`       | `default`   | Prompts for all permission-required operations                |
+| `chat`          | `plan`      | Planning only, no tool execution                              |
+
+See the [Gemini CLI documentation](https://github.com/google-gemini/gemini-cli) for approval mode details.
+
 ## Error Handling
 
 ACP providers depend on external npm packages, so ensure:
 
-- The ACP adapter binary is installed and in your PATH (`claude-agent-acp` or `codex-acp`)
+- The ACP agent binary is installed and in your PATH (`claude-agent-acp`, `codex-acp`, or `gemini`)
 - The underlying CLI tool is authenticated and working
 - Subscription limits are not exceeded
 - Node.js and npm are installed
 
-If goose can't find the binary, session startup will fail with an error. Run `which claude-agent-acp` or `which codex-acp` to verify installation.
+If goose can't find the binary, session startup will fail with an error. Run `which claude-agent-acp`, `which codex-acp`, or `which gemini` to verify installation.
