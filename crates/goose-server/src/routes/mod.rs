@@ -14,7 +14,6 @@ pub mod reply;
 pub mod sampling;
 pub mod schedule;
 pub mod session;
-pub mod session_events;
 pub mod setup;
 pub mod status;
 pub mod telemetry;
@@ -45,6 +44,5 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
-        .merge(session_events::routes(state.clone()))
         .merge(sampling::routes(state))
 }

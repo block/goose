@@ -64,11 +64,6 @@ export type CancelRequest = {
 };
 
 export type ChatRequest = {
-    /**
-     * Override the server's conversation history. Only use this when you need absolute control
-     * over the conversation state (e.g., administrative tools). For normal operations, the server
-     * is the source of truth - use truncate/fork endpoints to modify conversation history instead.
-     */
     override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
@@ -1262,21 +1257,6 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionReplyRequest = {
-    override_conversation?: Array<Message> | null;
-    recipe_name?: string | null;
-    recipe_version?: string | null;
-    /**
-     * Client-generated UUIDv7 identifying this request.
-     */
-    request_id: string;
-    user_message: Message;
-};
-
-export type SessionReplyResponse = {
-    request_id: string;
-};
-
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
 
 export type SessionsQuery = {
@@ -1325,6 +1305,18 @@ export type StartAgentRequest = {
 
 export type StopAgentRequest = {
     session_id: string;
+};
+
+export type StreamReplyRequest = {
+    override_conversation?: Array<Message> | null;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    request_id: string;
+    user_message: Message;
+};
+
+export type StreamReplyResponse = {
+    request_id: string;
 };
 
 export type SubRecipe = {
@@ -3718,6 +3710,93 @@ export type ReplyResponses = {
 
 export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
+export type StreamEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/reply/stream/{session_id}';
+};
+
+export type StreamEventsErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+};
+
+export type StreamEventsResponses = {
+    /**
+     * SSE event stream
+     */
+    200: MessageEvent;
+};
+
+export type StreamEventsResponse = StreamEventsResponses[keyof StreamEventsResponses];
+
+export type StreamReplyData = {
+    body: StreamReplyRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/reply/stream/{session_id}';
+};
+
+export type StreamReplyErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type StreamReplyResponses = {
+    /**
+     * Request accepted
+     */
+    200: StreamReplyResponse;
+};
+
+export type StreamReplyResponse2 = StreamReplyResponses[keyof StreamReplyResponses];
+
+export type StreamCancelData = {
+    body: CancelRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/reply/stream/{session_id}/cancel';
+};
+
+export type StreamCancelResponses = {
+    /**
+     * Cancellation accepted
+     */
+    200: unknown;
+};
+
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
     path?: never;
@@ -4150,93 +4229,6 @@ export type SearchSessionsResponses = {
 };
 
 export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
-
-export type SessionCancelData = {
-    body: CancelRequest;
-    path: {
-        /**
-         * Session ID
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/sessions/{id}/cancel';
-};
-
-export type SessionCancelResponses = {
-    /**
-     * Cancellation accepted
-     */
-    200: unknown;
-};
-
-export type SessionEventsData = {
-    body?: never;
-    path: {
-        /**
-         * Session ID
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/sessions/{id}/events';
-};
-
-export type SessionEventsErrors = {
-    /**
-     * Session not found
-     */
-    404: unknown;
-};
-
-export type SessionEventsResponses = {
-    /**
-     * SSE event stream
-     */
-    200: MessageEvent;
-};
-
-export type SessionEventsResponse = SessionEventsResponses[keyof SessionEventsResponses];
-
-export type SessionReplyData = {
-    body: SessionReplyRequest;
-    path: {
-        /**
-         * Session ID
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/sessions/{id}/reply';
-};
-
-export type SessionReplyErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type SessionReplyResponses = {
-    /**
-     * Request accepted
-     */
-    200: SessionReplyResponse;
-};
-
-export type SessionReplyResponse2 = SessionReplyResponses[keyof SessionReplyResponses];
 
 export type DeleteSessionData = {
     body?: never;

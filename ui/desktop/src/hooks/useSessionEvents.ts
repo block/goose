@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { sessionEvents, type MessageEvent } from '../api';
+import { streamEvents, type MessageEvent } from '../api';
 
 /**
  * An SSE event with an optional request_id (added by the server at the
@@ -35,8 +35,8 @@ export function useSessionEvents(sessionId: string) {
 
       while (!abortController.signal.aborted) {
         try {
-          const { stream } = await sessionEvents({
-            path: { id: sessionId },
+          const { stream } = await streamEvents({
+            path: { session_id: sessionId },
             signal: abortController.signal,
             headers: lastEventId ? { 'Last-Event-ID': lastEventId } : undefined,
             // Disable the inner retry loop so errors surface to our outer

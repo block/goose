@@ -2748,6 +2748,125 @@
         }
       }
     },
+    "/reply/stream/{session_id}": {
+      "get": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "stream_events",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "stream_reply",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamReplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/reply/stream/{session_id}/cancel": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "stream_cancel",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cancellation accepted"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -3279,127 +3398,6 @@
             "api_key": []
           }
         ]
-      }
-    },
-    "/sessions/{id}/cancel": {
-      "post": {
-        "tags": [
-          "super::routes::session_events"
-        ],
-        "operationId": "session_cancel",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CancelRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Cancellation accepted"
-          }
-        }
-      }
-    },
-    "/sessions/{id}/events": {
-      "get": {
-        "tags": [
-          "super::routes::session_events"
-        ],
-        "operationId": "session_events",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "SSE event stream",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageEvent"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Session not found"
-          }
-        }
-      }
-    },
-    "/sessions/{id}/reply": {
-      "post": {
-        "tags": [
-          "super::routes::session_events"
-        ],
-        "operationId": "session_reply",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SessionReplyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Request accepted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionReplyResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
       }
     },
     "/sessions/{session_id}": {
@@ -4118,7 +4116,6 @@
             "items": {
               "$ref": "#/components/schemas/Message"
             },
-            "description": "Override the server's conversation history. Only use this when you need absolute control\nover the conversation state (e.g., administrative tools). For normal operations, the server\nis the source of truth - use truncate/fork endpoints to modify conversation history instead.",
             "nullable": true
           },
           "recipe_name": {
@@ -6177,7 +6174,6 @@
           },
           {
             "type": "object",
-            "description": "Sent at the start of an SSE stream to inform the client about\nin-flight requests it can reattach to.",
             "required": [
               "request_ids",
               "type"
@@ -7892,48 +7888,6 @@
           }
         }
       },
-      "SessionReplyRequest": {
-        "type": "object",
-        "required": [
-          "request_id",
-          "user_message"
-        ],
-        "properties": {
-          "override_conversation": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "nullable": true
-          },
-          "recipe_name": {
-            "type": "string",
-            "nullable": true
-          },
-          "recipe_version": {
-            "type": "string",
-            "nullable": true
-          },
-          "request_id": {
-            "type": "string",
-            "description": "Client-generated UUIDv7 identifying this request."
-          },
-          "user_message": {
-            "$ref": "#/components/schemas/Message"
-          }
-        }
-      },
-      "SessionReplyResponse": {
-        "type": "object",
-        "required": [
-          "request_id"
-        ],
-        "properties": {
-          "request_id": {
-            "type": "string"
-          }
-        }
-      },
       "SessionType": {
         "type": "string",
         "enum": [
@@ -8099,6 +8053,47 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamReplyRequest": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_message"
+        ],
+        "properties": {
+          "override_conversation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "nullable": true
+          },
+          "recipe_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        }
+      },
+      "StreamReplyResponse": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
             "type": "string"
           }
         }
