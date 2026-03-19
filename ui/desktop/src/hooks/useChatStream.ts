@@ -487,6 +487,40 @@ export function useChatStream({
     });
   }, [sessionId]);
 
+  // Reload conversation and then reattach to a pending request.
+  // Unlike reloadConversation() (which resets all tracking state for the
+  // "client too far behind" case), this preserves the pending reattach
+  // refs and the buffering listener so events aren't lost.
+  const reloadAndReattach = useCallback(() => {
+    reloadingConversationRef.current = true;
+    const reloadSessionId = sessionId;
+
+    getSession({
+      path: { session_id: reloadSessionId },
+      throwOnError: true,
+    }).then((response) => {
+      if (reloadSessionId !== sessionIdRef.current) return;
+      const session = response.data as Session;
+      const messages = session?.conversation || [];
+      if (messages.length > 0) {
+        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      }
+      reloadingConversationRef.current = false;
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, messages);
+      }
+    }).catch((e) => {
+      console.warn('Failed to reload conversation for cross-window reattach:', e);
+      reloadingConversationRef.current = false;
+      if (reloadSessionId !== sessionIdRef.current) return;
+      const pendingRequestId = pendingReattachRequestIdRef.current;
+      if (pendingRequestId) {
+        doReattachRef.current?.(pendingRequestId, stateRef.current.messages);
+      }
+    });
+  }, [sessionId]);
+
   // Perform the actual reattach: wire up an event processor and listener
   // for a request that is already in-flight on the server.
   const doReattach = useCallback(
@@ -552,41 +586,54 @@ export function useChatStream({
   doReattachRef.current = doReattach;
 
   // Reattach to in-flight replies discovered via the SSE ActiveRequests event.
-  // This handles the case where the chat view remounts while a reply is still
-  // running on the server — the new hook instance picks up the existing request
-  // and starts processing its events.
+  // Fires on initial connection (remount while reply is running) AND whenever
+  // a new request starts on the same session from another window.
   useEffect(() => {
     setActiveRequestsHandler((requestIds: string[]) => {
-      // Only reattach if we don't already have an active request
-      if (activeRequestIdRef.current) return;
       if (requestIds.length === 0) return;
+      if (reloadingConversationRef.current) return;
 
       const sorted = [...requestIds].sort();
       const requestId = sorted[sorted.length - 1];
-      const currentMessages = stateRef.current.messages;
 
-      if (currentMessages.length === 0 || reloadingConversationRef.current) {
-        pendingReattachRequestIdRef.current = requestId;
-        pendingReattachBufferRef.current = [];
-        activeRequestIdRef.current = requestId;
-        activeRequestSessionIdRef.current = sessionId;
-        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
-        dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+      // Already tracking this exact request — nothing to do.
+      if (activeRequestIdRef.current === requestId) return;
 
-        const unsubscribe = addListener(requestId, (event) => {
-          pendingReattachBufferRef.current.push(event);
-        });
-        activeUnsubscribeRef.current = unsubscribe;
-        return;
+      // A different request is now active — clean up the old listener
+      // before reattaching to the new one.
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
       }
+      activeRequestIdRef.current = null;
+      activeRequestSessionIdRef.current = null;
 
-      doReattach(requestId, currentMessages);
+      // Buffer events while we reload the conversation to pick up any
+      // messages we don't have yet (e.g. user message sent from another window).
+      pendingReattachRequestIdRef.current = requestId;
+      pendingReattachBufferRef.current = [];
+      activeRequestIdRef.current = requestId;
+      activeRequestSessionIdRef.current = sessionId;
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+      dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+
+      const unsubscribe = addListener(requestId, (event) => {
+        pendingReattachBufferRef.current.push(event);
+      });
+      activeUnsubscribeRef.current = unsubscribe;
+
+      // If we already have messages, reload to get the latest state
+      // (the new user message from the other window) then reattach.
+      // Cold-mount (no messages) will reattach after resumeAgent loads the session.
+      if (stateRef.current.messages.length > 0) {
+        reloadAndReattach();
+      }
     });
 
     return () => {
       setActiveRequestsHandler(null);
     };
-  }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
+  }, [sessionId, addListener, setActiveRequestsHandler, reloadAndReattach]);
 
   /**
    * Submit a message via the new POST+SSE pattern.

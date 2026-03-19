@@ -117,10 +117,22 @@ impl SessionEventBus {
     }
 
     /// Register a new request and return its cancellation token.
+    /// Publishes an `ActiveRequests` event so already-connected clients
+    /// can pick up the new request.
     pub async fn register_request(&self, request_id: String) -> CancellationToken {
         let token = CancellationToken::new();
-        let mut requests = self.active_requests.lock().await;
-        requests.insert(request_id, token.clone());
+        let active_ids = {
+            let mut requests = self.active_requests.lock().await;
+            requests.insert(request_id, token.clone());
+            requests.keys().cloned().collect::<Vec<_>>()
+        };
+        self.publish(
+            None,
+            MessageEvent::ActiveRequests {
+                request_ids: active_ids,
+            },
+        )
+        .await;
         token
     }
 
