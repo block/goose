@@ -593,57 +593,6 @@ goose projects
 
 ---
 
-### Interface
-
-#### web
-Start a new session in goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
-
-goose Web is particularly useful when:
-- You want to access goose with a graphical interface without installing the desktop app
-- You need to use goose from different devices, including mobile
-- You're working in an environment where installing desktop apps isn't practical
-
-:::warning
-Don't expose the web interface to the internet without proper security measures.
-:::
-
-**Options:**
-- **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`
-- **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`
-- **`--open`**: Automatically open the browser when the server starts
-- **`--auth-token <TOKEN>`**: Require a password to access the web interface
-
-**Usage:**
-```bash
-# Start web interface at `http://127.0.0.1:3000` and open the browser
-goose web --open
-
-# Start web interface at `http://127.0.0.1:8080` 
-goose web --port 8080
-
-# Start web interface accessible from local network at `http://192.168.1.7:8080`
-goose web --host 192.168.1.7 --port 8080
-
-# Start web interface with authentication required
-goose web --auth-token <TOKEN>
-```
-
-:::info
-Use `Ctrl+C` to stop the server.
-:::
-
-**Limitations:**
-
-While the web interface provides most core features, be aware of these limitations:
-- Some file system operations may require additional confirmation
-- Extension management must be done through the CLI
-- Certain tool interactions might need extra setup
-- Configuration changes require a server restart
-
-
-
----
-
 ### Terminal Integration
 
 #### @goose / @g

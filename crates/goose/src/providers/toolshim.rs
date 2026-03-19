@@ -226,12 +226,10 @@ impl OllamaInterpreter {
                                 let arguments = item["arguments"].clone();
 
                                 // Add the tool call to our result vector
-                                tool_calls.push(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.into(),
-                                    arguments: Some(object(arguments)),
-                                });
+                                tool_calls.push(
+                                    CallToolRequestParams::new(name)
+                                        .with_arguments(object(arguments)),
+                                );
                             }
                         }
                     }

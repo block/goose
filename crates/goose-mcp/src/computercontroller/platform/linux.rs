@@ -31,13 +31,19 @@ impl LinuxAutomation {
             display_server: Self::detect_display_server(),
         };
 
-        INIT.call_once(|| {
-            automation.initialize().unwrap_or_else(|e| {
-                eprintln!("Warning: Failed to initialize Linux automation: {}", e);
+        if automation.has_display() {
+            INIT.call_once(|| {
+                automation.initialize().unwrap_or_else(|e| {
+                    eprintln!("Warning: Failed to initialize Linux automation: {}", e);
+                });
             });
-        });
+        }
 
         automation
+    }
+
+    pub fn has_display(&self) -> bool {
+        !matches!(self.display_server, DisplayServer::Unknown)
     }
 
     fn detect_display_server() -> DisplayServer {
@@ -248,5 +254,9 @@ impl SystemAutomation for LinuxAutomation {
 
     fn get_temp_path(&self) -> PathBuf {
         std::env::temp_dir()
+    }
+
+    fn has_display(&self) -> bool {
+        self.has_display()
     }
 }

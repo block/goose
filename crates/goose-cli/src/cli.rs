@@ -2,13 +2,11 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::builtin_extension::register_builtin_extensions;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
-use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
-};
+use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer};
 
 use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
@@ -358,6 +356,7 @@ async fn get_or_create_session_id(
     identifier: Option<Identifier>,
     resume: bool,
     no_session: bool,
+    goose_mode: GooseMode,
 ) -> Result<Option<String>> {
     if no_session {
         return Ok(None);
@@ -401,6 +400,7 @@ async fn get_or_create_session_id(
                     std::env::current_dir()?,
                     "CLI Session".to_string(),
                     SessionType::User,
+                    goose_mode,
                 )
                 .await?;
             return Ok(Some(session.id));
@@ -413,7 +413,12 @@ async fn get_or_create_session_id(
         let has_user_provided_name = id.name.is_some();
         let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
         let session = session_manager
-            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+            .create_session(
+                std::env::current_dir()?,
+                name.clone(),
+                SessionType::User,
+                goose_mode,
+            )
             .await?;
 
         if has_user_provided_name {
@@ -843,42 +848,6 @@ enum Command {
         reconfigure: bool,
     },
 
-    /// Start a web server with a chat interface
-    #[command(about = "Experimental: Start a web server with a chat interface")]
-    Web {
-        /// Port to run the web server on
-        #[arg(
-            short,
-            long,
-            default_value = "3000",
-            help = "Port to run the web server on"
-        )]
-        port: u16,
-
-        /// Host to bind the web server to
-        #[arg(
-            long,
-            default_value = "127.0.0.1",
-            help = "Host to bind the web server to"
-        )]
-        host: String,
-
-        /// Open browser automatically
-        #[arg(long, help = "Open browser automatically when server starts")]
-        open: bool,
-
-        /// Authentication token for both Basic Auth (password) and Bearer token
-        #[arg(long, help = "Authentication token to secure the web interface")]
-        auth_token: Option<String>,
-
-        /// Allow running without authentication when exposed on the network (unsafe)
-        #[arg(
-            long,
-            help = "Skip auth requirement when exposed on the network (unsafe)"
-        )]
-        no_auth: bool,
-    },
-
     /// Terminal-integrated session (one session per terminal)
     #[command(
         about = "Terminal-integrated goose session",
@@ -1043,7 +1012,6 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
         Some(Command::Recipe { .. }) => "recipe",
-        Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
@@ -1060,7 +1028,6 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
         McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
         McpCommand::Memory => serve(MemoryServer::new()).await?,
         McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-        McpCommand::Developer => serve(DeveloperServer::new()).await?,
     }
     Ok(())
 }
@@ -1169,7 +1136,8 @@ async fn handle_interactive_session(
         }
     }
 
-    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
     if fork {
         if let Some(id) = session_id {
@@ -1382,8 +1350,14 @@ async fn handle_run_command(
         }
     }
 
-    let session_id =
-        get_or_create_session_id(identifier, run_behavior.resume, run_behavior.no_session).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let session_id = get_or_create_session_id(
+        identifier,
+        run_behavior.resume,
+        run_behavior.no_session,
+        goose_mode,
+    )
+    .await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1669,7 +1643,8 @@ async fn handle_default_session() -> Result<()> {
         configure_telemetry_consent_dialog()?;
     }
 
-    let session_id = get_or_create_session_id(None, false, false).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let session_id = get_or_create_session_id(None, false, false, goose_mode).await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1783,13 +1758,6 @@ pub async fn cli() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
-        Some(Command::Web {
-            port,
-            host,
-            open,
-            auth_token,
-            no_auth,
-        }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
         Some(Command::ValidateExtensions { file }) => {

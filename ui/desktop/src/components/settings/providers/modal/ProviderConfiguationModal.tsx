@@ -17,7 +17,12 @@ import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSub
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle, LogIn } from 'lucide-react';
-import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
+import {
+  ProviderDetails,
+  removeCustomProvider,
+  configureProviderOauth,
+  cleanupProviderCache,
+} from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
 
@@ -151,6 +156,13 @@ export default function ProviderConfigurationModal({
   const handleConfirmDelete = async () => {
     if (isActiveProvider) {
       return;
+    }
+
+    // Clean up provider-specific cache files (e.g., OAuth tokens) before removing config
+    try {
+      await cleanupProviderCache({ path: { name: provider.name } });
+    } catch {
+      // Cleanup is best-effort — proceed with deletion even if it fails
     }
 
     const isCustomProvider = provider.provider_type === 'Custom';

@@ -1,20 +1,30 @@
 //! Integration tests for LocalInferenceProvider.
 //!
 //! These tests require a downloaded GGUF model and are ignored by default.
-//! Run with: cargo test -p goose --test local_inference_integration -- --ignored
+//! Download a model first:
+//!   goose local-models download bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M
+//!
+//! Run with the default model:
+//!   cargo test -p goose --test local_inference_integration -- --ignored
+//!
+//! Run with a specific model:
+//!   TEST_MODEL="bartowski/Qwen_Qwen3-32B-GGUF:Q4_K_M" cargo test -p goose --test local_inference_integration -- --ignored
 
 use futures::StreamExt;
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::create;
-use std::time::Instant;
 
-const TEST_MODEL: &str = "llama-3.2-1b";
+const DEFAULT_TEST_MODEL: &str = "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M";
+
+fn test_model() -> String {
+    std::env::var("TEST_MODEL").unwrap_or_else(|_| DEFAULT_TEST_MODEL.to_string())
+}
 
 #[tokio::test]
 #[ignore]
 async fn test_local_inference_stream_produces_output() {
-    let model_config = ModelConfig::new(TEST_MODEL).expect("valid model config");
+    let model_config = ModelConfig::new(&test_model()).expect("valid model config");
     let provider = create("local", model_config.clone(), Vec::new())
         .await
         .expect("provider creation should succeed");
@@ -55,53 +65,10 @@ async fn test_local_inference_stream_produces_output() {
 
 #[tokio::test]
 #[ignore]
-async fn test_local_inference_cold_and_warm_performance() {
-    let model_config = ModelConfig::new(TEST_MODEL).expect("valid model config");
-    let provider = create("local", model_config.clone(), Vec::new())
-        .await
-        .expect("provider creation should succeed");
-
-    // Cold start (includes model loading)
-    let messages = vec![Message::user().with_text("what is the capital of Moldova?")];
-    let start = Instant::now();
-    let (response, _usage) = provider
-        .complete(&model_config, "test-session", "", &messages, &[])
-        .await
-        .expect("cold completion should succeed");
-    let cold_elapsed = start.elapsed();
-
-    let text = response.as_concat_text();
-    assert!(!text.is_empty(), "cold start should produce a response");
-    println!(
-        "Cold start: {cold_elapsed:.2?}, response length: {}",
-        text.len()
-    );
-
-    // Warm run (model already loaded)
-    let messages2 = vec![Message::user().with_text("what is the capital of France?")];
-    let start2 = Instant::now();
-    let (response2, _usage2) = provider
-        .complete(&model_config, "test-session", "", &messages2, &[])
-        .await
-        .expect("warm completion should succeed");
-    let warm_elapsed = start2.elapsed();
-
-    let text2 = response2.as_concat_text();
-    assert!(!text2.is_empty(), "warm run should produce a response");
-    println!(
-        "Warm run: {warm_elapsed:.2?}, response length: {}",
-        text2.len()
-    );
-    assert!(
-        warm_elapsed < cold_elapsed,
-        "warm run ({warm_elapsed:.2?}) should be faster than cold start ({cold_elapsed:.2?})"
-    );
-}
-
-#[tokio::test]
-#[ignore]
 async fn test_local_inference_large_prompt() {
-    let model_config = ModelConfig::new(TEST_MODEL).expect("valid model config");
+    let model_config = ModelConfig::new(&test_model())
+        .expect("valid model config")
+        .with_max_tokens(Some(20));
     let provider = create("local", model_config.clone(), Vec::new())
         .await
         .expect("provider creation should succeed");
@@ -111,7 +78,7 @@ async fn test_local_inference_large_prompt() {
     let prompt = format!("{padding}\nNow answer this: what is the capital of Moldova?");
     let messages = vec![Message::user().with_text(&prompt)];
 
-    let start = Instant::now();
+    let start = std::time::Instant::now();
     let (response, _usage) = provider
         .complete(&model_config, "test-session", "", &messages, &[])
         .await

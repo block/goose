@@ -3,7 +3,9 @@ pub mod configuration;
 pub mod error;
 pub mod openapi;
 pub mod routes;
+pub mod session_event_bus;
 pub mod state;
+pub mod tls;
 pub mod tunnel;
 
 // Re-export commonly used items

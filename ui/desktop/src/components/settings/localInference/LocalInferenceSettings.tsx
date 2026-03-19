@@ -28,51 +28,43 @@ export const LocalInferenceSettings = () => {
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
-  const { currentModel, currentProvider, setProviderAndModel } = useModelAndProvider();
+  const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
+  const activePolls = useRef(new Set<string>());
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
-  const loadModels = useCallback(async () => {
+  const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
     try {
       const response = await listLocalModels();
       if (response.data) {
         setModels(response.data);
+        response.data.forEach((model) => {
+          if (model.status.state === 'Downloading') {
+            pollDownloadProgress(model.id);
+          }
+        });
+
+        return response.data;
       }
     } catch (error) {
       console.error('Failed to load models:', error);
     }
-  }, []);
-
-  // Check for any in-progress downloads when models list changes
-  const detectActiveDownloads = useCallback(async () => {
-    for (const model of models) {
-      if (downloads.has(model.id)) continue;
-      // Check models that the API reports as downloading
-      if (model.status.state === 'Downloading') {
-        pollDownloadProgress(model.id);
-      }
-    }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models, downloads]);
+  }, []);
 
   useEffect(() => {
     loadModels();
-  }, [loadModels]);
-
-  useEffect(() => {
-    if (models.length > 0) {
-      detectActiveDownloads();
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models]);
+  }, []);
 
   const selectModel = async (modelId: string) => {
-    setProviderAndModel('local', modelId);
     try {
       await setConfigProvider({
         body: { provider: 'local', model: modelId },
         throwOnError: true,
       });
+      await refreshCurrentModelAndProvider();
     } catch (error) {
       console.error('Failed to select model:', error);
     }
@@ -97,6 +89,14 @@ export const LocalInferenceSettings = () => {
   }, []);
 
   const pollDownloadProgress = (modelId: string) => {
+    if (activePolls.current.has(modelId)) return;
+    activePolls.current.add(modelId);
+
+    const stopPolling = (interval: ReturnType<typeof setInterval>) => {
+      clearInterval(interval);
+      activePolls.current.delete(modelId);
+    };
+
     const interval = setInterval(async () => {
       try {
         const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
@@ -105,7 +105,7 @@ export const LocalInferenceSettings = () => {
           setDownloads((prev) => new Map(prev).set(modelId, progress));
 
           if (progress.status === 'completed') {
-            clearInterval(interval);
+            stopPolling(interval);
             setDownloads((prev) => {
               const next = new Map(prev);
               next.delete(modelId);
@@ -113,15 +113,20 @@ export const LocalInferenceSettings = () => {
             });
             await loadModels();
             await selectModel(modelId);
-          } else if (progress.status === 'failed') {
-            clearInterval(interval);
+          } else if (progress.status === 'failed' || progress.status === 'cancelled') {
+            stopPolling(interval);
+            setDownloads((prev) => {
+              const next = new Map(prev);
+              next.delete(modelId);
+              return next;
+            });
             await loadModels();
           }
         } else {
-          clearInterval(interval);
+          stopPolling(interval);
         }
       } catch {
-        clearInterval(interval);
+        stopPolling(interval);
       }
     }, 1000);
   };
@@ -134,6 +139,7 @@ export const LocalInferenceSettings = () => {
         next.delete(modelId);
         return next;
       });
+      await loadModels();
     } catch (error) {
       console.error('Failed to cancel download:', error);
     }
@@ -143,7 +149,16 @@ export const LocalInferenceSettings = () => {
     if (!window.confirm('Delete this model? You can re-download it later.')) return;
     try {
       await deleteLocalModel({ path: { model_id: modelId } });
-      await loadModels();
+      const updatedModels = await loadModels();
+
+      if (selectedModelId === modelId && updatedModels) {
+        const remainingDownloaded = updatedModels.filter(
+          (m) => m.id !== modelId && m.status.state === 'Downloaded'
+        );
+        if (remainingDownloaded.length > 0) {
+          selectModel(remainingDownloaded[0].id);
+        }
+      }
     } catch (error) {
       console.error('Failed to delete model:', error);
     }

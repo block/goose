@@ -27,7 +27,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParams, Content};
+use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -48,6 +48,12 @@ pub struct UpdateProviderRequest {
     session_id: String,
     context_limit: Option<usize>,
     request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateSessionRequest {
+    session_id: String,
+    goose_mode: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -134,13 +140,31 @@ pub struct CallToolRequest {
     arguments: Value,
 }
 
+/// Ref-only alias so utoipa emits `$ref: "#/components/schemas/ContentBlock"`.
+/// The actual schema is registered via `derive_utoipa!(RawContent as ContentBlockSchema => "ContentBlock")`.
+#[allow(dead_code)]
+pub enum ContentBlock {}
+
+impl<'s> utoipa::ToSchema<'s> for ContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        // Delegate to the auto-generated schema
+        crate::openapi::ContentBlockSchema::schema()
+    }
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CallToolResponse {
-    content: Vec<Content>,
+    #[schema(value_type = Vec<ContentBlock>)]
+    content: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
     is_error: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "_meta")]
     _meta: Option<Value>,
 }
 
@@ -215,9 +239,16 @@ async fn start_agent(
     let name = "New Chat".to_string();
 
     let manager = state.session_manager();
+    let config = Config::global();
+    let current_mode = config.get_goose_mode().unwrap_or_default();
 
     let mut session = manager
-        .create_session(PathBuf::from(&working_dir), name, SessionType::User)
+        .create_session(
+            PathBuf::from(&working_dir),
+            name,
+            SessionType::User,
+            current_mode,
+        )
         .await
         .map_err(|err| {
             error!("Failed to create session: {}", err);
@@ -233,6 +264,7 @@ async fn start_agent(
         .and_then(|r| r.extensions.as_deref());
     let extensions_to_use =
         resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
+
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
@@ -474,10 +506,9 @@ async fn get_tools(
     State(state): State<Arc<AppState>>,
     Query(query): Query<GetToolsQuery>,
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
-    let config = Config::global();
-    let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
     let session_id = query.session_id;
     let agent = state.get_agent_for_route(session_id.clone()).await?;
+    let goose_mode = agent.goose_mode().await;
     let permission_manager = agent.config.permission_manager.clone();
 
     let mut tools: Vec<ToolInfo> = agent
@@ -575,6 +606,59 @@ async fn update_agent_provider(
                 format!("Failed to update provider: {}", e),
             )
         })?;
+
+    // Propagate session mode to the new provider
+    let mode = agent.goose_mode().await;
+    agent
+        .update_goose_mode(mode, &payload.session_id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to propagate mode to provider: {}", e),
+            )
+        })?;
+
+    Ok(())
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/update_session",
+    request_body = UpdateSessionRequest,
+    responses(
+        (status = 200, description = "Session updated"),
+        (status = 400, description = "Invalid request"),
+        (status = 500, description = "Internal error")
+    )
+)]
+async fn update_session(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateSessionRequest>,
+) -> Result<(), (StatusCode, String)> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await
+        .map_err(|e| (e, "No agent for session id".to_owned()))?;
+
+    if let Some(mode_str) = payload.goose_mode {
+        let mode: GooseMode = mode_str.parse().map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid mode: {}", mode_str),
+            )
+        })?;
+
+        agent
+            .update_goose_mode(mode, &payload.session_id)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to update mode: {}", e),
+                )
+            })?;
+    }
 
     Ok(())
 }
@@ -848,6 +932,16 @@ async fn update_working_dir(
     Ok(StatusCode::OK)
 }
 
+async fn ensure_extensions_loaded(state: &AppState, session_id: &str) {
+    if let Some(_results) = state.take_extension_loading_task(session_id).await {
+        tracing::debug!(
+            "Awaited background extension loading for session {} before serving request",
+            session_id
+        );
+        state.remove_extension_loading_task(session_id).await;
+    }
+}
+
 #[utoipa::path(
     post,
     path = "/agent/read_resource",
@@ -866,6 +960,8 @@ async fn read_resource(
 ) -> Result<Json<ReadResourceResponse>, StatusCode> {
     use rmcp::model::ResourceContents;
 
+    ensure_extensions_loaded(&state, &payload.session_id).await;
+
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;
@@ -879,7 +975,16 @@ async fn read_resource(
             CancellationToken::default(),
         )
         .await
-        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!(
+                "read_resource failed for session={}, uri={}, extension={}: {:?}",
+                payload.session_id,
+                payload.uri,
+                payload.extension_name,
+                e
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let content = read_result
         .contents
@@ -936,6 +1041,8 @@ async fn call_tool(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CallToolRequest>,
 ) -> Result<Json<CallToolResponse>, StatusCode> {
+    ensure_extensions_loaded(&state, &payload.session_id).await;
+
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;
@@ -945,21 +1052,18 @@ async fn call_tool(
         _ => None,
     };
 
-    let tool_call = CallToolRequestParams {
-        meta: None,
-        task: None,
-        name: payload.name.into(),
-        arguments,
+    let tool_call = {
+        let mut params = CallToolRequestParams::new(payload.name);
+        if let Some(args) = arguments {
+            params = params.with_arguments(args);
+        }
+        params
     };
 
+    let ctx = goose::agents::ToolCallContext::new(payload.session_id.clone(), None, None);
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(
-            &payload.session_id,
-            tool_call,
-            None,
-            CancellationToken::default(),
-        )
+        .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -968,8 +1072,15 @@ async fn call_tool(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let content = result
+        .content
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(CallToolResponse {
-        content: result.content,
+        content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
         _meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),
@@ -1186,6 +1297,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/export_app/{name}", get(export_app))
         .route("/agent/import_app", post(import_app))
         .route("/agent/update_provider", post(update_agent_provider))
+        .route("/agent/update_session", post(update_session))
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))

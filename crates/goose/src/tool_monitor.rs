@@ -98,6 +98,7 @@ impl ToolInspector for RepetitionInspector {
 
     async fn inspect(
         &self,
+        _session_id: &str,
         tool_requests: &[ToolRequest],
         _messages: &[Message],
         _goose_mode: GooseMode,
