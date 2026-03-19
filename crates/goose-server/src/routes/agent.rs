@@ -1265,6 +1265,34 @@ async fn import_app(
         status: StatusCode::BAD_REQUEST,
     })?;
 
+    // Sanitize the app name: reject path separators and other filesystem-unsafe characters
+    // to prevent directory traversal when writing the HTML file.
+    fn sanitize_app_name(name: &str) -> Result<(), ErrorResponse> {
+        if name.contains('/')
+            || name.contains('\\')
+            || name.contains('\0')
+            || name == "."
+            || name == ".."
+        {
+            return Err(ErrorResponse {
+                message: format!(
+                    "Invalid app name '{}': must not contain path separators",
+                    name
+                ),
+                status: StatusCode::BAD_REQUEST,
+            });
+        }
+        Ok(())
+    }
+    sanitize_app_name(&app.resource.name)?;
+
+    let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
+    std::fs::create_dir_all(&apps_dir).map_err(|e| ErrorResponse {
+        message: format!("Failed to create apps directory: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    // Check for name collisions against both the cache and on-disk HTML files
     let original_name = app.resource.name.clone();
     let mut counter = 1;
 
@@ -1274,7 +1302,11 @@ async fn import_app(
         .map(|a| a.resource.name.clone())
         .collect();
 
-    while existing_names.contains(&app.resource.name) {
+    while existing_names.contains(&app.resource.name)
+        || apps_dir
+            .join(format!("{}.html", app.resource.name))
+            .exists()
+    {
         app.resource.name = format!("{}_{}", original_name, counter);
         app.resource.uri = format!("ui://apps/{}", app.resource.name);
         counter += 1;
@@ -1287,13 +1319,8 @@ async fn import_app(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
-    // Also save the HTML file so the app is picked up by the MCP server
+    // Save the HTML file so the app is picked up by the MCP server
     // and survives session-backed cache refreshes.
-    let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
-    std::fs::create_dir_all(&apps_dir).map_err(|e| ErrorResponse {
-        message: format!("Failed to create apps directory: {}", e),
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-    })?;
     let html = app.to_html().map_err(|e| ErrorResponse {
         message: format!("Failed to generate HTML: {}", e),
         status: StatusCode::INTERNAL_SERVER_ERROR,
