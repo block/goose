@@ -44,11 +44,18 @@ fn resolve_login_shell_path() -> Option<String> {
     use std::path::PathBuf;
     use std::process::Stdio;
 
-    let shell = if PathBuf::from("/bin/bash").is_file() {
-        "/bin/bash".to_string()
-    } else {
-        std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
-    };
+    // Prefer the user's configured shell so we source the right profile files.
+    // Fall back to /bin/bash (common default) then sh as last resort.
+    let shell = std::env::var("SHELL")
+        .ok()
+        .filter(|s| PathBuf::from(s).is_file())
+        .unwrap_or_else(|| {
+            if PathBuf::from("/bin/bash").is_file() {
+                "/bin/bash".to_string()
+            } else {
+                "sh".to_string()
+            }
+        });
 
     std::process::Command::new(&shell)
         .args(["-l", "-i", "-c", "echo $PATH"])
@@ -80,4 +87,28 @@ fn resolve_login_shell_path() -> Option<String> {
 pub fn user_login_path() -> Option<&'static str> {
     static CACHED: OnceLock<Option<String>> = OnceLock::new();
     CACHED.get_or_init(resolve_login_shell_path).as_deref()
+}
+
+/// Merge the login shell PATH with the current process PATH.
+///
+/// Prepends login shell entries so user tools are found first, while
+/// preserving any runtime PATH additions (e.g. from direnv, nix, or
+/// auto-install helpers like ensure_peekaboo).
+#[cfg(not(windows))]
+pub fn merged_path() -> Option<String> {
+    let login = user_login_path()?;
+    let current = std::env::var("PATH").unwrap_or_default();
+    if current.is_empty() {
+        return Some(login.to_string());
+    }
+    // Deduplicate: login shell entries first, then any current entries not already present.
+    let login_entries: Vec<&str> = login.split(':').collect();
+    let mut seen: std::collections::HashSet<&str> = login_entries.iter().copied().collect();
+    let mut merged = login_entries;
+    for entry in current.split(':') {
+        if seen.insert(entry) {
+            merged.push(entry);
+        }
+    }
+    Some(merged.join(":"))
 }

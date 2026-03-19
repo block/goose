@@ -1,5 +1,5 @@
 #[cfg(not(windows))]
-use crate::subprocess::user_login_path;
+use crate::subprocess::merged_path;
 use crate::subprocess::SubprocessExt;
 #[cfg(target_os = "macos")]
 use base64::Engine;
@@ -872,7 +872,7 @@ impl ComputerControllerServer {
                     .env("GOOSE_TERMINAL", "1")
                     .env("AGENT", "goose");
                 #[cfg(not(windows))]
-                if let Some(path) = user_login_path() {
+                if let Some(path) = merged_path() {
                     cmd.env("PATH", path);
                 }
                 cmd.set_no_window().output().await.map_err(|e| {
@@ -1072,7 +1072,7 @@ impl ComputerControllerServer {
     fn run_peekaboo_cmd(&self, args: &[&str]) -> Result<String, ErrorData> {
         let mut cmd = std::process::Command::new("peekaboo");
         cmd.args(args);
-        if let Some(path) = user_login_path() {
+        if let Some(path) = merged_path() {
             cmd.env("PATH", path);
         }
         let output = cmd.output().map_err(|e| {
