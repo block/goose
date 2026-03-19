@@ -480,7 +480,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             name if is_shell_tool_name(name) => render_shell_request(call, debug),
             name if is_file_tool_name(name) => render_text_editor_request(call, debug),
-            "execute" | "execute_code" => render_execute_code_request(call, debug),
+            "execute_typescript" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
@@ -822,7 +822,7 @@ pub fn render_subagent_tool_call(
     arguments: Option<&JsonObject>,
     debug: bool,
 ) {
-    if tool_name == "code_execution__execute_code" {
+    if tool_name == "code_execution__execute_typescript" {
         let tool_graph = arguments
             .and_then(|args| args.get("tool_graph"))
             .and_then(Value::as_array)
@@ -851,7 +851,7 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
         "  {} {} {} {} tool call{}",
         style("▸").dim(),
         style(format!("[subagent:{}]", short_id)).dim(),
-        style("execute_code").dim(),
+        style("execute_typescript").dim(),
         style(count).dim(),
         plural,
     );

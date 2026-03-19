@@ -17,6 +17,7 @@ use goose::providers::codex_acp::CODEX_ACP_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
+use goose::providers::gemini_acp::GEMINI_ACP_DEFAULT_MODEL;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
@@ -886,6 +887,14 @@ async fn test_claude_acp_provider() -> Result<()> {
 #[tokio::test]
 async fn test_codex_acp_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("codex-acp", CODEX_ACP_DEFAULT_MODEL, "codex-acp")
+        .run()
+        .await
+}
+
+// Requires: npm install -g @google/gemini-cli
+#[tokio::test]
+async fn test_gemini_acp_provider() -> Result<()> {
+    ProviderTestConfig::with_agentic_provider("gemini-acp", GEMINI_ACP_DEFAULT_MODEL, "gemini")
         .run()
         .await
 }
