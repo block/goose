@@ -55,9 +55,11 @@ pub(crate) fn generate_simple_session_description(
             let stripped = text
                 .strip_prefix("---BEGIN USER MESSAGES---")
                 .unwrap_or(text)
-                .trim_start_matches(|c: char| c == '\n' || c == '\r');
+                .trim_start_matches(['\n', '\r']);
             let stripped = stripped
-                .strip_suffix("---END USER MESSAGES---\n\nGenerate a short title for the above messages.")
+                .strip_suffix(
+                    "---END USER MESSAGES---\n\nGenerate a short title for the above messages.",
+                )
                 .or_else(|| stripped.strip_suffix("---END USER MESSAGES---"))
                 .unwrap_or(stripped)
                 .trim();
@@ -67,7 +69,11 @@ pub(crate) fn generate_simple_session_description(
                 .take(4)
                 .collect::<Vec<_>>()
                 .join(" ");
-            if desc.is_empty() { "Simple task".to_string() } else { desc }
+            if desc.is_empty() {
+                "Simple task".to_string()
+            } else {
+                desc
+            }
         })
         .unwrap_or_else(|| "Simple task".to_string());
 
