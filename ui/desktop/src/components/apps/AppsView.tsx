@@ -167,26 +167,33 @@ export default function AppsView() {
         throwOnError: true,
         query: { uri: app.uri },
       });
+    } catch (err) {
+      console.error('Failed to delete app:', err);
+      setError(errorMessage(err, 'Failed to delete app'));
+      setAppToDelete(null);
+      return;
+    }
 
-      // Close the app window if it's open
-      await window.electron.closeApp(app.name).catch((err) => {
-        console.error('Failed to close app window:', err);
-      });
+    // Close the app window if it's open
+    await window.electron.closeApp(app.name).catch((err) => {
+      console.error('Failed to close app window:', err);
+    });
 
-      // Refresh apps list through the active session if available
+    // Refresh apps list — if this fails, optimistically remove the deleted app
+    try {
       const response = await listApps({
         throwOnError: true,
         query: { session_id: sessionId || undefined },
       });
       const freshApps = response.data?.apps || [];
       setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
-      setError(null);
     } catch (err) {
-      console.error('Failed to delete app:', err);
-      setError(errorMessage(err, 'Failed to delete app'));
-    } finally {
-      setAppToDelete(null);
+      console.error('Failed to refresh apps after delete:', err);
+      setApps((prev) => prev.filter((a) => a.uri !== app.uri));
     }
+
+    setError(null);
+    setAppToDelete(null);
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
