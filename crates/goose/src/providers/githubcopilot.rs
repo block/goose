@@ -285,6 +285,19 @@ impl GithubCopilotProvider {
     async fn login(&self) -> Result<String> {
         let device_code_info = self.get_device_code().await?;
 
+        // Copy the user code to clipboard so the user can paste it in the browser
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            if let Err(e) = clipboard.set_text(&device_code_info.user_code) {
+                tracing::warn!("Failed to copy verification code to clipboard: {}", e);
+            }
+        }
+
+        // Open the verification URL in the default browser
+        if let Err(e) = webbrowser::open(&device_code_info.verification_uri) {
+            tracing::warn!("Failed to open browser: {}", e);
+        }
+
+        // Print for CLI users (stdout only, not persisted to logs)
         println!(
             "Please visit {} and enter code {}",
             device_code_info.verification_uri, device_code_info.user_code
@@ -402,7 +415,7 @@ impl ProviderDef for GithubCopilotProvider {
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
-            vec![ConfigKey::new_oauth(
+            vec![ConfigKey::new_oauth_device_code(
                 "GITHUB_COPILOT_TOKEN",
                 true,
                 true,

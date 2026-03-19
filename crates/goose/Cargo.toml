@@ -25,6 +25,7 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client-reqwest",
 ] }
 oauth2 = "5.0"
+arboard = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }

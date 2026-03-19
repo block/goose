@@ -21,6 +21,7 @@ string_slice = "warn"
 [workspace.dependencies]
 rmcp = { version = "1.2.0", features = ["schemars", "auth"] }
 sacp = "10.1.0"
+arboard = "3"
 anyhow = "1.0"
 async-stream = "0.3"
 async-trait = "0.1"

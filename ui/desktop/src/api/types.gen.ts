@@ -91,11 +91,16 @@ export type ConfigKey = {
      */
     default?: string | null;
     /**
+     * Whether this OAuth flow uses the device code grant (RFC 8628)
+     * When true, the user must enter a verification code in the browser
+     */
+    device_code_flow?: boolean;
+    /**
      * The name of the configuration key (e.g., "API_KEY")
      */
     name: string;
     /**
-     * Whether this key should be configured using OAuth device code flow
+     * Whether this key should be configured using an OAuth flow
      * When true, the provider's configure_oauth() method will be called instead of prompting for manual input
      */
     oauth_flow: boolean;

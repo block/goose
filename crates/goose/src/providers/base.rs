@@ -266,9 +266,13 @@ pub struct ConfigKey {
     pub secret: bool,
     /// Optional default value for the key
     pub default: Option<String>,
-    /// Whether this key should be configured using OAuth device code flow
+    /// Whether this key should be configured using an OAuth flow
     /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
     pub oauth_flow: bool,
+    /// Whether this OAuth flow uses the device code grant (RFC 8628)
+    /// When true, the user must enter a verification code in the browser
+    #[serde(default)]
+    pub device_code_flow: bool,
     /// Whether this key should be shown prominently during provider setup
     /// (onboarding, settings modal, CLI configure)
     #[serde(default)]
@@ -290,6 +294,7 @@ impl ConfigKey {
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: false,
+            device_code_flow: false,
             primary,
         }
     }
@@ -301,11 +306,12 @@ impl ConfigKey {
             secret,
             default: Some(T::DEFAULT.to_string()),
             oauth_flow: false,
+            device_code_flow: false,
             primary,
         }
     }
 
-    /// Create a new ConfigKey that uses OAuth device code flow for configuration
+    /// Create a new ConfigKey that uses an OAuth flow for configuration
     ///
     /// This is used for providers that support OAuth authentication instead of manual API key entry.
     /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.
@@ -322,6 +328,29 @@ impl ConfigKey {
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: true,
+            device_code_flow: false,
+            primary,
+        }
+    }
+
+    /// Create a new ConfigKey that uses OAuth device code flow (RFC 8628) for configuration
+    ///
+    /// Similar to new_oauth, but indicates the provider uses the device code grant where the user
+    /// must enter a verification code in the browser.
+    pub fn new_oauth_device_code(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        primary: bool,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: true,
+            device_code_flow: true,
             primary,
         }
     }
