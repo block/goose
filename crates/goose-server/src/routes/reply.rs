@@ -76,10 +76,6 @@ pub enum MessageEvent {
         reason: String,
         token_state: TokenState,
     },
-    ModelChange {
-        model: String,
-        mode: String,
-    },
     Notification {
         request_id: String,
         #[schema(value_type = Object)]
@@ -347,9 +343,6 @@ fn spawn_reply_task(
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
                             publish(MessageEvent::UpdateConversation { conversation: new_messages }).await;
-                        }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            publish(MessageEvent::ModelChange { model, mode }).await;
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((notification_request_id, n))))) => {
                             publish(MessageEvent::Notification {

@@ -683,10 +683,6 @@ export type MessageEvent = {
     token_state: TokenState;
     type: 'Finish';
 } | {
-    mode: string;
-    model: string;
-    type: 'ModelChange';
-} | {
     message: {
         [key: string]: unknown;
     };

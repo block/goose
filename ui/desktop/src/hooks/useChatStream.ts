@@ -318,9 +318,6 @@ function createEventProcessor(
         onFinish();
         return true;
       }
-      case 'ModelChange': {
-        return false;
-      }
       case 'UpdateConversation': {
         const conversation = (event as Record<string, unknown>).conversation as Message[];
         currentMessages = conversation;

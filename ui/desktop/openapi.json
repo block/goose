@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.27.0"
+    "version": "1.28.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -6106,28 +6106,6 @@
                 "type": "string",
                 "enum": [
                   "Finish"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "model",
-              "mode",
-              "type"
-            ],
-            "properties": {
-              "mode": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "ModelChange"
                 ]
               }
             }
