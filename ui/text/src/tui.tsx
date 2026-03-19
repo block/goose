@@ -1146,7 +1146,7 @@ async function main() {
     }
 
     serverProcess = spawn(binary, ["--stdio"], {
-      stdio: ["pipe", "pipe", "inherit"],
+      stdio: ["pipe", "pipe", "ignore"],
       detached: false,
     });
 
