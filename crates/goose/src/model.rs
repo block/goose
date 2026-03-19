@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 use utoipa::ToSchema;
 
-const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
 #[derive(Debug, Clone, Deserialize)]
 struct PredefinedModel {

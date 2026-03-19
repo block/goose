@@ -29,7 +29,7 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
+pub fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
         MessageContent::ToolRequest(tool_request) => {
             if let Ok(tool_call) = &tool_request.tool_call {
@@ -123,7 +123,7 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum MessageEvent {
     Message {
@@ -137,10 +137,6 @@ pub enum MessageEvent {
         reason: String,
         token_state: TokenState,
     },
-    ModelChange {
-        model: String,
-        mode: String,
-    },
     Notification {
         request_id: String,
         #[schema(value_type = Object)]
@@ -149,10 +145,15 @@ pub enum MessageEvent {
     UpdateConversation {
         conversation: Conversation,
     },
+    /// Sent at the start of an SSE stream to inform the client about
+    /// in-flight requests it can reattach to.
+    ActiveRequests {
+        request_ids: Vec<String>,
+    },
     Ping,
 }
 
-async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
+pub async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
     session_manager
         .get_session(session_id, false)
         .await
@@ -358,9 +359,6 @@ pub async fn reply(
                             all_messages = new_messages.clone();
                             stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
 
-                        }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
                             stream_event(MessageEvent::Notification{

@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.27.0"
+    "version": "1.28.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -3281,6 +3281,127 @@
         ]
       }
     },
+    "/sessions/{id}/cancel": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cancellation accepted"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/events": {
+      "get": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/reply": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_reply",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionReplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -3971,6 +4092,17 @@
           },
           "structuredContent": {
             "nullable": true
+          }
+        }
+      },
+      "CancelRequest": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
           }
         }
       },
@@ -5984,28 +6116,6 @@
           {
             "type": "object",
             "required": [
-              "model",
-              "mode",
-              "type"
-            ],
-            "properties": {
-              "mode": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "ModelChange"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "request_id",
               "message",
               "type"
@@ -6039,6 +6149,28 @@
                 "type": "string",
                 "enum": [
                   "UpdateConversation"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Sent at the start of an SSE stream to inform the client about\nin-flight requests it can reattach to.",
+            "required": [
+              "request_ids",
+              "type"
+            ],
+            "properties": {
+              "request_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ActiveRequests"
                 ]
               }
             }
@@ -7735,6 +7867,48 @@
               "$ref": "#/components/schemas/Session"
             },
             "description": "List of available session information objects"
+          }
+        }
+      },
+      "SessionReplyRequest": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_message"
+        ],
+        "properties": {
+          "override_conversation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "nullable": true
+          },
+          "recipe_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Client-generated UUIDv7 identifying this request."
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        }
+      },
+      "SessionReplyResponse": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
           }
         }
       },
