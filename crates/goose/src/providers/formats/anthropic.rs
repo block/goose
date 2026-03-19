@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -142,7 +143,18 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let text = result
                             .content
                             .iter()
-                            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+                            .filter_map(|c| {
+                                if let Some(t) = c.as_text() {
+                                    return Some(t.text.clone());
+                                }
+                                if let Some(r) = c.as_resource() {
+                                    let text = extract_text_from_resource(&r.resource);
+                                    if !text.is_empty() {
+                                        return Some(text);
+                                    }
+                                }
+                                None
+                            })
                             .collect::<Vec<_>>()
                             .join("\n");
 
@@ -171,11 +183,13 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     // Skip
                 }
                 MessageContent::Thinking(thinking) => {
-                    content.push(json!({
-                        TYPE_FIELD: THINKING_TYPE,
-                        THINKING_TYPE: thinking.thinking,
-                        SIGNATURE_FIELD: thinking.signature
-                    }));
+                    if !thinking.signature.is_empty() {
+                        content.push(json!({
+                            TYPE_FIELD: THINKING_TYPE,
+                            THINKING_TYPE: thinking.thinking,
+                            SIGNATURE_FIELD: thinking.signature
+                        }));
+                    }
                 }
                 MessageContent::RedactedThinking(redacted) => {
                     content.push(json!({
@@ -195,10 +209,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             INPUT_FIELD: tool_call.arguments
                         }));
                     }
-                }
-                MessageContent::Reasoning(_reasoning) => {
-                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
-                    // Anthropic doesn't use this format, so skip it
                 }
             }
         }
@@ -563,8 +573,11 @@ where
 
     try_stream! {
         let mut accumulated_text = String::new();
+        let mut accumulated_thinking = String::new();
+        let mut accumulated_thinking_signature = String::new();
         let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
         let mut current_tool_id: Option<String> = None;
+        let mut current_block_type: Option<String> = None;
         let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
         let mut message_id: Option<String> = None;
 
@@ -572,11 +585,12 @@ where
             let line = line_result?;
 
             // Skip empty lines and non-data lines
-            if line.trim().is_empty() || !line.starts_with("data: ") {
+            // Note: SSE spec allows both "data: value" and "data:value" (space is optional)
+            if line.trim().is_empty() || !line.starts_with("data:") {
                 continue;
             }
 
-            let data_part = line.strip_prefix("data: ").unwrap_or(&line);
+            let data_part = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:")).unwrap_or(&line);
 
             // Handle end of stream
             if data_part.trim() == "[DONE]" {
@@ -619,13 +633,33 @@ where
                 "content_block_start" => {
                     // A new content block started
                     if let Some(content_block) = event.data.get("content_block") {
-                        if content_block.get("type") == Some(&json!("tool_use")) {
-                            if let Some(id) = content_block.get("id").and_then(|v| v.as_str()) {
-                                current_tool_id = Some(id.to_string());
-                                if let Some(name) = content_block.get("name").and_then(|v| v.as_str()) {
-                                    accumulated_tool_calls.insert(id.to_string(), (name.to_string(), String::new()));
+                        let block_type = content_block.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                        current_block_type = Some(block_type.to_string());
+                        match block_type {
+                            "tool_use" => {
+                                if let Some(id) = content_block.get("id").and_then(|v| v.as_str()) {
+                                    current_tool_id = Some(id.to_string());
+                                    if let Some(name) = content_block.get("name").and_then(|v| v.as_str()) {
+                                        accumulated_tool_calls.insert(id.to_string(), (name.to_string(), String::new()));
+                                    }
                                 }
                             }
+                            THINKING_TYPE => {
+                                accumulated_thinking.clear();
+                            }
+                            REDACTED_THINKING_TYPE => {
+                                // Yield redacted thinking immediately — there are no deltas for it
+                                if let Some(data) = content_block.get("data").and_then(|v| v.as_str()) {
+                                    let mut message = Message::new(
+                                        Role::Assistant,
+                                        chrono::Utc::now().timestamp(),
+                                        vec![MessageContent::redacted_thinking(data)],
+                                    );
+                                    message.id = message_id.clone();
+                                    yield (Some(message), None);
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     continue;
@@ -646,6 +680,20 @@ where
                                 message.id = message_id.clone();
                                 yield (Some(message), None);
                             }
+                        } else if delta.get("type") == Some(&json!("thinking_delta")) {
+                            // Thinking content delta — stream incrementally for real-time UI
+                            if let Some(thinking) = delta.get("thinking").and_then(|v| v.as_str()) {
+                                accumulated_thinking.push_str(thinking);
+
+                                // Yield partial thinking (no signature yet) for live display
+                                let mut message = Message::new(
+                                    Role::Assistant,
+                                    chrono::Utc::now().timestamp(),
+                                    vec![MessageContent::thinking(thinking, "")],
+                                );
+                                message.id = message_id.clone();
+                                yield (Some(message), None);
+                            }
                         } else if delta.get("type") == Some(&json!("input_json_delta")) {
                             // Tool input delta
                             if let Some(tool_id) = &current_tool_id {
@@ -655,12 +703,34 @@ where
                                     }
                                 }
                             }
+                        } else if delta.get("type") == Some(&json!("signature_delta")) {
+                            // Signature for a thinking block
+                            if let Some(sig) = delta.get("signature").and_then(|v| v.as_str()) {
+                                accumulated_thinking_signature.push_str(sig);
+                            }
                         }
                     }
                     continue;
                 }
                 "content_block_stop" => {
                     // Content block finished
+                    if current_block_type.as_deref() == Some(THINKING_TYPE) && !accumulated_thinking.is_empty() {
+                        // Yield the complete thinking block with signature for session storage
+                        let mut message = Message::new(
+                            Role::Assistant,
+                            chrono::Utc::now().timestamp(),
+                            vec![MessageContent::thinking(
+                                std::mem::take(&mut accumulated_thinking),
+                                std::mem::take(&mut accumulated_thinking_signature),
+                            )],
+                        );
+                        message.id = message_id.clone();
+                        yield (Some(message), None);
+                        current_block_type = None;
+                        continue;
+                    }
+                    current_block_type = None;
+
                     if let Some(tool_id) = current_tool_id.take() {
                         // Tool call finished, yield complete tool call
                         if let Some((name, args)) = accumulated_tool_calls.remove(&tool_id) {
@@ -864,80 +934,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_thinking_response() -> Result<()> {
-        let response = json!({
-            "id": "msg_456",
-            "type": "message",
-            "role": "assistant",
-            "content": [
-                {
-                    "type": "thinking",
-                    "thinking": "This is a step-by-step thought process...",
-                    "signature": "EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8gZzu16i7Se4EiEbmlKqNH1GtwcX1BMK6iLu8bxWn5wPVIFBIMnptdlVal7ZX5iNPFGgwWjX+BntcEOHky4HciMFVef7FpQeqnuiL1Xt7J4OLHZSyu4tcr809AxAbclcJ5dm1xE5gZrUO+/v60cnJM2ipQp4B8/3eHI03KSV6bZR/vMrBSYCV+aa/f5KHX2cRtLGp/Ba+3Tk/efbsg01WSduwAIbR4coVrZLnGJXNyVTFW/Be2kLy/ECZnx8cqvU3oQOg="
-                },
-                {
-                    "type": "redacted_thinking",
-                    "data": "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2Xlxh0L5L8rLVyIwxtE3rAFBa8cr3qpP"
-                },
-                {
-                    "type": "text",
-                    "text": "I've analyzed the problem and here's the solution."
-                }
-            ],
-            "model": "claude-3-7-sonnet-20250219",
-            "stop_reason": "end_turn",
-            "stop_sequence": null,
-            "usage": {
-                "input_tokens": 10,
-                "output_tokens": 45,
-                "cache_creation_input_tokens": 0,
-                "cache_read_input_tokens": 0,
-            }
-        });
-
-        let message = response_to_message(&response)?;
-        let usage = get_usage(&response)?;
-
-        assert_eq!(message.content.len(), 3);
-
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
-            assert_eq!(
-                thinking.thinking,
-                "This is a step-by-step thought process..."
-            );
-            assert!(thinking
-                .signature
-                .starts_with("EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8g"));
-        } else {
-            panic!("Expected Thinking content at index 0");
-        }
-
-        if let MessageContent::RedactedThinking(redacted) = &message.content[1] {
-            assert_eq!(
-                redacted.data,
-                "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2Xlxh0L5L8rLVyIwxtE3rAFBa8cr3qpP"
-            );
-        } else {
-            panic!("Expected RedactedThinking content at index 1");
-        }
-
-        if let MessageContent::Text(text) = &message.content[2] {
-            assert_eq!(
-                text.text,
-                "I've analyzed the problem and here's the solution."
-            );
-        } else {
-            panic!("Expected Text content at index 2");
-        }
-
-        assert_eq!(usage.input_tokens, Some(10));
-        assert_eq!(usage.output_tokens, Some(45));
-        assert_eq!(usage.total_tokens, Some(55));
-
-        Ok(())
-    }
-
-    #[test]
     fn test_message_to_anthropic_spec() {
         let messages = vec![
             Message::user().with_text("Hello"),
@@ -955,6 +951,21 @@ mod tests {
         assert_eq!(spec[1]["content"][0]["text"], "Hi there");
         assert_eq!(spec[2]["role"], "user");
         assert_eq!(spec[2]["content"][0]["text"], "How are you?");
+    }
+
+    #[test]
+    fn test_message_to_anthropic_spec_skips_unsigned_thinking() {
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_text("Hi there"),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"][0]["type"], "text");
+        assert_eq!(spec[0]["content"][0]["text"], "Hi there");
     }
 
     #[test]
@@ -1169,6 +1180,70 @@ mod tests {
         let assistant_content = spec[1]["content"].as_array().unwrap();
         assert_eq!(assistant_content.len(), 1);
         assert_eq!(assistant_content[0]["type"], "tool_use");
+    }
+
+    #[test]
+    fn test_tool_response_with_resource_content() {
+        use rmcp::model::{CallToolResult, Content};
+
+        let resource_content = Content::embedded_text(
+            "file:///test/file.txt",
+            "This is the file content from a resource",
+        );
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams::new("view_file")
+                    .with_arguments(object!({"path": "/test/file.txt"}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(CallToolResult::success(vec![resource_content])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 2);
+        assert_eq!(spec[1]["role"], "user");
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_1");
+        assert_eq!(
+            spec[1]["content"][0]["content"],
+            "This is the file content from a resource"
+        );
+    }
+
+    #[test]
+    fn test_tool_response_with_mixed_content() {
+        use rmcp::model::{CallToolResult, Content};
+
+        let text_content = Content::text("Summary: file loaded");
+        let resource_content = Content::embedded_text("file:///test/file.txt", "File content here");
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams::new("view_file")
+                    .with_arguments(object!({"path": "/test/file.txt"}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(CallToolResult::success(vec![
+                    text_content,
+                    resource_content,
+                ])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(
+            spec[1]["content"][0]["content"],
+            "Summary: file loaded\nFile content here"
+        );
     }
 
     fn cfg(name: &str) -> ModelConfig {

@@ -303,6 +303,19 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     });
   });
 
+  // Once we have the fingerprint (or the process exits before emitting one),
+  // remove the stdout listener. Leaving it attached for the lifetime of the
+  // long-running goosed process means every chunk of stdout data triggers
+  // Node's internal EmitToJSStreamListener::OnStreamRead which converts raw
+  // bytes into a JS string via v8::String::NewFromTwoByte. Over multi-hour
+  // sessions this has been observed to hit a V8 assertion and crash the
+  // Electron main process. Removing the listener and calling resume()
+  // lets the pipe drain harmlessly without buffering into Node/V8.
+  void fingerprintReady.then(() => {
+    goosedProcess.stdout?.removeAllListeners('data');
+    goosedProcess.stdout?.resume();
+  });
+
   const onStderrData = (data: Buffer) => {
     const lines = data.toString().split('\n');
     for (const line of lines) {

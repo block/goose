@@ -21,9 +21,8 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
-    MessageMetadata, ReasoningContent, RedactedThinkingContent, SystemNotificationContent,
-    SystemNotificationType, ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest,
-    ToolResponse,
+    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
+    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
 use crate::routes::recipe_utils::RecipeManifest;
@@ -409,6 +408,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::remove_custom_provider,
         super::routes::config_management::get_provider_catalog,
         super::routes::config_management::get_provider_catalog_template,
+        super::routes::config_management::cleanup_provider_cache,
         super::routes::config_management::check_provider,
         super::routes::config_management::set_config_provider,
         super::routes::config_management::configure_provider_oauth,
@@ -435,6 +435,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::update_session,
         super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
+        super::routes::session_events::session_events,
+        super::routes::session_events::session_reply,
+        super::routes::session_events::session_cancel,
         super::routes::session::list_sessions,
         super::routes::session::search_sessions,
         super::routes::session::get_session,
@@ -523,6 +526,9 @@ derive_utoipa!(Icon as IconSchema);
         goose::prompt_template::Template,
         super::routes::action_required::ConfirmToolActionRequest,
         super::routes::reply::ChatRequest,
+        super::routes::session_events::SessionReplyRequest,
+        super::routes::session_events::SessionReplyResponse,
+        super::routes::session_events::CancelRequest,
         super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionNameRequest,
@@ -552,7 +558,6 @@ derive_utoipa!(Icon as IconSchema);
         ActionRequiredData,
         ThinkingContent,
         RedactedThinkingContent,
-        ReasoningContent,
         FrontendToolRequest,
         ResourceContentsSchema,
         SystemNotificationType,

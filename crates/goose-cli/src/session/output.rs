@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use super::streaming_buffer::MarkdownBuffer;
@@ -240,7 +240,6 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
             MessageContent::Thinking(t) => render_thinking(&t.thinking, theme),
-            MessageContent::Reasoning(r) => render_thinking(&r.text, theme),
             MessageContent::RedactedThinking(_) => {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
@@ -280,10 +279,7 @@ pub fn render_message_streaming(
     let theme = get_theme();
 
     for content in &message.content {
-        if !matches!(
-            content,
-            MessageContent::Thinking(_) | MessageContent::Reasoning(_)
-        ) {
+        if !matches!(content, MessageContent::Thinking(_)) {
             *thinking_header_shown = false;
         }
 
@@ -321,9 +317,6 @@ pub fn render_message_streaming(
             }
             MessageContent::Thinking(t) => {
                 render_thinking_streaming(&t.thinking, buffer, thinking_header_shown, theme);
-            }
-            MessageContent::Reasoning(r) => {
-                render_thinking_streaming(&r.text, buffer, thinking_header_shown, theme);
             }
             MessageContent::RedactedThinking(_) => {
                 flush_markdown_buffer(buffer, theme);
@@ -1258,7 +1251,6 @@ pub fn display_session_info(
     provider: &str,
     model: &str,
     session_id: &Option<String>,
-    provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
     set_terminal_title();
 
@@ -1270,16 +1262,7 @@ pub fn display_session_info(
         "new session"
     };
 
-    let model_display = if let Some(provider_inst) = provider_instance {
-        if let Some(lead_worker) = provider_inst.as_lead_worker() {
-            let (lead_model, worker_model) = lead_worker.get_model_info();
-            format!("{} → {}", lead_model, worker_model)
-        } else {
-            model.to_string()
-        }
-    } else {
-        model.to_string()
-    };
+    let model_display = model.to_string();
 
     let cwd_display = std::env::current_dir()
         .ok()

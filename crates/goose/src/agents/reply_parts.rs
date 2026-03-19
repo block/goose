@@ -208,8 +208,6 @@ impl Agent {
         Ok((tools, toolshim_tools, system_prompt))
     }
 
-    // Don't add gen_ai.request.model here — provider.get_model_config()
-    // returns the wrong model for LeadWorkerProvider.
     #[tracing::instrument(
         skip(provider, session_id, system_prompt, messages, tools, toolshim_tools),
         fields(session.id = %session_id)
