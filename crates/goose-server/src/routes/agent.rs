@@ -1377,14 +1377,23 @@ async fn delete_app(
             })?;
     }
 
-    // Also delete the HTML file if it exists (for Goose-created apps)
-    let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
-    let html_path = apps_dir.join(format!("{}.html", app.resource.name));
-    if html_path.exists() {
-        std::fs::remove_file(&html_path).map_err(|e| ErrorResponse {
-            message: format!("Failed to delete app file: {}", e),
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-        })?;
+    // Also delete the HTML file if it exists (for Goose-created apps).
+    // Reject names with path separators to prevent directory traversal.
+    let app_name = &app.resource.name;
+    if !app_name.contains('/')
+        && !app_name.contains('\\')
+        && !app_name.contains('\0')
+        && app_name != "."
+        && app_name != ".."
+    {
+        let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
+        let html_path = apps_dir.join(format!("{}.html", app_name));
+        if html_path.exists() {
+            std::fs::remove_file(&html_path).map_err(|e| ErrorResponse {
+                message: format!("Failed to delete app file: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
+        }
     }
 
     Ok(Json(DeleteAppResponse {
