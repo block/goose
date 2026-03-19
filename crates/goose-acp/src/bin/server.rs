@@ -37,8 +37,7 @@ async fn main() -> Result<()> {
     };
 
     if cli.stdio {
-        let filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
         tracing_subscriber::registry()
             .with(filter)
             .with(
@@ -50,8 +49,7 @@ async fn main() -> Result<()> {
 
         goose_acp::server::run(builtins).await
     } else {
-        let filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
         tracing_subscriber::registry()
             .with(filter)
             .with(tracing_subscriber::fmt::layer().with_target(true))
