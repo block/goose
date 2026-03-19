@@ -27,6 +27,8 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
+export type HubMode = 'classic' | 'active';
+
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
@@ -44,6 +46,7 @@ export interface Settings {
   showPricing: boolean;
   sessionSharing: SessionSharingConfig;
   seenAnnouncementIds: string[];
+  hubMode: HubMode;
 }
 
 export type SettingKey = keyof Settings;
@@ -85,6 +88,7 @@ export const defaultSettings: Settings = {
     baseUrl: '',
   },
   seenAnnouncementIds: [],
+  hubMode: 'classic',
 };
 
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {

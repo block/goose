@@ -33,6 +33,7 @@ pub enum SessionType {
     Hidden,
     Terminal,
     Gateway,
+    Claw,
 }
 
 impl std::fmt::Display for SessionType {
@@ -44,6 +45,7 @@ impl std::fmt::Display for SessionType {
             SessionType::Scheduled => write!(f, "scheduled"),
             SessionType::Terminal => write!(f, "terminal"),
             SessionType::Gateway => write!(f, "gateway"),
+            SessionType::Claw => write!(f, "claw"),
         }
     }
 }
@@ -59,6 +61,7 @@ impl std::str::FromStr for SessionType {
             "scheduled" => Ok(SessionType::Scheduled),
             "terminal" => Ok(SessionType::Terminal),
             "gateway" => Ok(SessionType::Gateway),
+            "claw" => Ok(SessionType::Claw),
             _ => Err(anyhow::anyhow!("Invalid session type: {}", s)),
         }
     }

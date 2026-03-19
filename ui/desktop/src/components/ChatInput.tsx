@@ -87,6 +87,7 @@ interface ChatInputProps {
   recipeAccepted?: boolean;
   initialPrompt?: string;
   toolCount: number;
+  hideBottomBar?: boolean;
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -117,6 +118,7 @@ export default function ChatInput({
   recipeAccepted,
   initialPrompt,
   toolCount,
+  hideBottomBar = false,
   append: _append,
   onWorkingDirChange,
   inputRef,
@@ -1509,7 +1511,7 @@ export default function ChatInput({
       )}
 
       {/* Secondary actions and controls row below input */}
-      <div className="flex flex-row items-center gap-1 p-2 relative">
+      <div className={`flex flex-row items-center gap-1 p-2 relative ${hideBottomBar ? 'hidden' : ''}`}>
         <DirSwitcher
           className="mr-0"
           sessionId={sessionId ?? undefined}
