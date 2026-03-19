@@ -168,6 +168,11 @@ export default function AppsView() {
         path: { name: app.name },
       });
 
+      // Close the app window if it's open
+      await window.electron.closeApp(app.name).catch((err) => {
+        console.error('Failed to close app window:', err);
+      });
+
       // Refresh apps list
       const response = await listApps({
         throwOnError: true,
@@ -279,6 +284,7 @@ export default function AppsView() {
             <GridLayout>
               {apps.map((app) => {
                 const isCustomApp = app.mcpServers?.includes('apps') ?? false;
+                const isImportedApp = isCustomApp && app.uri?.startsWith('ui://');
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
@@ -317,14 +323,16 @@ export default function AppsView() {
                           >
                             <Download className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAppToDelete(app)}
-                            className="flex items-center gap-2 text-red-500 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {isImportedApp && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setAppToDelete(app)}
+                              className="flex items-center gap-2 text-red-500 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
