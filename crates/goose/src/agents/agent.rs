@@ -82,8 +82,9 @@ fn derive_call_reason(turns_taken: u32, conversation: &Conversation) -> String {
                 })
             })
             .unwrap_or_default();
-        let truncated = if user_text.len() > 100 {
-            format!("{}...", &user_text[..100])
+        let truncated = if user_text.chars().count() > 100 {
+            let end = user_text.char_indices().nth(100).map(|(i, _)| i).unwrap_or(user_text.len());
+            format!("{}...", &user_text[..end])
         } else {
             user_text
         };
@@ -153,7 +154,8 @@ fn format_messages_for_log(messages: &[Message]) -> String {
                                 .collect::<Vec<_>>()
                                 .join("\n");
                             if text.len() > 2000 {
-                                format!("{}...[{} chars truncated]", &text[..2000], text.len() - 2000)
+                                let end = text.char_indices().nth(2000).map(|(i, _)| i).unwrap_or(text.len());
+                                format!("{}...[{} chars truncated]", &text[..end], text.len() - end)
                             } else {
                                 text
                             }
