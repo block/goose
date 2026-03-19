@@ -155,13 +155,50 @@ impl Agent {
         #[cfg(not(feature = "code-mode"))]
         let code_execution_active = false;
         if code_execution_active {
-            tools.retain(|tool| {
-                if let Some(owner) = crate::agents::extension_manager::get_tool_owner(tool) {
-                    crate::agents::extension_manager::is_first_class_extension(&owner)
-                } else {
-                    false
-                }
-            });
+            let disclosure_style =
+                crate::agents::platform_extensions::code_execution::get_tool_disclosure();
+
+            tools = tools
+                .into_iter()
+                .filter_map(|mut t| match disclosure_style {
+                    pctx_code_mode::config::ToolDisclosure::Catalog
+                    | pctx_code_mode::config::ToolDisclosure::Filesystem => {
+                        // in catalog & filesystem styles, progressive search is handled
+                        // by pctx, so we want to omit all non-first-class extensions
+                        // from the standard tool list
+                        if crate::agents::extension_manager::get_tool_owner(&t).is_some_and(|o| {
+                            crate::agents::extension_manager::is_first_class_extension(&o)
+                        }) {
+                            Some(t)
+                        } else {
+                            None
+                        }
+                    }
+                    pctx_code_mode::config::ToolDisclosure::Sidecar => {
+                        // in sidecar style there is no progressive search, just a way to chain tools
+                        // together with typescript
+                        // add output schema to description since many model providers drop the
+                        // output schema when presenting tools to the model
+                        let output_schema = t
+                            .output_schema
+                            .as_ref()
+                            .map(|s| serde_json::json!(s).to_string())
+                            .unwrap_or("unknown".to_string());
+                        let description_extension = format!(
+                            "The successful return schema of this tool is:\n{output_schema}"
+                        );
+
+                        t.description = Some(
+                            t.description
+                                .map(|t| format!("{t}\n{description_extension}"))
+                                .unwrap_or(description_extension)
+                                .into(),
+                        );
+
+                        Some(t)
+                    }
+                })
+                .collect();
         }
 
         // Stable tool ordering is important for multi session prompt caching.
