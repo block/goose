@@ -5,6 +5,7 @@ import type { DOMElement } from "ink";
 import TextInput from "ink-text-input";
 import meow from "meow";
 import { spawn } from "node:child_process";
+import { Readable, Writable } from "node:stream";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,7 +16,9 @@ import type {
   ToolCallContent,
   ToolCallStatus,
   ToolKind,
+  Stream,
 } from "@agentclientprotocol/sdk";
+import { ndJsonStream } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@block/goose-acp";
 import { renderMarkdown } from "./markdown.js";
 import { buildToolCallCardLines, ToolCallCompact, findFeaturedToolCallId } from "./toolcall.js";
@@ -539,10 +542,10 @@ function SplashScreen({
 }
 
 function App({
-  serverUrl,
+  serverConnection,
   initialPrompt,
 }: {
-  serverUrl: string;
+  serverConnection: Stream | string;
   initialPrompt?: string;
 }) {
   const { exit } = useApp();
@@ -813,7 +816,7 @@ function App({
               });
             },
           }),
-          serverUrl,
+          serverConnection,
         );
 
         if (cancelled) return;
@@ -856,7 +859,7 @@ function App({
       cancelled = true;
     };
   }, [
-    serverUrl,
+    serverConnection,
     initialPrompt,
     sendPrompt,
     appendAgent,
@@ -1106,9 +1109,6 @@ const cli = meow(
   },
 );
 
-const DEFAULT_PORT = 3284;
-const DEFAULT_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
-
 function findServerBinary(): string | null {
   const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -1129,56 +1129,39 @@ function findServerBinary(): string | null {
   return null;
 }
 
-async function waitForServer(url: string, timeoutMs = 10_000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(`${url}/status`);
-      if (res.ok) return;
-    } catch {
-      // server not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(
-    `Server did not become ready at ${url} within ${timeoutMs}ms`,
-  );
-}
-
 let serverProcess: ReturnType<typeof spawn> | null = null;
 
 async function main() {
-  let serverUrl = cli.flags.server;
+  let serverConnection: Stream | string;
 
-  if (!serverUrl) {
+  if (cli.flags.server) {
+    serverConnection = cli.flags.server;
+  } else {
     const binary = findServerBinary();
-    if (binary) {
-      serverProcess = spawn(binary, ["--port", String(DEFAULT_PORT)], {
-        stdio: "ignore",
-        detached: false,
-      });
-
-      serverProcess.on("error", (err) => {
-        console.error(`Failed to start goose-acp-server: ${err.message}`);
-        process.exit(1);
-      });
-
-      try {
-        await waitForServer(DEFAULT_URL);
-      } catch (err) {
-        console.error((err as Error).message);
-        serverProcess.kill();
-        process.exit(1);
-      }
-
-      serverUrl = DEFAULT_URL;
-    } else {
-      serverUrl = DEFAULT_URL;
+    if (!binary) {
+      console.error(
+        "No goose-acp-server binary found. Use --server <url> or install the native package.",
+      );
+      process.exit(1);
     }
+
+    serverProcess = spawn(binary, ["--stdio"], {
+      stdio: ["pipe", "pipe", "inherit"],
+      detached: false,
+    });
+
+    serverProcess.on("error", (err) => {
+      console.error(`Failed to start goose-acp-server: ${err.message}`);
+      process.exit(1);
+    });
+
+    const output = Writable.toWeb(serverProcess.stdin!) as WritableStream<Uint8Array>;
+    const input = Readable.toWeb(serverProcess.stdout!) as ReadableStream<Uint8Array>;
+    serverConnection = ndJsonStream(output, input);
   }
 
   const { waitUntilExit } = render(
-    <App serverUrl={serverUrl} initialPrompt={cli.flags.text} />,
+    <App serverConnection={serverConnection} initialPrompt={cli.flags.text} />,
   );
 
   await waitUntilExit();
