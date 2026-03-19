@@ -26,9 +26,9 @@ pub struct GooseApp {
     pub window_props: Option<WindowProps>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prd: Option<String>,
-    /// Whether this app was imported (cache-only, not managed by an MCP server)
+    /// Whether this app can be deleted by the user (i.e. not a bundled default)
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub imported: bool,
+    pub deletable: bool,
 }
 
 impl GooseApp {
@@ -123,7 +123,7 @@ impl GooseApp {
             mcp_servers,
             window_props,
             prd,
-            imported: false,
+            deletable: false,
         })
     }
 
@@ -295,7 +295,7 @@ pub async fn fetch_mcp_apps(
                         mcp_servers: vec![extension_name],
                         window_props,
                         prd: None,
-                        imported: false,
+                        deletable: false,
                     };
 
                     apps.push(app);

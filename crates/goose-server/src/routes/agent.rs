@@ -11,7 +11,6 @@ use axum::{
     Json, Router,
 };
 use goose::agents::{Container, ExtensionLoadResult};
-use goose::config::paths::Paths;
 use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
@@ -1099,14 +1098,13 @@ pub struct ListAppsResponse {
     pub apps: Vec<GooseApp>,
 }
 
-/// Mark apps as imported if they don't exist as files in the apps data directory.
-/// Apps managed by the MCP server (Goose-built and defaults) are stored as HTML files;
-/// imported apps exist only in the cache.
-fn mark_imported_apps(apps: &mut [GooseApp]) {
-    let apps_dir = Paths::in_data_dir("apps");
+/// Default bundled app names that cannot be deleted by the user.
+const DEFAULT_APP_NAMES: &[&str] = &["clock", "chat"];
+
+/// Mark apps as deletable unless they are bundled defaults.
+fn mark_deletable_apps(apps: &mut [GooseApp]) {
     for app in apps.iter_mut() {
-        let file_path = apps_dir.join(format!("{}.html", app.resource.name));
-        app.imported = !file_path.exists();
+        app.deletable = !DEFAULT_APP_NAMES.contains(&app.resource.name.as_str());
     }
 }
 
@@ -1137,7 +1135,7 @@ async fn list_apps(
             .as_ref()
             .and_then(|c| c.list_apps().ok())
             .unwrap_or_default();
-        mark_imported_apps(&mut apps);
+        mark_deletable_apps(&mut apps);
         return Ok(Json(ListAppsResponse { apps }));
     };
 
@@ -1179,7 +1177,7 @@ async fn list_apps(
     }
 
     let mut apps = apps;
-    mark_imported_apps(&mut apps);
+    mark_deletable_apps(&mut apps);
 
     Ok(Json(ListAppsResponse { apps }))
 }
@@ -1326,6 +1324,13 @@ pub struct DeleteAppResponse {
 async fn delete_app(
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<DeleteAppResponse>, ErrorResponse> {
+    if DEFAULT_APP_NAMES.contains(&name.as_str()) {
+        return Err(ErrorResponse {
+            message: format!("Cannot delete default app '{}'", name),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
+
     let cache = McpAppCache::new().map_err(|e| ErrorResponse {
         message: format!("Failed to access app cache: {}", e),
         status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -1344,6 +1349,7 @@ async fn delete_app(
             status: StatusCode::NOT_FOUND,
         })?;
 
+    // Delete from cache
     for extension_name in &app.mcp_servers {
         cache
             .delete_app(extension_name, &app.resource.uri)
@@ -1351,6 +1357,13 @@ async fn delete_app(
                 message: format!("Failed to delete app: {}", e),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
+    }
+
+    // Also delete the HTML file if it exists (for Goose-created apps)
+    let apps_dir = goose::config::paths::Paths::in_data_dir("apps");
+    let html_path = apps_dir.join(format!("{}.html", name));
+    if html_path.exists() {
+        let _ = std::fs::remove_file(&html_path);
     }
 
     Ok(Json(DeleteAppResponse {
