@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getSession, listSessions } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
+import { useActiveSessions } from '../contexts/ActiveSessionsContext';
 import { useConfig } from '../components/ConfigContext';
 import { useNavigation } from './useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../sessions';
@@ -23,6 +24,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
+  const { addActiveSession } = useActiveSessions();
   const { extensionsList } = useConfig();
   const setView = useNavigation();
 
@@ -79,63 +81,20 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
     });
   }, [activeSessionId, recentSessions]);
 
+  // Update sidebar session names reactively via SESSION_RENAMED events
+  // instead of polling listSessions 33 times.
   useEffect(() => {
-    let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
-    let isPolling = false;
-
-    const handleSessionCreated = (event: Event) => {
-      const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
-      if (session) {
-        setRecentSessions((prev) => {
-          if (prev.some((s) => s.id === session.id)) return prev;
-          return [session, ...prev].slice(0, MAX_RECENT_SESSIONS);
-        });
-        sessionsRef.current = [session, ...sessionsRef.current.filter((s) => s.id !== session.id)];
-      }
-
-      if (isPolling) return;
-      isPolling = true;
-
-      const pollIntervalMs = 300;
-      const maxPollDurationMs = 10000;
-      const maxPolls = maxPollDurationMs / pollIntervalMs;
-      let pollCount = 0;
-
-      const pollForUpdates = async () => {
-        pollCount++;
-        try {
-          const response = await listSessions({ throwOnError: false });
-          if (response.data) {
-            const apiSessions = response.data.sessions.slice(0, MAX_RECENT_SESSIONS);
-            setRecentSessions((prev) => {
-              const emptyLocalSessions = prev.filter(
-                (local) =>
-                  local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
-              );
-              return [...emptyLocalSessions, ...apiSessions].slice(0, MAX_RECENT_SESSIONS);
-            });
-            sessionsRef.current = response.data.sessions;
-          }
-        } catch (error) {
-          console.error('Failed to poll sessions:', error);
-        }
-
-        if (pollCount < maxPolls) {
-          const timeout = setTimeout(pollForUpdates, pollIntervalMs);
-          pollingTimeouts.push(timeout);
-        } else {
-          isPolling = false;
-        }
-      };
-
-      pollForUpdates();
+    const handleSessionRenamed = (event: Event) => {
+      const { sessionId, newName } = (
+        event as CustomEvent<{ sessionId: string; newName: string }>
+      ).detail;
+      setRecentSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s))
+      );
     };
 
-    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
-    return () => {
-      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
-      pollingTimeouts.forEach(clearTimeout);
-    };
+    window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
+    return () => window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
   }, []);
 
   const handleNavClick = useCallback(
@@ -168,12 +127,13 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
     const canReuseActive = currentActiveSession && shouldShowNewChatTitle(currentActiveSession);
 
     if (canReuseActive) {
-      resumeSession(currentActiveSession, setView);
+      resumeSession(currentActiveSession, setView, addActiveSession);
     } else {
       isCreatingSessionRef.current = true;
       try {
         await startNewSession('', setView, getInitialWorkingDir(), {
           allExtensions: extensionsList,
+          addActiveSession,
         });
       } finally {
         setTimeout(() => {

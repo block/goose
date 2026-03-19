@@ -15,6 +15,7 @@ import {
 } from '../../api';
 import { resumeSession } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
+import { useActiveSessions } from '../../contexts/ActiveSessionsContext';
 
 export function SessionInsights() {
   const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
@@ -24,6 +25,7 @@ export function SessionInsights() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const navigate = useNavigate();
   const setView = useNavigation();
+  const { addActiveSession } = useActiveSessions();
 
   useEffect(() => {
     let loadingTimeout: ReturnType<typeof setTimeout>;
@@ -88,7 +90,7 @@ export function SessionInsights() {
 
   const handleSessionClick = async (session: Session) => {
     try {
-      resumeSession(session, setView);
+      resumeSession(session, setView, addActiveSession);
     } catch (error) {
       console.error('Failed to start session:', error);
       navigate('/sessions', {

@@ -58,10 +58,11 @@ import {
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
-import { AppEvents } from '../../constants/events';
+import { useActiveSessions } from '../../contexts/ActiveSessionsContext';
 
 export default function RecipesView() {
   const setView = useNavigation();
+  const { addActiveSession } = useActiveSessions();
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -151,14 +152,15 @@ export default function RecipesView() {
       const session = newAgent.data;
       trackRecipeStarted(true, undefined, false);
 
-      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+      const initialMessage = session.recipe?.prompt
+        ? { msg: session.recipe.prompt, images: [] }
+        : undefined;
+      addActiveSession(session.id, initialMessage);
 
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
-        initialMessage: session.recipe?.prompt
-          ? { msg: session.recipe.prompt, images: [] }
-          : undefined,
+        initialMessage,
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);

@@ -56,6 +56,8 @@ import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
+import { ActiveSessionsProvider, useActiveSessions } from './contexts/ActiveSessionsContext';
+import { SessionStatusProvider } from './contexts/SessionStatusContext';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -68,16 +70,9 @@ const HubRouteWrapper = () => {
   return <Hub setView={setView} />;
 };
 
-const PairRouteWrapper = ({
-  activeSessions,
-}: {
-  activeSessions: Array<{
-    sessionId: string;
-    initialMessage?: UserInput;
-  }>;
-  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: UserInput }>) => void;
-}) => {
+const PairRouteWrapper = () => {
   const { extensionsList } = useConfig();
+  const { activeSessions, addActiveSession } = useActiveSessions();
   const location = useLocation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
@@ -89,7 +84,6 @@ const PairRouteWrapper = ({
   const recipeIdFromConfig = window.appConfig?.get('recipeId') as string | undefined;
   const initialMessage = routeState.initialMessage;
 
-  // Create session if we have an initialMessage, recipeDeeplink, or recipeId but no sessionId
   useEffect(() => {
     if (
       (initialMessage || recipeDeeplinkFromConfig || recipeIdFromConfig) &&
@@ -106,14 +100,7 @@ const PairRouteWrapper = ({
             allExtensions: extensionsList,
           });
 
-          window.dispatchEvent(
-            new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-              detail: {
-                sessionId: newSession.id,
-                initialMessage,
-              },
-            })
-          );
+          addActiveSession(newSession.id, initialMessage);
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
@@ -131,8 +118,6 @@ const PairRouteWrapper = ({
         }
       })();
     }
-    // Note: isCreatingSession is intentionally NOT in the dependency array
-    // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialMessage,
@@ -143,34 +128,26 @@ const PairRouteWrapper = ({
     extensionsList,
   ]);
 
-  // Add resumed session to active sessions if not already there
   useEffect(() => {
     if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
-      window.dispatchEvent(
-        new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-          detail: {
-            sessionId: resumeSessionId,
-            initialMessage: initialMessage,
-          },
-        })
-      );
+      addActiveSession(resumeSessionId, initialMessage);
     }
-  }, [resumeSessionId, activeSessions, initialMessage]);
+  }, [resumeSessionId, activeSessions, initialMessage, addActiveSession]);
 
   return null;
 };
 
-const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
+const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const setView = useNavigation();
+  const { activeSessions } = useActiveSessions();
+  const activeSessionId = activeSessions[activeSessions.length - 1]?.sessionId;
 
-  // Get viewOptions from location.state, history.state, or URL search params
   const viewOptions =
     (location.state as SettingsViewOptions) || (window.history.state as SettingsViewOptions) || {};
 
-  // If section is provided via URL search params, add it to viewOptions
   const sectionFromUrl = searchParams.get('section');
   if (sectionFromUrl) {
     viewOptions.section = sectionFromUrl;
@@ -361,61 +338,6 @@ export function AppInner() {
     messages: [],
     recipe: null,
   });
-
-  const MAX_ACTIVE_SESSIONS = 10;
-
-  const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: UserInput }>
-  >([]);
-
-  useEffect(() => {
-    const handleAddActiveSession = (event: Event) => {
-      const { sessionId, initialMessage } = (
-        event as CustomEvent<{
-          sessionId: string;
-          initialMessage?: UserInput;
-        }>
-      ).detail;
-
-      setActiveSessions((prev) => {
-        const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
-
-        if (existingIndex !== -1) {
-          // Session exists - move to end of LRU list (most recently used)
-          const existing = prev[existingIndex];
-          return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
-        }
-
-        // New session - add to end with LRU eviction if needed
-        const newSession = { sessionId, initialMessage };
-        const updated = [...prev, newSession];
-        if (updated.length > MAX_ACTIVE_SESSIONS) {
-          return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
-        }
-        return updated;
-      });
-    };
-
-    const handleClearInitialMessage = (event: Event) => {
-      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
-
-      setActiveSessions((prev) => {
-        return prev.map((session) => {
-          if (session.sessionId === sessionId) {
-            return { ...session, initialMessage: undefined };
-          }
-          return session;
-        });
-      });
-    };
-
-    window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
-    window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
-    return () => {
-      window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
-      window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
-    };
-  }, []);
 
   const { addExtension } = useConfig();
 
@@ -661,13 +583,13 @@ export function AppInner() {
                 USE_NEW_ONBOARDING ? (
                   <OnboardingGuard>
                     <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                      <AppLayout activeSessions={activeSessions} />
+                      <AppLayout />
                     </ChatProvider>
                   </OnboardingGuard>
                 ) : (
                   <ProviderGuard didSelectProvider={didSelectProvider}>
                     <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                      <AppLayout activeSessions={activeSessions} />
+                      <AppLayout />
                     </ChatProvider>
                   </ProviderGuard>
                 )
@@ -677,18 +599,13 @@ export function AppInner() {
               <Route
                 path="pair"
                 element={
-                  <PairRouteWrapper
-                    activeSessions={activeSessions}
-                    setActiveSessions={setActiveSessions}
-                  />
+                  <PairRouteWrapper />
                 }
               />
               <Route
                 path="settings"
                 element={
-                  <SettingsRoute
-                    activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId}
-                  />
+                  <SettingsRoute />
                 }
               />
               <Route
@@ -726,9 +643,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
+        <SessionStatusProvider>
+          <HashRouter>
+            <ActiveSessionsProvider>
+              <AppInner />
+            </ActiveSessionsProvider>
+          </HashRouter>
+        </SessionStatusProvider>
         <AnnouncementModal />
         <TelemetryOptOutModal controlled={false} />
       </ModelAndProviderProvider>

@@ -876,10 +876,8 @@ export function useChatStream({
 
       lastInteractionTimeRef.current = Date.now();
 
-      // Emit session-created event for first message in a new session
+      // Poll for session name after first message
       if (!hasExistingMessages && hasNewMessage) {
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
-
         const pollForName = async (attempts = 0) => {
           if (attempts >= 20) return;
 

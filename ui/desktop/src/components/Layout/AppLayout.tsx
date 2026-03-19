@@ -5,20 +5,14 @@ import { Menu } from 'lucide-react';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
+import { useActiveSessions } from '../../contexts/ActiveSessionsContext';
 import { NavigationProvider, useNavigationContext } from './NavigationContext';
 import { Navigation } from './NavigationPanel';
 import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
-import { UserInput } from '../../types/message';
 
-interface AppLayoutContentProps {
-  activeSessions: Array<{
-    sessionId: string;
-    initialMessage?: UserInput;
-  }>;
-}
-
-const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
+const AppLayoutContent: React.FC = () => {
+  const { activeSessions } = useActiveSessions();
   const location = useLocation();
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const chatContext = useChatContext();
@@ -88,7 +82,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         {/* Always render ChatSessionsContainer to keep SSE connections alive.
             When navigating away from /pair, hide it with CSS */}
         <div className={isOnPairRoute ? 'contents' : 'hidden'}>
-          <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+          <ChatSessionsContainer setChat={setChat} />
         </div>
       </div>
     </div>
@@ -198,17 +192,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   );
 };
 
-interface AppLayoutProps {
-  activeSessions: Array<{
-    sessionId: string;
-    initialMessage?: UserInput;
-  }>;
-}
-
-export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
+export const AppLayout: React.FC = () => {
   return (
     <NavigationProvider>
-      <AppLayoutContent activeSessions={activeSessions} />
+      <AppLayoutContent />
     </NavigationProvider>
   );
 };

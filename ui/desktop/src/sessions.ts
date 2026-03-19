@@ -6,8 +6,8 @@ import {
   hasExtensionOverrides,
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
-import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import { UserInput } from './types/message';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -16,18 +16,12 @@ export function shouldShowNewChatTitle(session: Session): boolean {
   return !session.user_set_name && session.message_count === 0;
 }
 
-export function resumeSession(session: Session, setView: setViewType) {
-  const eventDetail = {
-    sessionId: session.id,
-    initialMessage: undefined,
-  };
-
-  window.dispatchEvent(
-    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-      detail: eventDetail,
-    })
-  );
-
+export function resumeSession(
+  session: Session,
+  setView: setViewType,
+  addActiveSession?: (sessionId: string, initialMessage?: UserInput) => void
+) {
+  addActiveSession?.(session.id);
   setView('pair', {
     disableAnimation: true,
     resumeSessionId: session.id,
@@ -85,23 +79,12 @@ export async function startNewSession(
     recipeDeeplink?: string;
     recipeId?: string;
     allExtensions?: FixedExtensionEntry[];
+    addActiveSession?: (sessionId: string, initialMessage?: UserInput) => void;
   }
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
-  window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
-
   const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;
-
-  const eventDetail = {
-    sessionId: session.id,
-    initialMessage,
-  };
-
-  window.dispatchEvent(
-    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-      detail: eventDetail,
-    })
-  );
+  options?.addActiveSession?.(session.id, initialMessage);
 
   setView('pair', {
     disableAnimation: true,

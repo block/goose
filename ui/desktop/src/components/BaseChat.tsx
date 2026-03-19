@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
+import { useSessionStatus, type StreamState } from '../contexts/SessionStatusContext';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
@@ -68,6 +69,7 @@ export default function BaseChat({
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { updateStreamState } = useSessionStatus();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const disableAnimation = location.state?.disableAnimation || false;
@@ -124,7 +126,7 @@ export default function BaseChat({
   });
 
   useEffect(() => {
-    let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
+    let streamState: StreamState = 'idle';
     if (chatState === ChatState.LoadingConversation) {
       streamState = 'loading';
     } else if (
@@ -136,17 +138,8 @@ export default function BaseChat({
     } else if (sessionLoadError) {
       streamState = 'error';
     }
-
-    window.dispatchEvent(
-      new CustomEvent(AppEvents.SESSION_STATUS_UPDATE, {
-        detail: {
-          sessionId,
-          streamState,
-          messageCount: messages.length,
-        },
-      })
-    );
-  }, [sessionId, chatState, messages.length, sessionLoadError]);
+    updateStreamState(sessionId, streamState);
+  }, [sessionId, chatState, sessionLoadError, updateStreamState]);
 
   // Generate command history from user messages (most recent first)
   const commandHistory = useMemo(() => {
@@ -272,7 +265,6 @@ export default function BaseChat({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
-      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();

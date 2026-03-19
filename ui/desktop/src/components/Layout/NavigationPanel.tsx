@@ -4,11 +4,11 @@ import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { getNavItemById, type NavItem } from '../../hooks/useNavigationItems';
-import { AppEvents } from '../../constants/events';
+import { useSessionStatus } from '../../contexts/SessionStatusContext';
 import { CondensedRenderer } from './CondensedRenderer';
 import { ExpandedRenderer } from './ExpandedRenderer';
 import { NavigationOverlay } from './navigation';
-import type { SessionStatus, DragHandlers } from './navigation/types';
+import type { DragHandlers } from './navigation/types';
 
 export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   const {
@@ -103,43 +103,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     onDragEnd,
   };
 
-  const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
-
-  useEffect(() => {
-    const handleStatusUpdate = (event: Event) => {
-      const { sessionId, streamState } = (event as CustomEvent).detail;
-      setSessionStatuses((prev) => {
-        const existing = prev.get(sessionId);
-        const shouldMarkUnread = existing?.streamState === 'streaming' && streamState === 'idle';
-        const next = new Map(prev);
-        next.set(sessionId, {
-          streamState,
-          hasUnreadActivity: existing?.hasUnreadActivity || shouldMarkUnread,
-        });
-        return next;
-      });
-    };
-
-    window.addEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
-    return () => window.removeEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
-  }, []);
-
-  const getSessionStatus = useCallback(
-    (sessionId: string) => sessionStatuses.get(sessionId),
-    [sessionStatuses]
-  );
-
-  const clearUnread = useCallback((sessionId: string) => {
-    setSessionStatuses((prev) => {
-      const status = prev.get(sessionId);
-      if (status?.hasUnreadActivity) {
-        const next = new Map(prev);
-        next.set(sessionId, { ...status, hasUnreadActivity: false });
-        return next;
-      }
-      return prev;
-    });
-  }, []);
+  const { getSessionStatus, clearUnread } = useSessionStatus();
 
   useEffect(() => {
     if (!(isOverlayMode && isNavExpanded)) return;
