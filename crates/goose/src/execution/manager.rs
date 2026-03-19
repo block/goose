@@ -155,7 +155,9 @@ impl AgentManager {
     }
 
     pub async fn remove_session(&self, session_id: &str) -> Result<()> {
-        self.cancel_tokens.write().await.remove(session_id);
+        if let Some(token) = self.cancel_tokens.write().await.remove(session_id) {
+            token.cancel();
+        }
         let mut sessions = self.sessions.write().await;
         sessions
             .pop(session_id)
@@ -172,12 +174,18 @@ impl AgentManager {
         self.sessions.read().await.len()
     }
 
-    /// Register a cancellation token for a session (called when reply starts)
-    pub async fn register_cancel_token(&self, session_id: &str, token: CancellationToken) {
-        self.cancel_tokens
-            .write()
-            .await
-            .insert(session_id.to_string(), token);
+    /// Atomically check if busy and register a cancel token. Returns Err if already busy.
+    pub async fn try_register_cancel_token(
+        &self,
+        session_id: &str,
+        token: CancellationToken,
+    ) -> Result<()> {
+        let mut tokens = self.cancel_tokens.write().await;
+        if tokens.contains_key(session_id) {
+            anyhow::bail!("Session '{}' is currently busy", session_id);
+        }
+        tokens.insert(session_id.to_string(), token);
+        Ok(())
     }
 
     /// Remove the cancellation token for a session (called when reply finishes)

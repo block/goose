@@ -23,6 +23,38 @@ use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "orchestrator";
 
+struct CancelTokenGuard {
+    manager: Arc<AgentManager>,
+    session_id: String,
+    disarmed: bool,
+}
+
+impl CancelTokenGuard {
+    fn new(manager: Arc<AgentManager>, session_id: String) -> Self {
+        Self {
+            manager,
+            session_id,
+            disarmed: false,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.disarmed = true;
+    }
+}
+
+impl Drop for CancelTokenGuard {
+    fn drop(&mut self) {
+        if !self.disarmed {
+            let manager = self.manager.clone();
+            let session_id = self.session_id.clone();
+            tokio::spawn(async move {
+                manager.unregister_cancel_token(&session_id).await;
+            });
+        }
+    }
+}
+
 const DEFAULT_LIST_LIMIT: usize = 10;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -329,12 +361,25 @@ impl OrchestratorClient {
             .unwrap_or("Orchestrated Agent")
             .to_string();
 
-        let path = PathBuf::from(&working_dir);
-        if !path.exists() || !path.is_dir() {
-            return Err(format!(
-                "Working directory '{}' does not exist or is not a directory",
-                working_dir
-            ));
+        let raw_path = PathBuf::from(&working_dir);
+        let path = if raw_path.is_absolute() {
+            raw_path
+        } else {
+            let base = self
+                .context
+                .session
+                .as_ref()
+                .map(|s| s.working_dir.clone())
+                .unwrap_or_else(|| PathBuf::from("."));
+            base.join(&raw_path)
+        };
+
+        let path = path
+            .canonicalize()
+            .map_err(|e| format!("Invalid working directory '{}': {}", working_dir, e))?;
+
+        if !path.is_dir() {
+            return Err(format!("'{}' is not a directory", working_dir));
         }
 
         let mode = GooseMode::default();
@@ -367,28 +412,25 @@ impl OrchestratorClient {
 
     async fn handle_send_message(
         &self,
+        parent_session_id: &str,
+        parent_cancel: &CancellationToken,
         arguments: Option<JsonObject>,
     ) -> Result<CallToolResult, String> {
         let args = arguments.ok_or("Missing arguments")?;
         let session_id = extract_string(&args, "session_id")?;
         let message_text = extract_string(&args, "message")?;
 
-        let manager = self.get_agent_manager().await?;
-
-        if manager.is_session_busy(&session_id).await {
-            return Err(format!(
-                "Session '{}' is currently busy processing a request. Use interrupt_agent to cancel it first, or wait for it to finish.",
-                session_id
-            ));
-            // TODO: post the message so it gets picked up on the next turn instead of erroring
+        if session_id == parent_session_id {
+            return Err("Cannot send a message to the orchestrator's own session".into());
         }
+
+        let manager = self.get_agent_manager().await?;
 
         let agent = manager
             .get_or_create_agent(session_id.clone())
             .await
             .map_err(|e| format!("Failed to get agent for session '{}': {}", session_id, e))?;
 
-        // If the agent has no provider yet (e.g. resumed from DB), inherit ours
         if agent.provider().await.is_err() {
             if let Ok(provider) = self.get_provider().await {
                 agent
@@ -400,11 +442,18 @@ impl OrchestratorClient {
 
         let cancel_token = CancellationToken::new();
         manager
-            .register_cancel_token(&session_id, cancel_token.clone())
-            .await;
+            .try_register_cancel_token(&session_id, cancel_token.clone())
+            .await
+            .map_err(|_| {
+                format!(
+                    "Session '{}' is currently busy. Use interrupt_agent first, or wait.",
+                    session_id
+                )
+            })?;
+
+        let mut guard = CancelTokenGuard::new(manager.clone(), session_id.clone());
 
         let user_message = Message::user().with_text(&message_text);
-
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
@@ -412,46 +461,59 @@ impl OrchestratorClient {
             retry_config: None,
         };
 
-        let result: Result<String, String> = async {
-            let mut stream = agent
-                .reply(user_message, session_config, Some(cancel_token))
-                .await
-                .map_err(|e| format!("Failed to start reply: {}", e))?;
+        let mut stream = agent
+            .reply(user_message, session_config, Some(cancel_token.clone()))
+            .await
+            .map_err(|e| format!("Failed to start reply: {}", e))?;
 
-            let mut response_parts: Vec<String> = Vec::new();
+        let mut response_parts: Vec<String> = Vec::new();
+        let mut cancelled = false;
 
-            while let Some(event_result) = stream.next().await {
-                match event_result {
-                    Ok(AgentEvent::Message(msg)) => {
-                        let text = msg.as_concat_text();
-                        if !text.is_empty() {
-                            response_parts.push(text);
+        loop {
+            tokio::select! {
+                _ = parent_cancel.cancelled() => {
+                    cancel_token.cancel();
+                    cancelled = true;
+                    break;
+                }
+                event = stream.next() => {
+                    match event {
+                        Some(Ok(AgentEvent::Message(msg))) => {
+                            let text = msg.as_concat_text();
+                            if !text.is_empty() {
+                                response_parts.push(text);
+                            }
                         }
-                    }
-                    Ok(AgentEvent::HistoryReplaced(_)) | Ok(AgentEvent::McpNotification(_)) => {}
-                    Err(e) => {
-                        response_parts.push(format!("Error during agent processing: {}", e));
-                        break;
+                        Some(Ok(_)) => {}
+                        Some(Err(e)) => {
+                            response_parts.push(format!("Error during agent processing: {}", e));
+                            break;
+                        }
+                        None => break,
                     }
                 }
             }
-
-            if response_parts.is_empty() {
-                Ok("Agent completed without producing text output.".to_string())
-            } else {
-                Ok(response_parts.join("\n\n"))
-            }
         }
-        .await;
 
+        drop(stream);
+        guard.disarm();
         manager.unregister_cancel_token(&session_id).await;
 
-        let response_text = result?;
+        if cancelled {
+            return Err("Cancelled by parent session".into());
+        }
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
-            "## Response from session {}\n\n{}",
-            session_id, response_text
-        ))]))
+        if response_parts.is_empty() {
+            Ok(CallToolResult::success(vec![Content::text(
+                "Agent completed without producing text output.",
+            )]))
+        } else {
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "## Response from session {}\n\n{}",
+                session_id,
+                response_parts.join("\n\n")
+            ))]))
+        }
     }
 
     async fn handle_interrupt_agent(
@@ -528,13 +590,16 @@ impl McpClientTrait for OrchestratorClient {
         ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _cancel_token: CancellationToken,
+        cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {
             "list_sessions" => self.handle_list_sessions(arguments).await,
             "view_session" => self.handle_view_session(&ctx.session_id, arguments).await,
             "start_agent" => self.handle_start_agent(arguments).await,
-            "send_message" => self.handle_send_message(arguments).await,
+            "send_message" => {
+                self.handle_send_message(&ctx.session_id, &cancel_token, arguments)
+                    .await
+            }
             "interrupt_agent" => self.handle_interrupt_agent(arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),
         };
