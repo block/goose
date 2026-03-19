@@ -10,6 +10,9 @@ static CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
 static CHAT_HTML: &str = include_str!("../goose_apps/chat.html");
 const APPS_EXTENSION_NAME: &str = "apps";
 
+/// The bundled default apps: (cache URI, HTML source).
+const DEFAULT_APPS: &[(&str, &str)] = &[("apps://clock", CLOCK_HTML), ("apps://chat", CHAT_HTML)];
+
 pub struct McpAppCache {
     cache_dir: PathBuf,
 }
@@ -24,7 +27,7 @@ impl McpAppCache {
     }
 
     fn ensure_default_apps(&self) {
-        for (uri, html) in [("apps://clock", CLOCK_HTML), ("apps://chat", CHAT_HTML)] {
+        for (uri, html) in DEFAULT_APPS {
             if self.get_app(APPS_EXTENSION_NAME, uri).is_none() {
                 if let Ok(mut app) = GooseApp::from_html(html) {
                     app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
@@ -32,6 +35,15 @@ impl McpAppCache {
                 }
             }
         }
+    }
+
+    /// Returns the names of bundled default apps by parsing their HTML sources.
+    pub fn default_app_names() -> Vec<String> {
+        DEFAULT_APPS
+            .iter()
+            .filter_map(|(_, html)| GooseApp::from_html(html).ok())
+            .map(|app| app.resource.name)
+            .collect()
     }
 
     fn cache_key(extension_name: &str, resource_uri: &str) -> String {

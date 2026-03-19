@@ -1098,13 +1098,11 @@ pub struct ListAppsResponse {
     pub apps: Vec<GooseApp>,
 }
 
-/// Default bundled app names that cannot be deleted by the user.
-const DEFAULT_APP_NAMES: &[&str] = &["clock", "chat"];
-
 /// Mark apps as deletable unless they are bundled defaults.
 fn mark_deletable_apps(apps: &mut [GooseApp]) {
+    let default_names = McpAppCache::default_app_names();
     for app in apps.iter_mut() {
-        app.deletable = !DEFAULT_APP_NAMES.contains(&app.resource.name.as_str());
+        app.deletable = !default_names.contains(&app.resource.name);
     }
 }
 
@@ -1324,7 +1322,7 @@ pub struct DeleteAppResponse {
 async fn delete_app(
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<DeleteAppResponse>, ErrorResponse> {
-    if DEFAULT_APP_NAMES.contains(&name.as_str()) {
+    if McpAppCache::default_app_names().contains(&name) {
         return Err(ErrorResponse {
             message: format!("Cannot delete default app '{}'", name),
             status: StatusCode::BAD_REQUEST,
