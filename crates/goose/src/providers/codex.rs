@@ -598,7 +598,7 @@ impl ProviderDef for CodexProvider {
         ProviderMetadata::new(
             CODEX_PROVIDER_NAME,
             "OpenAI Codex CLI",
-            "Execute OpenAI models via Codex CLI tool. Requires codex CLI installed.",
+            "[Deprecated: use codex-acp instead] Execute OpenAI models via Codex CLI tool. Requires codex CLI installed.",
             CODEX_DEFAULT_MODEL,
             CODEX_KNOWN_MODELS.to_vec(),
             CODEX_DOC_URL,
