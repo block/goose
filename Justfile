@@ -306,6 +306,24 @@ get-next-minor-version:
 get-next-patch-version:
     @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')" $(just get-tag-version)
 
+# derive the prior release tag from a version
+# patch bump (e.g. 1.25.1): prior is v1.25.0 (deterministic)
+# minor bump (e.g. 1.26.0): prior is highest v1.25.* GitHub release
+get-prior-version version:
+    #!/usr/bin/env bash
+    IFS='.' read -r major minor patch <<< "{{ version }}"
+    if [[ "$patch" -gt 0 ]]; then
+      echo "v${major}.${minor}.$((patch - 1))"
+    elif [[ "$minor" -gt 0 ]]; then
+      prev_minor=$((minor - 1))
+      prefix="v${major}.${prev_minor}."
+      best=$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases \
+        --json tagName --jq "[.[] | select(.tagName | startswith(\"${prefix}\"))][0].tagName")
+      if [[ -n "$best" && "$best" != "null" ]]; then
+        echo "$best"
+      fi
+    fi
+
 # update version numbers in all manifests
 bump-version version:
     @just validate {{ version }} || exit 1

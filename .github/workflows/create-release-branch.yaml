@@ -37,10 +37,9 @@ jobs:
         echo "Version: $VERSION"
         echo "Base branch: $BASE_BRANCH"
 
-        # Get prior version from the latest GitHub release
-        PRIOR_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
-        if [[ -z "$PRIOR_TAG" || "$PRIOR_TAG" == "null" ]]; then
-          echo "No prior release found, using first commit"
+        PRIOR_TAG=$(just get-prior-version "$VERSION")
+        if [[ -z "$PRIOR_TAG" ]]; then
+          echo "No prior version (first release), using first commit"
           PRIOR_TAG=$(git rev-list --max-parents=0 HEAD)
         fi
         echo "prior_ref=$PRIOR_TAG" >> $GITHUB_ENV

@@ -20,7 +20,6 @@ jobs:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
         fetch-depth: 0
-        fetch-tags: true
 
     - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
     - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
@@ -34,13 +33,13 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_ENV
         echo "Version: $VERSION"
 
-    - name: Get prior version from GitHub releases
+    - name: Get prior version
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        PRIOR_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
-        if [[ -z "$PRIOR_TAG" || "$PRIOR_TAG" == "null" ]]; then
-          echo "No prior release found, using first commit"
+        PRIOR_TAG=$(just get-prior-version "${{ env.version }}")
+        if [[ -z "$PRIOR_TAG" ]]; then
+          echo "No prior version (first release), using first commit"
           PRIOR_TAG=$(git rev-list --max-parents=0 HEAD)
         fi
         echo "prior_ref=$PRIOR_TAG" >> $GITHUB_ENV
