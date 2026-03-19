@@ -161,7 +161,7 @@ impl ProviderDef for GeminiCliProvider {
         ProviderMetadata::new(
             GEMINI_CLI_PROVIDER_NAME,
             "Gemini CLI",
-            "Execute Gemini models via gemini CLI tool",
+            "[Deprecated: use gemini-acp instead] Execute Gemini models via gemini CLI tool. Requires gemini CLI installed.",
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
@@ -183,6 +183,10 @@ impl ProviderDef for GeminiCliProvider {
 impl Provider for GeminiCliProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn manages_own_context(&self) -> bool {
+        true
     }
 
     fn get_model_config(&self) -> ModelConfig {

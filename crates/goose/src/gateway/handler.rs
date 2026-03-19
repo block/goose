@@ -445,17 +445,6 @@ impl GatewayHandler {
                         "gateway stream: mcp notification #{event_count}"
                     );
                 }
-                Ok(AgentEvent::ModelChange {
-                    ref model,
-                    ref mode,
-                }) => {
-                    tracing::debug!(
-                        session_id,
-                        model,
-                        mode,
-                        "gateway stream: model change #{event_count}"
-                    );
-                }
                 Ok(AgentEvent::HistoryReplaced(_)) => {
                     tracing::debug!(
                         session_id,

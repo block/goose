@@ -137,7 +137,13 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 unprefixed_tools: true,
                 hidden: false,
                 client_factory: |ctx| {
-                    Box::new(code_execution::CodeExecutionClient::new(ctx).unwrap())
+                    Box::new(
+                        code_execution::CodeExecutionClient::new(
+                            ctx,
+                            code_execution::get_tool_disclosure(),
+                        )
+                        .unwrap(),
+                    )
                 },
             },
         );

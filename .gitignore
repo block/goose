@@ -5,6 +5,7 @@ run_cli.sh
 tokenizer_files/
 .DS_Store
 .idea
+.vscode
 *.log
 tmp/
 
