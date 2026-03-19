@@ -97,7 +97,7 @@ For each element, find a stable locator using this priority:
    - Count > 1 → not safe, move to next step
 
 3. **Add a data-testid**: if neither above works, add a `data-testid` to the source code.
-   - Use descriptive names (e.g., `chat-send-button`, not `btn1`)
+   - Names must be globally unique and unambiguous. Include the parent component or location, the element type, and its purpose (e.g., `bottom-menu-alert-dot` not `alert-dot`, `session-card` not `card`)
    - Only add the `data-testid` attribute — do not change any other source code
    - Note the code change so it can be committed alongside the test
 
@@ -134,36 +134,14 @@ Save the batch recording (`<name>.batch.json`):
 ]
 ```
 
-## Allowed Commands in Recordings
-
-Only these commands should appear in batch recordings:
-
-| Command | Purpose |
-|---------|---------|
-| `open <url>` | Navigate to a page |
-| `find <locator> <value> <action> [text]` | Interact with elements |
-| `click <css-selector>` | Click via CSS selector (when find is insufficient) |
-| `fill <css-selector> <text>` | Fill via CSS selector |
-| `press <key>` | Keyboard input (Enter, Tab, etc.) |
-| `wait <selector\|ms>` | Wait for element or time |
-| `wait --text "..."` | Wait for text to appear |
-| `wait --url "..."` | Wait for URL change |
-| `wait --load networkidle` | Wait for page to finish loading |
-| `is visible <selector>` | Assert element is visible |
-| `is enabled <selector>` | Assert element is enabled |
-| `scroll <direction> [px]` | Scroll the page |
-| `select <selector> <value>` | Select dropdown option |
-| `check <selector>` | Check checkbox |
-| `uncheck <selector>` | Uncheck checkbox |
-
-Do **not** include in recordings: `snapshot`, `screenshot`, `get`, `diff`, `eval`, `console`, `errors`
+Do **not** include in recordings: `snapshot`, `get`, `diff`, `console`, `errors`
 
 ## Replay
 
-The saved recording is replayed in CI without an AI agent:
+Use the replay script to run a recording:
 
 ```bash
-cat send-message.batch.json | agent-browser batch --json
+bash tests/agent/replay.sh tests/agent/recordings/<name>.batch.json --connect <port>
 ```
 
 Exit code 0 = pass, non-zero = fail.

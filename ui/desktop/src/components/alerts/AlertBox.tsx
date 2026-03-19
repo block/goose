@@ -251,7 +251,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           </div>
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
-              <span className={'dark:text-black/60 text-white/60'}>
+              <span className={'dark:text-black/60 text-white/60'} data-testid="token-count">
                 {formatTokenCount(alert.progress!.current)}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>

@@ -534,7 +534,7 @@ let appConfig = {
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'https://localhost',
   GOOSE_PATH_ROOT: resolveGoosePathRoot(),
-  GOOSE_WORKING_DIR: '',
+  GOOSE_WORKING_DIR: process.env.GOOSE_WORKING_DIR || '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
 };
@@ -574,7 +574,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   const goosedResult = await startGoosed({
     serverSecret,
-    dir: dir || os.homedir(),
+    dir: process.env.GOOSE_WORKING_DIR || dir || os.homedir(),
     env: {
       GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
     },

@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "generate-api": "openapi-ts",
-    "start-e2e-gui":  "rm -rf /tmp/e2e-test && mkdir -p /tmp/e2e-test && rm -rf /tmp/e2e-test-workspace && mkdir -p /tmp/e2e-test-workspace && pnpm run generate-api && GOOSE_ALLOWLIST_BYPASS=true GOOSE_DISABLE_KEYRING=1 GOOSE_PATH_ROOT=/tmp/e2e-test GOOSE_WORKING_DIR=/tmp/e2e-test-workspace GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 electron-forge start",
+    "start-e2e-gui":  "bash tests/agent/setup-e2e.sh && pnpm run generate-api && GOOSE_ALLOWLIST_BYPASS=true GOOSE_DISABLE_KEYRING=1 GOOSE_PATH_ROOT=/tmp/e2e-test GOOSE_WORKING_DIR=/tmp/e2e-test-workspace GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 GOOSE_TELEMETRY_ENABLED=false electron-forge start",
     "start-gui": "pnpm run generate-api && electron-forge start",
     "start-gui-debug": "pnpm run generate-api && electron-forge start -- --inspect=9229",
     "start": "cd ../.. && just run-ui",

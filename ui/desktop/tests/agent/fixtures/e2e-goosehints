@@ -1,0 +1,4 @@
+1. When the user says "Hello", reply exactly: "Howdy! I am goose, ready to help."
+2. When the user says "Tell me a joke", reply exactly: "Why do programmers prefer dark mode? Because light attracts bugs!"
+3. When the user says "What is 2+2?", reply exactly: "2 + 2 = 4"
+4. When the user asks "what is your working directory?", reply exactly with the current working directory path and nothing else.

@@ -1,0 +1,22 @@
+[
+  ["type", "[data-testid='chat-input']", "Hello"],
+  ["click", "[data-testid='send-button']"],
+  ["wait", "--text", "I am goose, ready to help"],
+  ["wait", "[data-testid='bottom-menu-alert-dot']"],
+  ["click", "[data-testid='bottom-menu-alert-dot']"],
+  ["wait", "[data-testid='token-count']"],
+  ["find", "text", "Show All", "click"],
+  ["wait", "--text", "Chat history"],
+  ["wait", "[data-testid='session-card']"],
+  ["find", "role", "button", "click", "--name", "Home"],
+  ["type", "[data-testid='chat-input']", "What is 2+2?"],
+  ["click", "[data-testid='send-button']"],
+  ["wait", "--text", "2 + 2 = 4"],
+  ["find", "text", "Show All", "click"],
+  ["wait", "--text", "Chat history"],
+  ["find", "nth", "1", "[data-testid='session-card']", "click"],
+  ["wait", "--text", "I am goose, ready to help"],
+  ["type", "[data-active-session='true'] [data-testid='chat-input']", "Tell me a joke"],
+  ["click", "[data-active-session='true'] [data-testid='send-button']"],
+  ["wait", "--text", "Because light attracts bugs"]
+]
