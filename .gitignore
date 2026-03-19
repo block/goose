@@ -24,6 +24,7 @@ target/
 
 # UI
 ./ui/desktop/node_modules
+ui/node_modules
 ./ui/desktop/out
 
 # Generated goose DLLs (built at build time, not checked in)
