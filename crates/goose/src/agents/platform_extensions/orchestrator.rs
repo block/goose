@@ -428,9 +428,7 @@ impl OrchestratorClient {
                             response_parts.push(text);
                         }
                     }
-                    Ok(AgentEvent::HistoryReplaced(_))
-                    | Ok(AgentEvent::McpNotification(_))
-                    | Ok(AgentEvent::ModelChange { .. }) => {}
+                    Ok(AgentEvent::HistoryReplaced(_)) | Ok(AgentEvent::McpNotification(_)) => {}
                     Err(e) => {
                         response_parts.push(format!("Error during agent processing: {}", e));
                         break;
