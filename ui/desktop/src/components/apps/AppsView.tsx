@@ -176,7 +176,7 @@ export default function AppsView() {
       // Refresh apps list through the active session if available
       const response = await listApps({
         throwOnError: true,
-        query: { session_id: sessionId },
+        query: { session_id: sessionId || undefined },
       });
       const freshApps = response.data?.apps || [];
       setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
