@@ -76,7 +76,7 @@ impl Agent {
             "prompt" => self.handle_prompt_command(&params, session_id).await,
             "compact" => self.handle_compact_command(session_id).await,
             "clear" => self.handle_clear_command(session_id).await,
-            "skills" => self.handle_skills_command().await,
+            "skills" => self.handle_skills_command(session_id).await,
             _ => {
                 self.handle_recipe_command(command, params_str, session_id)
                     .await
@@ -134,10 +134,17 @@ impl Agent {
         )))
     }
 
-    async fn handle_skills_command(&self) -> Result<Option<Message>> {
+    async fn handle_skills_command(&self, session_id: &str) -> Result<Option<Message>> {
         use super::platform_extensions::summon::{list_installed_sources, SourceKind};
 
-        let sources = list_installed_sources(None);
+        let working_dir = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .ok()
+            .map(|s| s.working_dir);
+        let sources = list_installed_sources(working_dir.as_deref());
         let skills: Vec<_> = sources
             .iter()
             .filter(|s| matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill))
