@@ -2,6 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
     load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
@@ -528,30 +529,30 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
 }
 
-fn parse_streaming_chunk(line: &str) -> anyhow::Result<StreamingChunk> {
-    let value: Value = serde_json::from_str(line)
-        .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, line))?;
+fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
+    let value: Value = serde_json::from_str(line).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })?;
 
-    // OpenAI/SGLang/Exo format: {"error": {"message": "...", ...}}
     if let Some(error) = value.get("error") {
         let message = error
             .get("message")
             .and_then(|m| m.as_str())
             .unwrap_or("Unknown server error");
-        return Err(anyhow!("Server error during streaming: {}", message));
+        return Err(ProviderError::ServerError(message.to_string()));
     }
 
-    // vLLM format: {"object": "error", "message": "...", "code": N}
     if value.get("object").and_then(|o| o.as_str()) == Some("error") {
         let message = value
             .get("message")
             .and_then(|m| m.as_str())
             .unwrap_or("Unknown server error");
-        return Err(anyhow!("Server error during streaming: {}", message));
+        return Err(ProviderError::ServerError(message.to_string()));
     }
 
-    serde_json::from_value(value)
-        .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, line))
+    serde_json::from_value(value).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })
 }
 
 pub fn response_to_streaming_message<S>(
@@ -845,6 +846,7 @@ mod tests {
     use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
+    use test_case::test_case;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
 
@@ -1915,56 +1917,41 @@ data: [DONE]"#;
         Ok(())
     }
 
-    async fn run_streaming_test_expecting_error(response_lines: &str) -> anyhow::Result<String> {
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Internal server error\",\"type\":\"server_error\",\"code\":500}}\ndata: [DONE]",
+        "Internal server error";
+        "openai error format"
+    )]
+    #[test_case(
+        "data: {\"object\":\"error\",\"message\":\"CUDA out of memory\",\"code\":500}\ndata: [DONE]",
+        "CUDA out of memory";
+        "vllm error format"
+    )]
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Rate limit exceeded\",\"type\":\"rate_limit_error\"}}",
+        "Rate limit exceeded";
+        "error as first chunk"
+    )]
+    #[tokio::test]
+    async fn test_mid_stream_server_error(response_lines: &str, expected_msg: &str) {
         let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
         let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
         let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut found_error = false;
         while let Some(result) = messages.next().await {
             if let Err(e) = result {
-                return Ok(e.to_string());
+                let err_str = e.to_string();
+                assert!(
+                    err_str.contains(expected_msg),
+                    "unexpected error text: {err_str}"
+                );
+                found_error = true;
+                break;
             }
         }
-        anyhow::bail!("expected an error but stream completed successfully")
-    }
-
-    #[tokio::test]
-    async fn test_mid_stream_openai_error_format() -> anyhow::Result<()> {
-        // OpenAI / SGLang / Exo send {"error": {"message": "...", "type": "...", "code": N}}
-        let response_lines = r#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant","content":"Hello"},"index":0,"finish_reason":null}]}
-data: {"error":{"message":"Internal server error","type":"server_error","code":500}}
-data: [DONE]"#;
-        let err = run_streaming_test_expecting_error(response_lines).await?;
         assert!(
-            err.contains("Internal server error"),
-            "unexpected error text: {err}"
+            found_error,
+            "expected an error but stream completed successfully"
         );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_mid_stream_vllm_error_format() -> anyhow::Result<()> {
-        // vLLM sends {"object": "error", "message": "...", "code": N}
-        let response_lines = r#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant","content":"Hello"},"index":0,"finish_reason":null}]}
-data: {"object":"error","message":"CUDA out of memory","code":500}
-data: [DONE]"#;
-        let err = run_streaming_test_expecting_error(response_lines).await?;
-        assert!(
-            err.contains("CUDA out of memory"),
-            "unexpected error text: {err}"
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_mid_stream_error_no_prior_chunks() -> anyhow::Result<()> {
-        // Error as the very first chunk (no partial content yet)
-        let response_lines =
-            r#"data: {"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}"#;
-        let err = run_streaming_test_expecting_error(response_lines).await?;
-        assert!(
-            err.contains("Rate limit exceeded"),
-            "unexpected error text: {err}"
-        );
-        Ok(())
     }
 }
