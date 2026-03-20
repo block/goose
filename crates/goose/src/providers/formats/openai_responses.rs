@@ -225,6 +225,15 @@ fn parse_responses_stream_event(data_line: &str) -> anyhow::Result<Option<Respon
         )
     })?;
 
+    // Check for error object before attempting to deserialize as ResponsesStreamEvent
+    if let Some(error) = raw_event.get("error") {
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(anyhow!("Server error during streaming: {}", message));
+    }
+
     let Some(event_type) = raw_event.get("type").and_then(Value::as_str) else {
         return Ok(None);
     };
@@ -984,10 +993,43 @@ mod tests {
             .expect("stream should emit an error item");
 
         assert!(first.is_err());
-        assert!(first
-            .expect_err("expected error")
-            .to_string()
-            .contains("Responses API error"));
+        let err = first.expect_err("expected error");
+        assert!(
+            err.to_string().contains("Responses API error")
+                || err.to_string().contains("Server error"),
+            "Error should contain error message, got: {}",
+            err
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_handles_mid_stream_error() -> anyhow::Result<()> {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
+            r#"data: {"error":{"message":"Rate limit exceeded"}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        // First message should be the text delta
+        let first = messages.next().await.expect("should have first message");
+        assert!(first.is_ok());
+
+        // Second message should be the error
+        let second = messages.next().await.expect("should have error message");
+        assert!(second.is_err());
+        let err = second.expect_err("expected error");
+        assert!(
+            err.to_string().contains("Rate limit exceeded"),
+            "Error should contain the server error message, got: {}",
+            err
+        );
 
         Ok(())
     }
