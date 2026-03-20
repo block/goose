@@ -686,4 +686,3 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
 
     Err(format!("LLM did not call the required tool: {}", tool_name))
 }
-
