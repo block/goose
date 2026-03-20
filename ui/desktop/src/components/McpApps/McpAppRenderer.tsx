@@ -775,7 +775,7 @@ export default function McpAppRenderer({
 
   const renderFullscreenHeader = () => (
     <div
-      className="no-drag flex shrink-0 items-center border-b border-border-primary bg-background-primary px-3"
+      className="flex shrink-0 items-center border-b border-border-primary bg-background-primary px-3"
       style={{ height: `${FULLSCREEN_HEADER_HEIGHT}px` }}
     >
       <div className="min-w-0 flex-1" />
