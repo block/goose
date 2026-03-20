@@ -64,6 +64,14 @@ use tracing::{debug, error, info, instrument, warn};
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
+/// Context provided by an MCP App via `ui/update-model-context`.
+/// Each update overwrites the previous one for the same key.
+#[derive(Clone, Debug)]
+pub struct McpAppContext {
+    pub content: Option<Vec<Value>>,
+    pub structured_content: Option<Value>,
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -152,6 +160,9 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
+    /// Context provided by MCP Apps via `ui/update-model-context`, keyed by
+    /// `"{extension_name}__{resource_uri}"`. Only the latest update per key is kept.
+    pub(super) mcp_app_contexts: Mutex<HashMap<String, McpAppContext>>,
 }
 
 #[derive(Clone, Debug)]
@@ -250,6 +261,7 @@ impl Agent {
                 provider.clone(),
             ),
             container: Mutex::new(None),
+            mcp_app_contexts: Mutex::new(HashMap::new()),
         }
     }
 
@@ -479,6 +491,42 @@ impl Agent {
 
     pub async fn container(&self) -> Option<Container> {
         self.container.lock().await.clone()
+    }
+
+    /// Store context from an MCP App's `ui/update-model-context` request.
+    pub async fn update_mcp_app_context(&self, key: String, context: McpAppContext) {
+        self.mcp_app_contexts.lock().await.insert(key, context);
+    }
+
+    /// Collect all stored MCP App contexts for injection into the conversation.
+    pub async fn collect_mcp_app_contexts(&self) -> Option<String> {
+        let contexts = self.mcp_app_contexts.lock().await;
+        if contexts.is_empty() {
+            return None;
+        }
+
+        let mut parts = Vec::new();
+        for (key, ctx) in contexts.iter() {
+            let mut section = format!("<mcp-app-context source=\"{key}\">\n");
+            if let Some(content) = &ctx.content {
+                for block in content {
+                    if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
+                        section.push_str(text);
+                        section.push('\n');
+                    }
+                }
+            }
+            if let Some(structured) = &ctx.structured_content {
+                if let Ok(json_str) = serde_json::to_string_pretty(structured) {
+                    section.push_str(&json_str);
+                    section.push('\n');
+                }
+            }
+            section.push_str("</mcp-app-context>");
+            parts.push(section);
+        }
+
+        Some(parts.join("\n"))
     }
 
     /// Check if a tool is a frontend tool
@@ -1184,11 +1232,13 @@ impl Agent {
                     break;
                 }
 
+                let mcp_app_context = self.collect_mcp_app_contexts().await;
                 let conversation_with_moim = super::moim::inject_moim(
                     &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
                     &working_dir,
+                    mcp_app_context,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
@@ -2307,5 +2357,87 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_empty_returns_none() {
+        let agent = Agent::new();
+        assert!(agent.collect_mcp_app_contexts().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_stores_and_collects() {
+        let agent = Agent::new();
+
+        agent
+            .update_mcp_app_context(
+                "ext__ui://ext/tool".to_string(),
+                McpAppContext {
+                    content: Some(vec![
+                        serde_json::json!({"type": "text", "text": "User selected 3 items"}),
+                    ]),
+                    structured_content: None,
+                },
+            )
+            .await;
+
+        let result = agent.collect_mcp_app_contexts().await;
+        assert!(result.is_some());
+        let text = result.unwrap();
+        assert!(text.contains("User selected 3 items"));
+        assert!(text.contains("ext__ui://ext/tool"));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_overwrites_previous() {
+        let agent = Agent::new();
+        let key = "ext__ui://ext/tool".to_string();
+
+        agent
+            .update_mcp_app_context(
+                key.clone(),
+                McpAppContext {
+                    content: Some(vec![
+                        serde_json::json!({"type": "text", "text": "old context"}),
+                    ]),
+                    structured_content: None,
+                },
+            )
+            .await;
+
+        agent
+            .update_mcp_app_context(
+                key,
+                McpAppContext {
+                    content: Some(vec![
+                        serde_json::json!({"type": "text", "text": "new context"}),
+                    ]),
+                    structured_content: None,
+                },
+            )
+            .await;
+
+        let text = agent.collect_mcp_app_contexts().await.unwrap();
+        assert!(text.contains("new context"));
+        assert!(!text.contains("old context"));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_structured_content() {
+        let agent = Agent::new();
+
+        agent
+            .update_mcp_app_context(
+                "ext__ui://ext/tool".to_string(),
+                McpAppContext {
+                    content: None,
+                    structured_content: Some(serde_json::json!({"items": 3, "total": 150})),
+                },
+            )
+            .await;
+
+        let text = agent.collect_mcp_app_contexts().await.unwrap();
+        assert!(text.contains("\"items\": 3"));
+        assert!(text.contains("\"total\": 150"));
     }
 }

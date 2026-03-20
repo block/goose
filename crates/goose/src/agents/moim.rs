@@ -14,21 +14,30 @@ pub async fn inject_moim(
     conversation: Conversation,
     extension_manager: &ExtensionManager,
     working_dir: &Path,
+    mcp_app_context: Option<String>,
 ) -> Conversation {
     if SKIP.with(|f| f.get()) {
         return conversation;
     }
 
-    if let Some(moim) = extension_manager
+    let moim = extension_manager
         .collect_moim(session_id, working_dir)
-        .await
-    {
+        .await;
+
+    let combined = match (moim, mcp_app_context) {
+        (Some(m), Some(ctx)) => Some(format!("{m}\n{ctx}")),
+        (Some(m), None) => Some(m),
+        (None, Some(ctx)) => Some(ctx),
+        (None, None) => None,
+    };
+
+    if let Some(injected_text) = combined {
         let mut messages = conversation.messages().clone();
         let idx = messages
             .iter()
             .rposition(|m| m.role == Role::Assistant)
             .unwrap_or(0);
-        messages.insert(idx, Message::user().with_text(moim));
+        messages.insert(idx, Message::user().with_text(injected_text));
 
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
@@ -65,7 +74,7 @@ mod tests {
             Message::assistant().with_text("Hi"),
             Message::user().with_text("Bye"),
         ]);
-        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
+        let result = inject_moim("test-session-id", conv, &em, &working_dir, None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
@@ -90,7 +99,7 @@ mod tests {
         let working_dir = PathBuf::from("/test/dir");
 
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
-        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
+        let result = inject_moim("test-session-id", conv, &em, &working_dir, None).await;
 
         assert_eq!(result.messages().len(), 1);
 
@@ -125,7 +134,7 @@ mod tests {
                 .with_tool_response("search_2", Ok(rmcp::model::CallToolResult::success(vec![]))),
         ]);
 
-        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
+        let result = inject_moim("test-session-id", conv, &em, &working_dir, None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 6);
@@ -140,5 +149,61 @@ mod tests {
             has_moim,
             "MOIM should be in message before latest assistant message"
         );
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_injected_alongside_moim() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        let working_dir = PathBuf::from("/test/dir");
+
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi"),
+            Message::user().with_text("Bye"),
+        ]);
+
+        let app_ctx = Some(
+            "<mcp-app-context source=\"ext__uri\">\nUser selected 3 items\n</mcp-app-context>"
+                .to_string(),
+        );
+        let result = inject_moim("test-session-id", conv, &em, &working_dir, app_ctx).await;
+
+        let all_text: String = result
+            .messages()
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter_map(|c| c.as_text())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(all_text.contains("<mcp-app-context"));
+        assert!(all_text.contains("User selected 3 items"));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_only() {
+        SKIP.with(|f| f.set(false));
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        let working_dir = PathBuf::from("/test/dir");
+
+        let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
+
+        let app_ctx = Some(
+            "<mcp-app-context source=\"ext__uri\">\nSome context\n</mcp-app-context>".to_string(),
+        );
+        let result = inject_moim("test-session-id", conv, &em, &working_dir, app_ctx).await;
+
+        let all_text: String = result
+            .messages()
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter_map(|c| c.as_text())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(all_text.contains("<mcp-app-context"));
+        assert!(all_text.contains("Some context"));
     }
 }
