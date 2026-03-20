@@ -267,7 +267,7 @@ export function useDisplayMode({
         if (caps?.availableDisplayModes && Array.isArray(caps.availableDisplayModes)) {
           setAppDeclaredModes(caps.availableDisplayModes);
         }
-        const title = caps?.title || data.params.title;
+        const title = data.params.clientInfo?.name;
         if (typeof title === 'string' && title.trim()) {
           setAppTitle(title.trim());
         }
