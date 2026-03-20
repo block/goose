@@ -765,7 +765,7 @@ export default function McpAppRenderer({
   };
 
   const showControls =
-    !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip || isFullscreen);
+    !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip || isFullscreen || isPip);
 
   const fullscreenTitle = useMemo(() => {
     if (appTitle) return appTitle;
