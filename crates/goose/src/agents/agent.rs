@@ -64,6 +64,13 @@ use tracing::{debug, error, info, instrument, warn};
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
 /// Context provided by an MCP App via `ui/update-model-context`.
 /// Each update overwrites the previous one for the same key.
 #[derive(Clone, Debug)]
@@ -507,18 +514,19 @@ impl Agent {
 
         let mut parts = Vec::new();
         for (key, ctx) in contexts.iter() {
-            let mut section = format!("<mcp-app-context source=\"{key}\">\n");
+            let escaped_key = xml_escape(key);
+            let mut section = format!("<mcp-app-context source=\"{escaped_key}\">\n");
             if let Some(content) = &ctx.content {
                 for block in content {
                     if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
-                        section.push_str(text);
+                        section.push_str(&xml_escape(text));
                         section.push('\n');
                     }
                 }
             }
             if let Some(structured) = &ctx.structured_content {
                 if let Ok(json_str) = serde_json::to_string_pretty(structured) {
-                    section.push_str(&json_str);
+                    section.push_str(&xml_escape(&json_str));
                     section.push('\n');
                 }
             }
@@ -2437,7 +2445,29 @@ mod tests {
             .await;
 
         let text = agent.collect_mcp_app_contexts().await.unwrap();
-        assert!(text.contains("\"items\": 3"));
-        assert!(text.contains("\"total\": 150"));
+        assert!(text.contains("&quot;items&quot;: 3"));
+        assert!(text.contains("&quot;total&quot;: 150"));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_escapes_xml_special_chars() {
+        let agent = Agent::new();
+
+        agent
+            .update_mcp_app_context(
+                "ext__<script>".to_string(),
+                McpAppContext {
+                    content: Some(vec![
+                        serde_json::json!({"type": "text", "text": "a < b & c > d"}),
+                    ]),
+                    structured_content: None,
+                },
+            )
+            .await;
+
+        let text = agent.collect_mcp_app_contexts().await.unwrap();
+        assert!(text.contains("&lt;script&gt;"));
+        assert!(text.contains("a &lt; b &amp; c &gt; d"));
+        assert!(!text.contains("<script>"));
     }
 }
