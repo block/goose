@@ -18,16 +18,20 @@ struct Cli {
     #[arg(long, default_value = "3284")]
     port: u16,
 
-    /// Run over stdin/stdout instead of HTTP
-    #[arg(long)]
-    stdio: bool,
-
     #[arg(long = "builtin", action = clap::ArgAction::Append)]
     builtins: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer().with_target(true))
+        .init();
+
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
     let cli = Cli::parse();
 
     let builtins = if cli.builtins.is_empty() {
@@ -36,40 +40,18 @@ async fn main() -> Result<()> {
         cli.builtins
     };
 
-    if cli.stdio {
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .with_target(true)
-                    .with_writer(std::io::stderr),
-            )
-            .init();
+    let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
+        builtins,
+        data_dir: Paths::data_dir(),
+        config_dir: Paths::config_dir(),
+    }));
+    let router = goose_acp::transport::create_router(server);
 
-        goose_acp::server::run(builtins).await
-    } else {
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(tracing_subscriber::fmt::layer().with_target(true))
-            .init();
+    let addr: SocketAddr = format!("{}:{}", cli.host, cli.port).parse()?;
+    info!("Starting goose-acp-server on {}", addr);
 
-        register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, router).await?;
 
-        let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
-            builtins,
-            data_dir: Paths::data_dir(),
-            config_dir: Paths::config_dir(),
-        }));
-        let router = goose_acp::transport::create_router(server);
-
-        let addr: SocketAddr = format!("{}:{}", cli.host, cli.port).parse()?;
-        info!("Starting goose-acp-server on {}", addr);
-
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, router).await?;
-
-        Ok(())
-    }
+    Ok(())
 }

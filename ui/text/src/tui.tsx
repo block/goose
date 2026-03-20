@@ -6,9 +6,6 @@ import TextInput from "ink-text-input";
 import meow from "meow";
 import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type {
   SessionNotification,
   RequestPermissionRequest,
@@ -1109,26 +1106,6 @@ const cli = meow(
   },
 );
 
-function findServerBinary(): string | null {
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-
-  const candidates = [
-    join(__dirname, "..", "server-binary.json"),
-    join(__dirname, "server-binary.json"),
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      const data = JSON.parse(readFileSync(candidate, "utf-8"));
-      return data.binaryPath ?? null;
-    } catch {
-      // not found here, try next
-    }
-  }
-
-  return null;
-}
-
 let serverProcess: ReturnType<typeof spawn> | null = null;
 
 async function main() {
@@ -1137,21 +1114,13 @@ async function main() {
   if (cli.flags.server) {
     serverConnection = cli.flags.server;
   } else {
-    const binary = findServerBinary();
-    if (!binary) {
-      console.error(
-        "No goose-acp-server binary found. Use --server <url> or install the native package.",
-      );
-      process.exit(1);
-    }
-
-    serverProcess = spawn(binary, ["--stdio"], {
+    serverProcess = spawn("goose", ["acp"], {
       stdio: ["pipe", "pipe", "ignore"],
       detached: false,
     });
 
     serverProcess.on("error", (err) => {
-      console.error(`Failed to start goose-acp-server: ${err.message}`);
+      console.error(`Failed to start goose acp: ${err.message}`);
       process.exit(1);
     });
 
