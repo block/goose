@@ -207,7 +207,9 @@ pub async fn classify_planner_response(
     message_text: String,
     provider: Arc<dyn Provider>,
 ) -> Result<PlannerResponseType> {
-    let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
+    let prompt = format!(
+        "The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}"
+    );
 
     let message = Message::user().with_text(&prompt);
     let model_config = provider.get_model_config();
@@ -628,6 +630,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                println!();
                 output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
@@ -1751,7 +1754,9 @@ fn display_log_notification(
                 let _ = progress_bars.hide();
             }
             if !is_json_mode {
-                print!("{}", formatted_message);
+                for line in formatted_message.lines() {
+                    println!("    {}", console::style(line).dim());
+                }
                 std::io::stdout().flush().unwrap();
             }
         } else if ntype == "shell_output" {
@@ -1766,7 +1771,7 @@ fn display_log_notification(
                     let _ = progress_bars.hide();
                 }
                 if !is_json_mode {
-                    println!("{}", formatted_message);
+                    println!("    {}", console::style(formatted_message).dim());
                 }
             }
         }
