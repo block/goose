@@ -6,6 +6,9 @@ import TextInput from "ink-text-input";
 import meow from "meow";
 import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   SessionNotification,
   RequestPermissionRequest,
@@ -1106,6 +1109,27 @@ const cli = meow(
   },
 );
 
+function findGooseBinary(): string {
+  // Check for a bundled binary (written by postinstall in the npm package).
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  for (const candidate of [
+    join(__dirname, "..", "goose-binary.json"),
+    join(__dirname, "goose-binary.json"),
+  ]) {
+    try {
+      const data = JSON.parse(readFileSync(candidate, "utf-8"));
+      if (data.binaryPath && existsSync(data.binaryPath)) {
+        return data.binaryPath;
+      }
+    } catch {
+      // not found, try next
+    }
+  }
+
+  // Fall back to goose on PATH.
+  return "goose";
+}
+
 let serverProcess: ReturnType<typeof spawn> | null = null;
 
 async function main() {
@@ -1114,7 +1138,9 @@ async function main() {
   if (cli.flags.server) {
     serverConnection = cli.flags.server;
   } else {
-    serverProcess = spawn("goose", ["acp"], {
+    const binary = findGooseBinary();
+
+    serverProcess = spawn(binary, ["acp"], {
       stdio: ["pipe", "pipe", "ignore"],
       detached: false,
     });
