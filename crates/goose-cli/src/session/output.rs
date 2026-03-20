@@ -235,7 +235,7 @@ pub fn render_message(message: &Message, debug: bool) {
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+            MessageContent::ToolResponse(resp) => render_tool_response(resp, debug),
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
@@ -295,7 +295,7 @@ pub fn render_message_streaming(
             }
             MessageContent::ToolResponse(resp) => {
                 flush_markdown_buffer(buffer, theme);
-                render_tool_response(resp, theme, debug);
+                render_tool_response(resp, debug);
             }
             MessageContent::ActionRequired(action) => {
                 flush_markdown_buffer(buffer, theme);
@@ -491,7 +491,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, _theme: Theme, debug: bool) {
+fn render_tool_response(resp: &ToolResponse, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
