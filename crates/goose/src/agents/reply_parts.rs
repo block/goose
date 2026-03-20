@@ -96,7 +96,7 @@ fn try_coerce_boolean(s: &str) -> Value {
     }
 }
 
-fn coerce_tool_arguments(
+pub(crate) fn coerce_tool_arguments(
     arguments: Option<serde_json::Map<String, Value>>,
     tool_schema: &Value,
 ) -> Option<serde_json::Map<String, Value>> {
