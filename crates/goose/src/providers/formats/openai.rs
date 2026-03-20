@@ -529,16 +529,28 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 }
 
 fn parse_streaming_chunk(line: &str) -> anyhow::Result<StreamingChunk> {
-    if let Ok(value) = serde_json::from_str::<Value>(line) {
-        if let Some(error) = value.get("error") {
-            let message = error
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown server error");
-            return Err(anyhow!("Server error during streaming: {}", message));
-        }
+    let value: Value = serde_json::from_str(line)
+        .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, line))?;
+
+    // OpenAI/SGLang/Exo format: {"error": {"message": "...", ...}}
+    if let Some(error) = value.get("error") {
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(anyhow!("Server error during streaming: {}", message));
     }
-    serde_json::from_str(line)
+
+    // vLLM format: {"object": "error", "message": "...", "code": N}
+    if value.get("object").and_then(|o| o.as_str()) == Some("error") {
+        let message = value
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(anyhow!("Server error during streaming: {}", message));
+    }
+
+    serde_json::from_value(value)
         .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, line))
 }
 
@@ -1900,6 +1912,59 @@ data: [DONE]"#;
         assert!(spec[0]["tool_calls"].is_array());
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
+        Ok(())
+    }
+
+    async fn run_streaming_test_expecting_error(response_lines: &str) -> anyhow::Result<String> {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        while let Some(result) = messages.next().await {
+            if let Err(e) = result {
+                return Ok(e.to_string());
+            }
+        }
+        anyhow::bail!("expected an error but stream completed successfully")
+    }
+
+    #[tokio::test]
+    async fn test_mid_stream_openai_error_format() -> anyhow::Result<()> {
+        // OpenAI / SGLang / Exo send {"error": {"message": "...", "type": "...", "code": N}}
+        let response_lines = r#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant","content":"Hello"},"index":0,"finish_reason":null}]}
+data: {"error":{"message":"Internal server error","type":"server_error","code":500}}
+data: [DONE]"#;
+        let err = run_streaming_test_expecting_error(response_lines).await?;
+        assert!(
+            err.contains("Internal server error"),
+            "unexpected error text: {err}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_mid_stream_vllm_error_format() -> anyhow::Result<()> {
+        // vLLM sends {"object": "error", "message": "...", "code": N}
+        let response_lines = r#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant","content":"Hello"},"index":0,"finish_reason":null}]}
+data: {"object":"error","message":"CUDA out of memory","code":500}
+data: [DONE]"#;
+        let err = run_streaming_test_expecting_error(response_lines).await?;
+        assert!(
+            err.contains("CUDA out of memory"),
+            "unexpected error text: {err}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_mid_stream_error_no_prior_chunks() -> anyhow::Result<()> {
+        // Error as the very first chunk (no partial content yet)
+        let response_lines =
+            r#"data: {"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}"#;
+        let err = run_streaming_test_expecting_error(response_lines).await?;
+        assert!(
+            err.contains("Rate limit exceeded"),
+            "unexpected error text: {err}"
+        );
         Ok(())
     }
 }
