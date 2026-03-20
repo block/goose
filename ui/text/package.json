@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
-    "@aaif/goose-acp": "^0.1.0",
+    "@aaif/goose-acp": "workspace:*",
     "ink": "^6.8.0",
     "ink-text-input": "^6.0.0",
     "marked": "^15.0.12",

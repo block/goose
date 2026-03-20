@@ -5,7 +5,7 @@
     "AddExtensionRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         },
         "config": {
@@ -13,12 +13,12 @@
         }
       },
       "required": [
-        "sessionId",
+        "session_id",
         "config"
       ],
       "description": "Add an extension to an active session.",
       "x-side": "agent",
-      "x-method": "_goose/extensions/add"
+      "x-method": "extensions/add"
     },
     "EmptyResponse": {
       "type": "object",
@@ -28,7 +28,7 @@
     "RemoveExtensionRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         },
         "name": {
@@ -36,26 +36,26 @@
         }
       },
       "required": [
-        "sessionId",
+        "session_id",
         "name"
       ],
       "description": "Remove an extension from an active session.",
       "x-side": "agent",
-      "x-method": "_goose/extensions/remove"
+      "x-method": "extensions/remove"
     },
     "GetToolsRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId"
+        "session_id"
       ],
       "description": "List all tools available in a session.",
       "x-side": "agent",
-      "x-method": "_goose/tools"
+      "x-method": "tools"
     },
     "GetToolsResponse": {
       "type": "object",
@@ -70,29 +70,29 @@
         "tools"
       ],
       "x-side": "agent",
-      "x-method": "_goose/tools"
+      "x-method": "tools"
     },
     "ReadResourceRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         },
         "uri": {
           "type": "string"
         },
-        "extensionName": {
+        "extension_name": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId",
+        "session_id",
         "uri",
-        "extensionName"
+        "extension_name"
       ],
       "description": "Read a resource from an extension.",
       "x-side": "agent",
-      "x-method": "_goose/resource/read"
+      "x-method": "resource/read"
     },
     "ReadResourceResponse": {
       "type": "object",
@@ -105,39 +105,116 @@
         "result"
       ],
       "x-side": "agent",
-      "x-method": "_goose/resource/read"
+      "x-method": "resource/read"
     },
     "UpdateWorkingDirRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         },
-        "workingDir": {
+        "working_dir": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId",
-        "workingDir"
+        "session_id",
+        "working_dir"
       ],
       "description": "Update the working directory for a session.",
       "x-side": "agent",
-      "x-method": "_goose/working_dir/update"
+      "x-method": "working_dir/update"
+    },
+    "ListSessionsResponse": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionInfo"
+          },
+          "description": "Array of session information objects"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque cursor token. If present, pass this in the next request's cursor parameter\nto fetch the next page. If absent, there are no more results."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "sessions"
+      ],
+      "description": "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nResponse from listing sessions.",
+      "x-side": "agent",
+      "x-method": "session/list"
+    },
+    "SessionInfo": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/$defs/SessionId",
+          "description": "Unique identifier for the session"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "The working directory for this session. Must be an absolute path."
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Human-readable title for the session"
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO 8601 timestamp of last activity"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "sessionId",
+        "cwd"
+      ],
+      "description": "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nInformation about a session returned by session/list"
+    },
+    "SessionId": {
+      "type": "string",
+      "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
     },
     "GetSessionRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         },
-        "includeMessages": {
+        "include_messages": {
           "type": "boolean",
           "default": false
         }
       },
       "required": [
-        "sessionId"
+        "session_id"
       ],
       "description": "Get a session by ID.",
       "x-side": "agent",
@@ -160,12 +237,12 @@
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId"
+        "session_id"
       ],
       "description": "Delete a session.",
       "x-side": "agent",
@@ -174,16 +251,16 @@
     "ExportSessionRequest": {
       "type": "object",
       "properties": {
-        "sessionId": {
+        "session_id": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId"
+        "session_id"
       ],
       "description": "Export a session as a JSON string.",
       "x-side": "agent",
-      "x-method": "_goose/session/export"
+      "x-method": "session/export"
     },
     "ExportSessionResponse": {
       "type": "object",
@@ -196,7 +273,7 @@
         "data"
       ],
       "x-side": "agent",
-      "x-method": "_goose/session/export"
+      "x-method": "session/export"
     },
     "ImportSessionRequest": {
       "type": "object",
@@ -210,7 +287,7 @@
       ],
       "description": "Import a session from a JSON string.",
       "x-side": "agent",
-      "x-method": "_goose/session/import"
+      "x-method": "session/import"
     },
     "ImportSessionResponse": {
       "type": "object",
@@ -223,7 +300,7 @@
         "session"
       ],
       "x-side": "agent",
-      "x-method": "_goose/session/import"
+      "x-method": "session/import"
     },
     "GetExtensionsResponse": {
       "type": "object",
@@ -246,7 +323,7 @@
       ],
       "description": "List configured extensions and any warnings.",
       "x-side": "agent",
-      "x-method": "_goose/config/extensions"
+      "x-method": "config/extensions"
     },
     "ExtRequest": {
       "properties": {
@@ -311,7 +388,7 @@
                       "$ref": "#/$defs/GetSessionRequest"
                     }
                   ],
-                  "description": "Params for session/get",
+                  "description": "Params for _goose/session/get",
                   "title": "GetSessionRequest"
                 },
                 {
@@ -320,7 +397,7 @@
                       "$ref": "#/$defs/DeleteSessionRequest"
                     }
                   ],
-                  "description": "Params for session/delete",
+                  "description": "Params for _goose/session/delete",
                   "title": "DeleteSessionRequest"
                 },
                 {
@@ -394,6 +471,14 @@
                         }
                       ],
                       "title": "ReadResourceResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListSessionsResponse"
+                        }
+                      ],
+                      "title": "ListSessionsResponse"
                     },
                     {
                       "allOf": [

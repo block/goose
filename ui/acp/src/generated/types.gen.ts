@@ -5,7 +5,7 @@
  * Add an extension to an active session.
  */
 export type AddExtensionRequest = {
-    sessionId: string;
+    session_id: string;
     /**
      * Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).
      */
@@ -23,7 +23,7 @@ export type EmptyResponse = {
  * Remove an extension from an active session.
  */
 export type RemoveExtensionRequest = {
-    sessionId: string;
+    session_id: string;
     name: string;
 };
 
@@ -31,7 +31,7 @@ export type RemoveExtensionRequest = {
  * List all tools available in a session.
  */
 export type GetToolsRequest = {
-    sessionId: string;
+    session_id: string;
 };
 
 export type GetToolsResponse = {
@@ -45,9 +45,9 @@ export type GetToolsResponse = {
  * Read a resource from an extension.
  */
 export type ReadResourceRequest = {
-    sessionId: string;
+    session_id: string;
     uri: string;
-    extensionName: string;
+    extension_name: string;
 };
 
 export type ReadResourceResponse = {
@@ -61,16 +61,91 @@ export type ReadResourceResponse = {
  * Update the working directory for a session.
  */
 export type UpdateWorkingDirRequest = {
-    sessionId: string;
-    workingDir: string;
+    session_id: string;
+    working_dir: string;
 };
+
+/**
+ * **UNSTABLE**
+ *
+ * This capability is not part of the spec yet, and may be removed or changed at any point.
+ *
+ * Response from listing sessions.
+ */
+export type ListSessionsResponse = {
+    /**
+     * Array of session information objects
+     */
+    sessions: Array<SessionInfo>;
+    /**
+     * Opaque cursor token. If present, pass this in the next request's cursor parameter
+     * to fetch the next page. If absent, there are no more results.
+     */
+    nextCursor?: string | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * **UNSTABLE**
+ *
+ * This capability is not part of the spec yet, and may be removed or changed at any point.
+ *
+ * Information about a session returned by session/list
+ */
+export type SessionInfo = {
+    /**
+     * Unique identifier for the session
+     */
+    sessionId: SessionId;
+    /**
+     * The working directory for this session. Must be an absolute path.
+     */
+    cwd: string;
+    /**
+     * Human-readable title for the session
+     */
+    title?: string | null;
+    /**
+     * ISO 8601 timestamp of last activity
+     */
+    updatedAt?: string | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * A unique identifier for a conversation session between a client and agent.
+ *
+ * Sessions maintain their own context, conversation history, and state,
+ * allowing multiple independent interactions with the same agent.
+ *
+ * See protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)
+ */
+export type SessionId = string;
 
 /**
  * Get a session by ID.
  */
 export type GetSessionRequest = {
-    sessionId: string;
-    includeMessages?: boolean;
+    session_id: string;
+    include_messages?: boolean;
 };
 
 /**
@@ -87,14 +162,14 @@ export type GetSessionResponse = {
  * Delete a session.
  */
 export type DeleteSessionRequest = {
-    sessionId: string;
+    session_id: string;
 };
 
 /**
  * Export a session as a JSON string.
  */
 export type ExportSessionRequest = {
-    sessionId: string;
+    session_id: string;
 };
 
 export type ExportSessionResponse = {
@@ -136,7 +211,7 @@ export type ExtRequest = {
 
 export type ExtResponse = {
     id: string;
-    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | unknown;
+    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | ListSessionsResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | unknown;
 } | {
     error: {
         code: number;

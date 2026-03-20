@@ -69,7 +69,7 @@
     "electron-window-state": "^5.0.3",
     "express": "^5.2.1",
     "framer-motion": "^12.34.3",
-    "goose-acp-types": "file:../acp",
+    "@aaif/goose-acp": "workspace:*",
     "katex": "^0.16.33",
     "lodash": "^4.17.23",
     "lucide-react": "^0.575.0",
@@ -150,18 +150,6 @@
   },
   "keywords": [],
   "license": "Apache-2.0",
-  "pnpm": {
-    "overrides": {
-      "react": "^19.2.4",
-      "react-dom": "^19.2.4"
-    },
-    "onlyBuiltDependencies": [
-      "@modelcontextprotocol/ext-apps",
-      "electron",
-      "electron-winstaller",
-      "esbuild"
-    ]
-  },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
       "bash -c 'pnpm run typecheck'",
