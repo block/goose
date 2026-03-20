@@ -628,6 +628,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                println!();
                 output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
@@ -1751,7 +1752,9 @@ fn display_log_notification(
                 let _ = progress_bars.hide();
             }
             if !is_json_mode {
-                print!("{}", formatted_message);
+                for line in formatted_message.lines() {
+                    println!("    {}", console::style(line).dim());
+                }
                 std::io::stdout().flush().unwrap();
             }
         } else if ntype == "shell_output" {
@@ -1766,7 +1769,7 @@ fn display_log_notification(
                     let _ = progress_bars.hide();
                 }
                 if !is_json_mode {
-                    println!("{}", formatted_message);
+                    println!("    {}", console::style(formatted_message).dim());
                 }
             }
         }

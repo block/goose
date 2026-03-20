@@ -9,10 +9,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(test)]
 mod tests;
 
-const CLEAR_SCREEN: &str = "\x1b[2J\x1b[H";
-const MOVE_TO_PROGRESS_LINE: &str = "\x1b[4;1H";
-const CLEAR_TO_EOL: &str = "\x1b[K";
-const CLEAR_BELOW: &str = "\x1b[J";
+const CLEAR_SCREEN: &str = "";
+const MOVE_TO_PROGRESS_LINE: &str = "";
+const CLEAR_TO_EOL: &str = "";
+const CLEAR_BELOW: &str = "";
 pub const TASK_EXECUTION_NOTIFICATION_TYPE: &str = "task_execution";
 
 static INITIAL_SHOWN: AtomicBool = AtomicBool::new(false);

@@ -491,7 +491,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
+fn render_tool_response(resp: &ToolResponse, _theme: Theme, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
@@ -519,12 +519,47 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 if debug {
                     println!("{:#?}", content);
                 } else if let Some(text) = content.as_text() {
-                    print_markdown(&text.text, theme);
+                    print_tool_output(&text.text);
                 }
             }
         }
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => {
+            println!("    {}", style(e.to_string()).red().dim());
+        }
     }
+}
+
+fn print_tool_output(text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    let max_lines = if get_show_full_tool_output() {
+        usize::MAX
+    } else {
+        20
+    };
+    let lines: Vec<&str> = text.lines().collect();
+    let truncated = lines.len() > max_lines;
+    let display_lines = if truncated {
+        &lines[..max_lines]
+    } else {
+        &lines[..]
+    };
+    for line in display_lines {
+        println!("    {}", style(line).dim());
+    }
+    if truncated {
+        println!(
+            "    {}",
+            style(format!(
+                "... ({} more lines, /toggle to show all)",
+                lines.len() - max_lines
+            ))
+            .dim()
+            .italic()
+        );
+    }
+    println!();
 }
 
 fn is_shell_tool_name(name: &str) -> bool {
@@ -904,6 +939,7 @@ fn print_tool_header(call: &CallToolRequestParams) {
         )
     };
     println!();
+    println!("  {}", style("─".repeat(40)).dim());
     println!("{}", tool_header);
 }
 
