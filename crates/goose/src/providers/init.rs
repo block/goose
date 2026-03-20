@@ -118,7 +118,7 @@ pub async fn refresh_custom_providers() -> Result<()> {
     Ok(())
 }
 
-async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
+pub async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
     let guard = get_registry().await.read().unwrap();
     guard
         .entries
