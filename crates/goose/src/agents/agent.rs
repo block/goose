@@ -522,11 +522,16 @@ impl Agent {
                         section.push_str(&xml_escape(text));
                     } else {
                         // Serialize non-text blocks but strip large binary
-                        // payloads (e.g. base64 image data) to avoid bloating
-                        // the synthetic message with thousands of tokens.
+                        // payloads (e.g. base64 image data, embedded resource
+                        // blobs) to avoid bloating the synthetic message.
                         let mut stripped = block.clone();
                         if let Some(obj) = stripped.as_object_mut() {
                             obj.remove("data");
+                            if let Some(resource) = obj.get_mut("resource") {
+                                if let Some(res_obj) = resource.as_object_mut() {
+                                    res_obj.remove("blob");
+                                }
+                            }
                         }
                         if let Ok(json_str) = serde_json::to_string(&stripped) {
                             section.push_str(&xml_escape(&json_str));
@@ -535,12 +540,8 @@ impl Agent {
                     section.push('\n');
                 }
             }
-            if let Some(structured) = &ctx.structured_content {
-                if let Ok(json_str) = serde_json::to_string_pretty(structured) {
-                    section.push_str(&xml_escape(&json_str));
-                    section.push('\n');
-                }
-            }
+            // structuredContent is intentionally not injected — it is
+            // view-only hydration data and should never reach the model.
             section.push_str("</mcp-app-context>");
             parts.push(section);
         }
@@ -2442,22 +2443,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mcp_app_context_structured_content() {
+    async fn test_mcp_app_context_structured_content_not_injected() {
         let agent = Agent::new();
 
         agent
             .update_mcp_app_context(
                 "ext__ui://ext/tool".to_string(),
                 McpAppContext {
-                    content: None,
-                    structured_content: Some(serde_json::json!({"items": 3, "total": 150})),
+                    content: Some(vec![
+                        serde_json::json!({"type": "text", "text": "visible to model"}),
+                    ]),
+                    structured_content: Some(serde_json::json!({"secret": "hydration-only"})),
                 },
             )
             .await;
 
         let text = agent.collect_mcp_app_contexts().await.unwrap();
-        assert!(text.contains("&quot;items&quot;: 3"));
-        assert!(text.contains("&quot;total&quot;: 150"));
+        assert!(text.contains("visible to model"));
+        assert!(!text.contains("hydration-only"));
+        assert!(!text.contains("secret"));
     }
 
     #[tokio::test]
@@ -2483,7 +2487,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mcp_app_context_non_text_blocks_serialized_without_data() {
+    async fn test_mcp_app_context_non_text_blocks_strip_binary() {
         let agent = Agent::new();
 
         agent
@@ -2493,6 +2497,7 @@ mod tests {
                     content: Some(vec![
                         serde_json::json!({"type": "text", "text": "hello"}),
                         serde_json::json!({"type": "image", "data": "iVBORw0KGgoAAAANS...", "mimeType": "image/png"}),
+                        serde_json::json!({"type": "resource", "resource": {"uri": "file:///doc.pdf", "blob": "JVBERi0xLjQK...", "mimeType": "application/pdf"}}),
                     ]),
                     structured_content: None,
                 },
@@ -2501,8 +2506,13 @@ mod tests {
 
         let text = agent.collect_mcp_app_contexts().await.unwrap();
         assert!(text.contains("hello"));
+        // Image: type and mimeType preserved, data stripped
         assert!(text.contains("&quot;type&quot;:&quot;image&quot;"));
         assert!(text.contains("&quot;mimeType&quot;:&quot;image/png&quot;"));
         assert!(!text.contains("iVBORw0KGgoAAAANS"));
+        // Resource: uri and mimeType preserved, blob stripped
+        assert!(text.contains("file:///doc.pdf"));
+        assert!(text.contains("application/pdf"));
+        assert!(!text.contains("JVBERi0xLjQK"));
     }
 }
