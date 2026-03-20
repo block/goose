@@ -298,7 +298,7 @@ The following models are recognized and passed to the Claude CLI via the `--mode
 | `chat` | (none) | Default Claude Code behavior |
 
 :::tip Approve Mode Integration
-When using `approve` or `smart-approve` mode with Claude Code, goose routes Claude Code's permission prompts through goose's confirmation interface. This means:
+When using `approve` or `smart_approve` mode with Claude Code, goose routes Claude Code's permission prompts through goose's confirmation interface. This means:
 
 - **Sensitive operations** (file writes, shell commands, etc.) trigger approval prompts in goose
 - **You review and approve/deny** directly in the goose CLI or Desktop interface
