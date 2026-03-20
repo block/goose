@@ -633,19 +633,24 @@ pub async fn validate_config() -> Result<Json<String>, ErrorResponse> {
 
     Ok(Json("Config file is valid".to_string()))
 }
+#[derive(Serialize, ToSchema)]
+pub struct CreateCustomProviderResponse {
+    pub provider_name: String,
+}
+
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
     request_body = UpdateCustomProviderRequest,
     responses(
-        (status = 200, description = "Custom provider created successfully", body = String),
+        (status = 200, description = "Custom provider created successfully", body = CreateCustomProviderResponse),
         (status = 400, description = "Invalid request"),
         (status = 500, description = "Internal server error")
     )
 )]
 pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
-) -> Result<Json<String>, ErrorResponse> {
+) -> Result<Json<CreateCustomProviderResponse>, ErrorResponse> {
     let config = goose::config::declarative_providers::create_custom_provider(
         goose::config::declarative_providers::CreateCustomProviderParams {
             engine: request.engine,
@@ -663,7 +668,9 @@ pub async fn create_custom_provider(
 
     goose::providers::refresh_custom_providers().await?;
 
-    Ok(Json(format!("Custom provider added - ID: {}", config.id())))
+    Ok(Json(CreateCustomProviderResponse {
+        provider_name: config.id().to_string(),
+    }))
 }
 
 #[utoipa::path(
@@ -701,6 +708,24 @@ pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<Strin
     goose::providers::refresh_custom_providers().await?;
 
     Ok(Json(format!("Removed custom provider: {}", id)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/providers/{name}/cleanup",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., githubcopilot)")
+    ),
+    responses(
+        (status = 200, description = "Provider cache cleaned up successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn cleanup_provider_cache(
+    Path(name): Path<String>,
+) -> Result<Json<String>, ErrorResponse> {
+    goose::providers::cleanup_provider(&name).await?;
+    Ok(Json(format!("Cleaned up provider cache: {}", name)))
 }
 
 #[utoipa::path(
@@ -900,6 +925,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/config/provider-catalog/{id}",
             get(get_provider_catalog_template),
+        )
+        .route(
+            "/config/providers/{name}/cleanup",
+            post(cleanup_provider_cache),
         )
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))

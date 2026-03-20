@@ -8,8 +8,9 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-        ListResourcesResult, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        InitializeResult, ListResourcesResult, PaginatedRequestParams, RawResource,
+        ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
+        ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -345,8 +346,10 @@ impl ComputerControllerServer {
         let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
             Arc::new(create_system_automation());
 
-        let os_specific_instructions = match std::env::consts::OS {
-            "windows" => indoc! {r#"
+        let has_display = system_automation.has_display();
+
+        let os_specific_instructions = match (std::env::consts::OS, has_display) {
+            ("windows", _) => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run PowerShell or Batch scripts
@@ -362,7 +365,7 @@ impl ComputerControllerServer {
               - System automation using PowerShell
               - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
             "#},
-            "macos" => indoc! {r#"
+            ("macos", _) => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run Shell, Ruby, or AppleScript scripts
@@ -456,7 +459,7 @@ impl ComputerControllerServer {
               - If something fails, check `permissions status` for missing permissions
               - Use `capture_screenshot: true` on click/type/press actions to verify the result
             "#},
-            _ => indoc! {r#"
+            (_, true) => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run Shell scripts
@@ -479,6 +482,19 @@ impl ComputerControllerServer {
               - Simulating keyboard/mouse input
               - Automating UI interactions
               - Desktop environment control
+            "#},
+            (_, false) => indoc! {r#"
+            Here are some extra tools:
+            automation_script
+              - Create and run Shell scripts
+              - Shell (bash) is recommended for most tasks
+              - Scripts can save their output to files
+              - Linux-specific features:
+                - System automation through shell scripting
+                - D-Bus system services integration
+
+            Note: No display server detected (headless mode). The computer_control tool
+            is not available in this environment. Use automation_script for shell-based tasks.
             "#},
         };
 
@@ -516,8 +532,13 @@ impl ComputerControllerServer {
             cache_dir = cache_dir.display()
         };
 
+        let mut tool_router = Self::tool_router();
+        if !has_display {
+            tool_router.remove_route("computer_control");
+        }
+
         Self {
-            tool_router: Self::tool_router(),
+            tool_router,
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
@@ -1584,22 +1605,17 @@ impl ComputerControllerServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for ComputerControllerServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            server_info: Implementation {
-                name: "goose-computercontroller".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-                title: None,
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            capabilities: ServerCapabilities::builder()
+        InitializeResult::new(
+            ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
                 .build(),
-            instructions: Some(self.instructions.clone()),
-            ..Default::default()
-        }
+        )
+        .with_server_info(Implementation::new(
+            "goose-computercontroller",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(self.instructions.clone())
     }
 
     async fn list_resources(
@@ -1640,8 +1656,6 @@ impl ServerHandler for ComputerControllerServer {
         })?;
 
         // Clone the resource to return
-        Ok(ReadResourceResult {
-            contents: vec![resource.clone()],
-        })
+        Ok(ReadResourceResult::new(vec![resource.clone()]))
     }
 }

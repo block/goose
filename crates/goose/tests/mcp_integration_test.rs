@@ -136,42 +136,42 @@ enum TestMode {
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything@2026.1.14"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
-        CallToolRequestParams { meta: None, task: None, name: "get-sum".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
-        CallToolRequestParams { meta: None, task: None, name: "trigger-long-running-operation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
-        CallToolRequestParams { meta: None, task: None, name: "get-structured-content".into(), arguments: Some(object!({"location": "New York"})) },
-        CallToolRequestParams { meta: None, task: None, name: "trigger-sampling-request".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
+        CallToolRequestParams::new("echo").with_arguments(object!({"message": "Hello, world!" })),
+        CallToolRequestParams::new("get-sum").with_arguments(object!({"a": 1, "b": 2 })),
+        CallToolRequestParams::new("trigger-long-running-operation").with_arguments(object!({"duration": 1, "steps": 5 })),
+        CallToolRequestParams::new("get-structured-content").with_arguments(object!({"location": "New York"})),
+        CallToolRequestParams::new("trigger-sampling-request").with_arguments(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 }))
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "get_file_contents".into(), arguments: Some(object!({
+        CallToolRequestParams::new("get_file_contents").with_arguments(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
             "sha": "ab62b863c1666232a67048b6c4e10007a2a5b83c"
-        }))},
+        })),
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "fetch".into(), arguments: Some(object!({
+        CallToolRequestParams::new("fetch").with_arguments(object!({
             "url": "https://example.com",
-        })) }
+        }))
     ],
     vec![]
 )]
 #[test_case(
     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "divide".into(), arguments: Some(object!({
+        CallToolRequestParams::new("divide").with_arguments(object!({
             "dividend": 10,
             "divisor": 2
-        })) }
+        }))
     ],
     vec![]
 )]
@@ -271,19 +271,18 @@ async fn test_replayed_session(
             .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: format!("test__{}", tool_call.name).into(),
-                arguments: tool_call.arguments,
-            };
+            let mut new_call = CallToolRequestParams::new(format!("test__{}", tool_call.name));
+            if let Some(args) = tool_call.arguments {
+                new_call = new_call.with_arguments(args);
+            }
+            let tool_call = new_call;
+            let ctx = goose::agents::ToolCallContext::new(
+                "test-session-id".to_string(),
+                None,
+                Some("test-id".to_string()),
+            );
             let result = extension_manager
-                .dispatch_tool_call(
-                    "test-session-id",
-                    tool_call,
-                    None,
-                    CancellationToken::default(),
-                )
+                .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
                 .await;
 
             let tool_result = result?;

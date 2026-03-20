@@ -1,6 +1,7 @@
 pub mod anthropic;
 pub mod api_client;
 pub mod auto_detect;
+pub mod avian;
 pub mod azure;
 pub mod azureauth;
 pub mod base;
@@ -8,9 +9,11 @@ pub mod bedrock;
 pub mod canonical;
 pub mod catalog;
 pub mod chatgpt_codex;
+pub mod claude_acp;
 pub mod claude_code;
 pub(crate) mod cli_common;
 pub mod codex;
+pub mod codex_acp;
 pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
@@ -18,13 +21,14 @@ pub mod errors;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
+pub mod gemini_acp;
 pub mod gemini_cli;
 pub mod githubcopilot;
 pub mod google;
 mod init;
-pub mod lead_worker;
 pub mod litellm;
 pub mod local_inference;
+pub mod nanogpt;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
@@ -44,6 +48,7 @@ pub mod venice;
 pub mod xai;
 
 pub use init::{
-    create, create_with_default_model, create_with_named_model, providers, refresh_custom_providers,
+    cleanup_provider, create, create_with_default_model, create_with_named_model, providers,
+    refresh_custom_providers,
 };
 pub use retry::{retry_operation, RetryConfig};

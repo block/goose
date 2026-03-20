@@ -22,6 +22,7 @@ use goose::config::{
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
+use goose::providers::chatgpt_codex::reasoning_levels_for_model;
 use goose::providers::formats::anthropic::supports_adaptive_thinking;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
@@ -316,7 +317,7 @@ async fn handle_existing_config() -> anyhow::Result<()> {
         "remove" => remove_extension_dialog(),
         "settings" => configure_settings_dialog().await,
         "providers" => configure_provider_dialog().await.map(|_| ()),
-        "custom_providers" => configure_custom_provider_dialog(),
+        "custom_providers" => configure_custom_provider_dialog().await,
         _ => unreachable!(),
     }
 }
@@ -806,6 +807,26 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 })
                 .interact()?;
             config.set_claude_thinking_budget(budget.parse::<i32>()?)?;
+        }
+    }
+
+    if provider_name == "chatgpt_codex" {
+        let valid_levels = reasoning_levels_for_model(&model);
+        if !valid_levels.is_empty() {
+            let mut select = cliclack::select("Select reasoning effort level:");
+            for &level in valid_levels {
+                let description = match level {
+                    "low" => "Low - Fast responses with lighter reasoning",
+                    "medium" => "Medium - Balances speed and reasoning depth for everyday tasks",
+                    "high" => "High - Greater reasoning depth for complex problems",
+                    "xhigh" => "Extra High - Extra high reasoning depth for complex problems",
+                    _ => "",
+                };
+                select = select.item(level, description, "");
+            }
+            select = select.initial_value("medium");
+            let effort: &str = select.interact()?;
+            config.set_chatgpt_codex_reasoning_effort(effort.to_string())?;
         }
     }
 
@@ -1557,6 +1578,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             "Tool Permission Configuration".to_string(),
             SessionType::Hidden,
+            agent.config.goose_mode,
         )
         .await?;
 
@@ -2015,6 +2037,17 @@ fn add_provider() -> anyhow::Result<()> {
         .initial_value(true)
         .interact()?;
 
+    let base_path_input: String = cliclack::input("API base path (optional, press Enter to skip):")
+        .placeholder("e.g., v1/chat/completions or project_id/v1")
+        .required(false)
+        .interact()?;
+
+    let base_path = if base_path_input.trim().is_empty() {
+        None
+    } else {
+        Some(base_path_input)
+    };
+
     let headers = collect_custom_headers()?;
 
     create_custom_provider(CreateCustomProviderParams {
@@ -2027,14 +2060,14 @@ fn add_provider() -> anyhow::Result<()> {
         headers,
         requires_auth,
         catalog_provider_id: None,
-        base_path: None,
+        base_path,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
     Ok(())
 }
 
-fn remove_provider() -> anyhow::Result<()> {
+async fn remove_provider() -> anyhow::Result<()> {
     let custom_providers_dir = goose::config::declarative_providers::custom_providers_dir();
     let custom_providers = if custom_providers_dir.exists() {
         goose::config::declarative_providers::load_custom_providers(&custom_providers_dir)?
@@ -2057,12 +2090,17 @@ fn remove_provider() -> anyhow::Result<()> {
         .filter_mode()
         .interact()?;
 
+    // Clean up provider-specific cache files (e.g., OAuth tokens) before removing config
+    if let Err(e) = goose::providers::cleanup_provider(selected_id).await {
+        tracing::warn!("Failed to clean up provider cache: {}", e);
+    }
+
     remove_custom_provider(selected_id)?;
     cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
     Ok(())
 }
 
-pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
+pub async fn configure_custom_provider_dialog() -> anyhow::Result<()> {
     let action = cliclack::select("What would you like to do?")
         .item(
             "add",
@@ -2078,7 +2116,7 @@ pub fn configure_custom_provider_dialog() -> anyhow::Result<()> {
 
     match action {
         "add" => add_provider(),
-        "remove" => remove_provider(),
+        "remove" => remove_provider().await,
         _ => unreachable!(),
     }?;
 

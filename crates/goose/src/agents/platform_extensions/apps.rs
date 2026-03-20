@@ -1,5 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::reply_parts::coerce_tool_arguments;
+use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::goose_apps::McpAppResource;
@@ -9,8 +11,8 @@ use crate::providers::base::Provider;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListResourcesResult,
-    ListToolsResult, Meta, ProtocolVersion, RawResource, ReadResourceResult, Resource,
-    ResourceContents, ResourcesCapability, ServerCapabilities, Tool as McpTool, ToolsCapability,
+    ListToolsResult, Meta, RawResource, ReadResourceResult, Resource, ResourceContents,
+    ServerCapabilities, Tool as McpTool,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -116,36 +118,16 @@ impl AppsManagerClient {
     }
 
     fn create_info() -> InitializeResult {
-        InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                resources: Some(ResourcesCapability {
-                    subscribe: Some(false),
-                    list_changed: Some(false),
-                }),
-                prompts: None,
-                completions: None,
-                experimental: None,
-                tasks: None,
-                logging: None,
-                extensions: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                title: Some("Apps Manager".to_string()),
-                version: "1.0.0".to_string(),
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(
-                "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps."
-                    .to_string(),
-            ),
-        }
+        InitializeResult::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Apps Manager"))
+        .with_instructions(
+            "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps.",
+        )
     }
 
     fn ensure_default_apps(&self) -> Result<(), String> {
@@ -303,7 +285,11 @@ impl AppsManagerClient {
             }
         }
 
-        extract_tool_response(&response, "create_app_content")
+        extract_tool_response(
+            &response,
+            "create_app_content",
+            &Self::schema::<CreateAppContentResponse>(),
+        )
     }
 
     async fn generate_updated_app_content(
@@ -342,7 +328,11 @@ impl AppsManagerClient {
             }
         }
 
-        extract_tool_response(&response, "update_app_content")
+        extract_tool_response(
+            &response,
+            "update_app_content",
+            &Self::schema::<UpdateAppContentResponse>(),
+        )
     }
 
     async fn handle_list_apps(
@@ -546,12 +536,12 @@ impl McpClientTrait for AppsManagerClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let result = match name {
             "list_apps" => self.handle_list_apps(arguments).await,
             "create_app" => self.handle_create_app(session_id, arguments).await,
@@ -641,9 +631,9 @@ impl McpClientTrait for AppsManagerClient {
             .text
             .unwrap_or_else(|| String::from("No content"));
 
-        Ok(ReadResourceResult {
-            contents: vec![ResourceContents::text(html, uri)],
-        })
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(
+            html, uri,
+        )]))
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
@@ -671,7 +661,10 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
 fn extract_tool_response<T: serde::de::DeserializeOwned>(
     response: &Message,
     tool_name: &str,
+    tool_schema: &JsonObject,
 ) -> Result<T, String> {
+    let schema_value = serde_json::Value::Object(tool_schema.clone());
+
     for content in &response.content {
         if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
             if let Ok(tool_call) = &tool_req.tool_call {
@@ -681,7 +674,10 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
                         .as_ref()
                         .ok_or("Missing tool call parameters")?;
 
-                    return serde_json::from_value(serde_json::Value::Object(params.clone()))
+                    let coerced = coerce_tool_arguments(Some(params.clone()), &schema_value)
+                        .unwrap_or_else(|| params.clone());
+
+                    return serde_json::from_value(serde_json::Value::Object(coerced))
                         .map_err(|e| format!("Failed to parse tool response: {}", e));
                 }
             }

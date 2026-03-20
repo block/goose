@@ -285,8 +285,8 @@ impl ProviderDef for SageMakerTgiProvider {
             SAGEMAKER_TGI_DOC_LINK,
             vec![
                 ConfigKey::new("SAGEMAKER_ENDPOINT_NAME", true, false, None, true),
-                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1"), true),
-                ConfigKey::new("AWS_PROFILE", true, false, Some("default"), true),
+                ConfigKey::new("AWS_REGION", false, false, Some("us-east-1"), true),
+                ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
             ],
         )
     }
@@ -309,10 +309,6 @@ impl Provider for SageMakerTgiProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn stream(
         &self,
         model_config: &ModelConfig,

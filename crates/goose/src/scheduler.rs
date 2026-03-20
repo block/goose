@@ -819,6 +819,7 @@ async fn execute_job(
             std::env::current_dir()?,
             format!("Scheduled job: {}", job.id),
             SessionType::Scheduled,
+            agent.config.goose_mode,
         )
         .await?;
 
@@ -1013,6 +1014,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
@@ -1039,6 +1046,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_paused_job_does_not_run() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
@@ -1066,6 +1079,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_with_no_prompt_does_not_panic() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let recipe_path = temp_dir.path().join("no_prompt.yaml");
         fs::write(

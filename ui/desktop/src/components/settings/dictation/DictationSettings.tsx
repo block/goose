@@ -6,6 +6,7 @@ import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { trackSettingToggled } from '../../../utils/analytics';
 import { LocalModelManager } from './LocalModelManager';
+import { MicrophoneSelector } from './MicrophoneSelector';
 import { DICTATION_ALLOWED_PROVIDERS } from '../../../updates';
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ export const DictationSettings = () => {
   const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatus>>(
     {}
   );
+  const [preferredMic, setPreferredMic] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [isEditingKey, setIsEditingKey] = useState(false);
   const { read, upsert, remove } = useConfig();
@@ -44,6 +46,10 @@ export const DictationSettings = () => {
       }
 
       setProvider(loadedProvider);
+
+      const micValue = await read('voice_dictation_preferred_mic', false);
+      setPreferredMic((micValue as string) || null);
+
       await refreshStatuses();
     };
 
@@ -55,6 +61,11 @@ export const DictationSettings = () => {
     setProvider(newProvider);
     upsert('voice_dictation_provider', newProvider || '', false);
     trackSettingToggled('voice_dictation', newProvider !== null);
+  };
+
+  const handleMicChange = (deviceId: string | null) => {
+    setPreferredMic(deviceId);
+    upsert('voice_dictation_preferred_mic', deviceId || '', false);
   };
 
   const handleSaveKey = async () => {
@@ -194,6 +205,8 @@ export const DictationSettings = () => {
               )}
             </div>
           )}
+
+          <MicrophoneSelector selectedDeviceId={preferredMic} onDeviceChange={handleMicChange} />
         </>
       )}
     </div>

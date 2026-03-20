@@ -172,12 +172,8 @@ pub(super) fn extract_tool_call_messages(tool_calls_json: &str, message_id: &str
             .map(|s| s.to_string())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: Cow::Owned(name),
-            arguments,
-        };
+        let tool_call = CallToolRequestParams::new(Cow::Owned(name))
+            .with_arguments(arguments.unwrap_or_default());
 
         let mut msg = Message::assistant();
         msg.content
@@ -319,11 +315,10 @@ pub(super) fn extract_xml_tool_call_messages(
     tool_calls
         .into_iter()
         .map(|(name, args)| {
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Owned(name),
-                arguments: if args.is_empty() { None } else { Some(args) },
+            let tool_call = if args.is_empty() {
+                CallToolRequestParams::new(Cow::Owned(name))
+            } else {
+                CallToolRequestParams::new(Cow::Owned(name)).with_arguments(args)
             };
             let mut msg = Message::assistant();
             msg.content.push(MessageContent::tool_request(
@@ -441,13 +436,13 @@ mod tests {
 
     #[test]
     fn test_parse_glm_style_tool_call_multiple_args() {
-        let text = "Let me check.\n<tool_call>execute<arg_key>code</arg_key><arg_value>async function run() { return 1; }</arg_value><arg_key>tool_graph</arg_key><arg_value>[{\"tool\": \"shell\"}]</arg_value></tool_call>";
+        let text = "Let me check.\n<tool_call>execute_typescript<arg_key>code</arg_key><arg_value>async function run() { return 1; }</arg_value><arg_key>tool_graph</arg_key><arg_value>[{\"tool\": \"shell\"}]</arg_value></tool_call>";
         let result = split_content_and_xml_tool_calls(text);
         assert!(result.is_some());
         let (content, calls) = result.unwrap();
         assert_eq!(content, "Let me check.");
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].0, "execute");
+        assert_eq!(calls[0].0, "execute_typescript");
         assert_eq!(
             calls[0].1.get("code").unwrap(),
             "async function run() { return 1; }"

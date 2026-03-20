@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 use utoipa::ToSchema;
 
-const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
 #[derive(Debug, Clone, Deserialize)]
 struct PredefinedModel {
@@ -429,6 +429,10 @@ mod tests {
 
         #[test]
         fn sets_limits_from_canonical_model() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let config = ModelConfig::new_or_fail("gpt-4o").with_canonical_limits("openai");
 
             assert_eq!(config.context_limit, Some(128_000));
@@ -438,6 +442,10 @@ mod tests {
 
         #[test]
         fn does_not_override_existing_context_limit() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let mut config = ModelConfig::new_or_fail("gpt-4o");
             config.context_limit = Some(64_000);
             let config = config.with_canonical_limits("openai");
@@ -447,6 +455,10 @@ mod tests {
 
         #[test]
         fn does_not_override_existing_max_tokens() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let mut config = ModelConfig::new_or_fail("gpt-4o");
             config.max_tokens = Some(1_000);
             let config = config.with_canonical_limits("openai");
@@ -456,6 +468,10 @@ mod tests {
 
         #[test]
         fn unknown_model_leaves_fields_none() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
             let config =
                 ModelConfig::new_or_fail("totally-unknown-model").with_canonical_limits("openai");
 
@@ -468,8 +484,17 @@ mod tests {
     mod is_openai_reasoning_model {
         use super::*;
 
+        const ENV_LOCK_KEYS: [(&str, Option<&str>); 5] = [
+            ("GOOSE_MAX_TOKENS", None),
+            ("GOOSE_TEMPERATURE", None),
+            ("GOOSE_CONTEXT_LIMIT", None),
+            ("GOOSE_TOOLSHIM", None),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None),
+        ];
+
         #[test]
         fn bare_reasoning_models() {
+            let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
             assert!(ModelConfig::new_or_fail("o1").is_openai_reasoning_model());
             assert!(ModelConfig::new_or_fail("o1-preview").is_openai_reasoning_model());
             assert!(ModelConfig::new_or_fail("o3").is_openai_reasoning_model());
@@ -481,6 +506,7 @@ mod tests {
 
         #[test]
         fn goose_prefixed_reasoning_models() {
+            let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
             assert!(ModelConfig::new_or_fail("goose-o3-mini").is_openai_reasoning_model());
             assert!(ModelConfig::new_or_fail("goose-o4-mini").is_openai_reasoning_model());
             assert!(ModelConfig::new_or_fail("goose-gpt-5").is_openai_reasoning_model());
@@ -488,6 +514,7 @@ mod tests {
 
         #[test]
         fn databricks_prefixed_reasoning_models() {
+            let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
             assert!(ModelConfig::new_or_fail("databricks-o3-mini").is_openai_reasoning_model());
             assert!(ModelConfig::new_or_fail("databricks-o4-mini").is_openai_reasoning_model());
             assert!(ModelConfig::new_or_fail("databricks-gpt-5").is_openai_reasoning_model());
@@ -495,6 +522,7 @@ mod tests {
 
         #[test]
         fn non_reasoning_models() {
+            let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
             assert!(!ModelConfig::new_or_fail("claude-sonnet-4").is_openai_reasoning_model());
             assert!(!ModelConfig::new_or_fail("gpt-4o").is_openai_reasoning_model());
             assert!(

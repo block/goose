@@ -58,12 +58,8 @@ pub fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageConten
         if is_valid_function_name(&function_name) {
             tool_calls.push(MessageContent::tool_request(
                 id,
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: function_name.into(),
-                    arguments: Some(object(serde_json::Value::Object(arguments))),
-                }),
+                Ok(CallToolRequestParams::new(function_name)
+                    .with_arguments(object(serde_json::Value::Object(arguments)))),
             ));
         } else {
             let error = ErrorData {

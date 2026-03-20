@@ -6,7 +6,7 @@ import { GoosehintsSection } from './GoosehintsSection';
 import { SpellcheckToggle } from './SpellcheckToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
-export default function ChatSettingsSection() {
+export default function ChatSettingsSection({ sessionId }: { sessionId?: string }) {
   return (
     <div className="space-y-4 pr-4 pb-8 mt-1">
       <Card className="pb-2 rounded-lg">
@@ -15,7 +15,7 @@ export default function ChatSettingsSection() {
           <CardDescription>Configure how Goose interacts with tools and extensions</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
-          <ModeSection />
+          <ModeSection sessionId={sessionId} />
         </CardContent>
       </Card>
 

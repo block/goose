@@ -34,7 +34,7 @@ use super::inference_engine::{
 };
 use super::{finalize_usage, StreamSender, CODE_EXECUTION_TOOL, SHELL_TOOL};
 
-const HOLD_BACK_CODE_MODE: usize = " ```execute\n".len();
+const HOLD_BACK_CODE_MODE: usize = " ```execute_typescript\n".len();
 const HOLD_BACK_SHELL_ONLY: usize = "\n$".len();
 
 pub(super) fn load_tiny_model_prompt() -> String {
@@ -79,7 +79,7 @@ pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
              The code runs immediately — do not explain it, just run it.\n\n",
         );
         tool_desc.push_str("Example — counting files in /tmp:\n\n");
-        tool_desc.push_str("```execute\nasync function run() {\n");
+        tool_desc.push_str("```execute_typescript\nasync function run() {\n");
         tool_desc.push_str(
             "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
         );
@@ -206,7 +206,9 @@ impl StreamingEmulatorParser {
                 ParserState::Normal => {
                     // Check for ```execute block (code mode)
                     if self.code_mode_enabled {
-                        if let Some((before, after)) = self.buffer.split_once("```execute\n") {
+                        if let Some((before, after)) =
+                            self.buffer.split_once("```execute_typescript\n")
+                        {
                             if !before.trim().is_empty() {
                                 results.push(EmulatorAction::Text(before.to_string()));
                             }
@@ -215,8 +217,8 @@ impl StreamingEmulatorParser {
                             continue;
                         }
                         // Also handle without newline after tag (accumulating)
-                        if self.buffer.ends_with("```execute") {
-                            let before = self.buffer.trim_end_matches("```execute");
+                        if self.buffer.ends_with("```execute_typescript") {
+                            let before = self.buffer.trim_end_matches("```execute_typescript");
                             if !before.trim().is_empty() {
                                 results.push(EmulatorAction::Text(before.to_string()));
                             }
@@ -313,12 +315,8 @@ fn send_emulator_action(
             let tool_id = Uuid::new_v4().to_string();
             let mut args = serde_json::Map::new();
             args.insert("command".to_string(), json!(command));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Borrowed(SHELL_TOOL),
-                arguments: Some(args),
-            };
+            let tool_call =
+                CallToolRequestParams::new(Cow::Borrowed(SHELL_TOOL)).with_arguments(args);
             let mut message = Message::assistant();
             message
                 .content
@@ -337,12 +335,8 @@ fn send_emulator_action(
             };
             let mut args = serde_json::Map::new();
             args.insert("code".to_string(), json!(wrapped));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Borrowed(CODE_EXECUTION_TOOL),
-                arguments: Some(args),
-            };
+            let tool_call =
+                CallToolRequestParams::new(Cow::Borrowed(CODE_EXECUTION_TOOL)).with_arguments(args);
             let mut message = Message::assistant();
             message
                 .content
@@ -569,7 +563,7 @@ mod tests {
 
     #[test]
     fn execute_block() {
-        let input = "Here's the code:\n```execute\nconsole.log('hi');\n```\n";
+        let input = "Here's the code:\n```execute_typescript\nconsole.log('hi');\n```\n";
         let actions = parse_all(input, true);
         assert!(actions.len() >= 2);
         assert_text(&actions[0], "Here's the code:");
@@ -578,7 +572,7 @@ mod tests {
 
     #[test]
     fn execute_block_not_detected_without_code_mode() {
-        let input = "```execute\nconsole.log('hi');\n```\n";
+        let input = "```execute_typescript\nconsole.log('hi');\n```\n";
         let actions = parse_all(input, false);
         // Should be treated as plain text
         for action in &actions {
@@ -600,7 +594,10 @@ mod tests {
 
     #[test]
     fn execute_fence_split_across_chunks() {
-        let actions = parse_chunks(&["Here:\n```ex", "ecute\nlet x = 1;\n", "```\n"], true);
+        let actions = parse_chunks(
+            &["Here:\n```ex", "ecute_typescript\nlet x = 1;\n", "```\n"],
+            true,
+        );
         let executes: Vec<_> = actions
             .iter()
             .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))
@@ -663,7 +660,7 @@ mod tests {
 
     #[test]
     fn execute_block_with_multiline_code() {
-        let input = "```execute\nasync function run() {\n  const r = await Developer.shell({ command: \"ls\" });\n  return r;\n}\n```\n";
+        let input = "```execute_typescript\nasync function run() {\n  const r = await Developer.shell({ command: \"ls\" });\n  return r;\n}\n```\n";
         let actions = parse_all(input, true);
         let executes: Vec<_> = actions
             .iter()
@@ -682,7 +679,7 @@ mod tests {
     #[test]
     fn unclosed_execute_block_flushed() {
         // Model stops generating mid-block
-        let input = "```execute\nlet x = 1;";
+        let input = "```execute_typescript\nlet x = 1;";
         let actions = parse_all(input, true);
         let executes: Vec<_> = actions
             .iter()

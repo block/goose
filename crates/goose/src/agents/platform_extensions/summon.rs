@@ -9,9 +9,10 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -22,7 +23,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, ServerNotification, Tool, ToolsCapability,
+    ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -168,6 +169,14 @@ fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, 
 
 fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
     let (metadata, body): (SkillMetadata, String) = parse_frontmatter(content)?;
+
+    if metadata.name.contains('/') {
+        warn!(
+            "Skill name '{}' contains '/' which is not allowed, skipping",
+            metadata.name
+        );
+        return None;
+    }
 
     Some(Source {
         name: metadata.name,
@@ -462,9 +471,8 @@ fn current_epoch_millis() -> u64 {
 
 /// Get maximum number of concurrent background tasks
 fn max_background_tasks() -> usize {
-    std::env::var("GOOSE_MAX_BACKGROUND_TASKS")
-        .ok()
-        .and_then(|v| v.parse().ok())
+    Config::global()
+        .get_param::<usize>("GOOSE_MAX_BACKGROUND_TASKS")
         .unwrap_or(5)
 }
 
@@ -517,30 +525,9 @@ impl SummonClient {
             None
         };
 
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tasks: None,
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                resources: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-                extensions: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                title: Some("Summon".to_string()),
-                version: "1.0.0".to_string(),
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions,
-        };
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Summon"))
+            .with_instructions(instructions.unwrap_or_default());
 
         Ok(Self {
             info,
@@ -714,15 +701,58 @@ impl SummonClient {
         session_id: &str,
         name: &str,
         working_dir: &Path,
-    ) -> Option<Source> {
+    ) -> Result<Option<Source>, String> {
         let sources = self.get_sources(session_id, working_dir).await;
-        let mut source = sources.into_iter().find(|s| s.name == name)?;
 
-        if source.kind == SourceKind::Subrecipe && source.content.is_empty() {
-            source.content = self.load_subrecipe_content(session_id, &source.name).await;
+        if let Some(mut source) = sources.iter().find(|s| s.name == name).cloned() {
+            if source.kind == SourceKind::Subrecipe && source.content.is_empty() {
+                source.content = self.load_subrecipe_content(session_id, &source.name).await;
+            }
+            return Ok(Some(source));
         }
 
-        Some(source)
+        if let Some((skill_name, raw_relative_path)) = name.split_once('/') {
+            let relative_path = raw_relative_path.replace('\\', "/");
+            if let Some(skill) = sources.iter().find(|s| {
+                s.name == skill_name
+                    && matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+            }) {
+                let canonical_skill_dir = skill
+                    .path
+                    .canonicalize()
+                    .unwrap_or_else(|_| skill.path.clone());
+
+                for file_path in &skill.supporting_files {
+                    if let Ok(rel) = file_path.strip_prefix(&skill.path) {
+                        let rel_normalized = rel.to_string_lossy().replace('\\', "/");
+                        if rel_normalized == relative_path {
+                            let canonical_file = file_path
+                                .canonicalize()
+                                .map_err(|e| format!("Failed to resolve '{}': {}", name, e))?;
+                            if !canonical_file.starts_with(&canonical_skill_dir) {
+                                return Err(format!(
+                                    "Refusing to load '{}': file resolves outside the skill directory",
+                                    name
+                                ));
+                            }
+                            return match std::fs::read_to_string(&canonical_file) {
+                                Ok(content) => Ok(Some(Source {
+                                    name: name.to_string(),
+                                    kind: SourceKind::Skill,
+                                    description: format!("Supporting file for {}", skill_name),
+                                    path: file_path.clone(),
+                                    content,
+                                    supporting_files: vec![],
+                                })),
+                                Err(e) => Err(format!("Failed to read '{}': {}", name, e)),
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> String {
@@ -1062,7 +1092,7 @@ impl SummonClient {
         name: &str,
         working_dir: &Path,
     ) -> Result<Vec<Content>, String> {
-        let source = self.resolve_source(session_id, name, working_dir).await;
+        let source = self.resolve_source(session_id, name, working_dir).await?;
 
         match source {
             Some(source) => {
@@ -1080,11 +1110,15 @@ impl SummonClient {
                     ));
                     for file in &source.supporting_files {
                         if let Ok(relative) = file.strip_prefix(&source.path) {
-                            output.push_str(&format!("- {}\n", relative.display()));
+                            let rel_str = relative.to_string_lossy().replace('\\', "/");
+                            output.push_str(&format!(
+                                "- {} → load(source: \"{}/{}\")\n",
+                                rel_str, source.name, rel_str
+                            ));
                         }
                     }
                     output.push_str(
-                        "\nUse the file tools to read these files or run scripts as directed.\n",
+                        "\nUse load(source: \"<skill-name>/<path>\") to load individual files into context, or use file tools to read/run them directly.\n",
                     );
                 }
 
@@ -1094,6 +1128,42 @@ impl SummonClient {
             }
             None => {
                 let sources = self.get_sources(session_id, working_dir).await;
+
+                if let Some((skill_name, _)) = name.split_once('/') {
+                    if let Some(skill) = sources.iter().find(|s| {
+                        s.name == skill_name
+                            && matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+                    }) {
+                        let available: Vec<String> = skill
+                            .supporting_files
+                            .iter()
+                            .filter_map(|f| {
+                                f.strip_prefix(&skill.path)
+                                    .ok()
+                                    .map(|r| r.to_string_lossy().replace('\\', "/"))
+                            })
+                            .collect();
+                        if !available.is_empty() {
+                            let total = available.len();
+                            let display: Vec<_> = available.into_iter().take(10).collect();
+                            let suffix = if total > 10 {
+                                format!(" (and {} more)", total - 10)
+                            } else {
+                                String::new()
+                            };
+                            return Err(format!(
+                                "Source '{}' not found. Available files for {}: {}{}",
+                                name,
+                                skill_name,
+                                display.join(", "),
+                                suffix
+                            ));
+                        } else {
+                            return Err(format!("Skill '{}' has no supporting files.", skill_name));
+                        }
+                    }
+                }
+
                 let suggestions: Vec<&str> = sources
                     .iter()
                     .filter(|s| {
@@ -1172,11 +1242,14 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to build task config: {}", e))?;
 
+        // Subagents must use Auto until get_agent_messages forwards
+        // ActionRequired messages to the parent. Until then, any mode
+        // that requires approval will hang on the subagent's confirmation_rx.
         let agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
-            crate::config::GooseMode::Auto,
+            GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
         );
@@ -1188,6 +1261,7 @@ impl SummonClient {
                 working_dir,
                 "Delegated task".to_string(),
                 SessionType::SubAgent,
+                GooseMode::Auto,
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
@@ -1265,8 +1339,17 @@ impl SummonClient {
     ) -> Result<Recipe, String> {
         let source = self
             .resolve_source(session_id, source_name, working_dir)
-            .await
+            .await?
             .ok_or_else(|| format!("Source '{}' not found", source_name))?;
+
+        if source_name.contains('/')
+            && matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+        {
+            return Err(format!(
+                "Cannot delegate to supporting file '{}'. Use load() to read it instead.",
+                source_name
+            ));
+        }
 
         let mut recipe = match source.kind {
             SourceKind::Recipe | SourceKind::Subrecipe => {
@@ -1455,9 +1538,8 @@ impl SummonClient {
 
         let max_turns = self.resolve_max_turns(session);
 
-        let mut task_config =
-            TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-        task_config.max_turns = Some(max_turns);
+        let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+            .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1512,6 +1594,7 @@ impl SummonClient {
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
+        // Priority: env var > recipe settings > config.yaml > default
         std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -1521,6 +1604,11 @@ impl SummonClient {
                     .as_ref()
                     .and_then(|r| r.settings.as_ref())
                     .and_then(|s| s.max_turns)
+            })
+            .or_else(|| {
+                Config::global()
+                    .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
+                    .ok()
             })
             .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS)
     }
@@ -1619,11 +1707,14 @@ impl SummonClient {
 
         let description = truncate(&Self::get_task_description(&params), 40);
 
+        // Subagents must use Auto until get_agent_messages forwards
+        // ActionRequired messages to the parent. Until then, any mode
+        // that requires approval will hang on the subagent's confirmation_rx.
         let agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
-            crate::config::GooseMode::Auto,
+            GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
         );
@@ -1631,7 +1722,12 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(working_dir, description.clone(), SessionType::SubAgent)
+            .create_session(
+                working_dir,
+                description.clone(),
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 
@@ -1731,12 +1827,12 @@ impl McpClientTrait for SummonClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let content = match name {
             "load" => self.handle_load(session_id, arguments).await,
             "delegate" => {
@@ -1939,6 +2035,225 @@ You review code."#;
     }
 
     #[tokio::test]
+    async fn test_load_source_lists_supporting_files_with_load_names() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("references")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nSee references.",
+        )
+        .unwrap();
+        fs::write(
+            skill_dir.join("references/ops.md"),
+            "# Ops Guide\n\nDo the thing.",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("run.sh"), "#!/bin/bash\necho ok").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let result = client
+            .handle_load_source("test", "my-skill", temp_dir.path())
+            .await
+            .unwrap();
+
+        let text = &result[0].as_text().expect("expected text content").text;
+
+        assert!(
+            !text.contains("Ops Guide"),
+            "md file content should not be inlined"
+        );
+        assert!(
+            !text.contains("Do the thing."),
+            "md file content should not be inlined"
+        );
+        assert!(
+            !text.contains("#!/bin/bash"),
+            "script content should not be inlined"
+        );
+        assert!(
+            text.contains("load(source: \"my-skill/references/ops.md\")"),
+            "md file should be listed with load() name"
+        );
+        assert!(
+            text.contains("load(source: \"my-skill/run.sh\")"),
+            "script should be listed with load() name"
+        );
+        assert!(
+            text.contains("load(source: \"<skill-name>/<path>\")"),
+            "should include usage hint"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_supporting_file_by_path() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("references")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nSee references.",
+        )
+        .unwrap();
+        fs::write(
+            skill_dir.join("references/ops.md"),
+            "# Ops Guide\n\nDo the thing.",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("run.sh"), "#!/bin/bash\necho ok").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let md_result = client
+            .handle_load_source("test", "my-skill/references/ops.md", temp_dir.path())
+            .await
+            .unwrap();
+        let md_text = &md_result[0].as_text().expect("expected text content").text;
+        assert!(
+            md_text.contains("Ops Guide"),
+            "markdown content should be loaded"
+        );
+        assert!(md_text.contains("Do the thing."));
+
+        let sh_result = client
+            .handle_load_source("test", "my-skill/run.sh", temp_dir.path())
+            .await
+            .unwrap();
+        let sh_text = &sh_result[0].as_text().expect("expected text content").text;
+        assert!(
+            sh_text.contains("#!/bin/bash"),
+            "script content should be loaded"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_supporting_file_not_found_suggests_available() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("references")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nSee references.",
+        )
+        .unwrap();
+        fs::write(
+            skill_dir.join("references/ops.md"),
+            "# Ops Guide\n\nDo the thing.",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let err = client
+            .handle_load_source(
+                "test",
+                "my-skill/references/nonexistent.md",
+                temp_dir.path(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.contains("references/ops.md"),
+            "error should list available files: {}",
+            err
+        );
+        assert!(
+            err.contains("my-skill"),
+            "error should name the skill: {}",
+            err
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_resolve_source_blocks_symlink_outside_skill_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nContent.",
+        )
+        .unwrap();
+
+        let secret_file = outside_dir.path().join("secret.txt");
+        fs::write(&secret_file, "top secret data").unwrap();
+        std::os::unix::fs::symlink(&secret_file, skill_dir.join("evil.md")).unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let result = client
+            .handle_load_source("test", "my-skill/evil.md", temp_dir.path())
+            .await;
+
+        assert!(
+            result.is_err(),
+            "symlink outside skill dir should be blocked"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("resolves outside the skill directory"),
+            "error should mention path traversal: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_source_blocks_path_traversal_input() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nContent.",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("legit.md"), "legit content").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        // ../../../etc/passwd won't match any supporting_files entry, so it returns Ok (not found)
+        // which becomes the "not found" error path in handle_load_source
+        let result = client
+            .handle_load_source("test", "my-skill/../../../etc/passwd", temp_dir.path())
+            .await;
+
+        assert!(result.is_err(), "traversal path should not load content");
+        let err = result.unwrap_err();
+        assert!(
+            !err.contains("root:"),
+            "should not contain /etc/passwd content: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_skill_name_with_slash_is_rejected() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/bad-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: bad/skill\ndescription: A skill with slash\n---\nContent.",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.get_sources("test", temp_dir.path()).await;
+
+        assert!(
+            !sources.iter().any(|s| s.name == "bad/skill"),
+            "skill with '/' in name should be rejected"
+        );
+    }
+
+    #[tokio::test]
     async fn test_client_tools_and_unknown_tool() {
         let client = SummonClient::new(create_test_context()).unwrap();
 
@@ -1949,8 +2264,9 @@ You review code."#;
         let names: Vec<_> = result.tools.iter().map(|t| t.name.as_ref()).collect();
         assert!(names.contains(&"load") && names.contains(&"delegate"));
 
+        let ctx = ToolCallContext::new("test".to_string(), None, None);
         let result = client
-            .call_tool("test", "unknown", None, None, CancellationToken::new())
+            .call_tool(&ctx, "unknown", None, CancellationToken::new())
             .await
             .unwrap();
         assert!(result.is_error.unwrap_or(false));
@@ -2031,17 +2347,12 @@ You review code."#;
             use crate::conversation::message::MessageContent;
             use rmcp::model::CallToolRequestParams;
 
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "developer__shell".to_string().into(),
-                arguments: Some(
-                    serde_json::json!({"command": "ls"})
-                        .as_object()
-                        .unwrap()
-                        .clone(),
-                ),
-            };
+            let tool_call = CallToolRequestParams::new("developer__shell").with_arguments(
+                serde_json::json!({"command": "ls"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            );
             let content = MessageContent::tool_request("req1", Ok(tool_call));
             let notif = create_tool_notification(&content, "20260204_1").unwrap();
 
