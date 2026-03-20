@@ -80,7 +80,7 @@ jobs:
     # For workflow_dispatch: only run if tag is not 'stable'
     if: |
       (github.event_name == 'workflow_dispatch' && inputs.tag != 'stable') ||
-      (github.event_name == 'workflow_run' && 
+      (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch != 'stable')
 
@@ -214,7 +214,7 @@ jobs:
             response=$(curl -s -X POST "https://discord.com/api/v10/channels/${channel}/messages" \
               -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "{\"content\": $content}")
+              -d "{\"content\": $content, \"flags\": 4}")
 
             # Debug: show response if there's an error
             if echo "$response" | jq -e '.code' > /dev/null 2>&1; then
@@ -281,7 +281,7 @@ jobs:
           # Read the split content
           MAIN_CONTENT=""
           [ -f /tmp/main_content.txt ] && MAIN_CONTENT=$(cat /tmp/main_content.txt)
-          
+
           THREAD_CONTENT=""
           [ -f /tmp/thread_content.txt ] && THREAD_CONTENT=$(cat /tmp/thread_content.txt)
 
