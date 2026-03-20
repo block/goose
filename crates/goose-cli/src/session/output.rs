@@ -1,6 +1,6 @@
 use anstream::println;
 use bat::WrappingMode;
-use console::{measure_text_width, style, Color, Term};
+use console::{Color, Term, measure_text_width, style};
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
@@ -533,31 +533,38 @@ fn print_tool_output(text: &str) {
     if text.is_empty() {
         return;
     }
+    if !std::io::stdout().is_terminal() {
+        print!("{}", text);
+        return;
+    }
     let max_lines = if get_show_full_tool_output() {
         usize::MAX
     } else {
         20
     };
     let lines: Vec<&str> = text.lines().collect();
-    let truncated = lines.len() > max_lines;
-    let display_lines = if truncated {
-        &lines[..max_lines]
+    if lines.len() <= max_lines {
+        for line in &lines {
+            println!("    {}", style(line).dim());
+        }
     } else {
-        &lines[..]
-    };
-    for line in display_lines {
-        println!("    {}", style(line).dim());
-    }
-    if truncated {
+        let head = max_lines / 2;
+        let tail = max_lines - head;
+        for line in &lines[..head] {
+            println!("    {}", style(line).dim());
+        }
         println!(
             "    {}",
             style(format!(
-                "... ({} more lines, /toggle to show all)",
-                lines.len() - max_lines
+                "... ({} lines hidden, /toggle to show all)",
+                lines.len() - head - tail
             ))
             .dim()
             .italic()
         );
+        for line in &lines[lines.len() - tail..] {
+            println!("    {}", style(line).dim());
+        }
     }
 }
 
@@ -1060,7 +1067,7 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
 }
 
 fn print_table(table_lines: &[&str], theme: Theme) {
-    use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
+    use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets};
 
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);

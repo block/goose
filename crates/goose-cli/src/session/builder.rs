@@ -1,15 +1,15 @@
 use crate::cli::StreamableHttpOptions;
 
-use super::output;
 use super::CliSession;
+use super::output;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{get_all_extensions, Config, ExtensionConfig, GooseMode};
+use goose::config::{Config, ExtensionConfig, GooseMode, get_all_extensions};
 use goose::providers::create;
 use goose::recipe::Recipe;
-use goose::session::session_manager::SessionType;
 use goose::session::EnabledExtensionsState;
+use goose::session::session_manager::SessionType;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -187,8 +187,7 @@ async fn offer_extension_debugging_help(
     // Create a debugging prompt with context about the extension failure
     let debug_prompt = format!(
         "I'm having trouble starting an extension called '{}'. Here's the error I encountered:\n\n{}\n\nCan you help me diagnose what might be wrong and suggest how to fix it? Please consider common issues like:\n- Missing dependencies or tools\n- Configuration problems\n- Network connectivity (for remote extensions)\n- Permission issues\n- Path or environment variable problems",
-        extension_name,
-        error_message
+        extension_name, error_message
     );
 
     // Create a minimal agent for debugging
