@@ -4,7 +4,7 @@ import { stripEmptyExtensions } from '.';
 export const saveRecipe = async (
   recipe: Recipe,
   recipeId?: string | null
-): Promise<{ id: string; fileName: string }> => {
+): Promise<{ id: string; fileName: string; filePath: string }> => {
   try {
     const response = await saveRecipeApi({
       body: {
@@ -13,7 +13,11 @@ export const saveRecipe = async (
       },
       throwOnError: true,
     });
-    return { id: response.data.id, fileName: response.data.file_name };
+    return {
+      id: response.data.id,
+      fileName: response.data.file_name,
+      filePath: response.data.file_path,
+    };
   } catch (error) {
     let error_message = 'unknown error';
     if (typeof error === 'object' && error !== null && 'message' in error) {

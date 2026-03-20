@@ -186,6 +186,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
           setShowCreateRecipeModal(false);
         }}
         onSubRecipeSaved={handleSubRecipeSaved}
+        existingSubRecipes={subRecipes}
       />
     </div>
   );

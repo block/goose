@@ -3,7 +3,7 @@ import { useForm } from '@tanstack/react-form';
 import { X, Save, Loader2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { toastSuccess, toastError } from '../../../toasts';
-import { saveRecipe, getStorageDirectory } from '../../../recipe/recipe_management';
+import { saveRecipe } from '../../../recipe/recipe_management';
 import { Recipe } from '../../../recipe';
 import { SubRecipeFormData } from './recipeFormSchema';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
@@ -13,12 +13,14 @@ interface CreateSubRecipeInlineProps {
   isOpen: boolean;
   onClose: () => void;
   onSubRecipeSaved: (subRecipe: SubRecipeFormData) => void;
+  existingSubRecipes?: SubRecipeFormData[];
 }
 
 export default function CreateSubRecipeInline({
   isOpen,
   onClose,
   onSubRecipeSaved,
+  existingSubRecipes = [],
 }: CreateSubRecipeInlineProps) {
   useEscapeKey(isOpen, onClose);
 
@@ -57,6 +59,15 @@ export default function CreateSubRecipeInline({
       return;
     }
 
+    const trimmedName = name.trim();
+    if (existingSubRecipes.some((sr) => sr.name === trimmedName)) {
+      toastError({
+        title: 'Duplicate Name',
+        msg: `A subrecipe named "${trimmedName}" already exists. Please use a unique name.`,
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const recipe: Recipe = {
@@ -66,11 +77,11 @@ export default function CreateSubRecipeInline({
         instructions: formValues.instructions.trim(),
       };
 
-      const { fileName } = await saveRecipe(recipe, null);
+      const { filePath } = await saveRecipe(recipe, null);
 
       const subRecipe: SubRecipeFormData = {
-        name: name.trim(),
-        path: `${getStorageDirectory(true)}/${fileName}`,
+        name: trimmedName,
+        path: filePath,
         description: toolDescription.trim() || undefined,
         sequential_when_repeated: sequentialWhenRepeated,
         values: Object.keys(values).length > 0 ? values : undefined,
@@ -83,7 +94,6 @@ export default function CreateSubRecipeInline({
 
       onSubRecipeSaved(subRecipe);
       onClose();
-
       form.reset();
       setName('');
       setToolDescription('');
@@ -99,7 +109,7 @@ export default function CreateSubRecipeInline({
     } finally {
       setIsSaving(false);
     }
-  }, [form, name, toolDescription, sequentialWhenRepeated, values, onSubRecipeSaved, onClose]);
+  }, [form, name, toolDescription, sequentialWhenRepeated, values, existingSubRecipes, onSubRecipeSaved, onClose]);
 
   if (!isOpen) return null;
 

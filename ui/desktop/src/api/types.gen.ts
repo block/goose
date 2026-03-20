@@ -1174,6 +1174,7 @@ export type SaveRecipeRequest = {
 
 export type SaveRecipeResponse = {
     file_name: string;
+    file_path: string;
     id: string;
 };
 

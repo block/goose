@@ -7563,10 +7563,14 @@
         "type": "object",
         "required": [
           "id",
-          "file_name"
+          "file_name",
+          "file_path"
         ],
         "properties": {
           "file_name": {
+            "type": "string"
+          },
+          "file_path": {
             "type": "string"
           },
           "id": {

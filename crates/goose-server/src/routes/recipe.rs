@@ -104,6 +104,7 @@ pub struct SaveRecipeRequest {
 pub struct SaveRecipeResponse {
     id: String,
     file_name: String,
+    file_path: String,
 }
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ParseRecipeRequest {
@@ -465,9 +466,11 @@ async fn save_recipe(
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
+            let file_path_str = save_file_path.display().to_string();
             Ok(Json(SaveRecipeResponse {
-                id: short_id_from_path(&save_file_path.display().to_string()),
+                id: short_id_from_path(&file_path_str),
                 file_name,
+                file_path: file_path_str,
             }))
         }
         Err(e) => Err(ErrorResponse {
