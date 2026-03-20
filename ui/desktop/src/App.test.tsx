@@ -171,6 +171,8 @@ const mockElectron = {
   getAllowedExtensions: vi.fn().mockResolvedValue([]),
   platform: 'darwin',
   createChatWindow: vi.fn(),
+  getSetting: vi.fn().mockResolvedValue(null),
+  setSetting: vi.fn().mockResolvedValue(undefined),
 };
 
 // Mock appConfig
