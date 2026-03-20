@@ -676,7 +676,7 @@ export default function McpAppRenderer({
       containerDimensions: getContainerDimensions(
         activeDisplayMode,
         containerWidth,
-        isFillsViewport ? containerHeight - FULLSCREEN_HEADER_HEIGHT : containerHeight
+        isFullscreen ? containerHeight - FULLSCREEN_HEADER_HEIGHT : containerHeight
       ),
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
