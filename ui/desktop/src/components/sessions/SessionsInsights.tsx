@@ -242,7 +242,10 @@ export function SessionInsights() {
           <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
-                <p className="text-4xl font-mono font-light flex items-end">
+                <p
+                  className="text-4xl font-mono font-light flex items-end"
+                  data-testid="total-sessions-count"
+                >
                   {Math.max(insights?.totalSessions ?? 0, 0)}
                 </p>
                 <span className="text-xs text-text-secondary">Total sessions</span>
@@ -328,6 +331,7 @@ export function SessionInsights() {
                       onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}
+                      data-testid="recent-session-item"
                       style={{ animationDelay: `${index * 0.1}s` }}
                       onKeyDown={async (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {

@@ -173,7 +173,9 @@ export function CostTracker({
           <TooltipTrigger asChild>
             <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
               <CoinIcon className="mr-1" size={16} />
-              <span className="text-xs font-mono">0.0000</span>
+              <span className="text-xs font-mono" data-testid="cost-tracker-value">
+                0.0000
+              </span>
             </div>
           </TooltipTrigger>
           <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
@@ -227,7 +229,9 @@ export function CostTracker({
         <TooltipTrigger asChild>
           <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
             <CoinIcon className="mr-1" size={16} />
-            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+            <span className="text-xs font-mono" data-testid="cost-tracker-value">
+              {formatCost(totalCost)}
+            </span>
           </div>
         </TooltipTrigger>
         <TooltipContent>{getTooltipContent()}</TooltipContent>

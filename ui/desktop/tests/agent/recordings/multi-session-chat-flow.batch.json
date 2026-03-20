@@ -1,0 +1,30 @@
+[
+  ["open", "http://localhost:5173"],
+  ["wait", "--load", "networkidle"],
+
+  ["find", "testid", "chat-input", "fill", "Hello"],
+  ["find", "testid", "send-button", "click"],
+  ["wait", "--text", "Howdy! I am goose, ready to help."],
+
+  ["find", "role", "button", "click", "--name", "Home"],
+  ["wait", "--load", "networkidle"],
+  ["wait", "--text", "Total sessions"],
+  ["wait", "--fn", "document.querySelector('[data-testid=\"total-sessions-count\"]')?.textContent?.trim() === '1'"],
+
+  ["find", "testid", "chat-input", "fill", "What is 2+2?"],
+  ["find", "testid", "send-button", "click"],
+  ["wait", "--text", "2 + 2 = 4"],
+
+  ["find", "testid", "nav-show-all-sessions", "click"],
+  ["wait", "--load", "networkidle"],
+  ["wait", "--text", "Chat history"],
+  ["wait", "--fn", "document.querySelectorAll('[data-testid=\"session-card\"]').length === 2"],
+
+  ["find", "nth", "1", "[data-testid='session-card']", "click"],
+  ["wait", "--text", "Howdy! I am goose, ready to help."],
+
+  ["fill", "[data-active-session='true'] [data-testid='chat-input']", "Tell me a joke"],
+  ["click", "[data-active-session='true'] [data-testid='send-button']"],
+  ["wait", "--text", "Because light attracts bugs!"],
+  ["wait", "--fn", "document.querySelector('[data-active-session=\"true\"] [data-testid=\"cost-tracker-value\"]')?.textContent?.trim() !== '0.0000'"]
+]
