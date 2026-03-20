@@ -97,9 +97,6 @@ jobs:
           export CARGO_INCREMENTAL=0
           cargo clippy --workspace --all-targets --exclude v8 -- -D warnings
 
-      - name: Check for banned TLS crates
-        run: ./scripts/check-no-native-tls.sh
-
   openapi-schema-check:
     name: Check OpenAPI Schema is Up-to-Date
     runs-on: ubuntu-latest

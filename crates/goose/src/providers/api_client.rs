@@ -119,12 +119,19 @@ impl TlsConfig {
             let key_pem = read_to_string(&cert_key_pair.key_path)
                 .map_err(|e| anyhow::anyhow!("Failed to read client private key: {}", e))?;
 
-            // Create a combined PEM file with certificate and private key
-            let combined_pem = format!("{}\n{}", cert_pem, key_pem);
+            #[cfg(not(feature = "native-tls"))]
+            let identity = {
+                let combined_pem = format!("{}\n{}", cert_pem, key_pem);
+                Identity::from_pem(combined_pem.as_bytes()).map_err(|e| {
+                    anyhow::anyhow!("Failed to create identity from cert and key: {}", e)
+                })?
+            };
 
-            let identity = Identity::from_pem(combined_pem.as_bytes()).map_err(|e| {
-                anyhow::anyhow!("Failed to create identity from cert and key: {}", e)
-            })?;
+            #[cfg(feature = "native-tls")]
+            let identity = Identity::from_pkcs8_pem(cert_pem.as_bytes(), key_pem.as_bytes())
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to create identity from cert and key: {}", e)
+                })?;
 
             Ok(Some(identity))
         } else {

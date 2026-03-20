@@ -485,6 +485,7 @@ async fn run_single_connection(
     scheme: String,
     restart_tx: mpsc::Sender<()>,
 ) {
+    #[cfg(not(feature = "native-tls"))]
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let worker_url = get_worker_url();

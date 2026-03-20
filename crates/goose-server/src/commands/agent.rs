@@ -31,6 +31,7 @@ pub async fn run() -> Result<()> {
     // gateways, etc.) try to open TLS connections. Both `ring` and `aws-lc-rs`
     // features are enabled on rustls (via different transitive deps), so rustls
     // cannot auto-detect a provider — we must pick one explicitly.
+    #[cfg(not(feature = "native-tls"))]
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     crate::logging::setup_logging(Some("goosed"))?;
@@ -85,7 +86,14 @@ pub async fn run() -> Result<()> {
 
         info!("listening on https://{}", addr);
 
+        #[cfg(not(feature = "native-tls"))]
         axum_server::bind_rustls(addr, tls_setup.config)
+            .handle(handle)
+            .serve(app.into_make_service())
+            .await?;
+
+        #[cfg(feature = "native-tls")]
+        axum_server::bind_openssl(addr, tls_setup.config)
             .handle(handle)
             .serve(app.into_make_service())
             .await?;
