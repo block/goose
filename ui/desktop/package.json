@@ -41,6 +41,7 @@
     "start-alpha-gui": "ALPHA=true pnpm run start-gui"
   },
   "dependencies": {
+    "@aaif/goose-acp": "workspace:*",
     "@mcp-ui/client": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.1.1",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -69,7 +70,6 @@
     "electron-window-state": "^5.0.3",
     "express": "^5.2.1",
     "framer-motion": "^12.34.3",
-    "@aaif/goose-acp": "workspace:*",
     "katex": "^0.16.33",
     "lodash": "^4.17.23",
     "lucide-react": "^0.575.0",
@@ -121,6 +121,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.24",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
