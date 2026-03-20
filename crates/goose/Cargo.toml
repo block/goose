@@ -77,12 +77,7 @@ opentelemetry_sdk = { workspace = true }
 opentelemetry-appender-tracing = { workspace = true }
 opentelemetry-otlp = { workspace = true }
 opentelemetry-stdout = { workspace = true }
-keyring = { version = "3.6.2", features = [
-    "apple-native",
-    "windows-native",
-    "sync-secret-service",
-    "vendored",
-] }
+keyring = { version = "3.6.2", features = ["vendored"] }
 serde_yaml = { workspace = true }
 strum = { workspace = true }
 once_cell = { workspace = true }
@@ -163,12 +158,17 @@ shell-words = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
+keyring = { version = "3.6.2", features = ["windows-native"] }
 
 # Platform-specific GPU acceleration for Whisper and local inference
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"], optional = true }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"], optional = true }
 llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"], optional = true }
+keyring = { version = "3.6.2", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.2", features = ["sync-secret-service"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
