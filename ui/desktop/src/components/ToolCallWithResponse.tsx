@@ -354,9 +354,9 @@ const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
   const extensionName = parts.slice(1).reverse().join('__') || '';
   const toolGraph = toolCall.arguments?.tool_graph;
 
-  if (toolName === 'execute_code' && toolGraph && toolGraph.length > 0) {
+  if (toolName === 'execute_typescript' && toolGraph && toolGraph.length > 0) {
     const plural = toolGraph.length === 1 ? '' : 's';
-    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
+    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_typescript`;
     const lines = toolGraph.map((node, idx) => {
       const deps =
         node.depends_on && node.depends_on.length > 0
@@ -638,7 +638,7 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
-      case 'execute': {
+      case 'execute_typescript': {
         const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
         if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
           if (toolGraph.length === 1) {
@@ -736,7 +736,7 @@ function ToolCallView({
         const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
 
         if (
-          toolCall.name === 'code_execution__execute' &&
+          toolCall.name === 'code_execution__execute_typescript' &&
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
@@ -866,7 +866,7 @@ interface ToolResultViewProps {
   isStartExpanded: boolean;
 }
 
-function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   const hasText = (c: ContentBlock): c is ContentBlock & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
@@ -879,18 +879,6 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
   const hasResource = (c: ContentBlock): c is ContentBlock & { resource: unknown } =>
     'resource' in c;
 
-  const wrapMarkdown = (text: string): string => {
-    if (
-      ['code_execution__list_functions', 'code_execution__get_function_details'].includes(
-        toolCall.name
-      )
-    ) {
-      return '```typescript\n' + text + '\n```';
-    } else {
-      return text;
-    }
-  };
-
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
@@ -898,10 +886,9 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
     >
       <div className="pl-4 pr-4 py-4">
         {hasText(result) && (
-          <MarkdownContent
-            content={wrapMarkdown(result.text)}
-            className="whitespace-pre-wrap max-w-full overflow-x-auto"
-          />
+          <pre className="font-mono text-xs whitespace-pre-wrap max-w-full overflow-x-auto">
+            {result.text.trim()}
+          </pre>
         )}
         {hasImage(result) && (
           <img

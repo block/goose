@@ -197,7 +197,7 @@ function ProviderCards({
     async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
       const result = await createCustomProvider({ body: data, throwOnError: true });
-      const providerId = result.data?.replace('Custom provider added - ID: ', '') || null;
+      const providerId = result.data?.provider_name;
       setShowCustomProviderModal(false);
       if (refreshProviders) {
         await refreshProviders();
