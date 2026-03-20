@@ -8,7 +8,7 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = ["code-mode", "local-inference", "aws-providers", "default-tls"]
+default = ["code-mode", "local-inference", "aws-providers", "rustls-tls"]
 code-mode = ["dep:pctx_code_mode"]
 local-inference = [
     "dep:candle-core",
@@ -27,7 +27,7 @@ aws-providers = [
     "dep:aws-sdk-sagemakerruntime",
 ]
 cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
-default-tls = [
+rustls-tls = [
     "reqwest/rustls",
     "rmcp/reqwest",
     "sqlx/runtime-tokio-rustls",

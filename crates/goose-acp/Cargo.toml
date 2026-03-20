@@ -16,9 +16,9 @@ name = "generate-acp-schema"
 path = "src/bin/generate_acp_schema.rs"
 
 [features]
-default = ["code-mode", "default-tls"]
+default = ["code-mode", "rustls-tls"]
 code-mode = ["goose/code-mode"]
-default-tls = ["goose/default-tls", "goose-mcp/default-tls"]
+rustls-tls = ["goose/rustls-tls", "goose-mcp/rustls-tls"]
 native-tls = ["goose/native-tls", "goose-mcp/native-tls"]
 
 [lints]

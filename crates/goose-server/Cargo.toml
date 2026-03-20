@@ -11,19 +11,19 @@ description.workspace = true
 workspace = true
 
 [features]
-default = ["code-mode", "local-inference", "aws-providers", "default-tls"]
+default = ["code-mode", "local-inference", "aws-providers", "rustls-tls"]
 code-mode = ["goose/code-mode"]
 local-inference = ["goose/local-inference"]
 aws-providers = ["goose/aws-providers"]
 cuda = ["goose/cuda", "local-inference"]
-default-tls = [
+rustls-tls = [
     "reqwest/rustls",
     "tokio-tungstenite/rustls-tls-native-roots",
     "axum-server/tls-rustls",
     "dep:rustls",
     "dep:aws-lc-rs",
-    "goose/default-tls",
-    "goose-mcp/default-tls",
+    "goose/rustls-tls",
+    "goose-mcp/rustls-tls",
 ]
 native-tls = [
     "reqwest/native-tls",

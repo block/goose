@@ -11,7 +11,7 @@ description.workspace = true
 workspace = true
 
 [features]
-default-tls = ["reqwest/rustls"]
+rustls-tls = ["reqwest/rustls"]
 native-tls = ["reqwest/native-tls"]
 
 [dependencies]

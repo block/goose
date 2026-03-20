@@ -1,7 +1,20 @@
+//! TLS configuration for the goose server.
+//!
+//! Two TLS backends are supported for the HTTPS listener via `axum-server`:
+//!
+//! - **`rustls-tls`** (enabled by default) – uses `axum-server/tls-rustls` with
+//!   the `aws-lc-rs` crypto provider.
+//! - **`native-tls`** – uses `axum-server/tls-openssl`, which links against the
+//!   platform's OpenSSL (or a compatible fork such as LibreSSL / BoringSSL).
+//!   On Linux this *is* the platform-native TLS stack; on macOS/Windows the
+//!   `native-tls` crate used by the HTTP *client* delegates to Security.framework
+//!   / SChannel respectively, but `axum-server` does not offer those backends so
+//!   the server listener always uses OpenSSL when this feature is active.
+
 use anyhow::Result;
 use rcgen::{CertificateParams, DnType, KeyPair, SanType};
 
-#[cfg(not(feature = "native-tls"))]
+#[cfg(feature = "rustls-tls")]
 pub type TlsConfig = axum_server::tls_rustls::RustlsConfig;
 
 #[cfg(feature = "native-tls")]
@@ -28,7 +41,7 @@ fn generate_self_signed_cert() -> Result<(rcgen::Certificate, KeyPair)> {
 }
 
 fn sha256_fingerprint(der: &[u8]) -> String {
-    #[cfg(not(feature = "native-tls"))]
+    #[cfg(feature = "rustls-tls")]
     {
         let sha256 = aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, der);
         sha256
@@ -59,7 +72,7 @@ fn sha256_fingerprint(der: &[u8]) -> String {
 /// The fingerprint is printed to stdout so the parent process (e.g. Electron)
 /// can pin it and reject connections from any other certificate.
 pub async fn self_signed_config() -> Result<TlsSetup> {
-    #[cfg(not(feature = "native-tls"))]
+    #[cfg(feature = "rustls-tls")]
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let (cert, key_pair) = generate_self_signed_cert()?;
@@ -70,7 +83,7 @@ pub async fn self_signed_config() -> Result<TlsSetup> {
     let cert_pem = cert.pem();
     let key_pem = key_pair.serialize_pem();
 
-    #[cfg(not(feature = "native-tls"))]
+    #[cfg(feature = "rustls-tls")]
     let config = axum_server::tls_rustls::RustlsConfig::from_pem(
         cert_pem.into_bytes(),
         key_pem.into_bytes(),
