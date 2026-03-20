@@ -65,6 +65,8 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
+    /// Skip canonical model filtering for no-auth local providers (e.g. LM Studio)
+    skip_model_filter: bool,
 }
 
 impl OpenAiProvider {
@@ -126,6 +128,7 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            skip_model_filter: false,
         })
     }
 
@@ -140,6 +143,7 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            skip_model_filter: false,
         }
     }
 
@@ -208,6 +212,7 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            skip_model_filter: !config.requires_auth,
         })
     }
 
@@ -363,6 +368,10 @@ impl Provider for OpenAiProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
+    }
+
+    fn skip_model_filtering(&self) -> bool {
+        self.skip_model_filter
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -617,6 +626,7 @@ mod tests {
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),
+            skip_model_filter: false,
         }
     }
 

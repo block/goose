@@ -534,8 +534,26 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    /// Whether to bypass canonical model filtering for this provider.
+    /// Local no-auth providers (e.g. LM Studio) should return true, since their
+    /// model names are arbitrary and won't match the canonical registry.
+    fn skip_model_filtering(&self) -> bool {
+        false
+    }
+
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+        if self.skip_model_filtering() {
+            let models = self.fetch_supported_models().await?;
+            tracing::warn!(
+                provider = self.get_name(),
+                count = models.len(),
+                "Returning all available models without canonical filtering — \
+                some models may not support tool calling and could be incompatible with Goose"
+            );
+            return Ok(models);
+        }
+
         let all_models = self.fetch_supported_models().await?;
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {

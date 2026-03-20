@@ -70,7 +70,11 @@ export async function fetchModelsForProviders(
         throwOnError: true,
       });
       const models = response.data || [];
-      return { provider: p, models, error: null, warning: null };
+      let warning = null;
+      if (p.name === 'lmstudio') {
+        warning = 'Some local models may not follow the expected format for tool calling in goose. Check the LM Studio documentation for model compatibility.';
+      }
+      return { provider: p, models, error: null, warning };
     } catch (e: unknown) {
       // For custom providers, fall back to the configured model list
       if (p.provider_type === 'Custom') {
