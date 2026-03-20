@@ -462,7 +462,77 @@ impl Scheduler {
         }
     }
 
+    async fn sync_from_storage(&self) {
+        if !self.storage_path.exists() {
+            return;
+        }
+        let data = match fs::read_to_string(&self.storage_path) {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+        if data.trim().is_empty() {
+            return;
+        }
+        let disk_jobs: Vec<ScheduledJob> = match serde_json::from_str(&data) {
+            Ok(jobs) => jobs,
+            Err(_) => return,
+        };
+
+        let disk_ids: std::collections::HashSet<String> =
+            disk_jobs.iter().map(|j| j.id.clone()).collect();
+
+        let (jobs_to_add, jobs_to_remove): (Vec<ScheduledJob>, Vec<(String, JobId)>) = {
+            let jobs_guard = self.jobs.lock().await;
+            let to_add = disk_jobs
+                .into_iter()
+                .filter(|j| !jobs_guard.contains_key(&j.id))
+                .collect();
+            let to_remove = jobs_guard
+                .iter()
+                .filter(|(id, (_, j))| !disk_ids.contains(*id) && !j.currently_running)
+                .map(|(id, (uuid, _))| (id.clone(), *uuid))
+                .collect();
+            (to_add, to_remove)
+        };
+
+        for job in jobs_to_add {
+            if !Path::new(&job.source).exists() {
+                tracing::warn!(
+                    "Skipping sync of job '{}': recipe file not found at {}",
+                    job.id,
+                    job.source
+                );
+                continue;
+            }
+            let cron_task = match self.create_cron_task(job.clone()) {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to create cron task for '{}' during sync: {}",
+                        job.id,
+                        e
+                    );
+                    continue;
+                }
+            };
+            let uuid = match self.tokio_scheduler.add(cron_task).await {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::error!("Failed to register job '{}' during sync: {}", job.id, e);
+                    continue;
+                }
+            };
+            self.jobs.lock().await.insert(job.id.clone(), (uuid, job));
+        }
+
+        for (id, uuid) in jobs_to_remove {
+            let _ = self.tokio_scheduler.remove(&uuid).await;
+            self.jobs.lock().await.remove(&id);
+        }
+    }
+
     pub async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
+        self.sync_from_storage().await;
         self.jobs
             .lock()
             .await
@@ -749,6 +819,7 @@ async fn execute_job(
             std::env::current_dir()?,
             format!("Scheduled job: {}", job.id),
             SessionType::Scheduled,
+            agent.config.goose_mode,
         )
         .await?;
 
@@ -943,6 +1014,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
@@ -969,6 +1046,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_paused_job_does_not_run() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
@@ -996,6 +1079,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_with_no_prompt_does_not_panic() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let recipe_path = temp_dir.path().join("no_prompt.yaml");
         fs::write(

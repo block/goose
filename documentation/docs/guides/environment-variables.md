@@ -164,28 +164,32 @@ export GOOSE_LEAD_FAILURE_THRESHOLD=3
 export GOOSE_LEAD_FALLBACK_TURNS=2
 ```
 
-### Claude Extended Thinking
+### Claude Thinking Configuration
 
-These variables control Claude's [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) feature, which allows the model to reason through complex problems before generating a response. Supported on Anthropic and Databricks providers.
+These variables control Claude's reasoning behavior. Supported on Anthropic and Databricks providers.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `CLAUDE_THINKING_ENABLED` | Enables extended thinking for Claude models | Set to any value to enable | Disabled |
-| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process | Positive integer (minimum 1024) | 16000 |
+| `CLAUDE_THINKING_TYPE` | Controls Claude reasoning mode | `adaptive`, `enabled`, `disabled` | `adaptive` for Claude 4.6+ models, otherwise `disabled` |
+| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process when `CLAUDE_THINKING_TYPE=enabled` | Positive integer (minimum 1024) | 16000 |
 
 **Examples**
 
 ```bash
-# Enable extended thinking with default budget (16000 tokens)
-export CLAUDE_THINKING_ENABLED=1
+# Claude 4.6 adaptive thinking
+export GOOSE_PROVIDER=anthropic
+export GOOSE_MODEL=claude-sonnet-4-6
+export CLAUDE_THINKING_TYPE=adaptive
 
-# Enable with a larger budget for complex tasks
-export CLAUDE_THINKING_ENABLED=1
+# Explicit extended thinking with the default budget
+export CLAUDE_THINKING_TYPE=enabled
+
+# Explicit extended thinking with a larger budget for complex tasks
+export CLAUDE_THINKING_TYPE=enabled
 export CLAUDE_THINKING_BUDGET=32000
 
-# Enable with a smaller budget for faster responses
-export CLAUDE_THINKING_ENABLED=1
-export CLAUDE_THINKING_BUDGET=8000
+# Disable Claude thinking entirely
+export CLAUDE_THINKING_TYPE=disabled
 ```
 
 :::tip Viewing Thinking Output
@@ -344,6 +348,7 @@ These variables allow you to override the default context window size (token lim
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
+| `GOOSE_INPUT_LIMIT` | Override input prompt limit for ollama requests (maps to `num_ctx`) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 | `GOOSE_LEAD_CONTEXT_LIMIT` | Override context limit for the lead model in [lead/worker mode](/docs/tutorials/lead-worker) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 | `GOOSE_WORKER_CONTEXT_LIMIT` | Override context limit for the worker model in lead/worker mode | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 | `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
@@ -353,6 +358,8 @@ These variables allow you to override the default context window size (token lim
 ```bash
 # Set context limit for main model (useful for LiteLLM proxies)
 export GOOSE_CONTEXT_LIMIT=200000
+# Override ollama input prompt limit
+export GOOSE_INPUT_LIMIT=32000
 
 # Set different context limits for lead/worker models
 export GOOSE_LEAD_CONTEXT_LIMIT=500000   # Large context for planning
@@ -731,4 +738,3 @@ When deploying goose in enterprise environments, administrators might need to co
 - For security-sensitive variables (like API keys), consider using the system keyring instead of environment variables.
 - Some variables may require restarting goose to take effect.
 - When using the planning mode, if planner-specific variables are not set, goose will fall back to the main model configuration.
-

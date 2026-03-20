@@ -43,7 +43,7 @@ pkg install cmake protobuf clang build-essential
 
 - **Rust**: Install via [rustup](https://rustup.rs/)
 - **Node.js**: Version 22.9.0 or later (use [nvm](https://github.com/nvm-sh/nvm) for version management)
-- **npm**: Comes with Node.js
+- **pnpm**: Version 10 or later (managed via Hermit, or install globally)
 
 ## Build Process
 
@@ -61,7 +61,7 @@ cargo build --release -p goose-server
 ### 3. Prepare the Desktop Application
 ```bash
 cd ui/desktop
-npm install
+pnpm install
 
 # Copy the server binary to the expected location
 mkdir -p src/bin
@@ -73,7 +73,7 @@ cp ../../target/release/goosed src/bin/
 #### Option A: ZIP Distribution (Recommended)
 Works on all Linux distributions:
 ```bash
-npm run make -- --targets=@electron-forge/maker-zip
+pnpm run make --targets=@electron-forge/maker-zip
 ```
 
 Output: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
@@ -81,14 +81,14 @@ Output: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
 #### Option B: DEB Package
 For Debian/Ubuntu systems:
 ```bash
-npm run make -- --targets=@electron-forge/maker-deb
+pnpm run make --targets=@electron-forge/maker-deb
 ```
 
 Output: `out/make/deb/x64/goose_{version}_amd64.deb`
 
 #### Option C: Both Formats
 ```bash
-npm run make
+pnpm run make
 ```
 
 ### 5. Run the Application
@@ -130,7 +130,7 @@ cd /path/to/goose/ui/desktop/out/goose-linux-x64
 If you see "Could not find goosed binary", ensure you've:
 1. Built the Rust backend: `cargo build --release -p goose-server`
 2. Copied it to the right location: `cp ../../target/release/goosed src/bin/`
-3. Rebuilt the application: `npm run make`
+3. Rebuilt the application: `pnpm run make`
 
 ### Distribution-Specific Notes
 
@@ -148,7 +148,7 @@ sudo apt install flatpak flatpak-builder
 flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
 # Build with Electron Forge
-npm run make -- --targets=@electron-forge/maker-flatpak
+pnpm run make --targets=@electron-forge/maker-flatpak
 ```
 
 Output: `out/make/flatpak/x86_64/*.flatpak`
@@ -161,7 +161,7 @@ Building as Snap packages is not currently supported but may be added in the fut
 For active development:
 
 1. **Backend changes**: Rebuild with `cargo build --release -p goose-server` and copy the binary
-2. **Frontend changes**: Use `npm run start` for hot reload during development
+2. **Frontend changes**: Use `pnpm run start` for hot reload during development
 3. **Full rebuild**: Run the complete build process above
 
 ## Creating System Integration

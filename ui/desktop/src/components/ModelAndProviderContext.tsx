@@ -19,14 +19,13 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface ModelAndProviderContextType {
   currentModel: string | null;
   currentProvider: string | null;
-  changeModel: (sessionId: string | null, model: Model) => Promise<void>;
+  changeModel: (sessionId: string | null, model: Model) => Promise<boolean>;
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getCurrentModelAndProviderForDisplay: () => Promise<{ model: string; provider: string }>;
   getCurrentModelDisplayName: () => Promise<string>;
   getCurrentProviderDisplayName: () => Promise<string>; // Gets provider display name from subtext
   refreshCurrentModelAndProvider: () => Promise<void>;
-  setProviderAndModel: (provider: string, model: string) => void;
 }
 
 interface ModelAndProviderProviderProps {
@@ -47,7 +46,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
     try {
       if (sessionId) {
-        await updateAgentProvider({
+        const response = await updateAgentProvider({
           body: {
             session_id: sessionId,
             provider: providerName,
@@ -56,24 +55,34 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             request_params: model.request_params,
           },
         });
+        if (response.error) {
+          throw new Error(`Failed to update agent provider: ${response.error}`);
+        }
       }
 
-      phase = 'config';
-      await setConfigProvider({
-        body: {
-          provider: providerName,
-          model: modelName,
-        },
-        throwOnError: true,
-      });
+      // Only update the global config default when there's no session
+      // (i.e. changing from settings, not from within an existing chat)
+      if (!sessionId) {
+        phase = 'config';
+        await setConfigProvider({
+          body: {
+            provider: providerName,
+            model: modelName,
+          },
+          throwOnError: true,
+        });
+      }
 
-      setCurrentProvider(providerName);
-      setCurrentModel(modelName);
+      if (!sessionId) {
+        setCurrentProvider(providerName);
+        setCurrentModel(modelName);
+      }
 
       toastSuccess({
         title: CHANGE_MODEL_TOAST_TITLE,
         msg: `${SWITCH_MODEL_SUCCESS_MSG} -- using ${model.alias ?? modelName} from ${model.subtext ?? providerName}`,
       });
+      return true;
     } catch (error) {
       console.error(`Failed to change model at ${phase} step -- ${modelName} ${providerName}`);
       toastError({
@@ -81,6 +90,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         msg: `${error}`,
         traceback: errorMessage(error),
       });
+      return false;
     }
   }, []);
 
@@ -174,11 +184,6 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     }
   }, [getCurrentModelAndProvider]);
 
-  const setProviderAndModel = useCallback((provider: string, model: string) => {
-    setCurrentProvider(provider);
-    setCurrentModel(model);
-  }, []);
-
   // Load initial model and provider on mount
   useEffect(() => {
     refreshCurrentModelAndProvider();
@@ -195,7 +200,6 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelDisplayName,
       getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
-      setProviderAndModel,
     }),
     [
       currentModel,
@@ -207,7 +211,6 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelDisplayName,
       getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
-      setProviderAndModel,
     ]
   );
 

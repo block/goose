@@ -49,10 +49,10 @@ impl RateLimitedTelemetrySender {
 
                 match event {
                     TelemetryEvent::Span(span_data) => {
-                        Self::process_span(span_data).await;
+                        Self::process_span(span_data);
                     }
                     TelemetryEvent::Metric(metric_data) => {
-                        Self::process_metric(metric_data).await;
+                        Self::process_metric(metric_data);
                     }
                 }
 
@@ -79,7 +79,7 @@ impl RateLimitedTelemetrySender {
         self.sender.send(TelemetryEvent::Metric(metric_data))
     }
 
-    async fn process_span(span_data: SpanData) {
+    fn process_span(span_data: SpanData) {
         let span = tracing::info_span!("telemetry_span", name = %span_data.name);
         let _enter = span.enter();
 
@@ -92,7 +92,7 @@ impl RateLimitedTelemetrySender {
         }
     }
 
-    async fn process_metric(metric_data: MetricData) {
+    fn process_metric(metric_data: MetricData) {
         info!(
             metric_name = %metric_data.name,
             metric_value = metric_data.value,

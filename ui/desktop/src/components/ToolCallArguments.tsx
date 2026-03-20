@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
 
 export type ToolCallArgumentValue =
@@ -14,6 +13,12 @@ interface ToolCallArgumentsProps {
   args: Record<string, ToolCallArgumentValue>;
 }
 
+function formatValue(value: ToolCallArgumentValue): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
 export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
@@ -22,46 +27,33 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   };
 
   const renderValue = (key: string, value: ToolCallArgumentValue) => {
-    if (typeof value === 'string') {
-      const needsExpansion = value.length > 60;
-      const isExpanded = expandedKeys[key];
+    const text = formatValue(value).trim();
+    const needsExpansion = text.length > 60 || text.includes('\n');
+    const isExpanded = expandedKeys[key];
 
-      if (!needsExpansion) {
-        return (
-          <div className="font-sans text-sm mb-2">
-            <div className="flex flex-row">
-              <span className="text-text-secondary min-w-[140px]">{key}</span>
-              <span className="text-text-secondary">{value}</span>
-            </div>
-          </div>
-        );
-      }
-
-      return (
-        <div className={`font-sans text-sm mb-2 ${isExpanded ? '' : 'truncate min-w-0'}`}>
-          <div className={`flex flex-row items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
-            <button
-              onClick={() => toggleKey(key)}
-              className="flex text-left text-text-secondary min-w-[140px]"
-            >
-              <span>{key}</span>
-            </button>
-            <div className={`w-full flex items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
-              {isExpanded ? (
-                <div>
-                  <MarkdownContent
-                    content={value}
-                    className="font-sans text-sm text-text-secondary"
-                  />
-                </div>
-              ) : (
-                <button
-                  onClick={() => toggleKey(key)}
-                  className={`text-left text-text-secondary ${isExpanded ? '' : 'truncate min-w-0'}`}
-                >
-                  {value}
-                </button>
-              )}
+    return (
+      <div className="font-sans text-sm mb-2">
+        <div className={`flex flex-row items-stretch ${!isExpanded && needsExpansion ? 'truncate min-w-0' : ''}`}>
+          <button
+            onClick={() => needsExpansion && toggleKey(key)}
+            className={`flex text-left text-text-secondary min-w-[140px] ${needsExpansion ? 'cursor-pointer' : 'cursor-default'}`}
+          >
+            <span>{key}</span>
+          </button>
+          <div className={`w-full flex items-stretch ${!isExpanded && needsExpansion ? 'truncate min-w-0' : ''}`}>
+            {isExpanded ? (
+              <pre className="font-mono text-xs text-text-secondary whitespace-pre-wrap max-w-full overflow-x-auto">
+                {text}
+              </pre>
+            ) : (
+              <button
+                onClick={() => needsExpansion && toggleKey(key)}
+                className={`text-left text-text-secondary font-mono text-xs ${needsExpansion ? 'truncate min-w-0 cursor-pointer' : 'cursor-default'}`}
+              >
+                {text.split('\n')[0]}
+              </button>
+            )}
+            {needsExpansion && (
               <button
                 onClick={() => toggleKey(key)}
                 className="flex flex-row items-stretch grow text-text-secondary pr-2"
@@ -69,26 +61,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 <div className="min-w-2 grow" />
                 <Expand size={5} isExpanded={isExpanded} />
               </button>
-            </div>
+            )}
           </div>
-        </div>
-      );
-    }
-
-    // Handle non-string values (arrays, objects, etc.)
-    const content = Array.isArray(value)
-      ? value.map((item, index) => `${index + 1}. ${JSON.stringify(item)}`).join('\n')
-      : typeof value === 'object' && value !== null
-        ? JSON.stringify(value, null, 2)
-        : String(value);
-
-    return (
-      <div className="mb-2">
-        <div className="flex flex-row font-sans text-sm">
-          <span className="text-text-secondary min-w-[140px]">{key}</span>
-          <pre className="whitespace-pre-wrap text-text-secondary overflow-x-auto max-w-full">
-            {content}
-          </pre>
         </div>
       </div>
     );

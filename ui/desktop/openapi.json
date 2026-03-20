@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.25.0"
+    "version": "1.28.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -663,6 +663,35 @@
         }
       }
     },
+    "/agent/update_session": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal error"
+          }
+        }
+      }
+    },
     "/agent/update_working_dir": {
       "post": {
         "tags": [
@@ -810,9 +839,9 @@
           "200": {
             "description": "Custom provider created successfully",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/CreateCustomProviderResponse"
                 }
               }
             }
@@ -1354,6 +1383,40 @@
         }
       }
     },
+    "/config/providers/{name}/cleanup": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "cleanup_provider_cache",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., githubcopilot)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider cache cleaned up successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers/{name}/models": {
       "get": {
         "tags": [
@@ -1855,6 +1918,26 @@
           },
           "504": {
             "description": "Request timeout"
+          }
+        }
+      }
+    },
+    "/handle_nanogpt": {
+      "post": {
+        "tags": [
+          "super::routes::setup"
+        ],
+        "operationId": "start_nanogpt_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3198,6 +3281,127 @@
         ]
       }
     },
+    "/sessions/{id}/cancel": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cancellation accepted"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/events": {
+      "get": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/reply": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_reply",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionReplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -3871,7 +4075,7 @@
         "type": "object",
         "required": [
           "content",
-          "is_error"
+          "isError"
         ],
         "properties": {
           "_meta": {
@@ -3880,14 +4084,25 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Content"
+              "$ref": "#/components/schemas/ContentBlock"
             }
           },
-          "is_error": {
+          "isError": {
             "type": "boolean"
           },
-          "structured_content": {
+          "structuredContent": {
             "nullable": true
+          }
+        }
+      },
+      "CancelRequest": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
           }
         }
       },
@@ -4031,12 +4246,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawTextContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawImageContent"
               }
@@ -4045,6 +4288,20 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawEmbeddedResource"
               }
             ]
@@ -4052,12 +4309,149 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawAudioContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawResource"
+              }
+            ]
+          }
+        ]
+      },
+      "ContentBlock": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawTextContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawImageContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawAudioContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawResource"
               }
@@ -4069,6 +4463,17 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CreateCustomProviderResponse": {
+        "type": "object",
+        "required": [
+          "provider_name"
+        ],
+        "properties": {
+          "provider_name": {
+            "type": "string"
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -4177,6 +4582,10 @@
           "api_key_env": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "base_url": {
             "type": "string"
           },
@@ -4191,8 +4600,19 @@
           "display_name": {
             "type": "string"
           },
+          "dynamic_models": {
+            "type": "boolean",
+            "nullable": true
+          },
           "engine": {
             "$ref": "#/components/schemas/ProviderEngine"
+          },
+          "env_vars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvVarConfig"
+            },
+            "nullable": true
           },
           "headers": {
             "type": "object",
@@ -4453,6 +4873,31 @@
         "properties": {
           "deeplink": {
             "type": "string"
+          }
+        }
+      },
+      "EnvVarConfig": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
           }
         }
       },
@@ -4977,6 +5422,15 @@
               }
             }
           }
+        ]
+      },
+      "GooseMode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "approve",
+          "smart_approve",
+          "chat"
         ]
       },
       "HfGgufFile": {
@@ -5588,27 +6042,6 @@
                 }
               }
             ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReasoningContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "reasoning"
-                    ]
-                  }
-                }
-              }
-            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -5683,28 +6116,6 @@
           {
             "type": "object",
             "required": [
-              "model",
-              "mode",
-              "type"
-            ],
-            "properties": {
-              "mode": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "ModelChange"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "request_id",
               "message",
               "type"
@@ -5738,6 +6149,28 @@
                 "type": "string",
                 "enum": [
                   "UpdateConversation"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Sent at the start of an SSE stream to inform the client about\nin-flight requests it can reattach to.",
+            "required": [
+              "request_ids",
+              "type"
+            ],
+            "properties": {
+              "request_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ActiveRequests"
                 ]
               }
             }
@@ -5821,6 +6254,10 @@
           },
           "model_name": {
             "type": "string"
+          },
+          "reasoning": {
+            "type": "boolean",
+            "nullable": true
           },
           "request_params": {
             "type": "object",
@@ -6351,6 +6788,13 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          },
+          "setup_steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "step-by-step instructions for set up providers eg: api key"
           }
         }
       },
@@ -6560,17 +7004,6 @@
             "type": "string"
           },
           "uri": {
-            "type": "string"
-          }
-        }
-      },
-      "ReasoningContent": {
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
             "type": "string"
           }
         }
@@ -6985,10 +7418,16 @@
       "Role": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "user"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
           }
         ]
       },
@@ -7249,6 +7688,9 @@
           "extension_data": {
             "$ref": "#/components/schemas/ExtensionData"
           },
+          "goose_mode": {
+            "$ref": "#/components/schemas/GooseMode"
+          },
           "id": {
             "type": "string"
           },
@@ -7425,6 +7867,48 @@
               "$ref": "#/components/schemas/Session"
             },
             "description": "List of available session information objects"
+          }
+        }
+      },
+      "SessionReplyRequest": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_message"
+        ],
+        "properties": {
+          "override_conversation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "nullable": true
+          },
+          "recipe_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Client-generated UUIDv7 identifying this request."
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        }
+      },
+      "SessionReplyResponse": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
           }
         }
       },
@@ -7721,13 +8205,22 @@
       "TaskSupport": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "optional"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "required"
+            ]
           }
         ]
       },
@@ -8159,6 +8652,10 @@
           "api_url": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "catalog_provider_id": {
             "type": "string",
             "nullable": true
@@ -8251,6 +8748,21 @@
           "name": {
             "type": "string",
             "description": "Updated name for the session (max 200 characters)"
+          }
+        }
+      },
+      "UpdateSessionRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "goose_mode": {
+            "type": "string",
+            "nullable": true
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },

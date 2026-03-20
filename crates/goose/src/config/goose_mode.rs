@@ -1,26 +1,33 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumMessage, EnumString, IntoStaticStr, VariantNames};
+use utoipa::ToSchema;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumMessage,
+    EnumString,
+    IntoStaticStr,
+    VariantNames,
+    ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum GooseMode {
+    #[default]
+    #[strum(message = "Automatically approve tool calls")]
     Auto,
+    #[strum(message = "Ask before every tool call")]
     Approve,
+    #[strum(message = "Ask only for sensitive tool calls")]
     SmartApprove,
+    #[strum(message = "Chat only, no tool calls")]
     Chat,
-}
-
-impl FromStr for GooseMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "auto" => Ok(GooseMode::Auto),
-            "approve" => Ok(GooseMode::Approve),
-            "smart_approve" => Ok(GooseMode::SmartApprove),
-            "chat" => Ok(GooseMode::Chat),
-            _ => Err(format!("invalid mode: {}", s)),
-        }
-    }
 }

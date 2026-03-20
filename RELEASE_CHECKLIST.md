@@ -2,14 +2,25 @@
 
 ## Version: {{VERSION}}
 
+### Identify the high risk changes in this Release
+
+```
+./workflow_recipes/release_risk_check/run.sh {{VERSION}}
+```
+
+It will generate an analysis report in `/tmp/release_report_final.md` and perform testing is necessary for high risk pr changes. 
+
+
+## Regression Testing
+
 Make a copy of this document for each version and check off as steps are verified.
 
-## Provider Testing
+### Provider Testing
 
 - [ ] Run `./scripts/test_providers.sh` locally from the release branch and verify all providers/models work
 - [ ] Launch goose, click reset providers, choose databricks and a model
 
-## Starting Conversations
+### Starting Conversations
 
 Test various ways to start a conversation:
 
@@ -26,9 +37,9 @@ Test various ways to start a conversation:
 - [ ] Open a new window, click chat in left side for new chat
 - [ ] Click "create a tamagotchi game" in popular chat topics to test developer extension
 
-## Recipes
+### Recipes
 
-### Create Recipe from Session
+#### Create Recipe from Session
 
 - [ ] Start a simple chat conversation like "hi"
 - [ ] Click "create a recipe from this session" in the bottom chat bar
@@ -37,7 +48,7 @@ Test various ways to start a conversation:
   - [ ] Can launch create and run recipe - launches in a new window showing as a recipe agent chat with parameters filled in and interact with it
   - [ ] Recipe should be saved in recipe library
 
-### Use Existing Recipe
+#### Use Existing Recipe
 
 - [ ] Pick trip planner from recipe hub (go/gooserecipes)
   - [ ] See the warning whether to trust this recipe (only on fresh install)
@@ -46,7 +57,7 @@ Test various ways to start a conversation:
   - [ ] Check results are reasonable
   - [ ] Ask how many days the trip is for - should say 14
 
-### Recipe Management
+#### Recipe Management
 
 - [ ] Go to recipe manager and enter a new recipe to generate a joke
   - [ ] See that it works if you run it
@@ -56,7 +67,7 @@ Test various ways to start a conversation:
   - [ ] Delete the recipe from the recipe manager
   - [ ] Verify recipe is actually deleted
 
-### Recipe from File
+#### Recipe from File
 
 - [ ] Create a file `~/.config/goose/recipes/test-recipe.yaml` with the following content:
 
@@ -79,40 +90,40 @@ recipe:
 - [ ] Go to hub and enter "what is the value of test_param"
 - [ ] See a new chat that says it has no idea (recipe is no longer active)
 
-## Extensions
+### Extensions
 
-### Manual Extension Addition
+#### Manual Extension Addition
 
 - [ ] Can manually add an extension using random quotes from project
   - [ ] Add new custom stdio extension with the following command and save:
     - [ ] `node /ABSOLUTE/PATH/TO/goose/ui/desktop/tests/e2e/basic-mcp.ts` (use your actual project path)
     - [ ] Should add and can chat to ask for a random quote
 
-### Playwright Extension
+#### Playwright Extension
 
 - [ ] Install the playwright extension from the extensions hub
   - [ ] Tell it to open a browser and search on Google for cats
   - [ ] Verify that the browser opens and navigates
 
-### Extension with Environment Variables
+#### Extension with Environment Variables
 
 - [ ] Install an extension from deeplink that needs env variables:
   - [ ] Use: `goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Use%20up-to-date%20code%20and%20docs&env=TEST_ACCESS_TOKEN`
   - [ ] Extension page should load with env variables modal showing
   - [ ] Allow form input and saving extension
 
-## Speech-to-Text (Local Model)
+### Speech-to-Text (Local Model)
 
 - [ ] Go to Settings > Chat > Voice dictation provider and select the small model
 - [ ] Run a quick test that speech-to-text is working (click the mic button, speak, verify transcription)
 - [ ] Also try OpenAI using your OpenAI key
 
-## Settings
+### Settings
 
 - [ ] Settings page loads and all tabs load
 - [ ] Can change dark mode setting
 
-## Follow-up Issues
+### Follow-up Issues
 
 Link any GitHub issues filed during testing:
 

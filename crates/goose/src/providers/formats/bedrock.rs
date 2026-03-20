@@ -125,11 +125,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .build()?,
             )
         }
-        MessageContent::Reasoning(_reasoning) => {
-            // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
-            // Bedrock doesn't use this format, so skip
-            bedrock::ContentBlock::Text("".to_string())
-        }
     })
 }
 
@@ -312,12 +307,8 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
         bedrock::ContentBlock::Text(text) => MessageContent::text(text),
         bedrock::ContentBlock::ToolUse(tool_use) => MessageContent::tool_request(
             tool_use.tool_use_id.to_string(),
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: tool_use.name.clone().into(),
-                arguments: Some(object(from_bedrock_json(&tool_use.input.clone())?)),
-            }),
+            Ok(CallToolRequestParams::new(tool_use.name.clone())
+                .with_arguments(object(from_bedrock_json(&tool_use.input.clone())?))),
         ),
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
             tool_res.tool_use_id.to_string(),
@@ -333,12 +324,7 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
                     .iter()
                     .map(from_bedrock_tool_result_content_block)
                     .collect::<ToolResult<Vec<_>>>()
-                    .map(|content| rmcp::model::CallToolResult {
-                        content,
-                        structured_content: None,
-                        is_error: Some(false),
-                        meta: None,
-                    })
+                    .map(rmcp::model::CallToolResult::success)
             },
         ),
         bedrock::ContentBlock::CachePoint(_) => {
@@ -612,12 +598,8 @@ mod tests {
                 MessageContent::text("I'll use a tool"),
                 MessageContent::tool_request(
                     "tool_1".to_string(),
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "test_tool".into(),
-                        arguments: Some(object(json!({"param": "value"}))),
-                    }),
+                    Ok(CallToolRequestParams::new("test_tool")
+                        .with_arguments(object(json!({"param": "value"})))),
                 ),
             ],
         );
@@ -652,12 +634,9 @@ mod tests {
             Utc::now().timestamp(),
             vec![MessageContent::tool_response(
                 "tool_1".to_string(),
-                Ok(CallToolResult {
-                    content: vec![Content::text("Tool result text".to_string())],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(CallToolResult::success(vec![Content::text(
+                    "Tool result text".to_string(),
+                )])),
             )],
         );
 
@@ -690,21 +669,13 @@ mod tests {
                 MessageContent::text("Using tools"),
                 MessageContent::tool_request(
                     "tool_1".to_string(),
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "tool_a".into(),
-                        arguments: Some(object(json!({"key": "val"}))),
-                    }),
+                    Ok(CallToolRequestParams::new("tool_a")
+                        .with_arguments(object(json!({"key": "val"})))),
                 ),
                 MessageContent::tool_request(
                     "tool_2".to_string(),
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "tool_b".into(),
-                        arguments: Some(object(json!({"key": "val"}))),
-                    }),
+                    Ok(CallToolRequestParams::new("tool_b")
+                        .with_arguments(object(json!({"key": "val"})))),
                 ),
             ],
         );

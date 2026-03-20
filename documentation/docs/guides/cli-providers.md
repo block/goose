@@ -7,6 +7,10 @@ description: Use Claude Code, Codex, Cursor Agent, or Gemini CLI subscriptions i
 
 # CLI Providers
 
+:::warning Deprecated — Use ACP Providers
+The Claude Code (`claude-code`), Codex (`codex`), and Gemini CLI (`gemini-cli`) providers are deprecated. Use the [ACP providers](/docs/guides/acp-providers) (`claude-acp`, `codex-acp`, `gemini-acp`) instead, which support goose extensions via MCP and use the standardized Agent Client Protocol. CLI providers are kept for backward compatibility only.
+:::
+
 goose can make use of pass-through providers that integrate with existing CLI tools from Anthropic, OpenAI, Cursor, and Google. These providers allow you to use your existing Claude Code, Codex, Cursor Agent, and Google Gemini CLI subscriptions through goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
 
 :::warning Limitations
@@ -284,16 +288,17 @@ goose session
 
 The following models are recognized and passed to the Claude CLI via the `--model` flag. If `GOOSE_MODEL` is set to a value not in this list, no model flag is passed and Claude Code uses its default:
 
+- `default` (opus)
 - `sonnet`
-- `opus`
+- `haiku`
 
 **Permission Modes (`GOOSE_MODE`):**
 
 | Mode | Claude Code Flag | Behavior |
 |------|------------------|----------|
 | `auto` | `--dangerously-skip-permissions` | Bypasses all permission prompts |
-| `smart-approve` | `--permission-mode acceptEdits` | Auto-accepts edits, prompts for other actions |
-| `approve` | Not supported | Returns an error |
+| `smart-approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol (prompts as needed) |
+| `approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol (prompts as needed) |
 | `chat` | (none) | Default Claude Code behavior |
 
 ### Cursor Agent Configuration

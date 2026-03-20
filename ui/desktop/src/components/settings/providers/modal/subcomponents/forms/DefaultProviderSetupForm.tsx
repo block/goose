@@ -17,6 +17,7 @@ interface DefaultProviderSetupFormProps {
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, ConfigInput>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
+  showOptions?: boolean;
 }
 
 const envToPrettyName = (envVar: string) => {
@@ -40,6 +41,7 @@ export default function DefaultProviderSetupForm({
   setConfigValues,
   provider,
   validationErrors = {},
+  showOptions = true,
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
     () => provider.metadata.config_keys || [],
@@ -168,8 +170,12 @@ export default function DefaultProviderSetupForm({
     ));
   };
 
-  let aboveFoldParameters = parameters.filter((p) => p.primary);
-  let belowFoldParameters = parameters.filter((p) => !p.primary);
+  let aboveFoldParameters = parameters.filter(
+    (p) => p.primary || (p.required && (p.default === undefined || p.default === null))
+  );
+  let belowFoldParameters = parameters.filter(
+    (p) => !p.primary && !(p.required && (p.default === undefined || p.default === null))
+  );
 
   if (aboveFoldParameters.length === 0 && parameters.length > 0) {
     aboveFoldParameters = parameters;
@@ -187,7 +193,7 @@ export default function DefaultProviderSetupForm({
       ) : (
         <div>
           <div>{renderParametersList(aboveFoldParameters)}</div>
-          {belowFoldParameters.length > 0 && (
+          {showOptions && belowFoldParameters.length > 0 && (
             <Collapsible
               open={optionalExpanded}
               onOpenChange={setOptionalExpanded}

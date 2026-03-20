@@ -41,6 +41,15 @@ fn get_base_path() -> PathBuf {
     Paths::in_config_dir("databricks/oauth")
 }
 
+pub fn cleanup_oauth_cache() -> Result<()> {
+    let base_path = get_base_path();
+    match fs::remove_dir_all(&base_path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 impl TokenCache {
     fn new(host: &str, client_id: &str, scopes: &[String]) -> Self {
         let mut hasher = sha2::Sha256::new();
