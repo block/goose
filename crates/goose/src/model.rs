@@ -111,8 +111,6 @@ impl ModelConfig {
     }
 
     pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
-        // Check predefined models first — these are explicitly configured by the
-        // operator/deployment and should take priority over generic canonical defaults.
         if let Some(pm) = find_predefined_model(&self.model_name) {
             if self.context_limit.is_none() {
                 self.context_limit = pm.context_limit;
