@@ -699,6 +699,7 @@ export default function McpAppRenderer({
     resolvedTheme,
     mcpHostStyles,
     activeDisplayMode,
+    isFullscreen,
     isStandalone,
     containerWidth,
     containerHeight,
