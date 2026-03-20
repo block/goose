@@ -520,8 +520,17 @@ impl Agent {
                 for block in content {
                     if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
                         section.push_str(&xml_escape(text));
-                    } else if let Ok(json_str) = serde_json::to_string(block) {
-                        section.push_str(&xml_escape(&json_str));
+                    } else {
+                        // Serialize non-text blocks but strip large binary
+                        // payloads (e.g. base64 image data) to avoid bloating
+                        // the synthetic message with thousands of tokens.
+                        let mut stripped = block.clone();
+                        if let Some(obj) = stripped.as_object_mut() {
+                            obj.remove("data");
+                        }
+                        if let Ok(json_str) = serde_json::to_string(&stripped) {
+                            section.push_str(&xml_escape(&json_str));
+                        }
                     }
                     section.push('\n');
                 }
@@ -2474,7 +2483,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mcp_app_context_non_text_blocks_serialized() {
+    async fn test_mcp_app_context_non_text_blocks_serialized_without_data() {
         let agent = Agent::new();
 
         agent
@@ -2483,7 +2492,7 @@ mod tests {
                 McpAppContext {
                     content: Some(vec![
                         serde_json::json!({"type": "text", "text": "hello"}),
-                        serde_json::json!({"type": "image", "data": "base64..."}),
+                        serde_json::json!({"type": "image", "data": "iVBORw0KGgoAAAANS...", "mimeType": "image/png"}),
                     ]),
                     structured_content: None,
                 },
@@ -2493,5 +2502,7 @@ mod tests {
         let text = agent.collect_mcp_app_contexts().await.unwrap();
         assert!(text.contains("hello"));
         assert!(text.contains("&quot;type&quot;:&quot;image&quot;"));
+        assert!(text.contains("&quot;mimeType&quot;:&quot;image/png&quot;"));
+        assert!(!text.contains("iVBORw0KGgoAAAANS"));
     }
 }
