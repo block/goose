@@ -257,11 +257,6 @@ impl DatabricksProvider {
         normalized.contains("codex")
     }
 
-    fn supports_stream_options(model_name: &str) -> bool {
-        let normalized = model_name.to_ascii_lowercase();
-        !normalized.contains("gemini")
-    }
-
     fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
@@ -394,18 +389,16 @@ impl Provider for DatabricksProvider {
                 .unwrap()
                 .insert("stream".to_string(), Value::Bool(true));
 
-            if Self::supports_stream_options(&model_config.model_name) {
-                if let Some(opts) = payload
-                    .get_mut("stream_options")
-                    .and_then(|v| v.as_object_mut())
-                {
-                    opts.entry("include_usage").or_insert(json!(true));
-                } else {
-                    payload
-                        .as_object_mut()
-                        .unwrap()
-                        .insert("stream_options".to_string(), json!({"include_usage": true}));
-                }
+            if let Some(opts) = payload
+                .get_mut("stream_options")
+                .and_then(|v| v.as_object_mut())
+            {
+                opts.entry("include_usage").or_insert(json!(true));
+            } else {
+                payload
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("stream_options".to_string(), json!({"include_usage": true}));
             }
 
             let mut log = RequestLog::start(model_config, &payload)?;
@@ -419,16 +412,40 @@ impl Provider for DatabricksProvider {
                         let status = resp.status();
                         let error_text = resp.text().await.unwrap_or_default();
 
-                        // Parse as JSON if possible to pass to map_http_error_to_provider_error
                         let json_payload = serde_json::from_str::<Value>(&error_text).ok();
                         return Err(map_http_error_to_provider_error(status, json_payload));
                     }
                     Ok(resp)
                 })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                .await;
+
+            let response = match response {
+                Err(e) if e.to_string().contains("stream_options") => {
+                    payload.as_object_mut().unwrap().remove("stream_options");
+                    self.with_retry(|| async {
+                        let resp = self
+                            .api_client
+                            .response_post(Some(session_id), &path, &payload)
+                            .await?;
+                        if !resp.status().is_success() {
+                            let status = resp.status();
+                            let error_text = resp.text().await.unwrap_or_default();
+                            let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                            return Err(map_http_error_to_provider_error(status, json_payload));
+                        }
+                        Ok(resp)
+                    })
+                    .await
+                    .inspect_err(|e| {
+                        let _ = log.error(e);
+                    })?
+                }
+                Err(e) => {
+                    let _ = log.error(&e);
+                    return Err(e);
+                }
+                Ok(resp) => resp,
+            };
 
             stream_openai_compat(response, log)
         }
