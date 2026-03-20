@@ -582,7 +582,7 @@ export default function McpAppRenderer({
 
   // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
   useEffect(() => {
-    const el = contentRef.current;
+    const el = containerRef.current;
     if (!el) return;
 
     const observer = new ResizeObserver((entries) => {
