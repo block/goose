@@ -231,7 +231,7 @@ impl Provider for AnthropicProvider {
         if let Some(custom_models) = &self.custom_models {
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
-                Err(e) if e.is_endpoint_not_implemented() => {
+                Err(e) if e.is_endpoint_not_found() => {
                     tracing::debug!(
                         "Models endpoint not implemented for provider '{}' ({}), using predefined list",
                         self.name,

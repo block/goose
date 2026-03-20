@@ -407,7 +407,7 @@ impl Provider for OpenAiProvider {
         if let Some(custom_models) = &self.custom_models {
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
-                Err(e) if e.is_endpoint_not_implemented() => {
+                Err(e) if e.is_endpoint_not_found() => {
                     tracing::debug!(
                         "Models endpoint not implemented for provider '{}' ({}), using predefined list",
                         self.name,
@@ -646,6 +646,7 @@ mod tests {
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),
+            custom_models: None,
         }
     }
 
