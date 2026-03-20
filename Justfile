@@ -127,11 +127,6 @@ run-ui:
     @echo "Running UI..."
     cd ui/desktop && pnpm install && pnpm run start-gui
 
-run-e2e:
-    @just release-binary
-    @echo "Running UI for e2e..."
-    cd ui/desktop && pnpm install && ENABLE_PLAYWRIGHT=true pnpm run start-e2e-gui
-   
 run-ui-playwright:
     #!/usr/bin/env sh
     just release-binary
