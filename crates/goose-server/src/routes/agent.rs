@@ -385,7 +385,7 @@ async fn resume_agent(
             }
         })?;
 
-    let (extension_results, provider_changed) = if payload.load_model_and_extensions {
+    let (extension_results, session) = if payload.load_model_and_extensions {
         let agent = state
             .get_agent_for_route(payload.session_id.clone())
             .await
@@ -401,6 +401,19 @@ async fn resume_agent(
                 message: e.to_string(),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
+
+        let session = if provider_changed {
+            state
+                .session_manager()
+                .get_session(&payload.session_id, true)
+                .await
+                .map_err(|err| ErrorResponse {
+                    message: format!("Failed to re-fetch session: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                })?
+        } else {
+            session
+        };
 
         let extension_results =
             if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
@@ -420,23 +433,9 @@ async fn resume_agent(
                 agent.load_extensions_from_session(&session).await
             };
 
-        (Some(extension_results), provider_changed)
+        (Some(extension_results), session)
     } else {
-        (None, false)
-    };
-
-    // Re-fetch session if provider was changed during fallback
-    let session = if provider_changed {
-        state
-            .session_manager()
-            .get_session(&payload.session_id, true)
-            .await
-            .map_err(|err| ErrorResponse {
-                message: format!("Failed to re-fetch session: {}", err),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            })?
-    } else {
-        session
+        (None, session)
     };
 
     Ok(Json(ResumeAgentResponse {
