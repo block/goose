@@ -39,6 +39,9 @@
     "@block/goose-acp-server-linux-x64": "0.1.0",
     "@block/goose-acp-server-win32-x64": "0.1.0"
   },
+  "overrides": {
+    "react": "19.2.4"
+  },
   "devDependencies": {
     "@types/marked-terminal": "^6.1.1",
     "@types/node": "^25.2.3",
