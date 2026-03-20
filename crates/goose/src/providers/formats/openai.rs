@@ -528,6 +528,20 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
 }
 
+fn parse_streaming_chunk(line: &str) -> anyhow::Result<StreamingChunk> {
+    if let Ok(value) = serde_json::from_str::<Value>(line) {
+        if let Some(error) = value.get("error") {
+            let message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown server error");
+            return Err(anyhow!("Server error during streaming: {}", message));
+        }
+    }
+    serde_json::from_str(line)
+        .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, line))
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -551,9 +565,9 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let chunk: StreamingChunk = parse_streaming_chunk(
+                line.ok_or_else(|| anyhow!("unexpected stream format"))?
+            )?;
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -591,8 +605,7 @@ where
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
 
-                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
                                     usage = Some(chunk_usage);
