@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.27.0"
+version = "1.28.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -71,8 +71,9 @@ url = "2.5.8"
 opentelemetry = "0.31"
 opentelemetry_sdk = { version = "0.31", features = ["metrics"] }
 opentelemetry-otlp = "0.31"
-opentelemetry-appender-tracing = "0.31"
+opentelemetry-appender-tracing = { version = "0.31", features = ["experimental_span_attributes"] }
 opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
+tracing-futures = { version = "0.2", features = ["futures-03"] }
 tracing-opentelemetry = "0.32"
 
 rayon = "1.10"
@@ -89,3 +90,10 @@ tree-sitter-typescript = "0.23"
 
 [patch.crates-io]
 v8 = { path = "vendor/v8" }
+# TODO: switch to released version in opentelemetry 0.32.0
+# https://github.com/open-telemetry/opentelemetry-rust/issues/3408
+opentelemetry = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry_sdk = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry-appender-tracing = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry-otlp = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry-stdout = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }

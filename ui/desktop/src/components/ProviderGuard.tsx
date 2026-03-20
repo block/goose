@@ -28,7 +28,7 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read, upsert } = useConfig();
+  const { read, upsert, getProviders } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -79,7 +79,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   } | null>(null);
 
   const handleTetrateSetup = async () => {
-    trackOnboardingProviderSelected('tetrate');
+    trackOnboardingProviderSelected({ method: 'tetrate' });
     try {
       const result = await startTetrateSetup();
       if (result.success) {
@@ -107,10 +107,11 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleChatGptCodexSetup = async () => {
-    trackOnboardingProviderSelected('chatgpt_codex');
+    trackOnboardingProviderSelected({ method: 'chatgpt_codex' });
     try {
       const result = await startChatGptCodexSetup();
       if (result.success) {
+        await getProviders(true);
         setSwitchModelProvider('chatgpt_codex');
         setShowSwitchModelModal(true);
       } else {
@@ -135,7 +136,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
-    trackOnboardingProviderSelected('api_key');
+    trackOnboardingProviderSelected({ method: 'api_key' });
     const keyName = `${provider.toUpperCase()}_API_KEY`;
     await upsert(keyName, apiKey, true);
     await upsert('GOOSE_PROVIDER', provider, false);
@@ -160,7 +161,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOpenRouterSetup = async () => {
-    trackOnboardingProviderSelected('openrouter');
+    trackOnboardingProviderSelected({ method: 'openrouter' });
     try {
       const result = await startOpenRouterSetup();
       if (result.success) {
@@ -338,7 +339,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </div>
                 <div
                   onClick={() => {
-                    trackOnboardingProviderSelected('local');
+                    trackOnboardingProviderSelected({ method: 'local' });
                     setShowLocalModelSetup(true);
                   }}
                   className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"

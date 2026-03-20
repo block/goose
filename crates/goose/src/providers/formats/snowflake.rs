@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -38,7 +39,18 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let text = result
                             .content
                             .iter()
-                            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+                            .filter_map(|c| {
+                                if let Some(t) = c.as_text() {
+                                    return Some(t.text.clone());
+                                }
+                                if let Some(r) = c.as_resource() {
+                                    let text = extract_text_from_resource(&r.resource);
+                                    if !text.is_empty() {
+                                        return Some(text);
+                                    }
+                                }
+                                None
+                            })
                             .collect::<Vec<_>>()
                             .join("\n");
 
@@ -64,10 +76,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::Image(_) => continue, // Snowflake doesn't support image content yet
                 MessageContent::FrontendToolRequest(_tool_request) => {
                     // Skip frontend tool requests
-                }
-                MessageContent::Reasoning(_reasoning) => {
-                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
-                    // Snowflake doesn't use this format, so skip
                 }
             }
         }
@@ -132,13 +140,15 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
 
     // Parse each SSE event
     for line in sse_data.lines() {
-        if !line.starts_with("data: ") {
+        // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
+        if !line.starts_with("data:") {
             continue;
         }
 
-        let Some(json_str) = line.get(6..) else {
-            continue;
-        }; // Remove "data: " prefix
+        let json_str = line
+            .strip_prefix("data: ")
+            .or_else(|| line.strip_prefix("data:"))
+            .unwrap(); // Remove "data:" prefix
         if json_str.trim().is_empty() || json_str.trim() == "[DONE]" {
             continue;
         }

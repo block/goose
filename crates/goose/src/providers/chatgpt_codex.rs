@@ -45,8 +45,10 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
-pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
+pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.3-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
+    "gpt-5.4",
+    "gpt-5.3-codex",
     "gpt-5.2-codex",
     "gpt-5.1-codex",
     "gpt-5.1-codex-mini",
@@ -54,6 +56,14 @@ pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
 ];
 
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
+
+const GPT_53_CODEX_TOOL_PREAMBLE: &str = "\
+You are a coding agent. You have access to tools to accomplish tasks. \
+Always use your tools to fulfill requests - do not just describe what you would do. \
+Keep going until the query is completely resolved before yielding back to the user. \
+Autonomously resolve the query using the tools available to you. \
+Do NOT guess or make up an answer. \
+Before making tool calls, send a brief message explaining what you're about to do.";
 
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
@@ -180,11 +190,16 @@ fn create_codex_request(
 ) -> Result<Value> {
     let input_items = build_input_items(messages)?;
 
+    let instructions = match model_config.model_name.as_str() {
+        "gpt-5.3-codex" => format!("{GPT_53_CODEX_TOOL_PREAMBLE}\n\n{system}"),
+        _ => system.to_string(),
+    };
+
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
         "store": false,
-        "instructions": system,
+        "instructions": instructions,
     });
 
     let payload_obj = payload
@@ -205,6 +220,8 @@ fn create_codex_request(
             .collect();
 
         payload_obj.insert("tools".to_string(), json!(tools_spec));
+        payload_obj.insert("tool_choice".to_string(), json!("auto"));
+        payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
     }
 
     if let Some(temp) = model_config.temperature {

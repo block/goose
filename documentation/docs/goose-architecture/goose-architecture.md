@@ -27,7 +27,19 @@ Extensions expose their functionality to goose through tools. Tools are the func
 
 goose comes with a set of [built-in extensions](/docs/getting-started/using-extensions#built-in-extensions), each designed to enhance your interaction. These include tools for development, web scraping, automation, memory, and more. goose also supports [connecting to external extensions](/docs/getting-started/using-extensions#adding-extensions) or [creating custom extensions](/docs/tutorials/custom-extensions) as MCP servers. 
 
-To learn more about the design and implementation of extensions and tools, refer to the [Extensions Design Guide](/docs/goose-architecture/extensions-design#tools). 
+To learn more about the design and implementation of extensions and tools, refer to the [Extensions Design Guide](/docs/goose-architecture/extensions-design#tools).
+
+## Agent Client Protocol (ACP)
+
+goose supports the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) in two ways:
+
+### goose as an ACP Server
+
+`goose acp` starts goose as an ACP server over stdio, letting editors like JetBrains and Zed connect to it directly. See [Using goose in ACP Clients](/docs/guides/acp-clients).
+
+### ACP Agents as Providers
+
+goose can delegate to external ACP agents (like Claude Code or Codex) as [providers](/docs/guides/acp-providers). The ACP agent handles tool execution internally. goose passes configured extensions through as MCP servers.
 
 ## Interactive Loop
 ![interactive loop](../assets/guides/interactive-loop.png)

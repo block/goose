@@ -55,6 +55,7 @@ pub struct SystemPromptBuilder<'a, M> {
     subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
+    goose_mode: Option<GooseMode>,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -106,6 +107,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    pub fn with_goose_mode(mut self, mode: GooseMode) -> Self {
+        self.goose_mode = Some(mode);
+        self
+    }
+
     pub fn build(self) -> String {
         let mut extensions_info = self.extensions_info;
 
@@ -128,8 +134,9 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             })
             .collect();
 
-        let config = Config::global();
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+        let goose_mode = self
+            .goose_mode
+            .unwrap_or_else(|| Config::global().get_goose_mode().unwrap_or_default());
 
         let extension_tool_limits = self
             .extension_tool_count
@@ -250,6 +257,7 @@ impl PromptManager {
             subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
+            goose_mode: None,
         }
     }
 
@@ -403,6 +411,7 @@ mod tests {
     #[tokio::test]
     async fn test_all_platform_extensions() {
         use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
+        use crate::config::GooseMode;
         use crate::session::SessionManager;
         use std::sync::Arc;
 
@@ -413,6 +422,7 @@ mod tests {
                 tmp_dir.path().to_path_buf(),
                 "test session".to_owned(),
                 crate::session::SessionType::Hidden,
+                GooseMode::default(),
             )
             .await
             .unwrap();
