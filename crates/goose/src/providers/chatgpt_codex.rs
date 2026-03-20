@@ -46,7 +46,8 @@ const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.3-codex";
-/// Per-model attributes for known ChatGPT Codex models.
+
+#[derive(Debug)]
 pub struct ChatGptCodexModelAttrs {
     pub name: &'static str,
     pub reasoning_levels: &'static [&'static str],
@@ -83,7 +84,6 @@ const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
 
 const DEFAULT_REASONING_LEVELS: &[&str] = &["medium", "high"];
 
-/// Returns the valid reasoning effort levels for a given model.
 pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
     CHATGPT_CODEX_KNOWN_MODELS
         .iter()
@@ -95,6 +95,14 @@ pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
 fn known_model_names() -> Vec<&'static str> {
     CHATGPT_CODEX_KNOWN_MODELS.iter().map(|m| m.name).collect()
 }
+
+const GPT_53_CODEX_TOOL_PREAMBLE: &str = "\
+You are a coding agent. You have access to tools to accomplish tasks. \
+Always use your tools to fulfill requests - do not just describe what you would do. \
+Keep going until the query is completely resolved before yielding back to the user. \
+Autonomously resolve the query using the tools available to you. \
+Do NOT guess or make up an answer. \
+Before making tool calls, send a brief message explaining what you're about to do.";
 
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
@@ -242,12 +250,17 @@ fn create_codex_request(
     let input_items = build_input_items(messages)?;
     let reasoning_effort = get_reasoning_effort(&model_config.model_name);
 
+    let instructions = match model_config.model_name.as_str() {
+        "gpt-5.3-codex" => format!("{GPT_53_CODEX_TOOL_PREAMBLE}\n\n{system}"),
+        _ => system.to_string(),
+    };
+
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
         "store": false,
         "reasoning": {"effort": reasoning_effort},
-        "instructions": system,
+        "instructions": instructions,
     });
 
     let payload_obj = payload
@@ -1276,5 +1289,37 @@ mod tests {
         let claims = parse_jwt_claims_with_jwks(&token, &jwks).unwrap();
 
         assert_eq!(claims.chatgpt_account_id.as_deref(), Some("account-1"));
+    }
+
+    #[test_case("gpt-5.4", &["low", "medium", "high", "xhigh"]; "gpt-5.4 supports xhigh")]
+    #[test_case("gpt-5.3-codex", &["low", "medium", "high", "xhigh"]; "gpt-5.3-codex supports xhigh")]
+    #[test_case("gpt-5.1-codex-mini", &["medium", "high"]; "gpt-5.1-codex-mini limited levels")]
+    #[test_case("unknown-model", &["medium", "high"]; "unknown model gets default levels")]
+    fn test_reasoning_levels_for_model(model: &str, expected: &[&str]) {
+        assert_eq!(reasoning_levels_for_model(model), expected);
+    }
+
+    #[test]
+    fn test_gpt53_preamble_injected() {
+        let model = ModelConfig::new("gpt-5.3-codex").unwrap();
+        let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
+        let instructions = payload["instructions"].as_str().unwrap();
+        assert!(instructions.contains(GPT_53_CODEX_TOOL_PREAMBLE));
+        assert!(instructions.contains("system prompt"));
+    }
+
+    #[test]
+    fn test_other_models_no_preamble() {
+        let model = ModelConfig::new("gpt-5.4").unwrap();
+        let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
+        let instructions = payload["instructions"].as_str().unwrap();
+        assert_eq!(instructions, "system prompt");
+    }
+
+    #[test]
+    fn test_reasoning_field_in_payload() {
+        let model = ModelConfig::new("gpt-5.3-codex").unwrap();
+        let payload = create_codex_request(&model, "system", &[], &[]).unwrap();
+        assert!(payload["reasoning"]["effort"].is_string());
     }
 }
