@@ -264,11 +264,6 @@ export function useDisplayMode({
 
       if (data.method === 'ui/initialize' && data.params) {
         const caps = data.params.appCapabilities || data.params.capabilities;
-        console.log('[useDisplayMode] ui/initialize', {
-          availableDisplayModes: caps?.availableDisplayModes,
-          title: caps?.title || data.params.title,
-          caps,
-        });
         if (caps?.availableDisplayModes && Array.isArray(caps.availableDisplayModes)) {
           setAppDeclaredModes(caps.availableDisplayModes);
         }
@@ -284,12 +279,6 @@ export function useDisplayMode({
         const requested = data.params.mode as McpUiDisplayMode;
         const allowed =
           effectiveDisplayModes.length > 0 ? effectiveDisplayModes : AVAILABLE_DISPLAY_MODES;
-        console.log('[useDisplayMode] ui/request-display-mode', {
-          requested,
-          allowed,
-          effectiveDisplayModes,
-          willAllow: allowed.includes(requested),
-        });
         if (allowed.includes(requested)) {
           changeDisplayMode(requested);
         }
