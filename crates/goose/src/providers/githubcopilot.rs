@@ -76,8 +76,6 @@ struct DeviceCodeInfo {
 #[derive(Debug, Clone)]
 struct StoredDeviceCode {
     device_code: String,
-    user_code: String,
-    verification_uri: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -315,11 +313,9 @@ impl GithubCopilotProvider {
             device_code_info.verification_uri, code
         );
 
-        // Store the full device code info for polling
+        // Store the device code for polling
         let stored = StoredDeviceCode {
             device_code: device_code_info.device_code.clone(),
-            user_code: device_code_info.user_code.clone(),
-            verification_uri: device_code_info.verification_uri.clone(),
         };
         let mut guard = OAUTH_DEVICE_CODE.lock().await;
         *guard = Some(stored);
@@ -442,6 +438,10 @@ impl GithubCopilotProvider {
             .await
             .context("failed to parse response while checking access token")?;
 
+        eprintln!("[DEBUG] check_access_token_once response: access_token={}, error={}",
+            resp.access_token.is_some(),
+            resp.error.as_deref().unwrap_or("none"));
+
         if let Some(access_token) = resp.access_token {
             Ok(access_token)
         } else if resp
@@ -450,6 +450,24 @@ impl GithubCopilotProvider {
             .is_some_and(|err| err == "authorization_pending")
         {
             Err(anyhow!("authorization pending"))
+        } else if resp
+            .error
+            .as_ref()
+            .is_some_and(|err| err == "slow_down")
+        {
+            Err(anyhow!("authorization pending - slow down"))
+        } else if resp
+            .error
+            .as_ref()
+            .is_some_and(|err| err == "expired_token")
+        {
+            Err(anyhow!("device code expired"))
+        } else if resp
+            .error
+            .as_ref()
+            .is_some_and(|err| err == "access_denied")
+        {
+            Err(anyhow!("access denied"))
         } else {
             Err(anyhow!("unexpected response: {:#?}", resp))
         }
@@ -664,26 +682,13 @@ impl Provider for GithubCopilotProvider {
             return Ok(None);
         }
 
-        // Check if we already have a device code in progress
-        let guard = OAUTH_DEVICE_CODE.lock().await;
-        if let Some(stored) = guard.as_ref() {
-            // Return the existing device code info
-            return Ok(Some(DeviceCodeData {
-                user_code: stored.user_code.clone(),
-                verification_uri: stored.verification_uri.clone(),
-            }));
-        }
-        drop(guard);
-
-        // No existing code, generate a new one
+        // Always generate a fresh device code to avoid returning stale/used codes on retry
         let device_code_info = self.get_device_code().await.map_err(|e| {
             ProviderError::Authentication(format!("Failed to get device code: {}", e))
         })?;
 
         let stored = StoredDeviceCode {
             device_code: device_code_info.device_code.clone(),
-            user_code: device_code_info.user_code.clone(),
-            verification_uri: device_code_info.verification_uri.clone(),
         };
 
         let mut guard = OAUTH_DEVICE_CODE.lock().await;
@@ -699,31 +704,44 @@ impl Provider for GithubCopilotProvider {
     async fn check_oauth_completion(&self) -> Result<bool, ProviderError> {
         let config = Config::global();
 
-        // Check if we already have a token
         if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
             return Ok(true);
         }
 
-        // Check if we have a device code in progress and poll for completion
-        let mut guard = OAUTH_DEVICE_CODE.lock().await;
-        if let Some(stored) = guard.take() {
-            drop(guard);
+        let guard = OAUTH_DEVICE_CODE.lock().await;
+        let stored = guard.as_ref().map(|s| s.device_code.clone());
+        drop(guard);
 
-            // Single poll attempt to check if user has authorized
-            match self.check_access_token_once(&stored.device_code).await {
+        if let Some(device_code) = stored {
+            match self.check_access_token_once(&device_code).await {
                 Ok(token) => {
-                    config
-                        .set_secret("GITHUB_COPILOT_TOKEN", &token)
-                        .map_err(|e| {
-                            ProviderError::ExecutionError(format!("Failed to save token: {}", e))
-                        })?;
-                    return Ok(true);
+                    const MAX_SAVE_ATTEMPTS: u32 = 3;
+                    for attempt in 0..MAX_SAVE_ATTEMPTS {
+                        match config.set_secret("GITHUB_COPILOT_TOKEN", &token) {
+                            Ok(_) => {
+                                let mut guard = OAUTH_DEVICE_CODE.lock().await;
+                                *guard = None;
+                                return Ok(true);
+                            }
+                            Err(e) => {
+                                if attempt < MAX_SAVE_ATTEMPTS - 1 {
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                                } else {
+                                    return Err(ProviderError::ExecutionError(format!(
+                                        "Failed to save token: {}",
+                                        e
+                                    )));
+                                }
+                            }
+                        }
+                    }
                 }
-                Err(_) => {
-                    // Not authorized yet, put the device code back
-                    let mut guard = OAUTH_DEVICE_CODE.lock().await;
-                    *guard = Some(stored);
-                    drop(guard);
+                Err(e) => {
+                    if e.to_string().contains("expired") || e.to_string().contains("access_denied") {
+                        let mut guard = OAUTH_DEVICE_CODE.lock().await;
+                        *guard = None;
+                        return Err(ProviderError::Authentication(e.to_string()));
+                    }
                     return Ok(false);
                 }
             }
@@ -732,8 +750,6 @@ impl Provider for GithubCopilotProvider {
         Ok(false)
     }
 }
-
-// Copilot sometimes returns multiple choices in a completion response for
 // Claude models and places the `tool_calls` payload in a non-zero index choice.
 // Example:
 // - Choice 0: {"finish_reason":"stop","message":{"content":"I'll check the Desktop directory…"}}

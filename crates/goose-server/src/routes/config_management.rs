@@ -854,6 +854,8 @@ pub enum OauthResponse {
 #[serde(rename_all = "camelCase")]
 pub struct OauthCompletionResponse {
     pub completed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug: Option<String>,
 }
 
 #[utoipa::path(
@@ -895,14 +897,19 @@ pub async fn check_oauth_completion(
             ))
         })?;
 
-    let completed = provider.check_oauth_completion().await.map_err(|e| {
-        ErrorResponse::bad_request(format!(
-            "Failed to check OAuth completion for provider '{}': {}",
-            provider_name, e
-        ))
-    })?;
+    let has_token = goose::config::Config::global()
+        .get_secret::<String>("GITHUB_COPILOT_TOKEN")
+        .is_ok();
 
-    Ok(Json(OauthCompletionResponse { completed }))
+    let (completed, debug_msg) = match provider.check_oauth_completion().await {
+        Ok(val) => (val, format!("ok({}) has_token_before={}", val, has_token)),
+        Err(e) => {
+            let msg = format!("err: {} has_token_before={}", e, has_token);
+            return Ok(Json(OauthCompletionResponse { completed: false, debug: Some(msg) }));
+        }
+    };
+
+    Ok(Json(OauthCompletionResponse { completed, debug: Some(debug_msg) }))
 }
 
 #[utoipa::path(

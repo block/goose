@@ -6429,6 +6429,10 @@
         "properties": {
           "completed": {
             "type": "boolean"
+          },
+          "debug": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

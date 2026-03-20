@@ -833,6 +833,7 @@ export type OauthCompletedResponse = {
 
 export type OauthCompletionResponse = {
     completed: boolean;
+    debug?: string | null;
 };
 
 export type OauthResponse = OauthCompletedResponse | DeviceCodeResponse;

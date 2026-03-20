@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,52 +20,11 @@ interface DeviceCodeModalProps {
   onRetry: () => void;
 }
 
-function pollForOauthCompletion(
-  onAuthorized: () => void,
-  onError: () => void,
-  intervalMs = 5000,
-  maxDurationMs = 180000
-): () => void {
-  let intervalId: ReturnType<typeof setInterval> | null = null;
-  let isPolling = true;
-  const startTime = Date.now();
+const POLL_INTERVAL_MS = 5000;
+const POLL_TIMEOUT_MS = 180000;
 
-  const poll = async () => {
-    if (!isPolling) return;
-
-    if (Date.now() - startTime > maxDurationMs) {
-      stopPolling();
-      onError();
-      return;
-    }
-
-    try {
-      const response = await checkOauthCompletion({
-        path: { name: 'github_copilot' },
-      });
-
-      if (response.data?.completed) {
-        stopPolling();
-        onAuthorized();
-      }
-    } catch {
-      // Error likely means authorization not complete yet, keep polling
-    }
-  };
-
-  const stopPolling = () => {
-    isPolling = false;
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-  };
-
-  // Start polling immediately, then at intervals
-  poll();
-  intervalId = setInterval(poll, intervalMs);
-
-  return stopPolling;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function DeviceCodeModal({
@@ -79,49 +38,75 @@ export function DeviceCodeModal({
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const browserOpenedRef = useRef(false);
-  const stopPollingRef = useRef<(() => void) | null>(null);
-
-  const handleAuthorized = useCallback(() => {
-    setIsChecking(false);
-    setError(null);
-    onAuthorized();
-  }, [onAuthorized]);
-
-  const handleError = useCallback(() => {
-    setIsChecking(false);
-    setError('Authorization timed out. Please refresh the code or try again.');
-  }, []);
-
-  const startPolling = useCallback(() => {
-    if (stopPollingRef.current) {
-      stopPollingRef.current();
-    }
-    setIsChecking(true);
-    setError(null);
-    stopPollingRef.current = pollForOauthCompletion(handleAuthorized, handleError, 5000, 180000);
-  }, [handleAuthorized, handleError]);
-
-  const stopPolling = useCallback(() => {
-    if (stopPollingRef.current) {
-      stopPollingRef.current();
-      stopPollingRef.current = null;
-    }
-  }, []);
+  const authorizedRef = useRef(false);
+  const onAuthorizedRef = useRef(onAuthorized);
+  const onRetryRef = useRef(onRetry);
+  onAuthorizedRef.current = onAuthorized;
+  onRetryRef.current = onRetry;
 
   useEffect(() => {
-    if (isOpen && deviceCodeData && !browserOpenedRef.current) {
+    if (!isOpen || !deviceCodeData) {
+      browserOpenedRef.current = false;
+      authorizedRef.current = false;
+      return;
+    }
+
+    if (!browserOpenedRef.current) {
       window.open(deviceCodeData.verificationUri, '_blank');
       browserOpenedRef.current = true;
-      // Start polling for authorization
-      startPolling();
     }
-    if (!isOpen) {
-      browserOpenedRef.current = false;
-      stopPolling();
-      setError(null);
-    }
-    return () => stopPolling();
-  }, [isOpen, deviceCodeData, startPolling, stopPolling]);
+
+    let active = true;
+    authorizedRef.current = false;
+    setIsChecking(true);
+    setError(null);
+
+    const poll = async () => {
+      const startTime = Date.now();
+
+      while (active) {
+        if (Date.now() - startTime > POLL_TIMEOUT_MS) {
+          if (active) {
+            setIsChecking(false);
+            setError('Authorization timed out. Please refresh the code or try again.');
+          }
+          return;
+        }
+
+        try {
+          const response = await checkOauthCompletion({
+            path: { name: 'github_copilot' },
+          });
+
+          console.log('[DeviceCodeModal] poll response:', JSON.stringify(response.data), 'error:', JSON.stringify((response as any).error));
+
+          if (response.data?.completed && active) {
+            authorizedRef.current = true;
+            setIsChecking(false);
+            setError(null);
+            onAuthorizedRef.current();
+            return;
+          }
+        } catch (err) {
+          console.error('[DeviceCodeModal] poll exception:', err);
+        }
+
+        if (active) {
+          await sleep(POLL_INTERVAL_MS);
+        }
+      }
+    };
+
+    poll();
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, deviceCodeData]);
+
+  const handleRetry = () => {
+    onRetryRef.current();
+  };
 
   const handleCopy = async () => {
     if (deviceCodeData) {
@@ -132,7 +117,7 @@ export function DeviceCodeModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !authorizedRef.current && onCancel()}>
       <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>GitHub Copilot Setup</DialogTitle>
@@ -183,16 +168,10 @@ export function DeviceCodeModal({
           <DialogFooter className="pt-2 shrink-0">
             <Button
               variant="outline"
-              onClick={onRetry}
+              onClick={handleRetry}
               className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
             >
               Refresh Code
-            </Button>
-            <Button
-              onClick={startPolling}
-              className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
-            >
-              Retry
             </Button>
           </DialogFooter>
         )}
