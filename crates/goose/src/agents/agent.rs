@@ -83,12 +83,8 @@ fn derive_call_reason(turns_taken: u32, conversation: &Conversation) -> String {
             })
             .unwrap_or_default();
         let truncated = if user_text.chars().count() > 100 {
-            let end = user_text
-                .char_indices()
-                .nth(100)
-                .map(|(i, _)| i)
-                .unwrap_or(user_text.len());
-            format!("{}...", &user_text[..end])
+            let prefix: String = user_text.chars().take(100).collect();
+            format!("{}...", prefix)
         } else {
             user_text
         };
@@ -165,13 +161,10 @@ fn format_messages_for_log(messages: &[Message]) -> String {
                                 .map(|c| format!("{c:?}"))
                                 .collect::<Vec<_>>()
                                 .join("\n");
-                            if text.len() > 2000 {
-                                let end = text
-                                    .char_indices()
-                                    .nth(2000)
-                                    .map(|(i, _)| i)
-                                    .unwrap_or(text.len());
-                                format!("{}...[{} chars truncated]", &text[..end], text.len() - end)
+                            if text.chars().count() > 2000 {
+                                let prefix: String = text.chars().take(2000).collect();
+                                let remaining = text.len() - prefix.len();
+                                format!("{}...[{} chars truncated]", prefix, remaining)
                             } else {
                                 text
                             }
@@ -2388,18 +2381,17 @@ mod tests {
     #[test]
     fn test_format_messages_for_log_multibyte_boundary() {
         use crate::conversation::message::MessageContent;
-        use rmcp::model::{AnnotateAble, CallToolResult, RawContent};
+        use rmcp::model::CallToolResult;
 
-        // Build a tool-response message whose content body crosses the old byte-2000 boundary.
-        // Each "日" is 3 bytes; 700 of them = 2100 bytes, so the old `&text[..2000]` would
-        // land mid-character at byte 2000 (which is not a char boundary).
+        // Build a tool-response message whose content body crosses the old char-2000 boundary.
+        // Each "日" is 3 bytes; 700 of them = 2100 bytes. The debug representation will exceed
+        // 2000 chars, exercising the truncation path.
         let long_body = "日".repeat(700);
-        let tool_result = CallToolResult {
-            content: vec![RawContent::text(long_body).no_annotation()],
-            structured_content: None,
-            is_error: Some(false),
-            meta: None,
-        };
+        let tool_result: CallToolResult = serde_json::from_value(serde_json::json!({
+            "content": [{"type": "text", "text": long_body}],
+            "isError": false
+        }))
+        .expect("valid CallToolResult JSON");
         let response_content =
             MessageContent::ToolResponse(crate::conversation::message::ToolResponse {
                 id: "test-id".to_string(),
