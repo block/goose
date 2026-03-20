@@ -9,7 +9,7 @@ import { toastError } from '../../../toasts';
 interface SubRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (subRecipe: SubRecipeFormData) => void;
+  onSave: (subRecipe: SubRecipeFormData) => boolean;
   subRecipe?: SubRecipeFormData | null;
 }
 
@@ -58,8 +58,9 @@ export default function SubRecipeModal({
       values: Object.keys(values).length > 0 ? values : undefined,
     };
 
-    onSave(subRecipeData);
-    onClose();
+    if (onSave(subRecipeData)) {
+      onClose();
+    }
   };
 
   const handleBrowseFile = async () => {

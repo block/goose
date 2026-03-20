@@ -38,7 +38,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
     onChange(newSubRecipes);
   };
 
-  const handleSaveSubRecipe = (subRecipe: SubRecipeFormData) => {
+  const handleSaveSubRecipe = (subRecipe: SubRecipeFormData): boolean => {
     const isDuplicate = subRecipes.some(
       (sr, i) => sr.name === subRecipe.name && i !== editingIndex
     );
@@ -47,7 +47,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
         title: 'Duplicate Name',
         msg: `A subrecipe named "${subRecipe.name}" already exists. Please use a unique name.`,
       });
-      return;
+      return false;
     }
     if (editingIndex !== null) {
       const newSubRecipes = [...subRecipes];
@@ -56,6 +56,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
     } else {
       onChange([...subRecipes, subRecipe]);
     }
+    return true;
   };
 
   const handleSubRecipeSaved = (subRecipe: SubRecipeFormData) => {
