@@ -36,7 +36,7 @@ jobs:
     runs-on: macos-latest
     name: Bundle Desktop App on Intel macOS
     env:
-      MACOSX_DEPLOYMENT_TARGET: "14.0"
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:
       id-token: write
       contents: read
@@ -67,7 +67,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
         with:
-          key: intel-macos-deployment-target-14
+          key: intel-macos-deployment-target-12
 
 
       - name: Build goose-server for Intel macOS (x86_64)
