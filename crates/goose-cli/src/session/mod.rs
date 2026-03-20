@@ -10,7 +10,7 @@ mod task_execution_display;
 mod thinking;
 
 use crate::session::task_execution_display::{
-    TASK_EXECUTION_NOTIFICATION_TYPE, format_task_execution_notification,
+    format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
 use goose::conversation::Conversation;
 use std::io::Write;
@@ -19,13 +19,13 @@ use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
-pub use builder::{SessionBuilderConfig, build_session};
+pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
+use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
-use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::Provider;
 use goose::utils::safe_truncate;
 
@@ -33,7 +33,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, COMPACT_TRIGGERS, SessionConfig};
+use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;

@@ -1,6 +1,6 @@
 use anstream::println;
 use bat::WrappingMode;
-use console::{Color, Term, measure_text_width, style};
+use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
@@ -1067,7 +1067,7 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
 }
 
 fn print_table(table_lines: &[&str], theme: Theme) {
-    use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets};
+    use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
 
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
