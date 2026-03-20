@@ -520,8 +520,10 @@ impl Agent {
                 for block in content {
                     if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
                         section.push_str(&xml_escape(text));
-                        section.push('\n');
+                    } else if let Ok(json_str) = serde_json::to_string(block) {
+                        section.push_str(&xml_escape(&json_str));
                     }
+                    section.push('\n');
                 }
             }
             if let Some(structured) = &ctx.structured_content {
@@ -2469,5 +2471,27 @@ mod tests {
         assert!(text.contains("&lt;script&gt;"));
         assert!(text.contains("a &lt; b &amp; c &gt; d"));
         assert!(!text.contains("<script>"));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_context_non_text_blocks_serialized() {
+        let agent = Agent::new();
+
+        agent
+            .update_mcp_app_context(
+                "ext__ui://app".to_string(),
+                McpAppContext {
+                    content: Some(vec![
+                        serde_json::json!({"type": "text", "text": "hello"}),
+                        serde_json::json!({"type": "image", "data": "base64..."}),
+                    ]),
+                    structured_content: None,
+                },
+            )
+            .await;
+
+        let text = agent.collect_mcp_app_contexts().await.unwrap();
+        assert!(text.contains("hello"));
+        assert!(text.contains("&quot;type&quot;:&quot;image&quot;"));
     }
 }
