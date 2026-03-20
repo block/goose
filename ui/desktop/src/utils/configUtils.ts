@@ -44,6 +44,10 @@ export const configLabels: Record<string, string> = {
   // ollama
   OLLAMA_HOST: 'Ollama Host',
 
+  // lm studio
+  LMSTUDIO_HOST: 'LM Studio Host',
+  LMSTUDIO_TIMEOUT: 'LM Studio Timeout',
+
   // azure openai
   AZURE_OPENAI_API_KEY: 'Azure OpenAI API Key',
   AZURE_OPENAI_ENDPOINT: 'Azure OpenAI Endpoint',
@@ -67,6 +71,7 @@ export const providerPrefixes: Record<string, string[]> = {
   databricks: ['DATABRICKS_'],
   openrouter: ['OPENROUTER_'],
   ollama: ['OLLAMA_'],
+  lmstudio: ['LMSTUDIO_'],
   azure_openai: ['AZURE_'],
   gcp_vertex_ai: ['GCP_'],
   snowflake: ['SNOWFLAKE_'],

@@ -253,6 +253,20 @@ export DATABRICKS_BACKOFF_MULTIPLIER=2               # each retry waits 2x longe
 export DATABRICKS_MAX_RETRY_INTERVAL_MS=60000        # cap the maximum retry delay at 1 min
 ```
 
+#### LM Studio
+
+| Variable | Purpose | Default |
+|---------------------|-------------|---------|
+| `LMSTUDIO_HOST` | Custom API endpoint for the LM Studio server | `http://localhost:1234/v1` |
+| `LMSTUDIO_TIMEOUT` | Timeout for LM Studio API requests in seconds | 600 |
+
+**Examples**
+
+```bash
+export LMSTUDIO_HOST="http://192.168.1.10:1234/v1"
+export LMSTUDIO_TIMEOUT=300
+```
+
 
 ## Session Management
 

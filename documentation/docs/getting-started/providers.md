@@ -35,7 +35,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Uses [device flow authentication](#github-copilot-authentication) for both CLI and Desktop. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
-| [LM Studio](https://lmstudio.ai/)                                          | Run local models with LM Studio's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).**                                                           | None required. Connects to local server at `localhost:1234` by default.                                                                                                             |
+| [LM Studio](https://lmstudio.ai/)                                          | Run local models with LM Studio's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).**                                                           | Host and port are customizable (defaults to `http://localhost:1234/v1`).                                                                                                             |
 | [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
@@ -1058,8 +1058,9 @@ Here are some local providers we support:
         3. Click the `Models` tab.
         4. Click `Configure providers`.
         5. Choose `LM Studio` from the provider list and click `Configure`.
-        6. Click `Submit` (no API key is needed).
-        7. Select the model you have loaded in LM Studio.
+        6. (Optional) Update the **Host** if your server is not running on the default `http://localhost:1234/v1`.
+        7. Click `Submit`.
+        8. Select a model from the **Models** dropdown (goose will automatically discover models currently loaded in LM Studio).
       </TabItem>
       <TabItem value="cli" label="goose CLI">
         1. Run:
@@ -1087,8 +1088,8 @@ Here are some local providers we support:
       </TabItem>
     </Tabs>
 
-    :::tip Model Name
-    Make sure the model name you enter in goose matches the model identifier shown in LM Studio's server panel.
+    :::tip Model Discovery
+    If you're using goose Desktop, the model names will appear automatically in the dropdown once the provider is configured. For goose CLI, make sure the model name matches the identifier shown in LM Studio's server panel.
     :::
   </TabItem>
   <TabItem value="docker" label="Docker Model Runner" default>
