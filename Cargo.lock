@@ -4219,6 +4219,7 @@ dependencies = [
  "nanoid",
  "oauth2",
  "once_cell",
+ "openssl",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",

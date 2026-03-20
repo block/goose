@@ -128,10 +128,17 @@ impl TlsConfig {
             };
 
             #[cfg(feature = "native-tls")]
-            let identity = Identity::from_pkcs8_pem(cert_pem.as_bytes(), key_pem.as_bytes())
-                .map_err(|e| {
+            let identity = {
+                // Convert any PEM key format (PKCS#1, SEC1, PKCS#8) to PKCS#8 for native-tls
+                let pkey = openssl::pkey::PKey::private_key_from_pem(key_pem.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
+                let pkcs8_pem = pkey
+                    .private_key_to_pem_pkcs8()
+                    .map_err(|e| anyhow::anyhow!("Failed to convert key to PKCS#8: {}", e))?;
+                Identity::from_pkcs8_pem(cert_pem.as_bytes(), &pkcs8_pem).map_err(|e| {
                     anyhow::anyhow!("Failed to create identity from cert and key: {}", e)
-                })?;
+                })?
+            };
 
             Ok(Some(identity))
         } else {
