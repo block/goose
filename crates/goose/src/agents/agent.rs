@@ -1759,7 +1759,8 @@ impl Agent {
 
     /// Restore the provider from session data or fall back to global config
     /// This is used when resuming a session to restore the provider state
-    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<()> {
+    /// Returns true if the session's provider was replaced with a fallback.
+    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<bool> {
         let config = Config::global();
 
         let provider_name = session
@@ -1784,13 +1785,14 @@ impl Agent {
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
 
-        let provider = if crate::providers::get_from_registry(&provider_name)
+        let (provider, provider_changed) = if crate::providers::get_from_registry(&provider_name)
             .await
             .is_ok()
         {
-            crate::providers::create(&provider_name, model_config, extensions)
+            let p = crate::providers::create(&provider_name, model_config, extensions)
                 .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?
+                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+            (p, false)
         } else {
             let fallback_provider_name = config
                 .get_goose_provider()
@@ -1844,7 +1846,7 @@ impl Agent {
                 tracing::warn!("Failed to update session provider: {}", e);
             }
 
-            fallback_provider
+            (fallback_provider, true)
         };
 
         self.update_provider(provider, &session.id).await?;
@@ -1856,7 +1858,7 @@ impl Agent {
                 .map_err(|e| anyhow!("Failed to propagate mode to provider: {}", e))?;
         }
         *self.current_goose_mode.lock().await = session.goose_mode;
-        Ok(())
+        Ok(provider_changed)
     }
 
     /// Override the system prompt with a custom template
