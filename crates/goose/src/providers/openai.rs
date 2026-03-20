@@ -212,7 +212,7 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
-            skip_model_filter: !config.requires_auth,
+            skip_model_filter: config.name == "lmstudio",
         })
     }
 
