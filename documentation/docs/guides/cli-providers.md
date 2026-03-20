@@ -308,8 +308,7 @@ This provides a consistent permission experience across all goose providers whil
 
 Example with approve mode:
 ```bash
-GOOSE_PROVIDER=claude-code 
-GOOSE_MODE=approve goose session
+GOOSE_PROVIDER=claude-code GOOSE_MODE=approve goose session
 ```
 :::
 
