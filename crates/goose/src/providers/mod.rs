@@ -27,6 +27,7 @@ pub mod githubcopilot;
 pub mod google;
 mod init;
 pub mod litellm;
+pub mod lmstudio;
 pub mod local_inference;
 pub mod nanogpt;
 pub mod oauth;

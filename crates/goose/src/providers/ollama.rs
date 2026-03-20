@@ -280,6 +280,10 @@ impl Provider for OllamaProvider {
 
         Ok(model_names)
     }
+
+    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+        self.fetch_supported_models().await
+    }
 }
 
 /// Ollama-specific streaming handler with XML tool call fallback.
