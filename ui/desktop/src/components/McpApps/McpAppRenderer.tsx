@@ -33,6 +33,7 @@ import { cn } from '../../utils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
 import FlyingBird from '../FlyingBird';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import {
   GooseDisplayMode,
   SandboxPermissions,
@@ -55,13 +56,6 @@ import {
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
-
-function humanizeExtensionName(name: string): string {
-  return name
-    .replace(/[-_]+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
-}
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -769,7 +763,7 @@ export default function McpAppRenderer({
 
   const fullscreenTitle = useMemo(() => {
     if (appTitle) return appTitle;
-    if (extensionName) return humanizeExtensionName(extensionName);
+    if (extensionName) return formatExtensionName(extensionName);
     return 'App';
   }, [appTitle, extensionName]);
 
