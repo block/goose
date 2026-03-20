@@ -456,6 +456,11 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
+    /// Get the provider classification for model listing behavior.
+    fn provider_type(&self) -> ProviderType {
+        ProviderType::Custom
+    }
+
     /// Primary streaming method that all providers must implement.
     ///
     /// Note: Do not add `#[instrument]` here — the call sites (`complete` and
@@ -534,40 +539,77 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
-    /// Fetch models filtered by canonical registry and usability
+    /// Fetch models sorted by release date when available from canonical registry.
+    /// For built-in providers, models must be in the canonical registry and pass
+    /// usability checks (text modality, tool support).
+    /// For custom providers, all models are included; unknown models sort alphabetically.
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
 
+        // Try to load the canonical registry for metadata.
+        // If it fails, propagate the error - we don't want to silently return
+        // an empty list or all models when we can't properly validate.
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
 
         let provider_name = self.get_name();
+        let provider_type = self.provider_type();
+        let uses_strict_model_filtering = matches!(
+            provider_type,
+            ProviderType::Builtin | ProviderType::Preferred
+        );
+        let allows_unknown_models = matches!(
+            provider_type,
+            ProviderType::Custom | ProviderType::Declarative
+        );
+        let toolshim_enabled = self.get_model_config().toolshim;
 
-        // Get all text-capable models with their release dates
+        // Build list of (model_name, release_date) for sorting.
+        // For built-in providers, filter out models without canonical metadata
+        // or that don't pass usability checks.
         let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
             .filter_map(|model| {
-                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
+                let canonical = map_to_canonical_model(provider_name, model, registry).and_then(
+                    |canonical_id| {
+                        let (provider, model_name) = canonical_id.split_once('/')?;
+                        registry.get(provider, model_name)
+                    },
+                );
 
-                let (provider, model_name) = canonical_id.split_once('/')?;
-                let canonical_model = registry.get(provider, model_name)?;
+                match canonical {
+                    Some(cm) => {
+                        // Model has canonical metadata - apply checks
+                        // Check text modality
+                        if !cm
+                            .modalities
+                            .input
+                            .contains(&crate::providers::canonical::Modality::Text)
+                        {
+                            return None;
+                        }
 
-                if !canonical_model
-                    .modalities
-                    .input
-                    .contains(&crate::providers::canonical::Modality::Text)
-                {
-                    return None;
+                        // Check tool support
+                        if !cm.tool_call && !toolshim_enabled {
+                            return None;
+                        }
+
+                        Some((model.clone(), cm.release_date.clone()))
+                    }
+                    None => {
+                        // Model not in canonical registry
+                        if uses_strict_model_filtering {
+                            // Built-in/preferred providers: skip unknown models
+                            None
+                        } else if allows_unknown_models {
+                            // Custom/declarative providers: include unknown models
+                            Some((model.clone(), None))
+                        } else {
+                            None
+                        }
+                    }
                 }
-
-                if !canonical_model.tool_call && !self.get_model_config().toolshim {
-                    return None;
-                }
-
-                let release_date = canonical_model.release_date.clone();
-
-                Some((model.clone(), release_date))
             })
             .collect();
 
@@ -579,16 +621,10 @@ pub trait Provider: Send + Sync {
             (None, None) => a.0.cmp(&b.0),
         });
 
-        let recommended_models: Vec<String> = models_with_dates
+        Ok(models_with_dates
             .into_iter()
             .map(|(name, _)| name)
-            .collect();
-
-        if recommended_models.is_empty() {
-            Ok(all_models)
-        } else {
-            Ok(recommended_models)
-        }
+            .collect())
     }
 
     async fn map_to_canonical_model(
@@ -895,6 +931,45 @@ mod tests {
         }
     }
 
+    struct ListingProvider {
+        name: String,
+        provider_type: ProviderType,
+        model_config: ModelConfig,
+        supported_models: Vec<String>,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for ListingProvider {
+        fn get_name(&self) -> &str {
+            &self.name
+        }
+
+        fn provider_type(&self) -> ProviderType {
+            self.provider_type
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+            Ok(self.supported_models.clone())
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _session_id: &str,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Err(ProviderError::ExecutionError(
+                "stream not implemented for listing tests".to_string(),
+            ))
+        }
+    }
+
     fn create_test_stream(
         items: Vec<String>,
     ) -> impl Stream<Item = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>> {
@@ -1077,5 +1152,31 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_recommended_models_includes_unknown_for_custom_provider() {
+        let provider = ListingProvider {
+            name: "custom-proxy".to_string(),
+            provider_type: ProviderType::Custom,
+            model_config: ModelConfig::new_or_fail("glm-5"),
+            supported_models: vec!["glm-5".to_string()],
+        };
+
+        let recommended = provider.fetch_recommended_models().await.unwrap();
+        assert!(recommended.contains(&"glm-5".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_recommended_models_excludes_unknown_for_builtin_provider() {
+        let provider = ListingProvider {
+            name: "openai".to_string(),
+            provider_type: ProviderType::Builtin,
+            model_config: ModelConfig::new_or_fail("gpt-4o"),
+            supported_models: vec!["definitely-unknown-model-id".to_string()],
+        };
+
+        let recommended = provider.fetch_recommended_models().await.unwrap();
+        assert!(recommended.is_empty());
     }
 }

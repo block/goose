@@ -55,6 +55,7 @@ pub struct AnthropicProvider {
     model: ModelConfig,
     supports_streaming: bool,
     name: String,
+    is_custom_host: bool,
 }
 
 impl AnthropicProvider {
@@ -66,6 +67,8 @@ impl AnthropicProvider {
         let host: String = config
             .get_param("ANTHROPIC_HOST")
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
+
+        let is_custom_host = host != "https://api.anthropic.com";
 
         let auth = AuthMethod::ApiKey {
             header_name: "x-api-key".to_string(),
@@ -80,6 +83,7 @@ impl AnthropicProvider {
             model,
             supports_streaming: true,
             name: ANTHROPIC_PROVIDER_NAME.to_string(),
+            is_custom_host,
         })
     }
 
@@ -124,6 +128,7 @@ impl AnthropicProvider {
             model,
             supports_streaming,
             name: config.name.clone(),
+            is_custom_host: true,
         })
     }
 
@@ -187,6 +192,14 @@ impl ProviderDef for AnthropicProvider {
 impl Provider for AnthropicProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn provider_type(&self) -> crate::providers::base::ProviderType {
+        if self.name == ANTHROPIC_PROVIDER_NAME && !self.is_custom_host {
+            crate::providers::base::ProviderType::Builtin
+        } else {
+            crate::providers::base::ProviderType::Custom
+        }
     }
 
     fn get_model_config(&self) -> ModelConfig {

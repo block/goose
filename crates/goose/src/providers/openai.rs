@@ -65,6 +65,7 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
+    is_custom_host: bool,
 }
 
 impl OpenAiProvider {
@@ -75,6 +76,8 @@ impl OpenAiProvider {
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+
+        let is_custom_host = host != "https://api.openai.com";
 
         let secrets = config
             .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
@@ -126,6 +129,7 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            is_custom_host,
         })
     }
 
@@ -140,6 +144,7 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            is_custom_host: false,
         }
     }
 
@@ -208,6 +213,7 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            is_custom_host: true,
         })
     }
 
@@ -359,6 +365,14 @@ impl ProviderDef for OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn provider_type(&self) -> crate::providers::base::ProviderType {
+        if self.name == OPEN_AI_PROVIDER_NAME && !self.is_custom_host {
+            crate::providers::base::ProviderType::Builtin
+        } else {
+            crate::providers::base::ProviderType::Custom
+        }
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -617,6 +631,7 @@ mod tests {
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),
+            is_custom_host: true,
         }
     }
 
