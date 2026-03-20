@@ -559,7 +559,6 @@ fn print_tool_output(text: &str) {
             .italic()
         );
     }
-    println!();
 }
 
 fn is_shell_tool_name(name: &str) -> bool {
