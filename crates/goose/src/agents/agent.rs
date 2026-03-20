@@ -1920,14 +1920,17 @@ impl Agent {
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
-        let tools = self
+        let tools: Vec<_> = self
             .extension_manager
             .get_prefixed_tools(session_id, None)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
                 e
-            })?;
+            })?
+            .into_iter()
+            .filter(super::reply_parts::is_tool_visible_to_model)
+            .collect();
 
         messages.push(Message::user().with_text(recipe_prompt));
 
