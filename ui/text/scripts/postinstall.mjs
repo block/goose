@@ -35,8 +35,7 @@ let binaryPath;
 try {
   // Resolve the package directory, then point at the binary inside it
   const pkgDir = dirname(require.resolve(`${pkg}/package.json`));
-  const binName =
-    process.platform === "win32" ? "goose-acp-server.exe" : "goose-acp-server";
+  const binName = process.platform === "win32" ? "goose.exe" : "goose";
   binaryPath = join(pkgDir, "bin", binName);
 } catch {
   // The optional dependency wasn't installed (e.g. wrong platform). That's fine.
