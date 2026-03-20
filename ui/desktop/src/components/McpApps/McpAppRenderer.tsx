@@ -54,6 +54,14 @@ import {
 } from './useDisplayMode';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
+const FULLSCREEN_HEADER_HEIGHT = 48;
+
+function humanizeExtensionName(name: string): string {
+  return name
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -246,6 +254,7 @@ export default function McpAppRenderer({
   onDisplayModeChange,
 }: McpAppRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const dm = useDisplayMode({ displayMode, onDisplayModeChange, containerRef });
   const {
@@ -258,6 +267,7 @@ export default function McpAppRenderer({
     isInline,
     appSupportsFullscreen,
     appSupportsPip,
+    appTitle,
     changeDisplayMode,
     inlineHeight,
     pipPosition,
@@ -578,7 +588,7 @@ export default function McpAppRenderer({
 
   // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
   useEffect(() => {
-    const el = containerRef.current;
+    const el = contentRef.current;
     if (!el) return;
 
     const observer = new ResizeObserver((entries) => {
@@ -754,36 +764,53 @@ export default function McpAppRenderer({
     );
   };
 
-  const showControls = !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip);
+  const showControls =
+    !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip || isFullscreen);
+
+  const fullscreenTitle = useMemo(() => {
+    if (appTitle) return appTitle;
+    if (extensionName) return humanizeExtensionName(extensionName);
+    return 'App';
+  }, [appTitle, extensionName]);
+
+  const renderFullscreenHeader = () => (
+    <div
+      className="no-drag flex shrink-0 items-center border-b border-border-primary bg-background-primary px-3"
+      style={{ height: `${FULLSCREEN_HEADER_HEIGHT}px` }}
+    >
+      <div className="min-w-0 flex-1" />
+      <span className="truncate px-4 text-sm font-medium text-text-secondary">
+        {fullscreenTitle}
+      </span>
+      <div className="flex flex-1 items-center justify-end gap-1">
+        {appSupportsPip && (
+          <button
+            onClick={() => changeDisplayMode('pip')}
+            className="no-drag cursor-pointer rounded-md p-1.5 text-text-secondary transition-colors hover:bg-black/10 hover:text-text-primary dark:hover:bg-white/10"
+            title="Picture-in-Picture"
+            aria-label="Picture-in-Picture"
+          >
+            <PictureInPicture2 size={16} />
+          </button>
+        )}
+        <button
+          ref={fullscreenCloseRef}
+          onClick={() => changeDisplayMode('inline')}
+          className="no-drag cursor-pointer rounded-md p-1.5 text-text-secondary transition-colors hover:bg-black/10 hover:text-text-primary dark:hover:bg-white/10"
+          title="Exit fullscreen (Esc)"
+          aria-label="Exit fullscreen"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  );
 
   const renderDisplayModeControls = () => {
     if (!showControls) return null;
 
-    if (activeDisplayMode === 'fullscreen') {
-      return (
-        <div className="no-drag absolute top-3 right-3 z-[60] flex gap-1">
-          {appSupportsPip && (
-            <button
-              onClick={() => changeDisplayMode('pip')}
-              className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
-              title="Picture-in-Picture"
-              aria-label="Picture-in-Picture"
-            >
-              <PictureInPicture2 size={16} />
-            </button>
-          )}
-          <button
-            ref={fullscreenCloseRef}
-            onClick={() => changeDisplayMode('inline')}
-            className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
-            title="Exit fullscreen (Esc)"
-            aria-label="Exit fullscreen"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      );
-    }
+    // Fullscreen controls are rendered by renderFullscreenHeader instead.
+    if (activeDisplayMode === 'fullscreen') return null;
 
     if (activeDisplayMode === 'pip') {
       return (
@@ -893,9 +920,10 @@ export default function McpAppRenderer({
       {/* Stable app container — never unmounted, only repositioned via CSS */}
       <div
         ref={containerRef}
-        className={cn(containerClasses, isPip && 'group/pip')}
+        className={cn(containerClasses, isFillsViewport && 'flex flex-col', isPip && 'group/pip')}
         style={containerStyle}
       >
+        {isFullscreen && renderFullscreenHeader()}
         {isPip && (
           <div className="pointer-events-none sticky top-1 z-20 flex h-0 items-start justify-between px-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
             <div
@@ -914,7 +942,7 @@ export default function McpAppRenderer({
             <div className="flex gap-1">{renderDisplayModeControls()}</div>
           </div>
         )}
-        <div className={cn('relative w-full', !isPip && 'h-full')}>
+        <div ref={contentRef} className={cn('relative w-full', !isPip && 'flex-1 min-h-0')}>
           {!isPip && renderDisplayModeControls()}
           {renderContent()}
         </div>

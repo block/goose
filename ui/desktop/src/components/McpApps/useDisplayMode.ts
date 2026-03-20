@@ -36,6 +36,7 @@ export interface DisplayModeState {
   isInline: boolean;
   appSupportsFullscreen: boolean;
   appSupportsPip: boolean;
+  appTitle: string | null;
 
   changeDisplayMode: (mode: GooseDisplayMode) => void;
 
@@ -76,6 +77,9 @@ export function useDisplayMode({
   // Display modes the app declared support for during ui/initialize.
   // null = not yet known (controls stay hidden until initialize), empty = app didn't declare any.
   const [appDeclaredModes, setAppDeclaredModes] = useState<string[] | null>(null);
+
+  // App-declared title from ui/initialize (highest priority in the title fallback chain).
+  const [appTitle, setAppTitle] = useState<string | null>(null);
 
   const effectiveDisplayModes = useMemo((): McpUiDisplayMode[] => {
     if (!appDeclaredModes) return [];
@@ -260,8 +264,17 @@ export function useDisplayMode({
 
       if (data.method === 'ui/initialize' && data.params) {
         const caps = data.params.appCapabilities || data.params.capabilities;
+        console.log('[useDisplayMode] ui/initialize', {
+          availableDisplayModes: caps?.availableDisplayModes,
+          title: caps?.title || data.params.title,
+          caps,
+        });
         if (caps?.availableDisplayModes && Array.isArray(caps.availableDisplayModes)) {
           setAppDeclaredModes(caps.availableDisplayModes);
+        }
+        const title = caps?.title || data.params.title;
+        if (typeof title === 'string' && title.trim()) {
+          setAppTitle(title.trim());
         }
       }
 
@@ -271,6 +284,12 @@ export function useDisplayMode({
         const requested = data.params.mode as McpUiDisplayMode;
         const allowed =
           effectiveDisplayModes.length > 0 ? effectiveDisplayModes : AVAILABLE_DISPLAY_MODES;
+        console.log('[useDisplayMode] ui/request-display-mode', {
+          requested,
+          allowed,
+          effectiveDisplayModes,
+          willAllow: allowed.includes(requested),
+        });
         if (allowed.includes(requested)) {
           changeDisplayMode(requested);
         }
@@ -319,6 +338,7 @@ export function useDisplayMode({
     isInline,
     appSupportsFullscreen,
     appSupportsPip,
+    appTitle,
 
     changeDisplayMode,
 
