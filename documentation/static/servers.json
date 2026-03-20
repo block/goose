@@ -90,6 +90,23 @@
     "environmentVariables": []
   },
   {
+    "id": "bkb-mcp",
+    "name": "Bitcoin Knowledge Base",
+    "description": "Search and reference tool for Bitcoin and Lightning development — indexes BIPs, BOLTs, bLIPs, LUDs, NUTs, GitHub issues/PRs, mailing lists, and more",
+    "command": "bkb-mcp",
+    "link": "https://github.com/tnull/bitcoin-knowledge-base",
+    "installation_notes": "Install from crates.io using: cargo install bkb-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "BKB_API_URL",
+        "description": "BKB API endpoint URL",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration (requires local server setup)",
