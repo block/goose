@@ -69,15 +69,9 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let fast_model = config
-            .get_param::<String>("OPENAI_FAST_MODEL")
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| OPEN_AI_DEFAULT_FAST_MODEL.to_string());
-        let model = model.with_fast(&fast_model, OPEN_AI_PROVIDER_NAME)?;
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?;
 
+        let config = crate::config::Config::global();
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
@@ -353,7 +347,6 @@ impl ProviderDef for OpenAiProvider {
                 ConfigKey::new("OPENAI_PROJECT", false, false, None, false),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None, false),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600"), false),
-                ConfigKey::new("OPENAI_FAST_MODEL", true, false, Some("gpt-4o-mini"), false),
             ],
         )
     }
