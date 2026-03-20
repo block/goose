@@ -1,6 +1,5 @@
 [
-  ["open", "http://localhost:5173"],
-  ["wait", "--load", "networkidle"],
+  ["wait", "[data-testid='chat-input']"],
 
   ["find", "role", "button", "click", "--name", "Settings"],
   ["wait", "--text", "Settings"],

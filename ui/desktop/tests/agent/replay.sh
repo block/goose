@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Replay an agent-browser batch recording
 # Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>]
-set -euo pipefail
+set -uo pipefail
 
 RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>]}"
 CONNECT_PORT=""
@@ -51,7 +51,14 @@ for i in $(seq 0 $((TOTAL - 1))); do
 
   STEP=$((i + 1))
   echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]}"
-  pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}"
+  if ! pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}"; then
+    echo ""
+    echo "FAILED at step $STEP/$TOTAL: ${ARGS[*]}"
+    exit 1
+  fi
 done
 
 echo "Replay complete: $TOTAL commands passed"
+
+# Close the agent-browser session to release the CDP connection
+pnpm exec agent-browser "${GLOBAL_ARGS[@]}" close 2>/dev/null || true

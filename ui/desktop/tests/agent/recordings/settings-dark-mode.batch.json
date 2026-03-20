@@ -1,0 +1,16 @@
+[
+  ["wait", "[data-testid='chat-input']"],
+
+  ["find", "role", "button", "click", "--name", "Settings"],
+  ["wait", "[data-testid='settings-app-tab']"],
+  ["find", "testid", "settings-app-tab", "click"],
+  ["wait", "[data-testid='dark-mode-button']"],
+
+  ["wait", "--fn", "document.documentElement.className === 'light'"],
+
+  ["find", "testid", "dark-mode-button", "click"],
+  ["wait", "--fn", "document.documentElement.className === 'dark'"],
+
+  ["find", "testid", "light-mode-button", "click"],
+  ["wait", "--fn", "document.documentElement.className === 'light'"]
+]

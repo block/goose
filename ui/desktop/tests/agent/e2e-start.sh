@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start a fresh goose-under-test instance for e2e testing
-# Usage: ./e2e-start.sh
+# Usage: ./e2e-start.sh [session-id]
 # Prints session ID and CDP port on success
 set -euo pipefail
 
@@ -9,7 +9,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 BASE_DIR="/tmp/goose-e2e"
 
-SESSION_ID=$(date +"%y%m%d-%H%M%S")
+SESSION_ID="${1:-$(date +"%y%m%d-%H%M%S")}"
 SESSION_DIR="$BASE_DIR/$SESSION_ID"
 
 # Pick a random available port in range 9300-9399
@@ -36,10 +36,6 @@ cp "$FIXTURES_DIR/e2e-goosehints" "$SESSION_DIR/workspace/.goosehints"
 
 # Write port to file
 echo "$CDP_PORT" > "$SESSION_DIR/.port"
-
-# Generate API types
-cd "$PROJECT_DIR"
-pnpm run generate-api
 
 echo ""
 echo "Session: $SESSION_ID"

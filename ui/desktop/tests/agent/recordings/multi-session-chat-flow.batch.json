@@ -1,13 +1,11 @@
 [
-  ["open", "http://localhost:5173"],
-  ["wait", "--load", "networkidle"],
+  ["wait", "[data-testid='chat-input']"],
 
   ["find", "testid", "chat-input", "fill", "Hello"],
   ["find", "testid", "send-button", "click"],
   ["wait", "--text", "Howdy! I am goose, ready to help."],
 
   ["find", "role", "button", "click", "--name", "Home"],
-  ["wait", "--load", "networkidle"],
   ["wait", "--text", "Total sessions"],
   ["wait", "--fn", "document.querySelector('[data-testid=\"total-sessions-count\"]')?.textContent?.trim() === '1'"],
 
@@ -16,7 +14,6 @@
   ["wait", "--text", "2 + 2 = 4"],
 
   ["find", "testid", "nav-show-all-sessions", "click"],
-  ["wait", "--load", "networkidle"],
   ["wait", "--text", "Chat history"],
   ["wait", "--fn", "document.querySelectorAll('[data-testid=\"session-card\"]').length === 2"],
 

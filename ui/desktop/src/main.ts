@@ -58,6 +58,12 @@ function shouldSetupUpdater(): boolean {
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
 }
 
+// In e2e test mode, isolate userData to the session directory so that
+// recipe hashes, settings, and other persisted state start clean.
+if (process.env.ENABLE_PLAYWRIGHT && process.env.GOOSE_PATH_ROOT) {
+  app.setPath('userData', path.join(process.env.GOOSE_PATH_ROOT, 'userData'));
+}
+
 // Settings management
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
@@ -645,6 +651,10 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       partition: 'persist:goose',
     },
   });
+
+  if (process.env.ENABLE_PLAYWRIGHT) {
+    mainWindow.setSize(1280, 960);
+  }
 
   if (!app.isPackaged) {
     installExtension(REACT_DEVELOPER_TOOLS, {
@@ -1703,6 +1713,11 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 });
 
 ipcMain.handle('show-message-box', async (_event, options) => {
+  // In e2e test mode, auto-confirm dialogs so CDP-based tests can proceed
+  // without needing to interact with native OS dialogs.
+  if (process.env.ENABLE_PLAYWRIGHT) {
+    return { response: 1 };
+  }
   return dialog.showMessageBox(options);
 });
 
