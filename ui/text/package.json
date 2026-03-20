@@ -40,11 +40,11 @@
     "react": "^19.2.4"
   },
   "optionalDependencies": {
-    "@aaif/goose-acp-server-darwin-arm64": "0.1.0",
-    "@aaif/goose-acp-server-darwin-x64": "0.1.0",
-    "@aaif/goose-acp-server-linux-arm64": "0.1.0",
-    "@aaif/goose-acp-server-linux-x64": "0.1.0",
-    "@aaif/goose-acp-server-win32-x64": "0.1.0"
+    "@aaif/goose-acp-server-darwin-arm64": "workspace:*",
+    "@aaif/goose-acp-server-darwin-x64": "workspace:*",
+    "@aaif/goose-acp-server-linux-arm64": "workspace:*",
+    "@aaif/goose-acp-server-linux-x64": "workspace:*",
+    "@aaif/goose-acp-server-win32-x64": "workspace:*"
   },
   "overrides": {
     "react": "19.2.4"

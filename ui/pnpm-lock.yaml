@@ -412,6 +412,22 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+    optionalDependencies:
+      '@aaif/goose-acp-server-darwin-arm64':
+        specifier: workspace:*
+        version: link:../goose-acp-server/goose-acp-server-darwin-arm64
+      '@aaif/goose-acp-server-darwin-x64':
+        specifier: workspace:*
+        version: link:../goose-acp-server/goose-acp-server-darwin-x64
+      '@aaif/goose-acp-server-linux-arm64':
+        specifier: workspace:*
+        version: link:../goose-acp-server/goose-acp-server-linux-arm64
+      '@aaif/goose-acp-server-linux-x64':
+        specifier: workspace:*
+        version: link:../goose-acp-server/goose-acp-server-linux-x64
+      '@aaif/goose-acp-server-win32-x64':
+        specifier: workspace:*
+        version: link:../goose-acp-server/goose-acp-server-win32-x64
 
 packages:
 
