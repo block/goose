@@ -41,12 +41,8 @@ export default function Hub({
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus the chat input immediately after mount so users can start typing
-  // without tabbing through navigation and session elements first.
+  // rAF is more reliable than autoFocus across async render boundaries (Suspense, OnboardingGuard, etc.)
   useEffect(() => {
-    // Use requestAnimationFrame to ensure the DOM has fully painted
-    // before focusing — more reliable than autoFocus across async
-    // render boundaries (Suspense, OnboardingGuard, etc.).
     const frameId = requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
