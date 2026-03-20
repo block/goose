@@ -257,6 +257,11 @@ impl DatabricksProvider {
         normalized.contains("codex")
     }
 
+    fn supports_stream_options(model_name: &str) -> bool {
+        let normalized = model_name.to_ascii_lowercase();
+        !normalized.contains("gemini")
+    }
+
     fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
@@ -389,16 +394,18 @@ impl Provider for DatabricksProvider {
                 .unwrap()
                 .insert("stream".to_string(), Value::Bool(true));
 
-            if let Some(opts) = payload
-                .get_mut("stream_options")
-                .and_then(|v| v.as_object_mut())
-            {
-                opts.entry("include_usage").or_insert(json!(true));
-            } else {
-                payload
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("stream_options".to_string(), json!({"include_usage": true}));
+            if Self::supports_stream_options(&model_config.model_name) {
+                if let Some(opts) = payload
+                    .get_mut("stream_options")
+                    .and_then(|v| v.as_object_mut())
+                {
+                    opts.entry("include_usage").or_insert(json!(true));
+                } else {
+                    payload
+                        .as_object_mut()
+                        .unwrap()
+                        .insert("stream_options".to_string(), json!({"include_usage": true}));
+                }
             }
 
             let mut log = RequestLog::start(model_config, &payload)?;

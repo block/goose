@@ -49,8 +49,24 @@ struct DeltaToolCall {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+enum DeltaContent {
+    String(String),
+    Array(Vec<ContentPart>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ContentPart {
+    r#type: String,
+    text: String,
+    #[serde(rename = "thoughtSignature")]
+    thought_signature: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct Delta {
-    content: Option<String>,
+    #[serde(default)]
+    content: Option<DeltaContent>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
@@ -72,6 +88,32 @@ struct StreamingChunk {
     id: Option<String>,
     usage: Option<Value>,
     model: Option<String>,
+}
+
+fn extract_content_and_signature(
+    delta_content: Option<&DeltaContent>,
+) -> (Option<String>, Option<String>) {
+    match delta_content {
+        Some(DeltaContent::String(s)) => (Some(s.clone()), None),
+        Some(DeltaContent::Array(parts)) => {
+            let text_parts: Vec<_> = parts.iter().filter(|p| p.r#type == "text").collect();
+
+            let text = text_parts
+                .iter()
+                .map(|p| p.text.as_str())
+                .collect::<String>();
+
+            let signature = text_parts
+                .iter()
+                .find_map(|p| p.thought_signature.as_ref())
+                .cloned();
+
+            let text = if text.is_empty() { None } else { Some(text) };
+
+            (text, signature)
+        }
+        None => (None, None),
+    }
 }
 
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
@@ -735,9 +777,11 @@ where
                     }
                 }
 
-                if let Some(text) = &chunk.choices[0].delta.content {
+                let (text_content, _thought_signature) = extract_content_and_signature(chunk.choices[0].delta.content.as_ref());
+
+                if let Some(text) = text_content {
                     if !text.is_empty() {
-                        content.push(MessageContent::text(text));
+                        content.push(MessageContent::text(&text));
                     }
                 }
 
@@ -748,7 +792,6 @@ where
                         content,
                     );
 
-                    // Add ID if present
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
