@@ -6,7 +6,7 @@ import TextInput from "ink-text-input";
 import meow from "meow";
 import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -1109,25 +1109,24 @@ const cli = meow(
   },
 );
 
-function findGooseBinary(): string {
-  // Check for a bundled binary (written by postinstall in the npm package).
+function findServerBinary(): string | null {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  for (const candidate of [
-    join(__dirname, "..", "goose-binary.json"),
-    join(__dirname, "goose-binary.json"),
-  ]) {
+
+  const candidates = [
+    join(__dirname, "..", "server-binary.json"),
+    join(__dirname, "server-binary.json"),
+  ];
+
+  for (const candidate of candidates) {
     try {
       const data = JSON.parse(readFileSync(candidate, "utf-8"));
-      if (data.binaryPath && existsSync(data.binaryPath)) {
-        return data.binaryPath;
-      }
+      return data.binaryPath ?? null;
     } catch {
-      // not found, try next
+      // not found here, try next
     }
   }
 
-  // Fall back to goose on PATH.
-  return "goose";
+  return null;
 }
 
 let serverProcess: ReturnType<typeof spawn> | null = null;
@@ -1138,7 +1137,13 @@ async function main() {
   if (cli.flags.server) {
     serverConnection = cli.flags.server;
   } else {
-    const binary = findGooseBinary();
+    const binary = findServerBinary();
+    if (!binary) {
+      console.error(
+        "No goose binary found. Use --server <url> or install the native package.",
+      );
+      process.exit(1);
+    }
 
     serverProcess = spawn(binary, ["acp"], {
       stdio: ["pipe", "pipe", "ignore"],
