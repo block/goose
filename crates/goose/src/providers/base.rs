@@ -534,8 +534,16 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        false
+    }
+
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+        if self.skip_canonical_filtering() {
+            return self.fetch_supported_models().await;
+        }
+
         let all_models = self.fetch_supported_models().await?;
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
