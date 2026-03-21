@@ -1176,12 +1176,18 @@ impl SummonClient {
 
                 let error_msg = if suggestions.is_empty() {
                     format!(
-                        "Source '{}' not found. Use load() to see available sources.",
+                        "Source '{}' is not a registered recipe, skill, or agent. \
+                         The load() tool is for loading registered recipes, skills, and agents — not arbitrary files. \
+                         To read file contents, use the read_file tool instead. \
+                         Use load() with no arguments to see available sources.",
                         name
                     )
                 } else {
                     format!(
-                        "Source '{}' not found. Did you mean: {}?",
+                        "Source '{}' is not a registered recipe, skill, or agent. \
+                         The load() tool is for loading registered recipes, skills, and agents — not arbitrary files. \
+                         To read file contents, use the read_file tool instead. \
+                         Did you mean: {}?",
                         name,
                         suggestions.join(", ")
                     )
@@ -1340,7 +1346,14 @@ impl SummonClient {
         let source = self
             .resolve_source(session_id, source_name, working_dir)
             .await?
-            .ok_or_else(|| format!("Source '{}' not found", source_name))?;
+            .ok_or_else(|| {
+                format!(
+                    "Source '{}' is not a registered recipe, skill, or agent. \
+                     The load() tool is for loading registered recipes, skills, and agents — not arbitrary files. \
+                     To read file contents, use the read_file tool instead.",
+                    source_name
+                )
+            })?;
 
         if source_name.contains('/')
             && matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
