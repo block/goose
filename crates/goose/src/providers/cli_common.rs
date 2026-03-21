@@ -32,6 +32,10 @@ pub(crate) fn error_from_event(provider_name: &str, parsed: &Value) -> ProviderE
     }
 }
 
+pub(crate) const SESSION_NAME_BEGIN_MARKER: &str = "---BEGIN USER MESSAGES---";
+pub(crate) const SESSION_NAME_END_MARKER: &str = "---END USER MESSAGES---";
+pub(crate) const SESSION_NAME_SUFFIX: &str = "Generate a short title for the above messages.";
+
 pub(crate) fn is_session_description_request(system: &str) -> bool {
     system.contains("four words or less") || system.contains("4 words or less")
 }
@@ -51,16 +55,15 @@ pub(crate) fn generate_simple_session_description(
         })
         .map(|text| {
             // Strip the wrapper added by generate_session_name so we get
-            // the actual user content instead of "---BEGIN USER MESSAGES---".
+            // the actual user content.
             let stripped = text
-                .strip_prefix("---BEGIN USER MESSAGES---")
+                .strip_prefix(SESSION_NAME_BEGIN_MARKER)
                 .unwrap_or(text)
                 .trim_start_matches(['\n', '\r']);
+            let full_suffix = format!("{}\n\n{}", SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX);
             let stripped = stripped
-                .strip_suffix(
-                    "---END USER MESSAGES---\n\nGenerate a short title for the above messages.",
-                )
-                .or_else(|| stripped.strip_suffix("---END USER MESSAGES---"))
+                .strip_suffix(&full_suffix)
+                .or_else(|| stripped.strip_suffix(SESSION_NAME_END_MARKER))
                 .unwrap_or(stripped)
                 .trim();
 
