@@ -90,15 +90,6 @@ fn kind_plural(kind: SourceKind) -> &'static str {
     }
 }
 
-fn load_source_not_found_prefix(name: &str) -> String {
-    format!(
-        "Source '{}' is not a registered recipe, skill, or agent. \
-         The load() tool is for loading registered recipes, skills, and agents -- not arbitrary files. \
-         To read file contents, use the read_file tool instead.",
-        name
-    )
-}
-
 fn truncate(s: &str, max_len: usize) -> String {
     if s.chars().count() <= max_len {
         s.to_string()
@@ -588,7 +579,8 @@ impl SummonClient {
 
         Tool::new(
             "load",
-            "Load knowledge into your current context or discover available sources.\n\n\
+            "Load a registered recipe, skill, or agent into your current context, or discover available sources.\n\
+             This tool only works with registered sources — to read arbitrary files, use read_file instead.\n\n\
              Call with no arguments to list all available sources (subrecipes, recipes, skills, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
@@ -1183,14 +1175,18 @@ impl SummonClient {
                     .map(|s| s.name.as_str())
                     .collect();
 
-                let prefix = load_source_not_found_prefix(name);
                 let error_msg = if suggestions.is_empty() {
                     format!(
-                        "{} Use load() with no arguments to see available sources.",
-                        prefix
+                        "'{}' is not a registered recipe, skill, or agent. \
+                         Use load() with no arguments to see available sources.",
+                        name
                     )
                 } else {
-                    format!("{} Did you mean: {}?", prefix, suggestions.join(", "))
+                    format!(
+                        "'{}' is not a registered recipe, skill, or agent. Did you mean: {}?",
+                        name,
+                        suggestions.join(", ")
+                    )
                 };
 
                 Err(error_msg)
@@ -1346,7 +1342,12 @@ impl SummonClient {
         let source = self
             .resolve_source(session_id, source_name, working_dir)
             .await?
-            .ok_or_else(|| load_source_not_found_prefix(source_name))?;
+            .ok_or_else(|| {
+                format!(
+                    "'{}' is not a registered recipe, skill, or agent.",
+                    source_name
+                )
+            })?;
 
         if source_name.contains('/')
             && matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
@@ -2521,30 +2522,28 @@ You review code."#;
     }
 
     #[tokio::test]
-    async fn test_load_source_unregistered_name_suggests_read_file() {
+    async fn test_load_source_unregistered_name_error_shape() {
         let temp_dir = TempDir::new().unwrap();
 
         let client = SummonClient::new(create_test_context()).unwrap();
 
         // Use a Windows-style file path that won't match any registered source
+        let name = r"c:\Users\test\file.cs";
         let err = client
-            .handle_load_source("test", r"c:\Users\test\file.cs", temp_dir.path())
+            .handle_load_source("test", name, temp_dir.path())
             .await
             .unwrap_err();
 
+        // Error should name the unrecognised source
         assert!(
-            err.contains("read_file"),
-            "error should suggest read_file tool: {}",
+            err.contains(name),
+            "error should include the unrecognised source name: {}",
             err
         );
+        // Error should indicate it's not a registered source
         assert!(
-            err.contains("not a registered recipe"),
-            "error should clarify load() is for registered sources: {}",
-            err
-        );
-        assert!(
-            err.contains("not arbitrary files"),
-            "error should mention load() is not for arbitrary files: {}",
+            err.contains("not a registered recipe, skill, or agent"),
+            "error should clarify the source is not registered: {}",
             err
         );
     }
