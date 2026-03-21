@@ -14,6 +14,7 @@ use goose::agents::{Container, ExtensionLoadResult};
 use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
+use goose::agents::reply_parts::is_tool_visible_to_app;
 use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
@@ -1046,6 +1047,18 @@ async fn call_tool(
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;
+
+    // Check app-side visibility: reject calls to tools that exclude "app"
+    let tools = agent.list_tools(&payload.session_id, None).await;
+    if let Some(tool) = tools.iter().find(|t| *t.name == payload.name) {
+        if !is_tool_visible_to_app(tool) {
+            warn!(
+                tool = %payload.name,
+                "Rejected app call to model-only tool"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
 
     let arguments = match payload.arguments {
         Value::Object(map) => Some(map),

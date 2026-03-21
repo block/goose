@@ -1324,6 +1324,7 @@ const validSettingKeys: Set<string> = new Set([
   'sessionSharing',
   'seenAnnouncementIds',
   'hubMode',
+  'navExpandedWidth',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {

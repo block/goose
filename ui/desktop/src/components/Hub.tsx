@@ -16,8 +16,7 @@ import { AppEvents } from '../constants/events';
  * Hub (input submission) → Create Session → Pair (with session ID and initial message)
  */
 
-import { useEffect, useState } from 'react';
-import { SessionInsights } from './sessions/SessionsInsights';
+import { useEffect, useRef, useState } from 'react';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
@@ -29,7 +28,7 @@ import {
 } from '../store/extensionOverrides';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
-import LoadingGoose from './LoadingGoose';
+
 import { UserInput } from '../types/message';
 import ActiveAgentView from './ActiveAgentView';
 import { HubMode } from '../utils/settings';
@@ -78,6 +77,7 @@ export default function Hub({
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [mode, setMode] = useState<HubMode | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Load persisted hub mode on mount
   useEffect(() => {
@@ -90,6 +90,16 @@ export default function Hub({
     setMode(newMode);
     window.electron.setSetting('hubMode', newMode);
   };
+
+  // rAF is more reliable than autoFocus across async render boundaries (Suspense, OnboardingGuard, etc.)
+  useEffect(() => {
+    if (mode === 'classic') {
+      const frameId = requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [mode]);
 
   const handleSubmit = async (input: UserInput) => {
     const { msg: userMessage, images } = input;
@@ -136,37 +146,27 @@ export default function Hub({
           <ActiveAgentView setView={setView} />
         </div>
       ) : (
-        <>
-          <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
-            <SessionInsights />
-            {isCreatingSession && (
-              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-                <LoadingGoose chatState={ChatState.LoadingConversation} />
-              </div>
-            )}
-          </div>
-
-          <div className="flex-shrink-0 max-h-[50vh] min-h-0 overflow-hidden flex flex-col">
-            <ChatInput
-              sessionId={null}
-              handleSubmit={handleSubmit}
-              chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
-              onStop={() => {}}
-              initialValue=""
-              setView={setView}
-              totalTokens={0}
-              accumulatedInputTokens={0}
-              accumulatedOutputTokens={0}
-              droppedFiles={[]}
-              onFilesProcessed={() => {}}
-              messages={[]}
-              disableAnimation={false}
-              sessionCosts={undefined}
-              toolCount={0}
-              onWorkingDirChange={setWorkingDir}
-            />
-          </div>
-        </>
+        <div className="flex-shrink-0 max-h-[50vh] min-h-0 overflow-hidden flex flex-col">
+          <ChatInput
+            sessionId={null}
+            handleSubmit={handleSubmit}
+            chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
+            onStop={() => {}}
+            initialValue=""
+            setView={setView}
+            totalTokens={0}
+            accumulatedInputTokens={0}
+            accumulatedOutputTokens={0}
+            droppedFiles={[]}
+            onFilesProcessed={() => {}}
+            messages={[]}
+            disableAnimation={false}
+            sessionCosts={undefined}
+            toolCount={0}
+            onWorkingDirChange={setWorkingDir}
+            inputRef={inputRef}
+          />
+        </div>
       )}
     </div>
   );

@@ -47,7 +47,7 @@ NATIVE_PACKAGES=(
 for pkg in "${NATIVE_PACKAGES[@]}"; do
   pkg_dir="${NPM_DIR}/${pkg}"
 
-  if [ ! -f "${pkg_dir}/bin/goose-acp-server" ] && [ ! -f "${pkg_dir}/bin/goose-acp-server.exe" ]; then
+  if [ ! -f "${pkg_dir}/bin/goose" ] && [ ! -f "${pkg_dir}/bin/goose.exe" ]; then
     echo "    SKIP ${pkg} (no binary found — run build-native-packages.sh first)"
     continue
   fi

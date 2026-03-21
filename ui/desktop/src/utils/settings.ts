@@ -47,6 +47,7 @@ export interface Settings {
   sessionSharing: SessionSharingConfig;
   seenAnnouncementIds: string[];
   hubMode: HubMode;
+  navExpandedWidth: number | null;
 }
 
 export type SettingKey = keyof Settings;
@@ -89,6 +90,7 @@ export const defaultSettings: Settings = {
   },
   seenAnnouncementIds: [],
   hubMode: 'classic',
+  navExpandedWidth: null,
 };
 
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
