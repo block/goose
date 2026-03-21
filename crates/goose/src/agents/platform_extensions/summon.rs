@@ -90,6 +90,15 @@ fn kind_plural(kind: SourceKind) -> &'static str {
     }
 }
 
+fn load_source_not_found_prefix(name: &str) -> String {
+    format!(
+        "Source '{}' is not a registered recipe, skill, or agent. \
+         The load() tool is for loading registered recipes, skills, and agents -- not arbitrary files. \
+         To read file contents, use the read_file tool instead.",
+        name
+    )
+}
+
 fn truncate(s: &str, max_len: usize) -> String {
     if s.chars().count() <= max_len {
         s.to_string()
@@ -1174,23 +1183,14 @@ impl SummonClient {
                     .map(|s| s.name.as_str())
                     .collect();
 
+                let prefix = load_source_not_found_prefix(name);
                 let error_msg = if suggestions.is_empty() {
                     format!(
-                        "Source '{}' is not a registered recipe, skill, or agent. \
-                         The load() tool is for loading registered recipes, skills, and agents — not arbitrary files. \
-                         To read file contents, use the read_file tool instead. \
-                         Use load() with no arguments to see available sources.",
-                        name
+                        "{} Use load() with no arguments to see available sources.",
+                        prefix
                     )
                 } else {
-                    format!(
-                        "Source '{}' is not a registered recipe, skill, or agent. \
-                         The load() tool is for loading registered recipes, skills, and agents — not arbitrary files. \
-                         To read file contents, use the read_file tool instead. \
-                         Did you mean: {}?",
-                        name,
-                        suggestions.join(", ")
-                    )
+                    format!("{} Did you mean: {}?", prefix, suggestions.join(", "))
                 };
 
                 Err(error_msg)
@@ -1346,14 +1346,7 @@ impl SummonClient {
         let source = self
             .resolve_source(session_id, source_name, working_dir)
             .await?
-            .ok_or_else(|| {
-                format!(
-                    "Source '{}' is not a registered recipe, skill, or agent. \
-                     The load() tool is for loading registered recipes, skills, and agents — not arbitrary files. \
-                     To read file contents, use the read_file tool instead.",
-                    source_name
-                )
-            })?;
+            .ok_or_else(|| load_source_not_found_prefix(source_name))?;
 
         if source_name.contains('/')
             && matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
@@ -2525,5 +2518,34 @@ You review code."#;
             .lock()
             .await
             .contains_key("20260204_1"));
+    }
+
+    #[tokio::test]
+    async fn test_load_source_unregistered_name_suggests_read_file() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        // Use a Windows-style file path that won't match any registered source
+        let err = client
+            .handle_load_source("test", r"c:\Users\test\file.cs", temp_dir.path())
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.contains("read_file"),
+            "error should suggest read_file tool: {}",
+            err
+        );
+        assert!(
+            err.contains("not a registered recipe"),
+            "error should clarify load() is for registered sources: {}",
+            err
+        );
+        assert!(
+            err.contains("not arbitrary files"),
+            "error should mention load() is not for arbitrary files: {}",
+            err
+        );
     }
 }
