@@ -144,10 +144,12 @@ jobs:
           # Copy the goose binary
           cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
 
-          # Create the tar archive
+          # Create the tar archives (bz2 for backward compat, gz for Zed/ACP registry compat)
           cd "target/${TARGET}/release"
           tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+          tar -czf "goose-${TARGET}.tar.gz" -C goose-package .
+          echo "ARTIFACT_BZ2=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+          echo "ARTIFACT_GZ=target/${TARGET}/release/goose-${TARGET}.tar.gz" >> $GITHUB_ENV
 
       - name: Package CLI (Windows)
         if: matrix.os == 'windows'
@@ -167,4 +169,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
-          path: ${{ env.ARTIFACT }}
+          path: |
+            ${{ env.ARTIFACT_BZ2 }}
+            ${{ env.ARTIFACT_GZ }}
+            ${{ env.ARTIFACT }}
