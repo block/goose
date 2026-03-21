@@ -4211,13 +4211,6 @@
           "user_message"
         ],
         "properties": {
-          "override_conversation": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "nullable": true
-          },
           "request_id": {
             "type": "string"
           },

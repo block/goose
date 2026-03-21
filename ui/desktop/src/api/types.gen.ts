@@ -81,7 +81,6 @@ export type CheckProviderRequest = {
 };
 
 export type ClawReplyRequest = {
-    override_conversation?: Array<Message> | null;
     request_id: string;
     user_message: Message;
 };

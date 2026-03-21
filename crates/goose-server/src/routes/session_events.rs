@@ -14,11 +14,9 @@ use futures::{stream::StreamExt, Stream};
 use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
-use goose::session::{ExtensionState, SessionType};
 use serde::{Deserialize, Serialize};
 use std::{
     convert::Infallible,
-    path::PathBuf,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -605,96 +603,6 @@ pub async fn session_cancel(
 
 // ── Claw (Active Agent) ─────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct ClawReplyRequest {
-    pub request_id: String,
-    pub user_message: Message,
-    #[serde(default)]
-    pub override_conversation: Option<Vec<Message>>,
-}
-
-/// Find the most recent Claw session, or create one with the developer extension.
-async fn ensure_claw_session(state: &AppState) -> Result<String, ErrorResponse> {
-    let manager = state.session_manager();
-
-    // Look for an existing Claw session (most recent first).
-    let claw_sessions = manager
-        .list_sessions_by_types(&[SessionType::Claw])
-        .await
-        .map_err(|e| ErrorResponse::internal(format!("Failed to list claw sessions: {}", e)))?;
-
-    if let Some(session) = claw_sessions.first() {
-        return Ok(session.id.clone());
-    }
-
-    // No claw session exists — create one.
-    let working_dir = PathBuf::from(
-        std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .unwrap_or_else(|_| ".".to_string()),
-    );
-
-    let config = goose::config::Config::global();
-    let current_mode = config.get_goose_mode().unwrap_or_default();
-
-    let session = manager
-        .create_session(
-            working_dir,
-            "Active Agent".to_string(),
-            SessionType::Claw,
-            current_mode,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to create claw session: {}", e);
-            ErrorResponse::internal(format!("Failed to create claw session: {}", e))
-        })?;
-
-    // Configure the developer extension on the new session.
-    let developer_ext = goose::agents::ExtensionConfig::Builtin {
-        name: "developer".to_string(),
-        display_name: Some("Developer".to_string()),
-        timeout: None,
-        bundled: None,
-        description: String::new(),
-        available_tools: Vec::new(),
-    };
-
-    let extensions_state = goose::session::EnabledExtensionsState::new(vec![developer_ext]);
-    let mut extension_data = session.extension_data.clone();
-    if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
-        tracing::warn!("Failed to set claw extensions: {}", e);
-    } else {
-        manager
-            .update(&session.id)
-            .extension_data(extension_data)
-            .apply()
-            .await
-            .map_err(|e| {
-                ErrorResponse::internal(format!("Failed to save claw extension state: {}", e))
-            })?;
-    }
-
-    Ok(session.id)
-}
-
-/// Set up the claw agent with the active_agent.md system prompt.
-async fn setup_claw_agent(state: &AppState, session_id: &str) -> Result<(), ErrorResponse> {
-    let agent = state.get_agent(session_id.to_string()).await.map_err(|e| {
-        tracing::error!("Failed to get claw agent: {}", e);
-        ErrorResponse::internal(format!("Failed to get claw agent: {}", e))
-    })?;
-
-    let context: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    let prompt = goose::prompt_template::render_template("active_agent.md", &context)
-        .unwrap_or_else(|_| {
-            "You are an active agent. Proactively share relevant updates.".to_string()
-        });
-    agent.override_system_prompt(prompt).await;
-
-    Ok(())
-}
-
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ClawSessionResponse {
     pub session_id: String,
@@ -712,8 +620,18 @@ pub struct ClawSessionResponse {
 pub async fn claw_session(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ClawSessionResponse>, ErrorResponse> {
-    let session_id = ensure_claw_session(&state).await?;
-    Ok(Json(ClawSessionResponse { session_id }))
+    let session = goose::agents::claw::ensure_session(state.session_manager())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(ClawSessionResponse {
+        session_id: session.id,
+    }))
+}
+
+#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct ClawReplyRequest {
+    pub request_id: String,
+    pub user_message: Message,
 }
 
 #[utoipa::path(
@@ -736,18 +654,33 @@ pub async fn claw_reply(
         ));
     }
 
-    let session_id = ensure_claw_session(&state).await?;
-    setup_claw_agent(&state, &session_id).await?;
+    let session = goose::agents::claw::ensure_session(state.session_manager())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
-    let session_request = SessionReplyRequest {
-        request_id: request.request_id,
-        user_message: request.user_message,
-        override_conversation: request.override_conversation,
-        recipe_name: None,
-        recipe_version: None,
-    };
+    let session_id = session.id.clone();
 
-    session_reply(State(state), Path(session_id), Json(session_request)).await
+    let agent = state
+        .get_agent(session_id.clone())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    goose::agents::claw::setup_agent(&agent, &session, state.session_manager())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    session_reply(
+        State(state),
+        Path(session_id),
+        Json(SessionReplyRequest {
+            request_id: request.request_id,
+            user_message: request.user_message,
+            override_conversation: None,
+            recipe_name: None,
+            recipe_version: None,
+        }),
+    )
+    .await
 }
 
 // ── Route registration ──────────────────────────────────────────────────

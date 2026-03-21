@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { clawReply, clawSession, Message } from '../api';
+import { clawReply, clawSession, getSession, Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { UserInput } from '../types/message';
 import { useChatStream, CustomReplyFn } from '../hooks/useChatStream';
@@ -12,15 +12,14 @@ import { View, ViewOptions } from '../utils/navigationUtils';
 const STALENESS_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
 
 /**
- * Custom reply function that routes through /claw/reply instead of /sessions/{id}/reply.
- * This ensures the claw agent's system prompt and extensions are always set up.
+ * Custom reply function that routes through /claw/reply.
+ * Returns the session_id so the caller can connect SSE.
  */
-const clawReplyFn: CustomReplyFn = async ({ requestId, userMessage, overrideConversation, signal }) => {
+const clawReplyFn: CustomReplyFn = async ({ requestId, userMessage, signal }) => {
   await clawReply({
     body: {
       request_id: requestId,
       user_message: userMessage,
-      override_conversation: overrideConversation,
     },
     signal,
     throwOnError: true,
@@ -29,7 +28,6 @@ const clawReplyFn: CustomReplyFn = async ({ requestId, userMessage, overrideConv
 
 /**
  * Inner component that renders once the claw session ID is known.
- * Uses useChatStream with a custom replyFn to route all messages through /claw/reply.
  */
 function ActiveAgentChat({
   setView,
@@ -60,7 +58,6 @@ function ActiveAgentChat({
     replyFn: clawReplyFn,
   });
 
-  // Auto-scroll on new messages
   useEffect(() => {
     if (chatState === ChatState.Streaming) {
       scrollRef.current?.scrollToBottom();
@@ -90,7 +87,7 @@ function ActiveAgentChat({
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background-primary">
+    <div className="flex flex-col h-full min-h-0 bg-background-secondary">
       <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
         <div className="px-4 py-4">
           {messages.length === 0 && chatState === ChatState.Idle ? (
@@ -145,8 +142,8 @@ function ActiveAgentChat({
 /**
  * ActiveAgentView — the "Active" mode of the home screen.
  *
- * On mount it calls POST /claw/session to get (or create) the claw session ID,
- * then renders ActiveAgentChat which connects via useChatStream.
+ * Sends an initial clawReply to discover the session ID, then renders
+ * ActiveAgentChat which connects via useChatStream.
  */
 export default function ActiveAgentView({
   setView,
@@ -166,8 +163,7 @@ export default function ActiveAgentView({
       const sid = response.data.session_id;
       setClawSessionId(sid);
 
-      // Check staleness by loading the session
-      const { getSession } = await import('../api');
+      // Check staleness.
       const sessionResponse = await getSession({
         path: { session_id: sid },
         throwOnError: false,
