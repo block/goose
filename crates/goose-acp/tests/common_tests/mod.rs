@@ -27,7 +27,7 @@ struct BasicSession<C: Connection> {
     session: C::Session,
 }
 
-async fn new_basic_session<C: Connection>() -> BasicSession<C> {
+async fn new_basic_session<C: Connection>(config: TestConnectionConfig) -> BasicSession<C> {
     let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
@@ -38,7 +38,7 @@ async fn new_basic_session<C: Connection>() -> BasicSession<C> {
     )
     .await;
 
-    let mut conn = C::new(TestConnectionConfig::default(), openai).await;
+    let mut conn = C::new(config, openai).await;
     let SessionData { mut session, .. } = conn.new_session().await.unwrap();
     expected_session_id.set(&session.session_id().0);
 
@@ -52,7 +52,8 @@ async fn new_basic_session<C: Connection>() -> BasicSession<C> {
 }
 
 pub async fn run_list_sessions<C: Connection>() {
-    let BasicSession { conn, session } = new_basic_session::<C>().await;
+    let BasicSession { conn, session } =
+        new_basic_session::<C>(TestConnectionConfig::default()).await;
     let mut response = conn.list_sessions().await.unwrap();
     for s in &mut response.sessions {
         s.updated_at = None;
@@ -68,7 +69,8 @@ pub async fn run_list_sessions<C: Connection>() {
 }
 
 pub async fn run_close_session<C: Connection>() {
-    let BasicSession { conn, session } = new_basic_session::<C>().await;
+    let BasicSession { conn, session } =
+        new_basic_session::<C>(TestConnectionConfig::default()).await;
     let sid = &session.session_id().0;
     let data_root = conn.data_root();
 
@@ -92,7 +94,8 @@ pub async fn run_close_session<C: Connection>() {
 }
 
 pub async fn run_delete_session<C: Connection>() {
-    let BasicSession { mut conn, session } = new_basic_session::<C>().await;
+    let BasicSession { mut conn, session } =
+        new_basic_session::<C>(TestConnectionConfig::default()).await;
     let sid = session.session_id().0.to_string();
 
     let before: Vec<_> = conn
@@ -855,7 +858,8 @@ pub async fn run_new_session_error(
 }
 
 pub async fn run_prompt_error<C: Connection>() {
-    let BasicSession { conn, mut session } = new_basic_session::<C>().await;
+    let BasicSession { conn, mut session } =
+        new_basic_session::<C>(TestConnectionConfig::default()).await;
     let sid = session.session_id().0.to_string();
 
     conn.delete_session(&sid).await.unwrap();
@@ -1123,6 +1127,21 @@ pub async fn run_prompt_mcp<C: Connection>() {
         ],
     );
     expected_session_id.assert_matches(&session.session_id().0);
+}
+
+pub async fn run_prompt_model_mismatch<C: Connection>() {
+    // Start the connection where the current model is not desired.
+    let config = TestConnectionConfig {
+        current_model: "o4-mini".to_string(),
+        ..Default::default()
+    };
+
+    // BasicSession sets the model to TEST_MODEL and OpenAI enforces it.
+    let BasicSession { conn: _, session } = new_basic_session::<C>(config).await;
+
+    // Notification the model switched from o4-mini -> TEST_MODEL
+    let notifs = session.notifications();
+    assert!(notifs.contains(&Notification::ConfigOption));
 }
 
 pub async fn run_prompt_skill<C: Connection>() {

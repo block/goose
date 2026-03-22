@@ -15,10 +15,10 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    AuthMethod, CreateTerminalResponse, KillTerminalResponse, McpServer, ReadTextFileRequest,
-    ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState, SessionModelState,
-    SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse, ToolCallContent,
-    ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
+    AuthMethod, CreateTerminalResponse, KillTerminalResponse, ListSessionsResponse, McpServer,
+    ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState,
+    SessionModelState, SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse,
+    ToolCallContent, ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
     WriteTextFileResponse,
 };
 use std::collections::VecDeque;
@@ -156,6 +156,7 @@ pub async fn spawn_acp_server_in_process(
     data_root: &std::path::Path,
     goose_mode: GooseMode,
     provider_factory: Option<ProviderConstructor>,
+    current_model: &str,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
     // TODO: Paths::in_state_dir is global, ignoring per-test data_root
@@ -164,7 +165,7 @@ pub async fn spawn_acp_server_in_process(
     if !config_path.exists() {
         fs::write(
             &config_path,
-            format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\n"),
+            format!("GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\n"),
         )
         .unwrap();
     }
@@ -478,6 +479,8 @@ pub struct TestConnectionConfig {
     // When true, strips config_options from responses to test the legacy set_mode/set_model path.
     #[allow(dead_code)]
     pub strip_config_options: bool,
+    // The model the server-side provider starts with. Defaults to TEST_MODEL.
+    pub current_model: String,
 }
 
 impl Default for TestConnectionConfig {
@@ -493,6 +496,7 @@ impl Default for TestConnectionConfig {
             write_text_file: None,
             terminal: None,
             strip_config_options: false,
+            current_model: TEST_MODEL.to_string(),
         }
     }
 }
@@ -509,7 +513,7 @@ pub trait Connection: Sized {
         session_id: &str,
         mcp_servers: Vec<McpServer>,
     ) -> anyhow::Result<SessionData<Self::Session>>;
-    async fn list_sessions(&self) -> anyhow::Result<sacp::schema::ListSessionsResponse>;
+    async fn list_sessions(&self) -> anyhow::Result<ListSessionsResponse>;
     async fn close_session(&self, session_id: &str) -> anyhow::Result<()>;
     async fn delete_session(&self, session_id: &str) -> anyhow::Result<()>;
     async fn set_mode(&self, session_id: &str, mode_id: &str) -> anyhow::Result<()>;

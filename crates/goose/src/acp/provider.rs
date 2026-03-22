@@ -464,12 +464,14 @@ impl AcpProvider {
                 .lock()
                 .await
                 .insert(response.session_id.0.to_string(), session_id.to_string());
+
             // Initialize model tracking so stream() can detect changes.
+            let (current_model, _) = resolve_model_info(&self.name, &response)?;
             self.session_model
                 .lock()
                 .await
                 .entry(session_id.to_string())
-                .or_insert_with(|| self.model.model_name.clone());
+                .or_insert(current_model);
         }
 
         Ok(response)

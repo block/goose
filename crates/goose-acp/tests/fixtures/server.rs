@@ -117,6 +117,7 @@ impl Connection for AcpServerConnection {
             data_root.as_path(),
             config.goose_mode,
             config.provider_factory,
+            &config.current_model,
         )
         .await;
 
