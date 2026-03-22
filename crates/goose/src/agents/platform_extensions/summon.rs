@@ -471,9 +471,8 @@ fn current_epoch_millis() -> u64 {
 
 /// Get maximum number of concurrent background tasks
 fn max_background_tasks() -> usize {
-    std::env::var("GOOSE_MAX_BACKGROUND_TASKS")
-        .ok()
-        .and_then(|v| v.parse().ok())
+    Config::global()
+        .get_param::<usize>("GOOSE_MAX_BACKGROUND_TASKS")
         .unwrap_or(5)
 }
 

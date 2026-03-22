@@ -2,6 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
     load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
@@ -526,6 +527,32 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
         .map(|s| s.trim())
 }
 
+fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
+    let value: Value = serde_json::from_str(line).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })?;
+
+    if let Some(error) = value.get("error") {
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(ProviderError::ServerError(message.to_string()));
+    }
+
+    if value.get("object").and_then(|o| o.as_str()) == Some("error") {
+        let message = value
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(ProviderError::ServerError(message.to_string()));
+    }
+
+    serde_json::from_value(value).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -550,9 +577,9 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let chunk: StreamingChunk = parse_streaming_chunk(
+                line.ok_or_else(|| anyhow!("unexpected stream format"))?
+            )?;
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -590,8 +617,7 @@ where
                                     break 'outer;
                                 }
 
-                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
                                     usage = Some(chunk_usage);
@@ -819,6 +845,7 @@ mod tests {
     use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
+    use test_case::test_case;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
 
@@ -1890,5 +1917,43 @@ data: [DONE]"#;
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
         Ok(())
+    }
+
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Internal server error\",\"type\":\"server_error\",\"code\":500}}\ndata: [DONE]",
+        "Internal server error";
+        "openai error format"
+    )]
+    #[test_case(
+        "data: {\"object\":\"error\",\"message\":\"CUDA out of memory\",\"code\":500}\ndata: [DONE]",
+        "CUDA out of memory";
+        "vllm error format"
+    )]
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Rate limit exceeded\",\"type\":\"rate_limit_error\"}}",
+        "Rate limit exceeded";
+        "error as first chunk"
+    )]
+    #[tokio::test]
+    async fn test_mid_stream_server_error(response_lines: &str, expected_msg: &str) {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut found_error = false;
+        while let Some(result) = messages.next().await {
+            if let Err(e) = result {
+                let err_str = e.to_string();
+                assert!(
+                    err_str.contains(expected_msg),
+                    "unexpected error text: {err_str}"
+                );
+                found_error = true;
+                break;
+            }
+        }
+        assert!(
+            found_error,
+            "expected an error but stream completed successfully"
+        );
     }
 }

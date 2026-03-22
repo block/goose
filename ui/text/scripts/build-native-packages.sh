@@ -29,9 +29,9 @@ build_target() {
   local pkg_dir="${NPM_DIR}/goose-acp-server-${platform}"
   local bin_dir="${pkg_dir}/bin"
 
-  echo "==> Building goose-acp-server for ${platform} (${rust_target})"
+  echo "==> Building goose for ${platform} (${rust_target})"
 
-  cargo build --release --target "${rust_target}" --bin goose-acp-server
+  cargo build --release --target "${rust_target}" --bin goose
 
   mkdir -p "${bin_dir}"
 
@@ -40,10 +40,10 @@ build_target() {
     ext=".exe"
   fi
 
-  cp "${REPO_ROOT}/target/${rust_target}/release/goose-acp-server${ext}" "${bin_dir}/goose-acp-server${ext}"
-  chmod +x "${bin_dir}/goose-acp-server${ext}"
+  cp "${REPO_ROOT}/target/${rust_target}/release/goose${ext}" "${bin_dir}/goose${ext}"
+  chmod +x "${bin_dir}/goose${ext}"
 
-  echo "    Placed binary at ${bin_dir}/goose-acp-server${ext}"
+  echo "    Placed binary at ${bin_dir}/goose${ext}"
 }
 
 if [ $# -gt 0 ]; then

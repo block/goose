@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
+use crate::session_event_bus::SessionEventBus;
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
 use goose::gateway::manager::GatewayManager;
@@ -28,6 +29,7 @@ pub struct AppState {
     pub extension_loading_tasks: ExtensionLoadingTasks,
     #[cfg(feature = "local-inference")]
     pub inference_runtime: Arc<InferenceRuntime>,
+    session_buses: Arc<Mutex<HashMap<String, Arc<SessionEventBus>>>>,
 }
 
 impl AppState {
@@ -47,6 +49,7 @@ impl AppState {
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(feature = "local-inference")]
             inference_runtime: InferenceRuntime::get_or_init(),
+            session_buses: Arc::new(Mutex::new(HashMap::new())),
         }))
     }
 
@@ -108,6 +111,26 @@ impl AppState {
             sessions.insert(session_id.to_string());
             true
         }
+    }
+
+    pub async fn get_or_create_event_bus(&self, session_id: &str) -> Arc<SessionEventBus> {
+        let mut buses = self.session_buses.lock().await;
+        buses
+            .entry(session_id.to_string())
+            .or_insert_with(|| Arc::new(SessionEventBus::new()))
+            .clone()
+    }
+
+    /// Get an existing event bus for a session without creating one.
+    pub async fn get_event_bus(&self, session_id: &str) -> Option<Arc<SessionEventBus>> {
+        let buses = self.session_buses.lock().await;
+        buses.get(session_id).cloned()
+    }
+
+    /// Remove the event bus for a session, freeing its replay buffer.
+    pub async fn remove_event_bus(&self, session_id: &str) {
+        let mut buses = self.session_buses.lock().await;
+        buses.remove(session_id);
     }
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {

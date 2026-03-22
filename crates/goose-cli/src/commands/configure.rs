@@ -22,6 +22,7 @@ use goose::config::{
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
+use goose::providers::chatgpt_codex::reasoning_levels_for_model;
 use goose::providers::formats::anthropic::supports_adaptive_thinking;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
@@ -806,6 +807,26 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 })
                 .interact()?;
             config.set_claude_thinking_budget(budget.parse::<i32>()?)?;
+        }
+    }
+
+    if provider_name == "chatgpt_codex" {
+        let valid_levels = reasoning_levels_for_model(&model);
+        if !valid_levels.is_empty() {
+            let mut select = cliclack::select("Select reasoning effort level:");
+            for &level in valid_levels {
+                let description = match level {
+                    "low" => "Low - Fast responses with lighter reasoning",
+                    "medium" => "Medium - Balances speed and reasoning depth for everyday tasks",
+                    "high" => "High - Greater reasoning depth for complex problems",
+                    "xhigh" => "Extra High - Extra high reasoning depth for complex problems",
+                    _ => "",
+                };
+                select = select.item(level, description, "");
+            }
+            select = select.initial_value("medium");
+            let effort: &str = select.interact()?;
+            config.set_chatgpt_codex_reasoning_effort(effort.to_string())?;
         }
     }
 

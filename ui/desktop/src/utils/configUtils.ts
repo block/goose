@@ -4,8 +4,6 @@ export const configLabels: Record<string, string> = {
   GOOSE_MODEL: 'Model',
   GOOSE_TEMPERATURE: 'Temperature',
   GOOSE_MODE: 'Mode',
-  GOOSE_LEAD_PROVIDER: 'Lead Provider',
-  GOOSE_LEAD_MODEL: 'Lead Model',
   GOOSE_PLANNER_PROVIDER: 'Planner Provider',
   GOOSE_PLANNER_MODEL: 'Planner Model',
   GOOSE_TOOLSHIM: 'Tool Shim',

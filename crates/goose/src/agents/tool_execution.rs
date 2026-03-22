@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::Arc;
-
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use tokio::sync::Mutex;
+use rmcp::model::CallToolResult;
+use std::collections::HashMap;
+use std::future::Future;
 use tokio_util::sync::CancellationToken;
 
 use std::path::PathBuf;
@@ -79,8 +77,8 @@ impl Agent {
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
-        tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
-        request_to_response_map: &'a HashMap<String, Arc<Mutex<Message>>>,
+        tool_futures: &'a mut Vec<(String, ToolStream)>,
+        request_to_response_map: &'a mut HashMap<String, Message>,
         cancellation_token: Option<CancellationToken>,
         session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
@@ -88,7 +86,6 @@ impl Agent {
         try_stream! {
         for request in tool_requests.iter() {
             if let Ok(tool_call) = request.tool_call.clone() {
-                // Find the corresponding inspection result for this tool request
                 let security_message = inspection_results.iter()
                     .find(|result| result.tool_request_id == request.id)
                     .and_then(|result| {
@@ -114,7 +111,6 @@ impl Agent {
                 let confirmation = confirmation_rx.await
                     .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
 
-                // Log user decision if this was a security alert
                 if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
                     tracing::info!(
                         monotonic_counter.goose.prompt_injection_user_decisions = 1,
@@ -127,9 +123,8 @@ impl Agent {
 
                 if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
                     let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
-                    let mut futures = tool_futures.lock().await;
 
-                    futures.push((req_id, match tool_result {
+                    tool_futures.push((req_id, match tool_result {
                         Ok(result) => tool_stream(
                             result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
                             result.result,
@@ -140,19 +135,16 @@ impl Agent {
                         ),
                     }));
 
-                    // Update the shared permission manager when user selects "Always Allow"
                     if confirmation.permission == Permission::AlwaysAllow {
                         self.tool_inspection_manager
                             .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
                             .await;
                     }
                 } else {
-                    // User declined - update the specific response message for this request
-                    if let Some(response_msg) = request_to_response_map.get(&request.id) {
-                        let mut response = response_msg.lock().await;
-                        *response = response.clone().with_tool_response_with_metadata(
+                    if let Some(response) = request_to_response_map.get_mut(&request.id) {
+                        response.add_tool_response_with_metadata(
                             request.id.clone(),
-                            Ok(rmcp::model::CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                            Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
                             request.metadata.as_ref(),
                         );
                     }
@@ -171,20 +163,18 @@ impl Agent {
     pub(crate) fn handle_frontend_tool_request<'a>(
         &'a self,
         tool_request: &'a ToolRequest,
-        message_tool_response: Arc<Mutex<Message>>,
+        message_tool_response: &'a mut Message,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
                 if let Ok(tool_call) = tool_request.tool_call.clone() {
                     if self.is_frontend_tool(&tool_call.name).await {
-                        // Send frontend tool request and wait for response
                         yield Message::assistant().with_frontend_tool_request(
                             tool_request.id.clone(),
                             Ok(tool_call.clone())
                         );
 
                         if let Some((id, result)) = self.tool_result_rx.lock().await.recv().await {
-                            let mut response = message_tool_response.lock().await;
-                            *response = response.clone().with_tool_response_with_metadata(
+                            message_tool_response.add_tool_response_with_metadata(
                                 id,
                                 result,
                                 tool_request.metadata.as_ref(),
