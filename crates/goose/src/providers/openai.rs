@@ -319,6 +319,12 @@ impl OpenAiProvider {
             .request(None, &models_path)
             .response_get()
             .await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            let body = response.text().await.unwrap_or_default();
+            return Err(ProviderError::EndpointNotFound(body));
+        }
+
         let json = handle_response_openai_compat(response).await?;
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj

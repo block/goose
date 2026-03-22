@@ -173,7 +173,9 @@ pub fn map_http_error_to_provider_error(
             status,
             extract_message()
         )),
-        StatusCode::NOT_FOUND => ProviderError::EndpointNotFound(extract_message()),
+        StatusCode::NOT_FOUND => {
+            ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
+        }
         StatusCode::PAYMENT_REQUIRED => ProviderError::CreditsExhausted {
             details: extract_message(),
             top_up_url: None,
@@ -300,14 +302,14 @@ mod tests {
     #[test_case(
         StatusCode::NOT_FOUND,
         None,
-        "EndpointNotFound"
-        ; "404 endpoint not found"
+        "RequestFailed"
+        ; "404 not found"
     )]
     #[test_case(
         StatusCode::NOT_FOUND,
-        Some(json!({"error": {"message": "model (404) not available"}})),
-        "EndpointNotFound"
-        ; "404 with payload containing 404 substring"
+        Some(json!({"error": {"message": "model not available"}})),
+        "RequestFailed"
+        ; "404 with error payload"
     )]
     fn http_status_maps_to_expected_error(
         status: StatusCode,
@@ -322,7 +324,7 @@ mod tests {
             "Authentication" => "auth",
             "ContextLengthExceeded" => "context_length",
             "ServerError" => "server",
-            "EndpointNotFound" => "endpoint_not_found",
+            "RequestFailed" => "request",
             other => panic!("Unknown variant: {other}"),
         };
         assert_eq!(

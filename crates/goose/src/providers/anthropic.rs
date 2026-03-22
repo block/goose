@@ -152,6 +152,17 @@ impl AnthropicProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let response = self.api_client.request(None, "v1/models").api_get().await?;
 
+        if response.status == StatusCode::NOT_FOUND {
+            let msg = response
+                .payload
+                .as_ref()
+                .and_then(|p| p.get("error").and_then(|e| e.get("message")))
+                .and_then(|m| m.as_str())
+                .unwrap_or("models endpoint not found")
+                .to_string();
+            return Err(ProviderError::EndpointNotFound(msg));
+        }
+
         if response.status != StatusCode::OK {
             return Err(map_http_error_to_provider_error(
                 response.status,
