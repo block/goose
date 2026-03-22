@@ -1,29 +1,37 @@
 import { useState, useEffect } from 'react';
-import { Bird1, Bird2, Bird3, Bird4, Bird5, Bird6 } from './icons';
+import { useGlyphPack } from '../contexts/GlyphContext';
 
 interface FlyingBirdProps {
   className?: string;
   cycleInterval?: number; // milliseconds between bird frame changes
 }
 
-const birdFrames = [Bird1, Bird2, Bird3, Bird4, Bird5, Bird6];
-
 export default function FlyingBird({ className = '', cycleInterval = 150 }: FlyingBirdProps) {
+  const { pack } = useGlyphPack();
+  const frames = pack.AnimationFrames;
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
 
   useEffect(() => {
+    if (!frames) return;
     const interval = setInterval(() => {
-      setCurrentFrameIndex((prevIndex) => (prevIndex + 1) % birdFrames.length);
+      setCurrentFrameIndex((prevIndex) => (prevIndex + 1) % frames.length);
     }, cycleInterval);
-
     return () => clearInterval(interval);
-  }, [cycleInterval]);
+  }, [cycleInterval, frames]);
 
-  const CurrentFrame = birdFrames[currentFrameIndex];
+  if (frames) {
+    const CurrentFrame = frames[currentFrameIndex];
+    return (
+      <div className={`transition-opacity duration-75 ${className}`}>
+        <CurrentFrame className="w-4 h-4" />
+      </div>
+    );
+  }
 
+  // Fallback: static glyph for packs without frame animation
   return (
     <div className={`transition-opacity duration-75 ${className}`}>
-      <CurrentFrame className="w-4 h-4" />
+      <pack.StaticGlyph className="w-4 h-4" />
     </div>
   );
 }
