@@ -1,6 +1,6 @@
 use super::{
     spawn_acp_server_in_process, Connection, DuplexTransport, OpenAiFixture, PermissionDecision,
-    Session, SessionResult, TestConnectionConfig, TestOutput,
+    Session, SessionData, TestConnectionConfig, TestOutput,
 };
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -48,9 +48,21 @@ pub struct AcpProviderSession {
     work_dir: std::path::PathBuf,
 }
 
+impl std::fmt::Debug for AcpProviderSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AcpProviderSession")
+            .field("session_id", &self.session_id)
+            .finish()
+    }
+}
+
 impl AcpProviderSession {
     #[allow(dead_code)]
-    async fn send_message(&mut self, message: Message, decision: PermissionDecision) -> TestOutput {
+    async fn send_message(
+        &mut self,
+        message: Message,
+        decision: PermissionDecision,
+    ) -> anyhow::Result<TestOutput> {
         let session_id = self.session_id.0.clone();
         let guard = self.provider.lock().await;
         let provider = guard.as_ref().unwrap();
@@ -64,8 +76,7 @@ impl AcpProviderSession {
             .unwrap_or_else(|| provider.get_model_config());
         let mut stream = provider
             .stream(&model_config, &session_id, "", &[message], &[])
-            .await
-            .unwrap();
+            .await?;
         let mut text = String::new();
         let mut tool_error = false;
         let mut saw_tool = false;
@@ -116,7 +127,7 @@ impl AcpProviderSession {
             None
         };
 
-        TestOutput { text, tool_status }
+        Ok(TestOutput { text, tool_status })
     }
 }
 
@@ -212,7 +223,7 @@ impl Connection for AcpProviderConnection {
         }
     }
 
-    async fn new_session(&mut self) -> SessionResult<AcpProviderSession> {
+    async fn new_session(&mut self) -> anyhow::Result<SessionData<AcpProviderSession>> {
         // Tests like run_model_set call new_session() multiple times on the same
         // connection, so each needs a distinct key to avoid returning a cached session.
         self.session_counter += 1;
@@ -224,8 +235,7 @@ impl Connection for AcpProviderConnection {
             .as_ref()
             .unwrap()
             .ensure_session(Some(&goose_id))
-            .await
-            .unwrap();
+            .await?;
 
         let session = AcpProviderSession {
             provider: Arc::clone(&self.provider),
@@ -234,19 +244,21 @@ impl Connection for AcpProviderConnection {
             session_models: self.session_models.clone(),
             work_dir: self.work_dir.clone(),
         };
-        SessionResult {
+        Ok(SessionData {
             session,
             models: response.models,
             modes: response.modes,
-        }
+        })
     }
 
     async fn load_session(
         &mut self,
         _session_id: &str,
         _mcp_servers: Vec<McpServer>,
-    ) -> SessionResult<AcpProviderSession> {
-        unimplemented!("TODO: implement load_session in ACP provider")
+    ) -> anyhow::Result<SessionData<AcpProviderSession>> {
+        Err(sacp::Error::internal_error()
+            .data("load_session not implemented for ACP provider")
+            .into())
     }
 
     async fn list_sessions(&self) -> anyhow::Result<ListSessionsResponse> {
@@ -285,9 +297,11 @@ impl Connection for AcpProviderConnection {
         let guard = self.provider.lock().await;
         let provider = guard.as_ref().unwrap();
         if !provider.has_session(session_id).await {
-            return Err(sacp::Error::invalid_params()
-                .data(format!("Session not found: {session_id}"))
-                .into());
+            return Err(
+                sacp::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {session_id}"))
+                    .into(),
+            );
         }
         provider
             .update_mode(session_id, mode)
@@ -314,9 +328,11 @@ impl Connection for AcpProviderConnection {
         let guard = self.provider.lock().await;
         let provider = guard.as_ref().unwrap();
         if !provider.has_session(session_id).await {
-            return Err(sacp::Error::invalid_params()
-                .data(format!("Session not found: {session_id}"))
-                .into());
+            return Err(
+                sacp::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {session_id}"))
+                    .into(),
+            );
         }
         match config_id {
             "mode" => {
@@ -371,7 +387,11 @@ impl Session for AcpProviderSession {
         super::to_notifications(&updates)
     }
 
-    async fn prompt(&mut self, prompt: &str, decision: PermissionDecision) -> TestOutput {
+    async fn prompt(
+        &mut self,
+        prompt: &str,
+        decision: PermissionDecision,
+    ) -> anyhow::Result<TestOutput> {
         self.send_message(Message::user().with_text(prompt), decision)
             .await
     }
@@ -382,7 +402,7 @@ impl Session for AcpProviderSession {
         image_b64: &str,
         mime_type: &str,
         decision: PermissionDecision,
-    ) -> TestOutput {
+    ) -> anyhow::Result<TestOutput> {
         let message = Message::user()
             .with_image(image_b64, mime_type)
             .with_text(prompt);

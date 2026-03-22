@@ -1,6 +1,6 @@
 mod common_tests;
-use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::AcpServerConnection;
+use common_tests::fixtures::{run_test, Connection, OpenAiFixture, TestConnectionConfig};
 use common_tests::{
     run_close_session, run_config_mcp, run_config_option_mode_set, run_config_option_model_set,
     run_delete_session, run_fs_read_text_file_true, run_fs_write_text_file_false,
@@ -11,8 +11,20 @@ use common_tests::{
     run_shell_terminal_false, run_shell_terminal_true,
 };
 
+tests_load_session_error!(AcpServerConnection);
+tests_prompt_error!(AcpServerConnection);
 tests_config_option_set_error!(AcpServerConnection);
 tests_mode_set_error!(AcpServerConnection);
+tests_model_set_error!(AcpServerConnection);
+
+#[test_case::test_case(serde_json::json!({}), sacp::Error::invalid_params().data("missing field `cwd`") ; "missing cwd")]
+fn test_new_session_error(params: serde_json::Value, expected: sacp::Error) {
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], AcpServerConnection::expected_session_id()).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+        common_tests::run_new_session_error(conn.cx(), params, expected).await
+    });
+}
 
 #[test]
 fn test_config_mcp() {

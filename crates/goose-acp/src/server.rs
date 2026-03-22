@@ -922,7 +922,8 @@ impl GooseAcpAgent {
     ) -> Result<Arc<Agent>, sacp::Error> {
         let mut sessions = self.sessions.lock().await;
         let session = sessions.get_mut(session_id).ok_or_else(|| {
-            sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
+            sacp::Error::resource_not_found(Some(session_id.to_string()))
+                .data(format!("Session not found: {}", session_id))
         })?;
         if let Some(token) = cancel_token {
             session.cancel_token = Some(token);
@@ -964,9 +965,9 @@ impl GooseAcpAgent {
             .session_manager
             .get_session(&session_id, true)
             .await
-            .map_err(|e| {
-                sacp::Error::invalid_params()
-                    .data(format!("Failed to load session {}: {}", session_id, e))
+            .map_err(|_| {
+                sacp::Error::resource_not_found(Some(session_id.clone()))
+                    .data(format!("Session not found: {}", session_id))
             })?;
 
         let loaded_mode = goose_session.goose_mode;

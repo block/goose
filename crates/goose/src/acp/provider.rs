@@ -313,7 +313,7 @@ impl AcpProvider {
         map.get(goose_id)
             .map(|r| r.session_id.clone())
             .ok_or_else(|| {
-                sacp::Error::invalid_params()
+                sacp::Error::resource_not_found(Some(goose_id.to_string()))
                     .data(format!("Session not found: {goose_id}"))
                     .into()
             })
@@ -373,14 +373,24 @@ impl AcpProvider {
         response_rx.await.context("ACP request cancelled")?
     }
 
+    // Only used by tests; session/delete has no typed request in agent-client-protocol-schema yet.
+    #[doc(hidden)]
     pub async fn delete_session(&self, goose_id: &str) -> Result<()> {
         let session_id = self.resolve_acp_session_id(goose_id).await?;
         self.send_untyped(
             "session/delete",
-            serde_json::json!({ "session_id": session_id.0 }),
+            serde_json::json!({ "sessionId": session_id.0 }),
         )
-        .await
-        .map(|_| ())
+        .await?;
+
+        // Clean up cached mappings so ensure_session doesn't return a stale entry.
+        self.goose_to_acp_id.lock().await.remove(goose_id);
+        self.acp_to_goose_id
+            .lock()
+            .await
+            .remove(session_id.0.as_ref());
+        self.session_model.lock().await.remove(goose_id);
+        Ok(())
     }
 
     pub async fn send_untyped(

@@ -200,6 +200,7 @@ pub async fn spawn_acp_server_in_process(
     (transport, handle, permission_manager)
 }
 
+#[derive(Debug)]
 pub struct TestOutput {
     pub text: String,
     pub tool_status: Option<ToolCallStatus>,
@@ -457,7 +458,8 @@ impl TerminalFixture {
     }
 }
 
-pub struct SessionResult<S> {
+#[derive(Debug)]
+pub struct SessionData<S> {
     pub session: S,
     pub models: Option<SessionModelState>,
     pub modes: Option<SessionModeState>,
@@ -501,12 +503,12 @@ pub trait Connection: Sized {
 
     fn expected_session_id() -> Arc<dyn ExpectedSessionId>;
     async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self;
-    async fn new_session(&mut self) -> SessionResult<Self::Session>;
+    async fn new_session(&mut self) -> anyhow::Result<SessionData<Self::Session>>;
     async fn load_session(
         &mut self,
         session_id: &str,
         mcp_servers: Vec<McpServer>,
-    ) -> SessionResult<Self::Session>;
+    ) -> anyhow::Result<SessionData<Self::Session>>;
     async fn list_sessions(&self) -> anyhow::Result<sacp::schema::ListSessionsResponse>;
     async fn close_session(&self, session_id: &str) -> anyhow::Result<()>;
     async fn delete_session(&self, session_id: &str) -> anyhow::Result<()>;
@@ -525,18 +527,22 @@ pub trait Connection: Sized {
 }
 
 #[async_trait]
-pub trait Session {
+pub trait Session: std::fmt::Debug {
     fn session_id(&self) -> &sacp::schema::SessionId;
     fn work_dir(&self) -> std::path::PathBuf;
     fn notifications(&self) -> Vec<Notification>;
-    async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+    async fn prompt(
+        &mut self,
+        text: &str,
+        decision: PermissionDecision,
+    ) -> anyhow::Result<TestOutput>;
     async fn prompt_with_image(
         &mut self,
         text: &str,
         image_b64: &str,
         mime_type: &str,
         decision: PermissionDecision,
-    ) -> TestOutput;
+    ) -> anyhow::Result<TestOutput>;
 }
 
 #[allow(dead_code)]

@@ -1,6 +1,6 @@
 use super::{
     map_permission_response, spawn_acp_server_in_process, Connection, PermissionDecision,
-    PermissionMapping, Session, SessionResult, TestConnectionConfig, TestOutput,
+    PermissionMapping, Session, SessionData, TestConnectionConfig, TestOutput,
 };
 use async_trait::async_trait;
 use goose::config::PermissionManager;
@@ -44,12 +44,20 @@ pub struct AcpServerSession {
     _work_dir: tempfile::TempDir,
 }
 
+impl std::fmt::Debug for AcpServerSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AcpServerSession")
+            .field("session_id", &self.session_id)
+            .finish()
+    }
+}
+
 impl AcpServerSession {
     async fn send_prompt(
         &mut self,
         content: Vec<ContentBlock>,
         decision: PermissionDecision,
-    ) -> TestOutput {
+    ) -> anyhow::Result<TestOutput> {
         *self.permission.lock().unwrap() = decision;
         self.updates.lock().unwrap().clear();
 
@@ -57,8 +65,7 @@ impl AcpServerSession {
             .cx
             .send_request(PromptRequest::new(self.session_id.clone(), content))
             .block_task()
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(response.stop_reason, StopReason::EndTurn);
 
@@ -76,7 +83,7 @@ impl AcpServerSession {
             tool_status = extract_tool_status(&self.updates);
         }
 
-        TestOutput { text, tool_status }
+        Ok(TestOutput { text, tool_status })
     }
 }
 
@@ -303,7 +310,7 @@ impl Connection for AcpServerConnection {
         }
     }
 
-    async fn new_session(&mut self) -> SessionResult<AcpServerSession> {
+    async fn new_session(&mut self) -> anyhow::Result<SessionData<AcpServerSession>> {
         let work_dir = self
             .cwd
             .take()
@@ -313,8 +320,7 @@ impl Connection for AcpServerConnection {
             .cx
             .send_request(NewSessionRequest::new(work_dir.path()).mcp_servers(mcp_servers))
             .block_task()
-            .await
-            .unwrap();
+            .await?;
         let session = AcpServerSession {
             cx: self.cx.clone(),
             session_id: response.session_id.clone(),
@@ -323,18 +329,18 @@ impl Connection for AcpServerConnection {
             notify: self.notify.clone(),
             _work_dir: work_dir,
         };
-        SessionResult {
+        Ok(SessionData {
             session,
             models: response.models,
             modes: response.modes,
-        }
+        })
     }
 
     async fn load_session(
         &mut self,
         session_id: &str,
         mcp_servers: Vec<McpServer>,
-    ) -> SessionResult<AcpServerSession> {
+    ) -> anyhow::Result<SessionData<AcpServerSession>> {
         self.updates.lock().unwrap().clear();
         let work_dir = tempfile::tempdir().unwrap();
         let session_id = sacp::schema::SessionId::new(session_id.to_string());
@@ -345,8 +351,7 @@ impl Connection for AcpServerConnection {
                     .mcp_servers(mcp_servers),
             )
             .block_task()
-            .await
-            .unwrap();
+            .await?;
         let session = AcpServerSession {
             cx: self.cx.clone(),
             session_id,
@@ -355,11 +360,11 @@ impl Connection for AcpServerConnection {
             notify: self.notify.clone(),
             _work_dir: work_dir,
         };
-        SessionResult {
+        Ok(SessionData {
             session,
             models: response.models,
             modes: response.modes,
-        }
+        })
     }
 
     async fn list_sessions(&self) -> anyhow::Result<ListSessionsResponse> {
@@ -471,7 +476,11 @@ impl Session for AcpServerSession {
         super::to_notifications(&updates)
     }
 
-    async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {
+    async fn prompt(
+        &mut self,
+        text: &str,
+        decision: PermissionDecision,
+    ) -> anyhow::Result<TestOutput> {
         self.send_prompt(vec![ContentBlock::Text(TextContent::new(text))], decision)
             .await
     }
@@ -482,7 +491,7 @@ impl Session for AcpServerSession {
         image_b64: &str,
         mime_type: &str,
         decision: PermissionDecision,
-    ) -> TestOutput {
+    ) -> anyhow::Result<TestOutput> {
         self.send_prompt(
             vec![
                 ContentBlock::Image(ImageContent::new(image_b64, mime_type)),

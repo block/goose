@@ -3,7 +3,7 @@ mod common_tests;
 
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{
-    run_test, send_custom, Connection, Session, SessionResult, TestConnectionConfig,
+    run_test, send_custom, Connection, Session, SessionData, TestConnectionConfig,
 };
 use goose_test_support::EnforceSessionId;
 use std::sync::Arc;
@@ -16,14 +16,14 @@ fn test_custom_session_get() {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let SessionResult { session, .. } = conn.new_session().await;
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
             conn.cx(),
             "session/get",
             serde_json::json!({
-                "session_id": session_id,
+                "sessionId": session_id,
             }),
         )
         .await;
@@ -44,13 +44,13 @@ fn test_custom_get_tools() {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let SessionResult { session, .. } = conn.new_session().await;
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
         let session_id = session.session_id().0.clone();
 
         let result = send_custom(
             conn.cx(),
             "_goose/tools",
-            serde_json::json!({ "session_id": session_id }),
+            serde_json::json!({ "sessionId": session_id }),
         )
         .await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result);

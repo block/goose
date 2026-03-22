@@ -13,8 +13,11 @@ use common_tests::{
     run_shell_terminal_false, run_shell_terminal_true,
 };
 
+tests_load_session_error!(AcpProviderConnection);
+tests_prompt_error!(AcpProviderConnection);
 tests_config_option_set_error!(AcpProviderConnection);
 tests_mode_set_error!(AcpProviderConnection);
+tests_model_set_error!(AcpProviderConnection);
 
 #[test]
 fn test_config_mcp() {
