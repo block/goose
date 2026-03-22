@@ -357,9 +357,9 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                 break;
             }
             let next_asst = &messages[peek];
-            let next_has_no_content = next_asst.get("content").is_none_or(|c| {
-                c.is_null() || c.as_str().is_some_and(|s| s.is_empty())
-            });
+            let next_has_no_content = next_asst
+                .get("content")
+                .is_none_or(|c| c.is_null() || c.as_str().is_some_and(|s| s.is_empty()));
             let next_is_split = next_asst.get("role") == Some(&json!("assistant"))
                 && next_asst
                     .get("tool_calls")
