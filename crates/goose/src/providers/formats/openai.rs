@@ -342,13 +342,23 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
             }
             let tool_msg = messages[scan].clone();
 
+            // Skip user image messages that format_messages inserts after tool
+            // results containing images. These appear as {"role": "user",
+            // "content": [image]} between the tool result and next assistant.
+            let mut peek = scan + 1;
+            let mut trailing_msgs: Vec<Value> = Vec::new();
+            while peek < messages.len()
+                && messages[peek].get("role") == Some(&json!("user"))
+            {
+                trailing_msgs.push(messages[peek].clone());
+                peek += 1;
+            }
+
             // Then expect another assistant tool-call message from the same split
-            if scan + 1 >= messages.len() {
-                // Last tool result in the sequence — still part of the first
-                // assistant message's tool_calls, not a split pair to merge
+            if peek >= messages.len() {
                 break;
             }
-            let next_asst = &messages[scan + 1];
+            let next_asst = &messages[peek];
             let next_has_no_content = next_asst
                 .get("content")
                 .map_or(true, |c| c.is_null() || c.as_str().is_some_and(|s| s.is_empty()));
@@ -364,15 +374,17 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                 break;
             }
 
-            // This is a split pair — collect the tool_calls and tool result
+            // This is a split pair — collect the tool_calls, tool result, and
+            // any trailing image messages
             tool_results.push(tool_msg);
-            if let Some(tc) = messages[scan + 1]
+            tool_results.extend(trailing_msgs);
+            if let Some(tc) = messages[peek]
                 .get("tool_calls")
                 .and_then(|tc| tc.as_array())
             {
                 extra_tool_calls.extend(tc.iter().cloned());
             }
-            scan += 2;
+            scan = peek + 1;
         }
 
         if extra_tool_calls.is_empty() {
@@ -2096,5 +2108,29 @@ data: [DONE]"#;
         assert_eq!(messages.len(), 4); // unchanged — no merge
         assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 1);
         assert_eq!(messages[2]["tool_calls"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_merge_split_tool_calls_with_image_gap() {
+        // When a tool result contains an image, format_messages inserts a user
+        // image message after the tool result. The merge should skip over it.
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "screenshot", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "This tool result included an image that is uploaded in the next message."}),
+            json!({"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}]}),
+            json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "click", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "clicked"}),
+        ];
+        merge_split_tool_call_messages(&mut messages);
+
+        // Expect: 1 merged assistant + tool1 + user(image) + tool2 = 4 messages
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 2);
+        assert_eq!(messages[0]["role"], "assistant");
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[1]["tool_call_id"], "tc1");
+        assert_eq!(messages[2]["role"], "user"); // image preserved in position
+        assert_eq!(messages[3]["role"], "tool");
+        assert_eq!(messages[3]["tool_call_id"], "tc2");
     }
 }
