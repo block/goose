@@ -293,6 +293,19 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
     messages_spec
 }
 
+/// Returns true if a message is a synthetic image-only user message produced by
+/// `format_messages` when a tool result contains images. These have `"role": "user"`
+/// and `"content"` as an array where every element is `"type": "image_url"`.
+fn is_image_only_message(msg: &Value) -> bool {
+    let Some(content) = msg.get("content").and_then(|c| c.as_array()) else {
+        return false;
+    };
+    !content.is_empty()
+        && content
+            .iter()
+            .all(|item| item.get("type") == Some(&json!("image_url")))
+}
+
 /// Reconsolidate split assistant/tool message pairs into the standard OpenAI
 /// format: one assistant message with multiple `tool_calls`, followed by all
 /// tool result messages.
@@ -342,12 +355,16 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
             }
             let tool_msg = messages[scan].clone();
 
-            // Skip user image messages that format_messages inserts after tool
-            // results containing images. These appear as {"role": "user",
-            // "content": [image]} between the tool result and next assistant.
+            // Skip synthetic image messages that format_messages inserts after
+            // tool results containing images. Only skip user messages whose
+            // content is exclusively image_url items — real user turns with
+            // text content must not be absorbed into the merge window.
             let mut peek = scan + 1;
             let mut trailing_msgs: Vec<Value> = Vec::new();
-            while peek < messages.len() && messages[peek].get("role") == Some(&json!("user")) {
+            while peek < messages.len()
+                && messages[peek].get("role") == Some(&json!("user"))
+                && is_image_only_message(&messages[peek])
+            {
                 trailing_msgs.push(messages[peek].clone());
                 peek += 1;
             }
@@ -2130,5 +2147,26 @@ data: [DONE]"#;
         assert_eq!(messages[2]["role"], "user"); // image preserved in position
         assert_eq!(messages[3]["role"], "tool");
         assert_eq!(messages[3]["tool_call_id"], "tc2");
+    }
+
+    #[test]
+    fn test_merge_does_not_skip_real_user_message() {
+        // A real user message (text content) between tool results must not be
+        // treated as a synthetic image gap and absorbed into the merge window.
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "read", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "result1"}),
+            json!({"role": "user", "content": "what happened?"}),
+            json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
+        ];
+        merge_split_tool_call_messages(&mut messages);
+
+        // Should NOT merge — the user message is a real turn boundary
+        assert_eq!(messages.len(), 5);
+        assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 1);
+        assert_eq!(messages[2]["role"], "user");
+        assert_eq!(messages[2]["content"], "what happened?");
+        assert_eq!(messages[3]["tool_calls"].as_array().unwrap().len(), 1);
     }
 }
