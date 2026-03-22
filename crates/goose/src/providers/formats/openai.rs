@@ -167,7 +167,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 match content.deref() {
                                     RawContent::Image(image) => {
                                         // Add placeholder text in the tool response
-                                        tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
+                                        tool_content.push(Content::text("This tool result included an image that is uploaded in a following message."));
 
                                         // Create a separate image message
                                         image_messages.push(json!({
@@ -290,6 +290,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
     }
 
     merge_split_tool_call_messages(&mut messages_spec);
+    reorder_tool_result_images(&mut messages_spec);
     messages_spec
 }
 
@@ -408,6 +409,66 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
         }
 
         i = insert_at + num_inserted;
+    }
+}
+
+/// Reorder user image messages that appear between tool result messages so that
+/// all tool results are consecutive, followed by all image messages.
+///
+/// `format_messages` inserts a `{"role": "user"}` image message immediately
+/// after each tool result that contains an image. After `merge_split_tool_call_messages`
+/// reconsolidates split tool calls, this can produce:
+///   `assistant(TC1,TC2) → tool(TC1) → user(img) → tool(TC2)`
+///
+/// The OpenAI API expects tool results to follow consecutively after the
+/// assistant message. This function reorders to:
+///   `assistant(TC1,TC2) → tool(TC1) → tool(TC2) → user(img)`
+fn reorder_tool_result_images(messages: &mut Vec<Value>) {
+    let mut i = 0;
+    while i < messages.len() {
+        // Find an assistant message with tool_calls
+        let is_assistant_with_tools = messages[i].get("role") == Some(&json!("assistant"))
+            && messages[i]
+                .get("tool_calls")
+                .and_then(|tc| tc.as_array())
+                .is_some_and(|a| !a.is_empty());
+
+        if !is_assistant_with_tools {
+            i += 1;
+            continue;
+        }
+
+        // Collect the run of tool and user messages following this assistant
+        let start = i + 1;
+        let mut end = start;
+        while end < messages.len() {
+            let role = messages[end].get("role").and_then(|r| r.as_str());
+            if role == Some("tool") || role == Some("user") {
+                end += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Partition: tool messages first, then user (image) messages
+        let mut tools: Vec<Value> = Vec::new();
+        let mut images: Vec<Value> = Vec::new();
+        for msg in messages[start..end].iter() {
+            if msg.get("role") == Some(&json!("tool")) {
+                tools.push(msg.clone());
+            } else {
+                images.push(msg.clone());
+            }
+        }
+
+        // Only reorder if there are both tool and image messages intermixed
+        if !images.is_empty() && !tools.is_empty() {
+            let mut reordered = tools;
+            reordered.extend(images);
+            messages.splice(start..end, reordered);
+        }
+
+        i = end;
     }
 }
 
@@ -2132,5 +2193,69 @@ data: [DONE]"#;
         assert_eq!(messages[2]["role"], "user"); // image preserved in position
         assert_eq!(messages[3]["role"], "tool");
         assert_eq!(messages[3]["tool_call_id"], "tc2");
+    }
+
+    #[test]
+    fn test_reorder_tool_result_images() {
+        // After merge, image messages can end up between tool results.
+        // reorder_tool_result_images should move them after all tool results.
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [
+                {"id": "tc1", "type": "function", "function": {"name": "screenshot", "arguments": "{}"}},
+                {"id": "tc2", "type": "function", "function": {"name": "click", "arguments": "{}"}},
+            ]}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "image placeholder"}),
+            json!({"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}]}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "clicked"}),
+        ];
+        reorder_tool_result_images(&mut messages);
+
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0]["role"], "assistant");
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[1]["tool_call_id"], "tc1");
+        assert_eq!(messages[2]["role"], "tool");
+        assert_eq!(messages[2]["tool_call_id"], "tc2");
+        assert_eq!(messages[3]["role"], "user"); // image moved to end
+    }
+
+    #[test]
+    fn test_reorder_noop_when_no_images() {
+        // No image messages — should be unchanged
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [
+                {"id": "tc1", "type": "function", "function": {"name": "read", "arguments": "{}"}},
+                {"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}},
+            ]}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "result1"}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
+        ];
+        let original = messages.clone();
+        reorder_tool_result_images(&mut messages);
+        assert_eq!(messages, original);
+    }
+
+    #[test]
+    fn test_reorder_multiple_images() {
+        // Both tool results return images
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [
+                {"id": "tc1", "type": "function", "function": {"name": "screenshot", "arguments": "{}"}},
+                {"id": "tc2", "type": "function", "function": {"name": "screenshot2", "arguments": "{}"}},
+            ]}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "placeholder1"}),
+            json!({"role": "user", "content": [{"type": "image_url", "image_url": {"url": "img1"}}]}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "placeholder2"}),
+            json!({"role": "user", "content": [{"type": "image_url", "image_url": {"url": "img2"}}]}),
+        ];
+        reorder_tool_result_images(&mut messages);
+
+        assert_eq!(messages.len(), 5);
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[1]["tool_call_id"], "tc1");
+        assert_eq!(messages[2]["role"], "tool");
+        assert_eq!(messages[2]["tool_call_id"], "tc2");
+        assert_eq!(messages[3]["role"], "user");
+        assert_eq!(messages[4]["role"], "user");
     }
 }
