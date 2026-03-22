@@ -68,8 +68,9 @@ vmware-aiops doctor
       extensionName="VMware AIops"
       description="Natural language VMware vCenter/ESXi monitoring and operations"
       type="stdio"
-      command="python"
-      args={["-m", "mcp_server"]}
+      command="uvx"
+      args={["--from", "vmware-aiops", "vmware-aiops-mcp"]}
+      timeout={300}
       envVars={[
         { name: "VMWARE_AIOPS_CONFIG", label: "Path to config.yaml (e.g. /Users/you/.vmware-aiops/config.yaml)" }
       ]}
@@ -80,7 +81,7 @@ vmware-aiops doctor
       name="vmware-aiops"
       description="Natural language VMware vCenter/ESXi monitoring and operations"
       type="stdio"
-      command="python -m mcp_server"
+      command="uvx --from vmware-aiops vmware-aiops-mcp"
       timeout={300}
       envVars={[
         { key: "VMWARE_AIOPS_CONFIG", value: "/Users/you/.vmware-aiops/config.yaml" }
