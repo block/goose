@@ -1398,6 +1398,7 @@ impl GooseAcpAgent {
             .delete_session(&req.session_id)
             .await
             .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        self.sessions.lock().await.remove(&req.session_id);
         Ok(EmptyResponse {})
     }
 
@@ -1469,7 +1470,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
             MatchDispatchFrom::new(message, &cx)
                 .if_request(
                     |req: InitializeRequest, responder: Responder<InitializeResponse>| async {
-                        responder.respond(agent.on_initialize(req).await?)
+                        responder.respond_with_result(agent.on_initialize(req).await)
                     },
                 )
                 .await
@@ -1481,13 +1482,13 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                 .await
                 .if_request(
                     |req: NewSessionRequest, responder: Responder<NewSessionResponse>| async {
-                        responder.respond(agent.on_new_session(&cx, req).await?)
+                        responder.respond_with_result(agent.on_new_session(&cx, req).await)
                     },
                 )
                 .await
                 .if_request(
                     |req: LoadSessionRequest, responder: Responder<LoadSessionResponse>| async {
-                        responder.respond(agent.on_load_session(&cx, req).await?)
+                        responder.respond_with_result(agent.on_load_session(&cx, req).await)
                     },
                 )
                 .await

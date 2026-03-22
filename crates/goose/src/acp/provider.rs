@@ -983,11 +983,24 @@ async fn handle_requests(
     while let Some(request) = rx.recv().await {
         match request {
             ClientRequest::NewSession { response_tx } => {
-                if let Some(sid) =
-                    handle_new_session_request(&config, &cx, &mcp_capabilities, response_tx).await
-                {
-                    session_ids.push(sid);
-                }
+                let mcp_servers = filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
+                let session = cx
+                    .send_request(
+                        NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers),
+                    )
+                    .block_task()
+                    .await;
+                let result = match session {
+                    Ok(session) => {
+                        session_ids.push(session.session_id.clone());
+                        apply_session_mode(&config, &cx, session).await
+                    }
+                    Err(err) => Err(anyhow::anyhow!(
+                        "ACP {} failed: {err}",
+                        AGENT_METHOD_NAMES.session_new
+                    )),
+                };
+                log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
             }
             ClientRequest::ListSessions { response_tx } => {
                 let result: Result<ListSessionsResponse> = cx
@@ -1123,39 +1136,6 @@ async fn handle_requests(
     }
 
     Ok(())
-}
-
-async fn handle_new_session_request(
-    config: &AcpProviderConfig,
-    cx: &ConnectionTo<Agent>,
-    mcp_capabilities: &McpCapabilities,
-    response_tx: oneshot::Sender<Result<NewSessionResponse>>,
-) -> Option<SessionId> {
-    let mcp_servers = filter_supported_servers(&config.mcp_servers, mcp_capabilities);
-    let session: Result<NewSessionResponse, _> = cx
-        .send_request(NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers))
-        .block_task()
-        .await;
-
-    let result = match session {
-        Ok(session) => apply_session_mode(config, cx, session).await,
-        Err(err) => Err(anyhow::anyhow!(
-            "ACP {} failed: {err}",
-            AGENT_METHOD_NAMES.session_new
-        )),
-    };
-
-    let session_id = match &result {
-        Ok(s) => Some(s.session_id.clone()),
-        Err(e) => {
-            tracing::debug!(method = AGENT_METHOD_NAMES.session_new, error = %e, "failed");
-            None
-        }
-    };
-    if let Err(e) = response_tx.send(result) {
-        tracing::debug!(method = AGENT_METHOD_NAMES.session_new, error = ?e, "response not delivered");
-    }
-    session_id
 }
 
 async fn apply_session_mode(

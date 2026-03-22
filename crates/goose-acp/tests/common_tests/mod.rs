@@ -507,26 +507,21 @@ pub async fn run_load_session_mcp<C: Connection>() {
     assert_eq!(output.text, FAKE_CODE, "tool call failed in loaded session");
 }
 
-pub async fn run_load_session_error<C: Connection>(session_id: &str, expected: sacp::Error) {
+pub async fn run_load_session_error<C: Connection>() {
     let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
 
-    let err = conn.load_session(session_id, vec![]).await.unwrap_err();
+    let err = conn
+        .load_session("nonexistent-session-id", vec![])
+        .await
+        .unwrap_err();
 
     let sacp_err = err.downcast::<sacp::Error>().unwrap();
-    assert_eq!(sacp_err, expected);
-}
-
-#[macro_export]
-macro_rules! tests_load_session_error {
-    ($conn:ty) => {
-        #[test_case::test_case("nonexistent-session-id", sacp::Error::resource_not_found(Some("nonexistent-session-id".to_string())).data("Session not found: nonexistent-session-id") ; "session not found")]
-        fn test_load_session_error(session_id: &'static str, expected: sacp::Error) {
-            common_tests::fixtures::run_test(async move {
-                common_tests::run_load_session_error::<$conn>(session_id, expected).await
-            });
-        }
-    };
+    assert_eq!(
+        sacp_err,
+        sacp::Error::resource_not_found(Some("nonexistent-session-id".to_string()))
+            .data("Session not found: nonexistent-session-id")
+    );
 }
 
 pub async fn run_config_option_mode_set<C: Connection>() {
@@ -829,45 +824,22 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
     assert_notifications(&session_a.notifications(), &[Notification::AgentMessage]);
 }
 
-pub async fn run_model_set_error<C: Connection>(
-    model_id: &str,
-    session_id_override: Option<&str>,
-    expected: sacp::Error,
-) {
+pub async fn run_model_set_error_session_not_found<C: Connection>() {
     let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
     let mut conn = C::new(TestConnectionConfig::default(), openai).await;
-    let SessionData { session, .. } = conn.new_session().await.unwrap();
-
-    let target_session_id = session_id_override
-        .map(str::to_string)
-        .unwrap_or_else(|| session.session_id().0.to_string());
+    let SessionData { .. } = conn.new_session().await.unwrap();
 
     let err = conn
-        .set_model(&target_session_id, model_id)
+        .set_model("nonexistent-session-id", "o4-mini")
         .await
         .unwrap_err();
 
     let sacp_err = err.downcast::<sacp::Error>().unwrap();
-    assert_eq!(sacp_err, expected);
-}
-
-#[macro_export]
-macro_rules! tests_model_set_error {
-    ($conn:ty) => {
-        #[test_case::test_case("o4-mini", Some("nonexistent-session-id"), sacp::Error::resource_not_found(Some("nonexistent-session-id".to_string())).data("Session not found: nonexistent-session-id") ; "session not found")]
-        fn test_model_set_error(
-            model_id: &'static str,
-            session_id: Option<&'static str>,
-            expected: sacp::Error,
-        ) {
-            common_tests::fixtures::run_test(async move {
-                common_tests::run_model_set_error::<$conn>(
-                    model_id, session_id, expected,
-                )
-                .await
-            });
-        }
-    };
+    assert_eq!(
+        sacp_err,
+        sacp::Error::resource_not_found(Some("nonexistent-session-id".to_string()))
+            .data("Session not found: nonexistent-session-id")
+    );
 }
 
 #[allow(dead_code)]
@@ -894,18 +866,6 @@ pub async fn run_prompt_error<C: Connection>() {
         .unwrap_err();
     let sacp_err = err.downcast::<sacp::Error>().unwrap();
     assert_eq!(sacp_err.code, sacp::ErrorCode::ResourceNotFound);
-}
-
-#[macro_export]
-macro_rules! tests_prompt_error {
-    ($conn:ty) => {
-        #[test]
-        fn test_prompt_error_session_not_found() {
-            common_tests::fixtures::run_test(async move {
-                common_tests::run_prompt_error::<$conn>().await
-            });
-        }
-    };
 }
 
 pub async fn run_permission_persistence<C: Connection>() {

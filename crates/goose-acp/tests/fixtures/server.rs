@@ -388,7 +388,7 @@ impl Connection for AcpServerConnection {
         super::send_custom(
             &self.cx,
             "session/delete",
-            serde_json::json!({ "session_id": session_id }),
+            serde_json::json!({ "sessionId": session_id }),
         )
         .await
         .map(|_| ())
