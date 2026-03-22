@@ -134,6 +134,7 @@ jobs:
         with:
           subject-path: |
             goose-*.tar.bz2
+            goose-*.tar.gz
             Goose*.zip
             *.deb
             *.rpm

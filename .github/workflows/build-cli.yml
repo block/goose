@@ -144,7 +144,6 @@ jobs:
           # Copy the goose binary
           cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
 
-          # Create the tar archives (bz2 for backward compat, gz for Zed/ACP registry compat)
           cd "target/${TARGET}/release"
           tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
           tar -czf "goose-${TARGET}.tar.gz" -C goose-package .
@@ -163,7 +162,7 @@ jobs:
 
           cd "target/${TARGET}/release"
           7z a -tzip "goose-${TARGET}.zip" goose-package/
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
+          echo "ARTIFACT_ZIP=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
@@ -172,4 +171,5 @@ jobs:
           path: |
             ${{ env.ARTIFACT_BZ2 }}
             ${{ env.ARTIFACT_GZ }}
-            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT_ZIP }}
+
