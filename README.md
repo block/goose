@@ -11,6 +11,9 @@ _a local, extensible, open source AI agent that automates engineering tasks_
     ><img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord"></a>
   <a href="https://github.com/block/goose/actions/workflows/ci.yml"
      ><img src="https://img.shields.io/github/actions/workflow/status/block/goose/ci.yml?branch=main" alt="CI"></a>
+  <a href="https://gitcgr.com/block/goose">
+    <img src="https://gitcgr.com/badge/block/goose.svg" alt="gitcgr" />
+  </a>
 </p>
 </div>
 
