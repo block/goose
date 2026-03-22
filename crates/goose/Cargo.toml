@@ -89,10 +89,10 @@ sqlx = { version = "0.8", default-features = false, features = [
 # For Bedrock provider
 aws-config = { version = "=1.8.12", features = ["behavior-version-latest"] }
 aws-smithy-types = "=1.3.5"
-aws-sdk-bedrockruntime = "=1.120.0"
+aws-sdk-bedrockruntime = { version = "=1.120.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 
 # For SageMaker TGI provider
-aws-sdk-sagemakerruntime = "1.62.0"
+aws-sdk-sagemakerruntime = { version = "1.62.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 
 # For GCP Vertex AI provider auth
 jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
