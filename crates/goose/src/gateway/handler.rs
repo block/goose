@@ -452,6 +452,7 @@ impl GatewayHandler {
                     );
                 }
                 Ok(AgentEvent::ContextUsage { .. }) => {}
+                Ok(AgentEvent::ModelChange { .. }) => {}
                 Err(e) => {
                     tracing::error!(session_id, error = %e, "gateway stream: error at event #{event_count}");
                     // Stop typing indicator before sending error.

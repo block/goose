@@ -478,6 +478,8 @@ pub async fn session_reply(
                             )
                             .await;
                         }
+                        Ok(Some(Ok(AgentEvent::ContextUsage { .. }))) => {}
+                        Ok(Some(Ok(AgentEvent::ModelChange { .. }))) => {}
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
                             publish(

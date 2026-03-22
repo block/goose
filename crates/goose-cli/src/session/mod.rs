@@ -85,6 +85,10 @@ enum StreamEvent {
     Complete {
         total_tokens: Option<i32>,
     },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
 }
 
 #[derive(Serialize, Debug)]
