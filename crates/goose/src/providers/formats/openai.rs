@@ -302,8 +302,10 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 /// onto each assistant message. This function merges them back into:
 /// `asst(TC1,TC2,...)/tool_1/tool_2/...`
 ///
-/// Works for both thinking and non-thinking models to ensure OpenAI format
-/// compliance in all cases.
+/// Only merges when `reasoning_content` is present, since the agent clones the
+/// same reasoning onto each split message — this is the signal that messages
+/// belong to the same turn. Without it, we cannot distinguish splits from
+/// genuinely separate sequential turns.
 fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
     let mut i = 0;
     while i < messages.len() {
@@ -320,7 +322,15 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
 
         // Scan ahead through interleaved asst/tool pairs that were split from
         // the same turn. Collect extra tool_calls and tool result messages.
+        // We can only identify split messages when reasoning_content is present,
+        // since the agent clones the same reasoning onto each split message.
+        // Without it (non-thinking models), we cannot distinguish splits from
+        // genuinely separate sequential turns, so we skip merging.
         let base_reasoning = messages[i].get("reasoning_content").cloned();
+        if base_reasoning.is_none() {
+            i += 1;
+            continue;
+        }
         let mut extra_tool_calls: Vec<Value> = Vec::new();
         let mut tool_results: Vec<Value> = Vec::new();
         let mut scan = i + 1;
@@ -2052,5 +2062,39 @@ data: [DONE]"#;
             found_error,
             "expected an error but stream completed successfully"
         );
+    }
+
+    #[test]
+    fn test_merge_split_tool_calls_with_reasoning() {
+        // Split messages from the same turn (same reasoning_content) should merge
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "read", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "result1"}),
+            json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
+        ];
+        merge_split_tool_call_messages(&mut messages);
+
+        assert_eq!(messages.len(), 3); // 1 merged assistant + 2 tool results
+        assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 2);
+        assert_eq!(messages[1]["role"], "tool");
+        assert_eq!(messages[2]["role"], "tool");
+    }
+
+    #[test]
+    fn test_no_merge_without_reasoning() {
+        // Sequential tool calls from different turns (no reasoning_content)
+        // should NOT be merged — we can't distinguish splits from separate turns
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "read", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "result1"}),
+            json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
+        ];
+        merge_split_tool_call_messages(&mut messages);
+
+        assert_eq!(messages.len(), 4); // unchanged — no merge
+        assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 1);
+        assert_eq!(messages[2]["tool_calls"].as_array().unwrap().len(), 1);
     }
 }
