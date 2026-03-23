@@ -125,7 +125,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
         let mut output = Vec::new();
         let mut content_array = Vec::new();
-        let mut text_array = Vec::new();
+        let mut has_non_text_content = false;
         let mut reasoning_text = String::new();
 
         for content in &message.content {
@@ -135,16 +135,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         if message.role == Role::User {
                             if let Some(image_path) = detect_image_path(&text.text) {
                                 if let Ok(image) = load_image_file(image_path) {
+                                    has_non_text_content = true;
                                     content_array.push(json!({"type": "text", "text": text.text}));
                                     content_array.push(convert_image(&image, image_format));
                                 } else {
-                                    text_array.push(text.text.clone());
+                                    content_array.push(json!({"type": "text", "text": text.text}));
                                 }
                             } else {
-                                text_array.push(text.text.clone());
+                                content_array.push(json!({"type": "text", "text": text.text}));
                             }
                         } else {
-                            text_array.push(text.text.clone());
+                            content_array.push(json!({"type": "text", "text": text.text}));
                         }
                     }
                 }
@@ -258,6 +259,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
                     if message.role == Role::User {
+                        has_non_text_content = true;
                         content_array.push(convert_image(image, image_format));
                     } else {
                         content_array.push(json!({
@@ -303,9 +305,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         }
 
         if !content_array.is_empty() {
-            converted["content"] = json!(content_array);
-        } else if !text_array.is_empty() {
-            converted["content"] = json!(text_array.join("\n"));
+            if has_non_text_content {
+                // Mixed content (text + images): use the array format to preserve order
+                converted["content"] = json!(content_array);
+            } else {
+                // Text-only: collapse to a simple joined string
+                let texts: Vec<String> = content_array
+                    .iter()
+                    .filter_map(|v| v["text"].as_str().map(|s| s.to_string()))
+                    .collect();
+                converted["content"] = json!(texts.join("\n"));
+            }
         }
 
         // Some strict OpenAI-compatible providers require "content" to be present
@@ -1207,6 +1217,40 @@ mod tests {
         assert!(content.unwrap().contains(png_path_str));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_text_and_image_preserves_order() {
+        // Text before image: order should be [text, image]
+        let msg_text_first = Message::user()
+            .with_text("Describe this image")
+            .with_image("aW1hZ2VkYXRh", "image/png");
+
+        let spec = format_messages(&[msg_text_first], &ImageFormat::OpenAi);
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "user");
+
+        let content = spec[0]["content"]
+            .as_array()
+            .expect("content should be an array");
+        assert_eq!(content.len(), 2, "expected text + image entries");
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "Describe this image");
+        assert_eq!(content[1]["type"], "image_url");
+
+        // Image before text: order should be [image, text]
+        let msg_image_first = Message::user()
+            .with_image("aW1hZ2VkYXRh", "image/png")
+            .with_text("What do you see?");
+
+        let spec2 = format_messages(&[msg_image_first], &ImageFormat::OpenAi);
+        let content2 = spec2[0]["content"]
+            .as_array()
+            .expect("content should be an array");
+        assert_eq!(content2.len(), 2, "expected image + text entries");
+        assert_eq!(content2[0]["type"], "image_url");
+        assert_eq!(content2[1]["type"], "text");
+        assert_eq!(content2[1]["text"], "What do you see?");
     }
 
     #[test]
