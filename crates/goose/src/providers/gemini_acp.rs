@@ -24,12 +24,18 @@ impl ProviderDef for GeminiAcpProvider {
         ProviderMetadata::new(
             GEMINI_ACP_PROVIDER_NAME,
             "Gemini CLI (ACP)",
-            "ACP provider for Google's Gemini CLI. Install: npm install -g @google/gemini-cli",
+            "Use goose with your Google Gemini subscription via the Gemini CLI.",
             ACP_CURRENT_MODEL,
             vec![],
             GEMINI_ACP_DOC_URL,
             vec![],
         )
+        .with_setup_steps(vec![
+            "Install the Gemini CLI: `npm install -g @google/gemini-cli`",
+            "Run `gemini` once to authenticate with your Google account",
+            "Set in ~/.config/goose/config.yaml:\n  GOOSE_PROVIDER: gemini-acp\n  GOOSE_MODEL: current",
+            "Restart goose for changes to take effect",
+        ])
     }
 
     fn from_env(

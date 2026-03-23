@@ -24,12 +24,18 @@ impl ProviderDef for CodexAcpProvider {
         ProviderMetadata::new(
             CODEX_ACP_PROVIDER_NAME,
             "Codex CLI",
-            "ACP adapter for OpenAI's coding assistant. Install: npm install -g @zed-industries/codex-acp",
+            "Use goose with your ChatGPT Plus/Pro subscription via the codex-acp adapter.",
             ACP_CURRENT_MODEL,
             vec![],
             CODEX_ACP_DOC_URL,
             vec![],
         )
+        .with_setup_steps(vec![
+            "Install the ACP adapter: `npm install -g @zed-industries/codex-acp`",
+            "Run `codex` once to authenticate with your OpenAI account",
+            "Set in ~/.config/goose/config.yaml:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
+            "Restart goose for changes to take effect",
+        ])
     }
 
     fn from_env(

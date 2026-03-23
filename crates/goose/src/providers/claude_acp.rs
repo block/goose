@@ -25,12 +25,18 @@ impl ProviderDef for ClaudeAcpProvider {
         ProviderMetadata::new(
             CLAUDE_ACP_PROVIDER_NAME,
             "Claude Code",
-            "ACP wrapper for Anthropic's Claude. Install: npm install -g @zed-industries/claude-agent-acp",
+            "Use goose with your Claude Code subscription via the claude-agent-acp adapter.",
             ACP_CURRENT_MODEL,
             vec![],
             CLAUDE_ACP_DOC_URL,
             vec![],
         )
+        .with_setup_steps(vec![
+            "Install the ACP adapter: `npm install -g @zed-industries/claude-agent-acp`",
+            "Ensure your Claude CLI is authenticated (run `claude` to verify)",
+            "Set in ~/.config/goose/config.yaml:\n  GOOSE_PROVIDER: claude-acp\n  GOOSE_MODEL: current",
+            "Restart goose for changes to take effect",
+        ])
     }
 
     fn from_env(
