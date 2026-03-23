@@ -110,6 +110,7 @@ pub struct DelegateParams {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
+    pub max_turns: Option<usize>,
     #[serde(default)]
     pub r#async: bool,
 }
@@ -626,6 +627,11 @@ impl SummonClient {
                 "temperature": {
                     "type": "number",
                     "description": "Override temperature."
+                },
+                "max_turns": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Maximum turns for this delegate. Overrides recipe settings.max_turns and GOOSE_SUBAGENT_MAX_TURNS."
                 },
                 "async": {
                     "type": "boolean",
@@ -1204,16 +1210,7 @@ impl SummonClient {
             .map(|args| serde_json::from_value(serde_json::Value::Object(args)))
             .transpose()
             .map_err(|e| format!("Invalid parameters: {}", e))?
-            .unwrap_or(DelegateParams {
-                instructions: None,
-                source: None,
-                parameters: None,
-                extensions: None,
-                provider: None,
-                model: None,
-                temperature: None,
-                r#async: false,
-            });
+            .unwrap_or_default();
 
         self.validate_delegate_params(&params)?;
 
@@ -1296,6 +1293,12 @@ impl SummonClient {
 
         if params.parameters.is_some() && params.source.is_none() {
             return Err("'parameters' can only be used with 'source'".to_string());
+        }
+
+        if let Some(max) = params.max_turns {
+            if max < 1 {
+                return Err("'max_turns' must be at least 1".to_string());
+            }
         }
 
         Ok(())
@@ -1489,6 +1492,8 @@ impl SummonClient {
 
         let model = metadata.model;
 
+        // Note: max_turns is intentionally None here. Per-delegate max_turns is applied
+        // in build_task_config via params.max_turns, not through the recipe settings.
         let settings = model.map(|m| Settings {
             goose_model: Some(m),
             goose_provider: params.provider.clone(),
@@ -1536,7 +1541,16 @@ impl SummonClient {
             }
         }
 
-        let max_turns = self.resolve_max_turns(session);
+        // Priority: per-delegate max_turns > delegated recipe settings > session recipe > env var > config > default
+        let max_turns = params
+            .max_turns
+            .or_else(|| {
+                recipe
+                    .settings
+                    .as_ref()
+                    .and_then(|s| s.max_turns)
+            })
+            .unwrap_or_else(|| self.resolve_max_turns(session));
 
         let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
             .with_max_turns(Some(max_turns));
@@ -1594,16 +1608,16 @@ impl SummonClient {
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
-        // Priority: env var > recipe settings > config.yaml > default
-        std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
-            .ok()
-            .and_then(|v| v.parse().ok())
+        // Priority: recipe settings > env var > config.yaml > default
+        session
+            .recipe
+            .as_ref()
+            .and_then(|r| r.settings.as_ref())
+            .and_then(|s| s.max_turns)
             .or_else(|| {
-                session
-                    .recipe
-                    .as_ref()
-                    .and_then(|r| r.settings.as_ref())
-                    .and_then(|s| s.max_turns)
+                std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
             })
             .or_else(|| {
                 Config::global()
@@ -1925,6 +1939,7 @@ impl McpClientTrait for SummonClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::fs;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -2288,12 +2303,7 @@ You review code."#;
         let make_params = |source: Option<&str>, instructions: Option<&str>| DelegateParams {
             source: source.map(String::from),
             instructions: instructions.map(String::from),
-            parameters: None,
-            extensions: None,
-            provider: None,
-            model: None,
-            temperature: None,
-            r#async: false,
+            ..Default::default()
         };
 
         assert_eq!(
@@ -2312,6 +2322,122 @@ You review code."#;
         let long = "x".repeat(100);
         let desc = SummonClient::get_task_description(&make_params(None, Some(&long)));
         assert!(desc.len() <= 43 && desc.ends_with("..."));
+    }
+
+    #[test]
+    fn test_delegate_params_max_turns_deserialization() {
+        let json = r#"{"instructions": "do something", "max_turns": 42}"#;
+        let params: DelegateParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.max_turns, Some(42));
+    }
+
+    #[test]
+    fn test_delegate_params_max_turns_defaults_to_none() {
+        let json = r#"{"instructions": "do something"}"#;
+        let params: DelegateParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.max_turns, None);
+    }
+
+    #[test]
+    fn test_validate_delegate_params_rejects_zero_max_turns() {
+        let context = create_test_context();
+        let client = SummonClient::new(context).unwrap();
+
+        let params = DelegateParams {
+            instructions: Some("do something".to_string()),
+            max_turns: Some(0),
+            ..Default::default()
+        };
+        let result = client.validate_delegate_params(&params);
+        assert_eq!(result, Err("'max_turns' must be at least 1".to_string()));
+    }
+
+    #[test]
+    fn test_validate_delegate_params_accepts_positive_max_turns() {
+        let context = create_test_context();
+        let client = SummonClient::new(context).unwrap();
+
+        let params = DelegateParams {
+            instructions: Some("do something".to_string()),
+            max_turns: Some(5),
+            ..Default::default()
+        };
+        assert!(client.validate_delegate_params(&params).is_ok());
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_max_turns_recipe_overrides_env_var() {
+        let context = create_test_context();
+        let client = SummonClient::new(context).unwrap();
+
+        let mut session = crate::session::Session::default();
+        session.recipe = Some(crate::recipe::Recipe {
+            version: "1.0.0".to_string(),
+            title: String::new(),
+            description: String::new(),
+            instructions: None,
+            prompt: None,
+            extensions: None,
+            settings: Some(crate::recipe::Settings {
+                goose_provider: None,
+                goose_model: None,
+                temperature: None,
+                max_turns: Some(10),
+            }),
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        });
+
+        // Set env var to a different value — recipe should still win
+        std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "99");
+        let result = client.resolve_max_turns(&session);
+        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
+
+        assert_eq!(
+            result, 10,
+            "recipe settings.max_turns should take priority over env var"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_max_turns_falls_back_to_env_var() {
+        let context = create_test_context();
+        let client = SummonClient::new(context).unwrap();
+
+        let session = crate::session::Session::default(); // no recipe
+
+        std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "7");
+        let result = client.resolve_max_turns(&session);
+        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
+
+        assert_eq!(
+            result, 7,
+            "should fall back to GOOSE_SUBAGENT_MAX_TURNS env var"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_max_turns_falls_back_to_default() {
+        let context = create_test_context();
+        let client = SummonClient::new(context).unwrap();
+
+        let session = crate::session::Session::default(); // no recipe
+
+        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
+        let result = client.resolve_max_turns(&session);
+
+        assert_eq!(
+            result,
+            crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS,
+            "should fall back to DEFAULT_SUBAGENT_MAX_TURNS"
+        );
     }
 
     fn extract_text(content: &Content) -> &str {
