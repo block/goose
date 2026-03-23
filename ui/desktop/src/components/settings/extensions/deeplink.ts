@@ -14,6 +14,7 @@ function getStdioConfig(
 ) {
   // Validate that the command is one of the allowed commands
   const allowedCommands = [
+    'bkb-mcp',
     'cu',
     'docker',
     'jbang',

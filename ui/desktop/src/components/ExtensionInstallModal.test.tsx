@@ -121,6 +121,27 @@ describe('ExtensionInstallModal', () => {
       expect(screen.getByText(/I Ching extension/)).toBeInTheDocument();
       expect(screen.getAllByRole('button')).toHaveLength(3);
     });
+
+    it('should handle bkb-mcp as allowed command', async () => {
+      mockElectron.getAllowedExtensions.mockResolvedValue([]);
+
+      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+
+      const eventHandler = getAddExtensionEventHandler();
+
+      await act(async () => {
+        await eventHandler(
+          {},
+          'goose://extension?cmd=bkb-mcp&id=bkb-mcp&name=Bitcoin%20Knowledge%20Base&description=Bitcoin%20and%20Lightning%20research&env=BKB_API_URL%3DBKB%20API%20URL'
+        );
+      });
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Extension Installation')).toBeInTheDocument();
+      expect(screen.getByText(/Bitcoin Knowledge Base extension/)).toBeInTheDocument();
+      expect(screen.getAllByRole('button')).toHaveLength(3);
+    });
+
     it('should handle blocked extension', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue(['uvx allowed-package']);
 

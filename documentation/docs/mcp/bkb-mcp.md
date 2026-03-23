@@ -12,7 +12,7 @@ This tutorial covers how to add the [Bitcoin Knowledge Base (BKB) MCP Server](ht
 
 :::tip Quick Install
 1. Install: `cargo install bkb-mcp`
-2. Configure: [Add BKB Extension](goose://extension?cmd=bkb-mcp&id=bkb-mcp&name=Bitcoin%20Knowledge%20Base&description=Search%20and%20reference%20tool%20for%20Bitcoin%20and%20Lightning%20development)
+2. Configure: [Add BKB Extension](goose://extension?cmd=bkb-mcp&id=bkb-mcp&name=Bitcoin%20Knowledge%20Base&description=Search%20and%20reference%20tool%20for%20Bitcoin%20and%20Lightning%20development&env=BKB_API_URL%3DBKB%20API%20URL)
 :::
 
 ## Installation
@@ -87,7 +87,7 @@ Set the `BKB_API_URL` environment variable to `https://bitcoinknowledge.dev` to 
 
     ─── bkb_get_references | bkb-mcp ──────────────────────────
 
-    document_id: bip-341
+    entity: BIP-341
 
 </details>
 
@@ -108,7 +108,7 @@ The proposal was extensively discussed on the bitcoin-dev mailing list starting 
 |------|-------------|
 | `bkb_search` | Full-text search across all indexed Bitcoin and Lightning resources |
 | `bkb_get_document` | Retrieve a specific document by ID |
-| `bkb_get_references` | Get references and citations for a document |
+| `bkb_get_references` | Find documents that reference an entity such as a BIP, BOLT, or GitHub issue |
 | `bkb_lookup_bip` | Look up a Bitcoin Improvement Proposal by number |
 | `bkb_lookup_bolt` | Look up a BOLT (Lightning Network specification) by number |
 | `bkb_lookup_blip` | Look up a bLIP (Lightning Improvement Proposal) by number |
