@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,36 @@ import {
 } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
+
+/** Render a setup step string, turning `backtick` spans into <code> and newlines into <br/>. */
+function renderSetupStep(text: string) {
+  // Split on backtick-wrapped segments
+  const parts = text.split(/(`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code
+          key={i}
+          className="px-1 py-0.5 rounded bg-background-secondary text-xs font-mono break-all"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    // Handle newlines within text
+    const lines = part.split('\n');
+    return (
+      <Fragment key={i}>
+        {lines.map((line, j) => (
+          <Fragment key={j}>
+            {j > 0 && <br />}
+            {line}
+          </Fragment>
+        ))}
+      </Fragment>
+    );
+  });
+}
 
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
@@ -59,13 +89,20 @@ export default function ProviderConfigurationModal({
     ? `Delete configuration for ${provider.metadata.display_name}`
     : `Configure ${provider.metadata.display_name}`;
 
+  const isExternalSetup =
+    provider.metadata.config_keys.length === 0 &&
+    provider.metadata.setup_steps &&
+    provider.metadata.setup_steps.length > 0;
+
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
       ? `You cannot delete this provider while it's currently in use. Please switch to a different model first.`
       : 'This will permanently delete the current provider configuration.'
     : isOAuthProvider
       ? `Sign in with your ${provider.metadata.display_name} account to use this provider`
-      : `Add your API key(s) for this provider to integrate into goose`;
+      : isExternalSetup
+        ? provider.metadata.description
+        : `Add your API key(s) for this provider to integrate into goose`;
 
   const handleOAuthLogin = async () => {
     setIsOAuthLoading(true);
@@ -176,6 +213,12 @@ export default function ProviderConfigurationModal({
       for (const param of params) {
         await remove(param.name, param.secret);
       }
+
+      const hasOAuthKey = params.some((key) => key.oauth_flow);
+      if (hasOAuthKey) {
+        const configuredMarker = `${provider.name}_configured`;
+        await remove(configuredMarker, false);
+      }
     }
 
     onClose();
@@ -241,6 +284,35 @@ export default function ProviderConfigurationModal({
                     A browser window will open for you to complete the login.
                   </p>
                 </div>
+              ) : provider.metadata.config_keys.length === 0 &&
+                provider.metadata.setup_steps &&
+                provider.metadata.setup_steps.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-text-secondary">
+                    This provider is configured outside of goose. Follow these steps:
+                  </p>
+                  <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
+                    {provider.metadata.setup_steps.map((step, i) => (
+                      <li key={i}>{renderSetupStep(step)}</li>
+                    ))}
+                  </ol>
+                  {provider.metadata.model_doc_link && (
+                    <p className="text-sm text-text-secondary mt-4">
+                      See the{' '}
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          window.electron.openExternal(provider.metadata.model_doc_link);
+                        }}
+                        className="underline hover:text-text-primary"
+                      >
+                        documentation
+                      </a>{' '}
+                      for more details.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <>
                   {/* Contains information used to set up each provider */}
@@ -270,6 +342,20 @@ export default function ProviderConfigurationModal({
                     Remove Configuration
                   </Button>
                 )}
+              </div>
+            ) : provider.metadata.config_keys.length === 0 &&
+              provider.metadata.setup_steps &&
+              provider.metadata.setup_steps.length > 0 &&
+              !showDeleteConfirmation ? (
+              <div className="w-full">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleCancel}
+                  className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
+                >
+                  Close
+                </Button>
               </div>
             ) : (
               <ProviderSetupActions

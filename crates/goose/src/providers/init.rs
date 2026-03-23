@@ -1,5 +1,7 @@
 use std::sync::{Arc, RwLock};
 
+#[cfg(feature = "local-inference")]
+use super::local_inference::LocalInferenceProvider;
 use super::{
     anthropic::AnthropicProvider,
     avian::AvianProvider,
@@ -19,7 +21,6 @@ use super::{
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     litellm::LiteLLMProvider,
-    local_inference::LocalInferenceProvider,
     nanogpt::NanoGptProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
@@ -49,6 +50,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         registry.register::<BedrockProvider>(false);
+        #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
         registry.register::<ChatGptCodexProvider>(true);
         registry.register::<ClaudeAcpProvider>(false);
@@ -118,7 +120,7 @@ pub async fn refresh_custom_providers() -> Result<()> {
     Ok(())
 }
 
-async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
+pub async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
     let guard = get_registry().await.read().unwrap();
     guard
         .entries

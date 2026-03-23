@@ -1,17 +1,25 @@
 {
-  "name": "@block/goose-acp-server-linux-arm64",
+  "name": "@aaif/goose-acp-server-linux-x64",
   "version": "0.1.0",
-  "description": "Goose ACP server binary for Linux ARM64",
+  "description": "Goose ACP server binary for Linux x64",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/block/goose.git"
   },
+  "keywords": [
+    "goose",
+    "ai",
+    "agent",
+    "acp",
+    "server",
+    "binary"
+  ],
   "os": [
     "linux"
   ],
   "cpu": [
-    "arm64"
+    "x64"
   ],
   "files": [
     "bin/goose-acp-server"

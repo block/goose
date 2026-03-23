@@ -235,7 +235,7 @@ pub fn render_message(message: &Message, debug: bool) {
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+            MessageContent::ToolResponse(resp) => render_tool_response(resp, debug),
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
@@ -280,6 +280,9 @@ pub fn render_message_streaming(
 
     for content in &message.content {
         if !matches!(content, MessageContent::Thinking(_)) {
+            if *thinking_header_shown {
+                println!();
+            }
             *thinking_header_shown = false;
         }
 
@@ -295,7 +298,7 @@ pub fn render_message_streaming(
             }
             MessageContent::ToolResponse(resp) => {
                 flush_markdown_buffer(buffer, theme);
-                render_tool_response(resp, theme, debug);
+                render_tool_response(resp, debug);
             }
             MessageContent::ActionRequired(action) => {
                 flush_markdown_buffer(buffer, theme);
@@ -480,7 +483,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             name if is_shell_tool_name(name) => render_shell_request(call, debug),
             name if is_file_tool_name(name) => render_text_editor_request(call, debug),
-            "execute" | "execute_code" => render_execute_code_request(call, debug),
+            "execute_typescript" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
@@ -491,7 +494,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
+fn render_tool_response(resp: &ToolResponse, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
@@ -519,11 +522,52 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 if debug {
                     println!("{:#?}", content);
                 } else if let Some(text) = content.as_text() {
-                    print_markdown(&text.text, theme);
+                    print_tool_output(&text.text);
                 }
             }
         }
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => {
+            println!("    {}", style(e.to_string()).red().dim());
+        }
+    }
+}
+
+fn print_tool_output(text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    if !std::io::stdout().is_terminal() {
+        print!("{}", text);
+        return;
+    }
+    let max_lines = if get_show_full_tool_output() {
+        usize::MAX
+    } else {
+        20
+    };
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() <= max_lines {
+        for line in &lines {
+            println!("    {}", style(line).dim());
+        }
+    } else {
+        let head = max_lines / 2;
+        let tail = max_lines - head;
+        for line in &lines[..head] {
+            println!("    {}", style(line).dim());
+        }
+        println!(
+            "    {}",
+            style(format!(
+                "... ({} lines hidden, /toggle to show all)",
+                lines.len() - head - tail
+            ))
+            .dim()
+            .italic()
+        );
+        for line in &lines[lines.len() - tail..] {
+            println!("    {}", style(line).dim());
+        }
     }
 }
 
@@ -822,7 +866,7 @@ pub fn render_subagent_tool_call(
     arguments: Option<&JsonObject>,
     debug: bool,
 ) {
-    if tool_name == "code_execution__execute_code" {
+    if tool_name == "code_execution__execute_typescript" {
         let tool_graph = arguments
             .and_then(|args| args.get("tool_graph"))
             .and_then(Value::as_array)
@@ -851,7 +895,7 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
         "  {} {} {} {} tool call{}",
         style("▸").dim(),
         style(format!("[subagent:{}]", short_id)).dim(),
-        style("execute_code").dim(),
+        style("execute_typescript").dim(),
         style(count).dim(),
         plural,
     );
@@ -904,6 +948,7 @@ fn print_tool_header(call: &CallToolRequestParams) {
         )
     };
     println!();
+    println!("  {}", style("─".repeat(40)).dim());
     println!("{}", tool_header);
 }
 

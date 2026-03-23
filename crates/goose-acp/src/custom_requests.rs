@@ -21,6 +21,7 @@ pub struct CustomMethodSchema {
 
 /// Add an extension to an active session.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AddExtensionRequest {
     pub session_id: String,
     /// Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).
@@ -29,6 +30,7 @@ pub struct AddExtensionRequest {
 
 /// Remove an extension from an active session.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoveExtensionRequest {
     pub session_id: String,
     pub name: String,
@@ -36,6 +38,7 @@ pub struct RemoveExtensionRequest {
 
 /// List all tools available in a session.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct GetToolsRequest {
     pub session_id: String,
 }
@@ -48,6 +51,7 @@ pub struct GetToolsResponse {
 
 /// Read a resource from an extension.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ReadResourceRequest {
     pub session_id: String,
     pub uri: String,
@@ -62,6 +66,7 @@ pub struct ReadResourceResponse {
 
 /// Update the working directory for a session.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateWorkingDirRequest {
     pub session_id: String,
     pub working_dir: String,
@@ -69,6 +74,7 @@ pub struct UpdateWorkingDirRequest {
 
 /// Get a session by ID.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct GetSessionRequest {
     pub session_id: String,
     #[serde(default)]
@@ -84,12 +90,14 @@ pub struct GetSessionResponse {
 
 /// Delete a session.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteSessionRequest {
     pub session_id: String,
 }
 
 /// Export a session as a JSON string.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ExportSessionRequest {
     pub session_id: String,
 }
