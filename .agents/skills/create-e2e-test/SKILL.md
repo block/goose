@@ -46,7 +46,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    - **Snapshot** — run `snapshot -i` after each action (and once before the first action) since refs are invalidated by DOM changes
    - **Locate** — identify the element's `@eN` ref from the snapshot, then convert to a stable locator using the Element Locating Strategy (see Reference)
    - **Act** — perform the action using the stable locator
-   - **Save** — append the working command to the batch file at `ui/desktop/tests/agent/recordings/<name>.batch.json`
+   - **Save** — append the working command to the batch file at `ui/desktop/tests/e2e-tests/recordings/<name>.batch.json`
 
    If you need a clean app state at any point, restart using the App Lifecycle steps, then replay the saved batch file to catch up before continuing.
 
@@ -85,7 +85,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
 
 3. Review the test scenario step by step and confirm you have a recorded command for each one. If any steps are missing, go back to step 2.
 
-   Example batch file (`ui/desktop/tests/agent/recordings/<name>.batch.json`):
+   Example batch file (`ui/desktop/tests/e2e-tests/recordings/<name>.batch.json`):
 
    ```json
    [
@@ -124,7 +124,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
 
 3. Replay the recording:
    ```bash
-   bash ui/desktop/tests/agent/replay.sh recordings/<name>.batch.json --connect <port> --browser-session <session-id>
+   bash ui/desktop/tests/e2e-tests/scripts/replay.sh recordings/<name>.batch.json --connect <port> --browser-session <session-id>
    ```
    Always pass the current app session ID. Exit code 0 = pass, non-zero = fail.
 

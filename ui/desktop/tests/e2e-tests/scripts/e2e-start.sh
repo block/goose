@@ -5,8 +5,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FIXTURES_DIR="$SCRIPT_DIR/fixtures"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+FIXTURES_DIR="$SCRIPT_DIR/../fixtures"
 BASE_DIR="/tmp/goose-e2e"
 
 SESSION_ID="${1:-$(date +"%y%m%d-%H%M%S")}"

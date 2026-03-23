@@ -5,8 +5,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RECORDINGS_DIR="$SCRIPT_DIR/recordings"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+RECORDINGS_DIR="$SCRIPT_DIR/../recordings"
 WORKERS=2
 TIMEOUT=120  # seconds per test
 
