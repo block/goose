@@ -67,7 +67,7 @@ export default function SettingsView({
       };
 
       const targetTab = sectionToTab[viewOptions.section];
-      if (targetTab) {
+      if (targetTab && (targetTab !== 'local-inference' || localInference)) {
         setActiveTab(targetTab);
       }
     }
