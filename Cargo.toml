@@ -65,8 +65,12 @@ utoipa = "4.1"
 uuid = { version = "1.11", features = ["v4"] }
 webbrowser = "1.0"
 which = "8.0.0"
+winapi = { version = "0.3", features = ["wincred"] }
 wiremock = "0.6"
+zip = { version = "^8.0", default-features = false, features = ["deflate"] }
 serial_test = "3.2.0"
+sha2 = "0.10"
+shell-words = "1.1.1"
 test-case = "3.3.1"
 url = "2.5.8"
 opentelemetry = "0.31"

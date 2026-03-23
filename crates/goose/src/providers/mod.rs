@@ -27,6 +27,7 @@ pub mod githubcopilot;
 pub mod google;
 mod init;
 pub mod litellm;
+#[cfg(feature = "local-inference")]
 pub mod local_inference;
 pub mod nanogpt;
 pub mod oauth;

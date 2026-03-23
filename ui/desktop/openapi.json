@@ -1922,6 +1922,26 @@
         }
       }
     },
+    "/features": {
+      "get": {
+        "tags": [
+          "super::routes::features"
+        ],
+        "operationId": "get_features",
+        "responses": {
+          "200": {
+            "description": "Compile-time feature flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/handle_nanogpt": {
       "post": {
         "tags": [
@@ -5338,6 +5358,21 @@
           }
         }
       },
+      "FeaturesResponse": {
+        "type": "object",
+        "required": [
+          "features"
+        ],
+        "properties": {
+          "features": {
+            "type": "object",
+            "description": "Map of feature name to enabled status",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
       "ForkRequest": {
         "type": "object",
         "required": [
@@ -7567,9 +7602,17 @@
       "SaveRecipeResponse": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "file_name",
+          "file_path"
         ],
         "properties": {
+          "file_name": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           }
