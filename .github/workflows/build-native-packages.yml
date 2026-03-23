@@ -76,6 +76,7 @@ jobs:
 
       - name: Prepare artifact (Windows)
         if: runner.os == 'Windows'
+        shell: bash
         run: |
           mkdir -p artifact/bin
           cp target/${{ matrix.target }}/release/goose-acp-server.exe artifact/bin/
