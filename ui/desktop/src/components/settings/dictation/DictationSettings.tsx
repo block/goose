@@ -18,7 +18,7 @@ import {
 } from '../../ui/dropdown-menu';
 
 export const DictationSettings = () => {
-  const { localInference } = useFeatures();
+  const { localInference, isLoading: isFeaturesLoading } = useFeatures();
   const [provider, setProvider] = useState<DictationProvider | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatus>>(
     {}
@@ -34,6 +34,8 @@ export const DictationSettings = () => {
   };
 
   useEffect(() => {
+    if (isFeaturesLoading) return;
+
     const loadSettings = async () => {
       const providerValue = await read('voice_dictation_provider', false);
       let loadedProvider: DictationProvider | null = (providerValue as DictationProvider) || null;
@@ -61,7 +63,7 @@ export const DictationSettings = () => {
     };
 
     loadSettings();
-  }, [read, upsert, localInference]);
+  }, [read, upsert, localInference, isFeaturesLoading]);
 
   const handleProviderChange = (value: string) => {
     const newProvider = value === 'disabled' ? null : (value as DictationProvider);
