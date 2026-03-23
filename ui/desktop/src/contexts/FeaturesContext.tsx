@@ -30,7 +30,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<FeaturesContextValue>(
     () => ({
-      localInference: features['local-inference'] ?? true,
+      localInference: features['local-inference'] ?? false,
       codeMode: features['code-mode'] ?? true,
       isLoading,
     }),

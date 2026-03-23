@@ -73,6 +73,13 @@ export default function SettingsView({
     }
   }, [viewOptions.section, localInference]);
 
+  // Reset active tab if local-inference becomes unavailable
+  useEffect(() => {
+    if (!localInference && activeTab === 'local-inference') {
+      setActiveTab('models');
+    }
+  }, [localInference, activeTab]);
+
   useEffect(() => {
     if (!hasTrackedInitialTab.current) {
       trackSettingsTabViewed(activeTab);
