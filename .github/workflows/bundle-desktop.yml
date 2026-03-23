@@ -27,17 +27,11 @@ on:
         required: false
         type: string
         default: ''
-    secrets:
-      APPLE_CERTIFICATE_BASE64:
+      environment:
+        description: 'GitHub Environment containing signing secrets (e.g. "signing"). Leave empty to skip.'
         required: false
-      APPLE_CERTIFICATE_PASSWORD:
-        required: false
-      APPLE_ID:
-        required: false
-      APPLE_ID_PASSWORD:
-        required: false
-      APPLE_TEAM_ID:
-        required: false
+        type: string
+        default: ''
 
 name: Reusable workflow to bundle desktop app
 
@@ -45,6 +39,7 @@ jobs:
   bundle-desktop:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
+    environment: ${{ inputs.environment || '' }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:

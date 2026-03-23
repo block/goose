@@ -49,12 +49,8 @@ jobs:
       contents: read
     with:
       signing: true
-    secrets:
-      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      environment: signing
+    secrets: inherit
 
   # ------------------------------------------------------------
   # 4) Bundle Desktop App (macOS)
@@ -66,12 +62,8 @@ jobs:
       contents: read
     with:
       signing: true
-    secrets:
-      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      environment: signing
+    secrets: inherit
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux)

@@ -25,17 +25,11 @@ on:
         type: string
         required: false
         default: ''
-    secrets:
-      APPLE_CERTIFICATE_BASE64:
+      environment:
+        description: 'GitHub Environment containing signing secrets (e.g. "production"). Leave empty to skip.'
         required: false
-      APPLE_CERTIFICATE_PASSWORD:
-        required: false
-      APPLE_ID:
-        required: false
-      APPLE_ID_PASSWORD:
-        required: false
-      APPLE_TEAM_ID:
-        required: false
+        type: string
+        default: ''
 
 name: Reusable workflow to bundle desktop app for Intel Mac
 
@@ -43,6 +37,7 @@ jobs:
   bundle-desktop-intel:
     runs-on: macos-latest
     name: Bundle Desktop App on Intel macOS
+    environment: ${{ inputs.environment || '' }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:
