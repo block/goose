@@ -133,12 +133,14 @@ export default function RecipeActivityEditor({
             onBlur={onBlur}
             className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Add new activity..."
+            data-testid="add-activity-input"
           />
           <button
             type="button"
             onClick={handleAddActivity}
             disabled={!newActivity.trim()}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            data-testid="add-activity-button"
           >
             Add activity
           </button>

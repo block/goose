@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Stop a goose-under-test instance and clean up
-# Usage: ./e2e-stop.sh <session-id>
+# Usage: ./e2e-stop.sh <test-session-name>
 set -euo pipefail
 
-SESSION_ID="${1:?Usage: ./e2e-stop.sh <session-id>}"
-SESSION_DIR="/tmp/goose-e2e/$SESSION_ID"
+TEST_SESSION_NAME="${1:?Usage: ./e2e-stop.sh <test-session-name>}"
+SESSION_DIR="/tmp/goose-e2e/$TEST_SESSION_NAME"
 
 if [[ ! -d "$SESSION_DIR" ]]; then
   echo "Error: session not found: $SESSION_DIR" >&2
@@ -24,4 +24,4 @@ pkill -9 -f "$SESSION_DIR" 2>/dev/null || true
 
 # Clean up
 rm -rf "$SESSION_DIR"
-echo "Session $SESSION_ID stopped and cleaned up."
+echo "Test session $TEST_SESSION_NAME stopped and cleaned up."

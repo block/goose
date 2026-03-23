@@ -17,7 +17,6 @@
   ["wait", "[title='Use recipe']"],
 
   ["find", "title", "Use recipe", "click"],
-  ["wait", "2000"],
   ["wait", "--text", "Trust and Execute"],
   ["find", "role", "button", "click", "--name", "Trust and Execute"],
   ["wait", "--text", "Because light attracts bugs!"],
@@ -37,7 +36,6 @@
   ["wait", "[title='Use recipe']"],
 
   ["find", "title", "Use recipe", "click"],
-  ["wait", "2000"],
   ["wait", "--text", "Trust and Execute"],
   ["find", "role", "button", "click", "--name", "Trust and Execute"],
   ["wait", "--text", "2 + 2 = 4"],

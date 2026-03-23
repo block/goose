@@ -9,7 +9,14 @@ SESSION_NAME=""
 
 # Resolve project root for $PROJECT_DIR substitution in recordings
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="${PROJECT_DIR:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$DESKTOP_DIR/../.." && pwd)}"
+
+# Activate hermit to get pnpm, node, etc. on PATH
+source "$PROJECT_DIR/bin/activate-hermit"
+
+# Must run from ui/desktop for pnpm exec agent-browser
+cd "$DESKTOP_DIR"
 
 shift
 while [[ $# -gt 0 ]]; do

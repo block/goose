@@ -62,6 +62,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
               <div
                 className="flex items-center gap-1"
                 title="This parameter is not used in the instructions or prompt. It will be available for manual input but may not be needed."
+                data-testid={`parameter-unused-${parameter.key}`}
               >
                 <AlertTriangle className="w-4 h-4 text-orange-500" />
                 <span className="text-xs text-orange-500 font-normal">Unused</span>

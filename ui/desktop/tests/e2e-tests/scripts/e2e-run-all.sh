@@ -5,26 +5,42 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="$(cd "$DESKTOP_DIR/../.." && pwd)"
 RECORDINGS_DIR="$SCRIPT_DIR/../recordings"
+
+# Activate hermit to get pnpm, node, etc. on PATH
+source "$PROJECT_DIR/bin/activate-hermit"
 WORKERS=2
 TIMEOUT=120  # seconds per test
+FILTER=""
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --workers) WORKERS="$2"; shift 2 ;;
     --timeout) TIMEOUT="$2"; shift 2 ;;
+    --only) FILTER="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
 
-# Collect recordings, excluding files with "skip" in the name
+# Collect recordings, excluding *.skip.batch.json files
 RECORDINGS=()
 for f in "$RECORDINGS_DIR"/*.batch.json; do
-  [[ "$(basename "$f")" == *skip* ]] && continue
+  [[ "$(basename "$f")" == *.skip.batch.json ]] && continue
+  [[ -n "$FILTER" && "$(basename "$f")" != $FILTER*.batch.json ]] && continue
   RECORDINGS+=("$f")
 done
+
+if [[ ${#RECORDINGS[@]} -eq 0 ]]; then
+  echo "No recordings matched${FILTER:+ (filter: $FILTER)}"
+  exit 0
+fi
+
+# Clean up previous test sessions
+pkill -9 -f "/tmp/goose-e2e" 2>/dev/null || true
+rm -rf /tmp/goose-e2e
 
 echo "=== E2E Test Runner ==="
 echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
@@ -32,7 +48,7 @@ echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
 # Generate API types once
 echo ""
 echo "Generating API types..."
-cd "$PROJECT_DIR"
+cd "$DESKTOP_DIR"
 pnpm run generate-api
 
 # Run a single recording: start app, replay, stop app
@@ -42,9 +58,10 @@ run_one() {
   local RESULT_DIR="$2"
   local TEST_NAME
   TEST_NAME=$(basename "$RECORDING" .batch.json)
+  local START_TIME=$SECONDS
 
   echo "[$TEST_NAME] Starting app..."
-  screen -dmS "$TEST_NAME" bash -c "source ~/.zshrc 2>/dev/null && bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
+  screen -dmS "$TEST_NAME" bash -c "source ~/.zshrc 2>/dev/null; bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
 
   # Wait for the app to write its port file
   local CDP_PORT=""
@@ -60,18 +77,21 @@ run_one() {
   done
 
   if [[ -z "$CDP_PORT" ]]; then
-    echo "[$TEST_NAME] FAIL — app did not start within 30s"
-    echo "FAIL" > "$RESULT_DIR/$TEST_NAME"
+    local DURATION=$(( SECONDS - START_TIME ))
+    echo "[$TEST_NAME] FAIL — app did not start within 30s (${DURATION}s)"
+    echo "FAIL ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
     return
   fi
   echo "[$TEST_NAME] App ready: port=$CDP_PORT"
 
   if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME"; then
-    echo "PASS" > "$RESULT_DIR/$TEST_NAME"
-    echo "[$TEST_NAME] PASS"
+    local DURATION=$(( SECONDS - START_TIME ))
+    echo "PASS ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
+    echo "[$TEST_NAME] PASS (${DURATION}s)"
   else
-    echo "FAIL" > "$RESULT_DIR/$TEST_NAME"
-    echo "[$TEST_NAME] FAIL"
+    local DURATION=$(( SECONDS - START_TIME ))
+    echo "FAIL ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
+    echo "[$TEST_NAME] FAIL (${DURATION}s)"
   fi
 
   bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
@@ -88,21 +108,24 @@ trap 'rm -rf "$RESULT_DIR"' EXIT
 printf '%s\n' "${RECORDINGS[@]}" | xargs -P "$WORKERS" -I {} bash -c "run_one '{}' '$RESULT_DIR'"
 
 # Summary
+TOTAL_TIME=$SECONDS
 echo ""
 echo "=== Results ==="
 PASSED=0
 FAILED=0
 for RECORDING in "${RECORDINGS[@]}"; do
   TEST_NAME=$(basename "$RECORDING" .batch.json)
-  RESULT=$(cat "$RESULT_DIR/$TEST_NAME" 2>/dev/null || echo "FAIL")
-  echo "  $RESULT: $TEST_NAME"
-  if [[ "$RESULT" == "PASS" ]]; then
+  RAW=$(cat "$RESULT_DIR/$TEST_NAME" 2>/dev/null || echo "FAIL 0s")
+  STATUS=$(echo "$RAW" | awk '{print $1}')
+  DURATION=$(echo "$RAW" | awk '{print $2}')
+  echo "  $STATUS: $TEST_NAME ($DURATION)"
+  if [[ "$STATUS" == "PASS" ]]; then
     ((PASSED++))
   else
     ((FAILED++))
   fi
 done
 echo ""
-echo "${#RECORDINGS[@]} tests, $PASSED passed, $FAILED failed"
+echo "${#RECORDINGS[@]} tests, $PASSED passed, $FAILED failed (total: ${TOTAL_TIME}s)"
 
 exit "$FAILED"

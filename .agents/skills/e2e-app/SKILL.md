@@ -9,27 +9,44 @@ Scripts are in `ui/desktop/tests/e2e-tests/scripts/`.
 
 ## Starting the App
 
-The start script blocks (runs Electron in foreground), so use `screen` to avoid hanging.
-
-First, pick a unique screen name to avoid conflicts with existing sessions:
+The start script blocks (runs Electron in foreground), so use `screen` to background it.
+The script self-activates hermit for `pnpm`/`node`, but needs `ANTHROPIC_API_KEY` in the environment.
 
 ```bash
+TEST_SESSION_NAME=$(date +"%y%m%d-%H%M%S")
 SCREEN_NAME="e2e-$(date +%s)"
-screen -dmS $SCREEN_NAME bash -c "source ~/.zshrc 2>/dev/null && source bin/activate-hermit && bash ui/desktop/tests/e2e-tests/scripts/e2e-start.sh"
+screen -dmS $SCREEN_NAME bash -c "source ~/.zshrc 2>/dev/null; bash ui/desktop/tests/e2e-tests/scripts/e2e-start.sh $TEST_SESSION_NAME"
 ```
 
-Wait a few seconds for the session to be created, then read the session ID and CDP port:
+Then wait for the port file and verify the app is listening:
 
 ```bash
-sleep 3
-screen -ls
-SESSION_ID=$(ls -t /tmp/goose-e2e/ | head -1)
-CDP_PORT=$(cat /tmp/goose-e2e/$SESSION_ID/.port)
-echo "Session: $SESSION_ID, CDP port: $CDP_PORT"
+# Wait for port file and app to be ready (up to 30s)
+for i in $(seq 1 30); do
+  if [[ -f "/tmp/goose-e2e/$TEST_SESSION_NAME/.port" ]]; then
+    CDP_PORT=$(cat /tmp/goose-e2e/$TEST_SESSION_NAME/.port)
+    if lsof -i :"$CDP_PORT" &>/dev/null; then
+      echo "App ready — Test session name: $TEST_SESSION_NAME, CDP port: $CDP_PORT"
+      break
+    fi
+  fi
+  sleep 1
+done
 ```
+
+If the app doesn't start, check the screen log:
+```bash
+screen -ls                    # verify screen session exists
+screen -r $SCREEN_NAME        # attach to see errors (Ctrl-A D to detach)
+```
+
+Common startup failures:
+- `ANTHROPIC_API_KEY must be set` — key not in environment; ensure `~/.zshrc` exports it
+- `pnpm: not found` — hermit activation failed; the script does this automatically now
+- Screen session dies immediately — check `screen -ls`; if no session, run the script directly to see errors
 
 ## Stopping the App
 
 ```bash
-bash ui/desktop/tests/e2e-tests/scripts/e2e-stop.sh <session-id>
+bash ui/desktop/tests/e2e-tests/scripts/e2e-stop.sh <session-name>
 ```

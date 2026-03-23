@@ -20,18 +20,18 @@ Given a test scenario in natural language, you will:
 
 Every time you need a clean app state — whether starting for the first time, retrying during exploration, or verifying a recording — follow these steps:
 
-1. Use the `e2e-app` skill to stop any running instance and start a new one. Note the **session ID** (e.g., `260320-170823`) and **CDP port**.
-2. Connect agent-browser to the CDP port with the session ID as the session name:
+1. Use the `e2e-app` skill to stop any running instance and start a new one. Note the **test session name** (e.g., `260320-170823`) and **CDP port**.
+2. Connect agent-browser to the CDP port using the test session name:
    ```bash
-   pnpm exec agent-browser --session <session-id> connect <port>
+   pnpm exec agent-browser --session <test-session-name> connect <port>
    ```
 
 ### Agent-browser Session Isolation
 
 agent-browser uses `--session` to isolate browser contexts. This prevents multiple agents or tests from interfering with each other.
 
-- **Agent (exploration + replay)**: always use the current app session ID as the session name (e.g., `--session 260320-170823`). Pass it to **every** agent-browser command and to the replay script via `--browser-session`.
-- **In batch JSON**: do **not** include session names — the replay script handles this.
+- **Agent (exploration + replay)**: always use the current app's test session name (e.g., `--session 260320-170823`). Pass it to **every** agent-browser command and to the replay script via `--browser-session`.
+- **In batch JSON**: do **not** include test session names — the replay script handles this.
 - **CI**: no `--session` flag needed — the replay script defaults to the recording filename (e.g., `settings-dark-mode.batch.json` → `settings-dark-mode`).
 
 All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agent-browser`.
@@ -55,7 +55,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    - Check `agent-browser errors` if something seems wrong
    - Never use `@eN` refs in the recording — convert to stable locators immediately
 
-   Example (assuming start app session ID is `260320-170823`):
+   Example (assuming start app test session name is `260320-170823`):
    ```bash
    # Snapshot
    agent-browser --session 260320-170823 snapshot
@@ -124,9 +124,9 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
 
 3. Replay the recording:
    ```bash
-   bash ui/desktop/tests/e2e-tests/scripts/replay.sh recordings/<name>.batch.json --connect <port> --browser-session <session-id>
+   bash ui/desktop/tests/e2e-tests/scripts/replay.sh recordings/<name>.batch.json --connect <port> --browser-session <test-session-name>
    ```
-   Always pass the current app session ID. Exit code 0 = pass, non-zero = fail.
+   Always pass the current app test session name. Exit code 0 = pass, non-zero = fail.
 
 4. If replay fails, restart the app, explore the failing step using the Phase 1 cycle (snapshot → locate → convert → act) to find the fix, update the recording, and go back to step 2.
 
@@ -135,7 +135,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
 After the recording is verified, write (or update) a scenario file at `ui/desktop/tests/e2e-tests/scenarios/<name>.md` (same base name as the recording, e.g., `settings-dark-mode.batch.json` → `settings-dark-mode.md`). This is a human-readable description of what the test does — the intent, not the implementation.
 
 - Describe each step in terms of **user actions and expected outcomes**, not selectors or test IDs
-- Keep it concise — one line per step
+- Keep it concise — one line per step. The file should only contain a title and numbered steps, nothing else
 - The scenario serves as the source of truth for re-recording if the test breaks
 
 Example (`scenarios/settings-dark-mode.md`):
@@ -153,20 +153,17 @@ Example (`scenarios/settings-dark-mode.md`):
 
 ### Element Locating Strategy
 
+**Always** verify uniqueness with `get count` before using any locator. If count > 1, narrow the selector or fall back to the next strategy.
+
 For each element, find a stable locator using this priority:
 
-1. **Semantic locator (preferred — zero extra calls)**: use the role and name directly from the snapshot (e.g., `button "Send"` → `find role button --name "Send" click`). If you suspect duplicates (common names like "Submit", "Close"), check `get count` first.
+1. **Semantic locator (preferred)**: use the role and name directly from the snapshot (e.g., `button "Send"` → `find role button --name "Send" click`). Never use a bare role without `--name`.
    - Count is 1 → use `find role <role> --name "<name>" <action>`
    - Count > 1 → fall back to step 2
 
 2. **Test ID**: `get attr @eN data-testid` → if exists, use `find testid "<id>" <action>`.
-   - If inside a session container (multiple sessions are mounted simultaneously with only one visible), always scope to the active session — no `get count` needed:
-     ```bash
-     click "[data-active-session='true'] [data-testid='<id>']"
-     type "[data-active-session='true'] [data-testid='<id>']" "text"
-     fill "[data-active-session='true'] [data-testid='<id>']" "text"
-     ```
-   - If outside a session container, check `get count` — if duplicates exist, use `find first "[data-testid='<id>']" <action>` or `find nth <index> "[data-testid='<id>']" <action>` (0-based index)
+   - If count > 1 and the element is inside a chat session, scope to `[data-active-session='true'] [data-testid='<id>']`
+   - If still count > 1, use `find first "[data-testid='<id>']" <action>` or `find nth <index> "[data-testid='<id>']" <action>` (0-based index)
 
 3. **Add a data-testid (last resort)**: if neither above works, add a `data-testid` to the source code.
    - Names must be globally unique and unambiguous. Include the parent component or location, the element type, and its purpose (e.g., `bottom-menu-alert-dot` not `alert-dot`, `session-card` not `card`)
@@ -190,3 +187,4 @@ Use `wait` and `is` commands as assertions in the recording:
 - Use `wait --text` over `wait <ms>` — it's more resilient to timing variations
 - Keep recordings short — one user journey per file
 - Name files descriptively: `login-with-email.batch.json`, `send-chat-message.batch.json`
+- The "Chat" nav button toggles the chat list and start new chat. It is expanded by default on a fresh app

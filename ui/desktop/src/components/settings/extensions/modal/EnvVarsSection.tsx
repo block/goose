@@ -108,6 +108,7 @@ export default function EnvVarsSection({
           <React.Fragment key={index}>
             <div className="relative">
               <Input
+                data-testid={`env-var-key-${index}`}
                 value={envVar.key}
                 onChange={(e) => onChange(index, 'key', e.target.value)}
                 placeholder="Variable name"
@@ -119,6 +120,7 @@ export default function EnvVarsSection({
             </div>
             <div className="relative">
               <Input
+                data-testid={`env-var-value-${index}`}
                 value={envVar.value}
                 readOnly={envVar.value === '••••••••' && !envVar.isEdited}
                 onChange={(e) => {
