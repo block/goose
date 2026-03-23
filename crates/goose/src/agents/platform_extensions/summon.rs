@@ -1544,13 +1544,9 @@ impl SummonClient {
         // Priority: per-delegate max_turns > delegated recipe settings > session recipe > env var > config > default
         let max_turns = params
             .max_turns
-            .or_else(|| {
-                recipe
-                    .settings
-                    .as_ref()
-                    .and_then(|s| s.max_turns)
-            })
-            .unwrap_or_else(|| self.resolve_max_turns(session));
+            .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
+            .unwrap_or_else(|| self.resolve_max_turns(session))
+            .clamp(1, u32::MAX as usize);
 
         let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
             .with_max_turns(Some(max_turns));
@@ -2371,27 +2367,29 @@ You review code."#;
         let context = create_test_context();
         let client = SummonClient::new(context).unwrap();
 
-        let mut session = crate::session::Session::default();
-        session.recipe = Some(crate::recipe::Recipe {
-            version: "1.0.0".to_string(),
-            title: String::new(),
-            description: String::new(),
-            instructions: None,
-            prompt: None,
-            extensions: None,
-            settings: Some(crate::recipe::Settings {
-                goose_provider: None,
-                goose_model: None,
-                temperature: None,
-                max_turns: Some(10),
+        let session = crate::session::Session {
+            recipe: Some(crate::recipe::Recipe {
+                version: "1.0.0".to_string(),
+                title: String::new(),
+                description: String::new(),
+                instructions: None,
+                prompt: None,
+                extensions: None,
+                settings: Some(crate::recipe::Settings {
+                    goose_provider: None,
+                    goose_model: None,
+                    temperature: None,
+                    max_turns: Some(10),
+                }),
+                activities: None,
+                author: None,
+                parameters: None,
+                response: None,
+                sub_recipes: None,
+                retry: None,
             }),
-            activities: None,
-            author: None,
-            parameters: None,
-            response: None,
-            sub_recipes: None,
-            retry: None,
-        });
+            ..Default::default()
+        };
 
         // Set env var to a different value — recipe should still win
         std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "99");
