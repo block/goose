@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Download, Play, Upload } from 'lucide-react';
-import { exportApp, GooseApp, importApp, listApps } from '../../api';
+import { Download, Play, Trash2, Upload } from 'lucide-react';
+import { deleteApp, exportApp, GooseApp, importApp, listApps } from '../../api';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -25,6 +26,7 @@ export default function AppsView() {
   const [apps, setApps] = useState<GooseApp[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [appToDelete, setAppToDelete] = useState<GooseApp | null>(null);
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
 
@@ -159,6 +161,41 @@ export default function AppsView() {
     }
   };
 
+  const handleDeleteApp = async (app: GooseApp) => {
+    try {
+      await deleteApp({
+        throwOnError: true,
+        query: { uri: app.uri },
+      });
+    } catch (err) {
+      console.error('Failed to delete app:', err);
+      setError(errorMessage(err, 'Failed to delete app'));
+      setAppToDelete(null);
+      return;
+    }
+
+    // Close the app window if it's open
+    await window.electron.closeApp(app.name).catch((err) => {
+      console.error('Failed to close app window:', err);
+    });
+
+    // Refresh apps list — if this fails, optimistically remove the deleted app
+    try {
+      const response = await listApps({
+        throwOnError: true,
+        query: { session_id: sessionId || undefined },
+      });
+      const freshApps = response.data?.apps || [];
+      setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
+    } catch (err) {
+      console.error('Failed to refresh apps after delete:', err);
+      setApps((prev) => prev.filter((a) => a.uri !== app.uri));
+    }
+
+    setError(null);
+    setAppToDelete(null);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -231,6 +268,9 @@ export default function AppsView() {
                 Applications from your MCP servers and Apps build by goose itself. You can ask it to
                 create new apps through the chat interface and they will appear here.
               </p>
+              {error && apps.length > 0 && (
+                <p className="text-sm text-red-500 mt-2">{error}</p>
+              )}
             </div>
           </div>
         </div>
@@ -284,14 +324,26 @@ export default function AppsView() {
                         Launch
                       </Button>
                       {isCustomApp && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadApp(app)}
-                          className="flex items-center gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadApp(app)}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          {app.deletable && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setAppToDelete(app)}
+                              className="flex items-center gap-2 text-red-500 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -301,6 +353,17 @@ export default function AppsView() {
           )}
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={appToDelete !== null}
+        title="Delete App"
+        message={`Are you sure you want to delete "${appToDelete ? formatAppName(appToDelete.name) : ''}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmVariant="destructive"
+        onConfirm={() => appToDelete && handleDeleteApp(appToDelete)}
+        onCancel={() => setAppToDelete(null)}
+      />
     </MainPanelLayout>
   );
 }

@@ -128,6 +128,72 @@
         }
       }
     },
+    "/agent/delete_app": {
+      "delete": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "delete_app",
+        "parameters": [
+          {
+            "name": "uri",
+            "in": "query",
+            "description": "URI of the app to delete (e.g. \"ui://apps/my_app\")",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete default app",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/agent/export_app/{name}": {
       "get": {
         "tags": [
@@ -4667,6 +4733,21 @@
           }
         }
       },
+      "DeleteAppResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "DeleteRecipeRequest": {
         "type": "object",
         "required": [
@@ -5410,6 +5491,10 @@
           {
             "type": "object",
             "properties": {
+              "deletable": {
+                "type": "boolean",
+                "description": "Whether this app can be deleted by the user (i.e. not a bundled default)"
+              },
               "mcpServers": {
                 "type": "array",
                 "items": {

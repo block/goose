@@ -229,6 +229,11 @@ export type DecodeRecipeResponse = {
     recipe: Recipe;
 };
 
+export type DeleteAppResponse = {
+    message: string;
+    name: string;
+};
+
 export type DeleteRecipeRequest = {
     id: string;
 };
@@ -496,6 +501,10 @@ export type GetToolsQuery = {
 };
 
 export type GooseApp = McpAppResource & (WindowProps | null) & {
+    /**
+     * Whether this app can be deleted by the user (i.e. not a bundled default)
+     */
+    deletable?: boolean;
     mcpServers?: Array<string>;
     prd?: string | null;
 };
@@ -1722,6 +1731,44 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type DeleteAppData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * URI of the app to delete (e.g. "ui://apps/my_app")
+         */
+        uri: string;
+    };
+    url: '/agent/delete_app';
+};
+
+export type DeleteAppErrors = {
+    /**
+     * Cannot delete default app
+     */
+    400: ErrorResponse;
+    /**
+     * App not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type DeleteAppError = DeleteAppErrors[keyof DeleteAppErrors];
+
+export type DeleteAppResponses = {
+    /**
+     * App deleted successfully
+     */
+    200: DeleteAppResponse;
+};
+
+export type DeleteAppResponse2 = DeleteAppResponses[keyof DeleteAppResponses];
 
 export type ExportAppData = {
     body?: never;
