@@ -83,6 +83,32 @@ jobs:
           path: target/debug/goosed
           retention-days: 1
 
+  e2e-desktop-tests:
+    name: E2E Desktop Tests
+    runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Node.js Dependencies
+        run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
+        working-directory: ui/desktop
+
+      - name: Run E2E Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_DISABLE_KEYRING: 1
+        run: source bin/activate-hermit && just e2e
+
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest

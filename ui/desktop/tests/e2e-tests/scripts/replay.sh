@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Replay an agent-browser batch recording
-# Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>]
+# Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--screenshot-on-fail]
 set -uo pipefail
 
 RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>]}"
 CONNECT_PORT=""
 SESSION_NAME=""
+SCREENSHOT_ON_FAIL=false
 
 # Resolve project root for $PROJECT_DIR substitution in recordings
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -23,6 +24,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --connect) CONNECT_PORT="$2"; shift 2 ;;
     --browser-session) SESSION_NAME="$2"; shift 2 ;;
+    --screenshot-on-fail) SCREENSHOT_ON_FAIL=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -39,6 +41,10 @@ fi
 
 # Build global args that go before each command
 GLOBAL_ARGS=("--session" "$SESSION_NAME")
+
+# Per-command timeout in seconds (shell timeout as primary, --timeout as fallback)
+CMD_TIMEOUT="${AGENT_BROWSER_CMD_TIMEOUT:-10}"
+CMD_TIMEOUT_MS=$((CMD_TIMEOUT * 1000))
 
 # Connect if port specified
 if [[ -n "$CONNECT_PORT" ]]; then
@@ -63,10 +69,17 @@ for i in $(seq 0 $((TOTAL - 1))); do
   done
 
   STEP=$((i + 1))
-  echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]}"
-  if ! pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}"; then
+  echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]} --timeout $CMD_TIMEOUT_MS"
+  if ! timeout "$CMD_TIMEOUT" pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}" "--timeout" "$CMD_TIMEOUT_MS"; then
     echo ""
     echo "FAILED at step $STEP/$TOTAL: ${ARGS[*]}"
+    if [[ "$SCREENSHOT_ON_FAIL" == "true" ]]; then
+      SCREENSHOT_DIR="$SCRIPT_DIR/../screenshots"
+      mkdir -p "$SCREENSHOT_DIR"
+      SCREENSHOT_PATH="$SCREENSHOT_DIR/${SESSION_NAME}.png"
+      echo "Capturing failure screenshot → $SCREENSHOT_PATH"
+      pnpm exec agent-browser "${GLOBAL_ARGS[@]}" screenshot "$SCREENSHOT_PATH" 2>/dev/null || echo "Screenshot capture failed"
+    fi
     exit 1
   fi
 done

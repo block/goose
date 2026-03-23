@@ -11,7 +11,7 @@ RECORDINGS_DIR="$SCRIPT_DIR/../recordings"
 
 # Activate hermit to get pnpm, node, etc. on PATH
 source "$PROJECT_DIR/bin/activate-hermit"
-WORKERS=2
+WORKERS=4
 TIMEOUT=120  # seconds per test
 FILTER=""
 
@@ -42,14 +42,10 @@ fi
 pkill -9 -f "/tmp/goose-e2e" 2>/dev/null || true
 rm -rf /tmp/goose-e2e
 
+export AGENT_BROWSER_DEFAULT_TIMEOUT=10000
+
 echo "=== E2E Test Runner ==="
 echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
-
-# Generate API types once
-echo ""
-echo "Generating API types..."
-cd "$DESKTOP_DIR"
-pnpm run generate-api
 
 # Run a single recording: start app, replay, stop app
 # Usage: run_one <recording> <result_dir>
@@ -61,7 +57,7 @@ run_one() {
   local START_TIME=$SECONDS
 
   echo "[$TEST_NAME] Starting app..."
-  screen -dmS "$TEST_NAME" bash -c "source ~/.zshrc 2>/dev/null; bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
+  screen -dmS "$TEST_NAME" bash -c "bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
 
   # Wait for the app to write its port file
   local CDP_PORT=""
@@ -84,7 +80,7 @@ run_one() {
   fi
   echo "[$TEST_NAME] App ready: port=$CDP_PORT"
 
-  if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME"; then
+  if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME" --screenshot-on-fail; then
     local DURATION=$(( SECONDS - START_TIME ))
     echo "PASS ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
     echo "[$TEST_NAME] PASS (${DURATION}s)"
