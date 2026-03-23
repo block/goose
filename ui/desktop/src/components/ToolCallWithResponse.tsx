@@ -33,6 +33,7 @@ type UiMeta = {
   ui?: {
     resourceUri?: string;
   };
+  subagent_session_id?: string;
 };
 
 type ToolResultWithMeta = {
@@ -70,7 +71,9 @@ function getSubagentSessionId(
   toolResponse?: ToolResponseMessageContent,
   notifications?: NotificationEvent[]
 ): string | null {
-  const sessionId = toolResponse?.metadata?.subagent_session_id;
+  const result = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const sessionId =
+    result?.status === 'success' ? result?.value?._meta?.subagent_session_id : undefined;
   if (typeof sessionId === 'string') return sessionId;
 
   // Fallback: extract from subagent notifications (e.g. when delegate was cancelled mid-stream)
