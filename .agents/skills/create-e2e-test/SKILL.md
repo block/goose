@@ -14,7 +14,7 @@ Given a test scenario in natural language, you will:
 1. Explore the app using agent-browser
 2. Record a set of deterministic CLI commands as a batch file that can be replayed without an AI agent
 
-**Do NOT read source code to understand the UI.** Use `snapshot` to discover elements — that is how you learn what is on the page. Only read source code when you need to add a `data-testid` attribute.
+**Do NOT read source code to understand the UI.** Do not read `.tsx`, `.ts`, or `.css` files to find elements. Use `snapshot` to discover what is on the page — that is your only method. The one exception: read source code only when you need to add a `data-testid` attribute.
 
 ## App Lifecycle
 
@@ -43,7 +43,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
 1. Start the app using the App Lifecycle steps above.
 
 2. Walk through the test scenario step by step. For each step:
-   - **Snapshot** — run `snapshot -i` after each action (and once before the first action) since refs are invalidated by DOM changes
+   - **Snapshot** — run `snapshot` after each action (and once before the first action) since refs are invalidated by DOM changes
    - **Locate** — identify the element's `@eN` ref from the snapshot, then convert to a stable locator using the Element Locating Strategy (see Reference)
    - **Act** — perform the action using the stable locator
    - **Save** — append the working command to the batch file at `ui/desktop/tests/e2e-tests/recordings/<name>.batch.json`
@@ -58,7 +58,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    Example (assuming start app session ID is `260320-170823`):
    ```bash
    # Snapshot
-   agent-browser --session 260320-170823 snapshot -i
+   agent-browser --session 260320-170823 snapshot
    # Output:
    #   - textbox "Chat input" [ref=e2]
    #   - button "Send" [ref=e3]
@@ -71,7 +71,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    agent-browser --session 260320-170823 find testid "chat-input" fill "hello"
 
    # Snapshot again
-   agent-browser --session 260320-170823 snapshot -i
+   agent-browser --session 260320-170823 snapshot
 
    # Locate — get test-id for @e3
    agent-browser --session 260320-170823 get attr @e3 data-testid
@@ -129,6 +129,25 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    Always pass the current app session ID. Exit code 0 = pass, non-zero = fail.
 
 4. If replay fails, restart the app, explore the failing step using the Phase 1 cycle (snapshot → locate → convert → act) to find the fix, update the recording, and go back to step 2.
+
+### Phase 3: Write the Scenario
+
+After the recording is verified, write (or update) a scenario file at `ui/desktop/tests/e2e-tests/scenarios/<name>.md` (same base name as the recording, e.g., `settings-dark-mode.batch.json` → `settings-dark-mode.md`). This is a human-readable description of what the test does — the intent, not the implementation.
+
+- Describe each step in terms of **user actions and expected outcomes**, not selectors or test IDs
+- Keep it concise — one line per step
+- The scenario serves as the source of truth for re-recording if the test breaks
+
+Example (`scenarios/settings-dark-mode.md`):
+```markdown
+# Settings: Dark Mode Toggle
+
+1. Open Settings
+2. Navigate to the App tab
+3. Verify the app is in light mode
+4. Switch to dark mode and verify it applies
+5. Switch back to light mode and verify it applies
+```
 
 ## Reference
 

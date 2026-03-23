@@ -1,0 +1,28 @@
+[
+  ["wait", "[data-testid='chat-input']"],
+
+  ["find", "role", "button", "click", "--name", "Extensions"],
+  ["wait", "[data-testid='add-custom-extension-btn']"],
+
+  ["find", "testid", "add-custom-extension-btn", "click"],
+  ["wait", "[data-testid='ext-name-input']"],
+
+  ["find", "testid", "ext-name-input", "fill", "Running Quotes"],
+  ["find", "testid", "ext-command-input", "fill", "node /tmp/goose-e2e/basic-mcp.ts"],
+  ["wait", "[data-testid='extension-submit-btn']:not([disabled])"],
+  ["find", "testid", "extension-submit-btn", "click"],
+
+  ["wait", "--text", "Running Quotes"],
+  ["wait", "--text", "Default Extensions (8)"],
+
+  ["find", "role", "button", "click", "--name", "Chat"],
+  ["wait", "[data-testid='nav-new-chat-btn']"],
+  ["find", "testid", "nav-new-chat-btn", "click"],
+  ["wait", "[data-testid='chat-input']"],
+
+  ["find", "testid", "chat-input", "fill", "Give me a random quote"],
+  ["find", "testid", "send-button", "click"],
+
+  ["wait", "--text", "Runningquote", "--timeout", "30000"],
+  ["wait", "--fn", "document.body.innerText.includes('Henry Ford') || document.body.innerText.includes('Lance Armstrong') || document.body.innerText.includes('Oprah Winfrey')"]
+]

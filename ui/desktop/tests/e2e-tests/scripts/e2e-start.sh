@@ -33,6 +33,10 @@ mkdir -p "$SESSION_DIR/root"
 mkdir -p "$SESSION_DIR/workspace"
 
 cp "$FIXTURES_DIR/e2e-goosehints" "$SESSION_DIR/workspace/.goosehints"
+cp "$FIXTURES_DIR/basic-mcp.ts" "$BASE_DIR/basic-mcp.ts"
+
+# Symlink node_modules so basic-mcp.ts can resolve dependencies
+ln -sf "$PROJECT_DIR/node_modules" "$BASE_DIR/node_modules"
 
 # Write port to file
 echo "$CDP_PORT" > "$SESSION_DIR/.port"

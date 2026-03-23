@@ -7,6 +7,10 @@ RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--
 CONNECT_PORT=""
 SESSION_NAME=""
 
+# Resolve project root for $PROJECT_DIR substitution in recordings
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +50,8 @@ for i in $(seq 0 $((TOTAL - 1))); do
   CMD_LENGTH=$(jq -r ".[$i] | length" "$RECORDING")
   for j in $(seq 0 $((CMD_LENGTH - 1))); do
     ARG=$(jq -r ".[$i][$j]" "$RECORDING")
+    # Substitute $PROJECT_DIR with the actual project root
+    ARG="${ARG//\$PROJECT_DIR/$PROJECT_DIR}"
     ARGS+=("$ARG")
   done
 
