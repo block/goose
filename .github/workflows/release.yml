@@ -8,9 +8,8 @@ on:
 
 name: Release
 
-# Permissions needed for AWS OIDC authentication in called workflows
 permissions:
-  id-token: write   # Required for AWS OIDC authentication in called workflow
+  id-token: write   # Required for Sigstore OIDC signing and AWS OIDC (Windows signing)
   contents: write   # Required for creating releases and by actions/checkout
   actions: read     # May be needed for some workflows
   attestations: write  # Required for SLSA build provenance attestations
@@ -51,7 +50,11 @@ jobs:
     with:
       signing: true
     secrets:
-      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   # ------------------------------------------------------------
   # 4) Bundle Desktop App (macOS)
@@ -64,7 +67,11 @@ jobs:
     with:
       signing: true
     secrets:
-      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux)

@@ -1,0 +1,155 @@
+name: 'Apple Codesign and Notarize'
+description: 'Sign and notarize a macOS .app bundle using a Developer ID certificate'
+
+inputs:
+  app-path:
+    description: 'Path to the .app bundle (relative to working-directory)'
+    required: true
+  zip-path:
+    description: 'Path for the output zip (relative to working-directory)'
+    required: true
+  entitlements:
+    description: 'Path to the entitlements plist (relative to working-directory)'
+    required: true
+  working-directory:
+    description: 'Working directory for codesign/notarize commands'
+    required: false
+    default: '.'
+  certificate-base64:
+    description: 'Base64-encoded Developer ID Application .p12 certificate'
+    required: true
+  certificate-password:
+    description: 'Password for the .p12 certificate'
+    required: true
+  apple-id:
+    description: 'Apple ID email for notarization'
+    required: true
+  apple-id-password:
+    description: 'App-specific password for the Apple ID'
+    required: true
+  team-id:
+    description: 'Apple Developer Team ID'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Import Apple certificate
+      shell: bash
+      env:
+        APPLE_CERTIFICATE_BASE64: ${{ inputs.certificate-base64 }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ inputs.certificate-password }}
+      run: |
+        set -e
+
+        CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+        KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+        KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+
+        echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+        security import "$CERTIFICATE_PATH" \
+          -k "$KEYCHAIN_PATH" \
+          -P "$APPLE_CERTIFICATE_PASSWORD" \
+          -T /usr/bin/codesign
+
+        security set-key-partition-list \
+          -S apple-tool:,apple: \
+          -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+        security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+        echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+        rm -f "$CERTIFICATE_PATH"
+
+    - name: Codesign app bundle
+      shell: bash
+      env:
+        APPLE_TEAM_ID: ${{ inputs.team-id }}
+        APP_PATH: ${{ inputs.app-path }}
+        ENTITLEMENTS: ${{ inputs.entitlements }}
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -e
+
+        IDENTITY="Developer ID Application: ${APPLE_TEAM_ID}"
+
+        echo "🔏 Signing app bundle..."
+
+        # Sign all nested frameworks, dylibs, and helpers first (deep sign)
+        find "$APP_PATH" -type f \( -name "*.dylib" -o -name "*.so" -o -name "*.node" \) -exec \
+          codesign --force --options runtime --sign "$IDENTITY" \
+            --keychain "$KEYCHAIN_PATH" \
+            --entitlements "$ENTITLEMENTS" \
+            --timestamp {} \;
+
+        # Sign helper apps
+        find "$APP_PATH/Contents/Frameworks" -name "*.app" -exec \
+          codesign --force --options runtime --sign "$IDENTITY" \
+            --keychain "$KEYCHAIN_PATH" \
+            --entitlements "$ENTITLEMENTS" \
+            --timestamp {} \;
+
+        # Sign the embedded goosed binary
+        if [ -f "$APP_PATH/Contents/Resources/bin/goosed" ]; then
+          codesign --force --options runtime --sign "$IDENTITY" \
+            --keychain "$KEYCHAIN_PATH" \
+            --entitlements "$ENTITLEMENTS" \
+            --timestamp \
+            "$APP_PATH/Contents/Resources/bin/goosed"
+        fi
+
+        # Sign the main app bundle
+        codesign --force --options runtime --sign "$IDENTITY" \
+          --keychain "$KEYCHAIN_PATH" \
+          --entitlements "$ENTITLEMENTS" \
+          --timestamp \
+          "$APP_PATH"
+
+        echo "✅ Codesigning complete"
+        codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+    - name: Notarize app bundle
+      shell: bash
+      env:
+        APPLE_ID: ${{ inputs.apple-id }}
+        APPLE_ID_PASSWORD: ${{ inputs.apple-id-password }}
+        APPLE_TEAM_ID: ${{ inputs.team-id }}
+        APP_PATH: ${{ inputs.app-path }}
+        ZIP_PATH: ${{ inputs.zip-path }}
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -e
+
+        echo "📦 Creating zip for notarization..."
+        ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
+
+        echo "🚀 Submitting for notarization..."
+        xcrun notarytool submit "$ZIP_PATH" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --wait \
+          --timeout 30m
+
+        echo "📎 Stapling notarization ticket..."
+        xcrun stapler staple "$APP_PATH"
+
+        echo "✅ Notarization complete"
+
+        # Re-create the zip with the stapled app
+        rm -f "$ZIP_PATH"
+        ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
+
+    - name: Clean up keychain
+      if: always()
+      shell: bash
+      run: |
+        if [ -f "$KEYCHAIN_PATH" ]; then
+          security delete-keychain "$KEYCHAIN_PATH" || true
+        fi

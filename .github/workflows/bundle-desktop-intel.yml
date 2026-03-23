@@ -26,7 +26,15 @@ on:
         required: false
         default: ''
     secrets:
-      OSX_CODESIGN_ROLE:
+      APPLE_CERTIFICATE_BASE64:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_ID_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
         required: false
 
 name: Reusable workflow to bundle desktop app for Intel Mac
@@ -138,79 +146,19 @@ jobs:
           fi
         working-directory: ui/desktop
 
-      - name: Configure AWS credentials
+      - name: Codesign and notarize
         if: ${{ inputs.signing }}
-        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
+        uses: ./.github/actions/apple-codesign
         with:
-          role-to-assume: "${{ secrets.OSX_CODESIGN_ROLE }}"
-          aws-region: us-west-2
-
-      - name: Codesigning and Notarization
-        if: ${{ inputs.signing }}
-        run: |
-          set -e
-
-          echo "⬆️ uploading unsigned app"
-          source_job_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          unsigned_url="s3://block-goose-artifacts-bucket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-intel.zip"
-
-          zip -q -u -r out/Goose-darwin-x64/Goose_intel_mac.zip entitlements.plist
-
-          # upload unsigned goose to transfer bucket so it can be passed to lambda
-          aws s3 cp --quiet out/Goose-darwin-x64/Goose_intel_mac.zip "${unsigned_url}"
-
-          # begin signing
-          echo "🚀 launching signing process"
-          aws lambda invoke \
-            --function-name codesign_helper \
-            --cli-binary-format raw-in-base64-out \
-            --payload "{\"source_s3_url\": \"${unsigned_url}\", \"source_job_url\": \"${source_job_url}\"}" \
-            response.json > /dev/null
-
-          if [ "$(jq -r .statusCode response.json)" != "200" ]; then
-            echo "⚠️ lambda function did not return expected status code"
-            exit 1
-          fi
-
-          build_number="$(jq -r .body.build_number response.json)"
-
-          start_time=$(date +%s)
-
-          while sleep 30; do
-            aws lambda invoke \
-              --function-name codesign_helper \
-              --cli-binary-format raw-in-base64-out \
-              --payload "{\"source_s3_url\": \"${unsigned_url}\", \"build_number\": \"${build_number}\"}" \
-              response.json > /dev/null
-
-            if [ "$(jq -r .statusCode response.json)" != "200" ]; then
-              echo "⚠️ signing request returned unexpected response code $(jq -r .statusCode response.json):"
-              jq . response.json
-              exit 1
-            fi
-
-            state="$(jq -r .body.state response.json)"
-
-            if [ "${state}" == "completed" ]; then
-              echo "✅ signing complete ($(($(date +%s) - start_time))s)"
-              break
-            fi
-
-            if [ $(($(date +%s) - start_time)) -ge 3600 ]; then
-              echo "⚠️ timed out ($(($(date +%s) - start_time))s)"
-              exit 1
-            fi
-
-            echo "⏲️ waiting for signing to complete (${state}: $(($(date +%s) - start_time))s)"
-          done
-
-          # parse lambda response
-          signed_url=$(jq -r .body.destination_url response.json)
-
-          # download the signed app from S3
-          echo "⬇️ downloading signed app"
-          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-x64/Goose_intel_mac.zip
-        working-directory: ui/desktop
+          app-path: out/Goose-darwin-x64/Goose.app
+          zip-path: out/Goose-darwin-x64/Goose_intel_mac.zip
+          entitlements: entitlements.plist
+          working-directory: ui/desktop
+          certificate-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          certificate-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          apple-id: ${{ secrets.APPLE_ID }}
+          apple-id-password: ${{ secrets.APPLE_ID_PASSWORD }}
+          team-id: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Final cleanup before artifact upload
         run: |
