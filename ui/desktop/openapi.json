@@ -628,6 +628,43 @@
         }
       }
     },
+    "/agent/update_model_context": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "update_model_context",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModelContextRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model context updated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/agent/update_provider": {
       "post": {
         "tags": [
@@ -8696,6 +8733,30 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateModelContextRequest": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "key"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {},
+            "nullable": true
+          },
+          "key": {
+            "type": "string",
+            "description": "Key identifying the MCP App (typically `\"{extension}__{resourceUri}\"`)"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "structuredContent": {
+            "nullable": true
           }
         }
       },

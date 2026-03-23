@@ -23,7 +23,9 @@ mod tool_execution;
 pub mod types;
 pub mod validate_extensions;
 
-pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult, GoosePlatform};
+pub use agent::{
+    Agent, AgentConfig, AgentEvent, ExtensionLoadResult, GoosePlatform, McpAppContext,
+};
 pub use container::Container;
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::{ExtensionConfig, ExtensionError};

@@ -599,6 +599,34 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
+      if (request.method === 'ui/update-model-context') {
+        if (!sessionId || !apiHost || !secretKey) {
+          throw new Error('Session not initialized for model context update');
+        }
+        const params = request.params as {
+          content?: Array<{ type: string; text?: string }>;
+          structuredContent?: Record<string, unknown>;
+        };
+        const key = `${extensionName}__${resourceUri}`;
+        const response = await fetch(`${apiHost}/agent/update_model_context`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            sessionId,
+            key,
+            content: params?.content ?? null,
+            structuredContent: params?.structuredContent ?? null,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Model context update failed: ${response.statusText}`);
+        }
+        return {};
+      }
+
       if (request.method === 'sampling/createMessage') {
         if (!sessionId || !apiHost || !secretKey) {
           throw new Error('Session not initialized for sampling request');
@@ -630,7 +658,7 @@ export default function McpAppRenderer({
         message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
       };
     },
-    [sessionId, apiHost, secretKey]
+    [sessionId, apiHost, secretKey, extensionName, resourceUri]
   );
 
   const handleError = useCallback((err: Error) => {

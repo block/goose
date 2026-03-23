@@ -169,6 +169,18 @@ pub struct CallToolResponse {
     _meta: Option<Value>,
 }
 
+#[derive(Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateModelContextRequest {
+    session_id: String,
+    /// Key identifying the MCP App (typically `"{extension}__{resourceUri}"`)
+    key: String,
+    #[serde(default)]
+    content: Option<Vec<Value>>,
+    #[serde(default)]
+    structured_content: Option<Value>,
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ResumeAgentResponse {
     pub session: Session,
@@ -1113,6 +1125,42 @@ async fn call_tool(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/update_model_context",
+    request_body = UpdateModelContextRequest,
+    responses(
+        (status = 200, description = "Model context updated"),
+        (status = 401, description = "Unauthorized"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Agent"
+)]
+async fn update_model_context(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateModelContextRequest>,
+) -> Result<(), StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
+    agent
+        .update_mcp_app_context(
+            payload.key,
+            goose::agents::McpAppContext {
+                content: payload.content,
+                structured_content: payload.structured_content,
+            },
+        )
+        .await;
+
+    Ok(())
+}
+
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct ListAppsRequest {
     session_id: Option<String>,
@@ -1319,6 +1367,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/tools", get(get_tools))
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
+        .route("/agent/update_model_context", post(update_model_context))
         .route("/agent/list_apps", get(list_apps))
         .route("/agent/export_app/{name}", get(export_app))
         .route("/agent/import_app", post(import_app))

@@ -1550,6 +1550,16 @@ export type UpdateFromSessionRequest = {
     session_id: string;
 };
 
+export type UpdateModelContextRequest = {
+    content?: Array<unknown> | null;
+    /**
+     * Key identifying the MCP App (typically `"{extension}__{resourceUri}"`)
+     */
+    key: string;
+    sessionId: string;
+    structuredContent?: unknown;
+};
+
 export type UpdateProviderRequest = {
     context_limit?: number | null;
     model?: string | null;
@@ -2070,6 +2080,35 @@ export type UpdateFromSessionErrors = {
 export type UpdateFromSessionResponses = {
     /**
      * Update agent from session data successfully
+     */
+    200: unknown;
+};
+
+export type UpdateModelContextData = {
+    body: UpdateModelContextRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_model_context';
+};
+
+export type UpdateModelContextErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateModelContextResponses = {
+    /**
+     * Model context updated
      */
     200: unknown;
 };
