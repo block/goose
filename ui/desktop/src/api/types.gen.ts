@@ -473,6 +473,15 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
+export type FeaturesResponse = {
+    /**
+     * Map of feature name to enabled status
+     */
+    features: {
+        [key: string]: boolean;
+    };
+};
+
 export type ForkRequest = {
     copy: boolean;
     timestamp?: number | null;
@@ -3118,6 +3127,22 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type GetFeaturesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/features';
+};
+
+export type GetFeaturesResponses = {
+    /**
+     * Compile-time feature flags
+     */
+    200: FeaturesResponse;
+};
+
+export type GetFeaturesResponse = GetFeaturesResponses[keyof GetFeaturesResponses];
 
 export type StartNanogptSetupData = {
     body?: never;
