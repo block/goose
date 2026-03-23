@@ -30,7 +30,7 @@ Every time you need a clean app state — whether starting for the first time, r
 
 agent-browser uses `--session` to isolate browser contexts. This prevents multiple agents or tests from interfering with each other.
 
-- **Agent (exploration + replay)**: always use the current app session ID as the session name (e.g., `--session 260320-170823`). Pass it on **every** agent-browser command and on the replay script via `--browser-session`.
+- **Agent (exploration + replay)**: always use the current app session ID as the session name (e.g., `--session 260320-170823`). Pass it to **every** agent-browser command and to the replay script via `--browser-session`.
 - **In batch JSON**: do **not** include session names — the replay script handles this.
 - **CI**: no `--session` flag needed — the replay script defaults to the recording filename (e.g., `settings-dark-mode.batch.json` → `settings-dark-mode`).
 
@@ -79,7 +79,7 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    agent-browser --session 260320-170823 get count "[data-testid='send-button']"
    # Output: 2 — duplicate! scope to active session
 
-   # Act — count > 1, so use a more specific CSS selector to ensure uniqueness
+   # Act — count > 1, so narrow the selector to target a unique match
    agent-browser --session 260320-170823 click "[data-active-session='true'] [data-testid='send-button']"
    ```
 
@@ -90,13 +90,14 @@ All `agent-browser` commands must be run from `ui/desktop` using `pnpm exec agen
    ```json
    [
      ["wait", "[data-testid='chat-input']"],
-     ["type", "[data-active-session='true'] [data-testid='chat-input']", "hello"],
-     ["click", "[data-active-session='true'] [data-testid='send-button']"],
+     ["fill", "[data-active-session='true'] [data-testid='chat-input']", "hello"],
+     ["wait", "[data-active-session='true'] [data-testid='send-button']"],
+    ["click", "[data-active-session='true'] [data-testid='send-button']"],
      ["wait", "--text", "Response"]
    ]
    ```
 
-   Do **not** include in the batch file: `snapshot`, `get`, `diff`, `console`, `errors`
+   Do **not** include in the batch file: `snapshot`, `get`, `diff`, `console`, `errors`, `open`, `connect`
 
    **Never** use `wait <ms>` (e.g., `wait 3000`) in the batch file. Always wait for a specific condition:
    - `wait "[data-testid='element']"` — wait for an element to appear

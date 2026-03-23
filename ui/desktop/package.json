@@ -160,7 +160,8 @@
       "@modelcontextprotocol/ext-apps",
       "electron",
       "electron-winstaller",
-      "esbuild"
+      "esbuild",
+      "agent-browser"
     ]
   },
   "lint-staged": {
