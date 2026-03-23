@@ -729,7 +729,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     capability,
                     &effective_working_dir,
-                    socket.as_deref(),
+                    socket.as_ref().map(|s| substitute_env_vars(s, &all_envs)).as_deref(),
                 )
                 .await?
             }
