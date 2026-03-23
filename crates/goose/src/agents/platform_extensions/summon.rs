@@ -1545,8 +1545,15 @@ impl SummonClient {
         let max_turns = params
             .max_turns
             .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
-            .unwrap_or_else(|| self.resolve_max_turns(session))
-            .clamp(1, u32::MAX as usize);
+            .unwrap_or_else(|| self.resolve_max_turns(session));
+
+        if max_turns == 0 || max_turns > u32::MAX as usize {
+            anyhow::bail!(
+                "max_turns must be between 1 and {} (got {})",
+                u32::MAX,
+                max_turns
+            );
+        }
 
         let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
             .with_max_turns(Some(max_turns));
