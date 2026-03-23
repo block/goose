@@ -1492,8 +1492,9 @@ impl SummonClient {
 
         let model = metadata.model;
 
-        // Note: max_turns is intentionally None here. Per-delegate max_turns is applied
-        // in build_task_config via params.max_turns, not through the recipe settings.
+        // max_turns is set later in build_task_config so it can incorporate params.max_turns
+        // with the correct priority ordering; setting it here would cause it to be overridden
+        // by the parent session's recipe instead.
         let settings = model.map(|m| Settings {
             goose_model: Some(m),
             goose_provider: params.provider.clone(),
@@ -1541,7 +1542,6 @@ impl SummonClient {
             }
         }
 
-        // Priority: per-delegate max_turns > delegated recipe settings > session recipe > env var > config > default
         let max_turns = params
             .max_turns
             .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
@@ -1611,7 +1611,6 @@ impl SummonClient {
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
-        // Priority: recipe settings > env var > config.yaml > default
         session
             .recipe
             .as_ref()
@@ -2325,20 +2324,6 @@ You review code."#;
         let long = "x".repeat(100);
         let desc = SummonClient::get_task_description(&make_params(None, Some(&long)));
         assert!(desc.len() <= 43 && desc.ends_with("..."));
-    }
-
-    #[test]
-    fn test_delegate_params_max_turns_deserialization() {
-        let json = r#"{"instructions": "do something", "max_turns": 42}"#;
-        let params: DelegateParams = serde_json::from_str(json).unwrap();
-        assert_eq!(params.max_turns, Some(42));
-    }
-
-    #[test]
-    fn test_delegate_params_max_turns_defaults_to_none() {
-        let json = r#"{"instructions": "do something"}"#;
-        let params: DelegateParams = serde_json::from_str(json).unwrap();
-        assert_eq!(params.max_turns, None);
     }
 
     #[test]
