@@ -1240,8 +1240,13 @@ impl SummonClient {
         }
 
         if params.r#async {
-            let content = self.handle_async_delegate(session_id, params).await?;
-            return Ok(CallToolResult::success(content));
+            let (content, task_id) = self.handle_async_delegate(session_id, params).await?;
+            let mut meta = Meta::new();
+            meta.0.insert(
+                "subagent_session_id".to_string(),
+                serde_json::Value::String(task_id),
+            );
+            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
         }
 
         let working_dir = session.working_dir.clone();
@@ -1706,7 +1711,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         params: DelegateParams,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<(Vec<Content>, String), String> {
         let task_count = self.background_tasks.lock().await.len();
         let max_tasks = max_background_tasks();
         if task_count >= max_tasks {
@@ -1814,11 +1819,12 @@ impl SummonClient {
             .await
             .insert(task_id.clone(), task);
 
-        Ok(vec![Content::text(format!(
+        let content = vec![Content::text(format!(
             "Task {} started in background: \"{}\"\n\
              Continue with other work. When you need the result, use load(source: \"{}\").",
             task_id, description, task_id
-        ))])
+        ))];
+        Ok((content, task_id))
     }
 }
 
