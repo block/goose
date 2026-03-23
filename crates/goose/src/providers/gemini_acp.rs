@@ -33,7 +33,7 @@ impl ProviderDef for GeminiAcpProvider {
         .with_setup_steps(vec![
             "Install the Gemini CLI: `npm install -g @google/gemini-cli`",
             "Run `gemini` once to authenticate with your Google account",
-            "Set in ~/.config/goose/config.yaml:\n  GOOSE_PROVIDER: gemini-acp\n  GOOSE_MODEL: current",
+            "Set in your goose config file (`~/.config/goose/config.yaml` on macOS/Linux):\n  GOOSE_PROVIDER: gemini-acp\n  GOOSE_MODEL: current",
             "Restart goose for changes to take effect",
         ])
     }

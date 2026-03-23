@@ -33,7 +33,7 @@ impl ProviderDef for CodexAcpProvider {
         .with_setup_steps(vec![
             "Install the ACP adapter: `npm install -g @zed-industries/codex-acp`",
             "Run `codex` once to authenticate with your OpenAI account",
-            "Set in ~/.config/goose/config.yaml:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
+            "Set in your goose config file (`~/.config/goose/config.yaml` on macOS/Linux):\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
             "Restart goose for changes to take effect",
         ])
     }
