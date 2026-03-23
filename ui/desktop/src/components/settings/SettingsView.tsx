@@ -71,7 +71,7 @@ export default function SettingsView({
         setActiveTab(targetTab);
       }
     }
-  }, [viewOptions.section]);
+  }, [viewOptions.section, localInference]);
 
   useEffect(() => {
     if (!hasTrackedInitialTab.current) {
