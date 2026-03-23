@@ -365,6 +365,23 @@ export GOOSE_PLANNER_MODEL="gpt-4-custom"
 export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 ```
 
+## Credit Balance Monitoring
+
+goose monitors your API provider balance and warns you when credits are running low or exhausted. When this happens, you'll see an **Insufficient Credits** notification.
+
+For providers that support it (such as [Tetrate Agent Router Service](https://router.tetrate.ai)), the notification includes an **Add credits** button that takes you directly to your provider's billing page.
+
+**What to do:**
+1. Click the **Add credits** button (if available) to top up your account
+2. Or visit your provider's dashboard manually to add credits
+3. Once credits are added, resend your message to continue the conversation
+
+:::tip
+goose detects low balance conditions automatically, so you won't lose your conversation context—just add credits and pick up where you left off.
+:::
+
+**Supported providers:** Tetrate Agent Router Service, OpenRouter, and other providers that report balance information via HTTP 402 responses.
+
 ## Cost Tracking
 Display real-time estimated costs of your session.
 

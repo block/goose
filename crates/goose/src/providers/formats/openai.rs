@@ -2,6 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
     load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
@@ -48,8 +49,24 @@ struct DeltaToolCall {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+enum DeltaContent {
+    String(String),
+    Array(Vec<ContentPart>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ContentPart {
+    r#type: String,
+    text: String,
+    #[serde(rename = "thoughtSignature")]
+    thought_signature: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct Delta {
-    content: Option<String>,
+    #[serde(default)]
+    content: Option<DeltaContent>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
@@ -71,6 +88,32 @@ struct StreamingChunk {
     id: Option<String>,
     usage: Option<Value>,
     model: Option<String>,
+}
+
+fn extract_content_and_signature(
+    delta_content: Option<&DeltaContent>,
+) -> (Option<String>, Option<String>) {
+    match delta_content {
+        Some(DeltaContent::String(s)) => (Some(s.clone()), None),
+        Some(DeltaContent::Array(parts)) => {
+            let text_parts: Vec<_> = parts.iter().filter(|p| p.r#type == "text").collect();
+
+            let text = text_parts
+                .iter()
+                .map(|p| p.text.as_str())
+                .collect::<String>();
+
+            let signature = text_parts
+                .iter()
+                .find_map(|p| p.thought_signature.as_ref())
+                .cloned();
+
+            let text = if text.is_empty() { None } else { Some(text) };
+
+            (text, signature)
+        }
+        None => (None, None),
+    }
 }
 
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
@@ -105,19 +148,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
-                    continue;
+                MessageContent::Thinking(t) => {
+                    reasoning_text.push_str(&t.thinking);
                 }
                 MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
                 MessageContent::SystemNotification(_) => {
                     continue;
-                }
-                MessageContent::Reasoning(r) => {
-                    reasoning_text.push_str(&r.text);
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -346,7 +384,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     if let Some(reasoning_content) = reasoning_value {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
-                content.push(MessageContent::reasoning(reasoning_str));
+                content.push(MessageContent::thinking(reasoning_str, ""));
             }
         }
     }
@@ -525,7 +563,36 @@ fn ensure_valid_json_schema(schema: &mut Value) {
 }
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
-    line.strip_prefix("data: ").map(|s| s.trim())
+    // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
+    line.strip_prefix("data: ")
+        .or_else(|| line.strip_prefix("data:"))
+        .map(|s| s.trim())
+}
+
+fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
+    let value: Value = serde_json::from_str(line).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })?;
+
+    if let Some(error) = value.get("error") {
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(ProviderError::ServerError(message.to_string()));
+    }
+
+    if value.get("object").and_then(|o| o.as_str()) == Some("error") {
+        let message = value
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(ProviderError::ServerError(message.to_string()));
+    }
+
+    serde_json::from_value(value).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })
 }
 
 pub fn response_to_streaming_message<S>(
@@ -539,21 +606,23 @@ where
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
         let mut accumulated_reasoning_content = String::new();
+        let mut last_signature: Option<String> = None;
 
         'outer: while let Some(response) = stream.next().await {
-            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                break 'outer;
-            }
             let response_str = response?;
             let line = strip_data_prefix(&response_str);
+
+            if line.is_some_and(|l| l == "[DONE]") {
+                break 'outer;
+            }
 
             if line.is_none() || line.is_some_and(|l| l.is_empty()) {
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let chunk: StreamingChunk = parse_streaming_chunk(
+                line.ok_or_else(|| anyhow!("unexpected stream format"))?
+            )?;
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -585,14 +654,13 @@ where
                     let mut done = false;
                     while !done {
                         if let Some(response_chunk) = stream.next().await {
-                            if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                                break 'outer;
-                            }
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
+                                if line == "[DONE]" {
+                                    break 'outer;
+                                }
 
-                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
                                     usage = Some(chunk_usage);
@@ -646,7 +714,7 @@ where
 
                 let mut contents = Vec::new();
                 if !accumulated_reasoning_content.is_empty() {
-                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    contents.push(MessageContent::thinking(&accumulated_reasoning_content, ""));
                     accumulated_reasoning_content.clear();
                 }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
@@ -660,14 +728,23 @@ where
                             serde_json::from_str::<Value>(arguments)
                         };
 
-                        let metadata = extra_fields.as_ref().filter(|m| !m.is_empty());
+                        let metadata = if let Some(sig) = &last_signature {
+                            let mut combined = extra_fields.clone().unwrap_or_default();
+                            combined.insert(
+                                crate::providers::formats::google::THOUGHT_SIGNATURE_KEY.to_string(),
+                                json!(sig)
+                            );
+                            Some(combined)
+                        } else {
+                            extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
+                        };
 
                         let content = match parsed {
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
-                                    metadata,
+                                    metadata.as_ref(),
                                 )
                             },
                             Err(e) => {
@@ -679,7 +756,7 @@ where
                                     )),
                                     data: None,
                                 };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata)
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
                             }
                         };
                         contents.push(content);
@@ -706,13 +783,20 @@ where
 
                 if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
                     if !reasoning.is_empty() {
-                        content.push(MessageContent::reasoning(reasoning));
+                        let signature = last_signature.as_deref().unwrap_or("");
+                        content.push(MessageContent::thinking(reasoning, signature));
                     }
                 }
 
-                if let Some(text) = &chunk.choices[0].delta.content {
+                let (text_content, thought_signature) = extract_content_and_signature(chunk.choices[0].delta.content.as_ref());
+
+                if let Some(sig) = thought_signature {
+                    last_signature = Some(sig);
+                }
+
+                if let Some(text) = text_content {
                     if !text.is_empty() {
-                        content.push(MessageContent::text(text));
+                        content.push(MessageContent::text(&text));
                     }
                 }
 
@@ -723,7 +807,6 @@ where
                         content,
                     );
 
-                    // Add ID if present
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
@@ -820,6 +903,7 @@ mod tests {
     use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
+    use test_case::test_case;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
 
@@ -1837,11 +1921,11 @@ data: [DONE]"#;
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        // First should be reasoning content
-        if let MessageContent::Reasoning(reasoning) = &message.content[0] {
-            assert_eq!(reasoning.text, "Let me think about this step by step...");
+        // First should be thinking content (reasoning is mapped to thinking)
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(thinking.thinking, "Let me think about this step by step...");
         } else {
-            panic!("Expected Reasoning content");
+            panic!("Expected Thinking content, got {:?}", message.content[0]);
         }
 
         // Second should be text content
@@ -1858,7 +1942,10 @@ data: [DONE]"#;
     fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
         // Test that reasoning_content is properly included in formatted messages
         let mut message = Message::assistant()
-            .with_content(MessageContent::reasoning("Thinking through the problem..."))
+            .with_content(MessageContent::thinking(
+                "Thinking through the problem...",
+                "",
+            ))
             .with_text("The result is 42");
 
         // Add a tool call to test that reasoning_content works with tool calls
@@ -1888,5 +1975,43 @@ data: [DONE]"#;
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
         Ok(())
+    }
+
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Internal server error\",\"type\":\"server_error\",\"code\":500}}\ndata: [DONE]",
+        "Internal server error";
+        "openai error format"
+    )]
+    #[test_case(
+        "data: {\"object\":\"error\",\"message\":\"CUDA out of memory\",\"code\":500}\ndata: [DONE]",
+        "CUDA out of memory";
+        "vllm error format"
+    )]
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Rate limit exceeded\",\"type\":\"rate_limit_error\"}}",
+        "Rate limit exceeded";
+        "error as first chunk"
+    )]
+    #[tokio::test]
+    async fn test_mid_stream_server_error(response_lines: &str, expected_msg: &str) {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut found_error = false;
+        while let Some(result) = messages.next().await {
+            if let Err(e) = result {
+                let err_str = e.to_string();
+                assert!(
+                    err_str.contains(expected_msg),
+                    "unexpected error text: {err_str}"
+                );
+                found_error = true;
+                break;
+            }
+        }
+        assert!(
+            found_error,
+            "expected an error but stream completed successfully"
+        );
     }
 }

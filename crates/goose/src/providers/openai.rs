@@ -233,6 +233,7 @@ impl OpenAiProvider {
         let normalized_model = model_name.to_ascii_lowercase();
         (normalized_model.starts_with("gpt-5") && normalized_model.contains("codex"))
             || normalized_model.starts_with("gpt-5.2-pro")
+            || normalized_model.starts_with("gpt-5.4")
     }
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
@@ -338,6 +339,12 @@ impl ProviderDef for OpenAiProvider {
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600"), false),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://platform.openai.com and sign up or log in",
+            "Navigate to API Keys in the left sidebar",
+            "Click 'Create new secret key'",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(
@@ -719,6 +726,22 @@ mod tests {
         assert!(!OpenAiProvider::should_use_responses_api(
             "gpt-5.2-codex",
             "openai/v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_with_date_uses_responses() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4-2026-03-01",
+            "v1/chat/completions"
         ));
     }
 

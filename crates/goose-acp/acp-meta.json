@@ -1,34 +1,29 @@
 {
   "methods": [
     {
-      "method": "extensions/add",
+      "method": "_goose/extensions/add",
       "requestType": "AddExtensionRequest",
       "responseType": "EmptyResponse"
     },
     {
-      "method": "extensions/remove",
+      "method": "_goose/extensions/remove",
       "requestType": "RemoveExtensionRequest",
       "responseType": "EmptyResponse"
     },
     {
-      "method": "tools",
+      "method": "_goose/tools",
       "requestType": "GetToolsRequest",
       "responseType": "GetToolsResponse"
     },
     {
-      "method": "resource/read",
+      "method": "_goose/resource/read",
       "requestType": "ReadResourceRequest",
       "responseType": "ReadResourceResponse"
     },
     {
-      "method": "working_dir/update",
+      "method": "_goose/working_dir/update",
       "requestType": "UpdateWorkingDirRequest",
       "responseType": "EmptyResponse"
-    },
-    {
-      "method": "session/list",
-      "requestType": null,
-      "responseType": "ListSessionsResponse"
     },
     {
       "method": "session/get",
@@ -41,17 +36,17 @@
       "responseType": "EmptyResponse"
     },
     {
-      "method": "session/export",
+      "method": "_goose/session/export",
       "requestType": "ExportSessionRequest",
       "responseType": "ExportSessionResponse"
     },
     {
-      "method": "session/import",
+      "method": "_goose/session/import",
       "requestType": "ImportSessionRequest",
       "responseType": "ImportSessionResponse"
     },
     {
-      "method": "config/extensions",
+      "method": "_goose/config/extensions",
       "requestType": null,
       "responseType": "GetExtensionsResponse"
     }

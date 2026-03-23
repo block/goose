@@ -176,6 +176,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// step-by-step instructions for set up providers eg: api key
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
 }
 
 impl ProviderMetadata {
@@ -208,6 +211,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -228,6 +232,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -240,7 +245,13 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            setup_steps: vec![],
         }
+    }
+
+    pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
+        self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
+        self
     }
 }
 
@@ -439,18 +450,6 @@ pub enum PermissionRouting {
     Noop,
 }
 
-/// Trait for LeadWorkerProvider-specific functionality
-pub trait LeadWorkerProviderTrait {
-    /// Get information about the lead and worker models for logging
-    fn get_model_info(&self) -> (String, String);
-
-    /// Get the currently active model name
-    fn get_active_model(&self) -> String;
-
-    /// Get (lead_turns, failure_threshold, fallback_turns)
-    fn get_settings(&self) -> (usize, usize, usize);
-}
-
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -611,6 +610,14 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Whether the provider manages its own conversation context (e.g. CLI
+    /// wrappers like Claude Code or Gemini CLI). When true, goose-side
+    /// context management such as tool-pair summarization is skipped because
+    /// the provider's internal state is the source of truth.
+    fn manages_own_context(&self) -> bool {
+        false
+    }
+
     async fn supports_cache_control(&self) -> bool {
         false
     }
@@ -624,23 +631,6 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
-    }
-
-    /// Check if this provider is a LeadWorkerProvider
-    /// This is used for logging model information at startup
-    fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
-        None
-    }
-
-    /// Get the currently active model name
-    /// For regular providers, this returns the configured model
-    /// For LeadWorkerProvider, this returns the currently active model (lead or worker)
-    fn get_active_model_name(&self) -> String {
-        if let Some(lead_worker) = self.as_lead_worker() {
-            lead_worker.get_active_model()
-        } else {
-            self.get_model_config().model_name
-        }
     }
 
     /// Returns the first 3 user messages as strings for session naming

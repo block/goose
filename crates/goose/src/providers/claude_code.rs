@@ -275,7 +275,7 @@ pub struct ClaudeCodeProvider {
 }
 
 impl ClaudeCodeProvider {
-    /// Build content blocks from the last user message only — the CLI maintains
+    /// Build content blocks from the last user message only. The CLI maintains
     /// conversation context internally per session_id.
     fn last_user_content_blocks(&self, messages: &[Message]) -> Vec<Value> {
         let msgs = match messages.iter().rev().find(|m| m.role == Role::User) {
@@ -283,7 +283,7 @@ impl ClaudeCodeProvider {
             None => messages,
         };
         let mut blocks: Vec<Value> = Vec::new();
-        for message in msgs.iter().filter(|m| m.is_agent_visible()) {
+        for message in msgs {
             let prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
@@ -589,7 +589,7 @@ impl ProviderDef for ClaudeCodeProvider {
         ProviderMetadata::new(
             CLAUDE_CODE_PROVIDER_NAME,
             "Claude Code CLI",
-            "Requires claude CLI installed, no MCPs. Use Anthropic provider for full features.",
+            "[Deprecated: use claude-acp instead] Requires claude CLI installed, no MCPs. Use claude-acp for ACP support with extensions.",
             CLAUDE_CODE_DEFAULT_MODEL,
             // Only a few agentic choices; fetched dynamically via fetch_supported_models.
             vec![],
@@ -635,6 +635,10 @@ impl ProviderDef for ClaudeCodeProvider {
 impl Provider for ClaudeCodeProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn manages_own_context(&self) -> bool {
+        true
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -1048,6 +1052,11 @@ mod tests {
         ])],
         &[json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})]
         ; "tool_response"
+    )]
+    #[test_case(
+        vec![Message::new(Role::User, 0, vec![MessageContent::text("hidden input")]).user_only()],
+        &[json!({"type":"text","text":"Human: hidden input"})]
+        ; "user_only_message_not_dropped"
     )]
     fn test_last_user_content_blocks(messages: Vec<Message>, expected: &[Value]) {
         let provider = make_provider();
