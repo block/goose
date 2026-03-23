@@ -1,4 +1,3 @@
-use crate::config::paths::Paths;
 use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
@@ -7,7 +6,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Digest;
-use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::{oneshot, Mutex as TokioMutex};
 use url::Url;
 
@@ -34,16 +33,23 @@ struct TokenData {
 }
 
 struct TokenCache {
-    cache_path: PathBuf,
-}
-
-fn get_base_path() -> PathBuf {
-    Paths::in_config_dir("databricks/oauth")
+    keyring_key: String,
 }
 
 pub fn cleanup_oauth_cache() -> Result<()> {
-    let base_path = get_base_path();
-    match fs::remove_dir_all(&base_path) {
+    let config = crate::config::Config::global();
+    let all_secrets = config.all_secrets()?;
+
+    // Find and delete all keys that start with DATABRICKS_OAUTH_
+    for key in all_secrets.keys() {
+        if key.starts_with("DATABRICKS_OAUTH_") {
+            config.delete_secret(key)?;
+        }
+    }
+
+    // Also clean up legacy file-based cache from before keyring migration
+    let legacy_path = crate::config::paths::Paths::in_config_dir("databricks/oauth");
+    match std::fs::remove_dir_all(&legacy_path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
@@ -58,40 +64,37 @@ impl TokenCache {
         hasher.update(scopes.join(",").as_bytes());
         let hash = format!("{:x}", hasher.finalize());
 
-        fs::create_dir_all(get_base_path()).unwrap();
-        let cache_path = get_base_path().join(format!("{}.json", hash));
-
-        Self { cache_path }
+        Self {
+            keyring_key: format!("DATABRICKS_OAUTH_{}", hash),
+        }
     }
 
     fn load_token(&self) -> Option<TokenData> {
-        if let Ok(contents) = fs::read_to_string(&self.cache_path) {
-            if let Ok(token_data) = serde_json::from_str::<TokenData>(&contents) {
-                // Only return tokens that have a refresh token
-                if token_data.refresh_token.is_some() {
-                    // If token is not expired, return it for immediate use
-                    if let Some(expires_at) = token_data.expires_at {
-                        if expires_at > Utc::now() {
-                            return Some(token_data);
-                        }
-                        // If token is expired but has refresh token, return it so we can refresh
+        let config = crate::config::Config::global();
+
+        if let Ok(token_data) = config.get_secret::<TokenData>(&self.keyring_key) {
+            // Only return tokens that have a refresh token
+            if token_data.refresh_token.is_some() {
+                // If token is not expired, return it for immediate use
+                if let Some(expires_at) = token_data.expires_at {
+                    if expires_at > Utc::now() {
                         return Some(token_data);
                     }
-                    // No expiration time but has refresh token, return it
+                    // If token is expired but has refresh token, return it so we can refresh
                     return Some(token_data);
                 }
-                // Token doesn't have a refresh token, ignore it to force a new OAuth flow
+                // No expiration time but has refresh token, return it
+                return Some(token_data);
             }
+            // Token doesn't have a refresh token, ignore it to force a new OAuth flow
         }
+
         None
     }
 
     fn save_token(&self, token_data: &TokenData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let contents = serde_json::to_string(token_data)?;
-        fs::write(&self.cache_path, contents)?;
+        let config = crate::config::Config::global();
+        config.set_secret(&self.keyring_key, token_data)?;
         Ok(())
     }
 }
@@ -538,6 +541,10 @@ mod tests {
             token_data_no_expiry.refresh_token
         );
         assert!(loaded_token.expires_at.is_none());
+
+        // Cleanup: delete the test token from keyring
+        let config = crate::config::Config::global();
+        let _ = config.delete_secret(&cache.keyring_key);
 
         Ok(())
     }
