@@ -29,10 +29,10 @@ jobs:
       matrix:
         include:
           - platform: darwin-arm64
-            os: macos-14
+            os: macos-latest
             target: aarch64-apple-darwin
           - platform: darwin-x64
-            os: macos-13
+            os: macos-latest
             target: x86_64-apple-darwin
           - platform: linux-arm64
             os: ubuntu-24.04-arm
@@ -52,6 +52,10 @@ jobs:
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Add Intel target for cross-compilation (macOS ARM64 → x86_64)
+        if: matrix.platform == 'darwin-x64'
+        run: rustup target add x86_64-apple-darwin
 
       - name: Install cross-compilation tools (Linux ARM64)
         if: matrix.platform == 'linux-arm64'
