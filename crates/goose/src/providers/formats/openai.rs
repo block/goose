@@ -463,43 +463,22 @@ pub fn get_usage(usage: &Value) -> Usage {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
-    let input_tokens = match (
-        prompt_tokens,
-        cache_read_input_tokens,
-        cache_write_input_tokens,
-    ) {
-        (Some(prompt), cache_read, cache_write) => Some(
-            prompt
-                .saturating_add(cache_read.unwrap_or(0))
-                .saturating_add(cache_write.unwrap_or(0)),
-        ),
-        (None, Some(cache_read), Some(cache_write)) => Some(cache_read.saturating_add(cache_write)),
-        (None, Some(cache_read), None) => Some(cache_read),
-        (None, None, Some(cache_write)) => Some(cache_write),
-        (None, None, None) => None,
-    };
+    let input_tokens = prompt_tokens.or_else(|| match (cache_read_input_tokens, cache_write_input_tokens) {
+        (Some(cache_read), Some(cache_write)) => Some(cache_read.saturating_add(cache_write)),
+        (Some(cache_read), None) => Some(cache_read),
+        (None, Some(cache_write)) => Some(cache_write),
+        (None, None) => None,
+    });
 
     let api_total_tokens = usage
         .get("total_tokens")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
-    let has_cache_tokens =
-        cache_read_input_tokens.unwrap_or(0) > 0 || cache_write_input_tokens.unwrap_or(0) > 0;
-
-    let total_tokens = if has_cache_tokens {
-        match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input.saturating_add(output)),
-            (Some(input), None) => Some(input),
-            (None, Some(output)) => Some(output),
-            (None, None) => api_total_tokens,
-        }
-    } else {
-        api_total_tokens.or_else(|| match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input.saturating_add(output)),
-            _ => None,
-        })
-    };
+    let total_tokens = api_total_tokens.or_else(|| match (input_tokens, output_tokens) {
+        (Some(input), Some(output)) => Some(input.saturating_add(output)),
+        _ => None,
+    });
 
     Usage::new(input_tokens, output_tokens, total_tokens)
         .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
@@ -1648,7 +1627,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_usage_includes_cached_tokens_in_totals() {
+    fn test_get_usage_preserves_provider_totals_with_cache_fields() {
         let usage = get_usage(&json!({
             "prompt_tokens": 120,
             "completion_tokens": 30,
@@ -1657,9 +1636,9 @@ mod tests {
             "cache_creation_input_tokens": 20
         }));
 
-        assert_eq!(usage.input_tokens, Some(220));
+        assert_eq!(usage.input_tokens, Some(120));
         assert_eq!(usage.output_tokens, Some(30));
-        assert_eq!(usage.total_tokens, Some(250));
+        assert_eq!(usage.total_tokens, Some(150));
         assert_eq!(usage.cache_read_input_tokens, Some(80));
         assert_eq!(usage.cache_write_input_tokens, Some(20));
     }
@@ -1677,9 +1656,9 @@ mod tests {
             }
         }));
 
-        assert_eq!(usage.input_tokens, Some(154));
+        assert_eq!(usage.input_tokens, Some(84));
         assert_eq!(usage.output_tokens, Some(21));
-        assert_eq!(usage.total_tokens, Some(175));
+        assert_eq!(usage.total_tokens, Some(105));
         assert_eq!(usage.cache_read_input_tokens, Some(60));
         assert_eq!(usage.cache_write_input_tokens, Some(10));
     }
