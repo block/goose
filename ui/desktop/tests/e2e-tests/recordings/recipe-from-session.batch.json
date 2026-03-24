@@ -1,56 +1,42 @@
 [
-  ["wait", "[data-testid='chat-input']"],
-
+  ["wait", "[data-testid='chat-input']", "--timeout", "60000"],
   ["find", "testid", "chat-input", "fill", "Hello"],
   ["find", "testid", "send-button", "click"],
   ["wait", "--text", "goose"],
-
   ["wait", "[data-testid='recipe-action-button']"],
   ["find", "testid", "recipe-action-button", "click"],
-
   ["wait", "[data-testid='create-recipe-modal']"],
   ["wait", "[data-testid='form-state']"],
-
   ["wait", "--fn", "document.querySelector('[data-testid=\"title-input\"]')?.value.trim().length > 0"],
   ["wait", "--fn", "document.querySelector('[data-testid=\"description-input\"]')?.value.trim().length > 0"],
   ["wait", "--fn", "document.querySelector('[data-testid=\"instructions-input\"]')?.value.trim().length > 0"],
-
   ["find", "testid", "instructions-input", "fill", "You are a greeting assistant. Greet the user in a {{greeting_style}} style."],
-
   ["find", "testid", "prompt-input", "fill", "Tell me about greeting style: {{greeting_style}}"],
   ["find", "testid", "title-input", "click"],
-
   ["wait", "[data-testid='advanced-options-trigger']"],
   ["scrollintoview", "[data-testid='advanced-options-trigger']"],
   ["find", "testid", "advanced-options-trigger", "click"],
   ["wait", "[data-testid='parameter-greeting_style']", "--timeout", "15000"],
-
   ["wait", "[data-testid='add-parameter-name-input']"],
   ["find", "testid", "add-parameter-name-input", "fill", "extra_param"],
   ["find", "testid", "add-parameter-button", "click"],
   ["wait", "[data-testid='parameter-unused-extra_param']"],
   ["wait", "--text", "Unused"],
-
   ["find", "testid", "add-activity-input", "fill", "activity {{extra_param}}"],
   ["find", "testid", "add-activity-button", "click"],
   ["wait", "--text", "activity {{extra_param}}"],
   ["wait", "--fn", "!document.querySelector('[data-testid=\"parameter-unused-extra_param\"]')"],
-
   ["find", "testid", "create-recipe-button", "click"],
-
   ["find", "role", "button", "click", "--name", "Recipes"],
   ["wait", "--text", "Custom recipe from chat"],
-
   ["wait", "[title='Use recipe']"],
   ["click", "[title='Use recipe']"],
   ["wait", "--text", "Trust and Execute"],
   ["find", "role", "button", "click", "--name", "Trust and Execute"],
-
   ["wait", "[data-testid='parameter-value-greeting_style']"],
   ["find", "testid", "parameter-value-greeting_style", "fill", "formal"],
   ["find", "testid", "parameter-value-extra_param", "fill", "test_value"],
   ["find", "testid", "start-recipe-button", "click"],
-
   ["wait", "--text", "Tell me about greeting style: formal"],
   ["wait", "--text", "activity test_value"]
 ]

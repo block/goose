@@ -188,3 +188,4 @@ Use `wait` and `is` commands as assertions in the recording:
 - Keep recordings short — one user journey per file
 - Name files descriptively: `login-with-email.batch.json`, `send-chat-message.batch.json`
 - The "Chat" nav button toggles the chat list and start new chat. It is expanded by default on a fresh app
+- Add `["scrollintoview", "<selector>"]` before clicking elements that may be off-screen — especially submit buttons in modals, items in long lists, or toggles on settings pages. It's a no-op if already visible, so always safe to add

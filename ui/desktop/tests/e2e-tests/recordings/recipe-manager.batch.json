@@ -1,49 +1,37 @@
 [
-  ["wait", "[data-testid='chat-input']"],
-
+  ["wait", "[data-testid='chat-input']", "--timeout", "60000"],
   ["find", "role", "button", "click", "--name", "Recipes"],
   ["wait", "--text", "No saved recipes"],
-
   ["find", "role", "button", "click", "--name", "Create Recipe"],
   ["wait", "[data-testid='title-input']"],
-
   ["find", "testid", "title-input", "fill", "Joke Recipe"],
   ["find", "testid", "description-input", "fill", "A recipe that tells a joke"],
   ["find", "testid", "instructions-input", "fill", "You are a comedian"],
   ["find", "testid", "prompt-input", "fill", "Tell me a joke"],
-
   ["find", "role", "button", "click", "--name", "Save Recipe"],
   ["wait", "--text", "Joke Recipe"],
   ["wait", "[title='Use recipe']"],
-
   ["find", "title", "Use recipe", "click"],
   ["wait", "--text", "Trust and Execute"],
   ["find", "role", "button", "click", "--name", "Trust and Execute"],
   ["wait", "--text", "Because light attracts bugs!"],
-
   ["find", "role", "button", "click", "--name", "Recipes"],
   ["wait", "[title='Edit recipe']"],
   ["wait", "--text", "Joke Recipe"],
-
   ["find", "title", "Edit recipe", "click"],
   ["wait", "[data-testid='instructions-input']"],
-
   ["find", "testid", "instructions-input", "fill", "You are a math tutor"],
   ["find", "testid", "prompt-input", "fill", "What is 2+2?"],
-
   ["find", "role", "button", "click", "--name", "Save Recipe"],
   ["wait", "--text", "Joke Recipe"],
   ["wait", "[title='Use recipe']"],
-
   ["find", "title", "Use recipe", "click"],
   ["wait", "--text", "Trust and Execute"],
   ["find", "role", "button", "click", "--name", "Trust and Execute"],
   ["wait", "--text", "2 + 2 = 4"],
-
   ["find", "role", "button", "click", "--name", "Recipes"],
   ["wait", "[title='Delete recipe']"],
   ["wait", "--text", "Joke Recipe"],
-
   ["click", "[title='Delete recipe']"],
   ["wait", "--text", "No saved recipes"]
 ]

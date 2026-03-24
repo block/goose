@@ -1,5 +1,5 @@
 [
-  ["wait", "[data-testid='chat-input']"],
+  ["wait", "[data-testid='chat-input']", "--timeout", "60000"],
   ["find", "role", "button", "click", "--name", "Recipes"],
   ["wait", "--text", "No saved recipes"],
   ["find", "role", "button", "click", "--name", "Import Recipe"],

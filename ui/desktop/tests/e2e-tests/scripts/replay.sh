@@ -106,9 +106,8 @@ for i in $(seq 0 $((TOTAL - 1))); do
     if [[ -n "$RESULTS_DIR" ]]; then
       SCREENSHOT_DIR="$RESULTS_DIR/screenshots"
       mkdir -p "$SCREENSHOT_DIR"
-      SCREENSHOT_PATH="$SCREENSHOT_DIR/${SESSION_NAME}.png"
-      echo "Capturing failure screenshot → $SCREENSHOT_PATH"
-      pnpm exec agent-browser "${GLOBAL_ARGS[@]}" screenshot "$SCREENSHOT_PATH" 2>/dev/null || echo "Screenshot capture failed"
+      echo "Capturing failure screenshot → $SCREENSHOT_DIR/${SESSION_NAME}.png"
+      pnpm exec agent-browser "${GLOBAL_ARGS[@]}" screenshot "$SCREENSHOT_DIR/${SESSION_NAME}.png" 2>/dev/null || echo "Screenshot capture failed"
     fi
     exit 1
   fi
