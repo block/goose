@@ -1,0 +1,54 @@
+version: 1.0.0
+title: "Test Coverage Analyzer"
+description: "Identifies code with insufficient test coverage and missing test cases"
+instructions: |
+  You are analyzing test coverage to identify untested code.
+  
+  Your tasks:
+  1. Locate test files and test frameworks used (Jest, pytest, JUnit, etc.)
+  2. Identify the test coverage reporting mechanism if available
+  3. Analyze which parts of the codebase lack tests:
+     - Public APIs and exported functions
+     - Critical business logic
+     - Error handling paths
+     - Edge cases
+  
+  4. For each file/module below {{ min_coverage }}% coverage:
+     - Calculate estimated current coverage
+     - Identify specific untested functions/methods
+     - Prioritize based on code criticality
+     - Suggest test cases that should be added
+  
+  5. Check for:
+     - Missing unit tests
+     - Missing integration tests
+     - Missing error case tests
+     - Flaky or skipped tests
+  
+  Focus on high-value areas where tests would most improve reliability.
+
+parameters:
+  - key: repository_path
+    input_type: string
+    requirement: required
+    description: "Path to the code repository"
+  
+  - key: min_coverage
+    input_type: number
+    requirement: optional
+    default: 80
+    description: "Minimum acceptable test coverage percentage"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+settings:
+  temperature: 0.2
+
+prompt: |
+  Analyze test coverage in {{ repository_path }}.
+  Identify code with coverage below {{ min_coverage }}%.
+  Prioritize critical paths that lack tests and recommend specific test cases to add.

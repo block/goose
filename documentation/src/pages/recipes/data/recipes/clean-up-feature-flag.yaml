@@ -1,0 +1,59 @@
+version: 1.0.0
+title: Clean Up Feature Flag
+description: Automatically clean up all references of a fully rolled out feature flag from a codebase and make the new behavior the default.
+instructions: >
+  Your job is to systematically remove a fully rolled out feature flag and ensure the new behavior is now the default. Use code search tools like ripgrep to identify all references to the flag, clean up definition files, usage sites, tests, and configuration files. Then create a commit and push changes with clear commit messages documenting the flag removal.
+author:
+  contact: amitdev
+extensions:
+  - type: builtin
+    name: developer
+activities:
+  - Remove feature flag definitions
+  - Clean up feature flag usage sites
+  - Update affected tests
+  - Remove flag configurations
+  - Document flag removal
+parameters:
+  - key: feature_flag_key
+    input_type: string
+    requirement: required
+    description: Key of the feature flag
+    value: MY_FLAG
+  - key: repo_dir
+    input_type: string
+    requirement: optional
+    default: ./
+    description: Directory of the codebase
+    value: ./
+prompt: |
+  Task: Remove a feature flag that has been fully rolled out, where the feature flag's functionality should become the default behavior.
+
+  Context:
+
+  Feature flag key: {{feature_flag_key}}
+  Project: {{repo_dir}}
+  Feature is fully rolled out and stable, meaning the feature flag is always evaluated to true or Treatment, etc.
+
+  Steps to follow:
+
+  1. Check out a *new* branch from main or master named using the feature flag key.
+  2. Find the feature flag constant/object that wraps the key.
+  3. Search for all references to the constant/object using ripgrep or equivalent tools.
+  4. For each file that contains references:
+     - **Definition files**: Remove the flag definition and related imports.
+     - **Usage sites**: Remove conditional logic and default to the new behavior. Clean up related imports.
+     - **Test files**: Remove tests that cover the 'disabled' state of the flag and update remaining ones. Clean up mocks and imports.
+     - **Configuration files**: Remove entries related to the feature flag.
+  5. Re-run a full-text search to ensure all references (and imports) are removed.
+  6. Clean up now-unused variables or functions introduced solely for the flag.
+  7. Double-check for and remove any leftover imports or dead code.
+  8. Create a commit with **only the files affected by this cleanup** (don’t use `git add .`).
+  9. Push the branch to origin.
+  10. Open a GitHub PR using: `https://github.com/squareup/<repo-name>/compare/<branch-name>` and replace the repo and branch placeholders.
+
+  Use clear commit messages like:
+
+    chore(flag-cleanup): remove <feature_flag_key> flag from codebase
+
+  Explain the flag was fully rolled out and the new behavior is now default.

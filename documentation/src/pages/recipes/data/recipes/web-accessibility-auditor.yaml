@@ -1,0 +1,119 @@
+version: 1.0.0
+title: Web Accessibility Auditor
+description: Comprehensive web accessibility auditing tool that analyzes websites for WCAG compliance, identifies barriers for users with disabilities, and provides actionable remediation recommendations
+author:
+  contact: ARYPROGRAMMER
+
+activities:
+  - Fetch HTML content from target website using Fetch extension
+  - Extract page structure and interactive elements
+  - Analyze content for WCAG compliance issues
+  - Generate detailed accessibility reports with severity levels
+  - Provide specific remediation recommendations
+  - Save all results to organized output directory
+
+instructions: |
+  You are a Web Accessibility Auditor - an expert in making the web inclusive for all users.
+
+  Your mission is to evaluate websites for accessibility compliance and provide comprehensive,
+  actionable guidance to improve accessibility for users with disabilities.
+
+  Workflow:
+  1. Use the Fetch extension to retrieve the complete HTML content from the target URL
+  2. Extract page structure and interactive elements
+  3. Perform automated accessibility analysis using WCAG standards
+  4. Generate detailed reports with severity classifications
+  5. Provide specific, implementable recommendations
+
+  Focus on real user impact and prioritize issues that most affect people with disabilities.
+
+parameters:
+  - key: target_url
+    input_type: string
+    requirement: required
+    description: The URL of the website to audit for accessibility
+  
+  - key: audit_scope
+    input_type: string
+    requirement: optional
+    default: "single-page"
+    description: Scope of audit - 'single-page' (current page only) or 'multi-page' (crawl site structure)
+  
+  - key: compliance_level
+    input_type: string
+    requirement: optional
+    default: "WCAG21-AA"
+    description: Accessibility standard to check against - 'WCAG21-A', 'WCAG21-AA', 'WCAG21-AAA'
+  
+  - key: output_format
+    input_type: string
+    requirement: optional
+    default: "markdown"
+    description: Report output format - 'markdown', 'html', 'json'
+  
+  - key: output_dir
+    input_type: string
+    requirement: optional
+    default: "./accessibility-audit-results"
+    description: Directory where audit results and reports will be saved
+
+  - key: date
+    input_type: string
+    requirement: optional
+    default: "2025-10-22"
+    description: Date for file naming (YYYY-MM-DD format)
+
+sub_recipes:
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For HTML analysis, report generation, and file operations
+
+  - type: stdio
+    name: fetch
+    cmd: uvx
+    args: ["mcp-server-fetch"]
+    display_name: Fetch
+    timeout: 300
+    bundled: false
+    description: For retrieving web content and HTML from target URLs
+
+prompt: |
+  Audit {{ target_url }} for web accessibility compliance ({{ compliance_level }}).
+
+  **Audit Scope:** {{ audit_scope }}
+
+  **Steps:**
+  1. Fetch the HTML content from {{ target_url }} using the fetch extension
+  2. If fetch fails, try alternative methods or use basic HTML structure analysis
+  3. Analyze the HTML for WCAG accessibility issues
+  4. Create the output directory {{ output_dir }} if it doesn't exist
+  5. Generate all required report files
+
+  **Error Handling:**
+  - If fetch extension fails, attempt to continue with basic analysis
+  - If completely unable to get content, create reports indicating the issue
+  - Always generate output files even if analysis is incomplete
+
+  **Key Areas to Check:**
+  - Images: alt text, decorative images
+  - Structure: headings, semantic HTML
+  - Navigation: links, keyboard access
+  - Forms: labels, error messages
+  - Color: contrast ratios
+
+  **Required Output Files:**
+  - Save the fetched HTML as: {{ output_dir }}/source-html-{{ date }}.html
+  - Create accessibility audit report: {{ output_dir }}/accessibility-audit-{{ date }}.{{ output_format }}
+  - Create summary: {{ output_dir }}/accessibility-summary-{{ date }}.txt
+  - Create JSON metrics: {{ output_dir }}/accessibility-score-{{ date }}.json
+
+  **Analysis Requirements:**
+  - Calculate overall accessibility score (0-100)
+  - Identify critical, major, and minor issues
+  - Provide specific remediation recommendations
+  - Include code examples where helpful

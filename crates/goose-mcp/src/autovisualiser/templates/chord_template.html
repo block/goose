@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chord Diagram</title>
+
+    <script>{{D3_MIN}}</script>
+
+    <style>{{MCP_APP_BASE_CSS}}</style>
+    <style>
+        body { padding: 16px; }
+
+        #chord { display: block; margin: 0 auto; }
+
+        .group-arc { cursor: pointer; }
+
+        .chord-ribbon {
+            cursor: pointer;
+            fill-opacity: 0.55;
+            stroke: none;
+            transition: fill-opacity 0.15s ease;
+        }
+
+        .chord-ribbon:hover { fill-opacity: 0.8; }
+
+        .group-label {
+            font-size: var(--font-text-xs-size);
+            font-weight: var(--font-weight-medium);
+            text-anchor: middle;
+            pointer-events: none;
+            fill: var(--color-text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <svg id="chord"></svg>
+    <div class="av-tooltip" id="tooltip"></div>
+
+    <script>{{MCP_APP_BRIDGE}}</script>
+    <script>
+    (function () {
+        "use strict";
+
+        var svgEl, tooltipEl;
+
+        function getDimensions() {
+            if (McpAppBridge.displayMode === "fullscreen" || McpAppBridge.displayMode === "pip") {
+                var w = window.innerWidth - 32;
+                var h = window.innerHeight - 32;
+                var size = Math.min(w, h);
+                return { width: size, height: size };
+            }
+            return { width: 580, height: 580 };
+        }
+
+        var palette = [
+            "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
+            "#9b8afb", "#e87fa0", "#3cc0e0", "#8bba5a",
+        ];
+        var colors = d3.scaleOrdinal(palette);
+
+        function initializeSVG() {
+            var dim = getDimensions();
+            svgEl = d3.select("#chord").attr("width", dim.width).attr("height", dim.height);
+            svgEl.selectAll("*").remove();
+            tooltipEl = d3.select("#tooltip");
+            return {
+                g: svgEl.append("g").attr("transform", "translate(" + dim.width / 2 + "," + dim.height / 2 + ")"),
+                outerRadius: Math.min(dim.width, dim.height) * 0.32,
+            };
+        }
+
+        function drawChord(g, data, outerRadius) {
+            var innerRadius = outerRadius - 24;
+            var chordLayout = d3.chord().padAngle(0.04).sortSubgroups(d3.descending);
+            var arcGen = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
+            var ribbonGen = d3.ribbon().radius(innerRadius);
+            var chords = chordLayout(data.matrix);
+
+            var group = g.append("g").selectAll("g").data(chords.groups).enter().append("g");
+
+            group.append("path").attr("class", "group-arc")
+                .style("fill", function (d) { return colors(d.index); })
+                .style("stroke", function (d) { return d3.rgb(colors(d.index)).darker(0.3); })
+                .attr("d", arcGen)
+                .on("mouseover", function (event, d) {
+                    fadeChords(g, d.index, 0.08);
+                    tooltipEl.style("opacity", 1)
+                        .html("<strong>" + data.labels[d.index] + "</strong><br/>Total: " + d.value.toLocaleString());
+                    McpAppBridge.positionTooltip(tooltipEl, event);
+                })
+                .on("mouseout", function () {
+                    fadeChords(g, null, 1);
+                    tooltipEl.style("opacity", 0);
+                });
+
+            group.append("text").attr("class", "group-label")
+                .each(function (d) { d.angle = (d.startAngle + d.endAngle) / 2; })
+                .attr("dy", ".35em")
+                .attr("transform", function (d) {
+                    return "rotate(" + (d.angle * 180 / Math.PI - 90) + ") translate(" + (outerRadius + 10) + ")" +
+                        (d.angle > Math.PI ? " rotate(180)" : "");
+                })
+                .style("text-anchor", function (d) { return d.angle > Math.PI ? "end" : null; })
+                .text(function (d) { return data.labels[d.index]; });
+
+            g.append("g").selectAll("path").data(chords).enter().append("path")
+                .attr("class", "chord-ribbon")
+                .style("fill", function (d) { return colors(d.source.index); })
+                .attr("d", ribbonGen)
+                .on("mouseover", function (event, d) {
+                    d3.select(this).style("fill-opacity", 0.8);
+                    var s2t = data.matrix[d.source.index][d.target.index];
+                    var t2s = data.matrix[d.target.index][d.source.index];
+                    tooltipEl.style("opacity", 1)
+                        .html(data.labels[d.source.index] + " → " + data.labels[d.target.index] + ": " + s2t.toLocaleString() +
+                            "<br/>" + data.labels[d.target.index] + " → " + data.labels[d.source.index] + ": " + t2s.toLocaleString());
+                    McpAppBridge.positionTooltip(tooltipEl, event);
+                })
+                .on("mouseout", function () {
+                    d3.select(this).style("fill-opacity", 0.55);
+                    tooltipEl.style("opacity", 0);
+                });
+        }
+
+        function fadeChords(g, focusIndex, opacity) {
+            g.selectAll(".chord-ribbon").style("opacity", function (d) {
+                if (focusIndex === null) return 1;
+                return (d.source.index === focusIndex || d.target.index === focusIndex) ? 1 : opacity;
+            });
+        }
+
+        function renderData(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            var init = initializeSVG();
+            drawChord(init.g, data, init.outerRadius);
+            setTimeout(McpAppBridge.reportSize, 80);
+        }
+
+        function safeRender(data) {
+            try { renderData(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-chord",
+            onData: safeRender,
+            onTheme: function () {
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
+            },
+        });
+    })();
+    </script>
+</body>
+</html>

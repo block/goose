@@ -1,0 +1,268 @@
+version: 1.0.0
+title: A/B Test Dashboard Generator
+description: Creates interactive HTML dashboard for A/B test monitoring with real-time metrics visualization, statistical significance indicators, conversion funnels, and comprehensive reporting capabilities
+author:
+  contact: scaler
+
+activities:
+  - Generate interactive HTML dashboard with responsive design
+  - Create real-time metrics visualization and comparison charts
+  - Implement statistical significance indicators and confidence intervals
+  - Build conversion funnel analysis and user journey tracking
+  - Add export functionality for reports and data
+  - Create mobile-responsive interface with modern UI components
+
+instructions: |
+  You are an A/B Test Dashboard Generator specialized in creating comprehensive monitoring and reporting interfaces.
+  
+  Your capabilities:
+  1. Generate interactive HTML dashboards with modern UI/UX
+  2. Create real-time data visualization and metric comparisons
+  3. Implement statistical significance indicators and alerts
+  4. Build conversion funnel analysis and user journey maps
+  5. Add comprehensive reporting and export capabilities
+  6. Ensure mobile-responsive design and accessibility
+  
+  Focus on:
+  - Real-time monitoring and updates
+  - Clear visualization of statistical significance
+  - Intuitive user interface and navigation
+  - Comprehensive reporting capabilities
+  - Mobile responsiveness and accessibility
+
+parameters:
+  - key: test_name
+    input_type: string
+    requirement: required
+    description: Name of the A/B test experiment for dashboard title
+  
+  - key: variants
+    input_type: string
+    requirement: required
+    description: Comma-separated variant names (e.g., 'control,variant-a,variant-b')
+  
+  - key: metrics
+    input_type: string
+    requirement: required
+    description: Comma-separated metrics to display (e.g., 'conversion,engagement,bounce-rate')
+  
+  - key: include_dashboard
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: Whether to generate the dashboard (true/false)
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For HTML/CSS/JavaScript generation and file operations
+
+prompt: |
+  Generate interactive A/B test dashboard for experiment "{{ test_name }}" with variants: {{ variants }} and metrics: {{ metrics }}.
+  
+  CRITICAL: Handle file paths correctly for all operating systems.
+  - Detect the operating system (Windows/Linux/Mac)
+  - Use appropriate path separators (/ for Unix, \\ for Windows)
+  - Be careful to avoid escaping of slash or backslash characters
+  - Use os.path.join() or pathlib.Path for cross-platform paths
+  
+  Workflow:
+  1. Dashboard Structure & Layout
+     {% if include_dashboard == "true" %}
+     - Create main dashboard HTML file (ab-tests/dashboard/{{ test_name }}-dashboard.html):
+       * Responsive layout with CSS Grid/Flexbox
+       * Header with experiment name and status
+       * Navigation sidebar for different views
+       * Main content area for charts and metrics
+       * Footer with last updated timestamp
+     - Generate CSS framework (ab-tests/dashboard/styles.css):
+       * Modern, clean design system
+       * Responsive breakpoints for mobile/tablet/desktop
+       * Color scheme optimized for data visualization
+       * Accessibility features (WCAG 2.1 compliance)
+     {% endif %}
+  
+  2. Real-Time Metrics Visualization
+     {% if include_dashboard == "true" %}
+     - Create metrics comparison charts:
+       * Conversion rate comparison (bar chart)
+       * Time-series trends (line chart)
+       * Statistical significance indicators
+       * Confidence interval visualization
+     - Implement interactive features:
+       * Hover tooltips with detailed information
+       * Click-to-drill-down functionality
+       * Date range selection
+       * Metric filtering and grouping
+     {% endif %}
+  
+  3. Statistical Significance Display
+     {% if include_dashboard == "true" %}
+     - Generate significance indicators:
+       * P-value display with color coding
+       * Confidence interval visualization
+       * Effect size indicators
+       * Sample size adequacy warnings
+     - Create statistical summary cards:
+       * Current significance status
+       * Required sample size for significance
+       * Estimated time to significance
+       * Power analysis results
+     {% endif %}
+  
+  4. Conversion Funnel Analysis
+     {% if include_dashboard == "true" %}
+     - Build funnel visualization:
+       * Step-by-step conversion flow
+       * Drop-off analysis between steps
+       * Variant comparison at each step
+       * User journey mapping
+     - Implement funnel features:
+       * Interactive funnel steps
+       * Conversion rate calculations
+       * Drop-off rate analysis
+       * Revenue impact estimation
+     {% endif %}
+  
+  5. Data Tables & Detailed Views
+     {% if include_dashboard == "true" %}
+     - Create comprehensive data tables:
+       * Raw metrics data with sorting/filtering
+       * Statistical test results
+       * User segment breakdowns
+       * Time-based performance data
+     - Add table functionality:
+       * Sortable columns
+       * Search and filter capabilities
+       * Pagination for large datasets
+       * Export to CSV/Excel
+     {% endif %}
+  
+  6. Interactive Charts & Graphs
+     {% if include_dashboard == "true" %}
+     - Generate chart library using Chart.js or D3.js:
+       * Bar charts for metric comparisons
+       * Line charts for trend analysis
+       * Pie charts for traffic allocation
+       * Scatter plots for correlation analysis
+       * Heatmaps for user behavior patterns
+     - Implement chart features:
+       * Zoom and pan capabilities
+       * Legend toggling
+       * Data point highlighting
+       * Export as image (PNG/SVG)
+     {% endif %}
+  
+  7. Real-Time Updates & API Integration
+     {% if include_dashboard == "true" %}
+     - Create real-time data updates:
+       * WebSocket connection for live updates
+       * REST API integration for data fetching
+       * Automatic refresh intervals
+       * Manual refresh capability
+     - Implement data management:
+       * Local data caching
+       * Offline mode support
+       * Error handling and retry logic
+       * Data validation and sanitization
+     {% endif %}
+  
+  8. Export & Reporting Features
+     {% if include_dashboard == "true" %}
+     - Generate export functionality:
+       * PDF report generation
+       * Excel/CSV data export
+       * Image export for charts
+       * Shareable dashboard links
+     - Create reporting templates:
+       * Executive summary report
+       * Detailed statistical report
+       * Custom report builder
+       * Scheduled report delivery
+     {% endif %}
+  
+  9. Mobile Responsiveness & Accessibility
+     {% if include_dashboard == "true" %}
+     - Ensure mobile optimization:
+       * Responsive design for all screen sizes
+       * Touch-friendly interface elements
+       * Optimized chart rendering for mobile
+       * Progressive web app features
+     - Implement accessibility features:
+       * Screen reader compatibility
+       * Keyboard navigation support
+       * High contrast mode
+       * Font size adjustment
+     {% endif %}
+  
+  10. JavaScript Framework & Utilities
+     {% if include_dashboard == "true" %}
+     - Create dashboard JavaScript (ab-tests/dashboard/dashboard.js):
+       ```javascript
+       class ABTestDashboard {
+         constructor(experimentName, variants, metrics) {
+           this.experimentName = experimentName;
+           this.variants = variants;
+           this.metrics = metrics;
+           this.charts = {};
+           this.data = {};
+         }
+         
+         async loadData() {
+           // Load experiment data from API
+         }
+         
+         renderCharts() {
+           // Render all dashboard charts
+         }
+         
+         updateRealTime() {
+           // Update dashboard with real-time data
+         }
+       }
+       ```
+     - Implement utility functions:
+       * Data formatting and validation
+       * Chart configuration helpers
+       * API communication utilities
+       * Error handling and logging
+     {% endif %}
+  
+  11. Configuration & Customization
+     {% if include_dashboard == "true" %}
+     - Create dashboard configuration:
+       * Theme and color customization
+       * Chart type preferences
+       * Update frequency settings
+       * Notification preferences
+     - Implement user preferences:
+       * Saved dashboard layouts
+       * Custom metric combinations
+       * Personal alert settings
+       * Export format preferences
+     {% endif %}
+  
+  12. Performance Optimization
+     {% if include_dashboard == "true" %}
+     - Optimize dashboard performance:
+       * Lazy loading for charts and data
+       * Efficient data processing
+       * Minimal DOM manipulation
+       * Caching strategies
+     - Implement performance monitoring:
+       * Load time tracking
+       * Chart rendering performance
+       * Memory usage optimization
+       * Network request optimization
+     {% endif %}
+  
+  Focus on creating a comprehensive dashboard that:
+  - Provides clear, actionable insights
+  - Updates in real-time with accurate data
+  - Works seamlessly across all devices
+  - Includes robust statistical analysis visualization
+  - Offers comprehensive reporting and export capabilities
+  - Maintains high performance and accessibility standards

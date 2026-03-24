@@ -1,0 +1,237 @@
+amanda:
+  name: Amanda Martin
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/97615019?v=4
+  page: true
+  socials:
+    linkedin: amandamartin-dev
+    x: hey_amandam
+    github: amandamartin-dev
+
+
+ebony:
+  name: Ebony Louis
+  title: Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/55366651?v=4
+  page: true
+  socials:
+    linkedin: ebonylouis
+    x: ebonyjlouis
+    github: ebonylouis
+
+tyler:
+  name: Tyler Longwell
+  title: Security Operations Engineer
+  image_url: https://avatars.githubusercontent.com/u/109685178?v=4
+  page: true
+  socials:
+    github: tlongwell-block
+    linkedin: tylerlongwell
+
+rizel:
+  name: Rizel Scarlett
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/22990146?v=4
+  page: true
+  socials:
+    x: blackgirlbytes
+    github: blackgirlbytes
+    bluesky: blackgirlbytes.bsky.social
+    linkedin: rizel-bobb-semple
+
+adewale:
+  name: Adewale Abati
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/4003538?v=4
+  url: https://adewaleabati.com
+  page: true
+  socials:
+    x: ace_kyd
+    github: acekyd
+
+debbie:
+  name: Debbie O'Brien
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/13063165?v=4
+  page: true
+  socials:
+    x: debs_obrien
+    linkedin: debbie-obrien
+    github: debs-obrien
+
+dalton:
+  name: Dalton Turner
+  title: Software Engineer
+  image_url: https://avatars.githubusercontent.com/u/78099245?v=4
+  page: true
+  socials:
+    github: dalton-turner
+
+damien:
+  name: Damien Ramunno-Johnson
+  title: Principal Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/2729283?v=4
+  page: true
+  socials:
+    linkedin: damienrj
+    github: damienrj
+
+dean:
+  name: Dean Wyatte
+  title: Principal Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/2512762?v=4
+  page: true
+  socials:
+    github: dwyatte
+
+harrison:
+  name: Harrison Mamin
+  title: Senior Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/114013937?v=4
+  page: true
+  socials:
+    github: hdmamin
+    
+
+tania:
+  name: Tania Chakraborty
+  title: Senior Technical Community Manager
+  image_url: https://avatars.githubusercontent.com/u/126204004?v=4
+  url: https://taniachakraborty.com
+  page: true
+  socials:
+    linkedin: taniachakraborty
+    x: taniacryptid
+    github: taniacryptid
+    bluesky: taniachakraborty.com
+
+angie:
+  name: Angie Jones
+  title: Head of Developer Relations
+  image_url: https://avatars.githubusercontent.com/u/15972783?v=4
+  url: https://angiejones.tech
+  page: true
+  socials:
+    linkedin: angiejones
+    github: angiejones
+    x: techgirl1908
+    bluesky: angiejones.tech
+
+alex:
+  name: Alex Rosenzweig
+  title: Staff Security Engineer
+  image_url: https://media.licdn.com/dms/image/v2/C5103AQGrOYDDHn8z6g/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1520985744424?e=2147483647&v=beta&t=YZcHo6Woah-pGNmg1RRUb7aE7B1FcNwOLBXxqojkDqg
+  page: true
+  socials:
+    linkedin: alex-rosenzweig
+    github: shellz-n-stuff
+
+alice:
+  name: Alice Hau
+  title: Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/110418948?v=4
+  page: true
+  socials:
+    linkedin: alice-hau
+    github: alicehau
+
+mic:
+  name: Michael Neale
+  title: Principal Engineer
+  image_url: https://avatars.githubusercontent.com/u/14976?v=4
+  page: true
+  socials:
+    github: michaelneale
+
+ian:
+  name: W Ian Douglas
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/168030?v=4
+  page: true
+  socials:
+    linkedin: iandouglas736
+    github: iandouglas
+    bluesky: iandouglas736.com
+    x: iandouglas736
+
+tomasz:
+  name: Tomasz Tchorz
+  title: Security Engineer
+  image_url: https://avatars.githubusercontent.com/u/75388736?v=4
+  page: true
+  socials:
+    linkedin: tomasztchorz
+    github: tomala90
+
+glenn:
+  name: Glenn Edwards
+  title: Detection Engineer
+  image_url: https://avatars.githubusercontent.com/u/1418309?v=4
+  page: true
+  socials:
+    linkedin: glennpedwardsjr
+    github: hiddenillusion
+    x: hiddenillusion
+    bluesky: hiddenillusion
+
+rarora:
+  name: Ravneet Singh Arora
+  title: Staff Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/130506156?v=4
+  page: true
+  socials:
+    linkedin: ravneet-arora-9b913537
+    github: ravarora2
+
+jeuston:
+  name: Joe Euston
+  title: Software Engineering Manager
+  image_url: https://avatars.githubusercontent.com/u/52311495?v=4
+  page: true
+  socials:
+    linkedin: joeeuston
+    github: joeeuston-dev
+
+alexhancock:
+  name: Alex Hancock
+  title: Software Engineer
+  image_url: https://avatars.githubusercontent.com/u/427516?v=4
+  page: true
+  socials:
+    linkedin: alexjhancock
+    github: alexhancock
+
+aharvard:
+  name: Andrew Harvard
+  title: Design Engineer
+  image_url: https://avatars.githubusercontent.com/u/10472610?v=4
+  page: true
+  socials:
+    github: aharvard
+    x: aharvard
+    linkedin: aharvard
+    
+clinton:
+  name: Clinton Carpene
+  title: Staff Security Engineer
+  image_url: https://avatars.githubusercontent.com/u/244417824?v=4
+  page: true
+  socials:
+    linkedin: clinton-carpene-0b5aa839
+    github: ccarpene-blk
+
+matt:
+  name: Matthew Wang
+  title: CEO at MCPJam
+  image_url: /img/authors/matt-wang.png
+  page: true
+  socials:
+    linkedin: matt8p
+    github: matteo8p
+    x: mcpjams
+
+dakota:
+  name: Dakota Fabro
+  title: Software Engineer, Engineering Fellowship
+  image_url: https://avatars.githubusercontent.com/u/80979850?v=4
+

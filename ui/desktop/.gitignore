@@ -1,0 +1,13 @@
+node_modules
+.vite/
+out
+src/bin/goosed
+src/bin/goose-npm/
+/src/bin/*.exe
+/src/bin/*.cmd
+/playwright-report/
+/test-results/
+/src/bin/temporal-service
+src/bin/temporal.db
+# Signing credentials
+.env.signing

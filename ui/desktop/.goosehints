@@ -1,0 +1,85 @@
+## Project Overview
+
+The Goose Desktop App is an Electron application built with TypeScript, React, and modern web technologies. It's a chat interface application that connects to various AI providers and allows users to interact with AI models.
+
+## Key Technologies
+
+- **Electron**: For cross-platform desktop app functionality
+- **React**: For UI components and state management
+- **TypeScript**: For type-safe code
+- **Tailwind CSS**: For styling components
+- **Vite**: For fast development and bundling
+- **Electron Forge**: For packaging and distribution
+
+## Project Structure
+
+- `/src`: Main source code directory
+  - `/main.ts`: Electron main process entry point
+  - `/preload.ts`: Preload script for secure renderer access
+  - `/renderer.tsx`: React entry point for the renderer process
+  - `/App.tsx`: Main React component that manages views
+  - `/components`: React components (page views, UI components, icons)
+  - `/api`: API client code
+  - `/utils`: Utility functions
+  - `/hooks`: React hooks
+  - `/types`: TypeScript type definitions
+  - `/styles`: CSS and styling
+  - `/images`: Image assets
+
+## Getting Started
+
+1. **Understand the application flow**:
+   - `main.ts` is the Electron entry point that creates windows and handles IPC
+   - `renderer.tsx` bootstraps the React application
+   - `App.tsx` manages the different views (chat, settings, etc.)
+   - The app uses a view-based navigation system with components conditionally rendered based on the current view
+
+2. **Adding a new feature**:
+   - Create a new component in the `/components` directory
+   - Add the component to the view system in `App.tsx` by:
+     - Adding a new view type to the `View` type
+     - Importing your component
+     - Adding a conditional render in the App component
+
+3. **Building and testing**:
+   - Use `npm run start-gui` to run the app in development mode
+   - Changes to React components will hot reload
+   - Changes to main process code require a restart
+
+## Adding a New View/Component
+
+1. Create a new directory under `/src/components` for your feature
+2. Create a main component file (e.g., `YourFeatureView.tsx`)
+3. Add your view type to the `View` type in `App.tsx`
+4. Import and add your component to the render section in `App.tsx`
+5. Add navigation to your view from other components (e.g., adding a new route or button in `App.tsx`)
+
+## State Management
+
+- The app uses React's Context API for global state
+- Look at existing contexts like `ConfigContext.tsx` and `ModelContext.tsx` for examples
+- For local state, use React hooks like `useState` and `useEffect`
+
+## Styling
+
+- The app uses Tailwind CSS for styling
+- Custom UI components are in `/components/ui`
+- Follow the existing design patterns for consistency
+
+## IPC Communication
+
+- The app uses Electron's IPC for communication between main and renderer processes
+- The `window.electron` object (defined in preload.ts) provides access to IPC methods
+- Use existing patterns for adding new IPC functionality
+
+## Best Practices
+
+1. Use TypeScript types for all props and state
+2. Follow the existing component structure and patterns
+3. Use existing UI components when possible
+4. Handle errors gracefully
+5. Test your changes in both development and production builds
+
+By following these instructions, you should be able to navigate the codebase, understand its structure, and start contributing new features or modifications.
+
+

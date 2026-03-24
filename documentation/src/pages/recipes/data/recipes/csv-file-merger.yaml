@@ -1,0 +1,65 @@
+version: 1.0.0
+title: CSV File Merger
+author:
+  contact: the-matrixneo
+description: "Combines multiple CSV files from a directory into a single master file."
+instructions: |
+  1. Provide the path to the directory containing your CSV files.
+  2. Specify the desired name for the final merged output file.
+  3. The recipe will scan the directory and merge all found CSV files.
+  4. It will check for header consistency across the files.
+  5. Your new, combined file will be saved in the same directory.
+
+activities:
+  - Validate the input directory path.
+  - Scan for and identify all CSV files within the directory.
+  - Check for header consistency across all files.
+  - Merge the data from all identified files.
+  - Generate the final, single CSV file.
+
+parameters:
+  - key: directory_path
+    input_type: string
+    requirement: required
+    description: "Path to the folder containing the CSV files you want to merge."
+
+  - key: output_filename
+    input_type: string
+    requirement: required
+    description: "Name for the final merged CSV file."
+    default: "merged_output.csv"
+
+  - key: header_check
+    input_type: string
+    requirement: optional
+    description: "How to handle differing headers ('strict' to fail, 'flexible' to merge common columns)."
+    default: "strict"
+    choices:
+      - "strict"
+      - "flexible"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: "Orchestrates the merging logic and performs the in-memory data processing to combine the CSVs."
+
+  - type: stdio
+    name: filesystem
+    cmd: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "{{ directory_path }}"
+    timeout: 300
+    description: "Handles all direct filesystem operations."
+prompt: |
+  You are a CSV merging assistant.
+  1.  First, validate that the directory at {{ directory_path }} exists. If not, inform the user and stop.
+  2.  Scan the directory for all files ending with ".csv". If none are found, report it and stop.
+  3.  Based on the {{ header_check }} parameter, verify the headers. If 'strict' and headers mismatch, list the inconsistent files and stop. If 'flexible', proceed by merging only common columns.
+  4.  Read each CSV file and append its contents into a single dataset.
+  5.  Save the combined dataset to a new file named {{ output_filename }} in the original directory.
+  6.  Provide a summary of the operation.

@@ -1,0 +1,77 @@
+[package]
+name = "goose-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["code-mode", "local-inference"]
+code-mode = ["goose/code-mode"]
+local-inference = ["goose/local-inference"]
+cuda = ["goose/cuda", "local-inference"]
+
+[dependencies]
+goose = { path = "../goose", default-features = false }
+goose-mcp = { path = "../goose-mcp" }
+rmcp = { workspace = true }
+axum = { workspace = true, features = ["ws", "macros"] }
+tokio = { workspace = true }
+chrono = { workspace = true }
+tower-http = { workspace = true, features = ["cors"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }
+futures = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json", "time"] }
+tracing-appender = { workspace = true }
+tokio-stream = { workspace = true }
+anyhow = { workspace = true }
+bytes = { workspace = true }
+http = { workspace = true }
+base64 = { workspace = true }
+config = { version = "0.15.13", features = ["toml"] }
+thiserror = { workspace = true }
+clap = { workspace = true }
+serde_yaml = { workspace = true }
+utoipa = { workspace = true, features = ["axum_extras", "chrono"] }
+reqwest = { workspace = true, features = ["json", "rustls", "blocking", "multipart", "system-proxy"], default-features = false }
+tokio-util = { workspace = true }
+serde_path_to_error = "0.1.20"
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
+url = { workspace = true }
+rand = { workspace = true }
+hex = "0.4.3"
+subtle = "2.6"
+socket2 = "0.6.1"
+fs2 = { workspace = true }
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
+uuid = { workspace = true }
+rcgen = "0.13"
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+aws-lc-rs = "1.16.0"
+
+[target.'cfg(windows)'.dependencies]
+winreg = { version = "0.55.0" }
+
+[[bin]]
+name = "goosed"
+path = "src/main.rs"
+
+[[bin]]
+name = "generate_schema"
+path = "src/bin/generate_schema.rs"
+
+[dev-dependencies]
+tower = "0.5.2"
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winreg",
+]

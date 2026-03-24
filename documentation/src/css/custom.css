@@ -1,0 +1,495 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
+    format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
+    format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Semibold.woff2)
+    format("woff2");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Bold.woff2)
+    format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+
+  /* Additional Arcade color system variables */
+  --background-app: var(--constant-white);
+  --background-prominent: var(--grey-80);
+  --background-standard: var(--grey-90);
+  --background-subtle: var(--grey-95);
+
+  --border-divider: var(--grey-90);
+  --border-inverse: var(--constant-white);
+  --border-prominent: var(--grey-10);
+  --border-standard: var(--grey-60);
+  --border-subtle: var(--grey-90);
+
+  --icon-disabled: var(--grey-60);
+  --icon-extra-subtle: var(--grey-60);
+  --icon-inverse: var(--constant-white);
+  --icon-prominent: var(--grey-10);
+  --icon-standard: var(--grey-20);
+  --icon-subtle: var(--grey-50);
+
+  /* arcade colors */
+  --constant-white: #ffffff;
+  --constant-black: #000000;
+  --green-for-lightbg: #0f6636; /* accessible on white bg */
+  --green-for-darkbg: #25c2a0; /* accessible on black bg */
+  --grey-10: #101010;
+  --grey-20: #1e1e1e;
+  --grey-50: #666666;
+  --grey-60: #959595;
+  --grey-80: #cccccc;
+  --grey-85: #dadada;
+  --grey-90: #e8e8e8;
+  --grey-95: #f0f0f0;
+  --dark-grey-15: #1a1a1a;
+  --dark-grey-25: #232323;
+  --dark-grey-30: #2a2a2a;
+  --dark-grey-40: #333333;
+  --dark-grey-45: #595959;
+  --dark-grey-60: #878787;
+  --dark-grey-90: #e1e1e1;
+
+  --background-app: var(--constant-white);
+  --background-prominent: var(--grey-80);
+  --background-standard: var(--grey-90);
+  --background-subtle: var(--grey-95);
+
+  --border-divider: var(--grey-90);
+  --border-inverse: var(--constant-white);
+  --border-prominent: var(--grey-10);
+  --border-standard: var(--grey-60);
+  --border-subtle: var(--grey-90);
+
+  --icon-disabled: var(--grey-60);
+  --icon-extra-subtle: var(--grey-60);
+  --icon-inverse: var(--constant-white);
+  --icon-prominent: var(--grey-10);
+  --icon-standard: var(--grey-20);
+  --icon-subtle: var(--grey-50);
+
+  --text-placeholder: var(--grey-60);
+  --text-prominent: var(--grey-10);
+  --text-standard: var(--grey-20);
+  --text-subtle: var(--grey-50);
+  --text-inverse: var(--constant-white);
+
+  --button-primary-background: var(--constant-black);
+
+  /* overrides */
+
+  --ifm-button-border-radius: 999px;
+  --ifm-font-family-base: "Cash Sans", sans-serif;
+  --ifm-font-size-base: 16px;
+  --ifm-button-font-weight: var(--ifm-font-weight-normal);
+  --ifm-navbar-item-padding-horizontal: 32px;
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-background-color: var(--background-app);
+  --ifm-background-color: var(--background-app);
+  --ifm-hero-text-color: var(--text-standard);
+  --ifm-heading-font-weight: var(--ifm-font-weight-semibold);
+  --ifm-footer-background-color: var(--background-app);
+  --ifm-color-primary: var(--constant-black);
+  --ifm-footer-link-color: var(--text-standard);
+  --ifm-navbar-link-hover-color: var(--text-subtle);
+  --ifm-link-color: var(--green-for-lightbg);
+
+  /* video admonition */
+  --ifm-color-video-alert-contrast-background: #edfbf8;
+  --ifm-color-video-alert-contrast-foreground: #01523e;
+  --ifm-color-video-alert-border: #25c2a0;
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme="dark"] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+
+  /* arcade colors */
+  --background-app: var(--constant-black);
+  --background-prominent: var(--dark-grey-40);
+  --background-standard: var(--dark-grey-25);
+  --background-subtle: var(--dark-grey-15);
+
+  --border-divider: var(--dark-grey-25);
+  --border-inverse: var(--constant-black);
+  --border-prominent: var(--constant-white);
+  --border-standard: var(--dark-grey-45);
+  --border-subtle: var(--dark-grey-25);
+
+  --icon-disabled: var(--dark-grey-45);
+  --icon-extra-subtle: var(--dark-grey-45);
+  --icon-inverse: var(--constant-black);
+  --icon-prominent: var(--constant-white);
+  --icon-standard: var(--dark-grey-90);
+  --icon-subtle: var(--dark-grey-60);
+
+  --text-placeholder: var(--dark-grey-45);
+  --text-prominent: var(--constant-white);
+  --text-standard: var(--dark-grey-90);
+  --text-subtle: var(--dark-grey-60);
+  --text-inverse: var(--constant-black);
+
+  --button-primary-background: var(--constant-white);
+  --ifm-link-color: var(--green-for-darkbg);
+
+  /* video admonition */
+  --ifm-color-video-alert-contrast-background: #336e62;
+  --ifm-color-video-alert-contrast-foreground: rgb(216 251 216);
+  --ifm-color-video-alert-border: #99d5c5;
+}
+
+/* overrides */
+
+.button {
+  display: flex;
+  align-items: center;
+  padding: 8px 24px;
+  font-weight: var(--ifm-font-weight-semibold);
+  font-size: var(--ifm-font-size-base);
+  color: var(--text-standard);
+  border: none;
+}
+
+.button--primary {
+  background: var(--button-primary-background);
+  color: var(--text-inverse);
+}
+
+.button svg {
+  margin-right: 0.75rem;
+}
+
+.hero--primary {
+  background: var(--background-app);
+  color: var(--text-standard);
+}
+
+html {
+  background-color: var(--background-app);
+}
+
+.hero .container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.hero__title {
+  max-width: 280px;
+  text-align: center;
+  line-height: 0.8;
+  margin-bottom: 32px;
+}
+
+.hero__subtitle {
+  max-width: 600px;
+  margin-bottom: 32px;
+  font-size: 28px;
+  line-height: 36px;
+}
+
+.footer {
+  border-top: 2px solid var(--border-subtle);
+  padding-top: 24px;
+}
+
+.hero--logo {
+  display: 'flex';
+  justify-content: 'center';
+  margin-bottom: '1rem' 
+}
+
+.pill-button {
+  display: flex;
+  align-items: center;
+}
+
+.pill-button p {
+  margin: 0;
+}
+
+.ctaButton {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: var(--background-app);
+  color: var(--text-standard);
+  font-weight: bold;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+/* Enable word-wrap for code blocks */
+.theme-code-block pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+html[data-theme="dark"] .hide-in-dark {
+  opacity: 0;
+}
+
+html[data-theme="light"] .hide-in-light {
+  opacity: 0;
+}
+
+.alert--video {
+  --ifm-alert-background-color: var(
+    --ifm-color-video-alert-contrast-background
+  );
+  --ifm-alert-background-color-highlight: rgba(84, 199, 236, 0.15);
+  --ifm-alert-foreground-color: var(
+    --ifm-color-video-alert-contrast-foreground
+  );
+  --ifm-alert-border-color: var(--ifm-color-video-alert-border);
+}
+
+.aspect-ratio{
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--border-divider);
+}
+
+/* Smooth transitions for navbar items */
+.navbar__item {
+  display: flex;
+  align-items: center;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.navbar__toggle {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+/*
+ * No margin is needed for the branding right now,
+ * since there is padding on the items and no brand text.
+ * If those things change, you may want to revert this.
+*/
+.navbar__brand {
+  margin-right: 0px;
+}
+
+.navbar__logo {
+  margin-right: 0px;
+}
+
+/* Dropdown styles */
+.navbar__link--active {
+  color: var(--text-prominent);
+}
+
+.dropdown__menu {
+  background-color: var(--background-app);
+  border-color: var(--border-subtle);
+}
+
+.dropdown__link {
+  color: var(--text-standard);
+}
+
+.dropdown__link:hover {
+  background-color: var(--background-subtle);
+  color: var(--text-prominent);
+}
+
+.iconExternalLink_nPIU {
+  margin-left: 8px !important;
+}
+
+/* Force hamburger menu to appear earlier to prevent navbar overlap with smooth transitions */
+@media (max-width: 996px) {
+  .navbar__item {
+    opacity: 0;
+    transform: translateX(-10px);
+    pointer-events: none;
+    /* Use visibility instead of display for smoother transitions */
+    visibility: hidden;
+  }
+
+  .navbar__toggle {
+    opacity: 1 !important;
+    transform: scale(1) !important;
+    display: inherit !important;
+  }
+
+  .navbar-sidebar {
+    display: block;
+  }
+}
+
+/* Shrink inkeep search box some on smaller screens */
+@media (max-width: 1450px) {
+  #inkeep {
+    max-width: 180px;
+  }
+}
+
+/* Ensure navbar items are visible above the breakpoint */
+@media (min-width: 997px) {
+  .navbar__item {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .navbar__toggle {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+.carousel-image {
+  width: 100%;      /* Make the image fill the width */
+  object-fit: cover; /* Ensure the image covers the area while maintaining aspect ratio */
+  border-radius: 8px; /* Optional: rounded corners */
+}
+
+.button-grant {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: default;
+}
+
+
+.button-grant h2 {
+  margin-top: 15px;
+}
+
+/* Prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Ensure skip to content link doesn't cause horizontal scroll */
+.skipToContent_fXgn {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+}
+
+.skipToContent_fXgn:focus {
+  position: fixed !important;
+  left: 10px !important;
+  top: 10px !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  z-index: 9999 !important;
+  padding: 10px 20px !important;
+  background: var(--background-prominent) !important;
+  color: var(--text-prominent) !important;
+  border-radius: 4px !important;
+}
+
+/* Ensure all containers respect viewport width */
+.container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Prevent navbar from causing horizontal overflow */
+.navbar {
+  max-width: 100%;
+}
+
+/* Ensure main content doesn't overflow */
+main {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for filter sections */
+.scrollbar-visible {
+  overflow-y: auto;
+}
+
+.scrollbar-visible::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background-color: var(--grey-80);
+  border-radius: 3px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background-color: var(--grey-60);
+}
+
+[data-theme="dark"] .scrollbar-visible::-webkit-scrollbar-thumb {
+  background-color: var(--dark-grey-45);
+}
+
+[data-theme="dark"] .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background-color: var(--dark-grey-60);
+}

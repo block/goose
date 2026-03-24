@@ -1,0 +1,5 @@
+# Generated output files
+output/
+
+# macOS
+.DS_Store

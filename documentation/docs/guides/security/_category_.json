@@ -1,0 +1,8 @@
+{
+  "label": "Security",
+  "position": 43,
+  "link": {
+    "type": "doc",
+    "id": "guides/security/index"
+  }
+}

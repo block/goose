@@ -1,0 +1,108 @@
+---
+title: "Why I Used Goose to Build a Chaotic Emotion Detection App"
+description: The joys of experimenting with computer vision using Goose, an MCP host
+authors:
+    - rizel
+---
+
+![blog cover](emotion-powered-ui.png)
+
+Developers deserve to have fun. There was a time when the internet felt magical. I remember going to the library just to create a character on The Doll Palace. At home, I'd spend hours changing fonts with WordArt. But as I grew up, the industry did too. We've shifted away from marquees and glittery cursors. Grown-up me started using ones and zeros to build reliable systems for insurance, banking, and healthcare companies. There's pride in that, but it's harder to justify doing something just because it's fun.
+
+That's why I tapped into my inner child and used [Goose](/) to [build a UI that reacts to users' emotions](https://chaotic-emotion-detector-production.up.railway.app/).
+
+<!-- truncate -->
+
+Sometimes I want to write every line of code. Other times, I just want a quick dopamine hit from seeing my idea go from vision to execution in minutes. Other developers may relate to this feeling, and it's partly why AI agents and vibe coding have become so popular. They've rekindled that sense of playful experimentation that motivates our minds to solve problems more creatively.
+
+In an [article](https://www.oreilly.com/radar/takeaways-from-coding-with-ai/) by Tim O’Reilly on AI-assisted coding, Kent Beck and Nikola Balic share their enthusiasm:
+
+> "This is the most fun I've ever had." - Beck
+
+> "It brought back the joy of programming." - Balic
+
+Playing with code and experimenting with technology motivates our minds to solve problems more creatively.
+
+To celebrate the return of joyful programming, I started a livestream series called [**The Great Goose Off**](https://www.youtube.com/watch?v=wS5-4hXcnL4&list=PLyMFt_U2IX4v-yCUa11zgRGDgJbUUWKan), where two people compete to prompt Goose, an open source AI agent, to create the silliest, most chaotic apps possible.
+
+Participants face challenges like building:
+
+* A login form you can't log into  
+* Error messages that are sassy  
+* Buttons that run away from your cursor
+
+## My Strategy
+
+Hosting The Great Goose Off gave me a new perspective on Goose. It is good at writing code, but it is even better at being silly. That inspired me to build a computer vision app that not only detects emotion but responds to it. I used Goose as my creative partner to shape how the interface would behave. 
+
+### Let the Agent Lead
+I observed that participants (of The Great Goose Off) who were not engineers often created the most imaginative applications. They gave Goose room to interpret prompts without narrowing its scope too early. This resulted in outputs that felt fresh and unpredictable. I took a similar approach. I gave high-level instructions and allowed the agent to explore how to implement them.
+
+### Choosing a Performant Model
+
+As my manager Angie Jones says, Claude Sonnet 4 was “born to code.” I chose it because it helps Goose pivot quickly when something breaks. It’s also great at documenting code and anticipating next steps. That came in handy when the face-api CDN failed to load. Goose immediately switched to downloading the models locally instead.
+
+### Prompt Chaining
+
+Instead of trying to build everything in one huge prompt like "Create a face detection app that uses webcam input to detect emotions and makes the UI react chaotically with color changes, screen shakes, and spinning elements," I broke the complex task down into smaller, sequential subtasks:
+
+* **First prompt**: "Create a webcam application in JavaScript"  
+* **Second prompt**: "Enable a face detection mode using face-api.js"  
+* **Third prompt**: "Enable an emotion detection mode"  
+* **Fourth prompt**: "Can we add a 'Chaotic Mode' toggle to the app? When enabled, the UI should react in silly ways when an emotion is detected from the webcam. Some fun ideas for chaotic reactions (based on emotion changes):  
+  * Change the background color  
+  * Randomly reposition or rotate buttons  
+  * Add screen shake or CSS filters (like invert or hue-rotate)  
+  * Trigger emoji overlays"
+
+### Version Control
+
+After each step, I committed changes to GitHub to enable easy rollbacks if needed. This iterative approach allowed me to test functionality incrementally and refine the application's behavior.
+
+## The Result
+
+In the end, Goose and I built a delightfully chaotic application where the interface responds to my facial expressions. For example:
+
+* If I make an angry face, the screen turns red and starts to shake  
+* If I smile, multiple colorful hues appear across the interface  
+* If I look disgusted, the entire layout spins around
+
+{/* Video Player */}
+<div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+  <iframe 
+    width="560" 
+    height="315" 
+    src="https://www.youtube.com/embed/ieniCTqbnV0?autoplay=1&mute=1&loop=1&playlist=ieniCTqbnV0" 
+    title="YouTube video player" 
+    frameborder="0" 
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+    referrerpolicy="strict-origin-when-cross-origin" 
+    allowfullscreen>
+  </iframe>
+</div>
+
+
+## It’s Okay to Have Fun
+
+It's okay to not build for utility sometimes. In fact, our industry needs more delightful chaos. I believe that maintaining a sense of wonder and fun keeps us passionate about what we do.
+
+## Try it Out
+
+- Use the [app](https://chaotic-emotion-detector-production.up.railway.app/)
+- Fork the [GitHub Repository](https://github.com/blackgirlbytes/chaotic-emotion-detector)
+- Use the [recipe](goose://recipe?config=eyJpZCI6InVudGl0bGVkIiwibmFtZSI6IlVudGl0bGVkIFJlY2lwZSIsImRlc2NyaXB0aW9uIjoiTWFrZSB5b3VyIFVJIHJlYWN0IHRvIHlvdXIgZW1vdGlvbnMiLCJpbnN0cnVjdGlvbnMiOiJJIGhlbHAgYnVpbGQgaW50ZXJhY3RpdmUgd2ViIGFwcGxpY2F0aW9ucyB1c2luZyB2YW5pbGxhIEphdmFTY3JpcHQsIEhUTUwsIGFuZCBDU1MuIEkgY3JlYXRlIGNvbXBsZXRlLCBmdW5jdGlvbmFsIGFwcGxpY2F0aW9ucyB3aXRoIG1vZGVybiBVSSBkZXNpZ24sIHJlYWwtdGltZSBmZWF0dXJlcywgYW5kIGVuZ2FnaW5nIHVzZXIgaW50ZXJhY3Rpb25zLiBXaGVuIGJ1aWxkaW5nIHdlYmNhbSBvciBjYW1lcmEtYmFzZWQgYXBwbGljYXRpb25zLCBJIGludGVncmF0ZSBhZHZhbmNlZCBmZWF0dXJlcyBsaWtlIGZhY2UgZGV0ZWN0aW9uIHVzaW5nIEZhY2UtQVBJLmpzIGxpYnJhcnksIGVtb3Rpb24gcmVjb2duaXRpb24sIGFuZCBjcmVhdGl2ZSBVSSByZXNwb25zZXMuIEkgcHJvdmlkZSBhbGwgbmVjZXNzYXJ5IGZpbGVzIGluY2x1ZGluZyBIVE1MIHN0cnVjdHVyZSwgQ1NTIHN0eWxpbmcsIEphdmFTY3JpcHQgZnVuY3Rpb25hbGl0eSwgYW5kIGEgc2ltcGxlIE5vZGUuanMgc2VydmVyLiBJIGFsc28gZG93bmxvYWQgYW5kIHNlcnZlIHJlcXVpcmVkIG1vZGVsIGZpbGVzIGxvY2FsbHkgZm9yIGJldHRlciBwZXJmb3JtYW5jZSBhbmQgcmVsaWFiaWxpdHkuIFRoZSBhcHBsaWNhdGlvbnMgYXJlIGRlc2lnbmVkIHRvIGJlIHByaXZhY3ktZm9jdXNlZCB3aXRoIGxvY2FsIHN0b3JhZ2UgYW5kIHByb2Nlc3NpbmcuIiwiYWN0aXZpdGllcyI6WyJCdWlsZCB3ZWJjYW0gYXBwcyIsIkFkZCBmYWNlIGRldGVjdGlvbiIsIkNyZWF0ZSBlbW90aW9uIHJlY29nbml0aW9uIiwiRGVzaWduIGNoYW90aWMgVUkgZWZmZWN0cyIsIkltcGxlbWVudCBsb2NhbCBmaWxlIHNlcnZlcnMiXSwicHJvbXB0IjoiIiwidGl0bGUiOiJDaGFvdGljIEVtb3Rpb24gRGV0ZWN0b3IiLCJleHRlbnNpb25zIjpbXX0=) to build your own. Please note, that you must install [Goose](/docs/getting-started/installation) to use the recipe.
+
+Happy experimenting!
+
+<head>
+  <meta property="og:title" content="Why I Used Goose to Build a Chaotic Emotion Detection App" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/17/goose-emotion-detection-app" />
+  <meta property="og:description" content="The joys of experimenting with computer vision using Goose, an MCP host" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/emotion-powered-ui-83b0e779f22a3a060eef7bb29e04090d.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta name="twitter:title" content="Why I Used Goose to Build a Chaotic Emotion Detection App" />
+  <meta name="twitter:description" content="The joys of experimenting with computer vision using Goose, an MCP host" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/emotion-powered-ui-83b0e779f22a3a060eef7bb29e04090d.png" />
+</head>

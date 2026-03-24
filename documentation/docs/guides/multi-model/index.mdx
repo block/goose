@@ -1,0 +1,77 @@
+---
+title: Multi-Model Configuration
+hide_title: true
+description: Approaches for configuring model-switching behavior to optimize for cost, performance, and results.
+---
+
+import Card from '@site/src/components/Card';
+import styles from '@site/src/components/Card/styles.module.css';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import VideoCarousel from '@site/src/components/VideoCarousel';
+
+<h1 className={styles.pageTitle}>Multi-Model Configuration</h1>
+<p className={styles.pageDescription}>
+  goose supports several approaches for using different models within a single session, allowing you to optimize for cost, performance, and task specialization. Strategies range from manual or turn-based model selection to dynamic, context-aware switching.
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Lead/Worker Multi-Model Setup"
+      description="Automatic switching between models using a lead model for initial turns and a worker model for execution."
+      link="/docs/tutorials/lead-worker"
+    />
+    <Card 
+      title="Creating Plans Before Working"
+      description="Manual planning mode that optionally uses a dedicated model to break complex projects into detailed, actionable steps."
+      link="/docs/guides/creating-plans"
+    />
+    <Card 
+      title="Planning Complex Tasks"
+      description="Uses the Plan feature to transform a complex devcontainer setup into a systematic, executable roadmap."
+      link="/docs/tutorials/plan-feature-devcontainer-setup"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Treating LLMs Like Tools in a Toolbox: A Multi-Model Approach to Smarter AI Agents"
+      description="LLMs are specialized tools, and multi-model approaches create smarter, more efficient AI agents."
+      link="/blog/2025/06/16/multi-model-in-goose"
+    />
+    <Card
+      title="LLM Tag Team: Who Plans, Who Executes?"
+      description="Learn how lead/worker model configuration creates an effective AI tag team, with one model for planning and another for execution."
+      link="/blog/2025/08/11/llm-tag-team-lead-worker-model"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://www.youtube.com/embed/ZyhUTsChFUw',
+      title: 'goose\'s Multi-Model Setup',
+      description: 'Learn about lead/worker mode, from configuration to best practices',
+      duration: '5:01'
+    },
+    { 
+      type: 'iframe', 
+      src: 'https://www.youtube.com/embed/SJ6EZpyCKrk',
+      title: 'Livestream - LLM Tag Team: Who Plans, Who Executes?',
+      description: 'Using lead/worker mode to add features to the goose docs in real time',
+      duration: '9:36'
+    }
+  ]}
+/>
+</div>

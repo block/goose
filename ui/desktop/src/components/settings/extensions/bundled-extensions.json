@@ -1,0 +1,56 @@
+[
+  {
+    "id": "developer",
+    "name": "developer",
+    "display_name": "Developer",
+    "description": "General development tools useful for software engineering.",
+    "enabled": true,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  },
+  {
+    "id": "computercontroller",
+    "name": "computercontroller",
+    "display_name": "Computer Controller",
+    "description": "General computer control tools that don't require you to be a developer or engineer.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  },
+  {
+    "id": "autovisualiser",
+    "name": "autovisualiser",
+    "display_name": "Auto Visualiser",
+    "description": "Data visualization and UI generation tools",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  },
+  {
+    "id": "memory",
+    "name": "memory",
+    "display_name": "Memory",
+    "description": "Teach goose your preferences as you go.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  },
+  {
+    "id": "tutorial",
+    "name": "tutorial",
+    "display_name": "Tutorial",
+    "description": "Access interactive tutorials and guides",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "bundled": true
+  }
+]

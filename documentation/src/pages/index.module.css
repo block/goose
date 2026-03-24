@@ -1,0 +1,98 @@
+/**
+* CSS files with the .module.css suffix will be treated as CSS modules
+* and scoped locally.
+*/
+
+.header {
+  padding: 4rem 2rem;
+}
+
+
+.wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3rem;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.textColumn {
+  flex: 1 1 300px;
+  max-width: 500px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -40px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  max-width: 30ch;
+}
+
+.videoColumn {
+  flex: 1 1 400px;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: 640px;
+}
+
+.aspect-ratio{
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+ 
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .header {
+    padding: 1rem 1rem;
+  }
+
+  .wrapper {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+    padding: 1rem 1rem;
+  }
+
+  .textColumn {
+    text-align: center;
+    max-width: 100%;
+    flex: 1 1 400px;
+    margin-top: 0;
+  }
+
+  .subtitle {
+    font-size: 1.1rem;
+    line-height: 1.5;
+    margin: 0 auto 1.5rem;
+  }
+
+  .ctaButton {
+    font-size: 1rem;
+    width: auto;
+  }
+
+  .videoColumn {
+    flex: 1 1 180px;
+    aspect-ratio: 16 / 9;
+    width: 100%;
+  }
+}

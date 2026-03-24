@@ -1,0 +1,209 @@
+[package]
+name = "goose"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[features]
+default = ["code-mode", "local-inference"]
+code-mode = ["dep:pctx_code_mode"]
+local-inference = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:llama-cpp-2",
+    "dep:tokenizers",
+    "dep:symphonia",
+    "dep:rubato",
+    "dep:byteorder",
+]
+cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
+
+[lints]
+workspace = true
+
+[dependencies]
+lru = { workspace = true }
+rmcp = { workspace = true, features = [
+    "client",
+    "reqwest",
+    "transport-child-process",
+    "transport-streamable-http-client",
+    "transport-streamable-http-client-reqwest",
+] }
+oauth2 = "5.0"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+futures = { workspace = true }
+dirs = { workspace = true }
+reqwest = { workspace = true, features = ["rustls", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"], default-features = false }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = "0.7"
+jsonschema = "0.30.0"
+uuid = { workspace = true }
+regex = { workspace = true }
+async-trait = { workspace = true }
+async-stream = { workspace = true }
+minijinja = { version = "2.12.0", features = ["loader"] }
+include_dir = { workspace = true }
+tiktoken-rs = "0.6.0"
+chrono = { workspace = true }
+clap = { workspace = true }
+indoc = { workspace = true }
+nanoid = "0.4"
+sha2 = { workspace = true }
+base64 = { workspace = true }
+url = { workspace = true }
+axum = { workspace = true }
+webbrowser = { workspace = true }
+lazy_static = "1.5.0"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-futures = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-appender-tracing = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry-stdout = { workspace = true }
+keyring = { version = "3.6.2", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+    "vendored",
+] }
+serde_yaml = { workspace = true }
+strum = { workspace = true }
+once_cell = { workspace = true }
+etcetera = { workspace = true }
+fs-err = "3"
+rand = { workspace = true }
+utoipa = { workspace = true, features = ["chrono"] }
+tokio-cron-scheduler = "0.14.0"
+urlencoding = { workspace = true }
+v_htmlescape = "0.15"
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "chrono",
+    "json",
+    "macros",
+    "migrate",
+] }
+
+# For Bedrock provider
+aws-config = { version = "=1.8.12", features = ["behavior-version-latest"] }
+aws-smithy-types = "=1.3.5"
+aws-sdk-bedrockruntime = { version = "=1.120.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
+
+# For SageMaker TGI provider
+aws-sdk-sagemakerruntime = { version = "1.62.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
+
+# For GCP Vertex AI provider auth
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
+
+blake3 = "1.5"
+fs2 = { workspace = true }
+tokio-stream = { workspace = true, features = ["io-util"] }
+tempfile = { workspace = true }
+dashmap = "6.1"
+ahash = "0.8"
+tokio-util = { workspace = true, features = ["compat"] }
+agent-client-protocol-schema = { workspace = true }
+sacp = { workspace = true, features = ["unstable"] }
+unicode-normalization = "0.1"
+
+# For local Whisper transcription (optional, behind "local-inference" feature)
+candle-core = { version = "0.9", default-features = false, optional = true }
+candle-nn = { version = "0.9", default-features = false, optional = true }
+candle-transformers = { version = "0.9", default-features = false, optional = true }
+byteorder = { version = "1.5.0", optional = true }
+tokenizers = { version = "0.21.0", default-features = false, features = ["onig"], optional = true }
+symphonia = { version = "0.5", features = ["all"], optional = true }
+rubato = { version = "0.16", optional = true }
+zip = { workspace = true }
+sys-info = "0.9"
+
+schemars = { workspace = true, features = [
+    "derive",
+] }
+insta = "1.43.2"
+shellexpand = { workspace = true }
+indexmap = "2.12.0"
+ignore = { workspace = true }
+rayon = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-go = { workspace = true }
+tree-sitter-java = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+tree-sitter-kotlin-ng = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-ruby = { workspace = true }
+tree-sitter-rust = { workspace = true }
+tree-sitter-swift = { workspace = true }
+tree-sitter-typescript = { workspace = true }
+which = { workspace = true }
+pctx_code_mode = { version = "^0.3.0", optional = true }
+pulldown-cmark = "0.13.0"
+llama-cpp-2 = { version = "0.1.137", features = ["sampler"], optional = true }
+encoding_rs = "0.8.35"
+pastey = "0.2.1"
+shell-words = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { workspace = true }
+
+# Platform-specific GPU acceleration for Whisper and local inference
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.9", default-features = false, features = ["metal"], optional = true }
+candle-nn = { version = "0.9", default-features = false, features = ["metal"], optional = true }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"], optional = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
+mockall = "0.13.1"
+wiremock = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true, features = ["compat"] }
+dotenvy = { workspace = true }
+ctor = "0.2.9"
+test-case = { workspace = true }
+env-lock = { workspace = true }
+rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
+opentelemetry_sdk = { workspace = true, features = ["testing"] }
+goose-test-support = { path = "../goose-test-support" }
+
+[[example]]
+name = "agent"
+path = "examples/agent.rs"
+
+[[example]]
+name = "databricks_oauth"
+path = "examples/databricks_oauth.rs"
+
+[[example]]
+name = "test_whisper"
+path = "examples/test_whisper.rs"
+required-features = ["local-inference"]
+
+[[bin]]
+name = "analyze_cli"
+path = "src/bin/analyze_cli.rs"
+
+[[bin]]
+name = "build_canonical_models"
+path = "src/providers/canonical/build_canonical_models.rs"
+
+[package.metadata.cargo-machete]
+
+ignored = [
+    # Used only on windows
+    "winapi",
+    # Used to provide extras imports for sacp
+    "agent-client-protocol-schema",
+]

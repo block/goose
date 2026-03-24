@@ -1,0 +1,19 @@
+{
+  "name": "agent-runner",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx src/runner.ts",
+    "test:scenario": "tsx src/runner.ts --scenario"
+  },
+  "dependencies": {
+    "glob": "^11.0.0",
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,63 @@
+name: Check Release PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - main
+
+jobs:
+  check-commits:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'release/')
+    steps:
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+
+    - name: Check all PR commits are empty or cherry-picked from main
+      run: |
+        git fetch origin main
+
+        CHERRY_OUTPUT=$(git cherry origin/main HEAD)
+
+        if [ -z "$CHERRY_OUTPUT" ]; then
+          echo "✅ All commits already exist in main"
+          exit 0
+        fi
+
+        echo "Cherry check results:"
+        echo "$CHERRY_OUTPUT"
+
+        MISSING_COMMITS=$(echo "$CHERRY_OUTPUT" | grep '^+' | cut -d' ' -f2)
+
+        if [ -z "$MISSING_COMMITS" ]; then
+          echo "✅ All commits exist in main"
+          exit 0
+        fi
+
+        ALL_EMPTY=true
+        for commit in $MISSING_COMMITS; do
+          if [ -n "$(git diff-tree --no-commit-id --name-only -r "$commit")" ]; then
+            ALL_EMPTY=false
+            break
+          fi
+        done
+
+        if [ "$ALL_EMPTY" = true ]; then
+          echo "✅ Only empty commits (release branch markers) are unique"
+          for commit in $MISSING_COMMITS; do
+            git log --oneline -1 "$commit"
+          done
+          exit 0
+        fi
+
+        echo "❌ Found commits with changes that don't exist in main:"
+        for commit in $MISSING_COMMITS; do
+          git log --oneline -1 "$commit"
+        done
+        echo "Cherry-pick these commits into main first, or re-run this job after updating main."
+        exit 1

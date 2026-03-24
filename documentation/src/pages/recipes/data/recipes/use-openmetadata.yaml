@@ -1,0 +1,47 @@
+version: 1.0.0
+title: Use OpenMetadata
+description: Interact with OpenMetadata in Goose via OpenMetadata MCP Server to generate SQL or propagate classifications
+instructions: Utilize OpenMetadata tools to search for, retrieve, and modify metadata related to data assets such as tables, dashboards, and glossaries. Adhere to specified output formats like JSON for search queries and maintain structured responses using Markdown for human-readable information.
+extensions:
+- type: stdio
+  name: openmetadata
+  cmd: npx
+  args:
+  - -y
+  - mcp-remote
+  - http://localhost:8585/mcp
+  - --auth-server-url=http://localhost:8585/mcp
+  - --client-id=openmetadata
+  - --clean
+  - --header
+  - Authorization:${AUTH_HEADER}
+  envs: {}
+  env_keys:
+  - AUTH_HEADER
+  timeout: 300
+  description: ''
+  bundled: false
+settings:
+  temperature: 0.0
+activities:
+- Generate SQL Given FQN
+- List Tables Given FQN
+- Propagate changes in certification/owner/tags to tables given FQN
+parameters:
+  - key: fqn
+    input_type: string
+    requirement: required
+    description: The fully qualified name of the asset in openmetadata you'd like an agent to act on
+prompt: |
+  Take classifications from {{ fqn }} and apply them to all the tables that are listed in {{ fqn }}
+
+  Here's what to do step by step:
+
+  1. **Verify {{ fqn }} exists in openmetadata**
+  2. **Ask user if they will be propagating the {{ fqn }} owner/certification or a particular tag**
+  3. **Get details of {{ fqn }} in openmetadata**
+    - the owner/certification/tag to be applied to other assets
+  4. **List tables of {{ fqn }}**
+  5. **Patch all tables that are returned**
+author:
+  contact: nickacosta

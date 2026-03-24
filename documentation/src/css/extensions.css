@@ -1,0 +1,327 @@
+/* Animation for card hover effect */
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+*, :after, :before {
+  border: 0 solid #e5e7eb;
+}
+
+
+
+/* Search styling */
+.search-container {
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 1rem 0;
+  font-size: 1rem;
+  color: var(--text-standard);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-bottom-color: var(--border-standard);
+}
+
+.search-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+/* Card base styles */
+.server-card {
+  position: relative;
+  height: 100%;
+  padding: 2px;
+  overflow: hidden;
+  border-radius: 17px;
+  background-color: var(--border-subtle);
+  transition: all 0.3s ease;
+}
+
+.server-card.interactive:hover {
+  background-color: transparent;
+  transform: translateY(-2px);
+}
+
+.server-card:hover .card-glow {
+  opacity: 1;
+}
+
+.card-glow {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1000px;
+  height: 1000px;
+  top: -200px;
+  left: -200px;
+  transform-origin: center;
+  background: linear-gradient(45deg, #13bbaf, #ff4f00);
+  animation: rotate 6s linear infinite;
+  z-index: -1;
+  transition: opacity 0.2s;
+}
+
+.card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-app);
+  border-radius: 15px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.prompt-card {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-app);
+  border-radius: 15px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.prompt-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  min-height: 0; 
+}
+
+/* Card header styles */
+.card-header {
+  padding: 1.5rem 1.5rem 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.card-header a {
+  text-decoration: none;
+  color: var(--text-standard);
+  transition: color 0.2s;
+}
+
+.card-header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Extension name and icon layout */
+.extension-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none !important;
+  color: var(--text-standard);
+  transition: color 0.2s;
+}
+
+.extension-title:hover {
+  color: var(--text-prominent);
+  text-decoration: none !important;
+}
+
+.extension-icon {
+  flex-shrink: 0;
+  width: 13px;
+  height: 12px;
+}
+
+.home-page-server-name {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.home-page-server-name:hover {
+  color: var(--text-prominent);
+  text-decoration: none;
+}
+
+/* Card content layout */
+.card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  gap: 1rem;
+}
+
+.card-description {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-standard);
+  margin: 0;
+}
+
+/* Command section styles */
+.command-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--text-standard);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.command-toggle:hover {
+  color: var(--text-prominent);
+}
+
+.command-toggle h4 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.command-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.command-content {
+  background-color: var(--background-subtle);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--text-standard);
+  margin-top: 0.5rem;
+}
+
+.command-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  background-color: transparent;
+  border: none;
+}
+
+/* Card footer */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+/* GitHub stats link */
+.card-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+  transition: color 0.2s;
+  text-decoration: none !important;
+}
+
+.card-stats:hover {
+  color: var(--text-prominent);
+  text-decoration: none !important;
+}
+
+.card-stats svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Card actions (Install button/Built-in badge) */
+.card-action {
+  margin-left: auto;
+}
+
+.install-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+  transition: all 0.2s ease;
+  text-decoration: none !important;
+  padding: 0;
+}
+
+.install-button:hover {
+  color: var(--text-prominent);
+  text-decoration: none !important;
+}
+
+.install-button svg {
+  width: 16px;
+  height: 16px;
+  transition: color 0.2s;
+}
+
+.install-button:hover svg {
+  color: #fa5204;
+}
+
+.built-in-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--background-subtle);
+  color: var(--text-subtle);
+  cursor: help;
+}
+
+/* Grid layout */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  padding: 1rem 0;
+}
+
+@media (min-width: 768px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .cards-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Dark mode adjustments */
+html[data-theme="dark"] .card {
+  background-color: var(--background-app);
+  border-color: var(--border-subtle);
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .command-content {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme="dark"] .built-in-badge {
+  background-color: rgba(255, 255, 255, 0.1);
+}

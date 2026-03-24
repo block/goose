@@ -1,0 +1,36 @@
+.features {
+  display: flex;
+  align-items: center;
+  padding: 2rem 0;
+  width: 100%;
+}
+
+.featureSvg {
+  height: 200px;
+  width: 200px;
+}
+
+.featureIcon {
+  height: 32px;
+  width: 32px;
+}
+
+.videoContainer {
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 100px;
+  position: relative;
+}
+
+.video {
+  width: 100%;
+  height: auto;
+  display: block;
+  outline: none;
+}
+
+.video + .video {
+  position: absolute;
+  top: 0;
+  left: 0;
+}

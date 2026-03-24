@@ -1,0 +1,929 @@
+/* ═══════════════════════════════════════════════════════════
+   1. TAILWIND IMPORTS & CONFIG
+   ═══════════════════════════════════════════════════════════ */
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin '@tailwindcss/typography';
+
+@source '../../index.html';
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --breakpoint-md: 930px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   2. TAILWIND PRIMITIVES — @theme {}
+   Palette colors, breakpoints, shadow reset.
+   Build-time values Tailwind uses directly. NOT part of MCP spec.
+   ═══════════════════════════════════════════════════════════ */
+
+@theme {
+  --shadow-*: initial;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-block-teal: #13bbaf;
+  --color-block-orange: #ff4f00;
+
+  --color-neutral-50: #f4f6f7;
+  --color-neutral-100: #e3e6ea;
+  --color-neutral-200: #cbd1d6;
+  --color-neutral-300: #a7b0b9;
+  --color-neutral-400: #878787;
+  --color-neutral-500: #606c7a;
+  --color-neutral-600: #525b68;
+  --color-neutral-700: #474e57;
+  --color-neutral-800: #3f434b;
+  --color-neutral-900: #32353b;
+  --color-neutral-950: #22252a;
+
+  --color-red-100: #ff6b6b;
+  --color-red-200: #f94b4b;
+
+  --color-blue-100: #7cacff;
+  --color-blue-200: #5c98f9;
+
+  --color-green-100: #a3d795;
+  --color-green-200: #91cb80;
+
+  --color-yellow-100: #ffd966;
+  --color-yellow-200: #fbcd44;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MCP SEMANTIC TOKEN REGISTRATION — @theme inline {}
+   Registers every McpUiStyleVariableKey so Tailwind generates utility classes.
+   Self-referential var() for colors, `initial` for non-color tokens.
+   Actual values are set at runtime by theme-tokens.ts (the single source of truth).
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* Backgrounds */
+  --color-background-primary: var(--color-background-primary);
+  --color-background-secondary: var(--color-background-secondary);
+  --color-background-tertiary: var(--color-background-tertiary);
+  --color-background-inverse: var(--color-background-inverse);
+  --color-background-ghost: var(--color-background-ghost);
+  --color-background-info: var(--color-background-info);
+  --color-background-danger: var(--color-background-danger);
+  --color-background-success: var(--color-background-success);
+  --color-background-warning: var(--color-background-warning);
+  --color-background-disabled: var(--color-background-disabled);
+
+  /* Text */
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-text-ghost: var(--color-text-ghost);
+  --color-text-info: var(--color-text-info);
+  --color-text-danger: var(--color-text-danger);
+  --color-text-success: var(--color-text-success);
+  --color-text-warning: var(--color-text-warning);
+  --color-text-disabled: var(--color-text-disabled);
+
+  /* Borders */
+  --color-border-primary: var(--color-border-primary);
+  --color-border-secondary: var(--color-border-secondary);
+  --color-border-tertiary: var(--color-border-tertiary);
+  --color-border-inverse: var(--color-border-inverse);
+  --color-border-ghost: var(--color-border-ghost);
+  --color-border-info: var(--color-border-info);
+  --color-border-danger: var(--color-border-danger);
+  --color-border-success: var(--color-border-success);
+  --color-border-warning: var(--color-border-warning);
+  --color-border-disabled: var(--color-border-disabled);
+
+  /* Rings */
+  --color-ring-primary: var(--color-ring-primary);
+  --color-ring-secondary: var(--color-ring-secondary);
+  --color-ring-inverse: var(--color-ring-inverse);
+  --color-ring-info: var(--color-ring-info);
+  --color-ring-danger: var(--color-ring-danger);
+  --color-ring-success: var(--color-ring-success);
+  --color-ring-warning: var(--color-ring-warning);
+
+  /* Typography */
+  --font-sans: initial;
+  --font-mono: initial;
+  --font-weight-normal: initial;
+  --font-weight-medium: initial;
+  --font-weight-semibold: initial;
+  --font-weight-bold: initial;
+  --font-text-xs-size: initial;
+  --font-text-sm-size: initial;
+  --font-text-md-size: initial;
+  --font-text-lg-size: initial;
+  --font-heading-xs-size: initial;
+  --font-heading-sm-size: initial;
+  --font-heading-md-size: initial;
+  --font-heading-lg-size: initial;
+  --font-heading-xl-size: initial;
+  --font-heading-2xl-size: initial;
+  --font-heading-3xl-size: initial;
+  --font-text-xs-line-height: initial;
+  --font-text-sm-line-height: initial;
+  --font-text-md-line-height: initial;
+  --font-text-lg-line-height: initial;
+  --font-heading-xs-line-height: initial;
+  --font-heading-sm-line-height: initial;
+  --font-heading-md-line-height: initial;
+  --font-heading-lg-line-height: initial;
+  --font-heading-xl-line-height: initial;
+  --font-heading-2xl-line-height: initial;
+  --font-heading-3xl-line-height: initial;
+
+  /* Border radius */
+  --border-radius-xs: initial;
+  --border-radius-sm: initial;
+  --border-radius-md: initial;
+  --border-radius-lg: initial;
+  --border-radius-xl: initial;
+  --border-radius-full: initial;
+
+  /* Border width */
+  --border-width-regular: initial;
+
+  /* Shadows */
+  --shadow-hairline: initial;
+  --shadow-sm: initial;
+  --shadow-md: initial;
+  --shadow-lg: initial;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. GOOSE DESKTOP UI ALIASES — @theme inline {}
+   App-specific tokens that map to MCP spec tokens.
+   Not part of the MCP spec — only used by Goose components.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --font-serif: serif;
+  --color-ring: var(--color-ring-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --shadow-default: var(--shadow-default);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. APP-SPECIFIC VARIABLES — :root / .dark
+   Goose-only variables that derive from MCP tokens. These are NOT duplicated
+   in theme-tokens.ts — they exist only here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Legacy aliases (used by toast and katex styles in this file) */
+  --text-inverse: var(--color-white);
+  --text-danger: var(--color-red-200);
+
+  /* Search highlighting */
+  --highlight-color: rgba(255, 213, 0, 0.5);
+  --highlight-current: rgba(252, 213, 3, 0.6);
+
+  /* Sidebar aliases (shadcn sidebar component convention) */
+  --sidebar: var(--color-background-secondary);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-background-inverse);
+  --sidebar-primary-foreground: var(--color-text-inverse);
+  --sidebar-accent: var(--color-background-secondary);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-primary);
+  --sidebar-ring: var(--color-border-primary);
+
+  /* Custom shadow */
+  --shadow-default:
+    0px 12px 32px 0px rgba(0, 0, 0, 0.04), 0px 8px 16px 0px rgba(0, 0, 0, 0.02),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.04), 0px 0px 1px 0px rgba(0, 0, 0, 0.2);
+}
+
+.dark {
+  /* Legacy aliases */
+  --text-inverse: var(--color-black);
+  --text-danger: var(--color-red-100);
+
+  /* Search highlighting */
+  --highlight-color: rgba(255, 213, 0, 0.5);
+  --highlight-current: rgba(252, 213, 3, 0.6);
+
+  /* Sidebar aliases */
+  --sidebar: var(--color-background-secondary);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-background-inverse);
+  --sidebar-primary-foreground: var(--color-text-inverse);
+  --sidebar-accent: var(--color-background-secondary);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-primary);
+  --sidebar-ring: var(--color-border-primary);
+
+  /* Custom shadow */
+  --shadow-default:
+    0px 12px 32px 0px rgba(0, 0, 0, 0.2), 0px 8px 16px 0px rgba(0, 0, 0, 0.15),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.1), 0px 0px 1px 0px rgba(0, 0, 0, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. BASE LAYER + FONTS + ANIMATIONS + COMPONENTS
+   Everything below is standard Tailwind @layer base / component styles.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  * {
+    @apply border-border-primary;
+  }
+  body {
+    @apply text-text-primary;
+  }
+}
+
+@font-face {
+  font-family: 'Cash Sans';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Light.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Light.woff) format('woff');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Cash Sans';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Regular.woff)
+      format('woff');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Cash Sans';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Medium.woff) format('woff');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Cash Sans';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Bold.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Bold.woff) format('woff');
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* animations */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sidebar-item-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes wind {
+  0% {
+    transform: translate(0, 0);
+  }
+  99.99% {
+    transform: translate(-100%, 100%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Non-blocking sidebar animations */
+.sidebar-item {
+  /* Start hidden and positioned to the right */
+  opacity: 0;
+  transform: translateX(20px);
+  animation: sidebar-item-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* Use will-change sparingly and remove after animation */
+  will-change: transform, opacity;
+}
+
+.sidebar-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.sidebar-item:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.sidebar-item:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.sidebar-item:nth-child(4) {
+  animation-delay: 0.45s;
+}
+.sidebar-item:nth-child(5) {
+  animation-delay: 0.5s;
+}
+.sidebar-item:nth-child(6) {
+  animation-delay: 0.25s;
+}
+.sidebar-item:nth-child(7) {
+  animation-delay: 0.5s;
+}
+
+/* Remove will-change after animation completes */
+.sidebar-item {
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Global reduced motion support - applies when user has system preference set */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all CSS animations and transitions, except for toasts which need transitions for auto-dismiss */
+  *:not(.Toastify *),
+  *:not(.Toastify *)::before,
+  *:not(.Toastify *)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Specific animation classes that should be disabled */
+  .animate-shimmer,
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce,
+  [class*='animate-']:not(.Toastify *) {
+    animation: none !important;
+  }
+
+  /* Page transitions */
+  .page-transition {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Goose icon entrance animation */
+  .goose-icon-entrance {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Wind/rain animation in welcome logo */
+  [class*='animate-[wind'] {
+    animation: none !important;
+  }
+
+  /* Elements that use opacity-0 with appear animation need to be visible when animations are disabled */
+  .opacity-0[class*='animate-'] {
+    opacity: 1 !important;
+  }
+}
+
+/* Toast close button styling */
+.Toastify__close-button {
+  color: var(--text-inverse) !important;
+  opacity: 0.7;
+  align-self: center;
+  margin-top: 0;
+  margin-right: 8px;
+  padding: 4px;
+  border-radius: 4px;
+  transition:
+    opacity 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.Toastify__close-button:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.Toastify__close-button:focus {
+  outline: 2px solid var(--color-block-teal);
+  outline-offset: 2px;
+}
+
+/* Ensure close button is visible on all toast types */
+.Toastify__toast--success .Toastify__close-button,
+.Toastify__toast--error .Toastify__close-button,
+.Toastify__toast--info .Toastify__close-button,
+.Toastify__toast--warning .Toastify__close-button,
+.Toastify__toast--default .Toastify__close-button {
+  color: var(--text-inverse) !important;
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up 0.15s ease-out forwards;
+}
+
+/* Hide native scrollbars in Radix ScrollArea (custom scrollbar will show instead) */
+[data-radix-scroll-area-viewport] {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
+}
+
+/* Override Radix UI ScrollArea styles */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+}
+
+/* Native scrollbar styling */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-neutral-200) transparent;
+}
+
+.dark * {
+  scrollbar-color: var(--color-neutral-400) transparent;
+}
+
+/* Webkit scrollbar styles */
+::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 12px; /* Increased from 8px */
+  height: 12px;
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-200);
+  border: 3px solid transparent; /* Creates padding effect */
+  border-radius: 8px;
+  background-clip: padding-box;
+  min-height: 40px; /* Minimum height of thumb */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-400);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-neutral-300);
+  border: 2px solid transparent; /* Slightly less padding on hover */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-neutral-500);
+}
+
+/* Ensure the thumb is more prominent when active */
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--color-neutral-400);
+  border: 2px solid transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb:active {
+  background-color: var(--color-neutral-500);
+}
+
+body {
+  background-color: var(--color-background-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.word-break {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  height: 32px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.bg-inline-code {
+  border-radius: 4px;
+  color: var(--color-neutral-200);
+  font-family: monospace;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+}
+
+.bg-inline-code:before {
+  content: '';
+}
+
+pre:has(> code.bg-inline-code) {
+  padding: 1em;
+}
+
+li > code.bg-inline-code,
+p > code.bg-inline-code {
+  color: var(--color-block-orange);
+  padding: 2px 4px;
+}
+
+.bg-inline-code:after {
+  content: '';
+}
+
+.user-message p {
+  margin-bottom: 0 !important;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.assistant:has(+ .user):not(.in-chain) .goose-message {
+  padding-bottom: 24px;
+}
+
+/* Sidebar scrollbar styles */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.dark .sidebar-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  position: absolute;
+  right: 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  border: none;
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Virtualized list styles */
+.virtualized-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
+
+.virtualized-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.virtualized-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.virtualized-list::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-300);
+  border-radius: 4px;
+}
+
+.dark .virtualized-list::-webkit-scrollbar-thumb {
+  background-color: var(--color-neutral-400);
+}
+
+.virtualized-list::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-neutral-400);
+}
+
+.dark .virtualized-list::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-neutral-300);
+}
+
+/* Ensure virtualized items don't have margin/padding that could break layout */
+.virtualized-list > div {
+  outline: none;
+}
+
+/* Optimize performance for virtualized rendering */
+.virtualized-list * {
+  contain: layout style paint;
+}
+
+/* Goose icon animation to replace framer-motion */
+@keyframes goose-icon-entrance {
+  from {
+    opacity: 0;
+    transform: scale(0.25) translate(-5px, 5px) rotate(-20deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translate(0, 0) rotate(0deg);
+  }
+}
+
+.goose-icon-animation {
+  animation: goose-icon-entrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: bottom left;
+}
+
+/* Optimize session skeleton loading */
+.session-skeleton {
+  contain: layout style paint;
+  /* Prevent layout thrashing during loading */
+  min-height: 140px;
+}
+
+/* Ensure navigation is always responsive */
+[data-slot='sidebar-menu-button'] {
+  /* Ensure buttons are always clickable during transitions */
+  pointer-events: auto !important;
+  /* Optimize for interaction */
+  touch-action: manipulation;
+}
+
+/* Ensure all navigation buttons are immediately responsive */
+.sidebar-item button,
+.sidebar-item a,
+[data-slot='sidebar-menu-button'] {
+  pointer-events: auto !important;
+  /* Prevent any blocking during animations */
+  will-change: auto;
+}
+
+/* Override any blocking pointer events during animations */
+.sidebar-item,
+.sidebar-item * {
+  pointer-events: auto !important;
+}
+
+/* Optimize route transitions for better performance */
+.route-container {
+  /* Use hardware acceleration for smoother transitions */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  /* Optimize for content changes */
+  contain: layout style paint;
+}
+
+/* Non-blocking page transitions */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.page-transition {
+  /* Start with proper initial state to prevent flicker */
+  opacity: 0;
+  animation: page-fade-in 0.08s ease-out forwards;
+  /* Don't block interactions during animation */
+  pointer-events: auto;
+}
+
+/* Sidebar transition optimizations */
+[data-slot='sidebar-container'] {
+  /* Promote to composite layer for smoother animations */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  /* Optimize for transform animations */
+  will-change: transform;
+}
+
+[data-slot='sidebar-gap'] {
+  /* Optimize for width animations */
+  will-change: width;
+}
+
+/* Ensure smooth transitions during state changes */
+[data-state='expanded'] [data-slot='sidebar-container'],
+[data-state='collapsed'] [data-slot='sidebar-container'] {
+  will-change: transform;
+}
+
+[data-state='expanded'] [data-slot='sidebar-gap'],
+[data-state='collapsed'] [data-slot='sidebar-gap'] {
+  will-change: width;
+}
+
+/* Subtle back-and-forth shimmer animation for onboarding card */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.15;
+  }
+  50% {
+    transform: translateX(100%);
+    opacity: 0.05;
+  }
+  80% {
+    opacity: 0.15;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 6s ease-in-out infinite;
+}
+
+/* KaTeX Math Rendering */
+
+.prose .katex {
+  font-size: 1.05em;
+  color: inherit;
+}
+
+.katex-display {
+  margin: 0.75em 0;
+  padding: 1em;
+  background-color: var(--color-background-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  text-align: center;
+}
+
+.katex-display .katex {
+  color: var(--color-neutral-800);
+}
+
+.dark .katex-display .katex {
+  color: #e6e6e6;
+}
+
+.katex-error {
+  color: var(--text-danger);
+}
+
+/* Search Highlighting Styles */
+.search-highlight {
+  background-color: var(--highlight-color);
+  color: var(--color-text-primary);
+  padding: 0;
+  border-radius: 2px;
+}
+
+.search-highlight.current {
+  background-color: var(--highlight-current);
+  box-shadow: inset 0 0 0 1px var(--color-text-primary);
+  z-index: 2;
+}
+
+/* Search Bar Animations */
+@keyframes expandDown {
+  from {
+    max-height: 0;
+  }
+  to {
+    max-height: var(--search-bar-height);
+  }
+}
+
+@keyframes collapseUp {
+  from {
+    max-height: var(--search-bar-height);
+  }
+  to {
+    max-height: 0;
+  }
+}
+
+.search-bar-enter {
+  --search-bar-height: 72px;
+  animation: expandDown 0.15s ease-out forwards;
+  overflow: hidden;
+}
+
+.search-bar-exit {
+  --search-bar-height: 72px;
+  animation: collapseUp 0.15s ease-out forwards;
+  overflow: hidden;
+}
+
+/* Reduced motion support for search animations */
+@media (prefers-reduced-motion: reduce) {
+  .search-bar-enter,
+  .search-bar-exit {
+    animation: none;
+    max-height: var(--search-bar-height);
+  }
+}
+
+/* ==========================================================================
+   MCP App Display Mode Entrance Animations
+   ========================================================================== */
+
+@keyframes mcp-enter-pip {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translate(12px, -12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mcp-enter-fullscreen {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mcp-enter-inline {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mcp-app-container.mcp-enter-pip {
+  animation: mcp-enter-pip 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.mcp-app-container.mcp-enter-fullscreen {
+  animation: mcp-enter-fullscreen 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.mcp-app-container.mcp-enter-inline {
+  animation: mcp-enter-inline 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}

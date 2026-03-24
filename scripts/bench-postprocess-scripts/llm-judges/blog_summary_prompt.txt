@@ -1,0 +1,8 @@
+You are evaluating a response to a summarization task and will give a score of 0, 1, or 2. The instructions were:
+
+'What are the top 5 most counterintuitive insights from this blog post? https://huyenchip.com/2025/01/07/agents.html'
+
+Does the response below appropriately answer the query (ignore formatting)?
+0 = does not provide any insights at all
+1 = provides some insights, but not all 5
+2 = provides all 5 insights

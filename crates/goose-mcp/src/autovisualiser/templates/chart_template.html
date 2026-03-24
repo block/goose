@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart</title>
+
+    <script>{{CHART_MIN}}</script>
+
+    <style>{{MCP_APP_BASE_CSS}}</style>
+    <style>
+        body {
+            padding: 16px;
+        }
+
+        .chart-title {
+            font-size: var(--font-heading-md-size);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        .chart-subtitle {
+            font-size: var(--font-text-md-size);
+            color: var(--color-text-secondary);
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .chart-header:empty,
+        .chart-title:empty,
+        .chart-subtitle:empty {
+            display: none;
+        }
+
+        .chart-area {
+            position: relative;
+            height: 520px;
+        }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 24px;
+        }
+
+        :root[data-display-mode="fullscreen"] #chartRoot,
+        :root[data-display-mode="pip"] #chartRoot {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
+
+        :root[data-display-mode="fullscreen"] .chart-area,
+        :root[data-display-mode="pip"] .chart-area {
+            flex: 1;
+            height: auto;
+            min-height: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div id="chartRoot" style="display:none;width:100%;">
+        <div class="chart-header">
+            <div class="chart-title" id="chartTitle"></div>
+            <div class="chart-subtitle" id="chartSubtitle"></div>
+        </div>
+        <div class="chart-area">
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+
+    <script>{{MCP_APP_BRIDGE}}</script>
+    <script>
+    (function () {
+        "use strict";
+
+        var chart = null;
+
+        // ── Palette ─────────────────────────────────────────────────
+        // Muted, purposeful colors that feel at home in light & dark.
+        // Each has a solid and a translucent variant.
+        var palette = [
+            { solid: "#5c98f9", fill: "rgba(92,152,249,0.12)" },
+            { solid: "#f97066", fill: "rgba(249,112,102,0.12)" },
+            { solid: "#47c9a2", fill: "rgba(71,201,162,0.12)" },
+            { solid: "#f0a03c", fill: "rgba(240,160,60,0.12)" },
+            { solid: "#9b8afb", fill: "rgba(155,138,251,0.12)" },
+            { solid: "#e87fa0", fill: "rgba(232,127,160,0.12)" },
+            { solid: "#3cc0e0", fill: "rgba(60,192,224,0.12)" },
+            { solid: "#8bba5a", fill: "rgba(139,186,90,0.12)" },
+        ];
+
+        // ── Chart rendering ─────────────────────────────────────────
+
+        function getChartOptions(chartData, type) {
+            var cv = McpAppBridge.cssVar;
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            var textColor = cv("--color-text-primary") || (isDark ? "#e0e0e0" : "#3f434b");
+            var textSecondary = cv("--color-text-secondary") || (isDark ? "#a0a0a0" : "#878787");
+            var gridColor = cv("--color-border-primary") || (isDark ? "#333" : "#e3e6ea");
+            var fontFamily = cv("--font-sans") || "sans-serif";
+
+            var base = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: type === "scatter"
+                    ? { intersect: true, mode: "nearest" }
+                    : { intersect: false, mode: "index" },
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: "circle",
+                            padding: 20,
+                            font: { size: 13, family: fontFamily },
+                            color: textSecondary,
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            generateLabels: function (chart) {
+                                var ds = chart.data.datasets;
+                                return ds.map(function (d, i) {
+                                    var color = d.borderColor || d.backgroundColor;
+                                    return {
+                                        text: d.label,
+                                        fontColor: textSecondary,
+                                        fillStyle: color,
+                                        strokeStyle: color,
+                                        lineWidth: 0,
+                                        pointStyle: "circle",
+                                        hidden: !chart.isDatasetVisible(i),
+                                        datasetIndex: i,
+                                    };
+                                });
+                            },
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: cv("--color-background-inverse") || "rgba(0,0,0,0.85)",
+                        titleColor: cv("--color-text-inverse") || "#fff",
+                        bodyColor: cv("--color-text-inverse") || "#fff",
+                        borderColor: "transparent",
+                        borderWidth: 0,
+                        cornerRadius: 6,
+                        padding: { top: 8, bottom: 8, left: 10, right: 10 },
+                        titleFont: { size: 12, weight: "600", family: fontFamily },
+                        bodyFont: { size: 12, family: fontFamily },
+                        displayColors: true,
+                        boxWidth: 8,
+                        boxHeight: 8,
+                        boxPadding: 4,
+                        usePointStyle: true,
+                    },
+                    title: { display: false },
+                },
+                animation: { duration: 500, easing: "easeOutQuart" },
+            };
+
+            var axisDefaults = {
+                grid: { color: gridColor, drawBorder: false, lineWidth: 1 },
+                ticks: {
+                    color: textSecondary,
+                    font: { size: 11, family: fontFamily },
+                    padding: 8,
+                },
+                border: { display: false },
+            };
+
+            if (type === "scatter") {
+                base.scales = {
+                    x: Object.assign({}, axisDefaults, {
+                        type: "linear",
+                        position: "bottom",
+                        title: chartData.xAxisLabel
+                            ? { display: true, text: chartData.xAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
+                    y: Object.assign({}, axisDefaults, {
+                        title: chartData.yAxisLabel
+                            ? { display: true, text: chartData.yAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
+                };
+            } else {
+                base.scales = {
+                    x: Object.assign({}, axisDefaults, {
+                        title: chartData.xAxisLabel
+                            ? { display: true, text: chartData.xAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
+                    y: Object.assign({}, axisDefaults, {
+                        beginAtZero: true,
+                        title: chartData.yAxisLabel
+                            ? { display: true, text: chartData.yAxisLabel, color: textSecondary, font: { size: 11, family: fontFamily } }
+                            : { display: false },
+                    }),
+                };
+            }
+
+            if (chartData.options) base = mergeDeep(base, chartData.options);
+            return base;
+        }
+
+        function mergeDeep(target, source) {
+            var out = Object.assign({}, target);
+            for (var key in source) {
+                if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+                    out[key] = mergeDeep(target[key] || {}, source[key]);
+                } else {
+                    out[key] = source[key];
+                }
+            }
+            return out;
+        }
+
+        function processDatasets(datasets, type) {
+            return datasets.map(function (ds, i) {
+                var p = palette[i % palette.length];
+                var out = Object.assign({}, ds);
+
+                if (!out.borderColor) out.borderColor = p.solid;
+                var lineColor = out.borderColor;
+
+                if (!out.backgroundColor) {
+                    out.backgroundColor = type === "bar" ? lineColor : p.fill;
+                }
+
+                if (out.borderWidth === undefined) {
+                    out.borderWidth = type === "line" ? 2 : 0;
+                }
+                if (type === "line") {
+                    if (out.tension === undefined) out.tension = 0.35;
+                    out.fill = false;
+                    out.pointStyle = "circle";
+                    if (out.pointRadius === undefined) out.pointRadius = 3;
+                    out.pointBackgroundColor = lineColor;
+                    out.pointBorderColor = lineColor;
+                    if (out.pointHitRadius === undefined) out.pointHitRadius = 20;
+                    if (out.pointHoverRadius === undefined) out.pointHoverRadius = 5;
+                    out.pointHoverBackgroundColor = lineColor;
+                }
+                if (type === "bar") {
+                    if (out.borderRadius === undefined) out.borderRadius = 3;
+                    if (out.maxBarThickness === undefined) out.maxBarThickness = 48;
+                }
+                if (type === "scatter") {
+                    out.backgroundColor = lineColor;
+                    out.pointStyle = "circle";
+                    if (out.pointRadius === undefined) out.pointRadius = 4;
+                    if (out.pointHoverRadius === undefined) out.pointHoverRadius = 6;
+                }
+
+                return out;
+            });
+        }
+
+        function renderChart(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("chartRoot").style.display = "";
+
+            if (chart) { chart.destroy(); chart = null; }
+
+            var titleEl = document.getElementById("chartTitle");
+            var subtitleEl = document.getElementById("chartSubtitle");
+            titleEl.textContent = data.title || "";
+            subtitleEl.textContent = data.subtitle || "";
+
+            var type = data.type || "line";
+            var ctx = document.getElementById("mainChart").getContext("2d");
+            chart = new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: data.labels || [],
+                    datasets: processDatasets(data.datasets, type),
+                },
+                options: getChartOptions(data, type),
+            });
+
+            setTimeout(McpAppBridge.reportSize, 80);
+        }
+
+        // ── Bootstrap ───────────────────────────────────────────────
+
+        function safeRender(data) {
+            try { renderChart(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-chart",
+            onData: safeRender,
+            onTheme: function () {
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
+            },
+        });
+    })();
+    </script>
+</body>
+</html>

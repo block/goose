@@ -1,0 +1,168 @@
+version: "1.0.0"
+title: "Support Files Generator"
+description: "Generate requirements.txt, README.md, configuration files, and helper scripts"
+instructions: |
+  You are a DevOps and documentation expert. Create all supporting files needed
+  to make the load tests easy to use and maintain.
+
+  Generate the following files:
+  1. requirements.txt - All Python dependencies
+  2. README.md - Comprehensive documentation
+  3. locust.conf - Configuration file for Locust
+  4. docker-compose.yml - Optional Docker setup for distributed testing
+  5. run_tests.sh - Shell script with example commands
+  6. data/ - Sample data files for parameterized tests
+  7. .gitignore - Ignore patterns for test artifacts
+
+parameters:
+  - key: output_dir
+    input_type: string
+    requirement: required
+    description: "Output directory"
+
+  - key: base_url
+    input_type: string
+    requirement: required
+    description: "Base URL for API"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  Generate all support files for the Locust load tests.
+
+  1. Create {{ output_dir }}/requirements.txt:
+  ```
+  locust>=2.15.0
+  pyyaml>=6.0
+  requests>=2.31.0
+  python-dotenv>=1.0.0
+  faker>=20.0.0  # For generating realistic test data
+  ```
+
+  2. Create {{ output_dir }}/README.md with:
+  - Project overview and purpose
+  - API being tested (from analysis)
+  - Prerequisites and installation steps
+  - Configuration instructions
+  - How to run tests:
+    * Single machine mode
+    * Distributed mode (master/workers)
+    * Headless mode
+    * Web UI mode
+  - Example commands for different scenarios:
+    * Quick smoke test: `locust --headless -u 10 -r 2 -t 1m`
+    * Stress test: `locust --headless -u 100 -r 10 -t 10m`
+    * Web UI: `locust --web-port 8089`
+  - Interpreting results and metrics
+  - Troubleshooting common issues
+  - Project structure explanation
+
+  3. Create {{ output_dir }}/locust.conf:
+  ```conf
+  # Locust configuration file
+  host = {{ base_url }}
+  users = 100
+  spawn-rate = 10
+  run-time = 5m
+  headless = false
+  web-host = 127.0.0.1
+  web-port = 8089
+  loglevel = INFO
+  logfile = locust.log
+  html = reports/report.html
+  csv = reports/results
+  ```
+
+  4. Create {{ output_dir }}/run_tests.sh:
+  ```bash
+  #!/bin/bash
+  # Example test execution script
+
+  echo "Starting Locust load tests..."
+
+  # Smoke test (10 users, 1 minute)
+  if [ "$1" == "smoke" ]; then
+      locust --headless -u 10 -r 2 -t 1m --html=reports/smoke_test.html
+
+  # Load test (100 users, 10 minutes)
+  elif [ "$1" == "load" ]; then
+      locust --headless -u 100 -r 10 -t 10m --html=reports/load_test.html
+
+  # Stress test (500 users, 30 minutes)
+  elif [ "$1" == "stress" ]; then
+      locust --headless -u 500 -r 50 -t 30m --html=reports/stress_test.html
+
+  # Web UI mode (default)
+  else
+      echo "Starting Locust web UI on http://localhost:8089"
+      locust
+  fi
+  ```
+
+  5. Create {{ output_dir }}/.gitignore:
+  ```
+  # Python
+  __pycache__/
+  *.py[cod]
+  *$py.class
+  .Python
+  venv/
+  env/
+
+  # Locust
+  *.log
+  reports/
+  .env
+
+  # IDE
+  .vscode/
+  .idea/
+  ```
+
+  6. Create {{ output_dir }}/data/sample_users.json with realistic test data:
+  ```json
+  [
+    {"username": "user1", "email": "user1@example.com"},
+    {"username": "user2", "email": "user2@example.com"}
+  ]
+  ```
+
+  7. Create {{ output_dir }}/docker-compose.yml for distributed testing:
+  ```yaml
+  version: '3'
+  services:
+    master:
+      image: locustio/locust
+      ports:
+        - "8089:8089"
+      volumes:
+        - ./:/mnt/locust
+      command: -f /mnt/locust/locustfile.py --master
+
+    worker:
+      image: locustio/locust
+      volumes:
+        - ./:/mnt/locust
+      command: -f /mnt/locust/locustfile.py --worker --master-host master
+      deploy:
+        replicas: 4
+  ```
+
+  8. Create {{ output_dir }}/pytest.ini for optional integration with pytest:
+  ```ini
+  [pytest]
+  testpaths = tests
+  python_files = test_*.py
+  python_functions = test_*
+  addopts = -v --tb=short
+  ```
+
+  Create a reports/ directory structure with a README explaining output files.
+
+  Make all shell scripts executable (chmod +x).
+
+  Provide a summary of all generated files and their purposes.

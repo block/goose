@@ -1,0 +1,8 @@
+{
+  "label": "MCP Apps and MCP-UI",
+  "position": 55,
+  "link": {
+    "type": "doc",
+    "id": "guides/interactive-chat/index"
+  }
+}

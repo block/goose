@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Chart</title>
+
+    <script>{{CHART_MIN}}</script>
+
+    <style>{{MCP_APP_BASE_CSS}}</style>
+    <style>
+        body { padding: 32px 16px; }
+
+        .chart-area {
+            position: relative;
+            height: 580px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #radarChart {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 24px;
+        }
+
+        :root[data-display-mode="fullscreen"] .chart-area,
+        :root[data-display-mode="pip"] .chart-area {
+            flex: 1;
+            height: auto;
+            width: 100%;
+            min-height: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div class="chart-area" id="chartContainer" style="display:none;width:100%;">
+        <canvas id="radarChart"></canvas>
+    </div>
+
+    <script>{{MCP_APP_BRIDGE}}</script>
+    <script>
+    (function () {
+        "use strict";
+
+        var chart = null;
+
+        var palette = [
+            { solid: "#5c98f9", fill: "rgba(92,152,249,0.15)" },
+            { solid: "#f97066", fill: "rgba(249,112,102,0.15)" },
+            { solid: "#47c9a2", fill: "rgba(71,201,162,0.15)" },
+            { solid: "#f0a03c", fill: "rgba(240,160,60,0.15)" },
+            { solid: "#9b8afb", fill: "rgba(155,138,251,0.15)" },
+            { solid: "#e87fa0", fill: "rgba(232,127,160,0.15)" },
+            { solid: "#3cc0e0", fill: "rgba(60,192,224,0.15)" },
+            { solid: "#8bba5a", fill: "rgba(139,186,90,0.15)" },
+        ];
+
+        function renderRadar(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("chartContainer").style.display = "";
+
+            if (chart) { chart.destroy(); chart = null; }
+
+            var cv = McpAppBridge.cssVar;
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            var textColor = cv("--color-text-primary") || (isDark ? "#e0e0e0" : "#3f434b");
+            var textSecondary = cv("--color-text-secondary") || (isDark ? "#a0a0a0" : "#878787");
+            var gridColor = cv("--color-border-primary") || (isDark ? "#333" : "#e3e6ea");
+            var fontFamily = cv("--font-sans") || "sans-serif";
+
+            var datasets = (data.datasets || []).map(function (ds, i) {
+                var p = palette[i % palette.length];
+                return {
+                    label: ds.label || "Dataset " + (i + 1),
+                    data: ds.data || [],
+                    borderColor: ds.borderColor || p.solid,
+                    backgroundColor: ds.backgroundColor || p.fill,
+                    borderWidth: ds.borderWidth || 2,
+                    pointStyle: "circle",
+                    pointBackgroundColor: ds.pointBackgroundColor || p.solid,
+                    pointBorderColor: ds.pointBorderColor || p.solid,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: ds.pointHoverBackgroundColor || p.solid,
+                    fill: ds.fill !== undefined ? ds.fill : true,
+                };
+            });
+
+            var allValues = datasets.reduce(function (acc, d) { return acc.concat(d.data); }, []);
+            var dataMax = allValues.length > 0 ? Math.max.apply(null, allValues) : 100;
+            var maxValue = Math.ceil(dataMax / 10) * 10;
+
+            var ctx = document.getElementById("radarChart").getContext("2d");
+            chart = new Chart(ctx, {
+                type: "radar",
+                data: { labels: data.labels || [], datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: "bottom",
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: "circle",
+                                padding: 20,
+                                font: { size: 13, family: fontFamily },
+                                color: textSecondary,
+                                boxWidth: 10,
+                                boxHeight: 10,
+                                generateLabels: function (chart) {
+                                    var ds = chart.data.datasets;
+                                    return ds.map(function (d, i) {
+                                        var color = d.borderColor || d.backgroundColor;
+                                        return {
+                                            text: d.label,
+                                            fontColor: textSecondary,
+                                            fillStyle: color,
+                                            strokeStyle: color,
+                                            lineWidth: 0,
+                                            pointStyle: "circle",
+                                            hidden: !chart.isDatasetVisible(i),
+                                            datasetIndex: i,
+                                        };
+                                    });
+                                },
+                            },
+                        },
+                        tooltip: {
+                            backgroundColor: cv("--color-background-inverse") || "rgba(0,0,0,0.85)",
+                            titleColor: cv("--color-text-inverse") || "#fff",
+                            bodyColor: cv("--color-text-inverse") || "#fff",
+                            borderWidth: 0,
+                            cornerRadius: 6,
+                            padding: { top: 8, bottom: 8, left: 10, right: 10 },
+                            titleFont: { size: 12, weight: "600", family: fontFamily },
+                            bodyFont: { size: 12, family: fontFamily },
+                            displayColors: true,
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            usePointStyle: true,
+                        },
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: maxValue,
+                            min: 0,
+                            ticks: {
+                                stepSize: maxValue / 5,
+                                font: { size: 10, family: fontFamily },
+                                color: textSecondary,
+                                backdropColor: "transparent",
+                            },
+                            grid: { color: gridColor },
+                            angleLines: { color: gridColor },
+                            pointLabels: {
+                                font: { size: 11, weight: "500", family: fontFamily },
+                                color: textColor,
+                            },
+                        },
+                    },
+                    animation: { duration: 500, easing: "easeOutQuart" },
+                    interaction: { intersect: false, mode: "point" },
+                },
+            });
+
+            setTimeout(McpAppBridge.reportSize, 80);
+        }
+
+        function safeRender(data) {
+            try { renderRadar(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-radar",
+            onData: safeRender,
+            onTheme: function () {
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
+            },
+        });
+    })();
+    </script>
+</body>
+</html>

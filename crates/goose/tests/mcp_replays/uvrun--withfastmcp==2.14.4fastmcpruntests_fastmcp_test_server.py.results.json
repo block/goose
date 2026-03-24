@@ -1,0 +1,14 @@
+[
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "5.0"
+      }
+    ],
+    "structuredContent": {
+      "result": 5.0
+    },
+    "isError": false
+  }
+]

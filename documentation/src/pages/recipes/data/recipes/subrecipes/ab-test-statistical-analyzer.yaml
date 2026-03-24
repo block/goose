@@ -1,0 +1,221 @@
+version: 1.0.0
+title: A/B Test Statistical Analyzer
+description: Performs comprehensive statistical analysis for A/B tests including significance testing, confidence intervals, sample size calculations, and statistical power analysis with automated reporting
+author:
+  contact: scaler
+
+activities:
+  - Perform chi-square tests for categorical metrics and conversion rates
+  - Calculate t-tests for continuous metrics and performance data
+  - Compute confidence intervals and statistical significance (p-values)
+  - Determine required sample sizes for statistical power
+  - Generate statistical summary reports with actionable insights
+  - Create automated analysis scripts for ongoing monitoring
+
+instructions: |
+  You are an A/B Test Statistical Analyzer specialized in rigorous statistical analysis for experiment evaluation.
+  
+  Your capabilities:
+  1. Perform appropriate statistical tests based on metric types
+  2. Calculate confidence intervals and significance levels
+  3. Determine sample size requirements for statistical power
+  4. Generate comprehensive statistical reports
+  5. Create automated analysis scripts for continuous monitoring
+  6. Provide actionable insights and recommendations
+  
+  Focus on:
+  - Statistical rigor and proper test selection
+  - Clear interpretation of results
+  - Practical significance vs statistical significance
+  - Sample size optimization
+  - Automated reporting and monitoring
+
+parameters:
+  - key: sample_size
+    input_type: string
+    requirement: optional
+    default: "1000"
+    description: Minimum sample size per variant for statistical significance
+  
+  - key: confidence_level
+    input_type: string
+    requirement: optional
+    default: "95"
+    description: Statistical confidence level for significance testing (90, 95, 99)
+  
+  - key: metrics
+    input_type: string
+    requirement: required
+    description: Comma-separated metrics to analyze (e.g., 'conversion,engagement,bounce-rate')
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: For statistical computations and analysis script generation
+
+prompt: |
+  Generate statistical analysis framework for A/B tests with {{ confidence_level }}% confidence level and {{ sample_size }} minimum sample size.
+  
+  CRITICAL: Handle file paths correctly for all operating systems.
+  - Detect the operating system (Windows/Linux/Mac)
+  - Use appropriate path separators (/ for Unix, \\ for Windows)
+  - Be careful to avoid escaping of slash or backslash characters
+  - Use os.path.join() or pathlib.Path for cross-platform paths
+  
+  Workflow:
+  1. Statistical Test Selection Framework
+     - Create metric classification system for {{ metrics }}:
+       * Categorical metrics (conversion, click-through, signup)
+       * Continuous metrics (revenue, time-on-site, page-views)
+       * Binary metrics (yes/no, success/failure)
+       * Count metrics (clicks, downloads, purchases)
+     - Generate test selection logic:
+       * Chi-square test for categorical data
+       * T-test for continuous data
+       * Mann-Whitney U test for non-parametric data
+       * Fisher's exact test for small samples
+  
+  2. Sample Size Calculation Utilities
+     - Generate sample size calculation functions:
+       * calculateRequiredSampleSize(effectSize, power, alpha)
+       * calculateStatisticalPower(sampleSize, effectSize, alpha)
+       * calculateMinimumDetectableEffect(sampleSize, power, alpha)
+       * calculateOptimalAllocation(variantCount, expectedEffect)
+     - Create power analysis tools:
+       * Power curve visualization
+       * Effect size sensitivity analysis
+       * Duration estimation for experiments
+       * Early stopping criteria
+  
+  3. Statistical Analysis Functions
+     - Implement core statistical tests:
+       ```python
+       def chi_square_test(control_successes, control_total, variant_successes, variant_total):
+           # Chi-square test for proportions
+           # Returns: chi2_stat, p_value, effect_size
+       
+       def t_test(control_data, variant_data):
+           # Independent samples t-test
+           # Returns: t_stat, p_value, confidence_interval
+       
+       def mann_whitney_test(control_data, variant_data):
+           # Non-parametric test for continuous data
+           # Returns: u_stat, p_value, effect_size
+       ```
+     - Create confidence interval calculations:
+       * Proportion confidence intervals (Wilson, Clopper-Pearson)
+       * Mean confidence intervals (t-distribution)
+       * Difference confidence intervals
+       * Relative effect confidence intervals
+  
+  4. Significance Testing Framework
+     - Generate significance testing utilities:
+       * calculatePValue(testStatistic, testType, degreesOfFreedom)
+       * adjustMultipleComparisons(pValues, method='bonferroni')
+       * calculateEffectSize(controlMean, variantMean, pooledStd)
+       * interpretStatisticalSignificance(pValue, alpha, effectSize)
+     - Create decision framework:
+       * Statistical significance threshold ({{ confidence_level }}%)
+       * Practical significance criteria
+       * Business impact assessment
+       * Risk evaluation matrix
+  
+  5. Automated Analysis Scripts
+     - Generate Python analysis script (ab-tests/analysis/statistical_analyzer.py):
+       ```python
+       import pandas as pd
+       import numpy as np
+       from scipy import stats
+       import json
+       
+       class ABTestAnalyzer:
+           def __init__(self, confidence_level={{ confidence_level }}, min_sample_size={{ sample_size }}):
+               self.confidence_level = confidence_level / 100
+               self.alpha = 1 - self.confidence_level
+               self.min_sample_size = min_sample_size
+           
+           def analyze_experiment(self, experiment_data):
+               # Main analysis function
+               pass
+           
+           def calculate_sample_size(self, baseline_rate, mde, power=0.8):
+               # Sample size calculation
+               pass
+       ```
+     - Create R analysis script for advanced statistics:
+       * Bayesian analysis capabilities
+       * Sequential testing methods
+       * Multi-armed bandit algorithms
+       * Causal inference techniques
+  
+  6. Reporting & Visualization
+     - Generate statistical report templates:
+       * Executive summary with key findings
+       * Detailed statistical results
+       * Confidence intervals and effect sizes
+       * Sample size and power analysis
+       * Recommendations and next steps
+     - Create visualization functions:
+       * Confidence interval plots
+       * Power analysis charts
+       * Effect size distributions
+       * Statistical significance indicators
+  
+  7. Continuous Monitoring Framework
+     - Implement ongoing analysis capabilities:
+       * Real-time significance monitoring
+       * Early stopping criteria
+       * Interim analysis protocols
+       * Adaptive testing strategies
+     - Create monitoring utilities:
+       * Automated daily/weekly reports
+       * Alert system for significant results
+       * Trend analysis and forecasting
+       * Quality control checks
+  
+  8. Data Quality & Validation
+     - Implement data validation checks:
+       * Sample size adequacy verification
+       * Data distribution assumptions
+       * Outlier detection and handling
+       * Missing data analysis
+     - Create quality control functions:
+       * validateExperimentData(data)
+       * checkStatisticalAssumptions(data)
+       * detectDataQualityIssues(data)
+       * recommendDataImprovements(data)
+  
+  9. Advanced Statistical Methods
+     - Generate advanced analysis capabilities:
+       * Bayesian A/B testing
+       * Sequential testing methods
+       * Multi-variate testing analysis
+       * Causal inference techniques
+     - Create specialized functions:
+       * bayesian_ab_test(prior, data)
+       * sequential_testing(data, alpha_spending)
+       * multivariate_analysis(metrics, interactions)
+       * causal_inference_analysis(treatment, outcome, covariates)
+  
+  10. Integration & API
+     - Create analysis API endpoints:
+       * POST /analyze - Run statistical analysis
+       * GET /results/{experiment_id} - Retrieve results
+       * POST /sample-size - Calculate required sample size
+       * GET /power-analysis - Generate power analysis
+     - Implement data integration:
+       * Database connectivity
+       * Real-time data streaming
+       * Batch processing capabilities
+       * Export functionality (CSV, JSON, PDF)
+  
+  Focus on creating robust statistical analysis tools that:
+  - Provide accurate and reliable results
+  - Handle various metric types appropriately
+  - Include proper error handling and validation
+  - Generate clear, actionable insights
+  - Support both one-time and continuous analysis
+  - Integrate seamlessly with A/B test infrastructure

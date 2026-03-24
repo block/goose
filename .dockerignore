@@ -1,0 +1,103 @@
+# Build artifacts
+target/
+**/target/
+
+# Node modules and build outputs
+node_modules/
+**/node_modules/
+ui/desktop/out/
+ui/desktop/dist/
+ui/desktop/src/bin/
+
+# Git
+.git/
+.gitignore
+
+# Documentation builds
+documentation/build/
+documentation/.docusaurus/
+documentation/.cache-loader/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment and config files
+.env
+.env.*
+*.log
+
+# CI/CD
+.github/
+.hermit/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Test coverage
+coverage/
+*.lcov
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Rust analyzer
+rust-project.json
+
+# Benchmarks
+bench_results/
+
+# Local configuration
+.config/
+.local/
+
+# Docker files (don't need to copy these into context)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Development scripts that aren't needed in build
+scripts/bench-postprocess-scripts/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Linux
+.directory
+.Trash-*
+
+# Archives
+*.tar
+*.tar.gz
+*.tar.bz2
+*.zip
+*.7z
+*.rar
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Session files
+*.jsonl
+sessions/
+
+# Generated files
+ui/desktop/openapi.json
+ui/desktop/src/api/

@@ -1,0 +1,107 @@
+[workspace]
+members = [
+    "crates/*", 
+    # Mainly for cargo-machete to not error out during inspection.
+    "vendor/v8"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "1.28.0"
+authors = ["Block <ai-oss-tools@block.xyz>"]
+license = "Apache-2.0"
+repository = "https://github.com/block/goose"
+description = "An AI agent"
+
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
+string_slice = "warn"
+
+[workspace.dependencies]
+rmcp = { version = "1.2.0", features = ["schemars", "auth"] }
+agent-client-protocol-schema = { version = "0.11", features = ["unstable"] }
+sacp = "11.0.0"
+anyhow = "1.0"
+async-stream = "0.3"
+async-trait = "0.1"
+axum = "0.8"
+base64 = "0.22.1"
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+dirs = "5.0"
+dotenvy = "0.15"
+env-lock = "1.0.1"
+etcetera = "0.11.0"
+fs2 = "0.4"
+futures = "0.3"
+http = "1.0"
+ignore = "0.4.25"
+include_dir = "0.7.4"
+indoc = "2.0"
+lru = "0.16"
+once_cell = "1.20"
+rand = "0.8"
+regex = "1.12"
+reqwest = { version = "0.13", default-features = false, features = ["multipart", "form"] }
+schemars = { default-features = false, version = "1.0" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+shellexpand = "3.1"
+strum = { version = "0.27", features = ["derive"] }
+tempfile = "3"
+thiserror = "1.0"
+tokio = { version = "1.49", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+tower-http = "0.6.8"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = "0.3"
+urlencoding = "2.1"
+utoipa = "4.1"
+uuid = { version = "1.11", features = ["v4"] }
+webbrowser = "1.0"
+which = "8.0.0"
+winapi = { version = "0.3", features = ["wincred"] }
+wiremock = "0.6"
+zip = { version = "^8.0", default-features = false, features = ["deflate"] }
+serial_test = "3.2.0"
+sha2 = "0.10"
+shell-words = "1.1.1"
+test-case = "3.3.1"
+url = "2.5.8"
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["metrics"] }
+opentelemetry-otlp = "0.31"
+opentelemetry-appender-tracing = { version = "0.31", features = ["experimental_span_attributes"] }
+opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
+tracing-futures = { version = "0.2", features = ["futures-03"] }
+tracing-opentelemetry = "0.32"
+
+rayon = "1.10"
+tree-sitter = "0.26"
+tree-sitter-go = "0.25"
+tree-sitter-java = "0.23"
+tree-sitter-javascript = "0.25"
+tree-sitter-kotlin-ng = "1.1"
+tree-sitter-python = "0.25"
+tree-sitter-ruby = "0.23"
+tree-sitter-rust = "0.24"
+tree-sitter-swift = "0.7"
+tree-sitter-typescript = "0.23"
+
+[patch.crates-io]
+v8 = { path = "vendor/v8" }
+# TODO: switch to crates.io release once it includes the unstable feature and updates org from symposium-dev to agentclientprotocol
+sacp = { git = "https://github.com/agentclientprotocol/symposium-acp", rev = "14086c9" }
+sacp-derive = { git = "https://github.com/agentclientprotocol/symposium-acp", rev = "14086c9" }
+# TODO: switch to released version in opentelemetry 0.32.0
+# https://github.com/open-telemetry/opentelemetry-rust/issues/3408
+opentelemetry = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry_sdk = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry-appender-tracing = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry-otlp = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }
+opentelemetry-stdout = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "345cd74a" }

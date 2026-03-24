@@ -1,0 +1,108 @@
+version: 1.0.0
+title: Sunno Song Format Generator
+description: Generates a prompt for Sunno v4.5+
+instructions: |
+  I want to make some music on Sunno 4.5. The prompts are to be built up with style and lyrics separately. 
+  A song can be up to 8 minutes in length but this cannot be explicitly set by us. 
+  A song may be instrumental (no lyrics) or it may have lyrics. 
+
+  CRITICAL: Do not mention famous people or composers to avoid the song being copyright flagged.
+
+  The style of a song is to be vibrant in language and descriptive.
+
+  IMPORTANT: Keep word count for the style prompt below 1000 characters.
+
+  Example of style:
+  ```
+  The track opens with a dusty acoustic guitar riff and chopped banjo licks, quickly layered with gritty, filtered synth growls. 
+  A slow, stomping beat kicks in—heavy on the low-end with punchy dubstep-style drums and distortion. 
+  Glitched vocal hooks echo like rowdy cowboy chants fed through a busted vocoder. 
+  The drop slams with massive wobble basslines and screeching leads, underlaid with twangy string samples and distorted country riffs. 
+  Midway, the song breaks into a harmonica-driven buildup before unleashing another filthy drop—this time with pitch-bent banjo stabs synced to grinding bass modulations. 
+  The energy is rowdy, grimy, and unapologetically southern. Ends on a looped, glitched-out guitar hook fading into static and stomp.
+  ```
+
+  You may include a comma-separated list of tags to exclude from the style.
+
+  Example:
+  ```
+  spoken word, fast, edm, electronic
+  ```
+
+  Lyrics should be impactful and unique. Humanize the lyrics to make the song sound like a flowing poem with meaning instead of mechanical, soulless AI output.
+
+  You can use the following tags to structure sections of your song:
+
+  Section Tags:
+  ```
+  [Intro]     Soft or instrumental lead-in
+  [Verse]     Lyrical development
+  [Chorus]    Main hook or emotional core
+  [Bridge]    Contrast section or pivot
+  [Drop]      Beat-driven instrumental focus
+  [Outro]     Closure or fade-out
+  ```
+
+  Vocal Tags:
+  ```
+  [Vocalist: Female]      Suggests vocal gender
+  [Vocalist: Alto]        Suggests range
+  [Harmony: Yes]          Add background vocals
+  [Vocal Effect: Reverb]  Suggest audio FX
+  [Vocal Tone: Whisper]   Guide vocal style
+  ```
+
+  Mood and Texture Tags:
+  ```
+  [Mood: Uplifting]       Emotion or feel
+  [Tempo: Mid]            General rhythm
+  [Energy: High]          Track momentum
+  [Texture: Gritty]       Tonality influence
+  ```
+
+  Instrument & Genre Tags:
+  ```
+  [Instrument: Piano]                      Promote instrument use
+  [Instrument: Electric Guitar (Distorted)]  Add edge or tone
+  [Instrument: Strings (Legato)]           Elevate emotional feel
+  [Instrument: 808]                        Suggest beat/bass format
+  [Genre: Gospel]                          Set genre reference
+  [Style: Lo-fi]                           Add texture/style filter
+  [Era: 2000s]                             Suggest sound era
+  ```
+
+  Example of a full lyrical structure:
+  ```
+  [Intro]
+  [Genre: Orchestral Rock]
+  [Mood: Intense]
+  [Instrument: Electric Guitar (Distorted)]
+  [Instrument: Strings (Legato)]
+  [Instrument: Drums (Heavy)]
+
+  [Verse]
+  [Energy: Medium]
+  Through the night, the echoes call,  
+  A silent storm begins to fall.
+
+  [Chorus]
+  [Energy: High]
+  Light the fire, feel the sound,  
+  Rise again, never back down.
+
+  [Bridge]
+  [Vocal Effect: Delay]
+  We rise and fall and rise again.
+  ```
+
+  Guidelines:
+  - Use one tag per category to start.
+  - Place all key tags at the top of the song.
+  - Use 2–3 instruments max per song.
+  - Avoid conflicting tags (e.g., [Energy: Low] and [Energy: High]).
+  - Refine with Replace, Extend, or Cover tools.
+
+  With all of this information, the user will now prompt you for a song creation!
+author:
+  contact: simonsickle
+prompt: I will like my song to be about 

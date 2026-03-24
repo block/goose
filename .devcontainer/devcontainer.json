@@ -1,0 +1,28 @@
+{
+    "name": "Rust Dev Container",
+    "build": {
+      "dockerfile": "Dockerfile"
+    },
+    "features": {
+      "ghcr.io/devcontainers/features/rust:1": {
+        "version": "stable"
+      }
+    },
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "rust-lang.rust-analyzer",
+          "vadimcn.vscode-lldb"
+        ]
+      },
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "/bin/bash"
+      }
+    },
+    "postCreateCommand": "cargo build",
+    "remoteUser": "vscode",
+    "mounts": [
+      "source=${localWorkspaceFolder}/crates,target=/workspace/crates,type=bind"
+    ]
+  }
+  

@@ -1,0 +1,23 @@
+# Release v{{VERSION}}
+
+## How to Release
+
+Push the release tag to trigger the release:
+   ```bash
+   git fetch && git tag v{{VERSION}} origin/release/{{VERSION}}
+   git push origin v{{VERSION}}
+   ```
+The tag push will trigger the release build. This PR will be automatically closed.
+
+## Cherry-Picks
+
+If you need to include additional fixes, cherry-pick them into the `release/{{VERSION}}` branch before tagging.
+
+## Important Notes
+
+- All commits in this release should have corresponding cherry-picks in `main`
+- This PR can be closed if the release is not needed.
+
+## Changes in This Release
+
+**Comparing:** `{{PRIOR_VERSION}}...v{{VERSION}}`
