@@ -448,18 +448,6 @@ impl Usage {
         self.cache_write_input_tokens = cache_write_input_tokens;
         self
     }
-
-    pub fn billable_input_tokens(&self) -> Option<i32> {
-        self.input_tokens.map(|input| {
-            input
-                .saturating_sub(self.cache_read_input_tokens.unwrap_or(0))
-                .saturating_sub(self.cache_write_input_tokens.unwrap_or(0))
-        })
-    }
-
-    pub fn cached_input_tokens(&self) -> Option<i32> {
-        sum_optionals(self.cache_read_input_tokens, self.cache_write_input_tokens)
-    }
 }
 
 pub trait ProviderDef: Send + Sync {
@@ -1110,15 +1098,6 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
-    }
-
-    #[test]
-    fn test_usage_billable_input_tokens_excludes_cached_tokens() {
-        let usage =
-            Usage::new(Some(220), Some(30), Some(250)).with_cache_tokens(Some(80), Some(20));
-
-        assert_eq!(usage.billable_input_tokens(), Some(120));
-        assert_eq!(usage.cached_input_tokens(), Some(100));
     }
 
     #[test]

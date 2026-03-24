@@ -456,14 +456,7 @@ pub fn get_usage(usage: &Value) -> Usage {
     let cache_read_input_tokens = usage
         .get("cache_read_input_tokens")
         .and_then(|v| v.as_i64())
-        .map(|v| v as i32)
-        .or_else(|| {
-            usage
-                .get("prompt_tokens_details")
-                .and_then(|details| details.get("cached_tokens"))
-                .and_then(|v| v.as_i64())
-                .map(|v| v as i32)
-        });
+        .map(|v| v as i32);
 
     let cache_write_input_tokens = usage
         .get("cache_creation_input_tokens")
@@ -1669,26 +1662,6 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(250));
         assert_eq!(usage.cache_read_input_tokens, Some(80));
         assert_eq!(usage.cache_write_input_tokens, Some(20));
-        assert_eq!(usage.billable_input_tokens(), Some(120));
-    }
-
-    #[test]
-    fn test_get_usage_falls_back_to_prompt_tokens_details_cached_tokens() {
-        let usage = get_usage(&json!({
-            "prompt_tokens": 42,
-            "completion_tokens": 68,
-            "total_tokens": 110,
-            "prompt_tokens_details": {
-                "cached_tokens": 16
-            }
-        }));
-
-        assert_eq!(usage.input_tokens, Some(58));
-        assert_eq!(usage.output_tokens, Some(68));
-        assert_eq!(usage.total_tokens, Some(126));
-        assert_eq!(usage.cache_read_input_tokens, Some(16));
-        assert_eq!(usage.cache_write_input_tokens, None);
-        assert_eq!(usage.billable_input_tokens(), Some(42));
     }
 
     #[test]
@@ -1709,7 +1682,6 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(175));
         assert_eq!(usage.cache_read_input_tokens, Some(60));
         assert_eq!(usage.cache_write_input_tokens, Some(10));
-        assert_eq!(usage.billable_input_tokens(), Some(84));
     }
 
     #[tokio::test]
