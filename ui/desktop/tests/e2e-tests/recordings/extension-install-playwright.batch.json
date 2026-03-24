@@ -16,7 +16,7 @@
   ["find", "testid", "chat-input", "fill", "Use the Playwright browser to navigate to google.com and search for cats. Use the browser_navigate tool to go to https://www.google.com and then use browser_type and browser_click to search for cats."],
   ["find", "testid", "send-button", "click"],
 
-  ["wait", "--text", "browser_navigate", "--timeout", "60000"],
+  ["wait", "--text", "browser_navigate", "--timeout", "20000"],
   ["wait", "--fn", "document.body.innerText.includes('google.com') || document.body.innerText.includes('google')", "--timeout", "60000"],
-  ["wait", "--fn", "document.body.innerText.toLowerCase().includes('cats')", "--timeout", "120000"]
+  ["wait", "--fn", "document.body.innerText.toLowerCase().includes('cats')", "--timeout", "20000"]
 ]

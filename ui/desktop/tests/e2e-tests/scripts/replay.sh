@@ -38,8 +38,7 @@ fi
 
 GLOBAL_ARGS=("--session" "$SESSION_NAME")
 
-export AGENT_BROWSER_DEFAULT_TIMEOUT="${AGENT_BROWSER_DEFAULT_TIMEOUT:-10000}"
-CMD_TIMEOUT=$(( AGENT_BROWSER_DEFAULT_TIMEOUT / 1000 + 1 ))
+DEFAULT_TIMEOUT_MS="${AGENT_BROWSER_DEFAULT_TIMEOUT:-10000}"
 
 ts() { date "+%H:%M:%S"; }
 
@@ -72,6 +71,15 @@ for i in $(seq 0 $((TOTAL - 1))); do
     ARG="${ARG//\$PROJECT_DIR/$PROJECT_DIR}"
     ARGS+=("$ARG")
   done
+
+  TIMEOUT_MS="$DEFAULT_TIMEOUT_MS"
+  for k in $(seq 0 $((${#ARGS[@]} - 1))); do
+    if [[ "${ARGS[$k]}" == "--timeout" && $((k + 1)) -lt ${#ARGS[@]} ]]; then
+      TIMEOUT_MS="${ARGS[$((k + 1))]}"
+      break
+    fi
+  done
+  CMD_TIMEOUT=$(( TIMEOUT_MS / 1000 + 1 ))
 
   STEP=$((i + 1))
   echo "[$(ts)] [$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]}"

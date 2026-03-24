@@ -22,7 +22,7 @@
 
   ["wait", "[data-testid='advanced-options-trigger']"],
   ["find", "testid", "advanced-options-trigger", "click"],
-  ["wait", "--text", "greeting_style"],
+  ["wait", "[data-testid='parameter-greeting_style']", "--timeout", "15000"],
 
   ["wait", "[data-testid='add-parameter-name-input']"],
   ["find", "testid", "add-parameter-name-input", "fill", "extra_param"],
