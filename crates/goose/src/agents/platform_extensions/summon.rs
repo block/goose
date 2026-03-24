@@ -243,18 +243,36 @@ fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>
 fn collect_skill_files(dir: &Path, visited_dirs: &mut HashSet<PathBuf>) -> Vec<PathBuf> {
     let mut skill_files = Vec::new();
 
-    walk_files_recursively(dir, visited_dirs, &mut |path| {
-        if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
-            skill_files.push(path.to_path_buf());
-        }
-    });
+    walk_files_recursively(
+        dir,
+        visited_dirs,
+        &mut |path| !should_skip_skill_walk_dir(path),
+        &mut |path| {
+            if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
+                skill_files.push(path.to_path_buf());
+            }
+        },
+    );
 
     skill_files
 }
 
-fn walk_files_recursively<F>(dir: &Path, visited_dirs: &mut HashSet<PathBuf>, visit_file: &mut F)
+fn should_skip_skill_walk_dir(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some(".git") | Some(".hg") | Some(".svn")
+    )
+}
+
+fn walk_files_recursively<F, G>(
+    dir: &Path,
+    visited_dirs: &mut HashSet<PathBuf>,
+    should_descend: &mut G,
+    visit_file: &mut F,
+)
 where
     F: FnMut(&Path),
+    G: FnMut(&Path) -> bool,
 {
     let canonical_dir = match std::fs::canonicalize(dir) {
         Ok(path) => path,
@@ -273,18 +291,10 @@ where
     for entry in entries.flatten() {
         let path = entry.path();
 
-        let is_hidden = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n.starts_with('.'))
-            .unwrap_or(false);
-
-        if is_hidden {
-            continue;
-        }
-
         if path.is_dir() {
-            walk_files_recursively(&path, visited_dirs, visit_file);
+            if should_descend(&path) {
+                walk_files_recursively(&path, visited_dirs, should_descend, visit_file);
+            }
         } else if path.is_file() {
             visit_file(&path);
         }
@@ -473,16 +483,21 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
 fn find_supporting_files(directory: &Path, visited_dirs: &mut HashSet<PathBuf>) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
-    walk_files_recursively(directory, visited_dirs, &mut |path| {
-        let is_skill_md = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n == "SKILL.md")
-            .unwrap_or(false);
-        if !is_skill_md {
-            files.push(path.to_path_buf());
-        }
-    });
+    walk_files_recursively(
+        directory,
+        visited_dirs,
+        &mut |path| !should_skip_skill_walk_dir(path) && !path.join("SKILL.md").is_file(),
+        &mut |path| {
+            let is_skill_md = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n == "SKILL.md")
+                .unwrap_or(false);
+            if !is_skill_md {
+                files.push(path.to_path_buf());
+            }
+        },
+    );
 
     files
 }
@@ -2143,6 +2158,73 @@ You review code."#;
 
         let nested_skill = sources.iter().find(|s| s.name == "nested-skill").unwrap();
         assert_eq!(nested_skill.path, nested_skill_dir);
+    }
+
+    #[tokio::test]
+    async fn test_root_skill_supporting_files_exclude_nested_skill_subtrees() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let root_skill_dir = temp_dir.path().join(".claude/skills");
+        fs::create_dir_all(&root_skill_dir).unwrap();
+        fs::write(
+            root_skill_dir.join("SKILL.md"),
+            "---\nname: root-skill\ndescription: Root level skill\n---\nRoot content",
+        )
+        .unwrap();
+        fs::write(root_skill_dir.join("README.md"), "root readme").unwrap();
+
+        let nested_skill_dir = root_skill_dir.join("catalog/internal/ai");
+        fs::create_dir_all(&nested_skill_dir).unwrap();
+        fs::write(
+            nested_skill_dir.join("SKILL.md"),
+            "---\nname: nested-skill\ndescription: Nested catalog skill\n---\nNested content",
+        )
+        .unwrap();
+        fs::write(nested_skill_dir.join("notes.md"), "nested notes").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let root_skill = sources.iter().find(|s| s.name == "root-skill").unwrap();
+        assert!(root_skill.supporting_files.contains(&root_skill_dir.join("README.md")));
+        assert!(!root_skill
+            .supporting_files
+            .contains(&nested_skill_dir.join("SKILL.md")));
+        assert!(!root_skill
+            .supporting_files
+            .contains(&nested_skill_dir.join("notes.md")));
+    }
+
+    #[tokio::test]
+    async fn test_skill_discovery_preserves_dot_prefixed_paths() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let dot_skill_dir = temp_dir.path().join(".claude/skills/.team");
+        fs::create_dir_all(&dot_skill_dir).unwrap();
+        fs::write(
+            dot_skill_dir.join("SKILL.md"),
+            "---\nname: team-skill\ndescription: Dot skill\n---\nTeam content",
+        )
+        .unwrap();
+        fs::write(dot_skill_dir.join(".env.example"), "EXAMPLE=1").unwrap();
+
+        let git_skill_dir = temp_dir.path().join(".claude/skills/.git/hidden-skill");
+        fs::create_dir_all(&git_skill_dir).unwrap();
+        fs::write(
+            git_skill_dir.join("SKILL.md"),
+            "---\nname: hidden-git-skill\ndescription: Hidden git skill\n---\nHidden content",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let dot_skill = sources.iter().find(|s| s.name == "team-skill").unwrap();
+        assert_eq!(dot_skill.path, dot_skill_dir);
+        assert!(dot_skill
+            .supporting_files
+            .contains(&dot_skill_dir.join(".env.example")));
+        assert!(!sources.iter().any(|s| s.name == "hidden-git-skill"));
     }
 
     #[cfg(unix)]
