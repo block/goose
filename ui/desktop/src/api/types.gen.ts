@@ -59,6 +59,10 @@ export type CallToolResponse = {
     structuredContent?: unknown;
 };
 
+export type CancelRequest = {
+    request_id: string;
+};
+
 export type ChatRequest = {
     /**
      * Override the server's conversation history. Only use this when you need absolute control
@@ -684,10 +688,6 @@ export type MessageEvent = {
     token_state: TokenState;
     type: 'Finish';
 } | {
-    mode: string;
-    model: string;
-    type: 'ModelChange';
-} | {
     message: {
         [key: string]: unknown;
     };
@@ -696,6 +696,9 @@ export type MessageEvent = {
 } | {
     conversation: Conversation;
     type: 'UpdateConversation';
+} | {
+    request_ids: Array<string>;
+    type: 'ActiveRequests';
 } | {
     type: 'Ping';
 };
@@ -1253,6 +1256,21 @@ export type SessionListResponse = {
      * List of available session information objects
      */
     sessions: Array<Session>;
+};
+
+export type SessionReplyRequest = {
+    override_conversation?: Array<Message> | null;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    /**
+     * Client-generated UUIDv7 identifying this request.
+     */
+    request_id: string;
+    user_message: Message;
+};
+
+export type SessionReplyResponse = {
+    request_id: string;
 };
 
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway' | 'acp';
@@ -2654,6 +2672,34 @@ export type ProvidersResponses = {
 };
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
+
+export type CleanupProviderCacheData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., githubcopilot)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/cleanup';
+};
+
+export type CleanupProviderCacheErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CleanupProviderCacheResponses = {
+    /**
+     * Provider cache cleaned up successfully
+     */
+    200: string;
+};
+
+export type CleanupProviderCacheResponse = CleanupProviderCacheResponses[keyof CleanupProviderCacheResponses];
 
 export type GetProviderModelsData = {
     body?: never;
@@ -4100,6 +4146,93 @@ export type SearchSessionsResponses = {
 };
 
 export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
+
+export type SessionCancelData = {
+    body: CancelRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/cancel';
+};
+
+export type SessionCancelResponses = {
+    /**
+     * Cancellation accepted
+     */
+    200: unknown;
+};
+
+export type SessionEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/events';
+};
+
+export type SessionEventsErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+};
+
+export type SessionEventsResponses = {
+    /**
+     * SSE event stream
+     */
+    200: MessageEvent;
+};
+
+export type SessionEventsResponse = SessionEventsResponses[keyof SessionEventsResponses];
+
+export type SessionReplyData = {
+    body: SessionReplyRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/reply';
+};
+
+export type SessionReplyErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SessionReplyResponses = {
+    /**
+     * Request accepted
+     */
+    200: SessionReplyResponse;
+};
+
+export type SessionReplyResponse2 = SessionReplyResponses[keyof SessionReplyResponses];
 
 export type DeleteSessionData = {
     body?: never;

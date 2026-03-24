@@ -684,9 +684,12 @@ where
 
             // Parse SSE format: "event: <type>\ndata: <json>"
             // For now, we only care about the data line
+            // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
             let data_line = if response_str.starts_with("data: ") {
                 response_str.strip_prefix("data: ").unwrap()
-            } else if response_str.starts_with("event: ") {
+            } else if response_str.starts_with("data:") {
+                response_str.strip_prefix("data:").unwrap()
+            } else if response_str.starts_with("event: ") || response_str.starts_with("event:") {
                 // Skip event type lines
                 continue;
             } else {

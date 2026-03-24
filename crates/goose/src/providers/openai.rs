@@ -233,6 +233,7 @@ impl OpenAiProvider {
         let normalized_model = model_name.to_ascii_lowercase();
         (normalized_model.starts_with("gpt-5") && normalized_model.contains("codex"))
             || normalized_model.starts_with("gpt-5.2-pro")
+            || normalized_model.starts_with("gpt-5.4")
     }
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
@@ -725,6 +726,22 @@ mod tests {
         assert!(!OpenAiProvider::should_use_responses_api(
             "gpt-5.2-codex",
             "openai/v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_with_date_uses_responses() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4-2026-03-01",
+            "v1/chat/completions"
         ));
     }
 

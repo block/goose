@@ -296,7 +296,11 @@ impl SessionManager {
     }
 
     pub async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
-        self.storage.list_sessions_by_types(types).await
+        self.storage.list_sessions_by_types(Some(types)).await
+    }
+
+    pub async fn list_all_sessions(&self) -> Result<Vec<Session>> {
+        self.storage.list_sessions_by_types(None).await
     }
 
     pub async fn delete_session(&self, id: &str) -> Result<()> {
@@ -1253,12 +1257,19 @@ impl SessionStorage {
         Self::replace_conversation_inner(pool, session_id, conversation).await
     }
 
-    async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
-        if types.is_empty() {
-            return Ok(Vec::new());
-        }
+    async fn list_sessions_by_types(&self, types: Option<&[SessionType]>) -> Result<Vec<Session>> {
+        let (where_clause, binds): (String, Vec<String>) = match types {
+            Some(t) if !t.is_empty() => {
+                let placeholders: String = t.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+                (
+                    format!("WHERE s.session_type IN ({})", placeholders),
+                    t.iter().map(|t| t.to_string()).collect(),
+                )
+            }
+            Some(_) => return Ok(Vec::new()),
+            None => (String::new(), Vec::new()),
+        };
 
-        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let query = format!(
             r#"
             SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
@@ -1269,16 +1280,16 @@ impl SessionStorage {
                    COUNT(m.id) as message_count
             FROM sessions s
             INNER JOIN messages m ON s.id = m.session_id
-            WHERE s.session_type IN ({})
+            {}
             GROUP BY s.id
             ORDER BY s.updated_at DESC
             "#,
-            placeholders
+            where_clause
         );
 
         let mut q = sqlx::query_as::<_, Session>(&query);
-        for t in types {
-            q = q.bind(t.to_string());
+        for b in &binds {
+            q = q.bind(b);
         }
 
         let pool = self.pool().await?;
@@ -1286,7 +1297,7 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
+        self.list_sessions_by_types(Some(&[SessionType::User, SessionType::Scheduled]))
             .await
     }
 

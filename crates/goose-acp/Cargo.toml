@@ -26,8 +26,8 @@ workspace = true
 goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
-sacp = { workspace = true }
-agent-client-protocol-schema = { version = "0.10", features = ["unstable"] }
+sacp = { workspace = true, features = ["unstable"] }
+agent-client-protocol-schema = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
@@ -60,6 +60,7 @@ tempfile = { workspace = true }
 test-case = { workspace = true }
 axum = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"] }
 
 [package.metadata.cargo-machete]
 # Used to provide extras imports for sacp

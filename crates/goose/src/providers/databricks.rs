@@ -135,6 +135,10 @@ pub struct DatabricksProvider {
 }
 
 impl DatabricksProvider {
+    pub async fn cleanup() -> Result<()> {
+        super::oauth::cleanup_oauth_cache()
+    }
+
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
@@ -384,6 +388,18 @@ impl Provider for DatabricksProvider {
                 .as_object_mut()
                 .unwrap()
                 .insert("stream".to_string(), Value::Bool(true));
+
+            if let Some(opts) = payload
+                .get_mut("stream_options")
+                .and_then(|v| v.as_object_mut())
+            {
+                opts.entry("include_usage").or_insert(json!(true));
+            } else {
+                payload
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("stream_options".to_string(), json!({"include_usage": true}));
+            }
 
             let mut log = RequestLog::start(model_config, &payload)?;
             let response = self

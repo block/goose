@@ -2,7 +2,6 @@ import { Sliders, Bot, Settings } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
-import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import { View } from '../../../../utils/navigationUtils';
 import {
   DropdownMenu,
@@ -10,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../ui/dropdown-menu';
-import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
@@ -46,81 +44,17 @@ export default function ModelsBottomBar({
   const currentModel = sessionModel ?? configModel;
   const currentProvider = sessionProvider ?? configProvider;
 
-  const currentModelInfo = useCurrentModelInfo();
-  const { read, getProviders } = useConfig();
+  const { getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
-  const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
-  const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
 
-  // Check if lead/worker mode is active
-  useEffect(() => {
-    const checkLeadWorker = async () => {
-      try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        setIsLeadWorkerActive(!!leadModel);
-      } catch (error) {
-        console.error('Error checking lead model:', error);
-        setIsLeadWorkerActive(false);
-      }
-    };
-    checkLeadWorker();
-  }, [read]);
-
-  // Refresh lead/worker status when modal closes
-  const handleLeadWorkerModalClose = () => {
-    setIsLeadWorkerModalOpen(false);
-    const checkLeadWorker = async () => {
-      try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        const currentModel = await read('GOOSE_MODEL', false);
-        setIsLeadWorkerActive(!!leadModel);
-        setLeadModelName((leadModel as string) || '');
-        setCurrentActiveModel((currentModel as string) || '');
-      } catch (error) {
-        console.error('Error checking lead model after modal close:', error);
-        setIsLeadWorkerActive(false);
-      }
-    };
-    checkLeadWorker();
-  };
-
-  const [leadModelName, setLeadModelName] = useState<string>('');
-  const [currentActiveModel, setCurrentActiveModel] = useState<string>('');
-
-  // Get lead model name and current model for comparison
-  useEffect(() => {
-    const getModelInfo = async () => {
-      try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        const currentModel = await read('GOOSE_MODEL', false);
-        setLeadModelName((leadModel as string) || '');
-        setCurrentActiveModel((currentModel as string) || '');
-      } catch (error) {
-        console.error('Error getting model info:', error);
-      }
-    };
-    getModelInfo();
-  }, [read]);
-
-  // Determine the mode based on which model is currently active
-  const modelMode = isLeadWorkerActive
-    ? currentActiveModel === leadModelName
-      ? 'lead'
-      : 'worker'
-    : undefined;
-
-  // Determine which model to display - activeModel takes priority when lead/worker is active
   // Hide label while session data is still being fetched (avoids flashing
   // the config default before the session's actual model arrives).
   const isModelLoading = sessionId && !sessionLoaded;
-  const displayModel =
-    isLeadWorkerActive && currentModelInfo?.model
-      ? currentModelInfo.model
-      : currentModel || providerDefaultModel || displayModelName;
+  const displayModel = currentModel || providerDefaultModel || displayModelName;
 
   useEffect(() => {
     if (!currentProvider) return;
@@ -168,9 +102,6 @@ export default function ModelsBottomBar({
             <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
             <span className={`truncate text-xs${isModelLoading ? ' opacity-0' : ''}`}>
               {displayModel}
-              {isLeadWorkerActive && modelMode && (
-                <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
-              )}
             </span>
           </div>
         </DropdownMenuTrigger>
@@ -183,10 +114,6 @@ export default function ModelsBottomBar({
           <DropdownMenuItem onClick={() => setIsAddModelModalOpen(true)}>
             <span>Change Model</span>
             <Sliders className="ml-auto h-4 w-4 rotate-90" />
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIsLeadWorkerModalOpen(true)}>
-            <span>Lead/Worker Settings</span>
-            <Sliders className="ml-auto h-4 w-4" />
           </DropdownMenuItem>
           {currentProvider === 'local' && currentModel && (
             <DropdownMenuItem onClick={() => setIsLocalModelSettingsOpen(true)}>
@@ -206,10 +133,6 @@ export default function ModelsBottomBar({
           sessionProvider={currentProvider}
           onModelSelected={(model, provider) => handleModelSelected(model, provider)}
         />
-      ) : null}
-
-      {isLeadWorkerModalOpen ? (
-        <LeadWorkerSettings isOpen={isLeadWorkerModalOpen} onClose={handleLeadWorkerModalClose} />
       ) : null}
 
       {isLocalModelSettingsOpen && currentModel && (

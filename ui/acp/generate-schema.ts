@@ -138,7 +138,7 @@ async function generateClient(meta: { methods: MethodMeta[] }) {
 
   for (const m of meta.methods) {
     const fnName = methodToCamelCase(m.method);
-    const fullMethod = `_goose/${m.method}`;
+    const fullMethod = m.method;
 
     let paramType = "";
     let paramArg = "";

@@ -1,5 +1,6 @@
 use crate::conversation::message::{Message, MessageContent, MessageMetadata};
-use rmcp::model::Role;
+use crate::mcp_utils::extract_text_from_resource;
+use rmcp::model::{Content, Role};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
@@ -204,6 +205,7 @@ fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         merge_text_content_items,
         trim_assistant_text_whitespace,
         remove_empty_messages,
+        fix_empty_tool_results,
         fix_tool_calling,
         merge_consecutive_messages,
         fix_lead_trail,
@@ -302,6 +304,50 @@ fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) 
         })
         .collect();
     (filtered_messages, issues)
+}
+
+/// Checks whether tool result content has any meaningful payload.
+/// Text and resources must contain non-empty strings; images are always meaningful.
+fn has_tool_result_content(content: &[Content]) -> bool {
+    content.iter().any(|c| {
+        if let Some(t) = c.as_text() {
+            return !t.text.is_empty();
+        }
+        if let Some(r) = c.as_resource() {
+            return !extract_text_from_resource(&r.resource).is_empty();
+        }
+        c.as_image().is_some()
+    })
+}
+
+/// Fix tool results that would be empty when formatted for LLM APIs.
+/// Some APIs (like Anthropic) reject tool_result blocks with empty content.
+/// This adds a placeholder message for tool results that have no extractable text.
+fn fix_empty_tool_results(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    let mut issues = Vec::new();
+
+    let fixed_messages = messages
+        .into_iter()
+        .map(|mut message| {
+            for content in &mut message.content {
+                if let MessageContent::ToolResponse(ref mut tool_response) = content {
+                    if let Ok(ref mut result) = tool_response.tool_result {
+                        if !has_tool_result_content(&result.content) {
+                            // Add a placeholder text content so the tool result isn't empty
+                            result.content.push(Content::text("(empty result)"));
+                            issues.push(format!(
+                                "Added placeholder to empty tool result '{}'",
+                                tool_response.id
+                            ));
+                        }
+                    }
+                }
+            }
+            message
+        })
+        .collect();
+
+    (fixed_messages, issues)
 }
 
 fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
@@ -544,6 +590,8 @@ mod tests {
 
     #[test]
     fn test_valid_conversation() {
+        use rmcp::model::Content;
+
         let all_messages = [
             Message::user().with_text("Can you help me search for something?"),
             Message::assistant()
@@ -553,8 +601,12 @@ mod tests {
                     Ok(CallToolRequestParams::new("web_search")
                         .with_arguments(object!({"query": "rust programming"}))),
                 ),
-            Message::user()
-                .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "Search results here",
+                )])),
+            ),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
         ];
 
@@ -586,12 +638,19 @@ mod tests {
 
     #[test]
     fn test_role_alternation_and_content_placement_issues() {
+        use rmcp::model::Content;
+
         let messages = vec![
             Message::user().with_text("Hello"),
             Message::user().with_text("Another user message"),
             Message::assistant()
                 .with_text("Response")
-                .with_tool_response("orphan_1", Ok(rmcp::model::CallToolResult::success(vec![]))), // Wrong role
+                .with_tool_response(
+                    "orphan_1",
+                    Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                        "result",
+                    )])),
+                ), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
                 .with_tool_request(
@@ -623,6 +682,8 @@ mod tests {
 
     #[test]
     fn test_orphaned_tools_and_empty_messages() {
+        use rmcp::model::Content;
+
         // This conversation completely collapses. the first user message is invalid
         // then we remove the empty user message and the wrong tool response
         // then we collapse the assistant messages
@@ -635,8 +696,12 @@ mod tests {
                     Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 ),
             Message::user(),
-            Message::user()
-                .with_tool_response("wrong_id", Ok(rmcp::model::CallToolResult::success(vec![]))),
+            Message::user().with_tool_response(
+                "wrong_id",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "result",
+                )])),
+            ),
             Message::assistant().with_tool_request(
                 "search_2",
                 Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
@@ -666,6 +731,8 @@ mod tests {
 
     #[test]
     fn test_real_world_consecutive_assistant_messages() {
+        use rmcp::model::Content;
+
         let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("run ls in the current directory and then run a word count on the smallest file"),
 
@@ -678,7 +745,7 @@ mod tests {
                 .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParams::new("developer__shell").with_arguments(object!({"command": "wc slack.yaml"})))),
 
             Message::user()
-                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult::success(vec![]))),
+                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult::success(vec![Content::text("0 0 0 slack.yaml")]))),
 
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
@@ -698,6 +765,8 @@ mod tests {
 
     #[test]
     fn test_tool_response_effective_role() {
+        use rmcp::model::Content;
+
         let messages = vec![
             Message::user().with_text("Search for something"),
             Message::assistant()
@@ -706,8 +775,12 @@ mod tests {
                     "search_1",
                     Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 ),
-            Message::user()
-                .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "search results",
+                )])),
+            ),
             Message::user().with_text("Thanks!"),
         ];
 
@@ -1062,6 +1135,65 @@ mod tests {
 
         assert_eq!(visible.len(), 1);
         assert_eq!(visible[0], "Hello");
+    }
+
+    #[test]
+    fn test_empty_tool_result_gets_placeholder() {
+        // Test that tool results with empty content get a placeholder added
+        let messages = vec![
+            Message::user().with_text("Search for something"),
+            Message::assistant()
+                .with_text("I'll search for you")
+                .with_tool_request(
+                    "search_1",
+                    Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
+                ),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult::success(vec![])), // Empty content - this should get a placeholder
+            ),
+            Message::user().with_text("Thanks!"),
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        // Should have added a placeholder
+        assert!(issues
+            .iter()
+            .any(|i| i.contains("Added placeholder to empty tool result")));
+
+        // Find the tool response and verify it has content now
+        let tool_response_msg = fixed
+            .messages()
+            .iter()
+            .find(|m| {
+                m.content.iter().any(|c| {
+                    matches!(
+                        c,
+                        crate::conversation::message::MessageContent::ToolResponse(_)
+                    )
+                })
+            })
+            .expect("Should have a tool response message");
+
+        if let crate::conversation::message::MessageContent::ToolResponse(resp) =
+            &tool_response_msg.content[0]
+        {
+            if let Ok(result) = &resp.tool_result {
+                assert!(!result.content.is_empty(), "Content should not be empty");
+                // Verify the placeholder text
+                let text = result.content[0]
+                    .as_text()
+                    .expect("Should be text content")
+                    .text
+                    .clone();
+                assert_eq!(text, "(empty result)");
+            } else {
+                panic!("Tool result should be Ok");
+            }
+        } else {
+            panic!("First content should be ToolResponse");
+        }
     }
 
     #[test]
