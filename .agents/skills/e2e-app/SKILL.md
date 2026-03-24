@@ -14,8 +14,7 @@ The script self-activates hermit for `pnpm`/`node`, but needs `ANTHROPIC_API_KEY
 
 ```bash
 TEST_SESSION_NAME=$(date +"%y%m%d-%H%M%S")
-SCREEN_NAME="e2e-$(date +%s)"
-screen -dmS $SCREEN_NAME bash -c "source ~/.zshrc 2>/dev/null; bash ui/desktop/tests/e2e-tests/scripts/e2e-start.sh $TEST_SESSION_NAME"
+screen -dmS $TEST_SESSION_NAME bash -c "source ~/.zshrc 2>/dev/null; bash ui/desktop/tests/e2e-tests/scripts/e2e-start.sh $TEST_SESSION_NAME"
 ```
 
 Then wait for the port file and verify the app is listening:
@@ -37,7 +36,7 @@ done
 If the app doesn't start, check the screen log:
 ```bash
 screen -ls                    # verify screen session exists
-screen -r $SCREEN_NAME        # attach to see errors (Ctrl-A D to detach)
+screen -r $TEST_SESSION_NAME  # attach to see errors (Ctrl-A D to detach)
 ```
 
 Common startup failures:

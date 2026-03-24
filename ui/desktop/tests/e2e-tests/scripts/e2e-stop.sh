@@ -50,4 +50,5 @@ done
 
 pkill -9 -f "$BASE_DIR" 2>/dev/null || true
 pkill -9 -f 'agent-browser-chrome' 2>/dev/null || true
-pkill -9 -f 'agent-browser-darwin\|agent-browser-linux' 2>/dev/null || true
+pkill -9 -f 'agent-browser-darwin' 2>/dev/null || true
+pkill -9 -f 'agent-browser-linux' 2>/dev/null || true

@@ -29,11 +29,10 @@ instructions: |
   Determine the results directory:
   - If `results_url` is provided, use gh to download and extract it:
     ```bash
-    gh run download {run_id} --repo block/goose --name e2e-test-results --dir /tmp/e2e-results 2>&1
-    # example: result_url: https://github.com/block/goose/actions/runs/23487840554/artifacts/6079302235
-    # gh run download 23487840554 --repo block/goose --name e2e-test-results --dir /tmp/e2e-results 2>&1
     rm -rf ui/desktop/tests/e2e-tests/results-ci
-    unzip -o /tmp/e2e-results.zip -d ui/desktop/tests/e2e-tests/results-ci
+    gh run download {run_id} --repo block/goose --name e2e-test-results --dir ui/desktop/tests/e2e-tests/results-ci 2>&1
+    # example: result_url: https://github.com/block/goose/actions/runs/23487840554/artifacts/6079302235
+    # gh run download 23487840554 --repo block/goose --name e2e-test-results --dir ui/desktop/tests/e2e-tests/results-ci 2>&1
     ```
     Use `ui/desktop/tests/e2e-tests/results-ci` as the results directory.
   - Otherwise, use the local `ui/desktop/tests/e2e-tests/results/`.
