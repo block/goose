@@ -26,7 +26,7 @@ use rmcp::model::{
     ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -214,7 +214,8 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
 /// Returns discovered skills, skipping any whose names are already in `seen`.
 fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>) -> Vec<Source> {
     let mut sources = Vec::new();
-    for skill_file in collect_skill_files(dir) {
+    let mut visited_dirs = HashSet::new();
+    for skill_file in collect_skill_files(dir, &mut visited_dirs) {
         let Some(skill_dir) = skill_file.parent() else {
             continue;
         };
@@ -228,7 +229,9 @@ fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>
 
         if let Some(mut source) = parse_skill_content(&content, skill_dir.to_path_buf()) {
             if !seen.contains(&source.name) {
-                source.supporting_files = find_supporting_files(skill_dir, &skill_file);
+                let mut visited_support_dirs = HashSet::new();
+                source.supporting_files =
+                    find_supporting_files(skill_dir, &skill_file, &mut visited_support_dirs);
                 seen.insert(source.name.clone());
                 sources.push(source);
             }
@@ -237,23 +240,45 @@ fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>
     sources
 }
 
-fn collect_skill_files(dir: &Path) -> Vec<PathBuf> {
+fn collect_skill_files(dir: &Path, visited_dirs: &mut HashSet<PathBuf>) -> Vec<PathBuf> {
     let mut skill_files = Vec::new();
+
+    walk_files_recursively(dir, visited_dirs, &mut |path| {
+        if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
+            skill_files.push(path.to_path_buf());
+        }
+    });
+
+    skill_files
+}
+
+fn walk_files_recursively<F>(dir: &Path, visited_dirs: &mut HashSet<PathBuf>, visit_file: &mut F)
+where
+    F: FnMut(&Path),
+{
+    let canonical_dir = match std::fs::canonicalize(dir) {
+        Ok(path) => path,
+        Err(_) => return,
+    };
+
+    if !visited_dirs.insert(canonical_dir) {
+        return;
+    }
+
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
-        Err(_) => return skill_files,
+        Err(_) => return,
     };
 
     for entry in entries.flatten() {
         let path = entry.path();
+
         if path.is_dir() {
-            skill_files.extend(collect_skill_files(&path));
-        } else if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
-            skill_files.push(path);
+            walk_files_recursively(&path, visited_dirs, visit_file);
+        } else if path.is_file() {
+            visit_file(&path);
         }
     }
-
-    skill_files
 }
 
 fn scan_recipes_from_dir(
@@ -435,20 +460,19 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
 }
 
 /// Collect all files in a skill directory recursively, excluding SKILL.md itself.
-fn find_supporting_files(directory: &Path, skill_file: &Path) -> Vec<PathBuf> {
+fn find_supporting_files(
+    directory: &Path,
+    skill_file: &Path,
+    visited_dirs: &mut HashSet<PathBuf>,
+) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    let entries = match std::fs::read_dir(directory) {
-        Ok(e) => e,
-        Err(_) => return files,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() && path != skill_file {
-            files.push(path);
-        } else if path.is_dir() {
-            files.extend(find_supporting_files(&path, skill_file));
+
+    walk_files_recursively(directory, visited_dirs, &mut |path| {
+        if path != skill_file {
+            files.push(path.to_path_buf());
         }
-    }
+    });
+
     files
 }
 
@@ -2108,6 +2132,67 @@ You review code."#;
 
         let nested_skill = sources.iter().find(|s| s.name == "nested-skill").unwrap();
         assert_eq!(nested_skill.path, nested_skill_dir);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_symlinked_skill_directory_is_discovered() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let shared_skill_dir = temp_dir.path().join("shared-skills/ai");
+        fs::create_dir_all(&shared_skill_dir).unwrap();
+        fs::write(
+            shared_skill_dir.join("SKILL.md"),
+            "---\nname: shared-ai\ndescription: Shared skill\n---\nShared content",
+        )
+        .unwrap();
+        fs::write(shared_skill_dir.join("notes.md"), "shared notes").unwrap();
+
+        let linked_catalog_dir = temp_dir.path().join(".claude/skills/catalog/internal");
+        fs::create_dir_all(&linked_catalog_dir).unwrap();
+        std::os::unix::fs::symlink(&shared_skill_dir, linked_catalog_dir.join("ai")).unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let skill = sources.iter().find(|s| s.name == "shared-ai").unwrap();
+        assert_eq!(skill.path, linked_catalog_dir.join("ai"));
+        assert!(skill
+            .supporting_files
+            .contains(&linked_catalog_dir.join("ai/notes.md")));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_skill_discovery_avoids_symlink_cycles() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("refs")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill with a loop\n---\nLoop safe",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("refs/guide.md"), "guide content").unwrap();
+        std::os::unix::fs::symlink(&skill_dir, skill_dir.join("refs/loop")).unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let skill = sources.iter().find(|s| s.name == "my-skill").unwrap();
+        assert_eq!(skill.path, skill_dir);
+        assert!(skill
+            .supporting_files
+            .contains(&skill_dir.join("refs/guide.md")));
+        assert_eq!(
+            skill
+                .supporting_files
+                .iter()
+                .filter(|path| *path == &skill_dir.join("refs/guide.md"))
+                .count(),
+            1
+        );
     }
 
     #[tokio::test]
