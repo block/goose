@@ -9,7 +9,16 @@ import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, HardDrive } from 'lucide-react';
+import {
+  Bot,
+  Share2,
+  Monitor,
+  MessageSquare,
+  FileText,
+  Keyboard,
+  HardDrive,
+  Network,
+} from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import TunnelSection from './tunnel/TunnelSection';
 import GatewaySettingsSection from './gateways/GatewaySettingsSection';
@@ -17,6 +26,7 @@ import { getTunnelStatus } from '../../api/sdk.gen';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import LocalInferenceSection from './localInference/LocalInferenceSection';
+import MeshSection from './mesh/MeshSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
 import { trackSettingsTabViewed } from '../../utils/analytics';
 import { useFeatures } from '../../contexts/FeaturesContext';
@@ -101,6 +111,7 @@ export default function SettingsView({
         keyboard: 'keyboard',
         gateway: 'sharing',
         'local-inference': 'local-inference',
+        mesh: 'mesh',
       };
 
       const targetTab = sectionToTab[viewOptions.section];
@@ -186,6 +197,10 @@ export default function SettingsView({
                       {intl.formatMessage(i18n.tabLocalInference)}
                     </TabsTrigger>
                   )}
+                  <TabsTrigger value="mesh" className="flex gap-2" data-testid="settings-mesh-tab">
+                    <Network className="h-4 w-4" />
+                    Mesh
+                  </TabsTrigger>
                   <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
                     <MessageSquare className="h-4 w-4" />
                     {intl.formatMessage(i18n.tabChat)}
@@ -237,6 +252,13 @@ export default function SettingsView({
                     <LocalInferenceSection />
                   </TabsContent>
                 )}
+
+                <TabsContent
+                  value="mesh"
+                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+                >
+                  <MeshSection />
+                </TabsContent>
 
                 <TabsContent
                   value="chat"
