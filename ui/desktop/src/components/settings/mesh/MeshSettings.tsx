@@ -54,6 +54,7 @@ interface MeshStatusInfo {
 
 export const MeshSettings = () => {
   const { refreshCurrentModelAndProvider } = useModelAndProvider();
+  const isMac = window.electron.platform === 'darwin';
   const [status, setStatus] = useState<MeshStatus>('unknown');
   const [statusInfo, setStatusInfo] = useState<MeshStatusInfo>({
     running: false,
@@ -324,16 +325,31 @@ export const MeshSettings = () => {
             mesh-llm is a small download (~19 MB) that manages local LLM inference. Models are
             downloaded separately when you start a mesh.
           </p>
-          <div className="flex items-center gap-2 mt-3">
-            <Button size="sm" onClick={downloadMesh}>
-              <Download className="w-3 h-3 mr-1" />
-              Download mesh-llm
-            </Button>
-            <Button variant="ghost" size="sm" onClick={checkStatus}>
-              <RefreshCw className="w-3 h-3 mr-1" />
-              Check Again
-            </Button>
-          </div>
+          {isMac ? (
+            <div className="flex items-center gap-2 mt-3">
+              <Button size="sm" onClick={downloadMesh}>
+                <Download className="w-3 h-3 mr-1" />
+                Download mesh-llm
+              </Button>
+              <Button variant="ghost" size="sm" onClick={checkStatus}>
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Check Again
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-orange-400">
+                Auto-download is currently available on macOS (Apple Silicon) only.
+              </p>
+              <p className="text-xs text-text-muted">
+                If you&apos;ve installed mesh-llm manually, click Check Again.
+              </p>
+              <Button variant="ghost" size="sm" onClick={checkStatus}>
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Check Again
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
