@@ -152,11 +152,22 @@ jobs:
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
+      - name: Import Apple signing certificate
+        if: ${{ inputs.signing }}
+        uses: ./.github/actions/apple-codesign
+        with:
+          certificate-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          certificate-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
       # Check disk space before bundling
       - name: Check disk space before bundling
         run: df -h
 
       - name: Build App
+        env:
+          APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
+          APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
         run: |
           source ../../bin/activate-hermit
           attempt=0
@@ -173,19 +184,12 @@ jobs:
           fi
         working-directory: ui/desktop
 
-      - name: Codesign and notarize
-        if: ${{ inputs.signing }}
-        uses: ./.github/actions/apple-codesign
-        with:
-          app-path: out/Goose-darwin-arm64/Goose.app
-          zip-path: out/Goose-darwin-arm64/Goose.zip
-          entitlements: entitlements.plist
-          working-directory: ui/desktop
-          certificate-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          certificate-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          apple-id: ${{ secrets.APPLE_ID }}
-          apple-id-password: ${{ secrets.APPLE_ID_PASSWORD }}
-          team-id: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Clean up signing keychain
+        if: always()
+        run: |
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
 
       - name: Final cleanup before artifact upload
         run: |
