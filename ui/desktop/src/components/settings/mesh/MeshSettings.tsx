@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Download,
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -38,7 +39,14 @@ const MODEL_CATALOG = [
 ];
 
 type MeshMode = 'new' | 'join' | 'auto';
-type MeshStatus = 'unknown' | 'checking' | 'running' | 'stopped' | 'starting' | 'not-installed';
+type MeshStatus =
+  | 'unknown'
+  | 'checking'
+  | 'running'
+  | 'stopped'
+  | 'starting'
+  | 'not-installed'
+  | 'downloading';
 
 interface MeshStatusInfo {
   running: boolean;
@@ -68,11 +76,11 @@ export const MeshSettings = () => {
   const [activeModel, setActiveModel] = useState<string | null>(null);
 
   const checkStatus = useCallback(async () => {
-    setStatus((prev) => (prev === 'starting' ? prev : 'checking'));
+    setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'checking'));
     try {
       const result = await window.electron.checkMesh();
       if (!result.installed) {
-        setStatus('not-installed');
+        setStatus((prev) => (prev === 'downloading' ? prev : 'not-installed'));
         setStatusInfo({ running: false, installed: false, models: [] });
         return;
       }
@@ -80,11 +88,11 @@ export const MeshSettings = () => {
         setStatus('running');
         setStatusInfo(result);
       } else {
-        setStatus((prev) => (prev === 'starting' ? prev : 'stopped'));
+        setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'stopped'));
         setStatusInfo({ ...result, models: [] });
       }
     } catch {
-      setStatus((prev) => (prev === 'starting' ? prev : 'stopped'));
+      setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'stopped'));
     }
   }, []);
 
@@ -196,6 +204,28 @@ export const MeshSettings = () => {
     }
   };
 
+  const downloadMesh = async () => {
+    setError(null);
+    setStatus('downloading');
+    try {
+      const result = await window.electron.downloadMesh();
+      if (result.downloaded) {
+        setStatusInfo((prev) => ({
+          ...prev,
+          installed: true,
+          binaryPath: result.binaryPath,
+        }));
+        setStatus('stopped');
+      } else {
+        setError(result.error || 'Download failed');
+        setStatus('not-installed');
+      }
+    } catch (err) {
+      setError(`Download failed: ${err}`);
+      setStatus('not-installed');
+    }
+  };
+
   const copyToken = () => {
     if (statusInfo.token) {
       navigator.clipboard.writeText(statusInfo.token);
@@ -226,11 +256,18 @@ export const MeshSettings = () => {
             Starting — this may take a minute if downloading a model...
           </span>
         );
+      case 'downloading':
+        return (
+          <span className="flex items-center gap-1.5 text-xs text-yellow-500">
+            <RefreshCw className="w-3 h-3 animate-spin" />
+            Downloading mesh-llm (~19 MB)...
+          </span>
+        );
       case 'not-installed':
         return (
           <span className="flex items-center gap-1.5 text-xs text-text-muted">
             <span className="w-2 h-2 rounded-full bg-orange-400" />
-            mesh-llm not found
+            mesh-llm not installed
           </span>
         );
       case 'stopped':
@@ -278,22 +315,34 @@ export const MeshSettings = () => {
         {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
       </div>
 
-      {/* Not installed */}
+      {/* Not installed — offer download */}
       {status === 'not-installed' && (
-        <div className="border border-orange-400/30 rounded-xl p-4 bg-orange-400/5">
-          <p className="text-sm font-medium text-text-default">Install mesh-llm</p>
+        <div className="border border-border-subtle rounded-xl p-4 bg-background-default">
+          <p className="text-sm font-medium text-text-default">Get started</p>
           <p className="text-xs text-text-muted mt-1">
-            mesh-llm is required to use the inference mesh. Install it with:
+            mesh-llm is a small download (~19 MB) that manages local LLM inference. Models are
+            downloaded separately when you start a mesh.
           </p>
-          <code className="block text-xs bg-background-default rounded p-2 mt-2 text-text-muted select-all">
-            curl -fsSL
-            https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz |
-            tar xz && mv mesh-bundle/* ~/.local/bin/
-          </code>
-          <Button variant="outline" size="sm" onClick={checkStatus} className="mt-3">
-            <RefreshCw className="w-3 h-3 mr-1" />
-            Check Again
-          </Button>
+          <div className="flex items-center gap-2 mt-3">
+            <Button size="sm" onClick={downloadMesh}>
+              <Download className="w-3 h-3 mr-1" />
+              Download mesh-llm
+            </Button>
+            <Button variant="ghost" size="sm" onClick={checkStatus}>
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Check Again
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Downloading */}
+      {status === 'downloading' && (
+        <div className="border border-yellow-500/30 rounded-xl p-4 bg-yellow-500/5">
+          <p className="text-sm font-medium text-text-default">Downloading mesh-llm...</p>
+          <p className="text-xs text-text-muted mt-1">
+            Downloading and installing to ~/.mesh-llm/. This should only take a moment.
+          </p>
         </div>
       )}
 
