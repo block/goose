@@ -117,9 +117,6 @@ jobs:
         if: inputs.dry-run != true && github.ref == 'refs/heads/main'
         id: changesets
         uses: changesets/action@6d3568c53fbe1db6c1f9ab1c7fbf9092bc18627f # v1
-        environment:
-          name: npm-production-publishing
-          url: https://www.npmjs.com/org/block
         with:
           publish: npm run release
           version: npm run version
@@ -130,6 +127,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+        environment:
+          name: npm-production-publishing
+          url: https://www.npmjs.com/org/block
 
       - name: Summary
         if: steps.changesets.outputs.published == 'true' && inputs.dry-run != true && github.ref == 'refs/heads/main'
