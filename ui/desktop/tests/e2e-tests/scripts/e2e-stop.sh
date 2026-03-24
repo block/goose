@@ -15,6 +15,9 @@ stop_session() {
     return 1
   fi
 
+  # Kill the screen session (takes Electron + goosed with it)
+  screen -S "$TEST_SESSION_NAME" -X quit 2>/dev/null || true
+
   local CDP_PORT
   CDP_PORT=$(cat "$SESSION_DIR/.port" 2>/dev/null || true)
 
@@ -46,3 +49,5 @@ for session_dir in "$SESSIONS_DIR"/*; do
 done
 
 pkill -9 -f "$BASE_DIR" 2>/dev/null || true
+pkill -9 -f 'agent-browser-chrome' 2>/dev/null || true
+pkill -9 -f 'agent-browser-darwin\|agent-browser-linux' 2>/dev/null || true

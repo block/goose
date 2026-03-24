@@ -33,7 +33,6 @@ if [[ ! -f "$RECORDING" ]]; then
   exit 1
 fi
 
-# Default session name from recording filename (e.g., settings-dark-mode.batch.json -> settings-dark-mode)
 if [[ -z "$SESSION_NAME" ]]; then
   SESSION_NAME=$(basename "$RECORDING" .batch.json)
 fi
@@ -43,6 +42,14 @@ GLOBAL_ARGS=("--session" "$SESSION_NAME")
 DEFAULT_TIMEOUT_MS="${AGENT_BROWSER_DEFAULT_TIMEOUT:-10000}"
 
 ts() { date "+%H:%M:%S"; }
+
+cleanup() {
+  if [[ "$RECORD" == true ]]; then
+    pnpm exec agent-browser "${GLOBAL_ARGS[@]}" record stop 2>/dev/null || true
+  fi
+  pnpm exec agent-browser "${GLOBAL_ARGS[@]}" close 2>/dev/null || true
+}
+trap cleanup EXIT
 
 if [[ -n "$CONNECT_PORT" ]]; then
   MAX_CONNECT_RETRIES=10
@@ -103,17 +110,8 @@ for i in $(seq 0 $((TOTAL - 1))); do
       echo "Capturing failure screenshot → $SCREENSHOT_PATH"
       pnpm exec agent-browser "${GLOBAL_ARGS[@]}" screenshot "$SCREENSHOT_PATH" 2>/dev/null || echo "Screenshot capture failed"
     fi
-    if [[ "$RECORD" == true ]]; then
-      pnpm exec agent-browser "${GLOBAL_ARGS[@]}" record stop 2>/dev/null || true
-    fi
     exit 1
   fi
 done
 
-if [[ "$RECORD" == true ]]; then
-  pnpm exec agent-browser "${GLOBAL_ARGS[@]}" record stop 2>/dev/null || true
-fi
-
 echo "[$(ts)] Replay complete: $TOTAL commands passed"
-
-pnpm exec agent-browser "${GLOBAL_ARGS[@]}" close 2>/dev/null || true

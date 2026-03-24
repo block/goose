@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run all recorded e2e tests in parallel
-# Usage: ./e2e-run-all.sh [--workers N] [--timeout SECONDS]
+# Usage: ./e2e-run-all.sh [--workers N] [--record]
 # Runs all *.batch.json files in recordings/, skipping files with "skip" in the name (e.g., settings-dark-mode.skip.batch.json).
 set -euo pipefail
 
@@ -13,15 +13,12 @@ BASE_DIR="/tmp/goose-e2e"
 
 source "$PROJECT_DIR/bin/activate-hermit"
 WORKERS=4
-TIMEOUT=120  # seconds per test
 FILTER=""
 RECORD=""
 
-# Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --workers) WORKERS="$2"; shift 2 ;;
-    --timeout) TIMEOUT="$2"; shift 2 ;;
     --only) FILTER="$2"; shift 2 ;;
     --record) RECORD="--record"; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -42,7 +39,7 @@ if [[ ${#RECORDINGS[@]} -eq 0 ]]; then
 fi
 
 # Clean up previous test sessions
-pkill -9 -f "$BASE_DIR" 2>/dev/null || true
+bash "$SCRIPT_DIR/e2e-stop.sh" 2>/dev/null || true
 rm -rf "$BASE_DIR"
 rm -rf "$RESULTS_DIR"
 mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/screenshots" "$RESULTS_DIR/videos"
@@ -54,11 +51,8 @@ pnpm exec agent-browser install
 ts() { date '+%H:%M:%S'; }
 
 echo "=== E2E Test Runner ==="
-echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
+echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS"
 
-# Wait for the app to write its port file and the port to be listening.
-# Usage: wait_for_app <test-name>
-# Prints the CDP port on success, returns 1 on timeout.
 wait_for_app() {
   local TEST_NAME="$1"
   local PORT_FILE="$BASE_DIR/sessions/${TEST_NAME}/.port"
@@ -76,8 +70,6 @@ wait_for_app() {
   return 1
 }
 
-# Run a single recording: start app, replay, stop app
-# Usage: run_one <recording> <status_dir>
 run_one() {
   local RECORDING="$1"
   local STATUS_DIR="$2"
@@ -85,7 +77,6 @@ run_one() {
   TEST_NAME=$(basename "$RECORDING" .batch.json)
   local START_TIME=$SECONDS
   local LOG_FILE="$RESULTS_DIR/logs/$TEST_NAME.log"
-  local EXIT_CODE
 
   echo "[$(ts)] [$TEST_NAME] Starting app..."
   screen -dmS "$TEST_NAME" bash -c "bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
@@ -101,23 +92,20 @@ run_one() {
   echo "[$(ts)] [$TEST_NAME] App ready: port=$CDP_PORT"
 
   set +e
-  timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" \
+  bash "$SCRIPT_DIR/replay.sh" \
     "$RECORDING" \
     --connect "$CDP_PORT" \
     --browser-session "$TEST_NAME" \
     --results-dir "$RESULTS_DIR" \
     $RECORD \
     2>&1 | tee -a "$LOG_FILE"
-  EXIT_CODE=${PIPESTATUS[0]}
+  local EXIT_CODE=${PIPESTATUS[0]}
   set -e
 
   local DURATION=$(( SECONDS - START_TIME ))
   if [[ "$EXIT_CODE" -eq 0 ]]; then
     echo "PASS ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     echo "[$(ts)] [$TEST_NAME] PASS (${DURATION}s)"
-  elif [[ "$EXIT_CODE" -eq 124 ]]; then
-    echo "TIMEOUT ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
-    echo "[$(ts)] [$TEST_NAME] TIMEOUT (${DURATION}s)"
   else
     echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     echo "[$(ts)] [$TEST_NAME] FAIL (${DURATION}s, exit=$EXIT_CODE)"
@@ -127,9 +115,8 @@ run_one() {
 }
 
 export -f ts wait_for_app run_one
-export BASE_DIR SCRIPT_DIR TIMEOUT RESULTS_DIR RECORD
+export BASE_DIR SCRIPT_DIR RESULTS_DIR RECORD
 
-# Temp dir for pass/fail status
 STATUS_DIR=$(mktemp -d)
 cleanup_and_exit() {
   local exit_code="${1:-$?}"
@@ -142,11 +129,8 @@ cleanup_and_exit() {
 trap 'cleanup_and_exit $?' EXIT
 trap 'echo ""; echo "Interrupted, stopping active E2E sessions..."; cleanup_and_exit 130' INT TERM
 
-# Run recordings in parallel with worker limit
 printf '%s\n' "${RECORDINGS[@]}" | xargs -P "$WORKERS" -I {} bash -c "run_one '{}' '$STATUS_DIR'" || true
 
-# Print summary to console and write test-results.json
-# Usage: write_results <status_dir> <results_dir> <recordings...>
 write_results() {
   local STATUS_DIR="$1"
   local RESULTS_DIR="$2"
@@ -198,7 +182,6 @@ write_results() {
 
 write_results "$STATUS_DIR" "$RESULTS_DIR" "${RECORDINGS[@]}"
 
-# Exit non-zero if any test failed
 FAILED=$(jq '.summary.failed' "$RESULTS_DIR/test-results.json")
 if [[ "$FAILED" -gt 0 ]]; then
   exit 1
