@@ -1564,6 +1564,189 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+// ── Mesh-LLM lifecycle ──────────────────────────────────────────────
+
+ipcMain.handle('check-mesh', async () => {
+  const http = await import('http');
+  const result: {
+    running: boolean;
+    installed: boolean;
+    models: string[];
+    token?: string;
+    peerCount?: number;
+    nodeStatus?: string;
+    binaryPath?: string;
+  } = { running: false, installed: true, models: [] };
+
+  // Check if mesh-llm binary exists
+  try {
+    const { execSync } = await import('child_process');
+    const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+    if (!binPath) {
+      const os = await import('os');
+      const path = await import('path');
+      const fs = await import('fs');
+      const fallback = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
+      if (!fs.default.existsSync(fallback)) {
+        result.installed = false;
+        return result;
+      }
+      result.binaryPath = fallback;
+    } else {
+      result.binaryPath = binPath;
+    }
+  } catch {
+    // which failed — try to probe the API anyway
+  }
+
+  // Probe the API
+  try {
+    const modelsData: { running: boolean; models: string[] } = await new Promise((resolve) => {
+      const req = http.default.get('http://localhost:9337/v1/models', { timeout: 3000 }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const models = (data.data || []).map((m: { id: string }) => m.id);
+            resolve({ running: true, models });
+          } catch {
+            resolve({ running: false, models: [] });
+          }
+        });
+      });
+      req.on('error', () => resolve({ running: false, models: [] }));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ running: false, models: [] });
+      });
+    });
+
+    result.running = modelsData.running;
+    result.models = modelsData.models;
+  } catch {
+    // API not reachable
+  }
+
+  // If running, also grab console status for invite token + peer info
+  if (result.running) {
+    try {
+      const statusData: { token?: string; peerCount?: number; nodeStatus?: string } =
+        await new Promise((resolve) => {
+          const req = http.default.get(
+            'http://localhost:3131/api/status',
+            { timeout: 3000 },
+            (res) => {
+              let body = '';
+              res.on('data', (chunk: Buffer) => {
+                body += chunk.toString();
+              });
+              res.on('end', () => {
+                try {
+                  const data = JSON.parse(body);
+                  resolve({
+                    token: data.token,
+                    peerCount: Array.isArray(data.peers) ? data.peers.length : undefined,
+                    nodeStatus: data.node_status,
+                  });
+                } catch {
+                  resolve({});
+                }
+              });
+            }
+          );
+          req.on('error', () => resolve({}));
+          req.on('timeout', () => {
+            req.destroy();
+            resolve({});
+          });
+        });
+      result.token = statusData.token;
+      result.peerCount = statusData.peerCount;
+      result.nodeStatus = statusData.nodeStatus;
+    } catch {
+      // console not available — that's fine
+    }
+  }
+
+  return result;
+});
+
+ipcMain.handle('start-mesh', async (_event, args: string[]) => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const os = await import('os');
+  const { execSync } = await import('child_process');
+
+  // Find binary
+  let binary = '';
+  try {
+    binary = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+  } catch {
+    // ignore
+  }
+  if (!binary) {
+    const fallback = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
+    if (fs.default.existsSync(fallback)) {
+      binary = fallback;
+    }
+  }
+  if (!binary) {
+    return {
+      started: false,
+      error:
+        'mesh-llm not found. Install from https://github.com/michaelneale/decentralized-inference',
+    };
+  }
+
+  // Log to ~/.mesh-llm/mesh-llm.log
+  const logDir = path.default.join(os.default.homedir(), '.mesh-llm');
+  if (!fs.default.existsSync(logDir)) {
+    fs.default.mkdirSync(logDir, { recursive: true });
+  }
+  const logPath = path.default.join(logDir, 'mesh-llm.log');
+  const out = fs.default.openSync(logPath, 'a');
+
+  // Spawn detached — mesh-llm outlives Goose
+  const child = spawn(binary, args, {
+    detached: true,
+    stdio: ['ignore', out, out],
+  });
+  child.unref();
+
+  return { started: true, pid: child.pid };
+});
+
+ipcMain.handle('stop-mesh', async () => {
+  const { execSync } = await import('child_process');
+  try {
+    // Find the binary
+    let binary = '';
+    try {
+      binary = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+    } catch {
+      // ignore
+    }
+    if (!binary) {
+      const os = await import('os');
+      const path = await import('path');
+      const fs = await import('fs');
+      const fallback = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
+      if (fs.default.existsSync(fallback)) {
+        binary = fallback;
+      }
+    }
+    if (binary) {
+      execSync(`"${binary}" stop`, { timeout: 5000, encoding: 'utf8' });
+    }
+    return { stopped: true };
+  } catch {
+    return { stopped: false };
+  }
+});
+
 ipcMain.handle('check-ollama', async () => {
   try {
     return new Promise((resolve) => {
