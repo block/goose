@@ -1,8 +1,10 @@
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
+use sigstore_verify::trust_root::TrustedRoot;
+use sigstore_verify::types::{Bundle, Sha256Hash};
+use sigstore_verify::VerificationPolicy;
 use std::env;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -53,72 +55,143 @@ fn sha256_hex(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-/// Verify the downloaded archive against GitHub's Sigstore SLSA provenance.
-///
-/// Uses the attestations published by `actions/attest-build-provenance` in the
-/// release/canary/nightly workflows (added in PR #7097). Verification fetches
-/// the attestation bundle from GitHub's attestation API and validates the
-/// Sigstore signature chain, Rekor transparency log inclusion, and artifact
-/// digest match.
-/// Returns `Ok(true)` when the attestation is fully verified, `Ok(false)` when
-/// verification was skipped with a warning (no attestation, transient error),
-/// and `Err` when verification actively fails (invalid signature, digest
-/// mismatch, etc.).
+#[derive(serde::Deserialize)]
+struct AttestationResponse {
+    attestations: Vec<AttestationEntry>,
+}
+
+#[derive(serde::Deserialize)]
+struct AttestationEntry {
+    bundle: serde_json::Value,
+}
+
+const GITHUB_ACTIONS_ISSUER: &str = "https://token.actions.githubusercontent.com";
+
+async fn fetch_attestations(digest: &str, token: Option<&str>) -> Result<Vec<serde_json::Value>> {
+    let url = format!(
+        "https://api.github.com/repos/block/goose/attestations/sha256:{digest}\
+         ?per_page=30&predicate_type=https://slsa.dev/provenance/v1"
+    );
+
+    let client = reqwest::Client::new();
+    let mut req = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header("User-Agent", "goose-cli");
+
+    if let Some(tok) = token {
+        req = req.header("Authorization", format!("Bearer {tok}"));
+    }
+
+    let resp = req.send().await.context("Failed to fetch attestations")?;
+
+    if !resp.status().is_success() {
+        bail!("GitHub attestation API returned HTTP {}", resp.status());
+    }
+
+    let body: AttestationResponse = resp
+        .json()
+        .await
+        .context("Failed to parse attestation response")?;
+
+    Ok(body.attestations.into_iter().map(|a| a.bundle).collect())
+}
+
+// Verify a single attestation bundle against the artifact digest and workflow.
+fn verify_bundle(
+    bundle_json: &serde_json::Value,
+    artifact_digest: Sha256Hash,
+    policy: &VerificationPolicy,
+    trusted_root: &TrustedRoot,
+    workflow: &str,
+) -> Result<()> {
+    let bundle_str = serde_json::to_string(bundle_json)?;
+    let bundle = Bundle::from_json(&bundle_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse bundle: {e}"))?;
+
+    let result = sigstore_verify::verify(artifact_digest, &bundle, policy, trusted_root)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    if !result.success {
+        bail!("Verification unsuccessful");
+    }
+
+    let identity = result
+        .identity
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("No identity in certificate"))?;
+
+    let expected = format!("/.github/workflows/{workflow}");
+    if !identity.contains(&expected) {
+        bail!("Workflow mismatch: expected {workflow}, got {identity}");
+    }
+
+    Ok(())
+}
+
+/// Returns `Ok(true)` verified, `Ok(false)` skipped (soft warning), `Err` hard failure.
 async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<bool> {
     let digest = sha256_hex(archive_data);
     println!("Archive SHA-256: {digest}");
-
-    let mut tmp_file = tempfile::NamedTempFile::new()
-        .context("Failed to create temp file for provenance verification")?;
-    tmp_file
-        .write_all(archive_data)
-        .context("Failed to write archive to temp file")?;
-    tmp_file.flush().context("Failed to flush temp file")?;
 
     let workflow = match tag {
         "canary" => "canary.yml",
         _ => "release.yml",
     };
 
-    let token = std::env::var("GITHUB_TOKEN")
+    let token = env::var("GITHUB_TOKEN")
         .ok()
-        .or_else(|| std::env::var("GH_TOKEN").ok());
+        .or_else(|| env::var("GH_TOKEN").ok());
 
     println!("Verifying SLSA provenance via Sigstore...");
 
-    match sigstore_verification::verify_github_attestation(
-        tmp_file.path(),
-        "block",
-        "goose",
-        token.as_deref(),
-        Some(workflow),
-    )
-    .await
-    {
-        Ok(_) => {
-            println!("Sigstore provenance verification passed.");
-            Ok(true)
-        }
-        Err(sigstore_verification::AttestationError::NoAttestations) => {
+    let bundles = match fetch_attestations(&digest, token.as_deref()).await {
+        Ok(b) if b.is_empty() => {
             eprintln!(
                 "Warning: No Sigstore attestation found for this build. \
                  This may be expected for canary or nightly builds."
             );
-            Ok(false)
+            return Ok(false);
         }
-        Err(sigstore_verification::AttestationError::Verification(msg)) => Err(anyhow::anyhow!(
-            "Sigstore verification failed: {}\n\nAborting update due to security check failure.",
-            msg
-        )),
+        Ok(b) => b,
         Err(e) => {
             eprintln!(
                 "Warning: Sigstore provenance check could not complete: {e}\n\
                  This may be expected for releases published before provenance \
                  attestations were enabled."
             );
-            Ok(false)
+            return Ok(false);
+        }
+    };
+
+    let trusted_root = TrustedRoot::production().context("Failed to load Sigstore trusted root")?;
+    let policy = VerificationPolicy::with_issuer(GITHUB_ACTIONS_ISSUER);
+    let artifact_digest =
+        Sha256Hash::from_hex(&digest).context("Failed to parse artifact digest")?;
+
+    // One passing attestation is sufficient.
+    let mut last_err = None;
+    for bundle_json in &bundles {
+        match verify_bundle(
+            bundle_json,
+            artifact_digest,
+            &policy,
+            &trusted_root,
+            workflow,
+        ) {
+            Ok(()) => {
+                println!("Sigstore provenance verification passed.");
+                return Ok(true);
+            }
+            Err(e) => last_err = Some(e),
         }
     }
+
+    Err(anyhow::anyhow!(
+        "Sigstore verification failed: {}\n\nAborting update due to security check failure.",
+        last_err.unwrap()
+    ))
 }
 
 /// Update the goose binary to the latest release.

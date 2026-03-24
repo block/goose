@@ -1,5 +1,5 @@
 {
-  "name": "@block/goose",
+  "name": "@aaif/goose",
   "version": "0.1.0",
   "description": "Goose - an open-source AI agent",
   "license": "Apache-2.0",
@@ -7,6 +7,13 @@
     "type": "git",
     "url": "git+https://github.com/block/goose.git"
   },
+  "keywords": [
+    "goose",
+    "ai",
+    "agent",
+    "cli",
+    "terminal"
+  ],
   "type": "module",
   "bin": {
     "goose": "dist/tui.js"
@@ -24,7 +31,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
-    "@block/goose-acp": "^0.1.0",
+    "@aaif/goose-acp": "workspace:*",
     "ink": "^6.8.0",
     "ink-text-input": "^6.0.0",
     "marked": "^15.0.12",
@@ -33,11 +40,11 @@
     "react": "^19.2.4"
   },
   "optionalDependencies": {
-    "@block/goose-acp-server-darwin-arm64": "0.1.0",
-    "@block/goose-acp-server-darwin-x64": "0.1.0",
-    "@block/goose-acp-server-linux-arm64": "0.1.0",
-    "@block/goose-acp-server-linux-x64": "0.1.0",
-    "@block/goose-acp-server-win32-x64": "0.1.0"
+    "@aaif/goose-acp-server-darwin-arm64": "workspace:*",
+    "@aaif/goose-acp-server-darwin-x64": "workspace:*",
+    "@aaif/goose-acp-server-linux-arm64": "workspace:*",
+    "@aaif/goose-acp-server-linux-x64": "workspace:*",
+    "@aaif/goose-acp-server-win32-x64": "workspace:*"
   },
   "overrides": {
     "react": "19.2.4"

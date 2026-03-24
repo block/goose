@@ -280,6 +280,9 @@ pub fn render_message_streaming(
 
     for content in &message.content {
         if !matches!(content, MessageContent::Thinking(_)) {
+            if *thinking_header_shown {
+                println!();
+            }
             *thinking_header_shown = false;
         }
 

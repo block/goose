@@ -2,6 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
     load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
@@ -48,8 +49,25 @@ struct DeltaToolCall {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+enum DeltaContent {
+    String(String),
+    Array(Vec<ContentPart>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ContentPart {
+    r#type: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(rename = "thoughtSignature")]
+    thought_signature: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct Delta {
-    content: Option<String>,
+    #[serde(default)]
+    content: Option<DeltaContent>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
@@ -71,6 +89,32 @@ struct StreamingChunk {
     id: Option<String>,
     usage: Option<Value>,
     model: Option<String>,
+}
+
+fn extract_content_and_signature(
+    delta_content: Option<&DeltaContent>,
+) -> (Option<String>, Option<String>) {
+    match delta_content {
+        Some(DeltaContent::String(s)) => (Some(s.clone()), None),
+        Some(DeltaContent::Array(parts)) => {
+            let text_parts: Vec<_> = parts.iter().filter(|p| p.r#type == "text").collect();
+
+            let text = text_parts
+                .iter()
+                .filter_map(|p| p.text.as_deref())
+                .collect::<String>();
+
+            let signature = text_parts
+                .iter()
+                .find_map(|p| p.thought_signature.as_ref())
+                .cloned();
+
+            let text = if text.is_empty() { None } else { Some(text) };
+
+            (text, signature)
+        }
+        None => (None, None),
+    }
 }
 
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
@@ -555,6 +599,32 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
         .map(|s| s.trim())
 }
 
+fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
+    let value: Value = serde_json::from_str(line).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })?;
+
+    if let Some(error) = value.get("error") {
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(ProviderError::ServerError(message.to_string()));
+    }
+
+    if value.get("object").and_then(|o| o.as_str()) == Some("error") {
+        let message = value
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown server error");
+        return Err(ProviderError::ServerError(message.to_string()));
+    }
+
+    serde_json::from_value(value).map_err(|e| {
+        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+    })
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -566,6 +636,7 @@ where
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
         let mut accumulated_reasoning_content = String::new();
+        let mut last_signature: Option<String> = None;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -579,9 +650,9 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let chunk: StreamingChunk = parse_streaming_chunk(
+                line.ok_or_else(|| anyhow!("unexpected stream format"))?
+            )?;
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -619,8 +690,7 @@ where
                                     break 'outer;
                                 }
 
-                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
                                     usage = Some(chunk_usage);
@@ -688,14 +758,23 @@ where
                             serde_json::from_str::<Value>(arguments)
                         };
 
-                        let metadata = extra_fields.as_ref().filter(|m| !m.is_empty());
+                        let metadata = if let Some(sig) = &last_signature {
+                            let mut combined = extra_fields.clone().unwrap_or_default();
+                            combined.insert(
+                                crate::providers::formats::google::THOUGHT_SIGNATURE_KEY.to_string(),
+                                json!(sig)
+                            );
+                            Some(combined)
+                        } else {
+                            extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
+                        };
 
                         let content = match parsed {
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
-                                    metadata,
+                                    metadata.as_ref(),
                                 )
                             },
                             Err(e) => {
@@ -707,7 +786,7 @@ where
                                     )),
                                     data: None,
                                 };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata)
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
                             }
                         };
                         contents.push(content);
@@ -734,13 +813,20 @@ where
 
                 if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
                     if !reasoning.is_empty() {
-                        content.push(MessageContent::thinking(reasoning, ""));
+                        let signature = last_signature.as_deref().unwrap_or("");
+                        content.push(MessageContent::thinking(reasoning, signature));
                     }
                 }
 
-                if let Some(text) = &chunk.choices[0].delta.content {
+                let (text_content, thought_signature) = extract_content_and_signature(chunk.choices[0].delta.content.as_ref());
+
+                if let Some(sig) = thought_signature {
+                    last_signature = Some(sig);
+                }
+
+                if let Some(text) = text_content {
                     if !text.is_empty() {
-                        content.push(MessageContent::text(text));
+                        content.push(MessageContent::text(&text));
                     }
                 }
 
@@ -751,7 +837,6 @@ where
                         content,
                     );
 
-                    // Add ID if present
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
@@ -848,6 +933,7 @@ mod tests {
     use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
+    use test_case::test_case;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
 
@@ -1956,5 +2042,43 @@ data: [DONE]"#;
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
         Ok(())
+    }
+
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Internal server error\",\"type\":\"server_error\",\"code\":500}}\ndata: [DONE]",
+        "Internal server error";
+        "openai error format"
+    )]
+    #[test_case(
+        "data: {\"object\":\"error\",\"message\":\"CUDA out of memory\",\"code\":500}\ndata: [DONE]",
+        "CUDA out of memory";
+        "vllm error format"
+    )]
+    #[test_case(
+        "data: {\"error\":{\"message\":\"Rate limit exceeded\",\"type\":\"rate_limit_error\"}}",
+        "Rate limit exceeded";
+        "error as first chunk"
+    )]
+    #[tokio::test]
+    async fn test_mid_stream_server_error(response_lines: &str, expected_msg: &str) {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut found_error = false;
+        while let Some(result) = messages.next().await {
+            if let Err(e) = result {
+                let err_str = e.to_string();
+                assert!(
+                    err_str.contains(expected_msg),
+                    "unexpected error text: {err_str}"
+                );
+                found_error = true;
+                break;
+            }
+        }
+        assert!(
+            found_error,
+            "expected an error but stream completed successfully"
+        );
     }
 }

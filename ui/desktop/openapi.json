@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.28.0"
+    "version": "1.29.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1918,6 +1918,26 @@
           },
           "504": {
             "description": "Request timeout"
+          }
+        }
+      }
+    },
+    "/features": {
+      "get": {
+        "tags": [
+          "super::routes::features"
+        ],
+        "operationId": "get_features",
+        "responses": {
+          "200": {
+            "description": "Compile-time feature flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturesResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -5333,6 +5353,21 @@
           }
         }
       },
+      "FeaturesResponse": {
+        "type": "object",
+        "required": [
+          "features"
+        ],
+        "properties": {
+          "features": {
+            "type": "object",
+            "description": "Map of feature name to enabled status",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
       "ForkRequest": {
         "type": "object",
         "required": [
@@ -7562,9 +7597,17 @@
       "SaveRecipeResponse": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "file_name",
+          "file_path"
         ],
         "properties": {
+          "file_name": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           }
@@ -8469,6 +8512,9 @@
         "properties": {
           "description": {
             "type": "string"
+          },
+          "input_schema": {
+            "type": "object"
           },
           "name": {
             "type": "string"

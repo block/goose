@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -53,11 +55,13 @@ pub struct ShellOutput {
 /// source the user's profile and recover the full PATH.
 #[cfg(not(windows))]
 fn resolve_login_shell_path() -> Option<String> {
-    let shell = if PathBuf::from("/bin/bash").is_file() {
-        "/bin/bash".to_string()
-    } else {
-        std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
-    };
+    let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| {
+        if PathBuf::from("/bin/bash").is_file() {
+            "/bin/bash".to_string()
+        } else {
+            std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
+        }
+    });
 
     let mut child = std::process::Command::new(&shell)
         .args(["-l", "-i", "-c", "echo $PATH"])
@@ -360,18 +364,37 @@ async fn run_command(
 fn build_shell_command(command_line: &str) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
-        let mut command = tokio::process::Command::new("cmd");
-        command.arg("/C").raw_arg(command_line);
+        let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| "cmd".to_string());
+        let shell_stem = Path::new(&shell)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("cmd")
+            .to_lowercase();
+        let mut command = tokio::process::Command::new(&shell);
+        match shell_stem.as_str() {
+            "pwsh" | "powershell" => {
+                command.args(["-NoProfile", "-NonInteractive", "-Command", command_line]);
+            }
+            "cmd" => {
+                command.arg("/C").raw_arg(command_line);
+            }
+            // POSIX-like shells (bash, zsh, etc.) on Windows (e.g. Cygwin/MSYS2)
+            _ => {
+                command.args(["-c", command_line]);
+            }
+        }
         command
     };
 
     #[cfg(not(windows))]
     let mut command = {
-        let shell = if PathBuf::from("/bin/bash").is_file() {
-            "/bin/bash".to_string()
-        } else {
-            std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
-        };
+        let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| {
+            if PathBuf::from("/bin/bash").is_file() {
+                "/bin/bash".to_string()
+            } else {
+                std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
+            }
+        });
         let mut command = tokio::process::Command::new(shell);
         command.arg("-c").arg(command_line);
         command

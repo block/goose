@@ -4,10 +4,9 @@ import { z } from 'zod';
 
 /**
  * Add an extension to an active session.
- * Method: `_agent/extensions/add`
  */
 export const zAddExtensionRequest = z.object({
-    session_id: z.string(),
+    sessionId: z.string(),
     config: z.unknown()
 });
 
@@ -18,19 +17,17 @@ export const zEmptyResponse = z.record(z.unknown());
 
 /**
  * Remove an extension from an active session.
- * Method: `_agent/extensions/remove`
  */
 export const zRemoveExtensionRequest = z.object({
-    session_id: z.string(),
+    sessionId: z.string(),
     name: z.string()
 });
 
 /**
  * List all tools available in a session.
- * Method: `_agent/tools`
  */
 export const zGetToolsRequest = z.object({
-    session_id: z.string()
+    sessionId: z.string()
 });
 
 export const zGetToolsResponse = z.object({
@@ -39,12 +36,11 @@ export const zGetToolsResponse = z.object({
 
 /**
  * Read a resource from an extension.
- * Method: `_agent/resource/read`
  */
 export const zReadResourceRequest = z.object({
-    session_id: z.string(),
+    sessionId: z.string(),
     uri: z.string(),
-    extension_name: z.string()
+    extensionName: z.string()
 });
 
 export const zReadResourceResponse = z.object({
@@ -53,28 +49,18 @@ export const zReadResourceResponse = z.object({
 
 /**
  * Update the working directory for a session.
- * Method: `_agent/working_dir/update`
  */
 export const zUpdateWorkingDirRequest = z.object({
-    session_id: z.string(),
-    working_dir: z.string()
-});
-
-/**
- * List all sessions.
- * Method: `_session/list`
- */
-export const zListSessionsResponse = z.object({
-    sessions: z.array(z.unknown())
+    sessionId: z.string(),
+    workingDir: z.string()
 });
 
 /**
  * Get a session by ID.
- * Method: `_session/get`
  */
 export const zGetSessionRequest = z.object({
-    session_id: z.string(),
-    include_messages: z.boolean().optional().default(false)
+    sessionId: z.string(),
+    includeMessages: z.boolean().optional().default(false)
 });
 
 /**
@@ -86,18 +72,16 @@ export const zGetSessionResponse = z.object({
 
 /**
  * Delete a session.
- * Method: `_session/delete`
  */
 export const zDeleteSessionRequest = z.object({
-    session_id: z.string()
+    sessionId: z.string()
 });
 
 /**
  * Export a session as a JSON string.
- * Method: `_session/export`
  */
 export const zExportSessionRequest = z.object({
-    session_id: z.string()
+    sessionId: z.string()
 });
 
 export const zExportSessionResponse = z.object({
@@ -106,7 +90,6 @@ export const zExportSessionResponse = z.object({
 
 /**
  * Import a session from a JSON string.
- * Method: `_session/import`
  */
 export const zImportSessionRequest = z.object({
     data: z.string()
@@ -118,7 +101,6 @@ export const zImportSessionResponse = z.object({
 
 /**
  * List configured extensions and any warnings.
- * Method: `_config/extensions`
  */
 export const zGetExtensionsResponse = z.object({
     extensions: z.array(z.unknown()),
@@ -155,7 +137,6 @@ export const zExtResponse = z.union([
                 zEmptyResponse,
                 zGetToolsResponse,
                 zReadResourceResponse,
-                zListSessionsResponse,
                 zGetSessionResponse,
                 zExportSessionResponse,
                 zImportSessionResponse,
