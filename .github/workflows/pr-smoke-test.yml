@@ -99,9 +99,8 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
 
-      - name: Install Node.js Dependencies
-        run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
-        working-directory: ui/desktop
+      - name: Install GNU timeout (if missing)
+        run: command -v timeout || brew install coreutils
 
       - name: Run E2E Tests
         env:
