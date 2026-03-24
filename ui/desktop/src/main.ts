@@ -1566,6 +1566,34 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
 
 // ── Mesh-LLM lifecycle ──────────────────────────────────────────────
 
+const MESH_DOWNLOAD_URL =
+  'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
+
+async function findMeshBinary(): Promise<string | null> {
+  const { execSync } = await import('child_process');
+  const os = await import('os');
+  const path = await import('path');
+  const fsSync = await import('fs');
+
+  // 1. PATH
+  try {
+    const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+    if (binPath) return binPath;
+  } catch {
+    // ignore
+  }
+
+  // 2. ~/.mesh-llm/ (our download location)
+  const meshDir = path.default.join(os.default.homedir(), '.mesh-llm', 'mesh-llm');
+  if (fsSync.default.existsSync(meshDir)) return meshDir;
+
+  // 3. ~/.local/bin/
+  const localBin = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
+  if (fsSync.default.existsSync(localBin)) return localBin;
+
+  return null;
+}
+
 ipcMain.handle('check-mesh', async () => {
   const http = await import('http');
   const result: {
@@ -1579,24 +1607,12 @@ ipcMain.handle('check-mesh', async () => {
   } = { running: false, installed: true, models: [] };
 
   // Check if mesh-llm binary exists
-  try {
-    const { execSync } = await import('child_process');
-    const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
-    if (!binPath) {
-      const os = await import('os');
-      const path = await import('path');
-      const fs = await import('fs');
-      const fallback = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
-      if (!fs.default.existsSync(fallback)) {
-        result.installed = false;
-        return result;
-      }
-      result.binaryPath = fallback;
-    } else {
-      result.binaryPath = binPath;
-    }
-  } catch {
-    // which failed — try to probe the API anyway
+  const binary = await findMeshBinary();
+  if (binary) {
+    result.binaryPath = binary;
+  } else {
+    result.installed = false;
+    // Still probe the API — maybe it's running from somewhere unexpected
   }
 
   // Probe the API
@@ -1678,26 +1694,12 @@ ipcMain.handle('start-mesh', async (_event, args: string[]) => {
   const fs = await import('fs');
   const path = await import('path');
   const os = await import('os');
-  const { execSync } = await import('child_process');
 
-  // Find binary
-  let binary = '';
-  try {
-    binary = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
-  } catch {
-    // ignore
-  }
-  if (!binary) {
-    const fallback = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
-    if (fs.default.existsSync(fallback)) {
-      binary = fallback;
-    }
-  }
+  const binary = await findMeshBinary();
   if (!binary) {
     return {
       started: false,
-      error:
-        'mesh-llm not found. Install from https://github.com/michaelneale/decentralized-inference',
+      error: 'mesh-llm not found. Download it first from the Mesh settings tab.',
     };
   }
 
@@ -1722,28 +1724,61 @@ ipcMain.handle('start-mesh', async (_event, args: string[]) => {
 ipcMain.handle('stop-mesh', async () => {
   const { execSync } = await import('child_process');
   try {
-    // Find the binary
-    let binary = '';
-    try {
-      binary = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
-    } catch {
-      // ignore
-    }
-    if (!binary) {
-      const os = await import('os');
-      const path = await import('path');
-      const fs = await import('fs');
-      const fallback = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
-      if (fs.default.existsSync(fallback)) {
-        binary = fallback;
-      }
-    }
+    const binary = await findMeshBinary();
     if (binary) {
       execSync(`"${binary}" stop`, { timeout: 5000, encoding: 'utf8' });
     }
     return { stopped: true };
   } catch {
     return { stopped: false };
+  }
+});
+
+ipcMain.handle('download-mesh', async () => {
+  const os = await import('os');
+  const path = await import('path');
+  const fsSync = await import('fs');
+  const { execSync } = await import('child_process');
+
+  const installDir = path.default.join(os.default.homedir(), '.mesh-llm');
+  if (!fsSync.default.existsSync(installDir)) {
+    fsSync.default.mkdirSync(installDir, { recursive: true });
+  }
+
+  try {
+    // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
+    execSync(`curl -fsSL '${MESH_DOWNLOAD_URL}' | tar xz --strip-components=1 -C '${installDir}'`, {
+      timeout: 120000,
+      encoding: 'utf8',
+    });
+
+    const binary = path.default.join(installDir, 'mesh-llm');
+    if (!fsSync.default.existsSync(binary)) {
+      return { downloaded: false, error: 'Download succeeded but mesh-llm binary not found' };
+    }
+
+    // macOS: ad-hoc codesign + clear quarantine to avoid Gatekeeper prompts
+    if (process.platform === 'darwin') {
+      for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
+        const bin = path.default.join(installDir, name);
+        if (fsSync.default.existsSync(bin)) {
+          try {
+            execSync(`codesign -s - '${bin}' 2>/dev/null`, { timeout: 10000 });
+          } catch {
+            // codesign may fail if already signed
+          }
+          try {
+            execSync(`xattr -cr '${bin}' 2>/dev/null`, { timeout: 10000 });
+          } catch {
+            // xattr may fail
+          }
+        }
+      }
+    }
+
+    return { downloaded: true, binaryPath: binary };
+  } catch (err) {
+    return { downloaded: false, error: `Download failed: ${err}` };
   }
 });
 
