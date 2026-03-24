@@ -17,13 +17,22 @@ cd "$DESKTOP_DIR"
 TEST_SESSION_NAME="${1:-$(date +"%y%m%d-%H%M%S")}"
 SESSION_DIR="$BASE_DIR/$TEST_SESSION_NAME"
 
-# Pick a random available port in range 9300-9399
+# Pick an available port in range 9300-9399, using a lock file to prevent
+# parallel instances from selecting the same port (TOCTOU race condition).
+LOCK_DIR="$BASE_DIR/.port-locks"
+mkdir -p "$LOCK_DIR"
+
 pick_port() {
-  for _ in $(seq 1 20); do
+  for _ in $(seq 1 100); do
     PORT=$((9300 + RANDOM % 100))
-    if ! lsof -i :"$PORT" &>/dev/null; then
-      echo "$PORT"
-      return 0
+    LOCK_FILE="$LOCK_DIR/$PORT"
+    # Atomically create lock file — fails if another process already claimed this port
+    if (set -C; echo $$ > "$LOCK_FILE") 2>/dev/null; then
+      if ! lsof -i :"$PORT" &>/dev/null; then
+        echo "$PORT"
+        return 0
+      fi
+      rm -f "$LOCK_FILE"
     fi
   done
   echo "Error: could not find available port in 9300-9399" >&2

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Replay an agent-browser batch recording
 # Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>]
-set -uo pipefail
+set -euo pipefail
 
 RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>]}"
 CONNECT_PORT=""
@@ -36,29 +36,18 @@ if [[ -z "$SESSION_NAME" ]]; then
   SESSION_NAME=$(basename "$RECORDING" .batch.json)
 fi
 
-# Set up logging: tee all output to both console and log file
-if [[ -n "$RESULTS_DIR" ]]; then
-  mkdir -p "$RESULTS_DIR/logs"
-  LOG_FILE="$RESULTS_DIR/logs/$SESSION_NAME.log"
-  exec > >(tee "$LOG_FILE") 2>&1
-  trap 'wait' EXIT
-fi
-
-# Build global args that go before each command
 GLOBAL_ARGS=("--session" "$SESSION_NAME")
 
-# Per-command timeout in seconds (shell timeout as primary, --timeout as fallback)
 export AGENT_BROWSER_DEFAULT_TIMEOUT="${AGENT_BROWSER_DEFAULT_TIMEOUT:-10000}"
 CMD_TIMEOUT=$(( AGENT_BROWSER_DEFAULT_TIMEOUT / 1000 + 1 ))
 
-# Connect if port specified, with retries to wait for the renderer to be ready.
-# The CDP port may be listening before the Electron BrowserWindow is fully
-# initialized, causing "Target.createTarget: Not supported" errors.
+ts() { date "+%H:%M:%S"; }
+
 if [[ -n "$CONNECT_PORT" ]]; then
   MAX_CONNECT_RETRIES=10
   CONNECT_RETRY_DELAY=2
   for attempt in $(seq 1 "$MAX_CONNECT_RETRIES"); do
-    echo "Connecting to CDP port $CONNECT_PORT (attempt $attempt/$MAX_CONNECT_RETRIES)..."
+    echo "[$(ts)] Connecting to CDP port $CONNECT_PORT (attempt $attempt/$MAX_CONNECT_RETRIES)..."
     if pnpm exec agent-browser "${GLOBAL_ARGS[@]}" connect "$CONNECT_PORT" 2>&1; then
       break
     fi
@@ -66,14 +55,14 @@ if [[ -n "$CONNECT_PORT" ]]; then
       echo "Failed to connect after $MAX_CONNECT_RETRIES attempts"
       exit 1
     fi
-    echo "Connect failed, retrying in ${CONNECT_RETRY_DELAY}s..."
+    echo "[$(ts)] Connect failed, retrying in ${CONNECT_RETRY_DELAY}s..."
     sleep "$CONNECT_RETRY_DELAY"
   done
 fi
 
 TOTAL=$(jq length "$RECORDING")
-echo "Replaying $TOTAL commands from $RECORDING"
-echo "Using session: $SESSION_NAME"
+echo "[$(ts)] Replaying $TOTAL commands from $RECORDING"
+echo "[$(ts)] Using session: $SESSION_NAME"
 
 for i in $(seq 0 $((TOTAL - 1))); do
   ARGS=()
@@ -85,10 +74,10 @@ for i in $(seq 0 $((TOTAL - 1))); do
   done
 
   STEP=$((i + 1))
-  echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]}"
+  echo "[$(ts)] [$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]}"
   if ! timeout "$CMD_TIMEOUT" pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}"; then
     echo ""
-    echo "FAILED at step $STEP/$TOTAL: ${ARGS[*]}"
+    echo "[$(ts)] FAILED at step $STEP/$TOTAL: ${ARGS[*]}"
     if [[ -n "$RESULTS_DIR" ]]; then
       SCREENSHOT_DIR="$RESULTS_DIR/screenshots"
       mkdir -p "$SCREENSHOT_DIR"
@@ -100,6 +89,6 @@ for i in $(seq 0 $((TOTAL - 1))); do
   fi
 done
 
-echo "Replay complete: $TOTAL commands passed"
+echo "[$(ts)] Replay complete: $TOTAL commands passed"
 
 pnpm exec agent-browser "${GLOBAL_ARGS[@]}" close 2>/dev/null || true
