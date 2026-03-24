@@ -307,10 +307,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
         if !content_array.is_empty() {
             if has_non_text_content {
-                // Mixed content (text + images): use the array format to preserve order
                 converted["content"] = json!(content_array);
             } else {
-                // Text-only: collapse to a simple joined string
                 let texts: Vec<String> = content_array
                     .iter()
                     .filter_map(|v| v["text"].as_str().map(|s| s.to_string()))
