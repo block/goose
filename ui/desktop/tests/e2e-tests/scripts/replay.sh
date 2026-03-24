@@ -52,7 +52,7 @@ if [[ -n "$CONNECT_PORT" ]]; then
       break
     fi
     if [[ "$attempt" -eq "$MAX_CONNECT_RETRIES" ]]; then
-      echo "Failed to connect after $MAX_CONNECT_RETRIES attempts"
+      echo "[$(ts)] Failed to connect after $MAX_CONNECT_RETRIES attempts"
       exit 1
     fi
     echo "[$(ts)] Connect failed, retrying in ${CONNECT_RETRY_DELAY}s..."

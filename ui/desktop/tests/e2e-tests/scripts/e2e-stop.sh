@@ -4,10 +4,11 @@
 set -euo pipefail
 
 BASE_DIR="/tmp/goose-e2e"
+SESSIONS_DIR="$BASE_DIR/sessions"
 
 stop_session() {
   local TEST_SESSION_NAME="$1"
-  local SESSION_DIR="$BASE_DIR/$TEST_SESSION_NAME"
+  local SESSION_DIR="$SESSIONS_DIR/$TEST_SESSION_NAME"
 
   if [[ ! -d "$SESSION_DIR" ]]; then
     echo "Error: session not found: $SESSION_DIR" >&2
@@ -35,11 +36,11 @@ if [[ $# -gt 0 ]]; then
   exit 0
 fi
 
-if [[ ! -d "$BASE_DIR" ]]; then
+if [[ ! -d "$SESSIONS_DIR" ]]; then
   exit 0
 fi
 
-for session_dir in "$BASE_DIR"/*; do
+for session_dir in "$SESSIONS_DIR"/*; do
   [[ -d "$session_dir" ]] || continue
   stop_session "$(basename "$session_dir")" || true
 done

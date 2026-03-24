@@ -23,8 +23,8 @@ Then wait for the port file and verify the app is listening:
 ```bash
 # Wait for port file and app to be ready (up to 30s)
 for i in $(seq 1 30); do
-  if [[ -f "/tmp/goose-e2e/$TEST_SESSION_NAME/.port" ]]; then
-    CDP_PORT=$(cat /tmp/goose-e2e/$TEST_SESSION_NAME/.port)
+  if [[ -f "/tmp/goose-e2e/sessions/$TEST_SESSION_NAME/.port" ]]; then
+    CDP_PORT=$(cat /tmp/goose-e2e/sessions/$TEST_SESSION_NAME/.port)
     if lsof -i :"$CDP_PORT" &>/dev/null; then
       echo "App ready — Test session name: $TEST_SESSION_NAME, CDP port: $CDP_PORT"
       break

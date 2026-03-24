@@ -9,6 +9,7 @@ DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="$(cd "$DESKTOP_DIR/../.." && pwd)"
 RECORDINGS_DIR="$SCRIPT_DIR/../recordings"
 RESULTS_DIR="$SCRIPT_DIR/../results"
+BASE_DIR="/tmp/goose-e2e"
 
 source "$PROJECT_DIR/bin/activate-hermit"
 WORKERS=4
@@ -39,8 +40,8 @@ if [[ ${#RECORDINGS[@]} -eq 0 ]]; then
 fi
 
 # Clean up previous test sessions
-pkill -9 -f "/tmp/goose-e2e" 2>/dev/null || true
-rm -rf /tmp/goose-e2e
+pkill -9 -f "$BASE_DIR" 2>/dev/null || true
+rm -rf "$BASE_DIR"
 rm -rf "$RESULTS_DIR"
 mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/screenshots"
 
@@ -48,19 +49,17 @@ echo "Installing agent-browser..."
 cd "$DESKTOP_DIR"
 pnpm exec agent-browser install
 
+ts() { date '+%H:%M:%S'; }
+
 echo "=== E2E Test Runner ==="
 echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
-
-cleanup_sessions() {
-  bash "$SCRIPT_DIR/e2e-stop.sh" 2>/dev/null || true
-}
 
 # Wait for the app to write its port file and the port to be listening.
 # Usage: wait_for_app <test-name>
 # Prints the CDP port on success, returns 1 on timeout.
 wait_for_app() {
   local TEST_NAME="$1"
-  local PORT_FILE="/tmp/goose-e2e/$TEST_NAME/.port"
+  local PORT_FILE="$BASE_DIR/sessions/${TEST_NAME}/.port"
   for _ in $(seq 1 30); do
     sleep 1
     if [[ -f "$PORT_FILE" ]]; then
@@ -86,17 +85,18 @@ run_one() {
   local LOG_FILE="$RESULTS_DIR/logs/$TEST_NAME.log"
   local EXIT_CODE
 
-  echo "[$(date '+%H:%M:%S')] [$TEST_NAME] Starting app..."
+  echo "[$(ts)] [$TEST_NAME] Starting app..."
   screen -dmS "$TEST_NAME" bash -c "bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
 
   local CDP_PORT
   if ! CDP_PORT=$(wait_for_app "$TEST_NAME"); then
     local DURATION=$(( SECONDS - START_TIME ))
-    echo "[$(date '+%H:%M:%S')] [$TEST_NAME] FAIL — app did not start within 30s (${DURATION}s)"
+    echo "[$(ts)] [$TEST_NAME] FAIL — app did not start within 30s (${DURATION}s)"
     echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
+    bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
     return
   fi
-  echo "[$(date '+%H:%M:%S')] [$TEST_NAME] App ready: port=$CDP_PORT"
+  echo "[$(ts)] [$TEST_NAME] App ready: port=$CDP_PORT"
 
   set +e
   timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" \
@@ -104,34 +104,34 @@ run_one() {
     --connect "$CDP_PORT" \
     --browser-session "$TEST_NAME" \
     --results-dir "$RESULTS_DIR" \
-    2>&1 | tee "$LOG_FILE"
+    2>&1 | tee -a "$LOG_FILE"
   EXIT_CODE=${PIPESTATUS[0]}
   set -e
 
   local DURATION=$(( SECONDS - START_TIME ))
   if [[ "$EXIT_CODE" -eq 0 ]]; then
     echo "PASS ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
-    echo "[$(date '+%H:%M:%S')] [$TEST_NAME] PASS (${DURATION}s)"
+    echo "[$(ts)] [$TEST_NAME] PASS (${DURATION}s)"
   elif [[ "$EXIT_CODE" -eq 124 ]]; then
     echo "TIMEOUT ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
-    echo "[$(date '+%H:%M:%S')] [$TEST_NAME] TIMEOUT (${DURATION}s)"
+    echo "[$(ts)] [$TEST_NAME] TIMEOUT (${DURATION}s)"
   else
     echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
-    echo "[$(date '+%H:%M:%S')] [$TEST_NAME] FAIL (${DURATION}s, exit=$EXIT_CODE)"
+    echo "[$(ts)] [$TEST_NAME] FAIL (${DURATION}s, exit=$EXIT_CODE)"
   fi
 
   bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
 }
 
-export -f wait_for_app run_one
-export SCRIPT_DIR TIMEOUT RESULTS_DIR
+export -f ts wait_for_app run_one
+export BASE_DIR SCRIPT_DIR TIMEOUT RESULTS_DIR
 
 # Temp dir for pass/fail status
 STATUS_DIR=$(mktemp -d)
 cleanup_and_exit() {
   local exit_code="${1:-$?}"
   trap - EXIT INT TERM
-  cleanup_sessions
+  bash "$SCRIPT_DIR/e2e-stop.sh" 2>/dev/null || true
   rm -rf "$STATUS_DIR"
   exit "$exit_code"
 }

@@ -9,13 +9,14 @@ DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="$(cd "$DESKTOP_DIR/../.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/../fixtures"
 BASE_DIR="/tmp/goose-e2e"
+SESSIONS_DIR="$BASE_DIR/sessions"
 
 source "$PROJECT_DIR/bin/activate-hermit"
 
 cd "$DESKTOP_DIR"
 
 TEST_SESSION_NAME="${1:-$(date +"%y%m%d-%H%M%S")}"
-SESSION_DIR="$BASE_DIR/$TEST_SESSION_NAME"
+SESSION_DIR="$SESSIONS_DIR/$TEST_SESSION_NAME"
 
 # Pick an available port in range 9300-9399, using a lock file to prevent
 # parallel instances from selecting the same port (TOCTOU race condition).
@@ -42,6 +43,7 @@ pick_port() {
 CDP_PORT=$(pick_port)
 
 # Create clean session directory
+mkdir -p "$SESSIONS_DIR"
 rm -rf "$SESSION_DIR"
 mkdir -p "$SESSION_DIR/root"
 mkdir -p "$SESSION_DIR/workspace"
@@ -56,6 +58,9 @@ echo "CDP port: $CDP_PORT"
 echo "Session dir: $SESSION_DIR"
 echo ""
 
+# Clean up lock file when Electron exits
+trap 'rm -f "$BASE_DIR/.port-locks/$CDP_PORT"' EXIT
+
 # Start the app in foreground (Ctrl+C to stop)
 export GOOSE_ALLOWLIST_BYPASS=true
 export GOOSE_DISABLE_KEYRING=1
@@ -67,4 +72,4 @@ export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY must be set}"
 export GOOSE_TELEMETRY_ENABLED=false
 export ENABLE_PLAYWRIGHT=true
 export PLAYWRIGHT_DEBUG_PORT="$CDP_PORT"
-exec pnpm exec electron-forge start
+pnpm exec electron-forge start
