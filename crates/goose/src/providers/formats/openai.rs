@@ -487,7 +487,7 @@ pub fn get_usage(usage: &Value) -> Usage {
         .filter(|nested| nested.is_object())
         .unwrap_or(usage);
 
-    let prompt_tokens = usage
+    let input_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
@@ -507,27 +507,14 @@ pub fn get_usage(usage: &Value) -> Usage {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
-    let input_tokens =
-        prompt_tokens.or_else(
-            || match (cache_read_input_tokens, cache_write_input_tokens) {
-                (Some(cache_read), Some(cache_write)) => {
-                    Some(cache_read.saturating_add(cache_write))
-                }
-                (Some(cache_read), None) => Some(cache_read),
-                (None, Some(cache_write)) => Some(cache_write),
-                (None, None) => None,
-            },
-        );
-
-    let api_total_tokens = usage
+    let total_tokens = usage
         .get("total_tokens")
         .and_then(|v| v.as_i64())
-        .map(|v| v as i32);
-
-    let total_tokens = api_total_tokens.or_else(|| match (input_tokens, output_tokens) {
-        (Some(input), Some(output)) => Some(input.saturating_add(output)),
-        _ => None,
-    });
+        .map(|v| v as i32)
+        .or_else(|| match (input_tokens, output_tokens) {
+            (Some(input), Some(output)) => Some(input.saturating_add(output)),
+            _ => None,
+        });
 
     Usage::new(input_tokens, output_tokens, total_tokens)
         .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
