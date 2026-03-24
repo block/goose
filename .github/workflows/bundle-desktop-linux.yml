@@ -39,7 +39,7 @@ jobs:
           # Update version in package.json
           source ./bin/activate-hermit
           cd ui/desktop
-          pnpm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+          npm pkg set "version=${{ inputs.version }}"
 
       - name: Debug workflow info
         env:

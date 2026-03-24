@@ -107,7 +107,7 @@ jobs:
           source ./bin/activate-hermit
           # Update version in package.json 
           cd ui/desktop
-          pnpm version "${VERSION}" --no-git-tag-version --allow-same-version
+          npm pkg set "version=${VERSION}"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
