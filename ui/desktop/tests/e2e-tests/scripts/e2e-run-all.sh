@@ -41,6 +41,7 @@ fi
 # Clean up previous test sessions
 bash "$SCRIPT_DIR/e2e-stop.sh" 2>/dev/null || true
 rm -rf "$BASE_DIR"
+mkdir -p "$BASE_DIR"
 rm -rf "$RESULTS_DIR"
 mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/screenshots" "$RESULTS_DIR/videos"
 
@@ -52,6 +53,27 @@ ts() { date '+%H:%M:%S'; }
 
 echo "=== E2E Test Runner ==="
 echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS"
+
+# Serialize app launches so concurrent electron-forge processes don't race
+# on the shared .vite/build/ directory (Vite rebuilds main + preload on every start).
+STARTUP_LOCK="$BASE_DIR/.startup-lock"
+
+acquire_startup_lock() {
+  local waited=0
+  while ! mkdir "$STARTUP_LOCK" 2>/dev/null; do
+    sleep 0.5
+    waited=$((waited + 1))
+    # If the lock is older than 60s, assume the holder crashed and steal it
+    if [[ $waited -ge 120 ]]; then
+      echo "[$(ts)] WARNING: startup lock stale after 60s, breaking it"
+      rm -rf "$STARTUP_LOCK"
+    fi
+  done
+}
+
+release_startup_lock() {
+  rmdir "$STARTUP_LOCK" 2>/dev/null || true
+}
 
 wait_for_app() {
   local TEST_NAME="$1"
@@ -78,17 +100,21 @@ run_one() {
   local START_TIME=$SECONDS
   local LOG_FILE="$RESULTS_DIR/logs/$TEST_NAME.log"
 
-  echo "[$(ts)] [$TEST_NAME] Starting app..."
+  # Hold the startup lock while electron-forge rebuilds .vite/build/
+  acquire_startup_lock
+  echo "[$(ts)] [$TEST_NAME] Starting app (lock acquired)..."
   screen -dmS "$TEST_NAME" bash -c "bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
 
   local CDP_PORT
   if ! CDP_PORT=$(wait_for_app "$TEST_NAME"); then
+    release_startup_lock
     local DURATION=$(( SECONDS - START_TIME ))
     echo "[$(ts)] [$TEST_NAME] FAIL — app did not start within 30s (${DURATION}s)"
     echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
     return
   fi
+  release_startup_lock
   echo "[$(ts)] [$TEST_NAME] App ready: port=$CDP_PORT"
 
   set +e
@@ -114,8 +140,8 @@ run_one() {
   bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
 }
 
-export -f ts wait_for_app run_one
-export BASE_DIR SCRIPT_DIR RESULTS_DIR RECORD
+export -f ts wait_for_app acquire_startup_lock release_startup_lock run_one
+export BASE_DIR SCRIPT_DIR RESULTS_DIR RECORD STARTUP_LOCK
 
 STATUS_DIR=$(mktemp -d)
 cleanup_and_exit() {
@@ -123,6 +149,7 @@ cleanup_and_exit() {
   trap - EXIT INT TERM
   bash "$SCRIPT_DIR/e2e-stop.sh" 2>/dev/null || true
   rm -rf "$STATUS_DIR"
+  rm -rf "$STARTUP_LOCK"
   exit "$exit_code"
 }
 
