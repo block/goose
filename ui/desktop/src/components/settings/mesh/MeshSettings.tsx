@@ -457,19 +457,17 @@ export const MeshSettings = () => {
           )}
 
           {(mode === 'auto' || mode === 'join') && (
-            <div className="pl-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={contributeGpu}
-                  onChange={(e) => setContributeGpu(e.target.checked)}
-                />
-                <span className="text-sm text-text-default">
-                  Contribute GPU
-                  <span className="text-text-muted ml-1">(serve models for others too)</span>
-                </span>
-              </label>
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={contributeGpu}
+                onChange={(e) => setContributeGpu(e.target.checked)}
+              />
+              <span className="text-sm text-text-default">
+                Contribute GPU
+                <span className="text-text-muted ml-1">(serve models for others too)</span>
+              </span>
+            </label>
           )}
 
           <Button onClick={startMesh} disabled={checking} size="sm">
