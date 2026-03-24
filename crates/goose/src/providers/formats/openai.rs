@@ -463,12 +463,17 @@ pub fn get_usage(usage: &Value) -> Usage {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
-    let input_tokens = prompt_tokens.or_else(|| match (cache_read_input_tokens, cache_write_input_tokens) {
-        (Some(cache_read), Some(cache_write)) => Some(cache_read.saturating_add(cache_write)),
-        (Some(cache_read), None) => Some(cache_read),
-        (None, Some(cache_write)) => Some(cache_write),
-        (None, None) => None,
-    });
+    let input_tokens =
+        prompt_tokens.or_else(
+            || match (cache_read_input_tokens, cache_write_input_tokens) {
+                (Some(cache_read), Some(cache_write)) => {
+                    Some(cache_read.saturating_add(cache_write))
+                }
+                (Some(cache_read), None) => Some(cache_read),
+                (None, Some(cache_write)) => Some(cache_write),
+                (None, None) => None,
+            },
+        );
 
     let api_total_tokens = usage
         .get("total_tokens")
