@@ -1,9 +1,25 @@
 name: Publish to npm
 
+# Security: This workflow uses the 'npm-production-publishing' environment to protect against
+# accidental publishes from feature branches. The environment must be configured in
+# GitHub Settings → Environments with:
+#   - Deployment branches: Selected branches → main
+#   - Environment secret: NPM_PUBLISH_TOKEN (npm publish token with write access)
+#
+# This ensures that even if the workflow file is modified on a feature branch to
+# bypass the ref checks, GitHub will block access to the NPM_PUBLISH_TOKEN secret.
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run (skip actual npm publish)'
+        required: false
+        type: boolean
+        default: true
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -43,6 +59,11 @@ jobs:
           name: ${{ needs.build-native.outputs.artifact-name }}
           path: native-binaries
 
+      - name: List downloaded artifacts (debug)
+        run: |
+          echo "Downloaded artifact structure:"
+          ls -R native-binaries/
+
       - name: Copy binaries to package directories
         run: |
           for platform_dir in native-binaries/goose-acp-server-*; do
@@ -54,6 +75,10 @@ jobs:
             cp -v "${platform_dir}/bin/"* "${pkg_dir}/bin/"
             chmod +x "${pkg_dir}/bin/"*
           done
+
+          echo ""
+          echo "Verification - copied binaries:"
+          ls -lh ui/goose-acp-server/*/bin/
 
       - name: Install dependencies
         run: |
@@ -68,9 +93,33 @@ jobs:
           cd ../text
           npm run build
 
+      - name: Dry run summary
+        if: inputs.dry-run == true || github.ref != 'refs/heads/main'
+        run: |
+          echo "## 🧪 Dry Run Mode" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Native binaries downloaded and copied successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Packages built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "⚠️  Skipping actual npm publish (not on main branch)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Current branch:** \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Publishing is only allowed from the \`main\` branch for security." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  Skipping actual npm publish (dry-run mode)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To publish for real, run this workflow without dry-run enabled." >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Create Release Pull Request or Publish to npm
+        if: inputs.dry-run != true && github.ref == 'refs/heads/main'
         id: changesets
         uses: changesets/action@6d3568c53fbe1db6c1f9ab1c7fbf9092bc18627f # v1
+        environment:
+          name: npm-production-publishing
+          url: https://www.npmjs.com/org/block
         with:
           publish: npm run release
           version: npm run version
@@ -79,11 +128,11 @@ jobs:
           cwd: ui
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
       - name: Summary
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.changesets.outputs.published == 'true' && inputs.dry-run != true && github.ref == 'refs/heads/main'
         run: |
           echo "## Published Packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
