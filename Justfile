@@ -479,7 +479,7 @@ e2e:
     cargo build --bin goosed
     @just copy-goosed debug
     @echo "Installing dependencies..."
-    cd ui/desktop && pnpm install --frozen-lockfile
+    cd ui && pnpm install --frozen-lockfile
     @echo "Generating API types..."
     cd ui/desktop && pnpm run generate-api
     @echo "Running E2E tests..."
