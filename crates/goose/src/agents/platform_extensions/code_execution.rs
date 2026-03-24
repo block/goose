@@ -484,7 +484,7 @@ impl McpClientTrait for CodeExecutionClient {
                     .iter()
                     .map(|f| format!("{}.{}", &f.namespace, &f.name))
                     .collect();
-                format!("Available functions: {}
+                format!("Available functions (call these ONLY via execute_typescript, NOT as direct tool calls): {}
 
                 Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.", available_fns.join(", "))
             }
