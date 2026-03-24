@@ -13,4 +13,5 @@ src/bin/temporal.db
 .env.signing
 
 tests/e2e-tests/results/
-tests/e2e-tests/results-rerun
+tests/e2e-tests/results-rerun/
+tests/e2e-tests/results-ci/

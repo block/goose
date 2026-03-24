@@ -106,6 +106,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOSE_DISABLE_KEYRING: 1
+          AGENT_BROWSER_DEFAULT_TIMEOUT: 30000
         run: source bin/activate-hermit && just e2e
 
       - name: Upload E2E Test Results
