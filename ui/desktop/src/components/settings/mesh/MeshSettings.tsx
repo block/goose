@@ -39,14 +39,7 @@ const MODEL_CATALOG = [
 ];
 
 type MeshMode = 'new' | 'join' | 'auto';
-type MeshStatus =
-  | 'unknown'
-  | 'checking'
-  | 'running'
-  | 'stopped'
-  | 'starting'
-  | 'not-installed'
-  | 'downloading';
+type MeshStatus = 'unknown' | 'running' | 'stopped' | 'starting' | 'not-installed' | 'downloading';
 
 interface MeshStatusInfo {
   running: boolean;
@@ -74,9 +67,10 @@ export const MeshSettings = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeModel, setActiveModel] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const checkStatus = useCallback(async () => {
-    setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'checking'));
+    setChecking(true);
     try {
       const result = await window.electron.checkMesh();
       if (!result.installed) {
@@ -93,6 +87,8 @@ export const MeshSettings = () => {
       }
     } catch {
       setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'stopped'));
+    } finally {
+      setChecking(false);
     }
   }, []);
 
@@ -273,19 +269,21 @@ export const MeshSettings = () => {
       case 'stopped':
         return (
           <span className="flex items-center gap-1.5 text-xs text-text-muted">
-            <span className="w-2 h-2 rounded-full bg-gray-400" />
+            {checking ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-gray-400" />
+            )}
             Not running
           </span>
         );
-      case 'checking':
-        return (
+      default:
+        return checking ? (
           <span className="flex items-center gap-1.5 text-xs text-text-muted">
             <RefreshCw className="w-3 h-3 animate-spin" />
             Checking...
           </span>
-        );
-      default:
-        return null;
+        ) : null;
     }
   };
 
@@ -347,7 +345,7 @@ export const MeshSettings = () => {
       )}
 
       {/* Setup panel — shown when stopped and installed */}
-      {(status === 'stopped' || status === 'unknown' || status === 'checking') && (
+      {(status === 'stopped' || status === 'unknown') && (
         <div className="border border-border-subtle rounded-xl p-4 bg-background-default space-y-4">
           {/* Mode selector */}
           <div className="space-y-3">
@@ -453,7 +451,7 @@ export const MeshSettings = () => {
             </div>
           )}
 
-          <Button onClick={startMesh} disabled={status === 'checking'} size="sm">
+          <Button onClick={startMesh} disabled={checking} size="sm">
             <Play className="w-3 h-3 mr-1" />
             Start Mesh
           </Button>
