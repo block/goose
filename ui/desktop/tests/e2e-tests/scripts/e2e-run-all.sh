@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run all recorded e2e tests in parallel
 # Usage: ./e2e-run-all.sh [--workers N] [--timeout SECONDS]
-# Runs all *.batch.json files in recordings/, skipping files with "skip" in the name.
+# Runs all *.batch.json files in recordings/, skipping files with "skip" in the name (e.g., settings-dark-mode.skip.batch.json).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -9,7 +9,6 @@ DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="$(cd "$DESKTOP_DIR/../.." && pwd)"
 RECORDINGS_DIR="$SCRIPT_DIR/../recordings"
 
-# Activate hermit to get pnpm, node, etc. on PATH
 source "$PROJECT_DIR/bin/activate-hermit"
 WORKERS=4
 TIMEOUT=120  # seconds per test
@@ -44,12 +43,17 @@ rm -rf /tmp/goose-e2e
 
 export AGENT_BROWSER_DEFAULT_TIMEOUT=10000
 
+echo "Installing agent-browser..."
+cd "$DESKTOP_DIR"
+pnpm exec agent-browser install
+
 echo "=== E2E Test Runner ==="
 echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
 
 # Run a single recording: start app, replay, stop app
 # Usage: run_one <recording> <result_dir>
 run_one() {
+  set -o pipefail
   local RECORDING="$1"
   local RESULT_DIR="$2"
   local TEST_NAME
@@ -80,7 +84,11 @@ run_one() {
   fi
   echo "[$TEST_NAME] App ready: port=$CDP_PORT"
 
-  if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME" --screenshot-on-fail; then
+  local LOG_DIR="$SCRIPT_DIR/../logs"
+  mkdir -p "$LOG_DIR"
+  local LOG_FILE="$LOG_DIR/$TEST_NAME.log"
+
+  if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME" --screenshot-on-fail 2>&1 | tee "$LOG_FILE"; then
     local DURATION=$(( SECONDS - START_TIME ))
     echo "PASS ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
     echo "[$TEST_NAME] PASS (${DURATION}s)"

@@ -8,7 +8,7 @@
   ["wait", "[data-testid='ext-name-input']"],
 
   ["find", "testid", "ext-name-input", "fill", "Running Quotes"],
-  ["find", "testid", "ext-command-input", "fill", "node /tmp/goose-e2e/basic-mcp.ts"],
+  ["find", "testid", "ext-command-input", "fill", "node $PROJECT_DIR/ui/desktop/tests/e2e-tests/fixtures/basic-mcp.ts"],
   ["wait", "[data-testid='extension-submit-btn']:not([disabled])"],
   ["find", "testid", "extension-submit-btn", "click"],
 

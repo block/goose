@@ -152,19 +152,6 @@
   },
   "keywords": [],
   "license": "Apache-2.0",
-  "pnpm": {
-    "overrides": {
-      "react": "^19.2.4",
-      "react-dom": "^19.2.4"
-    },
-    "onlyBuiltDependencies": [
-      "@modelcontextprotocol/ext-apps",
-      "electron",
-      "electron-winstaller",
-      "esbuild",
-      "agent-browser"
-    ]
-  },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
       "bash -c 'pnpm run typecheck'",

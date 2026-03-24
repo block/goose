@@ -13,3 +13,4 @@ src/bin/temporal.db
 .env.signing
 
 tests/e2e-tests/screenshots/
+tests/e2e-tests/logs/

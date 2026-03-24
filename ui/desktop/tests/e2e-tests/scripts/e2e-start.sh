@@ -10,10 +10,8 @@ PROJECT_DIR="$(cd "$DESKTOP_DIR/../.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/../fixtures"
 BASE_DIR="/tmp/goose-e2e"
 
-# Activate hermit to get pnpm, node, etc. on PATH
 source "$PROJECT_DIR/bin/activate-hermit"
 
-# Must run from ui/desktop for electron-forge
 cd "$DESKTOP_DIR"
 
 TEST_SESSION_NAME="${1:-$(date +"%y%m%d-%H%M%S")}"
@@ -40,11 +38,6 @@ mkdir -p "$SESSION_DIR/root"
 mkdir -p "$SESSION_DIR/workspace"
 
 cp "$FIXTURES_DIR/e2e-goosehints" "$SESSION_DIR/workspace/.goosehints"
-cp "$FIXTURES_DIR/basic-mcp.ts" "$BASE_DIR/basic-mcp.ts"
-
-# Symlink node_modules so basic-mcp.ts can resolve dependencies
-ln -sf "$DESKTOP_DIR/node_modules" "$BASE_DIR/node_modules"
-
 # Write port to file
 echo "$CDP_PORT" > "$SESSION_DIR/.port"
 
