@@ -298,7 +298,7 @@ export const MeshSettings = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-text-default font-medium">Inference Mesh</h3>
           <a
-            href="https://github.com/michaelneale/decentralized-inference"
+            href="https://docs.anarchai.org/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center text-xs text-text-muted hover:text-text-default transition-colors"
@@ -308,8 +308,17 @@ export const MeshSettings = () => {
           </a>
         </div>
         <p className="text-xs text-text-muted max-w-2xl mt-1">
-          Pool GPUs with others for local LLM inference. No API keys needed — runs on your hardware.
-          Start a private mesh, join one with an invite token, or auto-discover public meshes.
+          <span className="text-orange-400 font-medium">Experimental.</span> Pool GPUs with others
+          for decentralized LLM inference — no API keys, no cloud. Start a private mesh, join one
+          with an invite token, or discover public meshes.{' '}
+          <a
+            href="https://docs.anarchai.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-text-default"
+          >
+            docs.anarchai.org
+          </a>
         </p>
         <div className="mt-2">
           <StatusIndicator />
@@ -317,39 +326,32 @@ export const MeshSettings = () => {
         {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
       </div>
 
-      {/* Not installed — offer download */}
+      {/* Not installed — offer download or install link */}
       {status === 'not-installed' && (
         <div className="border border-border-subtle rounded-xl p-4 bg-background-default">
           <p className="text-sm font-medium text-text-default">Get started</p>
           <p className="text-xs text-text-muted mt-1">
-            mesh-llm is a small download (~19 MB) that manages local LLM inference. Models are
-            downloaded separately when you start a mesh.
+            mesh-llm is a small download (~19 MB) that manages local inference and mesh networking.
+            Models are downloaded separately when you start a mesh.
           </p>
-          {isMac ? (
-            <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 mt-3">
+            {isMac && (
               <Button size="sm" onClick={downloadMesh}>
                 <Download className="w-3 h-3 mr-1" />
                 Download mesh-llm
               </Button>
-              <Button variant="ghost" size="sm" onClick={checkStatus}>
-                <RefreshCw className="w-3 h-3 mr-1" />
-                Check Again
+            )}
+            <a href="https://docs.anarchai.org/" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Install guide
               </Button>
-            </div>
-          ) : (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-orange-400">
-                Auto-download is currently available on macOS (Apple Silicon) only.
-              </p>
-              <p className="text-xs text-text-muted">
-                If you&apos;ve installed mesh-llm manually, click Check Again.
-              </p>
-              <Button variant="ghost" size="sm" onClick={checkStatus}>
-                <RefreshCw className="w-3 h-3 mr-1" />
-                Check Again
-              </Button>
-            </div>
-          )}
+            </a>
+            <Button variant="ghost" size="sm" onClick={checkStatus}>
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Check Again
+            </Button>
+          </div>
         </div>
       )}
 
