@@ -345,7 +345,7 @@ prepare-release version:
         Cargo.toml \
         Cargo.lock \
         ui/desktop/package.json \
-        ui/desktop/pnpm-lock.yaml \
+        ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
         crates/goose/src/providers/canonical/data/canonical_models.json \
         crates/goose/src/providers/canonical/data/provider_metadata.json
