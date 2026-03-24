@@ -19,6 +19,7 @@ import {
   setConfigProvider,
   getCustomProvider,
 } from '../../../api';
+import { useModelAndProvider } from '../../ModelAndProviderContext';
 
 // mesh-llm defaults
 const API_PORT = 9337;
@@ -52,6 +53,7 @@ interface MeshStatusInfo {
 }
 
 export const MeshSettings = () => {
+  const { refreshCurrentModelAndProvider } = useModelAndProvider();
   const [status, setStatus] = useState<MeshStatus>('unknown');
   const [statusInfo, setStatusInfo] = useState<MeshStatusInfo>({
     running: false,
@@ -144,6 +146,7 @@ export const MeshSettings = () => {
         body: { provider: 'mesh', model: modelId },
         throwOnError: true,
       });
+      await refreshCurrentModelAndProvider();
       setActiveModel(modelId);
     } catch (err) {
       setError(`Failed to activate model: ${err}`);
