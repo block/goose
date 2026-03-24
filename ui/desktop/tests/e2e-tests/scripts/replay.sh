@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Replay an agent-browser batch recording
-# Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--screenshot-on-fail]
+# Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>]
 set -uo pipefail
 
-RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>]}"
+RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>]}"
 CONNECT_PORT=""
 SESSION_NAME=""
-SCREENSHOT_ON_FAIL=false
+RESULTS_DIR=""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --connect) CONNECT_PORT="$2"; shift 2 ;;
     --browser-session) SESSION_NAME="$2"; shift 2 ;;
-    --screenshot-on-fail) SCREENSHOT_ON_FAIL=true; shift ;;
+    --results-dir) RESULTS_DIR="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -36,12 +36,20 @@ if [[ -z "$SESSION_NAME" ]]; then
   SESSION_NAME=$(basename "$RECORDING" .batch.json)
 fi
 
+# Set up logging: tee all output to both console and log file
+if [[ -n "$RESULTS_DIR" ]]; then
+  mkdir -p "$RESULTS_DIR/logs"
+  LOG_FILE="$RESULTS_DIR/logs/$SESSION_NAME.log"
+  exec > >(tee "$LOG_FILE") 2>&1
+  trap 'wait' EXIT
+fi
+
 # Build global args that go before each command
 GLOBAL_ARGS=("--session" "$SESSION_NAME")
 
 # Per-command timeout in seconds (shell timeout as primary, --timeout as fallback)
-CMD_TIMEOUT="${AGENT_BROWSER_CMD_TIMEOUT:-10}"
-CMD_TIMEOUT_MS=$((CMD_TIMEOUT * 1000))
+export AGENT_BROWSER_DEFAULT_TIMEOUT="${AGENT_BROWSER_DEFAULT_TIMEOUT:-10000}"
+CMD_TIMEOUT=$(( AGENT_BROWSER_DEFAULT_TIMEOUT / 1000 + 1 ))
 
 # Connect if port specified, with retries to wait for the renderer to be ready.
 # The CDP port may be listening before the Electron BrowserWindow is fully
@@ -65,7 +73,7 @@ fi
 
 TOTAL=$(jq length "$RECORDING")
 echo "Replaying $TOTAL commands from $RECORDING"
-[[ -n "$SESSION_NAME" ]] && echo "Using session: $SESSION_NAME"
+echo "Using session: $SESSION_NAME"
 
 for i in $(seq 0 $((TOTAL - 1))); do
   ARGS=()
@@ -77,12 +85,12 @@ for i in $(seq 0 $((TOTAL - 1))); do
   done
 
   STEP=$((i + 1))
-  echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]} --timeout $CMD_TIMEOUT_MS"
+  echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]}"
   if ! timeout "$CMD_TIMEOUT" pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}"; then
     echo ""
     echo "FAILED at step $STEP/$TOTAL: ${ARGS[*]}"
-    if [[ "$SCREENSHOT_ON_FAIL" == "true" ]]; then
-      SCREENSHOT_DIR="$SCRIPT_DIR/../screenshots"
+    if [[ -n "$RESULTS_DIR" ]]; then
+      SCREENSHOT_DIR="$RESULTS_DIR/screenshots"
       mkdir -p "$SCREENSHOT_DIR"
       SCREENSHOT_PATH="$SCREENSHOT_DIR/${SESSION_NAME}.png"
       echo "Capturing failure screenshot → $SCREENSHOT_PATH"

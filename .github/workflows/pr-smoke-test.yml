@@ -108,6 +108,14 @@ jobs:
           GOOSE_DISABLE_KEYRING: 1
         run: source bin/activate-hermit && just e2e
 
+      - name: Upload E2E Test Results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: e2e-test-results
+          path: ui/desktop/tests/e2e-tests/results/
+          retention-days: 7
+
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest

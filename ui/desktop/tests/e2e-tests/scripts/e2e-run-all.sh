@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="$(cd "$DESKTOP_DIR/../.." && pwd)"
 RECORDINGS_DIR="$SCRIPT_DIR/../recordings"
+RESULTS_DIR="$SCRIPT_DIR/../results"
 
 source "$PROJECT_DIR/bin/activate-hermit"
 WORKERS=4
@@ -41,8 +42,6 @@ fi
 pkill -9 -f "/tmp/goose-e2e" 2>/dev/null || true
 rm -rf /tmp/goose-e2e
 
-export AGENT_BROWSER_DEFAULT_TIMEOUT=10000
-
 echo "Installing agent-browser..."
 cd "$DESKTOP_DIR"
 pnpm exec agent-browser install
@@ -50,12 +49,32 @@ pnpm exec agent-browser install
 echo "=== E2E Test Runner ==="
 echo "Recordings: ${#RECORDINGS[@]}, Workers: $WORKERS, Timeout: ${TIMEOUT}s"
 
+# Wait for the app to write its port file and the port to be listening.
+# Usage: wait_for_app <test-name>
+# Prints the CDP port on success, returns 1 on timeout.
+wait_for_app() {
+  local TEST_NAME="$1"
+  local PORT_FILE="/tmp/goose-e2e/$TEST_NAME/.port"
+  for _ in $(seq 1 30); do
+    sleep 1
+    if [[ -f "$PORT_FILE" ]]; then
+      local PORT
+      PORT=$(cat "$PORT_FILE")
+      if lsof -i :"$PORT" &>/dev/null; then
+        echo "$PORT"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
 # Run a single recording: start app, replay, stop app
-# Usage: run_one <recording> <result_dir>
+# Usage: run_one <recording> <status_dir>
 run_one() {
   set -o pipefail
   local RECORDING="$1"
-  local RESULT_DIR="$2"
+  local STATUS_DIR="$2"
   local TEST_NAME
   TEST_NAME=$(basename "$RECORDING" .batch.json)
   local START_TIME=$SECONDS
@@ -63,73 +82,93 @@ run_one() {
   echo "[$TEST_NAME] Starting app..."
   screen -dmS "$TEST_NAME" bash -c "bash '$SCRIPT_DIR/e2e-start.sh' '$TEST_NAME'" 2>/dev/null
 
-  # Wait for the app to write its port file
-  local CDP_PORT=""
-  for _ in $(seq 1 30); do
-    sleep 1
-    if [[ -f "/tmp/goose-e2e/$TEST_NAME/.port" ]]; then
-      CDP_PORT=$(cat "/tmp/goose-e2e/$TEST_NAME/.port")
-      if lsof -i :"$CDP_PORT" &>/dev/null; then
-        break
-      fi
-      CDP_PORT=""
-    fi
-  done
-
-  if [[ -z "$CDP_PORT" ]]; then
+  local CDP_PORT
+  if ! CDP_PORT=$(wait_for_app "$TEST_NAME"); then
     local DURATION=$(( SECONDS - START_TIME ))
     echo "[$TEST_NAME] FAIL — app did not start within 30s (${DURATION}s)"
-    echo "FAIL ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
+    echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     return
   fi
   echo "[$TEST_NAME] App ready: port=$CDP_PORT"
 
-  local LOG_DIR="$SCRIPT_DIR/../logs"
-  mkdir -p "$LOG_DIR"
-  local LOG_FILE="$LOG_DIR/$TEST_NAME.log"
-
-  if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME" --screenshot-on-fail 2>&1 | tee "$LOG_FILE"; then
+  if timeout "$TIMEOUT" bash "$SCRIPT_DIR/replay.sh" "$RECORDING" --connect "$CDP_PORT" --browser-session "$TEST_NAME" --results-dir "$RESULTS_DIR"; then
     local DURATION=$(( SECONDS - START_TIME ))
-    echo "PASS ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
+    echo "PASS ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     echo "[$TEST_NAME] PASS (${DURATION}s)"
   else
     local DURATION=$(( SECONDS - START_TIME ))
-    echo "FAIL ${DURATION}s" > "$RESULT_DIR/$TEST_NAME"
+    echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     echo "[$TEST_NAME] FAIL (${DURATION}s)"
   fi
 
   bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
 }
 
-export -f run_one
-export SCRIPT_DIR TIMEOUT
+export -f wait_for_app run_one
+export SCRIPT_DIR TIMEOUT RESULTS_DIR
 
-# Temp dir for results
-RESULT_DIR=$(mktemp -d)
-trap 'rm -rf "$RESULT_DIR"' EXIT
+# Temp dir for pass/fail status
+STATUS_DIR=$(mktemp -d)
+trap 'rm -rf "$STATUS_DIR"' EXIT
 
 # Run recordings in parallel with worker limit
-printf '%s\n' "${RECORDINGS[@]}" | xargs -P "$WORKERS" -I {} bash -c "run_one '{}' '$RESULT_DIR'"
+printf '%s\n' "${RECORDINGS[@]}" | xargs -P "$WORKERS" -I {} bash -c "run_one '{}' '$STATUS_DIR'" || true
 
-# Summary
-TOTAL_TIME=$SECONDS
-echo ""
-echo "=== Results ==="
-PASSED=0
-FAILED=0
-for RECORDING in "${RECORDINGS[@]}"; do
-  TEST_NAME=$(basename "$RECORDING" .batch.json)
-  RAW=$(cat "$RESULT_DIR/$TEST_NAME" 2>/dev/null || echo "FAIL 0s")
-  STATUS=$(echo "$RAW" | awk '{print $1}')
-  DURATION=$(echo "$RAW" | awk '{print $2}')
-  echo "  $STATUS: $TEST_NAME ($DURATION)"
-  if [[ "$STATUS" == "PASS" ]]; then
-    ((PASSED++))
-  else
-    ((FAILED++))
-  fi
-done
-echo ""
-echo "${#RECORDINGS[@]} tests, $PASSED passed, $FAILED failed (total: ${TOTAL_TIME}s)"
+# Print summary to console and write test-results.json
+# Usage: write_results <status_dir> <results_dir> <recordings...>
+write_results() {
+  local STATUS_DIR="$1"
+  local RESULTS_DIR="$2"
+  shift 2
 
-exit "$FAILED"
+  mkdir -p "$RESULTS_DIR"
+
+  local PASSED=0 FAILED=0
+  local FAILURES_JSON="[]"
+
+  echo ""
+  echo "=== Results ==="
+  for RECORDING in "$@"; do
+    local TEST_NAME
+    TEST_NAME=$(basename "$RECORDING" .batch.json)
+    local RAW
+    RAW=$(cat "$STATUS_DIR/$TEST_NAME" 2>/dev/null || echo "FAIL 0s")
+    local STATUS DURATION
+    STATUS=$(echo "$RAW" | awk '{print $1}')
+    DURATION=$(echo "$RAW" | awk '{print $2}')
+    echo "  $STATUS: $TEST_NAME ($DURATION)"
+    if [[ "$STATUS" == "PASS" ]]; then
+      PASSED=$((PASSED + 1))
+    else
+      FAILED=$((FAILED + 1))
+      FAILURES_JSON=$(echo "$FAILURES_JSON" | jq \
+        --arg test "$TEST_NAME" \
+        --arg duration "$DURATION" \
+        --arg log "results/logs/$TEST_NAME.log" \
+        --arg screenshot "results/screenshots/$TEST_NAME.png" \
+        '. + [{"test": $test, "duration": $duration, "log": $log, "screenshot": $screenshot}]')
+    fi
+  done
+
+  local TOTAL=$#
+  echo ""
+  echo "$TOTAL tests, $PASSED passed, $FAILED failed (total: ${SECONDS}s)"
+
+  jq -n \
+    --arg run_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson total "$TOTAL" \
+    --argjson passed "$PASSED" \
+    --argjson failed "$FAILED" \
+    --argjson failures "$FAILURES_JSON" \
+    '{run_at: $run_at, summary: {total: $total, passed: $passed, failed: $failed}, failures: $failures}' \
+    > "$RESULTS_DIR/test-results.json"
+  echo "Results written to $RESULTS_DIR/test-results.json"
+}
+
+write_results "$STATUS_DIR" "$RESULTS_DIR" "${RECORDINGS[@]}"
+
+# Exit non-zero if any test failed
+FAILED=$(jq '.summary.failed' "$RESULTS_DIR/test-results.json")
+if [[ "$FAILED" -gt 0 ]]; then
+  exit 1
+fi
