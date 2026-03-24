@@ -214,22 +214,10 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
 /// Returns discovered skills, skipping any whose names are already in `seen`.
 fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>) -> Vec<Source> {
     let mut sources = Vec::new();
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return sources,
-    };
-
-    for entry in entries.flatten() {
-        let skill_dir = entry.path();
-        if !skill_dir.is_dir() {
+    for skill_file in collect_skill_files(dir) {
+        let Some(skill_dir) = skill_file.parent() else {
             continue;
-        }
-
-        let skill_file = skill_dir.join("SKILL.md");
-        if !skill_file.exists() {
-            continue;
-        }
-
+        };
         let content = match std::fs::read_to_string(&skill_file) {
             Ok(c) => c,
             Err(e) => {
@@ -238,15 +226,34 @@ fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>
             }
         };
 
-        if let Some(mut source) = parse_skill_content(&content, skill_dir.clone()) {
+        if let Some(mut source) = parse_skill_content(&content, skill_dir.to_path_buf()) {
             if !seen.contains(&source.name) {
-                source.supporting_files = find_supporting_files(&skill_dir, &skill_file);
+                source.supporting_files = find_supporting_files(skill_dir, &skill_file);
                 seen.insert(source.name.clone());
                 sources.push(source);
             }
         }
     }
     sources
+}
+
+fn collect_skill_files(dir: &Path) -> Vec<PathBuf> {
+    let mut skill_files = Vec::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return skill_files,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            skill_files.extend(collect_skill_files(&path));
+        } else if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
+            skill_files.push(path);
+        }
+    }
+
+    skill_files
 }
 
 fn scan_recipes_from_dir(
@@ -427,8 +434,7 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     sources
 }
 
-/// Collect all files in a skill directory (excluding SKILL.md itself),
-/// recursing one level into subdirectories.
+/// Collect all files in a skill directory recursively, excluding SKILL.md itself.
 fn find_supporting_files(directory: &Path, skill_file: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let entries = match std::fs::read_dir(directory) {
@@ -440,14 +446,7 @@ fn find_supporting_files(directory: &Path, skill_file: &Path) -> Vec<PathBuf> {
         if path.is_file() && path != skill_file {
             files.push(path);
         } else if path.is_dir() {
-            if let Ok(sub_entries) = std::fs::read_dir(&path) {
-                for sub_entry in sub_entries.flatten() {
-                    let sub_path = sub_entry.path();
-                    if sub_path.is_file() {
-                        files.push(sub_path);
-                    }
-                }
-            }
+            files.extend(find_supporting_files(&path, skill_file));
         }
     }
     files
@@ -2050,22 +2049,26 @@ You review code."#;
         let temp_dir = TempDir::new().unwrap();
 
         let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
-        fs::create_dir_all(&skill_dir).unwrap();
+        fs::create_dir_all(skill_dir.join("templates/nested")).unwrap();
         fs::write(
             skill_dir.join("SKILL.md"),
             "---\nname: my-skill\ndescription: A skill with scripts\n---\nRun check_all.sh",
         )
         .unwrap();
         fs::write(skill_dir.join("myscript.sh"), "#!/bin/bash\necho ok").unwrap();
-        fs::create_dir(skill_dir.join("templates")).unwrap();
         fs::write(skill_dir.join("templates/report.txt"), "template content").unwrap();
+        fs::write(
+            skill_dir.join("templates/nested/checklist.txt"),
+            "nested template content",
+        )
+        .unwrap();
 
         let client = SummonClient::new(create_test_context()).unwrap();
         let sources = client.discover_filesystem_sources(temp_dir.path());
 
         let skill = sources.iter().find(|s| s.name == "my-skill").unwrap();
         assert_eq!(skill.path, skill_dir);
-        assert_eq!(skill.supporting_files.len(), 2);
+        assert_eq!(skill.supporting_files.len(), 3);
 
         let file_names: Vec<String> = skill
             .supporting_files
@@ -2074,6 +2077,37 @@ You review code."#;
             .collect();
         assert!(file_names.contains(&"myscript.sh".to_string()));
         assert!(file_names.contains(&"report.txt".to_string()));
+        assert!(file_names.contains(&"checklist.txt".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_nested_claude_catalog_skills_discovered() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let root_skill_file = temp_dir.path().join(".claude/skills/SKILL.md");
+        fs::create_dir_all(root_skill_file.parent().unwrap()).unwrap();
+        fs::write(
+            &root_skill_file,
+            "---\nname: root-skill\ndescription: Root level skill\n---\nRoot content",
+        )
+        .unwrap();
+
+        let nested_skill_dir = temp_dir.path().join(".claude/skills/catalog/internal/ai");
+        fs::create_dir_all(&nested_skill_dir).unwrap();
+        fs::write(
+            nested_skill_dir.join("SKILL.md"),
+            "---\nname: nested-skill\ndescription: Nested catalog skill\n---\nNested content",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let root_skill = sources.iter().find(|s| s.name == "root-skill").unwrap();
+        assert_eq!(root_skill.path, temp_dir.path().join(".claude/skills"));
+
+        let nested_skill = sources.iter().find(|s| s.name == "nested-skill").unwrap();
+        assert_eq!(nested_skill.path, nested_skill_dir);
     }
 
     #[tokio::test]
