@@ -231,7 +231,7 @@ fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>
             if !seen.contains(&source.name) {
                 let mut visited_support_dirs = HashSet::new();
                 source.supporting_files =
-                    find_supporting_files(skill_dir, &skill_file, &mut visited_support_dirs);
+                    find_supporting_files(skill_dir, &mut visited_support_dirs);
                 seen.insert(source.name.clone());
                 sources.push(source);
             }
@@ -272,6 +272,16 @@ where
 
     for entry in entries.flatten() {
         let path = entry.path();
+
+        let is_hidden = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.starts_with('.'))
+            .unwrap_or(false);
+
+        if is_hidden {
+            continue;
+        }
 
         if path.is_dir() {
             walk_files_recursively(&path, visited_dirs, visit_file);
@@ -460,15 +470,16 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
 }
 
 /// Collect all files in a skill directory recursively, excluding SKILL.md itself.
-fn find_supporting_files(
-    directory: &Path,
-    skill_file: &Path,
-    visited_dirs: &mut HashSet<PathBuf>,
-) -> Vec<PathBuf> {
+fn find_supporting_files(directory: &Path, visited_dirs: &mut HashSet<PathBuf>) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
     walk_files_recursively(directory, visited_dirs, &mut |path| {
-        if path != skill_file {
+        let is_skill_md = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "SKILL.md")
+            .unwrap_or(false);
+        if !is_skill_md {
             files.push(path.to_path_buf());
         }
     });
