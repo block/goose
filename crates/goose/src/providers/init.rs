@@ -1,9 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-#[cfg(feature = "local-inference")]
-use super::local_inference::LocalInferenceProvider;
 #[cfg(feature = "aws-providers")]
 use super::bedrock::BedrockProvider;
+#[cfg(feature = "local-inference")]
+use super::local_inference::LocalInferenceProvider;
 #[cfg(feature = "aws-providers")]
 use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
