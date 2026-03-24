@@ -88,6 +88,7 @@ export default function SettingsView({
   const hasTrackedInitialTab = useRef(false);
   const { localInference } = useFeatures();
   const intl = useIntl();
+  const meshEnabled = window.appConfig?.get('GOOSE_MESH_ENABLED') !== false;
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -197,10 +198,16 @@ export default function SettingsView({
                       {intl.formatMessage(i18n.tabLocalInference)}
                     </TabsTrigger>
                   )}
-                  <TabsTrigger value="mesh" className="flex gap-2" data-testid="settings-mesh-tab">
-                    <Network className="h-4 w-4" />
-                    Mesh
-                  </TabsTrigger>
+                  {meshEnabled && (
+                    <TabsTrigger
+                      value="mesh"
+                      className="flex gap-2"
+                      data-testid="settings-mesh-tab"
+                    >
+                      <Network className="h-4 w-4" />
+                      Mesh
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
                     <MessageSquare className="h-4 w-4" />
                     {intl.formatMessage(i18n.tabChat)}
@@ -253,12 +260,14 @@ export default function SettingsView({
                   </TabsContent>
                 )}
 
-                <TabsContent
-                  value="mesh"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <MeshSection />
-                </TabsContent>
+                {meshEnabled && (
+                  <TabsContent
+                    value="mesh"
+                    className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+                  >
+                    <MeshSection />
+                  </TabsContent>
+                )}
 
                 <TabsContent
                   value="chat"
