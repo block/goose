@@ -8,15 +8,12 @@ CONNECT_PORT=""
 SESSION_NAME=""
 SCREENSHOT_ON_FAIL=false
 
-# Resolve project root for $PROJECT_DIR substitution in recordings
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$DESKTOP_DIR/../.." && pwd)}"
 
-# Activate hermit to get pnpm, node, etc. on PATH
 source "$PROJECT_DIR/bin/activate-hermit"
 
-# Must run from ui/desktop for pnpm exec agent-browser
 cd "$DESKTOP_DIR"
 
 shift
@@ -46,31 +43,42 @@ GLOBAL_ARGS=("--session" "$SESSION_NAME")
 CMD_TIMEOUT="${AGENT_BROWSER_CMD_TIMEOUT:-10}"
 CMD_TIMEOUT_MS=$((CMD_TIMEOUT * 1000))
 
-# Connect if port specified
+# Connect if port specified, with retries to wait for the renderer to be ready.
+# The CDP port may be listening before the Electron BrowserWindow is fully
+# initialized, causing "Target.createTarget: Not supported" errors.
 if [[ -n "$CONNECT_PORT" ]]; then
-  echo "Connecting to CDP port $CONNECT_PORT..."
-  pnpm exec agent-browser "${GLOBAL_ARGS[@]}" connect "$CONNECT_PORT"
+  MAX_CONNECT_RETRIES=10
+  CONNECT_RETRY_DELAY=2
+  for attempt in $(seq 1 "$MAX_CONNECT_RETRIES"); do
+    echo "Connecting to CDP port $CONNECT_PORT (attempt $attempt/$MAX_CONNECT_RETRIES)..."
+    if pnpm exec agent-browser "${GLOBAL_ARGS[@]}" connect "$CONNECT_PORT" 2>&1; then
+      break
+    fi
+    if [[ "$attempt" -eq "$MAX_CONNECT_RETRIES" ]]; then
+      echo "Failed to connect after $MAX_CONNECT_RETRIES attempts"
+      exit 1
+    fi
+    echo "Connect failed, retrying in ${CONNECT_RETRY_DELAY}s..."
+    sleep "$CONNECT_RETRY_DELAY"
+  done
 fi
 
-# Read JSON array and execute each command
 TOTAL=$(jq length "$RECORDING")
 echo "Replaying $TOTAL commands from $RECORDING"
 [[ -n "$SESSION_NAME" ]] && echo "Using session: $SESSION_NAME"
 
 for i in $(seq 0 $((TOTAL - 1))); do
-  # Extract command args as a bash array
   ARGS=()
   CMD_LENGTH=$(jq -r ".[$i] | length" "$RECORDING")
   for j in $(seq 0 $((CMD_LENGTH - 1))); do
     ARG=$(jq -r ".[$i][$j]" "$RECORDING")
-    # Substitute $PROJECT_DIR with the actual project root
     ARG="${ARG//\$PROJECT_DIR/$PROJECT_DIR}"
     ARGS+=("$ARG")
   done
 
   STEP=$((i + 1))
   echo "[$STEP/$TOTAL] agent-browser ${GLOBAL_ARGS[*]} ${ARGS[*]} --timeout $CMD_TIMEOUT_MS"
-  if ! timeout "$CMD_TIMEOUT" pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}" "--timeout" "$CMD_TIMEOUT_MS"; then
+  if ! timeout "$CMD_TIMEOUT" pnpm exec agent-browser "${GLOBAL_ARGS[@]}" "${ARGS[@]}"; then
     echo ""
     echo "FAILED at step $STEP/$TOTAL: ${ARGS[*]}"
     if [[ "$SCREENSHOT_ON_FAIL" == "true" ]]; then
@@ -86,5 +94,4 @@ done
 
 echo "Replay complete: $TOTAL commands passed"
 
-# Close the agent-browser session to release the CDP connection
 pnpm exec agent-browser "${GLOBAL_ARGS[@]}" close 2>/dev/null || true

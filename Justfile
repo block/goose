@@ -77,6 +77,15 @@ release-intel:
     cargo build --release --target x86_64-apple-darwin
     @just copy-binary-intel
 
+copy-goosed BUILD_MODE="release":
+    @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
+        echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
+        cp -p ./target/{{BUILD_MODE}}/goosed ./ui/desktop/src/bin/; \
+    else \
+        echo "goosed binary not found in target/{{BUILD_MODE}}"; \
+        exit 1; \
+    fi
+
 copy-binary BUILD_MODE="release":
     @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
         echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
@@ -468,7 +477,9 @@ record-mcp-tests: build-test-tools
 e2e:
     @echo "Building goosed..."
     cargo build --bin goosed
-    @just copy-binary debug
+    @just copy-goosed debug
+    @echo "Installing dependencies..."
+    cd ui/desktop && pnpm install --frozen-lockfile
     @echo "Generating API types..."
     cd ui/desktop && pnpm run generate-api
     @echo "Running E2E tests..."
