@@ -2,12 +2,15 @@ use std::sync::{Arc, RwLock};
 
 #[cfg(feature = "local-inference")]
 use super::local_inference::LocalInferenceProvider;
+#[cfg(feature = "aws-providers")]
+use super::bedrock::BedrockProvider;
+#[cfg(feature = "aws-providers")]
+use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
     anthropic::AnthropicProvider,
     avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
-    bedrock::BedrockProvider,
     chatgpt_codex::ChatGptCodexProvider,
     claude_acp::ClaudeAcpProvider,
     claude_code::ClaudeCodeProvider,
@@ -26,7 +29,6 @@ use super::{
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
     provider_registry::ProviderRegistry,
-    sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
     tetrate::TetrateProvider,
     venice::VeniceProvider,
@@ -49,6 +51,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<AnthropicProvider>(true);
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
+        #[cfg(feature = "aws-providers")]
         registry.register::<BedrockProvider>(false);
         #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
@@ -69,6 +72,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<OllamaProvider>(true);
         registry.register::<OpenAiProvider>(true);
         registry.register::<OpenRouterProvider>(true);
+        #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
         registry.register::<SnowflakeProvider>(false);
         registry.register::<TetrateProvider>(true);
