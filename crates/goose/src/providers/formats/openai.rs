@@ -438,7 +438,12 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 }
 
 pub fn get_usage(usage: &Value) -> Usage {
-    let input_tokens = usage
+    let usage = usage
+        .get("usage")
+        .filter(|nested| nested.is_object())
+        .unwrap_or(usage);
+
+    let prompt_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
@@ -448,16 +453,63 @@ pub fn get_usage(usage: &Value) -> Usage {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
-    let total_tokens = usage
-        .get("total_tokens")
+    let cache_read_input_tokens = usage
+        .get("cache_read_input_tokens")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
-        .or_else(|| match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input + output),
-            _ => None,
+        .or_else(|| {
+            usage
+                .get("prompt_tokens_details")
+                .and_then(|details| details.get("cached_tokens"))
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32)
         });
 
+    let cache_write_input_tokens = usage
+        .get("cache_creation_input_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
+    let input_tokens = match (
+        prompt_tokens,
+        cache_read_input_tokens,
+        cache_write_input_tokens,
+    ) {
+        (Some(prompt), cache_read, cache_write) => Some(
+            prompt
+                .saturating_add(cache_read.unwrap_or(0))
+                .saturating_add(cache_write.unwrap_or(0)),
+        ),
+        (None, Some(cache_read), Some(cache_write)) => Some(cache_read.saturating_add(cache_write)),
+        (None, Some(cache_read), None) => Some(cache_read),
+        (None, None, Some(cache_write)) => Some(cache_write),
+        (None, None, None) => None,
+    };
+
+    let api_total_tokens = usage
+        .get("total_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
+    let has_cache_tokens =
+        cache_read_input_tokens.unwrap_or(0) > 0 || cache_write_input_tokens.unwrap_or(0) > 0;
+
+    let total_tokens = if has_cache_tokens {
+        match (input_tokens, output_tokens) {
+            (Some(input), Some(output)) => Some(input.saturating_add(output)),
+            (Some(input), None) => Some(input),
+            (None, Some(output)) => Some(output),
+            (None, None) => api_total_tokens,
+        }
+    } else {
+        api_total_tokens.or_else(|| match (input_tokens, output_tokens) {
+            (Some(input), Some(output)) => Some(input.saturating_add(output)),
+            _ => None,
+        })
+    };
+
     Usage::new(input_tokens, output_tokens, total_tokens)
+        .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
 }
 
 fn extract_usage_with_output_tokens(chunk: &StreamingChunk) -> Option<ProviderUsage> {
@@ -1600,6 +1652,64 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[test]
+    fn test_get_usage_includes_cached_tokens_in_totals() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "cache_read_input_tokens": 80,
+            "cache_creation_input_tokens": 20
+        }));
+
+        assert_eq!(usage.input_tokens, Some(220));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(250));
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
+        assert_eq!(usage.cache_write_input_tokens, Some(20));
+        assert_eq!(usage.billable_input_tokens(), Some(120));
+    }
+
+    #[test]
+    fn test_get_usage_falls_back_to_prompt_tokens_details_cached_tokens() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 42,
+            "completion_tokens": 68,
+            "total_tokens": 110,
+            "prompt_tokens_details": {
+                "cached_tokens": 16
+            }
+        }));
+
+        assert_eq!(usage.input_tokens, Some(58));
+        assert_eq!(usage.output_tokens, Some(68));
+        assert_eq!(usage.total_tokens, Some(126));
+        assert_eq!(usage.cache_read_input_tokens, Some(16));
+        assert_eq!(usage.cache_write_input_tokens, None);
+        assert_eq!(usage.billable_input_tokens(), Some(42));
+    }
+
+    #[test]
+    fn test_get_usage_reads_nested_usage_object() {
+        let usage = get_usage(&json!({
+            "id": "chatcmpl_test",
+            "usage": {
+                "prompt_tokens": 84,
+                "completion_tokens": 21,
+                "total_tokens": 105,
+                "cache_read_input_tokens": 60,
+                "cache_creation_input_tokens": 10
+            }
+        }));
+
+        assert_eq!(usage.input_tokens, Some(154));
+        assert_eq!(usage.output_tokens, Some(21));
+        assert_eq!(usage.total_tokens, Some(175));
+        assert_eq!(usage.cache_read_input_tokens, Some(60));
+        assert_eq!(usage.cache_write_input_tokens, Some(10));
+        assert_eq!(usage.billable_input_tokens(), Some(84));
     }
 
     #[tokio::test]

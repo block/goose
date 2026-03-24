@@ -404,6 +404,10 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             Some(total_input_i32),
             Some(output_tokens_i32),
             Some(total_tokens_i32),
+        )
+        .with_cache_tokens(
+            Some(cache_read_tokens.min(i32::MAX as u64) as i32),
+            Some(cache_creation_tokens.min(i32::MAX as u64) as i32),
         ))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
@@ -447,6 +451,10 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
                 Some(total_input_i32),
                 Some(output_tokens_i32),
                 Some(total_tokens_i32),
+            )
+            .with_cache_tokens(
+                Some(cache_read_tokens.min(i32::MAX as u64) as i32),
+                Some(cache_creation_tokens.min(i32::MAX as u64) as i32),
             ))
         } else {
             tracing::debug!("🔍 Anthropic no token data found in object");
