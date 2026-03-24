@@ -1,4 +1,4 @@
-name: Manual Desktop Bundle (Unsigned)
+name: Manual Desktop Bundle
 
 on:
   workflow_dispatch:
@@ -7,22 +7,31 @@ on:
         description: 'Branch name to bundle app from'
         required: true
         type: string
+      signing:
+        description: 'Whether to perform signing and notarization'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  bundle-desktop-unsigned:
+  bundle-desktop:
     uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: false
+      signing: ${{ inputs.signing }}
       ref: ${{ inputs.branch }}
+      environment: ${{ inputs.signing && 'signing' || '' }}
+    secrets: inherit
 
-  bundle-desktop-intel-unsigned:
+  bundle-desktop-intel:
     uses: ./.github/workflows/bundle-desktop-intel.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: false
+      signing: ${{ inputs.signing }}
       ref: ${{ inputs.branch }}
+      environment: ${{ inputs.signing && 'signing' || '' }}
+    secrets: inherit
