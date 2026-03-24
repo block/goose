@@ -13,7 +13,7 @@ import {
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { ChevronRight, FlaskConical } from 'lucide-react';
+import { ChevronRight, ExternalLink, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
@@ -33,6 +33,7 @@ type UiMeta = {
   ui?: {
     resourceUri?: string;
   };
+  subagent_session_id?: string;
 };
 
 type ToolResultWithMeta = {
@@ -64,6 +65,33 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void;
   confirmationContent?: ToolConfirmationData;
   isApprovalClicked?: boolean;
+}
+
+function getSubagentSessionId(
+  toolResponse?: ToolResponseMessageContent,
+  notifications?: NotificationEvent[]
+): string | null {
+  const result = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const sessionId =
+    result?.status === 'success' ? result?.value?._meta?.subagent_session_id : undefined;
+  if (typeof sessionId === 'string') return sessionId;
+
+  // Fallback: extract from subagent notifications (e.g. when delegate was cancelled mid-stream)
+  if (notifications) {
+    for (const n of notifications) {
+      const message = n.message as { method?: string; params?: Record<string, unknown> };
+      if (message.method !== 'notifications/message') continue;
+      const data = message.params?.data;
+      if (data && typeof data === 'object' && 'type' in data && 'subagent_id' in data) {
+        const record = data as Record<string, unknown>;
+        if (record.type === 'subagent_tool_request' && typeof record.subagent_id === 'string') {
+          return record.subagent_id;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): ContentBlock[] {
@@ -635,6 +663,25 @@ function ToolCallView({
         }
         break;
 
+      case 'delegate': {
+        if (args.instructions) {
+          const instr = getStringValue(args.instructions);
+          const truncated = instr.length > 80 ? instr.substring(0, 80) + '…' : instr;
+          return `delegating: ${truncated}`;
+        }
+        if (args.source) {
+          return `delegating to ${getStringValue(args.source)}`;
+        }
+        return 'delegating task';
+      }
+
+      case 'load': {
+        if (args.source) {
+          return `loading ${getStringValue(args.source)}`;
+        }
+        return 'loading source';
+      }
+
       case 'final_output':
         return 'final output';
 
@@ -790,6 +837,28 @@ function ToolCallView({
           ))}
         </>
       )}
+
+      {(() => {
+        if (loadingStatus === 'loading') return null;
+        const subagentSessionId = getSubagentSessionId(toolResponse, notifications);
+        if (!subagentSessionId) return null;
+        return (
+          <div className="border-t border-border-primary">
+            <button
+              onClick={() => {
+                window.electron.createChatWindow({
+                  resumeSessionId: subagentSessionId,
+                  viewType: 'pair',
+                });
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-background-secondary transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              <span>View subagent session</span>
+            </button>
+          </div>
+        );
+      })()}
     </ToolCallExpandable>
   );
 }
@@ -912,6 +981,34 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   );
 }
 
+function SubagentLogEntry({ log }: { log: string }) {
+  const subagentMatch = log.match(/^\[subagent:(\w+)\]\s*([\s\S]*)/);
+  if (!subagentMatch) {
+    return <span className="font-sans text-sm text-textSubtle">{log}</span>;
+  }
+
+  const [, , rest] = subagentMatch;
+  const [firstLine, ...detailLines] = rest.split('\n');
+  const parts = firstLine.split(' | ');
+  const toolName = parts[0]?.trim() || firstLine;
+  const extensionName = parts[1]?.trim();
+
+  return (
+    <div className="font-sans text-sm text-textSubtle">
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+        <span className="font-medium text-text-secondary">{toolName}</span>
+        {extensionName && <span className="text-textSubtle opacity-60">· {extensionName}</span>}
+      </span>
+      {detailLines.length > 0 && (
+        <pre className="ml-3 mt-0.5 text-xs text-textSubtle whitespace-pre-wrap">
+          {detailLines.join('\n')}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function ToolLogsView({
   logs,
   working,
@@ -936,11 +1033,14 @@ function ToolLogsView({
   // in this case, this is array of strings which once added do not change so this cuts
   // down on the possibility of unwanted runs
 
+  const subagentLogCount = logs.filter((l) => l.startsWith('[subagent:')).length;
+  const labelText = subagentLogCount > 0 ? `Activity (${subagentLogCount})` : 'Logs';
+
   return (
     <ToolCallExpandable
       label={
         <span className="pl-4 py-1 font-sans text-sm flex items-center">
-          <span>Logs</span>
+          <span>{labelText}</span>
           {working && (
             <div className="mx-2 inline-block">
               <span
@@ -960,9 +1060,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
-            {log}
-          </span>
+          <SubagentLogEntry key={i} log={log} />
         ))}
       </div>
     </ToolCallExpandable>

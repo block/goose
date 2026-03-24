@@ -1,5 +1,5 @@
 {
-  "name": "@block/goose-acp-server-darwin-arm64",
+  "name": "@aaif/goose-acp-server-darwin-arm64",
   "version": "0.1.0",
   "description": "Goose ACP server binary for macOS ARM64",
   "license": "Apache-2.0",
@@ -7,6 +7,14 @@
     "type": "git",
     "url": "git+https://github.com/block/goose.git"
   },
+  "keywords": [
+    "goose",
+    "ai",
+    "agent",
+    "acp",
+    "server",
+    "binary"
+  ],
   "os": [
     "darwin"
   ],
@@ -14,6 +22,6 @@
     "arm64"
   ],
   "files": [
-    "bin/goose"
+    "bin/goose-acp-server"
   ]
 }

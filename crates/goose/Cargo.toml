@@ -56,7 +56,7 @@ chrono = { workspace = true }
 clap = { workspace = true }
 indoc = { workspace = true }
 nanoid = "0.4"
-sha2 = "0.10"
+sha2 = { workspace = true }
 base64 = { workspace = true }
 url = { workspace = true }
 axum = { workspace = true }
@@ -126,7 +126,7 @@ byteorder = { version = "1.5.0", optional = true }
 tokenizers = { version = "0.21.0", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", features = ["all"], optional = true }
 rubato = { version = "0.16", optional = true }
-zip = "0.6"
+zip = { workspace = true }
 sys-info = "0.9"
 
 schemars = { workspace = true, features = [
@@ -153,10 +153,10 @@ pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.137", features = ["sampler"], optional = true }
 encoding_rs = "0.8.35"
 pastey = "0.2.1"
-shell-words = "1.1.1"
+shell-words = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3", features = ["wincred"] }
+winapi = { workspace = true }
 
 # Platform-specific GPU acceleration for Whisper and local inference
 [target.'cfg(target_os = "macos")'.dependencies]

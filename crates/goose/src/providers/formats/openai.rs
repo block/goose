@@ -58,7 +58,8 @@ enum DeltaContent {
 #[derive(Serialize, Deserialize, Debug)]
 struct ContentPart {
     r#type: String,
-    text: String,
+    #[serde(default)]
+    text: Option<String>,
     #[serde(rename = "thoughtSignature")]
     thought_signature: Option<String>,
 }
@@ -100,7 +101,7 @@ fn extract_content_and_signature(
 
             let text = text_parts
                 .iter()
-                .map(|p| p.text.as_str())
+                .filter_map(|p| p.text.as_deref())
                 .collect::<String>();
 
             let signature = text_parts
