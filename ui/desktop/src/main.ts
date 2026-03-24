@@ -1735,6 +1735,10 @@ ipcMain.handle('stop-mesh', async () => {
 });
 
 ipcMain.handle('download-mesh', async () => {
+  if (process.platform !== 'darwin') {
+    return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
+  }
+
   const os = await import('os');
   const path = await import('path');
   const fsSync = await import('fs');
