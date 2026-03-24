@@ -15,6 +15,7 @@ source "$PROJECT_DIR/bin/activate-hermit"
 WORKERS=4
 TIMEOUT=120  # seconds per test
 FILTER=""
+RECORD=""
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -22,6 +23,7 @@ while [[ $# -gt 0 ]]; do
     --workers) WORKERS="$2"; shift 2 ;;
     --timeout) TIMEOUT="$2"; shift 2 ;;
     --only) FILTER="$2"; shift 2 ;;
+    --record) RECORD="--record"; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -43,7 +45,7 @@ fi
 pkill -9 -f "$BASE_DIR" 2>/dev/null || true
 rm -rf "$BASE_DIR"
 rm -rf "$RESULTS_DIR"
-mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/screenshots"
+mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/screenshots" "$RESULTS_DIR/videos"
 
 echo "Installing agent-browser..."
 cd "$DESKTOP_DIR"
@@ -104,6 +106,7 @@ run_one() {
     --connect "$CDP_PORT" \
     --browser-session "$TEST_NAME" \
     --results-dir "$RESULTS_DIR" \
+    $RECORD \
     2>&1 | tee -a "$LOG_FILE"
   EXIT_CODE=${PIPESTATUS[0]}
   set -e
@@ -124,7 +127,7 @@ run_one() {
 }
 
 export -f ts wait_for_app run_one
-export BASE_DIR SCRIPT_DIR TIMEOUT RESULTS_DIR
+export BASE_DIR SCRIPT_DIR TIMEOUT RESULTS_DIR RECORD
 
 # Temp dir for pass/fail status
 STATUS_DIR=$(mktemp -d)

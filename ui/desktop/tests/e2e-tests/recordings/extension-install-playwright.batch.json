@@ -17,6 +17,6 @@
   ["find", "testid", "send-button", "click"],
 
   ["wait", "--text", "browser_navigate", "--timeout", "20000"],
-  ["wait", "--fn", "document.body.innerText.includes('google.com') || document.body.innerText.includes('google')", "--timeout", "60000"],
+  ["wait", "--fn", "document.body.innerText.includes('google.com') || document.body.innerText.includes('google')", "--timeout", "20000"],
   ["wait", "--fn", "document.body.innerText.toLowerCase().includes('cats')", "--timeout", "20000"]
 ]

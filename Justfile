@@ -483,4 +483,4 @@ e2e:
     @echo "Generating API types..."
     cd ui/desktop && pnpm run generate-api
     @echo "Running E2E tests..."
-    bash ui/desktop/tests/e2e-tests/scripts/e2e-run-all.sh
+    bash ui/desktop/tests/e2e-tests/scripts/e2e-run-all.sh --record

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Replay an agent-browser batch recording
-# Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>]
+# Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>] [--record]
 set -euo pipefail
 
 RECORDING="${1:?Usage: ./replay.sh <recording.batch.json> [--connect <port>] [--browser-session <name>] [--results-dir <dir>]}"
 CONNECT_PORT=""
 SESSION_NAME=""
 RESULTS_DIR=""
+RECORD=false
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -22,6 +23,7 @@ while [[ $# -gt 0 ]]; do
     --connect) CONNECT_PORT="$2"; shift 2 ;;
     --browser-session) SESSION_NAME="$2"; shift 2 ;;
     --results-dir) RESULTS_DIR="$2"; shift 2 ;;
+    --record) RECORD=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -59,6 +61,14 @@ if [[ -n "$CONNECT_PORT" ]]; then
   done
 fi
 
+if [[ "$RECORD" == true && -n "$RESULTS_DIR" ]]; then
+  VIDEO_DIR="$RESULTS_DIR/videos"
+  mkdir -p "$VIDEO_DIR"
+  VIDEO_PATH="$VIDEO_DIR/${SESSION_NAME}.webm"
+  echo "[$(ts)] Recording video → $VIDEO_PATH"
+  pnpm exec agent-browser "${GLOBAL_ARGS[@]}" record restart "$VIDEO_PATH" 2>/dev/null || echo "Video recording failed to start"
+fi
+
 TOTAL=$(jq length "$RECORDING")
 echo "[$(ts)] Replaying $TOTAL commands from $RECORDING"
 echo "[$(ts)] Using session: $SESSION_NAME"
@@ -93,9 +103,16 @@ for i in $(seq 0 $((TOTAL - 1))); do
       echo "Capturing failure screenshot → $SCREENSHOT_PATH"
       pnpm exec agent-browser "${GLOBAL_ARGS[@]}" screenshot "$SCREENSHOT_PATH" 2>/dev/null || echo "Screenshot capture failed"
     fi
+    if [[ "$RECORD" == true ]]; then
+      pnpm exec agent-browser "${GLOBAL_ARGS[@]}" record stop 2>/dev/null || true
+    fi
     exit 1
   fi
 done
+
+if [[ "$RECORD" == true ]]; then
+  pnpm exec agent-browser "${GLOBAL_ARGS[@]}" record stop 2>/dev/null || true
+fi
 
 echo "[$(ts)] Replay complete: $TOTAL commands passed"
 
