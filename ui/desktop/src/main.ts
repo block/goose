@@ -653,7 +653,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   });
 
   if (process.env.ENABLE_PLAYWRIGHT) {
-    mainWindow.setSize(1280, 960);
+    mainWindow.setSize(1152, 864);
   }
 
   if (!app.isPackaged) {

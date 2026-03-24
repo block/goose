@@ -12,6 +12,7 @@
 
   ["find", "testid", "env-var-value-0", "fill", "test-secret-value-123"],
   ["wait", "[data-testid='extension-submit-btn']:not([disabled])"],
+  ["scrollintoview", "[data-testid='extension-submit-btn']"],
   ["find", "testid", "extension-submit-btn", "click"],
 
   ["wait", "--text", "Context7"],

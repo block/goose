@@ -10,6 +10,7 @@
   ["find", "testid", "ext-name-input", "fill", "Running Quotes"],
   ["find", "testid", "ext-command-input", "fill", "node $PROJECT_DIR/ui/desktop/tests/e2e-tests/fixtures/basic-mcp.ts"],
   ["wait", "[data-testid='extension-submit-btn']:not([disabled])"],
+  ["scrollintoview", "[data-testid='extension-submit-btn']"],
   ["find", "testid", "extension-submit-btn", "click"],
 
   ["wait", "--text", "Running Quotes"],

@@ -21,6 +21,7 @@
   ["find", "testid", "title-input", "click"],
 
   ["wait", "[data-testid='advanced-options-trigger']"],
+  ["scrollintoview", "[data-testid='advanced-options-trigger']"],
   ["find", "testid", "advanced-options-trigger", "click"],
   ["wait", "[data-testid='parameter-greeting_style']", "--timeout", "15000"],
 
