@@ -50,6 +50,11 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4
+        with:
+          version: 9
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
 
@@ -86,15 +91,15 @@ jobs:
       - name: Install dependencies
         run: |
           cd ui
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Build packages
         run: |
           cd ui/acp
-          npm run build
+          pnpm run build
           
           cd ../text
-          npm run build
+          pnpm run build
 
       - name: Dry run summary
         if: inputs.dry-run == true || github.ref != 'refs/heads/main'
@@ -121,8 +126,8 @@ jobs:
         id: changesets
         uses: changesets/action@6d3568c53fbe1db6c1f9ab1c7fbf9092bc18627f # v1
         with:
-          publish: npm run release
-          version: npm run version
+          publish: pnpm run release
+          version: pnpm run version
           commit: 'chore: version packages'
           title: 'chore: version packages'
           cwd: ui
