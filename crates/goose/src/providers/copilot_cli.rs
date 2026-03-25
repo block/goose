@@ -97,7 +97,7 @@ impl CopilotCliProvider {
         }
 
         if COPILOT_CLI_KNOWN_MODELS.contains(&model_name) {
-            cmd.arg("-m").arg(model_name);
+            cmd.arg("--model").arg(model_name);
         }
 
         if cfg!(windows) {
@@ -106,7 +106,7 @@ impl CopilotCliProvider {
         } else {
             cmd.arg("-p").arg(prompt);
         }
-        cmd.arg("--yolo");
+        cmd.arg("--yolo").arg("--silent");
 
         cmd.stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -232,14 +232,14 @@ impl Provider for CopilotCliProvider {
                 match reader.read_line(&mut line).await {
                     Ok(0) => break,
                     Ok(_) => {
-                        let trimmed = line.trim();
-                        if !trimmed.is_empty() {
-                            lines.push(trimmed.to_string());
-                            // Yield partial text as it arrives
+                        if !line.trim().is_empty() {
+                            let content = line.trim_end_matches('\n').trim_end_matches('\r');
+                            lines.push(content.to_string());
+                            // Yield partial text as it arrives, preserving leading whitespace
                             let mut partial = Message::new(
                                 Role::Assistant,
                                 stream_timestamp,
-                                vec![MessageContent::text(trimmed)],
+                                vec![MessageContent::text(content)],
                             );
                             partial.id = Some(message_id.clone());
                             yield (Some(partial), None);
