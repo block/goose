@@ -25,7 +25,6 @@ use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex, OnceCell};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::acp::{map_permission_response, PermissionDecision, PermissionMapping};
-use crate::subprocess::configure_subprocess;
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -33,6 +32,7 @@ use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
+use crate::subprocess::configure_subprocess;
 
 /// Sentinel: resolved to SessionModelState.current_model_id at connect time.
 pub const ACP_CURRENT_MODEL: &str = "current";
