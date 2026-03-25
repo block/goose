@@ -96,9 +96,7 @@ impl CopilotCliProvider {
             cmd.env("PATH", path);
         }
 
-        if COPILOT_CLI_KNOWN_MODELS.contains(&model_name) {
-            cmd.arg("--model").arg(model_name);
-        }
+        cmd.arg("--model").arg(model_name);
 
         if cfg!(windows) {
             let sanitized = prompt.replace("\r\n", "\\n").replace('\n', "\\n");
@@ -106,7 +104,7 @@ impl CopilotCliProvider {
         } else {
             cmd.arg("-p").arg(prompt);
         }
-        cmd.arg("--yolo").arg("--silent");
+        cmd.arg("--yolo").arg("--silent").arg("--no-ask-user");
 
         cmd.stdin(Stdio::null())
             .stdout(Stdio::piped())
