@@ -474,7 +474,7 @@ record-mcp-tests: build-test-tools
   GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
   git add crates/goose/tests/mcp_replays/
 
-e2e:
+e2e-setup:
     @echo "Building goosed..."
     cargo build --bin goosed
     @just copy-goosed debug
@@ -482,5 +482,7 @@ e2e:
     cd ui && pnpm install --frozen-lockfile
     @echo "Generating API types..."
     cd ui/desktop && pnpm run generate-api
+
+e2e: e2e-setup
     @echo "Running E2E tests..."
     bash ui/desktop/tests/e2e-tests/scripts/e2e-run-all.sh --record
