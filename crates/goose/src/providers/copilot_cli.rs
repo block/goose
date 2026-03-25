@@ -201,11 +201,10 @@ impl Provider for CopilotCliProvider {
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if super::cli_common::is_session_description_request(system) {
-            let (message, provider_usage) =
-                super::cli_common::generate_simple_session_description(
-                    &model_config.model_name,
-                    messages,
-                )?;
+            let (message, provider_usage) = super::cli_common::generate_simple_session_description(
+                &model_config.model_name,
+                messages,
+            )?;
             return Ok(stream_from_single_message(message, provider_usage));
         }
 
