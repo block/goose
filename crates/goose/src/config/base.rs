@@ -14,6 +14,17 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
+#[cfg(unix)]
+fn set_owner_only_permissions(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn set_owner_only_permissions(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
 pub const CONFIG_YAML_NAME: &str = "config.yaml";
@@ -855,8 +866,12 @@ impl Config {
                 }
             }
             SecretStorage::File { path } => {
+                let created = !path.exists();
                 let yaml_value = serde_yaml::to_string(&values)?;
                 std::fs::write(path, yaml_value)?;
+                if created {
+                    set_owner_only_permissions(path)?;
+                }
             }
         };
 
@@ -896,8 +911,12 @@ impl Config {
                 }
             }
             SecretStorage::File { path } => {
+                let created = !path.exists();
                 let yaml_value = serde_yaml::to_string(&values)?;
                 std::fs::write(path, yaml_value)?;
+                if created {
+                    set_owner_only_permissions(path)?;
+                }
             }
         };
 
@@ -936,8 +955,12 @@ impl Config {
     fn write_secrets_to_file(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
         std::fs::create_dir_all(Paths::config_dir())?;
         let path = Self::secrets_file_path();
+        let created = !path.exists();
         let yaml_value = serde_yaml::to_string(values)?;
-        std::fs::write(path, yaml_value)?;
+        std::fs::write(&path, yaml_value)?;
+        if created {
+            set_owner_only_permissions(&path)?;
+        }
         Ok(())
     }
 
