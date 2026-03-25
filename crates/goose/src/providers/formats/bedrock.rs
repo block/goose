@@ -72,7 +72,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
+                    .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -87,7 +87,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
-                    .input(to_bedrock_json(&Value::from(call.arguments.clone())))
+                    .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
                 bedrock::ToolUseBlock::builder()
@@ -224,6 +224,15 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
             )))
             .build()?,
     ))
+}
+
+/// Convert optional tool arguments into a JSON Value, defaulting `None` to an
+/// empty object so Bedrock's Converse API never receives a null `toolUse.input`.
+fn args_to_value(args: Option<serde_json::Map<String, Value>>) -> Value {
+    match args {
+        Some(map) => Value::Object(map),
+        None => Value::Object(serde_json::Map::new()),
+    }
 }
 
 pub fn to_bedrock_json(value: &Value) -> Document {
@@ -702,5 +711,19 @@ mod tests {
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_args_to_value_none_returns_empty_object() {
+        let result = args_to_value(None);
+        assert_eq!(result, Value::Object(serde_json::Map::new()));
+    }
+
+    #[test]
+    fn test_args_to_value_some_preserves_map() {
+        let mut map = serde_json::Map::new();
+        map.insert("key".to_string(), Value::String("val".to_string()));
+        let result = args_to_value(Some(map.clone()));
+        assert_eq!(result, Value::Object(map));
     }
 }
