@@ -10,6 +10,22 @@ import {
 import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
+import { defineMessages, useIntl } from '../i18n';
+
+const i18n = defineMessages({
+  scanningFiles: {
+    id: 'mentionPopover.scanningFiles',
+    defaultMessage: 'Scanning files...',
+  },
+  itemsFound: {
+    id: 'mentionPopover.itemsFound',
+    defaultMessage: '{count, plural, one {# item} other {# items}} found',
+  },
+  noItemsFound: {
+    id: 'mentionPopover.noItemsFound',
+    defaultMessage: 'No items found matching "{query}"',
+  },
+});
 
 type DisplayItemType = CommandType | 'Directory' | 'File';
 
@@ -128,6 +144,7 @@ const MentionPopover = forwardRef<
     },
     ref
   ) => {
+    const intl = useIntl();
     const [items, setItems] = useState<DisplayItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
@@ -544,13 +561,13 @@ const MentionPopover = forwardRef<
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2"></div>
-              <span className="ml-2 text-sm text-text-secondary">Scanning files...</span>
+              <span className="ml-2 text-sm text-text-secondary">{intl.formatMessage(i18n.scanningFiles)}</span>
             </div>
           ) : (
             <>
               {displayItems.length > 0 && (
                 <div className="text-xs text-text-secondary mb-2 px-1">
-                  {displayItems.length} item{displayItems.length !== 1 ? 's' : ''} found
+                  {intl.formatMessage(i18n.itemsFound, { count: displayItems.length })}
                 </div>
               )}
               <div
@@ -579,7 +596,7 @@ const MentionPopover = forwardRef<
 
                 {!isLoading && displayItems.length === 0 && query && (
                   <div className="p-4 text-center text-text-secondary text-sm">
-                    No items found matching "{query}"
+                    {intl.formatMessage(i18n.noItemsFound, { query })}
                   </div>
                 )}
               </div>

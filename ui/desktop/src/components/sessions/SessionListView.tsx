@@ -1,6 +1,6 @@
 import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, useIntl } from '../../i18n';
 import {
   MessageSquareText,
   Target,

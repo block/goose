@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, useIntl } from '../../../i18n';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
 import { Settings, ChevronDown, ChevronUp } from 'lucide-react';

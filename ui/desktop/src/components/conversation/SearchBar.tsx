@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, useIntl } from '../../i18n';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import debounce from 'lodash/debounce';

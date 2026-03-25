@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, useIntl } from '../i18n';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
 const messages = defineMessages({
