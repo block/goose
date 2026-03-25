@@ -202,7 +202,6 @@ impl CursorAgentProvider {
             cmd.env("PATH", path);
         }
 
-        // Always pass the model to cursor-agent CLI; it validates models itself
         cmd.arg("--model").arg(&self.model.model_name);
 
         cmd.arg("-p")
