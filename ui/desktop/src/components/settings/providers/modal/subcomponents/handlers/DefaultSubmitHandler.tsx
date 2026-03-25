@@ -1,5 +1,7 @@
 import { getProviderModels, readConfig } from '../../../../../../api';
 
+const hasStoredConfigValue = (value: unknown) => value !== null && value !== undefined;
+
 /**
  * Standalone function to submit provider configuration
  * Useful for components that don't want to use the hook
@@ -39,7 +41,7 @@ export const providerConfigSubmitHandler = async (
         const currentValue = await readConfig({
           body: { key: param.name, is_secret: false },
         });
-        if (currentValue.data !== undefined) {
+        if (hasStoredConfigValue(currentValue.data)) {
           previousConfigValues[param.name] = {
             value: currentValue.data,
             isSecret: false,
@@ -59,7 +61,7 @@ export const providerConfigSubmitHandler = async (
       const currentMarker = await readConfig({
         body: { key: configuredMarker, is_secret: false },
       });
-      if (currentMarker.data !== undefined) {
+      if (hasStoredConfigValue(currentMarker.data)) {
         previousConfiguredMarker = currentMarker.data;
         hadConfiguredMarker = true;
       }

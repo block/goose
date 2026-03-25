@@ -65,6 +65,30 @@ describe('providerConfigSubmitHandler', () => {
     expect(removeFn).toHaveBeenCalledWith('claude-acp_configured', false);
   });
 
+  it('treats null readConfig responses as missing values during rollback', async () => {
+    apiMocks.readConfig.mockResolvedValue({ data: null });
+    apiMocks.getProviderModels.mockRejectedValue(new Error('boom'));
+
+    const upsertFn = vi.fn().mockResolvedValue(undefined);
+    const removeFn = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      providerConfigSubmitHandler(
+        upsertFn,
+        removeFn,
+        {
+          name: 'claude-acp',
+          metadata: { config_keys: [] },
+        },
+        {}
+      )
+    ).rejects.toThrow('boom');
+
+    expect(upsertFn).toHaveBeenCalledWith('claude-acp_configured', true, false);
+    expect(upsertFn).not.toHaveBeenCalledWith('claude-acp_configured', null, false);
+    expect(removeFn).toHaveBeenCalledWith('claude-acp_configured', false);
+  });
+
   it('persists the configured marker for providers with only optional defaults', async () => {
     apiMocks.readConfig.mockRejectedValue(new Error('missing'));
 
