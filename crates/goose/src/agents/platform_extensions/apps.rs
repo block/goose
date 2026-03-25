@@ -371,6 +371,15 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
 
+        // Dump the full prompt for debugging
+        let _ = std::fs::write(
+            "/tmp/prompt.txt",
+            format!(
+                "=== SYSTEM ===\n{}\n\n=== USER ===\n{}",
+                system_prompt, user_prompt
+            ),
+        );
+
         let model_config = provider.get_model_config();
 
         let (response, usage) = provider

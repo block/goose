@@ -323,5 +323,3 @@ pub async fn fetch_mcp_apps(
 
     Ok(apps)
 }
-
-

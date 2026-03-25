@@ -23,10 +23,7 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "recipe.md",
         "Prompt for generating recipe files from conversations",
     ),
-    (
-        "apps.md",
-        "Prompt for generating or updating Goose apps",
-    ),
+    ("apps.md", "Prompt for generating or updating Goose apps"),
     (
         "permission_judge.md",
         "Prompt for analyzing tool operations for read-only detection",
