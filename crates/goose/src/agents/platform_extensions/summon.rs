@@ -269,8 +269,7 @@ fn walk_files_recursively<F, G>(
     visited_dirs: &mut HashSet<PathBuf>,
     should_descend: &mut G,
     visit_file: &mut F,
-)
-where
+) where
     F: FnMut(&Path),
     G: FnMut(&Path) -> bool,
 {
@@ -2186,7 +2185,9 @@ You review code."#;
         let sources = client.discover_filesystem_sources(temp_dir.path());
 
         let root_skill = sources.iter().find(|s| s.name == "root-skill").unwrap();
-        assert!(root_skill.supporting_files.contains(&root_skill_dir.join("README.md")));
+        assert!(root_skill
+            .supporting_files
+            .contains(&root_skill_dir.join("README.md")));
         assert!(!root_skill
             .supporting_files
             .contains(&nested_skill_dir.join("SKILL.md")));
