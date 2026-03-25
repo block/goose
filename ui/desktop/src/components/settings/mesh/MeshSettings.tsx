@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { setConfigProvider } from '../../../api';
+import { setConfigProvider, updateCustomProvider } from '../../../api';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 
 // mesh-llm defaults
@@ -96,12 +96,25 @@ export const MeshSettings = () => {
     return () => clearInterval(interval);
   }, [checkStatus, status]);
 
-  // Write mesh.json directly to ~/.config/goose/custom_providers/
-  // so the provider ID is always "mesh" (the create API generates
-  // an unpredictable ID from the display name).
+  // Write mesh.json to custom_providers/ (ensuring ID is "mesh"),
+  // then call the update API to trigger a server-side registry refresh.
   const ensureMeshProvider = async (models: string[]) => {
     const modelList = models.length > 0 ? models : [DEFAULT_MODEL];
     await window.electron.ensureMeshProvider(modelList, 'Inference Mesh');
+    // Trigger server-side provider registry refresh
+    await updateCustomProvider({
+      path: { id: 'mesh' },
+      body: {
+        engine: 'openai_compatible',
+        display_name: 'Inference Mesh',
+        api_url: `http://localhost:${API_PORT}`,
+        api_key: '',
+        models: modelList,
+        supports_streaming: true,
+        requires_auth: false,
+      },
+      throwOnError: true,
+    });
   };
 
   const activateModel = async (modelId: string) => {
