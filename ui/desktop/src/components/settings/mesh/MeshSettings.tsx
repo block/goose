@@ -13,12 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import {
-  createCustomProvider,
-  updateCustomProvider,
-  setConfigProvider,
-  getCustomProvider,
-} from '../../../api';
+import { setConfigProvider } from '../../../api';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 
 // mesh-llm defaults
@@ -101,41 +96,12 @@ export const MeshSettings = () => {
     return () => clearInterval(interval);
   }, [checkStatus, status]);
 
-  // Ensure the "mesh" custom provider exists, pointing at localhost:9337
+  // Write mesh.json directly to ~/.config/goose/custom_providers/
+  // so the provider ID is always "mesh" (the create API generates
+  // an unpredictable ID from the display name).
   const ensureMeshProvider = async (models: string[]) => {
     const modelList = models.length > 0 ? models : [DEFAULT_MODEL];
-    const providerData = {
-      engine: 'openai_compatible',
-      display_name: 'Inference Mesh',
-      api_url: `http://localhost:${API_PORT}`,
-      api_key: '',
-      models: modelList,
-      supports_streaming: true,
-      requires_auth: false,
-    };
-
-    try {
-      // Try to get existing provider first
-      const existing = await getCustomProvider({
-        path: { id: 'mesh' },
-        throwOnError: false,
-      });
-      if (existing.data) {
-        await updateCustomProvider({
-          path: { id: 'mesh' },
-          body: providerData,
-          throwOnError: true,
-        });
-        return;
-      }
-    } catch {
-      // doesn't exist yet
-    }
-
-    await createCustomProvider({
-      body: providerData,
-      throwOnError: true,
-    });
+    await window.electron.ensureMeshProvider(modelList, 'Inference Mesh');
   };
 
   const activateModel = async (modelId: string) => {
@@ -186,8 +152,19 @@ export const MeshSettings = () => {
       if (!result.started) {
         setError(result.error || 'Failed to start mesh-llm');
         setStatus('stopped');
+        return;
       }
-      // polling will pick up when it's ready
+      // Polling will pick up when it's ready. Timeout after 5 min so
+      // the UI doesn't get stuck in "starting" if the daemon crashes.
+      setTimeout(() => {
+        setStatus((prev) => {
+          if (prev === 'starting') {
+            setError('mesh-llm did not become ready. Check ~/.mesh-llm/mesh-llm.log');
+            return 'stopped';
+          }
+          return prev;
+        });
+      }, 300000);
     } catch (err) {
       setError(`Failed to start: ${err}`);
       setStatus('stopped');
@@ -383,6 +360,10 @@ export const MeshSettings = () => {
                 </span>
                 <p className="text-xs text-text-muted">
                   Find and join the best available mesh automatically.
+                </p>
+                <p className="text-xs text-orange-400 mt-0.5">
+                  Public meshes are run by volunteers. Your prompts are sent to their hardware — no
+                  privacy guarantees.
                 </p>
               </div>
             </label>
