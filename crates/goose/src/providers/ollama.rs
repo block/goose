@@ -11,11 +11,11 @@ use crate::providers::formats::ollama::{create_request, response_to_streaming_me
 use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use futures::future::BoxFuture;
+use futures::TryStreamExt;
 use reqwest::Response;
 use rmcp::model::Tool;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
