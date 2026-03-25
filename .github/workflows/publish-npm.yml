@@ -14,8 +14,11 @@ on:
     branches:
       - main
     paths:
+      - 'crates/goose/**'
+      - 'crates/goose-cli/**'
       - 'crates/goose-acp/**'
       - 'ui/acp/**'
+      - 'ui/text/**'
       - '.github/workflows/publish-npm.yml'
       - '.github/workflows/build-native-packages.yml'
   workflow_dispatch:
@@ -57,12 +60,6 @@ jobs:
         with:
           version: 10.30.3
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
-
       - name: Download native binaries
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -76,8 +73,8 @@ jobs:
 
       - name: Copy binaries to package directories
         run: |
-          for platform_dir in native-binaries/goose-acp-server-*; do
-            platform=$(basename "$platform_dir")
+          for platform_dir in native-binaries/goose-*; do
+            platform=$(basename "$platform_dir" | sed 's/^goose-/goose-acp-server-/')
             pkg_dir="ui/goose-acp-server/${platform}"
             
             echo "Copying binaries for ${platform}..."

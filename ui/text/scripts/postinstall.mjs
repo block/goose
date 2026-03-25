@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-// Resolves the path to the goose-acp-server binary from the platform-specific
+// Resolves the path to the goose binary from the platform-specific
 // optional dependency. Writes the result to a JSON file that the CLI reads at
-// startup so it can spawn the server automatically.
+// startup so it can spawn the goose binary automatically.
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -25,7 +25,7 @@ const pkg = PLATFORMS[key];
 
 if (!pkg) {
   console.warn(
-    `@aaif/goose: no prebuilt goose-acp-server binary for ${key}. ` +
+    `@aaif/goose: no prebuilt goose binary for ${key}. ` +
       `You will need to provide a server URL manually with --server.`,
   );
   process.exit(0);
@@ -35,7 +35,7 @@ let binaryPath;
 try {
   // Resolve the package directory, then point at the binary inside it
   const pkgDir = dirname(require.resolve(`${pkg}/package.json`));
-  const binName = process.platform === "win32" ? "goose-acp-server.exe" : "goose-acp-server";
+  const binName = process.platform === "win32" ? "goose.exe" : "goose";
   binaryPath = join(pkgDir, "bin", binName);
 } catch {
   // The optional dependency wasn't installed (e.g. wrong platform). That's fine.

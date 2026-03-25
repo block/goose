@@ -11,13 +11,19 @@ on:
     branches:
       - main
     paths:
+      - 'crates/goose/**'
+      - 'crates/goose-cli/**'
       - 'crates/goose-acp/**'
       - 'ui/acp/**'
+      - 'ui/text/**'
       - '.github/workflows/build-native-packages.yml'
   pull_request:
     paths:
+      - 'crates/goose/**'
+      - 'crates/goose-cli/**'
       - 'crates/goose-acp/**'
       - 'ui/acp/**'
+      - 'ui/text/**'
       - '.github/workflows/build-native-packages.yml'
 
 jobs:
@@ -68,27 +74,27 @@ jobs:
         with:
           key: ${{ matrix.platform }}
 
-      - name: Build goose-acp-server
-        run: cargo build --release --target ${{ matrix.target }} --bin goose-acp-server
+      - name: Build goose
+        run: cargo build --release --target ${{ matrix.target }} --bin goose
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p artifact/bin
-          cp target/${{ matrix.target }}/release/goose-acp-server artifact/bin/
-          chmod +x artifact/bin/goose-acp-server
+          cp target/${{ matrix.target }}/release/goose artifact/bin/
+          chmod +x artifact/bin/goose
 
       - name: Prepare artifact (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           mkdir -p artifact/bin
-          cp target/${{ matrix.target }}/release/goose-acp-server.exe artifact/bin/
+          cp target/${{ matrix.target }}/release/goose.exe artifact/bin/
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: goose-acp-server-${{ matrix.platform }}
+          name: goose-${{ matrix.platform }}
           path: artifact/
           if-no-files-found: error
           retention-days: 7
