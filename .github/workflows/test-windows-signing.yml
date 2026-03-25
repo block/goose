@@ -1,0 +1,46 @@
+name: "Test Windows Signing"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test-signing:
+    name: Test Azure Trusted Signing
+    runs-on: windows-latest
+    environment: signing
+
+    steps:
+      - name: Build hello world executable
+        shell: bash
+        run: |
+          cat > hello.rs << 'EOF'
+          fn main() { println!("hello world"); }
+          EOF
+          rustc hello.rs -o hello.exe
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign executable with Azure Trusted Signing
+        uses: azure/trusted-signing-action@b443cf8ea4124818d2ea9f043cba29fc3ec47b16  # v1.2.0
+        with:
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files: ${{ github.workspace }}/hello.exe
+
+      - name: Verify signature
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature hello.exe
+          Write-Output "Status: $($sig.Status)"
+          Write-Output "Signer: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne "Valid") { throw "Signature invalid: $($sig.Status)" }
