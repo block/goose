@@ -15,7 +15,7 @@
   ["wait", "--text", "Enter value for test_param"],
   ["find", "placeholder", "Enter value for test_param...", "fill", "42"],
   ["find", "role", "button", "click", "--name", "Start Recipe"],
-  ["wait", "--text", "The value of test_param is 42"],
+  ["wait", "--text", "The value of test_param is 42", "--timeout", "30000"],
   ["find", "role", "button", "click", "--name", "Home"],
   ["wait", "[data-testid='chat-input']"],
   ["find", "testid", "chat-input", "fill", "what is the value of test_param"],

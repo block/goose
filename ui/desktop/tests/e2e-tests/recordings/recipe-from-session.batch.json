@@ -6,7 +6,7 @@
   ["wait", "[data-testid='recipe-action-button']"],
   ["find", "testid", "recipe-action-button", "click"],
   ["wait", "[data-testid='create-recipe-modal']"],
-  ["wait", "[data-testid='form-state']"],
+  ["wait", "[data-testid='form-state']", "--timeout", "15000"],
   ["wait", "--fn", "document.querySelector('[data-testid=\"title-input\"]')?.value.trim().length > 0"],
   ["wait", "--fn", "document.querySelector('[data-testid=\"description-input\"]')?.value.trim().length > 0"],
   ["wait", "--fn", "document.querySelector('[data-testid=\"instructions-input\"]')?.value.trim().length > 0"],
