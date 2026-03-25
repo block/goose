@@ -27,6 +27,8 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
+export type HubMode = 'classic' | 'active';
+
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
@@ -44,6 +46,7 @@ export interface Settings {
   showPricing: boolean;
   sessionSharing: SessionSharingConfig;
   seenAnnouncementIds: string[];
+  hubMode: HubMode;
   navExpandedWidth: number | null;
 }
 
@@ -86,6 +89,7 @@ export const defaultSettings: Settings = {
     baseUrl: '',
   },
   seenAnnouncementIds: [],
+  hubMode: 'classic',
   navExpandedWidth: null,
 };
 

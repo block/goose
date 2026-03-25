@@ -47,6 +47,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "session_name.md",
         "System prompt for generating short session names from conversation history",
     ),
+    (
+        "active_agent.md",
+        "System prompt for the active agent that proactively checks in with the user",
+    ),
 ];
 
 /// Information about a template including its content and customization status

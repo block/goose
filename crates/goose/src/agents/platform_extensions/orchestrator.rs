@@ -100,6 +100,64 @@ struct InterruptAgentParams {
     session_id: String,
 }
 
+/// Known paths in the nest. Entries ending in `/*` are directories (any .md file inside is valid).
+pub const NEST_PATHS: &[&str] = &[
+    "SOUL.md",
+    "OWNER.md",
+    "TOP_OF_MIND.md",
+    "NEST.md",
+    "CATALOG.md",
+    "GUIDES/*",
+    "RESEARCH/*",
+    "PLANS/*",
+    "WORK_LOGS/*",
+    "guides/*", // backward compat — original casing from Douwe's initial impl
+    "skills/*",
+    "recipes/*",
+    "OUTBOX/*",
+    ".scratch/*",
+];
+
+pub fn nest_dir() -> PathBuf {
+    crate::config::paths::Paths::data_dir().join("nest")
+}
+
+/// Check if a given name is allowed by NEST_PATHS.
+fn is_valid_nest_path(name: &str) -> bool {
+    // Must end in .md
+    if !name.ends_with(".md") {
+        return false;
+    }
+    // Must not escape the nest
+    if name.contains("..") {
+        return false;
+    }
+    for pattern in NEST_PATHS {
+        if let Some(prefix) = pattern.strip_suffix('*') {
+            if name.starts_with(prefix) {
+                return true;
+            }
+        } else if name == *pattern {
+            return true;
+        }
+    }
+    false
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+struct ReadDocumentParams {
+    /// Path relative to the nest, e.g. "SOUL.md", "TOP_OF_MIND.md", "GUIDES/setup.md", or "skills/lint/SKILL.md"
+    name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+struct WriteDocumentParams {
+    /// Path relative to the nest, e.g. "SOUL.md", "TOP_OF_MIND.md", "GUIDES/setup.md", or "RESEARCH/findings.md"
+    name: String,
+    /// The full markdown content to write
+    content: String,
+}
+
 pub struct OrchestratorClient {
     info: InitializeResult,
     context: PlatformExtensionContext,
@@ -535,6 +593,66 @@ impl OrchestratorClient {
             session_id
         ))]))
     }
+
+    fn handle_read_document(
+        &self,
+        arguments: Option<JsonObject>,
+    ) -> Result<CallToolResult, String> {
+        let args = arguments.ok_or("Missing arguments")?;
+        let name = extract_string(&args, "name")?;
+
+        if !is_valid_nest_path(&name) {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Invalid nest path '{}'. Valid paths: {}",
+                name,
+                NEST_PATHS.join(", ")
+            ))]));
+        }
+
+        let path = nest_dir().join(&name);
+        match std::fs::read_to_string(&path) {
+            Ok(content) => Ok(CallToolResult::success(vec![Content::text(content)])),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Ok(CallToolResult::success(vec![Content::text(format!(
+                    "'{}' does not exist yet. Use write_document to create it.",
+                    name
+                ))]))
+            }
+            Err(e) => Err(format!("Failed to read '{}': {}", name, e)),
+        }
+    }
+
+    fn handle_write_document(
+        &self,
+        arguments: Option<JsonObject>,
+    ) -> Result<CallToolResult, String> {
+        let args = arguments.ok_or("Missing arguments")?;
+        let name = extract_string(&args, "name")?;
+        let content = extract_string(&args, "content")?;
+
+        if !is_valid_nest_path(&name) {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Invalid nest path '{}'. Valid paths: {}",
+                name,
+                NEST_PATHS.join(", ")
+            ))]));
+        }
+
+        let path = nest_dir().join(&name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory: {}", e))?;
+        }
+
+        std::fs::write(&path, &content)
+            .map_err(|e| format!("Failed to write '{}': {}", name, e))?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Wrote {} bytes to '{}'.",
+            content.len(),
+            name
+        ))]))
+    }
 }
 
 #[async_trait]
@@ -576,6 +694,22 @@ impl McpClientTrait for OrchestratorClient {
                     .to_string(),
                 schema::<InterruptAgentParams>(),
             ),
+            Tool::new(
+                "read_document".to_string(),
+                format!(
+                    "Read a markdown document from the nest. Valid paths: {}",
+                    NEST_PATHS.join(", ")
+                ),
+                schema::<ReadDocumentParams>(),
+            ),
+            Tool::new(
+                "write_document".to_string(),
+                format!(
+                    "Write a markdown document to the nest. Valid paths: {}",
+                    NEST_PATHS.join(", ")
+                ),
+                schema::<WriteDocumentParams>(),
+            ),
         ];
 
         Ok(ListToolsResult {
@@ -601,6 +735,8 @@ impl McpClientTrait for OrchestratorClient {
                     .await
             }
             "interrupt_agent" => self.handle_interrupt_agent(arguments).await,
+            "read_document" => self.handle_read_document(arguments),
+            "write_document" => self.handle_write_document(arguments),
             _ => Err(format!("Unknown tool: {}", name)),
         };
 

@@ -1323,14 +1323,14 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'sessionSharing',
   'seenAnnouncementIds',
+  'hubMode',
   'navExpandedWidth',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   // Validate key at runtime to prevent prototype pollution
   if (!validSettingKeys.has(key)) {
-    console.error(`Invalid setting key rejected: ${key}`);
-    return;
+    throw new Error(`Invalid setting key rejected: ${key}`);
   }
 
   const settings = getSettings();

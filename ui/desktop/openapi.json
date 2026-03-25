@@ -727,6 +727,62 @@
         }
       }
     },
+    "/claw/reply": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "claw_reply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClawReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionReplyResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/claw/session": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "claw_session",
+        "responses": {
+          "200": {
+            "description": "Claw session ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClawSessionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -4164,6 +4220,32 @@
         ],
         "properties": {
           "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "ClawReplyRequest": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_message"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        }
+      },
+      "ClawSessionResponse": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
             "type": "string"
           }
         }
@@ -7966,7 +8048,8 @@
           "sub_agent",
           "hidden",
           "terminal",
-          "gateway"
+          "gateway",
+          "claw"
         ]
       },
       "SessionsQuery": {

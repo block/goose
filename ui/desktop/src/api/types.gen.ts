@@ -80,6 +80,15 @@ export type CheckProviderRequest = {
     provider: string;
 };
 
+export type ClawReplyRequest = {
+    request_id: string;
+    user_message: Message;
+};
+
+export type ClawSessionResponse = {
+    session_id: string;
+};
+
 export type CommandType = 'Builtin' | 'Recipe';
 
 /**
@@ -1285,7 +1294,7 @@ export type SessionReplyResponse = {
     request_id: string;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway' | 'claw';
 
 export type SessionsQuery = {
     limit: number;
@@ -2179,6 +2188,52 @@ export type UpdateWorkingDirResponses = {
      */
     200: unknown;
 };
+
+export type ClawReplyData = {
+    body: ClawReplyRequest;
+    path?: never;
+    query?: never;
+    url: '/claw/reply';
+};
+
+export type ClawReplyErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ClawReplyResponses = {
+    /**
+     * Request accepted
+     */
+    200: SessionReplyResponse;
+};
+
+export type ClawReplyResponse = ClawReplyResponses[keyof ClawReplyResponses];
+
+export type ClawSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/claw/session';
+};
+
+export type ClawSessionErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ClawSessionResponses = {
+    /**
+     * Claw session ID
+     */
+    200: ClawSessionResponse;
+};
+
+export type ClawSessionResponse2 = ClawSessionResponses[keyof ClawSessionResponses];
 
 export type ReadAllConfigData = {
     body?: never;
