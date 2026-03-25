@@ -19,7 +19,7 @@ use crate::subprocess::configure_command_no_window;
 use rmcp::model::Tool;
 
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
-pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
+pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "composer-2", "composer-2-fast"];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
 
@@ -202,10 +202,8 @@ impl CursorAgentProvider {
             cmd.env("PATH", path);
         }
 
-        // Only pass model parameter if it's in the known models list
-        if CURSOR_AGENT_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("--model").arg(&self.model.model_name);
-        }
+        // Always pass the model to cursor-agent CLI; it validates models itself
+        cmd.arg("--model").arg(&self.model.model_name);
 
         cmd.arg("-p")
             .arg(&prompt)
