@@ -2,7 +2,7 @@
 sidebar_position: 46
 title: ACP Providers
 sidebar_label: ACP Providers
-description: Use ACP agents like Claude Code and Codex as goose providers with extension support
+description: Use ACP agents like Claude Code, GitHub Copilot CLI, Codex, and Gemini as goose providers with extension support
 ---
 
 # ACP Providers
@@ -12,7 +12,7 @@ goose supports [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) a
 ACP providers pass goose [extensions](/docs/getting-started/using-extensions) through to the agent as MCP servers, so the agent can call your extensions directly.
 
 :::tip Use Your Existing Subscriptions
-ACP providers let you use goose with your existing Claude Code, ChatGPT Plus/Pro, or Google Gemini subscriptions — no per-token API costs. They are the recommended replacement for the deprecated [CLI providers](/docs/guides/cli-providers).
+ACP providers let you use goose with your existing Claude Code, ChatGPT Plus/Pro, GitHub Copilot, or Google Gemini subscriptions — no per-token API costs. They are the recommended replacement for the deprecated [CLI providers](/docs/guides/cli-providers).
 :::
 
 :::warning Limitations
@@ -39,6 +39,15 @@ Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter f
 - Node.js and npm
 - Active ChatGPT Plus/Pro subscription or OpenAI API credits
 - Authenticated with your OpenAI account (`codex` CLI working)
+
+### GitHub Copilot CLI ACP
+
+Uses [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server) directly via its native `--acp` flag. No shim needed. Supports goose extensions by passing them through as MCP servers. ACP support in Copilot CLI is currently in public preview.
+
+**Requirements:**
+- Active GitHub Copilot subscription or organization-managed Copilot access
+- GitHub Copilot CLI installed
+- Authenticated with your GitHub account (`copilot` CLI working)
 
 ### Gemini ACP
 
@@ -123,6 +132,50 @@ Uses Google's [Gemini CLI](https://github.com/google-gemini/gemini-cli) directly
    │  gpt-5.2-codex
    ```
 
+### GitHub Copilot CLI ACP
+
+1. **Install GitHub Copilot CLI**
+
+   Install Copilot CLI using one of GitHub's supported methods:
+
+   ```bash
+   brew install copilot-cli
+   ```
+
+   Or:
+
+   ```bash
+   npm install -g @github/copilot
+   ```
+
+2. **Authenticate with GitHub**
+
+   Run `copilot` once and follow the login flow. If prompted, use the `/login` slash command to authenticate.
+
+3. **Configure goose**
+
+   Set the provider environment variable:
+   ```bash
+   export GOOSE_PROVIDER=copilot-acp
+   ```
+
+   Or configure through the goose CLI using `goose configure`:
+
+   ```bash
+   ┌   goose-configure
+   │
+   ◇  What would you like to configure?
+   │  Configure Providers
+   │
+   ◇  Which model provider should we use?
+   │  GitHub Copilot CLI (ACP)
+   │
+   ◇  Model fetch complete
+   │
+   ◇  Enter a model from that provider:
+   │  default
+   ```
+
 ### Gemini ACP
 
 1. **Install Gemini CLI**
@@ -184,6 +237,12 @@ GOOSE_PROVIDER=codex-acp goose run \
 ```
 
 ```bash
+GOOSE_PROVIDER=copilot-acp goose run \
+  --with-extension 'npx -y @modelcontextprotocol/server-everything' \
+  -t 'Use the echo tool to say hello'
+```
+
+```bash
 GOOSE_PROVIDER=gemini-acp goose run \
   --with-extension 'npx -y @modelcontextprotocol/server-everything' \
   -t 'Use the echo tool to say hello'
@@ -240,6 +299,20 @@ See [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp) for s
 
 See [codex-acp](https://github.com/zed-industries/codex-acp) for approval policy and sandbox details.
 
+### GitHub Copilot CLI ACP Configuration
+
+| Environment Variable | Description         | Default   |
+|----------------------|---------------------|-----------|
+| `GOOSE_PROVIDER`     | Set to `copilot-acp` | None      |
+| `GOOSE_MODEL`        | Model to use         | `default` |
+| `GOOSE_MODE`         | Permission mode      | `auto`    |
+
+**Known Models:**
+- Models are fetched dynamically from Copilot CLI and may vary by account plan or preview access.
+
+**Notes:**
+- ACP support in Copilot CLI is in public preview and may change as GitHub evolves the CLI.
+
 ### Gemini ACP Configuration
 
 | Environment Variable | Description         | Default     |
@@ -261,11 +334,11 @@ See the [Gemini CLI documentation](https://github.com/google-gemini/gemini-cli) 
 
 ## Error Handling
 
-ACP providers depend on external npm packages, so ensure:
+ACP providers depend on external agent binaries, so ensure:
 
-- The ACP agent binary is installed and in your PATH (`claude-agent-acp`, `codex-acp`, or `gemini`)
+- The ACP agent binary is installed and in your PATH (`claude-agent-acp`, `codex-acp`, `copilot`, or `gemini`)
 - The underlying CLI tool is authenticated and working
 - Subscription limits are not exceeded
-- Node.js and npm are installed
+- Any required runtime for the selected agent is installed
 
-If goose can't find the binary, session startup will fail with an error. Run `which claude-agent-acp`, `which codex-acp`, or `which gemini` to verify installation.
+If goose can't find the binary, session startup will fail with an error. Run `which claude-agent-acp`, `which codex-acp`, `which copilot`, or `which gemini` to verify installation.

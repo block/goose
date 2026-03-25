@@ -14,6 +14,7 @@ pub mod claude_code;
 pub(crate) mod cli_common;
 pub mod codex;
 pub mod codex_acp;
+pub mod copilot_acp;
 pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
