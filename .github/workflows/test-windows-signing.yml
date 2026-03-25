@@ -2,6 +2,9 @@ name: "Test Windows Signing"
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - aaif-signing-windows
 
 permissions:
   id-token: write
