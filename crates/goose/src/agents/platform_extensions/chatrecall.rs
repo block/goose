@@ -1,11 +1,12 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
+    ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -39,29 +40,12 @@ pub struct ChatRecallClient {
 
 impl ChatRecallClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Chat Recall".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(indoc! {r#"
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string())
+                    .with_title("Chat Recall"),
+            )
+            .with_instructions(indoc! {r#"
                 Chat Recall
 
                 Search past conversations and load session summaries when the user expects some memory or context.
@@ -69,8 +53,7 @@ impl ChatRecallClient {
                 Two modes:
                 - Search mode: Use query with keywords/synonyms to find relevant messages
                 - Load mode: Use session_id to get first and last messages of a specific session
-            "#}.to_string()),
-        };
+            "#}.to_string());
 
         Ok(Self { info, context })
     }
@@ -264,13 +247,13 @@ impl ChatRecallClient {
             .to_string(),
             input_schema,
         )
-        .annotate(ToolAnnotations {
-            title: Some("Recall past conversations".to_string()),
-            read_only_hint: Some(true),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(true),
-            open_world_hint: Some(false),
-        })]
+        .annotate(ToolAnnotations::from_raw(
+            Some("Recall past conversations".to_string()),
+            Some(true),
+            Some(false),
+            Some(true),
+            Some(false),
+        ))]
     }
 }
 
@@ -291,12 +274,12 @@ impl McpClientTrait for ChatRecallClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let content = match name {
             "chatrecall" => self.handle_chatrecall(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),

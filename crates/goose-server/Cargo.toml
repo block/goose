@@ -11,11 +11,14 @@ description.workspace = true
 workspace = true
 
 [features]
-default = []
-cuda = ["goose/cuda"]
+default = ["code-mode", "local-inference", "aws-providers"]
+code-mode = ["goose/code-mode"]
+local-inference = ["goose/local-inference"]
+aws-providers = ["goose/aws-providers"]
+cuda = ["goose/cuda", "local-inference"]
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 axum = { workspace = true, features = ["ws", "macros"] }
@@ -43,14 +46,16 @@ tokio-util = { workspace = true }
 serde_path_to_error = "0.1.20"
 tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
 url = { workspace = true }
-rand = "0.9.2"
+rand = { workspace = true }
 hex = "0.4.3"
+subtle = "2.6"
 socket2 = "0.6.1"
 fs2 = { workspace = true }
-rustls = { version = "0.23", features = ["ring"] }
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
 uuid = { workspace = true }
-once_cell = { workspace = true }
-dirs = { workspace = true }
+rcgen = "0.13"
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+aws-lc-rs = "1.16.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
@@ -65,5 +70,9 @@ path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
 tower = "0.5.2"
-env-lock = { workspace = true }
-wiremock = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winreg",
+]

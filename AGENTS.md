@@ -35,24 +35,28 @@ cargo clippy --all-targets -- -D warnings
 ```bash
 just generate-openapi        # after server changes
 just run-ui                  # start desktop
-cd ui/desktop && npm test    # test UI
+cd ui/desktop && pnpm test   # test UI
+```
+
+### Git
+```bash
+git commit -s                # required for DCO sign-off
 ```
 
 ## Structure
 ```
 crates/
-├── goose             # core logic
-├── goose-bench       # benchmarking
-├── goose-cli         # CLI entry
-├── goose-server      # backend (binary: goosed)
-├── goose-mcp         # MCP extensions
-├── goose-test        # test utilities
-├── mcp-client        # MCP client
-├── mcp-core          # MCP shared
-└── mcp-server        # MCP server
+├── goose              # core logic
+├── goose-acp          # Agent Client Protocol
+├── goose-acp-macros   # ACP proc macros
+├── goose-cli          # CLI entry
+├── goose-server       # backend (binary: goosed)
+├── goose-mcp          # MCP extensions
+├── goose-test         # test utilities
+└── goose-test-support # test helpers
 
-temporal-service/     # Go scheduler
-ui/desktop/           # Electron app
+evals/open-model-gym/  # benchmarking / evals
+ui/desktop/            # Electron app
 ```
 
 ## Development Loop
@@ -60,10 +64,14 @@ ui/desktop/           # Electron app
 # 1. source bin/activate-hermit
 # 2. Make changes
 # 3. cargo fmt
-# 4. cargo build
-# 5. cargo test -p <crate>
-# 6. cargo clippy --all-targets -- -D warnings
-# 7. [if server] just generate-openapi
+```
+
+### Run these only if the user has asked you to build/test your changes:
+```
+# 1. cargo build
+# 2. cargo test -p <crate>
+# 3. cargo clippy --all-targets -- -D warnings
+# 4. [if server] just generate-openapi
 ```
 
 ## Rules

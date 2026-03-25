@@ -15,7 +15,7 @@ import { AppEvents } from '../constants/events';
  * Hub (input submission) → Create Session → Pair (with session ID and initial message)
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
@@ -39,6 +39,15 @@ export default function Hub({
   const { extensionsList } = useConfig();
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // rAF is more reliable than autoFocus across async render boundaries (Suspense, OnboardingGuard, etc.)
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, []);
 
   const handleSubmit = async (input: UserInput) => {
     const { msg: userMessage, images } = input;
@@ -73,7 +82,7 @@ export default function Hub({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background-muted">
+    <div className="flex flex-col h-full min-h-0 bg-background-secondary">
       <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
         <SessionInsights />
         {isCreatingSession && (
@@ -101,6 +110,7 @@ export default function Hub({
           sessionCosts={undefined}
           toolCount={0}
           onWorkingDirChange={setWorkingDir}
+          inputRef={inputRef}
         />
       </div>
     </div>

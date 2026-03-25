@@ -95,7 +95,7 @@ jobs:
           # play nicely with hermit-managed rust
           hermit uninstall rustup
           export CARGO_INCREMENTAL=0
-          cargo clippy --all-targets -- -D warnings
+          cargo clippy --workspace --all-targets --exclude v8 -- -D warnings
 
       - name: Check for banned TLS crates
         run: ./scripts/check-no-native-tls.sh
@@ -120,7 +120,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install Node.js Dependencies for OpenAPI Check
-        run: source ../../bin/activate-hermit && npm ci
+        run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
       - name: Check OpenAPI Schema is Up-to-Date
@@ -141,24 +141,24 @@ jobs:
       # Temporarily disabled due to GitHub Actions bug on macOS runners
       # https://github.com/actions/runner-images/issues/13341
       # https://github.com/actions/runner/issues/4134
-      # - name: Cache npm dependencies
+      # - name: Cache pnpm dependencies
       #   uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
       #   with:
       #     path: |
       #       ui/desktop/node_modules
       #       .hermit/node/cache
-      #     key: ci-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+      #     key: ci-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
       #     restore-keys: |
-      #       ci-npm-cache-v1-${{ runner.os }}-
+      #       ci-pnpm-cache-v1-${{ runner.os }}-
 
       - name: Install Dependencies
-        run: source ../../bin/activate-hermit && npm ci
+        run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
       - name: Run Lint
-        run: source ../../bin/activate-hermit && npm run lint:check
+        run: source ../../bin/activate-hermit && pnpm run lint:check
         working-directory: ui/desktop
 
       - name: Run Tests
-        run: source ../../bin/activate-hermit && npm run test:run
+        run: source ../../bin/activate-hermit && pnpm run test:run
         working-directory: ui/desktop

@@ -25,14 +25,29 @@ jobs:
         with:
           egress-policy: audit
       
-      - name: Checkout PR
+      # SECURITY FIX (GHSA-7qhh-cph9-6ppm): Checkout base branch for trusted Dockerfile
+      # The PR could contain a malicious Dockerfile that exfiltrates secrets.
+      # We checkout the base branch (trusted) for building the scanner image,
+      # and only fetch recipe files from the PR for scanning.
+      - name: Checkout base branch (trusted code)
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          path: trusted
+
+      - name: Fetch PR recipe files only
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          path: pr-content
+          sparse-checkout: |
+            documentation/src/pages/recipes/data/recipes/
 
       - name: Check if recipe files changed in this push
         id: recipe_changes
+        working-directory: pr-content
         run: |
           set -e
           echo "🔍 Checking if recipe files were modified in this push..."
@@ -68,6 +83,7 @@ jobs:
       - name: Find recipe files in PR (new or modified)
         id: find_recipes
         if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
+        working-directory: pr-content
         run: |
           set -e
           echo "Looking for recipe files in PR (new or modified)..."
@@ -97,8 +113,8 @@ jobs:
             echo "has_recipes=true" >> "$GITHUB_OUTPUT"
             echo "recipe_count=$RECIPE_COUNT" >> "$GITHUB_OUTPUT"
             
-            # Save recipe file paths for later steps
-            echo "$RECIPE_FILES" > "$RUNNER_TEMP/recipe_files.txt"
+            # Save recipe file paths for later steps (with pr-content prefix for mounting)
+            echo "$RECIPE_FILES" | sed 's|^|pr-content/|' > "$RUNNER_TEMP/recipe_files.txt"
           fi
 
       - name: Set up Docker Buildx
@@ -117,14 +133,15 @@ jobs:
           DOCKER_BUILDKIT: 1
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          # SECURITY: Build from trusted/ directory (base branch) to prevent malicious Dockerfile
           docker buildx build \
             --pull \
             --no-cache \
             --load \
             --platform linux/amd64 \
             -t "recipe-scanner:${IMAGE_TAG}" \
-            -f recipe-scanner/Dockerfile \
-            recipe-scanner/
+            -f trusted/recipe-scanner/Dockerfile \
+            trusted/recipe-scanner/
 
       - name: Scan all recipe files
         if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'

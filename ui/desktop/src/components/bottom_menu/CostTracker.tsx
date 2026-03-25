@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { fetchCanonicalModelInfo } from '../../utils/canonical';
@@ -15,10 +14,17 @@ interface CostTrackerProps {
       totalCost: number;
     };
   };
+  model: string | null;
+  provider: string | null;
 }
 
-export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
-  const { currentModel, currentProvider } = useModelAndProvider();
+export function CostTracker({
+  inputTokens = 0,
+  outputTokens = 0,
+  sessionCosts,
+  model: currentModel,
+  provider: currentProvider,
+}: CostTrackerProps) {
   const [costInfo, setCostInfo] = useState<ModelInfoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);
@@ -126,10 +132,10 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   if (isLoading) {
     return (
       <>
-        <div className="flex items-center justify-center h-full text-text-muted translate-y-[1px]">
+        <div className="flex items-center justify-center h-full text-text-secondary translate-y-[1px]">
           <span className="text-xs font-mono">...</span>
         </div>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
       </>
     );
   }
@@ -143,12 +149,12 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
         <>
-          <div className="flex items-center justify-center h-full text-text-default/70 transition-colors cursor-default translate-y-[1px]">
+          <div className="flex items-center justify-center h-full text-text-primary/70 transition-colors cursor-default translate-y-[1px]">
             <span className="text-xs font-mono">
               {inputTokens.toLocaleString()}↑ {outputTokens.toLocaleString()}↓
             </span>
           </div>
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-primary mx-2" />
         </>
       );
     }
@@ -165,14 +171,14 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       <>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
               <CoinIcon className="mr-1" size={16} />
               <span className="text-xs font-mono">0.0000</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
         </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
       </>
     );
   }
@@ -219,14 +225,14 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
             <CoinIcon className="mr-1" size={16} />
             <span className="text-xs font-mono">{formatCost(totalCost)}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent>{getTooltipContent()}</TooltipContent>
       </Tooltip>
-      <div className="w-px h-4 bg-border-default mx-2" />
+      <div className="w-px h-4 bg-border-primary mx-2" />
     </>
   );
 }

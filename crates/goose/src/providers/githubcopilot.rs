@@ -118,6 +118,14 @@ impl DiskCache {
         tokio::fs::write(&self.cache_path, contents).await?;
         Ok(())
     }
+
+    async fn clear(&self) -> Result<()> {
+        match tokio::fs::remove_file(&self.cache_path).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -134,6 +142,10 @@ pub struct GithubCopilotProvider {
 }
 
 impl GithubCopilotProvider {
+    pub async fn cleanup() -> Result<()> {
+        DiskCache::new().clear().await
+    }
+
     fn payload_contains_image(payload: &Value) -> bool {
         payload
             .get("messages")

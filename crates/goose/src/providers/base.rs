@@ -8,10 +8,11 @@ use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
-use crate::config::ExtensionConfig;
+use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
+use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
@@ -175,6 +176,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// step-by-step instructions for set up providers eg: api key
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
 }
 
 impl ProviderMetadata {
@@ -207,6 +211,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -227,6 +232,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -239,7 +245,13 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            setup_steps: vec![],
         }
+    }
+
+    pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
+        self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
+        self
     }
 }
 
@@ -432,16 +444,10 @@ pub trait ProviderDef: Send + Sync {
         Self: Sized;
 }
 
-/// Trait for LeadWorkerProvider-specific functionality
-pub trait LeadWorkerProviderTrait {
-    /// Get information about the lead and worker models for logging
-    fn get_model_info(&self) -> (String, String);
-
-    /// Get the currently active model name
-    fn get_active_model(&self) -> String;
-
-    /// Get (lead_turns, failure_threshold, fallback_turns)
-    fn get_settings(&self) -> (usize, usize, usize);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PermissionRouting {
+    ActionRequired,
+    Noop,
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
@@ -451,6 +457,10 @@ pub trait Provider: Send + Sync {
     fn get_name(&self) -> &str;
 
     /// Primary streaming method that all providers must implement.
+    ///
+    /// Note: Do not add `#[instrument]` here — the call sites (`complete` and
+    /// `stream_response_from_provider`) create the telemetry span so that
+    /// `session.id` is set once rather than in every provider.
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -461,6 +471,10 @@ pub trait Provider: Send + Sync {
     ) -> Result<MessageStream, ProviderError>;
 
     /// Complete with a specific model config.
+    #[tracing::instrument(
+        skip(self, model_config, session_id, system, messages, tools),
+        fields(session.id = %session_id, gen_ai.request.model = %model_config.model_name)
+    )]
     async fn complete(
         &self,
         model_config: &ModelConfig,
@@ -520,9 +534,17 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        false
+    }
+
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
+
+        if self.skip_canonical_filtering() {
+            return Ok(all_models);
+        }
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
@@ -596,6 +618,14 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Whether the provider manages its own conversation context (e.g. CLI
+    /// wrappers like Claude Code or Gemini CLI). When true, goose-side
+    /// context management such as tool-pair summarization is skipped because
+    /// the provider's internal state is the source of truth.
+    fn manages_own_context(&self) -> bool {
+        false
+    }
+
     async fn supports_cache_control(&self) -> bool {
         false
     }
@@ -609,23 +639,6 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
-    }
-
-    /// Check if this provider is a LeadWorkerProvider
-    /// This is used for logging model information at startup
-    fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
-        None
-    }
-
-    /// Get the currently active model name
-    /// For regular providers, this returns the configured model
-    /// For LeadWorkerProvider, this returns the currently active model (lead or worker)
-    fn get_active_model_name(&self) -> String {
-        if let Some(lead_worker) = self.as_lead_worker() {
-            lead_worker.get_active_model()
-        } else {
-            self.get_model_config().model_name
-        }
     }
 
     /// Returns the first 3 user messages as strings for session naming
@@ -690,6 +703,28 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "credential refresh not supported by this provider".to_string(),
+        ))
+    }
+
+    async fn update_mode(&self, _session_id: &str, _mode: GooseMode) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
+    fn permission_routing(&self) -> PermissionRouting {
+        PermissionRouting::Noop
+    }
+
+    async fn handle_permission_confirmation(
+        &self,
+        _request_id: &str,
+        _confirmation: &PermissionConfirmation,
+    ) -> bool {
+        false
     }
 }
 
@@ -858,12 +893,10 @@ mod tests {
         if let Some(img_data) = s.strip_prefix("*img:") {
             MessageContent::image(format!("http://example.com/{}", img_data), "image/png")
         } else if let Some(tool_name) = s.strip_prefix("*tool:") {
-            let tool_call = Ok(rmcp::model::CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: tool_name.to_string().into(),
-                arguments: Some(serde_json::Map::new()),
-            });
+            let tool_call = Ok(
+                rmcp::model::CallToolRequestParams::new(tool_name.to_string())
+                    .with_arguments(serde_json::Map::new()),
+            );
             MessageContent::tool_request(format!("tool_{}", tool_name), tool_call)
         } else {
             MessageContent::text(s)

@@ -166,7 +166,7 @@ export default function SessionSharingSection() {
               </label>
 
               {envBaseUrlShare ? (
-                <Lock className="w-5 h-5 text-text-muted" />
+                <Lock className="w-5 h-5 text-text-secondary" />
               ) : (
                 <Switch
                   checked={sessionSharingConfig.enabled}
@@ -181,7 +181,7 @@ export default function SessionSharingSection() {
             {sessionSharingConfig.enabled && (
               <div className="space-y-2 relative">
                 <div className="flex items-center space-x-2">
-                  <label htmlFor="session-sharing-url" className="text-sm text-text-default">
+                  <label htmlFor="session-sharing-url" className="text-sm text-text-primary">
                     Base URL
                   </label>
                   {isUrlConfigured && <Check className="w-5 h-5 text-green-500" />}

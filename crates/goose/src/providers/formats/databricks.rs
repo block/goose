@@ -1,5 +1,6 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use crate::providers::formats::anthropic::{thinking_effort, thinking_type, ThinkingType};
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
@@ -205,10 +206,6 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                 MessageContent::SystemNotification(_)
                 | MessageContent::ToolConfirmationRequest(_)
                 | MessageContent::ActionRequired(_) => {}
-                MessageContent::Reasoning(_reasoning) => {
-                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
-                    // Databricks doesn't use this format, so skip
-                }
             }
         }
 
@@ -229,6 +226,50 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
     }
 
     result
+}
+
+fn apply_claude_thinking_config(payload: &mut Value, model_config: &ModelConfig) {
+    let obj = payload.as_object_mut().unwrap();
+
+    match thinking_type(model_config) {
+        ThinkingType::Adaptive => {
+            obj.insert("thinking".to_string(), json!({ "type": "adaptive" }));
+            obj.insert(
+                "output_config".to_string(),
+                json!({ "effort": thinking_effort(model_config).to_string() }),
+            );
+            obj.insert(
+                "max_completion_tokens".to_string(),
+                json!(model_config.max_output_tokens()),
+            );
+        }
+        ThinkingType::Enabled => {
+            let budget_tokens = model_config
+                .get_config_param::<i32>("budget_tokens", "CLAUDE_THINKING_BUDGET")
+                .unwrap_or(16000)
+                .max(1024);
+
+            let max_tokens = model_config.max_output_tokens() + budget_tokens;
+            obj.insert("max_tokens".to_string(), json!(max_tokens));
+            obj.insert(
+                "thinking".to_string(),
+                json!({
+                    "type": "enabled",
+                    "budget_tokens": budget_tokens
+                }),
+            );
+            obj.insert("temperature".to_string(), json!(2));
+        }
+        ThinkingType::Disabled => {
+            if let Some(temp) = model_config.temperature {
+                obj.insert("temperature".to_string(), json!(temp));
+            }
+            obj.insert(
+                "max_completion_tokens".to_string(),
+                json!(model_config.max_output_tokens()),
+            );
+        }
+    }
 }
 
 pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Value>> {
@@ -366,12 +407,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: function_name.into(),
-                                    arguments: Some(object(params)),
-                                }),
+                                Ok(CallToolRequestParams::new(function_name)
+                                    .with_arguments(object(params))),
                             ));
                         }
                         Err(e) => {
@@ -544,15 +581,7 @@ pub fn create_request(
         ));
     }
 
-    let model_name = model_config.model_name.to_string();
-    let is_o1 = model_name.starts_with("o1") || model_name.starts_with("goose-o1");
-    let is_o3 = model_name.starts_with("o3") || model_name.starts_with("goose-o3");
-    let is_gpt_5 = model_name.starts_with("gpt-5") || model_name.starts_with("goose-gpt-5");
-    let is_openai_reasoning_model = is_o1 || is_o3 || is_gpt_5;
-    let is_claude_sonnet =
-        model_name.contains("claude-3-7-sonnet") || model_name.contains("claude-4-sonnet"); // can be goose- or databricks-
-
-    // Only extract reasoning effort for O1/O3 models
+    let is_openai_reasoning_model = model_config.is_openai_reasoning_model();
     let (model_name, reasoning_effort) = if is_openai_reasoning_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
@@ -568,7 +597,6 @@ pub fn create_request(
             ),
         }
     } else {
-        // For non-O family models, use the model name as is and no reasoning effort
         (model_config.model_name.to_string(), None)
     };
 
@@ -611,34 +639,8 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
 
-    let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
-    if is_claude_sonnet && is_thinking_enabled {
-        // Minimum budget_tokens is 1024
-        let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
-            .unwrap_or_else(|_| "16000".to_string())
-            .parse()
-            .unwrap_or(16000);
-
-        // For Claude models with thinking enabled, we need to add max_tokens + budget_tokens
-        // Default to 8192 (Claude max output) + budget if not specified
-        let max_completion_tokens = model_config.max_tokens.unwrap_or(8192);
-        payload.as_object_mut().unwrap().insert(
-            "max_tokens".to_string(),
-            json!(max_completion_tokens + budget_tokens),
-        );
-
-        payload.as_object_mut().unwrap().insert(
-            "thinking".to_string(),
-            json!({
-                "type": "enabled",
-                "budget_tokens": budget_tokens
-            }),
-        );
-
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("temperature".to_string(), json!(2));
+    if is_claude_model(&model_config.model_name) {
+        apply_claude_thinking_config(&mut payload, model_config);
     } else {
         // open ai reasoning models currently don't support temperature
         if !is_openai_reasoning_model {
@@ -650,18 +652,10 @@ pub fn create_request(
             }
         }
 
-        // open ai reasoning models use max_completion_tokens instead of max_tokens
-        if let Some(tokens) = model_config.max_tokens {
-            let key = if is_openai_reasoning_model {
-                "max_completion_tokens"
-            } else {
-                "max_tokens"
-            };
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert(key.to_string(), json!(tokens));
-        }
+        payload.as_object_mut().unwrap().insert(
+            "max_completion_tokens".to_string(),
+            json!(model_config.max_output_tokens()),
+        );
     }
 
     // Apply cache control for Claude models to enable prompt caching
@@ -768,12 +762,8 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "example".into(),
-                    arguments: Some(object!({"param1": "value1"})),
-                }),
+                Ok(CallToolRequestParams::new("example")
+                    .with_arguments(object!({"param1": "value1"}))),
             ),
         ];
 
@@ -785,12 +775,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult {
-                content: vec![Content::text("Result")],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(CallToolResult::success(vec![Content::text("Result")])),
         ));
 
         let as_value =
@@ -815,12 +800,7 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "example".into(),
-                arguments: Some(object!({"param1": "value1"})),
-            }),
+            Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
         )];
 
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
@@ -831,12 +811,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult {
-                content: vec![Content::text("Result")],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(CallToolResult::success(vec![Content::text("Result")])),
         ));
 
         let as_value =
@@ -1058,6 +1033,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1069,7 +1045,7 @@ mod tests {
                     "content": "system"
                 }
             ],
-            "max_tokens": 1024
+            "max_completion_tokens": 1024
         });
 
         for (key, value) in expected.as_object().unwrap() {
@@ -1090,9 +1066,55 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_adaptive_thinking_for_46_models() -> anyhow::Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", Some("adaptive")),
+            ("CLAUDE_THINKING_EFFORT", Some("low")),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("CLAUDE_THINKING_BUDGET", None::<&str>),
+        ]);
+
+        let mut model_config = ModelConfig::new_or_fail("databricks-claude-opus-4-6");
+        model_config.max_tokens = Some(4096);
+
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+
+        assert_eq!(request["thinking"]["type"], "adaptive");
+        assert_eq!(request["output_config"]["effort"], "low");
+        assert!(request.get("temperature").is_none());
+        assert_eq!(request["max_completion_tokens"], 4096);
+        assert!(request.get("max_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", Some("1")),
+            ("CLAUDE_THINKING_BUDGET", Some("10000")),
+        ]);
+
+        let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
+        model_config.max_tokens = Some(4096);
+
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+
+        assert_eq!(request["thinking"]["type"], "enabled");
+        assert_eq!(request["thinking"]["budget_tokens"], 10000);
+        assert_eq!(request["max_tokens"], 14096);
+        assert_eq!(request["temperature"], 2);
+        assert!(request.get("max_completion_tokens").is_none());
+
         Ok(())
     }
 
@@ -1193,15 +1215,8 @@ mod tests {
     #[test]
     fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
         // Test that tool calls with None arguments are formatted as "{}" string
-        let message = Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
-        );
+        let message = Message::assistant()
+            .with_tool_request("tool1", Ok(CallToolRequestParams::new("test_tool")));
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
         let as_value = serde_json::to_value(spec)?;
@@ -1226,12 +1241,8 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(object!({"param": "value", "number": 42})),
-            }),
+            Ok(CallToolRequestParams::new("test_tool")
+                .with_arguments(object!({"param": "value", "number": 42}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1408,12 +1419,7 @@ mod tests {
 
         let message = Message::assistant().with_tool_request_with_metadata(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(object!({"param": "value"})),
-            }),
+            Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({"param": "value"}))),
             Some(&metadata),
             None,
         );
@@ -1442,6 +1448,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
 
         let messages = vec![
@@ -1494,6 +1501,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];
@@ -1543,12 +1551,7 @@ mod tests {
 
         let message = Message::assistant().with_tool_request_with_metadata(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: None,
-            }),
+            Ok(CallToolRequestParams::new("test_tool")),
             Some(&metadata),
             None,
         );

@@ -206,6 +206,7 @@ pub enum ExtensionConfig {
     Platform {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -220,6 +221,7 @@ pub enum ExtensionConfig {
     StreamableHttp {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -243,6 +245,7 @@ pub enum ExtensionConfig {
     Frontend {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -260,6 +263,7 @@ pub enum ExtensionConfig {
     InlinePython {
         /// The name used to identify this extension
         name: String,
+        #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
@@ -470,7 +474,7 @@ impl ExtensionConfig {
                 Ok(Self::StreamableHttp {
                     name,
                     description,
-                    uri,
+                    uri: substitute_env_vars(&uri, &merged),
                     envs: Envs::new(merged),
                     env_keys: vec![],
                     headers,
@@ -544,6 +548,9 @@ pub struct ToolInfo {
     pub description: String,
     pub parameters: Vec<String>,
     pub permission: Option<PermissionLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 impl ToolInfo {
@@ -558,7 +565,13 @@ impl ToolInfo {
             description: description.to_string(),
             parameters,
             permission,
+            input_schema: None,
         }
+    }
+
+    pub fn with_input_schema(mut self, schema: serde_json::Value) -> Self {
+        self.input_schema = Some(schema);
+        self
     }
 }
 
@@ -780,6 +793,35 @@ available_tools: []
             available_tools: vec![],
         }
         ; "http_env_key_and_header_substitution"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com/mcp?api_key=$MY_SECRET".into(),
+            envs: extension::Envs::default(),
+            env_keys: vec!["MY_SECRET".into()],
+            headers: std::collections::HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com/mcp?api_key=secret_value".into(),
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("MY_SECRET".to_string(), "secret_value".to_string());
+                m
+            }),
+            env_keys: vec![],
+            headers: std::collections::HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "http_env_key_uri_substitution"
     )]
     #[test_case(
         ExtensionConfig::Stdio {

@@ -15,6 +15,7 @@ export interface KeyboardShortcuts {
   findNext: string | null;
   findPrevious: string | null;
   alwaysOnTop: string | null;
+  toggleNavigation: string | null;
 }
 
 export type DefaultKeyboardShortcuts = {
@@ -43,6 +44,7 @@ export interface Settings {
   showPricing: boolean;
   sessionSharing: SessionSharingConfig;
   seenAnnouncementIds: string[];
+  navExpandedWidth: number | null;
 }
 
 export type SettingKey = keyof Settings;
@@ -58,6 +60,7 @@ export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
   findNext: 'CommandOrControl+G',
   findPrevious: 'CommandOrControl+Shift+G',
   alwaysOnTop: 'CommandOrControl+Shift+T',
+  toggleNavigation: 'CommandOrControl+/',
 };
 
 export const defaultSettings: Settings = {
@@ -83,6 +86,7 @@ export const defaultSettings: Settings = {
     baseUrl: '',
   },
   seenAnnouncementIds: [],
+  navExpandedWidth: null,
 };
 
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
@@ -104,5 +108,5 @@ export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
       quickLauncher: launcherShortcut,
     };
   }
-  return settings.keyboardShortcuts || defaultKeyboardShortcuts;
+  return { ...defaultKeyboardShortcuts, ...settings.keyboardShortcuts };
 }

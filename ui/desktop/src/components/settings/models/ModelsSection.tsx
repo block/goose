@@ -95,8 +95,8 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
             </>
           ) : (
             <div className="animate-in fade-in duration-100">
-              <h3 className="text-text-default">{displayModelName}</h3>
-              <h4 className="text-xs text-text-muted">{provider}</h4>
+              <h3 className="text-text-primary">{displayModelName}</h3>
+              <h4 className="text-xs text-text-secondary">{provider}</h4>
             </div>
           )}
           <ModelSettingsButtons setView={setView} />

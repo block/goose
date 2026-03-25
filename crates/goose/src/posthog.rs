@@ -1,5 +1,3 @@
-//! PostHog telemetry - fires once per session creation.
-
 use crate::config::paths::Paths;
 use crate::config::{get_enabled_extensions, Config};
 use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
@@ -9,12 +7,14 @@ use crate::subprocess::SubprocessExt;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use uuid::Uuid;
 
 const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
+const POSTHOG_CAPTURE_URL: &str = "https://us.i.posthog.com/capture/";
 
 /// Config key for telemetry opt-out preference
 pub const TELEMETRY_ENABLED_KEY: &str = "GOOSE_TELEMETRY_ENABLED";
@@ -31,7 +31,6 @@ static TELEMETRY_DISABLED_BY_ENV: Lazy<AtomicBool> = Lazy::new(|| {
 /// Returns Some(true) if telemetry is enabled, Some(false) if disabled,
 /// or None if the user hasn't made a choice yet.
 pub fn get_telemetry_choice() -> Option<bool> {
-    // If disabled by env var, treat as explicit choice to disable
     if TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed) {
         return Some(false);
     }
@@ -50,6 +49,44 @@ pub fn get_telemetry_choice() -> Option<bool> {
 /// Returns true only if the user has explicitly opted in.
 pub fn is_telemetry_enabled() -> bool {
     get_telemetry_choice().unwrap_or(false)
+}
+
+// ============================================================================
+// PostHog HTTP API
+// ============================================================================
+
+#[derive(Serialize)]
+struct CaptureEvent {
+    api_key: &'static str,
+    event: String,
+    distinct_id: String,
+    properties: HashMap<String, serde_json::Value>,
+    timestamp: Option<String>,
+}
+
+async fn posthog_capture(
+    event_name: &str,
+    distinct_id: &str,
+    properties: HashMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    let payload = CaptureEvent {
+        api_key: POSTHOG_API_KEY,
+        event: event_name.to_string(),
+        distinct_id: distinct_id.to_string(),
+        properties,
+        timestamp: Some(Utc::now().to_rfc3339()),
+    };
+
+    let client = reqwest::Client::new();
+    client
+        .post(POSTHOG_CAPTURE_URL)
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("{e}"))?;
+
+    Ok(())
 }
 
 // ============================================================================
@@ -210,6 +247,18 @@ fn get_session_is_resumed() -> bool {
 }
 
 // ============================================================================
+// Property Helpers
+// ============================================================================
+
+fn insert(
+    props: &mut HashMap<String, serde_json::Value>,
+    key: &str,
+    val: impl Into<serde_json::Value>,
+) {
+    props.insert(key.to_string(), val.into());
+}
+
+// ============================================================================
 // Telemetry Events
 // ============================================================================
 
@@ -281,151 +330,124 @@ async fn send_error_event(
     error_type: &str,
     context: ErrorContext,
 ) -> Result<(), String> {
-    let client = posthog_rs::client(POSTHOG_API_KEY).await;
-    let mut event = posthog_rs::Event::new("error", &installation.installation_id);
+    let mut props = HashMap::new();
 
-    event.insert_prop("error_type", error_type).ok();
-    event
-        .insert_prop("error_category", classify_error(error_type))
-        .ok();
-    event.insert_prop("source", "backend").ok();
-    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
-    event.insert_prop("interface", get_session_interface()).ok();
-    event.insert_prop("os", std::env::consts::OS).ok();
-    event.insert_prop("arch", std::env::consts::ARCH).ok();
+    insert(&mut props, "error_type", error_type);
+    insert(&mut props, "error_category", classify_error(error_type));
+    insert(&mut props, "source", "backend");
+    insert(&mut props, "version", env!("CARGO_PKG_VERSION"));
+    insert(&mut props, "interface", get_session_interface());
+    insert(&mut props, "os", std::env::consts::OS);
+    insert(&mut props, "arch", std::env::consts::ARCH);
 
     if let Some(component) = &context.component {
-        event.insert_prop("component", component.as_str()).ok();
+        insert(&mut props, "component", component.as_str());
     }
     if let Some(action) = &context.action {
-        event.insert_prop("action", action.as_str()).ok();
+        insert(&mut props, "action", action.as_str());
     }
     if let Some(error_message) = &context.error_message {
-        let sanitized = sanitize_string(error_message);
-        event.insert_prop("error_message", sanitized).ok();
+        insert(&mut props, "error_message", sanitize_string(error_message));
     }
 
     if let Some(platform_version) = get_platform_version() {
-        event.insert_prop("platform_version", platform_version).ok();
+        insert(&mut props, "platform_version", platform_version);
     }
 
     let config = Config::global();
     if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
-        event.insert_prop("provider", provider).ok();
+        insert(&mut props, "provider", provider);
     }
     if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
-        event.insert_prop("model", model).ok();
+        insert(&mut props, "model", model);
     }
 
-    client.capture(event).await.map_err(|e| format!("{:?}", e))
+    posthog_capture("error", &installation.installation_id, props).await
 }
 
 async fn send_custom_slash_command_event(installation: &InstallationData) -> Result<(), String> {
-    let client = posthog_rs::client(POSTHOG_API_KEY).await;
-    let mut event =
-        posthog_rs::Event::new("custom_slash_command_used", &installation.installation_id);
+    let mut props = HashMap::new();
 
-    event.insert_prop("source", "backend").ok();
-    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
-    event.insert_prop("interface", get_session_interface()).ok();
-    event.insert_prop("os", std::env::consts::OS).ok();
-    event.insert_prop("arch", std::env::consts::ARCH).ok();
+    insert(&mut props, "source", "backend");
+    insert(&mut props, "version", env!("CARGO_PKG_VERSION"));
+    insert(&mut props, "interface", get_session_interface());
+    insert(&mut props, "os", std::env::consts::OS);
+    insert(&mut props, "arch", std::env::consts::ARCH);
 
     if let Some(platform_version) = get_platform_version() {
-        event.insert_prop("platform_version", platform_version).ok();
+        insert(&mut props, "platform_version", platform_version);
     }
 
-    client.capture(event).await.map_err(|e| format!("{:?}", e))
+    posthog_capture(
+        "custom_slash_command_used",
+        &installation.installation_id,
+        props,
+    )
+    .await
 }
 
 async fn send_session_event(installation: &InstallationData) -> Result<(), String> {
-    let client = posthog_rs::client(POSTHOG_API_KEY).await;
-    let mut event = posthog_rs::Event::new("session_started", &installation.installation_id);
+    let mut props = HashMap::new();
 
-    event.insert_prop("os", std::env::consts::OS).ok();
-    event.insert_prop("arch", std::env::consts::ARCH).ok();
-    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
-    event.insert_prop("is_dev", is_dev_mode()).ok();
+    insert(&mut props, "os", std::env::consts::OS);
+    insert(&mut props, "arch", std::env::consts::ARCH);
+    insert(&mut props, "version", env!("CARGO_PKG_VERSION"));
+    insert(&mut props, "is_dev", is_dev_mode());
 
     if let Some(platform_version) = get_platform_version() {
-        event.insert_prop("platform_version", platform_version).ok();
+        insert(&mut props, "platform_version", platform_version);
     }
 
-    event
-        .insert_prop("install_method", detect_install_method())
-        .ok();
+    insert(&mut props, "install_method", detect_install_method());
+    insert(&mut props, "interface", get_session_interface());
+    insert(&mut props, "is_resumed", get_session_is_resumed());
+    insert(&mut props, "session_number", installation.session_count);
 
-    event.insert_prop("interface", get_session_interface()).ok();
-
-    event
-        .insert_prop("is_resumed", get_session_is_resumed())
-        .ok();
-
-    event
-        .insert_prop("session_number", installation.session_count)
-        .ok();
     let days_since_install = (Utc::now() - installation.first_seen).num_days();
-    event
-        .insert_prop("days_since_install", days_since_install)
-        .ok();
+    insert(&mut props, "days_since_install", days_since_install);
 
     let config = Config::global();
     if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
-        event.insert_prop("provider", provider).ok();
+        insert(&mut props, "provider", provider);
     }
     if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
-        event.insert_prop("model", model).ok();
+        insert(&mut props, "model", model);
     }
 
     if let Ok(mode) = config.get_param::<String>("GOOSE_MODE") {
-        event.insert_prop("setting_mode", mode).ok();
+        insert(&mut props, "setting_mode", mode);
     }
     if let Ok(max_turns) = config.get_param::<i64>("GOOSE_MAX_TURNS") {
-        event.insert_prop("setting_max_turns", max_turns).ok();
-    }
-
-    if let Ok(lead_model) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
-        event.insert_prop("setting_lead_model", lead_model).ok();
-    }
-    if let Ok(lead_provider) = config.get_param::<String>("GOOSE_LEAD_PROVIDER") {
-        event
-            .insert_prop("setting_lead_provider", lead_provider)
-            .ok();
-    }
-    if let Ok(lead_turns) = config.get_param::<i64>("GOOSE_LEAD_TURNS") {
-        event.insert_prop("setting_lead_turns", lead_turns).ok();
-    }
-    if let Ok(lead_failure_threshold) = config.get_param::<i64>("GOOSE_LEAD_FAILURE_THRESHOLD") {
-        event
-            .insert_prop("setting_lead_failure_threshold", lead_failure_threshold)
-            .ok();
-    }
-    if let Ok(lead_fallback_turns) = config.get_param::<i64>("GOOSE_LEAD_FALLBACK_TURNS") {
-        event
-            .insert_prop("setting_lead_fallback_turns", lead_fallback_turns)
-            .ok();
+        insert(&mut props, "setting_max_turns", max_turns);
     }
 
     let extensions = get_enabled_extensions();
-    event.insert_prop("extensions_count", extensions.len()).ok();
+    insert(&mut props, "extensions_count", extensions.len() as u64);
     let extension_names: Vec<String> = extensions.iter().map(|e| e.name()).collect();
-    event.insert_prop("extensions", extension_names).ok();
+    insert(
+        &mut props,
+        "extensions",
+        serde_json::Value::Array(
+            extension_names
+                .into_iter()
+                .map(serde_json::Value::String)
+                .collect(),
+        ),
+    );
 
-    event
-        .insert_prop("db_schema_version", CURRENT_SCHEMA_VERSION)
-        .ok();
+    insert(
+        &mut props,
+        "db_schema_version",
+        CURRENT_SCHEMA_VERSION as u64,
+    );
 
     let session_manager = SessionManager::instance();
     if let Ok(insights) = session_manager.get_insights().await {
-        event
-            .insert_prop("total_sessions", insights.total_sessions)
-            .ok();
-        event
-            .insert_prop("total_tokens", insights.total_tokens)
-            .ok();
+        insert(&mut props, "total_sessions", insights.total_sessions as u64);
+        insert(&mut props, "total_tokens", insights.total_tokens as u64);
     }
 
-    client.capture(event).await.map_err(|e| format!("{:?}", e))
+    posthog_capture("session_started", &installation.installation_id, props).await
 }
 
 // ============================================================================
@@ -490,22 +512,16 @@ use std::sync::LazyLock;
 
 static SENSITIVE_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
-        // File paths with usernames (Unix)
         Regex::new(r"/Users/[^/\s]+").unwrap(),
         Regex::new(r"/home/[^/\s]+").unwrap(),
-        // File paths with usernames (Windows)
         Regex::new(r"(?i)C:\\Users\\[^\\\s]+").unwrap(),
-        // API keys and tokens (common patterns)
         Regex::new(r"sk-[a-zA-Z0-9]{20,}").unwrap(),
         Regex::new(r"pk-[a-zA-Z0-9]{20,}").unwrap(),
         Regex::new(r"(?i)key[_-]?[a-zA-Z0-9]{16,}").unwrap(),
         Regex::new(r"(?i)token[_-]?[a-zA-Z0-9]{16,}").unwrap(),
         Regex::new(r"(?i)bearer\s+[a-zA-Z0-9._-]+").unwrap(),
-        // Email addresses
         Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap(),
-        // URLs with auth info
         Regex::new(r"https?://[^:]+:[^@]+@").unwrap(),
-        // UUIDs (might be session/user IDs in error messages)
         Regex::new(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
             .unwrap(),
     ]
@@ -539,29 +555,26 @@ fn sanitize_value(value: serde_json::Value) -> serde_json::Value {
 // ============================================================================
 pub async fn emit_event(
     event_name: &str,
-    mut properties: std::collections::HashMap<String, serde_json::Value>,
+    mut properties: HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
-    if !is_telemetry_enabled() {
+    // Only onboarding events are enabled for now. These bypass the telemetry
+    // check so we can track the funnel before the user makes their choice.
+    let is_onboarding_event =
+        event_name.starts_with("onboarding_") || event_name == "telemetry_preference_set";
+    if !is_onboarding_event {
         return Ok(());
     }
 
-    // Temporarily disabled - only session_started events are sent
-    let _ = (event_name, &mut properties);
-    return Ok(());
-
-    #[allow(unreachable_code)]
     let installation = load_or_create_installation();
-    let client = posthog_rs::client(POSTHOG_API_KEY).await;
-    let mut event = posthog_rs::Event::new(event_name, &installation.installation_id);
 
-    event.insert_prop("os", std::env::consts::OS).ok();
-    event.insert_prop("arch", std::env::consts::ARCH).ok();
-    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
-    event.insert_prop("interface", "desktop").ok();
-    event.insert_prop("source", "ui").ok();
+    insert(&mut properties, "os", std::env::consts::OS);
+    insert(&mut properties, "arch", std::env::consts::ARCH);
+    insert(&mut properties, "version", env!("CARGO_PKG_VERSION"));
+    insert(&mut properties, "interface", "desktop");
+    insert(&mut properties, "source", "ui");
 
     if let Some(platform_version) = get_platform_version() {
-        event.insert_prop("platform_version", platform_version).ok();
+        insert(&mut properties, "platform_version", platform_version);
     }
 
     if event_name == "error_occurred" || event_name == "app_crashed" {
@@ -574,19 +587,18 @@ pub async fn emit_event(
         }
     }
 
-    for (key, value) in properties {
-        let key_lower = key.to_lowercase();
-        if key_lower.contains("key")
-            || key_lower.contains("token")
-            || key_lower.contains("secret")
-            || key_lower.contains("password")
-            || key_lower.contains("credential")
-        {
-            continue;
-        }
-        let sanitized_value = sanitize_value(value);
-        event.insert_prop(&key, sanitized_value).ok();
-    }
+    let sanitized: HashMap<String, serde_json::Value> = properties
+        .into_iter()
+        .filter(|(key, _)| {
+            let key_lower = key.to_lowercase();
+            !key_lower.contains("key")
+                && !key_lower.contains("token")
+                && !key_lower.contains("secret")
+                && !key_lower.contains("password")
+                && !key_lower.contains("credential")
+        })
+        .map(|(k, v)| (k, sanitize_value(v)))
+        .collect();
 
-    client.capture(event).await.map_err(|e| format!("{:?}", e))
+    posthog_capture(event_name, &installation.installation_id, sanitized).await
 }

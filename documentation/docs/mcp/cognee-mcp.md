@@ -9,7 +9,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the [Cognee MCP Server](https://github.com/topoteretes/cognee/tree/main/cognee-mcp) as a goose extension to enable knowledge graph memory capabilities, connecting to over 30 data sources for enhanced context and retrieval.
 
-:::tip TLDR
+:::tip Quick Install
 **Command**
 ```sh
 uv --directory /path/to/cognee-mcp run python src/server.py

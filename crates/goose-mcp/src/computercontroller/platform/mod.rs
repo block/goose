@@ -19,6 +19,9 @@ pub trait SystemAutomation: Send + Sync {
     fn execute_system_script(&self, script: &str) -> std::io::Result<String>;
     fn get_shell_command(&self) -> (&'static str, &'static str); // (shell, arg)
     fn get_temp_path(&self) -> std::path::PathBuf;
+    fn has_display(&self) -> bool {
+        true
+    }
 }
 
 pub fn create_system_automation() -> Box<dyn SystemAutomation + Send + Sync> {

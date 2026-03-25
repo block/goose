@@ -15,7 +15,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 This tutorial covers how to add the [gotoHuman MCP Server](https://github.com/gotohuman/gotohuman-mcp-server) as a goose extension to bring **human-in-the-loop approvals** into your AI workflows. With gotoHuman, goose can pause and request a review before continuing, perfect for blog drafts, code reviews,compliance checks, etc.  
 
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40gotohuman%2Fmcp-server&id=gotoHuman&name=gotoHuman&description=gotoHuman%20MCP%20server%20for%20human-in-the-loop%20approvals&env=GOTOHUMAN_API_KEY%3DgotoHuman%20API%20Key)

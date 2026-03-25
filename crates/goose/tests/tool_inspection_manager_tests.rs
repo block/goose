@@ -25,6 +25,7 @@ impl ToolInspector for MockInspectorOk {
     }
     async fn inspect(
         &self,
+        _session_id: &str,
         _tool_requests: &[ToolRequest],
         _messages: &[Message],
         _goose_mode: GooseMode,
@@ -43,6 +44,7 @@ impl ToolInspector for MockInspectorErr {
     }
     async fn inspect(
         &self,
+        _session_id: &str,
         _tool_requests: &[ToolRequest],
         _messages: &[Message],
         _goose_mode: GooseMode,
@@ -86,7 +88,12 @@ async fn test_inspect_tools_aggregates_and_handles_errors() {
 
     // Act
     let results = manager
-        .inspect_tools(&tool_requests, &messages, GooseMode::Approve)
+        .inspect_tools(
+            goose_test_support::TEST_SESSION_ID,
+            &tool_requests,
+            &messages,
+            GooseMode::Approve,
+        )
         .await
         .expect("inspect_tools should not fail when one inspector errors");
 

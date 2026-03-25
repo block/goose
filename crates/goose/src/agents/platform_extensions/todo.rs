@@ -1,5 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use crate::session::extension_data;
 use crate::session::extension_data::ExtensionState;
 use anyhow::Result;
@@ -7,7 +8,7 @@ use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
+    ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -27,29 +28,12 @@ pub struct TodoClient {
 
 impl TodoClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Todo".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string())
+                    .with_title("Todo"),
+            )
+            .with_instructions(
                 indoc! {r#"
                 Your todo content is automatically available in your context.
 
@@ -66,8 +50,7 @@ impl TodoClient {
                 - [ ] Another task
             "#}
                 .to_string(),
-            ),
-        };
+            );
 
         Ok(Self { info, context })
     }
@@ -146,13 +129,13 @@ impl TodoClient {
             .to_string(),
             schema_value.as_object().unwrap().clone(),
         )
-        .annotate(ToolAnnotations {
-            title: Some("Write TODO".to_string()),
-            read_only_hint: Some(false),
-            destructive_hint: Some(true),
-            idempotent_hint: Some(false),
-            open_world_hint: Some(false),
-        })]
+        .annotate(ToolAnnotations::from_raw(
+            Some("Write TODO".to_string()),
+            Some(false),
+            Some(true),
+            Some(false),
+            Some(false),
+        ))]
     }
 }
 
@@ -173,12 +156,12 @@ impl McpClientTrait for TodoClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let content = match name {
             "todo_write" => self.handle_write_todo(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),

@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import {
-  Recipe,
-  generateDeepLink,
-  Parameter,
-  encodeRecipe,
-  stripEmptyExtensions,
-} from '../../recipe';
+import { Recipe, generateDeepLink, Parameter } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
@@ -26,6 +20,7 @@ interface CreateEditRecipeModalProps {
   recipe?: Recipe;
   isCreateMode?: boolean;
   recipeId?: string | null;
+  onRecipeSaved?: (savedRecipeId: string) => void;
 }
 
 export default function CreateEditRecipeModal({
@@ -34,6 +29,7 @@ export default function CreateEditRecipeModal({
   recipe,
   isCreateMode = false,
   recipeId,
+  onRecipeSaved,
 }: CreateEditRecipeModalProps) {
   const getInitialValues = React.useCallback((): RecipeFormData => {
     if (recipe) {
@@ -50,6 +46,13 @@ export default function CreateEditRecipeModal({
         model: recipe.settings?.goose_model ?? undefined,
         provider: recipe.settings?.goose_provider ?? undefined,
         extensions: recipe.extensions || undefined,
+        subRecipes: (recipe.sub_recipes || []).map((sr) => ({
+          name: sr.name,
+          path: sr.path,
+          description: sr.description || undefined,
+          values: sr.values || undefined,
+          sequential_when_repeated: sr.sequential_when_repeated ?? false,
+        })),
       };
     }
     return {
@@ -63,6 +66,7 @@ export default function CreateEditRecipeModal({
       model: undefined,
       provider: undefined,
       extensions: undefined,
+      subRecipes: [],
     };
   }, [recipe]);
 
@@ -81,6 +85,7 @@ export default function CreateEditRecipeModal({
   const [model, setModel] = useState(form.state.values.model);
   const [provider, setProvider] = useState(form.state.values.provider);
   const [extensions, setExtensions] = useState(form.state.values.extensions);
+  const [subRecipes, setSubRecipes] = useState(form.state.values.subRecipes);
 
   // Subscribe to form changes to update local state
   useEffect(() => {
@@ -95,6 +100,7 @@ export default function CreateEditRecipeModal({
       setModel(form.state.values.model);
       setProvider(form.state.values.provider);
       setExtensions(form.state.values.extensions);
+      setSubRecipes(form.state.values.subRecipes);
     });
   }, [form]);
   const [copied, setCopied] = useState(false);
@@ -143,6 +149,21 @@ export default function CreateEditRecipeModal({
       }
     }
 
+    // Format subrecipes for API (convert from form data to API format)
+    const formattedSubRecipes =
+      subRecipes.length > 0
+        ? subRecipes.map((subRecipe) => ({
+            name: subRecipe.name,
+            path: subRecipe.path,
+            description: subRecipe.description || undefined,
+            values:
+              subRecipe.values && Object.keys(subRecipe.values).length > 0
+                ? subRecipe.values
+                : undefined,
+            sequential_when_repeated: subRecipe.sequential_when_repeated,
+          }))
+        : undefined;
+
     const cleanedExtensions = extensions?.map(
       (extension: ExtensionConfig & { envs?: unknown; enabled?: boolean }) => {
         const { envs: _envs, enabled: _enabled, ...rest } = extension;
@@ -178,6 +199,7 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
+      sub_recipes: formattedSubRecipes,
       extensions: cleanedExtensions,
       settings,
     };
@@ -190,6 +212,7 @@ export default function CreateEditRecipeModal({
     prompt,
     parameters,
     jsonSchema,
+    subRecipes,
     model,
     provider,
     extensions,
@@ -264,6 +287,7 @@ export default function CreateEditRecipeModal({
     activities,
     parameters,
     jsonSchema,
+    subRecipes,
     model,
     provider,
     extensions,
@@ -299,7 +323,11 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      const { id: savedRecipeId } = await saveRecipe(recipe, recipeId);
+
+      if (onRecipeSaved) {
+        onRecipeSaved(savedRecipeId);
+      }
 
       onClose(true);
 
@@ -333,21 +361,11 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      const { id: savedId } = await saveRecipe(recipe, recipeId);
 
-      // Close modal first
       onClose(true);
 
-      // Encode the recipe as a deeplink before passing to the new window
-      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe));
-      window.electron.createChatWindow(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        encodedRecipe
-      );
+      window.electron.createChatWindow({ recipeId: savedId });
 
       toastSuccess({
         title: recipe.title,
@@ -370,18 +388,18 @@ export default function CreateEditRecipeModal({
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
-      <div className="bg-background-default border border-border-default rounded-lg w-[90vw] max-w-4xl h-[90vh] flex flex-col">
+      <div className="bg-background-primary border border-border-primary rounded-lg w-[90vw] max-w-4xl h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border-default">
+        <div className="flex items-center justify-between p-6 border-b border-border-primary">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-background-default rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-background-primary rounded-full flex items-center justify-center">
               <Geese className="w-6 h-6 text-iconProminent" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-text-default">
+              <h1 className="text-xl font-medium text-text-primary">
                 {isCreateMode ? 'Create Recipe' : 'View/edit recipe'}
               </h1>
-              <p className="text-text-muted text-sm">
+              <p className="text-text-secondary text-sm">
                 {isCreateMode
                   ? 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.'
                   : "You can edit the recipe below to change the agent's behavior in a new session."}{' '}
@@ -401,7 +419,7 @@ export default function CreateEditRecipeModal({
             onClick={() => onClose(false)}
             variant="ghost"
             size="sm"
-            className="p-2 hover:bg-background-muted rounded-lg transition-colors"
+            className="p-2 hover:bg-background-secondary rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -413,9 +431,9 @@ export default function CreateEditRecipeModal({
 
           {/* Deep Link Display */}
           {requiredFieldsAreFilled() && (
-            <div className="w-full p-4 bg-background-muted rounded-lg mt-6">
+            <div className="w-full p-4 bg-background-secondary rounded-lg mt-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-text-muted">
+                <div className="text-sm text-text-secondary">
                   Copy this link to share with friends or paste directly in Chrome to open
                 </div>
                 <Button
@@ -425,21 +443,21 @@ export default function CreateEditRecipeModal({
                   disabled={
                     !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
                   }
-                  className="ml-4 p-2 hover:bg-background-default rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
+                  className="ml-4 p-2 hover:bg-background-primary rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
                 >
                   {copied ? (
                     <Check className="w-4 h-4 text-green-500" />
                   ) : (
                     <Copy className="w-4 h-4 text-iconSubtle" />
                   )}
-                  <span className="ml-1 text-sm text-text-muted">
+                  <span className="ml-1 text-sm text-text-secondary">
                     {copied ? 'Copied!' : 'Copy'}
                   </span>
                 </Button>
               </div>
               <div
                 onClick={handleCopy}
-                className="text-sm truncate font-mono cursor-pointer text-text-default"
+                className="text-sm truncate font-mono cursor-pointer text-text-primary"
               >
                 {isGeneratingDeeplink
                   ? 'Generating deeplink...'
@@ -450,11 +468,11 @@ export default function CreateEditRecipeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-border-default">
+        <div className="flex items-center justify-between p-6 border-t border-border-primary">
           <Button
             onClick={() => onClose(false)}
             variant="ghost"
-            className="px-4 py-2 text-text-muted rounded-lg hover:bg-background-muted transition-colors"
+            className="px-4 py-2 text-text-secondary rounded-lg hover:bg-background-secondary transition-colors"
           >
             Close
           </Button>

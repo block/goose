@@ -10,8 +10,8 @@ git clone git@github.com:block/goose.git
 cd goose
 source ./bin/activate-hermit
 cd ui/desktop
-npm install
-npm run start
+pnpm install
+pnpm run start
 ```
 
 ## Platform-specific build requirements
@@ -41,9 +41,9 @@ This is an electron forge app, using vite and react.js. `goosed` runs as multi p
 ## Building for different platforms
 
 ### macOS
-`npm run bundle:default` will give you a goose.app/zip which is signed/notarized but only if you set up the env vars as per `forge.config.ts` (you can empty out the section on osxSign if you don't want to sign it) - this will have all defaults.
+`pnpm run bundle:default` will give you a goose.app/zip which is signed/notarized but only if you set up the env vars as per `forge.config.ts` (you can empty out the section on osxSign if you don't want to sign it) - this will have all defaults.
 
-`npm run bundle:preconfigured` will make a goose.app/zip signed and notarized, but use the following:
+`pnpm run bundle:preconfigured` will make a goose.app/zip signed and notarized, but use the following:
 
 ```python
             f"        process.env.GOOSE_PROVIDER__TYPE = '{os.getenv("GOOSE_BUNDLE_TYPE")}';",
@@ -71,13 +71,13 @@ cp ../../target/release/goosed src/bin/
 3. Build the application:
 ```bash
 # For ZIP distribution (works on all Linux distributions)
-npm run make -- --targets=@electron-forge/maker-zip
+pnpm run make --targets=@electron-forge/maker-zip
 
 # For DEB package (Debian/Ubuntu)
-npm run make -- --targets=@electron-forge/maker-deb
+pnpm run make --targets=@electron-forge/maker-deb
 
 # For Flatpak (requires flatpak and flatpak-builder)
-npm run make -- --targets=@electron-forge/maker-flatpak
+pnpm run make --targets=@electron-forge/maker-flatpak
 ```
 
 The built application will be available in:
@@ -94,5 +94,5 @@ Use the existing Windows build process as documented.
 
 Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env`.
 Run `cargo run -p goose-server` from parent dir.
-`npm run start` will then run against this.
+`pnpm run start` will then run against this.
 You can try server directly with `./test.sh`

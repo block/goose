@@ -54,13 +54,22 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
+};
+
+export type CancelRequest = {
+    request_id: string;
 };
 
 export type ChatRequest = {
-    conversation_so_far?: Array<Message> | null;
+    /**
+     * Override the server's conversation history. Only use this when you need absolute control
+     * over the conversation state (e.g., administrative tools). For normal operations, the server
+     * is the source of truth - use truncate/fork endpoints to modify conversation history instead.
+     */
+    override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
@@ -123,9 +132,35 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+export type Content = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
+
+export type ContentBlock = ({
+    type: 'text';
+} & RawTextContent) | ({
+    type: 'image';
+} & RawImageContent) | ({
+    type: 'resource';
+} & RawEmbeddedResource) | ({
+    type: 'audio';
+} & RawAudioContent) | ({
+    type: 'resource_link';
+} & RawResource);
 
 export type Conversation = Array<Message>;
+
+export type CreateCustomProviderResponse = {
+    provider_name: string;
+};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -168,16 +203,21 @@ export type CspMetadata = {
 
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
+    base_path?: string | null;
     base_url: string;
+    catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
+    dynamic_models?: boolean | null;
     engine: ProviderEngine;
+    env_vars?: Array<EnvVarConfig> | null;
     headers?: {
         [key: string]: string;
     } | null;
     models: Array<ModelInfo>;
     name: string;
     requires_auth?: boolean;
+    skip_canonical_filtering?: boolean;
     supports_streaming?: boolean | null;
     timeout_seconds?: number | null;
 };
@@ -289,6 +329,14 @@ export type EncodeRecipeRequest = {
 
 export type EncodeRecipeResponse = {
     deeplink: string;
+};
+
+export type EnvVarConfig = {
+    default?: string | null;
+    description?: string | null;
+    name: string;
+    required?: boolean;
+    secret?: boolean;
 };
 
 export type Envs = {
@@ -426,6 +474,15 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
+export type FeaturesResponse = {
+    /**
+     * Map of feature name to enabled status
+     */
+    features: {
+        [key: string]: boolean;
+    };
+};
+
 export type ForkRequest = {
     copy: boolean;
     timestamp?: number | null;
@@ -452,6 +509,8 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServers?: Array<string>;
     prd?: string | null;
 };
+
+export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
 
 /**
  * A single downloadable GGUF file (used internally and for downloads).
@@ -625,8 +684,6 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
-}) | (ReasoningContent & {
-    type: 'reasoning';
 });
 
 export type MessageEvent = {
@@ -641,10 +698,6 @@ export type MessageEvent = {
     token_state: TokenState;
     type: 'Finish';
 } | {
-    mode: string;
-    model: string;
-    type: 'ModelChange';
-} | {
     message: {
         [key: string]: unknown;
     };
@@ -653,6 +706,9 @@ export type MessageEvent = {
 } | {
     conversation: Conversation;
     type: 'UpdateConversation';
+} | {
+    request_ids: Array<string>;
+    type: 'ActiveRequests';
 } | {
     type: 'Ping';
 };
@@ -671,10 +727,18 @@ export type MessageMetadata = {
     userVisible: boolean;
 };
 
+export type ModelCapabilities = {
+    attachment: boolean;
+    reasoning: boolean;
+    temperature: boolean;
+    tool_call: boolean;
+};
+
 export type ModelConfig = {
     context_limit?: number | null;
     max_tokens?: number | null;
     model_name: string;
+    reasoning?: boolean | null;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -767,6 +831,14 @@ export type ModelSettings = {
     use_mlock?: boolean;
 };
 
+export type ModelTemplate = {
+    capabilities: ModelCapabilities;
+    context_limit: number;
+    deprecated: boolean;
+    id: string;
+    name: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -819,6 +891,16 @@ export type PromptsListResponse = {
     prompts: Array<Template>;
 };
 
+export type ProviderCatalogEntry = {
+    api_url: string;
+    doc_url: string;
+    env_var: string;
+    format: string;
+    id: string;
+    model_count: number;
+    name: string;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -860,6 +942,21 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+    /**
+     * step-by-step instructions for set up providers eg: api key
+     */
+    setup_steps?: Array<string>;
+};
+
+export type ProviderTemplate = {
+    api_url: string;
+    doc_url: string;
+    env_var: string;
+    format: string;
+    id: string;
+    models: Array<ModelTemplate>;
+    name: string;
+    supports_streaming: boolean;
 };
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
@@ -921,10 +1018,6 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
-};
-
-export type ReasoningContent = {
-    text: string;
 };
 
 export type Recipe = {
@@ -1058,7 +1151,7 @@ export type RetryConfig = {
     timeout_seconds?: number | null;
 };
 
-export type Role = string;
+export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
@@ -1090,6 +1183,8 @@ export type SaveRecipeRequest = {
 };
 
 export type SaveRecipeResponse = {
+    file_name: string;
+    file_path: string;
     id: string;
 };
 
@@ -1124,6 +1219,7 @@ export type Session = {
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
+    goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
     message_count: number;
@@ -1174,7 +1270,22 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
+export type SessionReplyRequest = {
+    override_conversation?: Array<Message> | null;
+    recipe_name?: string | null;
+    recipe_version?: string | null;
+    /**
+     * Client-generated UUIDv7 identifying this request.
+     */
+    request_id: string;
+    user_message: Message;
+};
+
+export type SessionReplyResponse = {
+    request_id: string;
+};
+
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
 
 export type SessionsQuery = {
     limit: number;
@@ -1263,7 +1374,7 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
-export type TaskSupport = string;
+export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
 export type TelemetryEventRequest = {
     event_name: string;
@@ -1355,6 +1466,9 @@ export type ToolExecution = {
  */
 export type ToolInfo = {
     description: string;
+    input_schema?: {
+        [key: string]: unknown;
+    };
     name: string;
     parameters: Array<string>;
     permission?: PermissionLevel | null;
@@ -1435,6 +1549,8 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    base_path?: string | null;
+    catalog_provider_id?: string | null;
     display_name: string;
     engine: string;
     headers?: {
@@ -1468,6 +1584,11 @@ export type UpdateSessionNameRequest = {
      * Updated name for the session (max 200 characters)
      */
     name: string;
+};
+
+export type UpdateSessionRequest = {
+    goose_mode?: string | null;
+    session_id: string;
 };
 
 export type UpdateSessionUserRecipeValuesRequest = {
@@ -2001,6 +2122,31 @@ export type UpdateAgentProviderResponses = {
     200: unknown;
 };
 
+export type UpdateSessionData = {
+    body: UpdateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_session';
+};
+
+export type UpdateSessionErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionResponses = {
+    /**
+     * Session updated
+     */
+    200: unknown;
+};
+
 export type UpdateWorkingDirData = {
     body: UpdateWorkingDirRequest;
     path?: never;
@@ -2118,10 +2264,10 @@ export type CreateCustomProviderResponses = {
     /**
      * Custom provider created successfully
      */
-    200: string;
+    200: CreateCustomProviderResponse;
 };
 
-export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+export type CreateCustomProviderResponse2 = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
 
 export type RemoveCustomProviderData = {
     body?: never;
@@ -2470,6 +2616,62 @@ export type SavePromptResponses = {
 
 export type SavePromptResponse = SavePromptResponses[keyof SavePromptResponses];
 
+export type GetProviderCatalogData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Filter by provider format (openai, anthropic, ollama)
+         */
+        format?: string | null;
+    };
+    url: '/config/provider-catalog';
+};
+
+export type GetProviderCatalogErrors = {
+    /**
+     * Invalid format parameter
+     */
+    400: unknown;
+};
+
+export type GetProviderCatalogResponses = {
+    /**
+     * Provider catalog retrieved successfully
+     */
+    200: Array<ProviderCatalogEntry>;
+};
+
+export type GetProviderCatalogResponse = GetProviderCatalogResponses[keyof GetProviderCatalogResponses];
+
+export type GetProviderCatalogTemplateData = {
+    body?: never;
+    path: {
+        /**
+         * Provider ID from models.dev
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/config/provider-catalog/{id}';
+};
+
+export type GetProviderCatalogTemplateErrors = {
+    /**
+     * Provider not found in catalog
+     */
+    404: unknown;
+};
+
+export type GetProviderCatalogTemplateResponses = {
+    /**
+     * Provider template retrieved successfully
+     */
+    200: ProviderTemplate;
+};
+
+export type GetProviderCatalogTemplateResponse = GetProviderCatalogTemplateResponses[keyof GetProviderCatalogTemplateResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -2485,6 +2687,34 @@ export type ProvidersResponses = {
 };
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
+
+export type CleanupProviderCacheData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., githubcopilot)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/cleanup';
+};
+
+export type CleanupProviderCacheErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CleanupProviderCacheResponses = {
+    /**
+     * Provider cache cleaned up successfully
+     */
+    200: string;
+};
+
+export type CleanupProviderCacheResponse = CleanupProviderCacheResponses[keyof CleanupProviderCacheResponses];
 
 export type GetProviderModelsData = {
     body?: never;
@@ -2870,7 +3100,7 @@ export type TranscribeDictationErrors = {
      */
     412: unknown;
     /**
-     * Audio file too large (max 25MB)
+     * Audio file too large (max 50MB)
      */
     413: unknown;
     /**
@@ -2903,6 +3133,35 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type GetFeaturesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/features';
+};
+
+export type GetFeaturesResponses = {
+    /**
+     * Compile-time feature flags
+     */
+    200: FeaturesResponse;
+};
+
+export type GetFeaturesResponse = GetFeaturesResponses[keyof GetFeaturesResponses];
+
+export type StartNanogptSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_nanogpt';
+};
+
+export type StartNanogptSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;
@@ -3918,6 +4177,93 @@ export type SearchSessionsResponses = {
 };
 
 export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
+
+export type SessionCancelData = {
+    body: CancelRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/cancel';
+};
+
+export type SessionCancelResponses = {
+    /**
+     * Cancellation accepted
+     */
+    200: unknown;
+};
+
+export type SessionEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/events';
+};
+
+export type SessionEventsErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+};
+
+export type SessionEventsResponses = {
+    /**
+     * SSE event stream
+     */
+    200: MessageEvent;
+};
+
+export type SessionEventsResponse = SessionEventsResponses[keyof SessionEventsResponses];
+
+export type SessionReplyData = {
+    body: SessionReplyRequest;
+    path: {
+        /**
+         * Session ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/sessions/{id}/reply';
+};
+
+export type SessionReplyErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SessionReplyResponses = {
+    /**
+     * Request accepted
+     */
+    200: SessionReplyResponse;
+};
+
+export type SessionReplyResponse2 = SessionReplyResponses[keyof SessionReplyResponses];
 
 export type DeleteSessionData = {
     body?: never;

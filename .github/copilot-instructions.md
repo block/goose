@@ -34,8 +34,8 @@
 - Async/await misuse or blocking operations in async contexts
 - Improper trait implementations
 
-### No Prerelease Docs
-- If the PR contains both code changes to features/functionality AND updates in `/documentation`: Documentation updates must be separated to keep public docs in sync with released versions. Either mark new topics with `unlisted: true` or remove/hide the documentation.
+### No Doc Updates with Code Changes
+- PRs with code changes shouldn't update `/documentation` - docs deploy on merge, code on release. Use `unlisted: true` or remove/hide docs.
 
 ## Project-Specific Context
 
@@ -43,7 +43,6 @@
 - Core crates: `goose` (agent logic), `goose-cli` (CLI), `goose-server` (backend), `goose-mcp` (MCP servers)
 - Error handling: Use `anyhow::Result`, not `unwrap()` in production code
 - Async runtime: tokio
-- See HOWTOAI.md for AI-assisted code standards
 - MCP protocol implementations require extra scrutiny
 - Naming convention: In `documentation/docs` and `documentation/blog`, always refer to the project as "goose" (lowercase), never "Goose" (even at the start of sentences)
 
@@ -60,17 +59,17 @@
 - `just check-openapi-schema` - OpenAPI schema validation
 
 **Desktop app checks:**
-- `npm ci` - Fresh dependency install (in `ui/desktop/`)
-- `npm run lint:check` - ESLint + Prettier
-- `npm run test:run` - Vitest tests
+- `pnpm install --frozen-lockfile` - Fresh dependency install (in `ui/desktop/`)
+- `pnpm run lint:check` - ESLint + Prettier
+- `pnpm run test:run` - Vitest tests
 
 **Setup steps CI performs:**
 - Installs system dependencies (libdbus, gnome-keyring, libxcb)
 - Activates hermit environment (`source bin/activate-hermit`)
-- Caches Cargo and npm dependencies
-- Runs `npm ci` before any npm scripts (ensures all packages are installed)
+- Caches Cargo and pnpm dependencies
+- Runs `pnpm install --frozen-lockfile` before any pnpm scripts (ensures all packages are installed)
 
-**Key insight**: Commands like `npx` check local `node_modules` first, which CI installs via `npm ci`. Don't flag these as broken unless you can explain why CI setup wouldn't handle it.
+**Key insight**: Commands like `npx` check local `node_modules` first, which CI installs via `pnpm install --frozen-lockfile`. Don't flag these as broken unless you can explain why CI setup wouldn't handle it.
 
 ## Skip These (Low Value)
 
@@ -78,7 +77,7 @@ Do not comment on:
 - **Style/formatting** - CI handles this (rustfmt, prettier)
 - **Clippy warnings** - CI handles this (clippy)
 - **Test failures** - CI handles this (full test suite)
-- **Missing dependencies** - CI handles this (npm ci will fail)
+- **Missing dependencies** - CI handles this (pnpm install will fail)
 - **Minor naming suggestions** - unless truly confusing
 - **Suggestions to add comments** - for self-documenting code
 - **Refactoring suggestions** - unless there's a clear bug or maintainability issue
