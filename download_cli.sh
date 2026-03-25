@@ -292,6 +292,13 @@ echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
 if [ "$OS" = "windows" ]; then
   mv "$EXTRACT_DIR/goose.exe" "$GOOSE_BIN_DIR/$OUT_FILE"
 else
+  # On Linux, if the target binary is currently running, writing to it fails
+  # with ETXTBSY ("Text file busy"). Removing the file first releases the path
+  # while the running process keeps its inode reference, allowing the new
+  # binary to be placed at the same path.
+  if [ -f "$GOOSE_BIN_DIR/$OUT_FILE" ]; then
+    rm -f "$GOOSE_BIN_DIR/$OUT_FILE"
+  fi
   mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 fi
 
