@@ -159,7 +159,7 @@ export default function ProviderConfigurationModal({
     );
 
     try {
-      await providerConfigSubmitHandler(upsert, provider, toSubmit);
+      await providerConfigSubmitHandler(upsert, remove, provider, toSubmit);
       if (onConfigured) {
         onConfigured(provider);
       } else {
@@ -215,7 +215,10 @@ export default function ProviderConfigurationModal({
       }
 
       const hasOAuthKey = params.some((key) => key.oauth_flow);
-      if (hasOAuthKey) {
+      const hasOnlyOptionalDefaults =
+        params.length > 0 && params.every((key) => !key.required && key.default !== undefined);
+      const usesConfiguredMarker = hasOAuthKey || params.length === 0 || hasOnlyOptionalDefaults;
+      if (usesConfiguredMarker) {
         const configuredMarker = `${provider.name}_configured`;
         await remove(configuredMarker, false);
       }

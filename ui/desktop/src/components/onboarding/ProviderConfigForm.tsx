@@ -83,7 +83,7 @@ function ApiKeyForm({
   onConfigured: (name: string) => void;
   onError: (msg: string) => void;
 }) {
-  const { upsert } = useConfig();
+  const { upsert, remove } = useConfig();
   const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,7 +119,7 @@ function ApiKeyForm({
 
     setIsSubmitting(true);
     try {
-      await providerConfigSubmitHandler(upsert, provider, toSubmit);
+      await providerConfigSubmitHandler(upsert, remove, provider, toSubmit);
       onConfigured(provider.name);
     } catch (err) {
       const msg =
