@@ -79,6 +79,9 @@ if [[ -f "$E2E_ENV" ]]; then
 fi
 
 # Start the app in foreground (Ctrl+C to stop)
+# Unset variables that may leak from the parent shell and affect the UI
+# (e.g. GOOSE_PREDEFINED_MODELS hides the "Configure providers" button)
+unset GOOSE_PREDEFINED_MODELS
 export GOOSE_ALLOWLIST_BYPASS=true
 export GOOSE_DISABLE_KEYRING=1
 export GOOSE_PATH_ROOT="$SESSION_DIR/root"
