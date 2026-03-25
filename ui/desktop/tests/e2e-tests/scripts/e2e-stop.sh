@@ -42,8 +42,9 @@ fi
 if [[ -d "$SESSIONS_DIR" ]]; then
   for session_dir in "$SESSIONS_DIR"/*; do
   [[ -d "$session_dir" ]] || continue
-  stop_session "$(basename "$session_dir")" || true
-done
+    stop_session "$(basename "$session_dir")" || true
+  done
+fi
 
 pkill -9 -f "$BASE_DIR" 2>/dev/null || true
 pkill -9 -f 'agent-browser-chrome' 2>/dev/null || true
