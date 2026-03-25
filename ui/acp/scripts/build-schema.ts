@@ -5,6 +5,7 @@
  *
  * Usage:
  *   npm run build:schema
+ *   npm run build:schema -- --prebuilt ../native-binaries/goose-linux-x64/bin/generate-acp-schema
  */
 
 import { execSync } from "child_process";
@@ -27,26 +28,39 @@ main().catch((err) => {
 });
 
 async function main() {
-  console.log("==> Building generate-acp-schema binary...");
+  // Check for --prebuilt argument
+  const prebuiltIndex = process.argv.indexOf("--prebuilt");
+  const prebuiltBinary = prebuiltIndex !== -1 ? process.argv[prebuiltIndex + 1] : null;
   
-  try {
-    execSync(
-      "cargo build --release --bin generate-acp-schema",
-      {
-        cwd: ROOT,
-        stdio: "inherit",
-      }
-    );
-  } catch (err) {
-    console.error("Failed to build generate-acp-schema binary");
-    throw err;
+  let binaryPath;
+  
+  if (prebuiltBinary && existsSync(prebuiltBinary)) {
+    console.log(`==> Using pre-built generate-acp-schema binary: ${prebuiltBinary}`);
+    binaryPath = resolve(prebuiltBinary);
+  } else {
+    console.log("==> Building generate-acp-schema binary...");
+    
+    try {
+      execSync(
+        "cargo build --release --bin generate-acp-schema",
+        {
+          cwd: ROOT,
+          stdio: "inherit",
+        }
+      );
+    } catch (err) {
+      console.error("Failed to build generate-acp-schema binary");
+      throw err;
+    }
+    
+    binaryPath = resolve(ROOT, "target/release/generate-acp-schema");
   }
 
   console.log("==> Running generate-acp-schema...");
   
   try {
     execSync(
-      "cargo run --release --bin generate-acp-schema",
+      binaryPath,
       {
         cwd: ACP_CRATE,
         stdio: "inherit",

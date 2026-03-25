@@ -96,7 +96,9 @@ jobs:
       - name: Build packages
         run: |
           cd acp
-          pnpm run build
+          # Use pre-built generate-acp-schema from linux-x64 artifacts
+          pnpm run build:schema -- --prebuilt ../native-binaries/goose-linux-x64/bin/generate-acp-schema
+          pnpm run build:ts
           
           cd ../text
           pnpm run build

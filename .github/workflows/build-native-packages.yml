@@ -27,34 +27,78 @@ on:
       - '.github/workflows/build-native-packages.yml'
 
 jobs:
-  download-artifacts:
-    name: Download pre-built artifacts
-    runs-on: ubuntu-latest
+  build-matrix:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - darwin-arm64
-          - darwin-x64
-          - linux-arm64
-          - linux-x64
-          - win32-x64
+        include:
+          - platform: darwin-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - platform: darwin-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - platform: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - platform: linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - platform: win32-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
 
     steps:
-      - name: Download artifact from specific run
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Download artifact from the specific workflow run
-          gh run download 23552237582 \
-            --repo block/goose \
-            --name goose-${{ matrix.platform }} \
-            --dir artifact
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Verify artifact
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Add Intel target for cross-compilation (macOS ARM64 → x86_64)
+        if: matrix.platform == 'darwin-x64'
+        run: rustup target add x86_64-apple-darwin
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.platform == 'linux-arm64'
         run: |
-          echo "Downloaded artifact structure:"
-          ls -R artifact/
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          key: ${{ matrix.platform }}
+
+      - name: Build goose
+        run: cargo build --release --target ${{ matrix.target }} --bin goose
+
+      - name: Build generate-acp-schema (linux-x64 only)
+        if: matrix.platform == 'linux-x64'
+        run: cargo build --release --target ${{ matrix.target }} --bin generate-acp-schema
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p artifact/bin
+          cp target/${{ matrix.target }}/release/goose artifact/bin/
+          chmod +x artifact/bin/goose
+          # Include generate-acp-schema for linux-x64
+          if [ "${{ matrix.platform }}" = "linux-x64" ]; then
+            cp target/${{ matrix.target }}/release/generate-acp-schema artifact/bin/
+            chmod +x artifact/bin/generate-acp-schema
+          fi
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p artifact/bin
+          cp target/${{ matrix.target }}/release/goose.exe artifact/bin/
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -67,7 +111,7 @@ jobs:
   collect:
     name: Collect all binaries
     runs-on: ubuntu-latest
-    needs: download-artifacts
+    needs: build-matrix
     outputs:
       artifact-name: native-binaries-all
 
