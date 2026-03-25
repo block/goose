@@ -328,7 +328,7 @@ get-prior-version version:
 bump-version version:
     @just validate {{ version }} || exit 1
     @uvx --from=toml-cli toml set --toml-path=Cargo.toml "workspace.package.version" {{ version }}
-    @cd ui/desktop && pnpm version {{ version }} --no-git-tag-version --allow-same-version
+    @cd ui/desktop && npm pkg set "version={{ version }}"
     # update Cargo.lock after bumping versions in Cargo.toml
     @cargo update --workspace
     @just set-openapi-version {{ version }}
@@ -345,7 +345,7 @@ prepare-release version:
         Cargo.toml \
         Cargo.lock \
         ui/desktop/package.json \
-        ui/desktop/pnpm-lock.yaml \
+        ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
         crates/goose/src/providers/canonical/data/canonical_models.json \
         crates/goose/src/providers/canonical/data/provider_metadata.json
