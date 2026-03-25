@@ -45,6 +45,9 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: build-native
+    defaults:
+      run:
+        working-directory: ui
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -64,18 +67,18 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ needs.build-native.outputs.artifact-name }}
-          path: native-binaries
+          path: ../native-binaries
 
       - name: List downloaded artifacts (debug)
         run: |
           echo "Downloaded artifact structure:"
-          ls -R native-binaries/
+          ls -R ../native-binaries/
 
       - name: Copy binaries to package directories
         run: |
-          for platform_dir in native-binaries/goose-*; do
+          for platform_dir in ../native-binaries/goose-*; do
             platform=$(basename "$platform_dir" | sed 's/^goose-/goose-acp-server-/')
-            pkg_dir="ui/goose-acp-server/${platform}"
+            pkg_dir="goose-acp-server/${platform}"
             
             echo "Copying binaries for ${platform}..."
             mkdir -p "${pkg_dir}/bin"
@@ -85,16 +88,14 @@ jobs:
 
           echo ""
           echo "Verification - copied binaries:"
-          ls -lh ui/goose-acp-server/*/bin/
+          ls -lh goose-acp-server/*/bin/
 
       - name: Install dependencies
-        run: |
-          cd ui
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build packages
         run: |
-          cd ui/acp
+          cd acp
           pnpm run build
           
           cd ../text
@@ -135,7 +136,6 @@ jobs:
           version: pnpm run version
           commit: 'chore: version packages'
           title: 'chore: version packages'
-          cwd: ui
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
