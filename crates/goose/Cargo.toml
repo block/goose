@@ -36,7 +36,9 @@ rustls-tls = [
     "oauth2/rustls-tls",
 ]
 native-tls = [
-    "dep:openssl",
+    "dep:pem",
+    "dep:pkcs8",
+    "dep:sec1",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "sqlx/runtime-tokio-native-tls",
@@ -175,7 +177,9 @@ llama-cpp-2 = { version = "0.1.137", features = ["sampler"], optional = true }
 encoding_rs = "0.8.35"
 pastey = "0.2.1"
 shell-words = { workspace = true }
-openssl = { version = "0.10", optional = true }
+pem = { version = "3", optional = true }
+pkcs8 = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
+sec1 = { version = "0.7", default-features = false, features = ["der"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
