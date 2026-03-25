@@ -61,14 +61,32 @@ echo ""
 # Clean up lock file when Electron exits
 trap 'rm -f "$BASE_DIR/.port-locks/$CDP_PORT"' EXIT
 
+# Load local e2e config (CI sets env vars directly and doesn't need this file).
+# Create ~/.config/goose/e2e.env for local dev with your provider config, e.g.:
+#   GOOSE_PROVIDER=anthropic
+#   GOOSE_MODEL=claude-haiku-4-5-20251001
+#   ANTHROPIC_API_KEY=sk-ant-...
+E2E_ENV="${HOME}/.config/goose/e2e.env"
+if [[ -f "$E2E_ENV" ]]; then
+  # Warn if the file is readable by others (it contains secrets)
+  if [[ "$(stat -f %Lp "$E2E_ENV" 2>/dev/null)" != "600" ]]; then
+    echo "Warning: $E2E_ENV should be chmod 600 (currently $(stat -f %Lp "$E2E_ENV"))"
+  fi
+  echo "Loading e2e config from $E2E_ENV"
+  set -a
+  source "$E2E_ENV"
+  set +a
+fi
+
 # Start the app in foreground (Ctrl+C to stop)
 export GOOSE_ALLOWLIST_BYPASS=true
 export GOOSE_DISABLE_KEYRING=1
 export GOOSE_PATH_ROOT="$SESSION_DIR/root"
 export GOOSE_WORKING_DIR="$SESSION_DIR/workspace"
-export GOOSE_PROVIDER=anthropic
-export GOOSE_MODEL=claude-haiku-4-5-20251001
-export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY must be set}"
+export GOOSE_PROVIDER="${GOOSE_PROVIDER:-anthropic}"
+export GOOSE_MODEL="${GOOSE_MODEL:-claude-haiku-4-5-20251001}"
+# API key is provider-specific (e.g. ANTHROPIC_API_KEY, OPENAI_API_KEY).
+# Set it in ~/.config/goose/e2e.env for local dev, or via env vars in CI.
 export GOOSE_TELEMETRY_ENABLED=false
 export ENABLE_PLAYWRIGHT=true
 export PLAYWRIGHT_DEBUG_PORT="$CDP_PORT"

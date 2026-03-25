@@ -115,7 +115,7 @@ jobs:
         with:
           name: e2e-test-results
           path: ui/desktop/tests/e2e-tests/results/
-          retention-days: 7
+          retention-days: 1
 
   smoke-tests:
     name: Smoke Tests
