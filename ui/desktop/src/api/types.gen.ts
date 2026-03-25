@@ -233,15 +233,6 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
-export type DetectProviderRequest = {
-    api_key: string;
-};
-
-export type DetectProviderResponse = {
-    models: Array<string>;
-    provider_name: string;
-};
-
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
@@ -2354,29 +2345,6 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
-
-export type DetectProviderData = {
-    body: DetectProviderRequest;
-    path?: never;
-    query?: never;
-    url: '/config/detect-provider';
-};
-
-export type DetectProviderErrors = {
-    /**
-     * No matching provider found
-     */
-    404: unknown;
-};
-
-export type DetectProviderResponses = {
-    /**
-     * Provider detected successfully
-     */
-    200: DetectProviderResponse;
-};
-
-export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
