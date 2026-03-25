@@ -52,7 +52,7 @@ def evaluate_with_openai(prompt: str, text: str, rubric_max_score: int = 2) -> f
         raise ValueError("OPENAI_API_KEY environment variable is not set, but is needed to run this evaluation.")
         
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=60.0, max_retries=3)
         
         # Append output instructions to system prompt
         output_instructions = f"""
