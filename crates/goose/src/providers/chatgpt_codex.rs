@@ -7,6 +7,7 @@ use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status_openai_compat;
 use crate::providers::retry::ProviderRetry;
+use crate::providers::utils::stream_chunk_timeout;
 use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
@@ -30,6 +31,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::pin;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
+use tokio::time::timeout;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
@@ -989,9 +991,23 @@ impl Provider for ChatGptCodexProvider {
 
             let message_stream = responses_api_to_streaming_message(framed);
             pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                yield (message, usage);
+            let chunk_timeout = stream_chunk_timeout();
+            loop {
+                match timeout(chunk_timeout, message_stream.next()).await {
+                    Ok(Some(message)) => {
+                        let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                        yield (message, usage);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        Err(ProviderError::RequestFailed(format!(
+                            "Stream stalled: no data received for {} seconds. \
+                             The provider may be unresponsive. You can adjust this timeout \
+                             via the GOOSE_STREAM_TIMEOUT environment variable.",
+                            chunk_timeout.as_secs()
+                        )))?;
+                    }
+                }
             }
         }))
     }

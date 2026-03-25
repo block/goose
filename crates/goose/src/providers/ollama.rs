@@ -3,7 +3,7 @@ use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetad
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::{stream_chunk_timeout, ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -18,6 +18,7 @@ use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::pin;
+use tokio::time::timeout;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
@@ -295,12 +296,26 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
 
         let message_stream = response_to_streaming_message_ollama(framed);
         pin!(message_stream);
-        while let Some(message) = message_stream.next().await {
-            let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-            )?;
-            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-            yield (message, usage);
+        let chunk_timeout = stream_chunk_timeout();
+        loop {
+            match timeout(chunk_timeout, message_stream.next()).await {
+                Ok(Some(message)) => {
+                    let (message, usage) = message.map_err(|e|
+                        ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+                    )?;
+                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                    yield (message, usage);
+                }
+                Ok(None) => break,
+                Err(_) => {
+                    Err(ProviderError::RequestFailed(format!(
+                        "Stream stalled: no data received for {} seconds. \
+                         The provider may be unresponsive. You can adjust this timeout \
+                         via the GOOSE_STREAM_TIMEOUT environment variable.",
+                        chunk_timeout.as_secs()
+                    )))?;
+                }
+            }
         }
     }))
 }

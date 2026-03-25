@@ -9,6 +9,7 @@ use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::pin;
+use tokio::time::timeout;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
@@ -21,6 +22,7 @@ use super::formats::openai_responses::{
     create_responses_request, responses_api_to_streaming_message,
 };
 use super::oauth;
+use super::utils::stream_chunk_timeout;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, map_http_error_to_provider_error,
     stream_openai_compat,
@@ -370,10 +372,24 @@ impl Provider for DatabricksProvider {
 
                 let message_stream = responses_api_to_streaming_message(framed);
                 pin!(message_stream);
-                while let Some(message) = message_stream.next().await {
-                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                    yield (message, usage);
+                let chunk_timeout = stream_chunk_timeout();
+                loop {
+                    match timeout(chunk_timeout, message_stream.next()).await {
+                        Ok(Some(message)) => {
+                            let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                            yield (message, usage);
+                        }
+                        Ok(None) => break,
+                        Err(_) => {
+                            Err(ProviderError::RequestFailed(format!(
+                                "Stream stalled: no data received for {} seconds. \
+                                 The provider may be unresponsive. You can adjust this timeout \
+                                 via the GOOSE_STREAM_TIMEOUT environment variable.",
+                                chunk_timeout.as_secs()
+                            )))?;
+                        }
+                    }
                 }
             }))
         } else {

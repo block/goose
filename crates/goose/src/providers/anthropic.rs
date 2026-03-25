@@ -6,6 +6,7 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use std::io;
 use tokio::pin;
+use tokio::time::timeout;
 use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -20,7 +21,7 @@ use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
+use crate::providers::utils::{stream_chunk_timeout, RequestLog};
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -257,10 +258,24 @@ impl Provider for AnthropicProvider {
 
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
-            while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
+            let chunk_timeout = stream_chunk_timeout();
+            loop {
+                match timeout(chunk_timeout, futures::StreamExt::next(&mut message_stream)).await {
+                    Ok(Some(message)) => {
+                        let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                        log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                        yield (message, usage);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        Err(ProviderError::RequestFailed(format!(
+                            "Stream stalled: no data received for {} seconds. \
+                             The provider may be unresponsive. You can adjust this timeout \
+                             via the GOOSE_STREAM_TIMEOUT environment variable.",
+                            chunk_timeout.as_secs()
+                        )))?;
+                    }
+                }
             }
         }))
     }

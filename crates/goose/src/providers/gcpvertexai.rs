@@ -10,7 +10,7 @@ use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use tokio_util::io::StreamReader;
 use url::Url;
 
@@ -26,7 +26,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::map_http_error_to_provider_error;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::RequestLog;
+use crate::providers::utils::{stream_chunk_timeout, RequestLog};
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::Tool;
 
@@ -605,12 +605,26 @@ impl Provider for GcpVertexAIProvider {
             .map_err(anyhow::Error::from);
 
             let mut message_stream = response_to_streaming_message(framed, &context_clone);
+            let chunk_timeout = stream_chunk_timeout();
 
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message
-                    .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|u| &u.usage))?;
-                yield (message, usage);
+            loop {
+                match timeout(chunk_timeout, message_stream.next()).await {
+                    Ok(Some(message)) => {
+                        let (message, usage) = message
+                            .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                        log.write(&message, usage.as_ref().map(|u| &u.usage))?;
+                        yield (message, usage);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        Err(ProviderError::RequestFailed(format!(
+                            "Stream stalled: no data received for {} seconds. \
+                             The provider may be unresponsive. You can adjust this timeout \
+                             via the GOOSE_STREAM_TIMEOUT environment variable.",
+                            chunk_timeout.as_secs()
+                        )))?;
+                    }
+                }
             }
         }))
     }

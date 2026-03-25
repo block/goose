@@ -18,6 +18,18 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use uuid::Uuid;
 
+/// Default timeout for waiting between streaming chunks from an LLM provider.
+/// If no data arrives within this duration, the stream is considered stalled and will error.
+/// This can be overridden via the `GOOSE_STREAM_TIMEOUT` environment variable (in seconds).
+pub fn stream_chunk_timeout() -> Duration {
+    let default_secs = 300; // 5 minutes
+    let secs = std::env::var("GOOSE_STREAM_TIMEOUT")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(default_secs);
+    Duration::from_secs(secs)
+}
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum ImageFormat {
     OpenAi,
