@@ -76,6 +76,30 @@ jobs:
           RUST_MIN_STACK: 8388608
 
 
+  rust-build-windows:
+    name: Build Rust Project on Windows
+    runs-on: windows-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-ci
+
+      - name: Add Windows MSVC target
+        run: rustup target add x86_64-pc-windows-msvc
+
+      - name: Build
+        run: cargo build --target x86_64-pc-windows-msvc
+        env:
+          CARGO_INCREMENTAL: "0"
+
   rust-lint:
     name: Lint Rust Code
     runs-on: ubuntu-latest
