@@ -37,6 +37,7 @@ rustls-tls = [
 ]
 native-tls = [
     "dep:pem",
+    "dep:pkcs1",
     "dep:pkcs8",
     "dep:sec1",
     "reqwest/native-tls",
@@ -178,8 +179,9 @@ encoding_rs = "0.8.35"
 pastey = "0.2.1"
 shell-words = { workspace = true }
 pem = { version = "3", optional = true }
+pkcs1 = { version = "0.7", default-features = false, features = ["pkcs8"], optional = true }
 pkcs8 = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
-sec1 = { version = "0.7", default-features = false, features = ["der"], optional = true }
+sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }

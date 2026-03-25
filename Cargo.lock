@@ -4351,6 +4351,7 @@ dependencies = [
  "pastey",
  "pctx_code_mode",
  "pem",
+ "pkcs1",
  "pkcs8",
  "pulldown-cmark",
  "rand 0.8.5",
