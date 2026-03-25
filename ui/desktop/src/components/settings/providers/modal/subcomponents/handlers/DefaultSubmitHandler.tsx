@@ -6,6 +6,7 @@ import { getProviderModels, readConfig } from '../../../../../../api';
  */
 export const providerConfigSubmitHandler = async (
   upsertFn: (key: string, value: unknown, isSecret: boolean) => Promise<void>,
+  removeFn: (key: string, isSecret: boolean) => Promise<void>,
   provider: {
     name: string;
     metadata: {
@@ -20,6 +21,11 @@ export const providerConfigSubmitHandler = async (
   configValues: Record<string, string>
 ) => {
   const parameters = provider.metadata.config_keys || [];
+  const configuredMarker = `${provider.name}_configured`;
+  const allOptionalWithDefaults =
+    parameters.length > 0 &&
+    parameters.every((param) => !param.required && param.default !== undefined);
+  const needsConfiguredMarker = parameters.length === 0 || allOptionalWithDefaults;
 
   // Save current NON-SECRET config values for rollback on failure
   // We skip secrets because readConfig returns masked values for secrets,
@@ -33,7 +39,7 @@ export const providerConfigSubmitHandler = async (
         const currentValue = await readConfig({
           body: { key: param.name, is_secret: false },
         });
-        if (currentValue.data) {
+        if (currentValue.data !== undefined) {
           previousConfigValues[param.name] = {
             value: currentValue.data,
             isSecret: false,
@@ -45,11 +51,25 @@ export const providerConfigSubmitHandler = async (
     })
   );
 
+  let previousConfiguredMarker: unknown;
+  let hadConfiguredMarker = false;
+
+  if (needsConfiguredMarker) {
+    try {
+      const currentMarker = await readConfig({
+        body: { key: configuredMarker, is_secret: false },
+      });
+      if (currentMarker.data !== undefined) {
+        previousConfiguredMarker = currentMarker.data;
+        hadConfiguredMarker = true;
+      }
+    } catch {
+      // No previous marker exists, that's fine
+    }
+  }
+
   const requiredParams = parameters.filter((param) => param.required);
   if (requiredParams.length === 0 && parameters.length > 0) {
-    const allOptionalWithDefaults = parameters.every(
-      (param) => !param.required && param.default !== undefined
-    );
     if (allOptionalWithDefaults) {
       const promises: Promise<void>[] = [];
 
@@ -62,6 +82,7 @@ export const providerConfigSubmitHandler = async (
       }
 
       await Promise.all(promises);
+      await upsertFn(configuredMarker, true, false);
       return;
     }
   }
@@ -95,6 +116,10 @@ export const providerConfigSubmitHandler = async (
 
   await Promise.all(upsertPromises);
 
+  if (needsConfiguredMarker) {
+    await upsertFn(configuredMarker, true, false);
+  }
+
   try {
     await getProviderModels({
       path: { name: provider.name },
@@ -104,6 +129,13 @@ export const providerConfigSubmitHandler = async (
     const rollbackPromises: Promise<void>[] = [];
     for (const [key, { value, isSecret }] of Object.entries(previousConfigValues)) {
       rollbackPromises.push(upsertFn(key, value, isSecret));
+    }
+    if (needsConfiguredMarker) {
+      if (hadConfiguredMarker) {
+        rollbackPromises.push(upsertFn(configuredMarker, previousConfiguredMarker, false));
+      } else {
+        rollbackPromises.push(removeFn(configuredMarker, false));
+      }
     }
     await Promise.all(rollbackPromises);
 
