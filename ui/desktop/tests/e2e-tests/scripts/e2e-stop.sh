@@ -39,11 +39,8 @@ if [[ $# -gt 0 ]]; then
   exit 0
 fi
 
-if [[ ! -d "$SESSIONS_DIR" ]]; then
-  exit 0
-fi
-
-for session_dir in "$SESSIONS_DIR"/*; do
+if [[ -d "$SESSIONS_DIR" ]]; then
+  for session_dir in "$SESSIONS_DIR"/*; do
   [[ -d "$session_dir" ]] || continue
   stop_session "$(basename "$session_dir")" || true
 done

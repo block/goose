@@ -107,11 +107,11 @@ run_one() {
 
   local CDP_PORT
   if ! CDP_PORT=$(wait_for_app "$TEST_NAME"); then
-    release_startup_lock
     local DURATION=$(( SECONDS - START_TIME ))
     echo "[$(ts)] [$TEST_NAME] FAIL — app did not start within 30s (${DURATION}s)"
     echo "FAIL ${DURATION}s" > "$STATUS_DIR/$TEST_NAME"
     bash "$SCRIPT_DIR/e2e-stop.sh" "$TEST_NAME" 2>/dev/null || true
+    release_startup_lock
     return
   fi
   release_startup_lock
