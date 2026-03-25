@@ -61,10 +61,6 @@ vi.mock('./sessions', () => ({
   generateSessionId: vi.fn(),
 }));
 
-vi.mock('./utils/openRouterSetup', () => ({
-  startOpenRouterSetup: vi.fn().mockResolvedValue({ success: false, message: 'Test' }),
-}));
-
 // Mock the ConfigContext module
 vi.mock('./components/ConfigContext', () => ({
   useConfig: () => ({

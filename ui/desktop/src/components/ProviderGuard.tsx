@@ -1,10 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
-import { SetupModal } from './SetupModal';
-import { startOpenRouterSetup } from '../utils/openRouterSetup';
-import { startTetrateSetup } from '../utils/tetrateSetup';
-import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { LocalModelSetup } from './LocalModelSetup';
@@ -17,10 +13,9 @@ import {
   trackOnboardingProviderSelected,
   trackOnboardingCompleted,
   trackOnboardingAbandoned,
-  trackOnboardingSetupFailed,
 } from '../utils/analytics';
 
-import { Goose, OpenRouter, Tetrate, ChatGPT } from './icons';
+import { Goose } from './icons';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -28,7 +23,7 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
-  const { read, upsert, getProviders } = useConfig();
+  const { read, upsert } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -53,87 +48,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   }, []);
 
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
-
-  const [openRouterSetupState, setOpenRouterSetupState] = useState<{
-    show: boolean;
-    title: string;
-    message: string;
-    showRetry: boolean;
-    autoClose?: number;
-  } | null>(null);
-
-  const [tetrateSetupState, setTetrateSetupState] = useState<{
-    show: boolean;
-    title: string;
-    message: string;
-    showRetry: boolean;
-    autoClose?: number;
-  } | null>(null);
-
-  const [chatgptCodexSetupState, setChatgptCodexSetupState] = useState<{
-    show: boolean;
-    title: string;
-    message: string;
-    showRetry: boolean;
-    autoClose?: number;
-  } | null>(null);
-
-  const handleTetrateSetup = async () => {
-    trackOnboardingProviderSelected({ method: 'tetrate' });
-    try {
-      const result = await startTetrateSetup();
-      if (result.success) {
-        setSwitchModelProvider('tetrate');
-        setShowSwitchModelModal(true);
-      } else {
-        trackOnboardingSetupFailed('tetrate', result.message);
-        setTetrateSetupState({
-          show: true,
-          title: 'Setup Failed',
-          message: result.message,
-          showRetry: true,
-        });
-      }
-    } catch (error) {
-      console.error('Tetrate setup error:', error);
-      trackOnboardingSetupFailed('tetrate', 'unexpected_error');
-      setTetrateSetupState({
-        show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
-        showRetry: true,
-      });
-    }
-  };
-
-  const handleChatGptCodexSetup = async () => {
-    trackOnboardingProviderSelected({ method: 'chatgpt_codex' });
-    try {
-      const result = await startChatGptCodexSetup();
-      if (result.success) {
-        await getProviders(true);
-        setSwitchModelProvider('chatgpt_codex');
-        setShowSwitchModelModal(true);
-      } else {
-        trackOnboardingSetupFailed('chatgpt_codex', result.message);
-        setChatgptCodexSetupState({
-          show: true,
-          title: 'Setup Failed',
-          message: result.message,
-          showRetry: true,
-        });
-      }
-    } catch (error) {
-      console.error('ChatGPT Codex setup error:', error);
-      trackOnboardingSetupFailed('chatgpt_codex', 'unexpected_error');
-      setChatgptCodexSetupState({
-        show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
-        showRetry: true,
-      });
-    }
-  };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
     trackOnboardingProviderSelected({ method: 'api_key' });
@@ -160,34 +74,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     setShowSwitchModelModal(false);
   };
 
-  const handleOpenRouterSetup = async () => {
-    trackOnboardingProviderSelected({ method: 'openrouter' });
-    try {
-      const result = await startOpenRouterSetup();
-      if (result.success) {
-        setSwitchModelProvider('openrouter');
-        setShowSwitchModelModal(true);
-      } else {
-        trackOnboardingSetupFailed('openrouter', result.message);
-        setOpenRouterSetupState({
-          show: true,
-          title: 'Setup Failed',
-          message: result.message,
-          showRetry: true,
-        });
-      }
-    } catch (error) {
-      console.error('OpenRouter setup error:', error);
-      trackOnboardingSetupFailed('openrouter', 'unexpected_error');
-      setOpenRouterSetupState({
-        show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
-        showRetry: true,
-      });
-    }
-  };
-
   const handleLocalModelComplete = () => {
     trackOnboardingCompleted('local');
     setShowLocalModelSetup(false);
@@ -199,29 +85,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const handleLocalModelCancel = () => {
     trackOnboardingAbandoned('local_model_setup');
     setShowLocalModelSetup(false);
-  };
-
-  const handleRetrySetup = (setupType: 'openrouter' | 'tetrate' | 'chatgpt_codex') => {
-    if (setupType === 'openrouter') {
-      setOpenRouterSetupState(null);
-      handleOpenRouterSetup();
-    } else if (setupType === 'tetrate') {
-      setTetrateSetupState(null);
-      handleTetrateSetup();
-    } else {
-      setChatgptCodexSetupState(null);
-      handleChatGptCodexSetup();
-    }
-  };
-
-  const closeSetupModal = (setupType: 'openrouter' | 'tetrate' | 'chatgpt_codex') => {
-    if (setupType === 'openrouter') {
-      setOpenRouterSetupState(null);
-    } else if (setupType === 'tetrate') {
-      setTetrateSetupState(null);
-    } else {
-      setChatgptCodexSetupState(null);
-    }
   };
 
   useEffect(() => {
@@ -372,125 +235,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </div>
               </div>
 
-              {/* ChatGPT Subscription Card - Full Width */}
-              <div className="relative w-full mb-4">
-                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
-                  <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                    Recommended if you have ChatGPT Plus/Pro
-                  </span>
-                </div>
-
-                <div
-                  onClick={handleChatGptCodexSetup}
-                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <ChatGPT className="w-5 h-5 text-text-primary" />
-                      <span className="font-medium text-text-primary text-sm sm:text-base">
-                        ChatGPT Subscription
-                      </span>
-                    </div>
-                    <div className="text-text-secondary group-hover:text-text-primary transition-colors">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-text-secondary text-sm sm:text-base">
-                    Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models.
-                  </p>
-                </div>
-              </div>
-
-              {/* Tetrate Card - Full Width */}
-              <div className="relative w-full mb-4">
-                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
-                  <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                    Recommended for new users
-                  </span>
-                </div>
-
-                <div
-                  onClick={handleTetrateSetup}
-                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Tetrate className="w-5 h-5 text-text-primary" />
-                      <span className="text-sm sm:text-base">
-                        <span className="font-medium text-text-primary">Agent Router</span>
-                        <span className="text-text-secondary text-xs"> by Tetrate</span>
-                      </span>
-                    </div>
-                    <div className="text-text-secondary group-hover:text-text-primary transition-colors">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-text-secondary text-sm sm:text-base">
-                    Access multiple AI models with automatic setup. Sign up to receive $10 credit.
-                  </p>
-                </div>
-              </div>
-
-              {/* OpenRouter Card - Full Width */}
-              <div
-                onClick={handleOpenRouterSetup}
-                className="relative w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group overflow-hidden mb-6"
-              >
-                {/* Subtle shimmer effect */}
-                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
-
-                <div className="relative flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <OpenRouter className="w-5 h-5 text-text-primary" />
-                    <span className="font-medium text-text-primary text-sm sm:text-base">
-                      OpenRouter
-                    </span>
-                  </div>
-                  <div className="text-text-secondary group-hover:text-text-primary transition-colors">
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <p className="text-text-secondary text-sm sm:text-base">
-                  Access 200+ models with one API. Pay-per-use pricing.
-                </p>
-              </div>
-
               {/* Other providers section */}
               <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
                 <h3 className="font-medium text-text-primary text-sm sm:text-base mb-3">
@@ -528,40 +272,6 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               </svg>
             </div>
           </div>
-        )}
-
-        {/* Setup Modals */}
-        {openRouterSetupState?.show && (
-          <SetupModal
-            title={openRouterSetupState.title}
-            message={openRouterSetupState.message}
-            showRetry={openRouterSetupState.showRetry}
-            onRetry={() => handleRetrySetup('openrouter')}
-            onClose={() => closeSetupModal('openrouter')}
-            autoClose={openRouterSetupState.autoClose}
-          />
-        )}
-
-        {tetrateSetupState?.show && (
-          <SetupModal
-            title={tetrateSetupState.title}
-            message={tetrateSetupState.message}
-            showRetry={tetrateSetupState.showRetry}
-            onRetry={() => handleRetrySetup('tetrate')}
-            onClose={() => closeSetupModal('tetrate')}
-            autoClose={tetrateSetupState.autoClose}
-          />
-        )}
-
-        {chatgptCodexSetupState?.show && (
-          <SetupModal
-            title={chatgptCodexSetupState.title}
-            message={chatgptCodexSetupState.message}
-            showRetry={chatgptCodexSetupState.showRetry}
-            onRetry={() => handleRetrySetup('chatgpt_codex')}
-            onClose={() => closeSetupModal('chatgpt_codex')}
-            autoClose={chatgptCodexSetupState.autoClose}
-          />
         )}
 
         {showSwitchModelModal && (
