@@ -24,6 +24,97 @@ fn platform_ext_config(name: &str) -> Option<ExtensionConfig> {
     })
 }
 
+/// Idempotently create the nest directory structure and seed files.
+/// Called on every agent setup — only creates what's missing.
+fn feather_nest() {
+    use crate::agents::platform_extensions::orchestrator::nest_dir;
+
+    let nest = nest_dir();
+
+    // Create directories
+    let dirs = [
+        "GUIDES",
+        "RESEARCH",
+        "PLANS",
+        "WORK_LOGS",
+        "skills",
+        "recipes",
+        "OUTBOX",
+        ".scratch",
+    ];
+    for dir in &dirs {
+        if let Err(e) = std::fs::create_dir_all(nest.join(dir)) {
+            tracing::warn!("Failed to create nest directory {}: {}", dir, e);
+        }
+    }
+
+    // Seed TOP_OF_MIND.md if it doesn't exist
+    let tom = nest.join("TOP_OF_MIND.md");
+    if !tom.exists() {
+        if let Err(e) = std::fs::write(
+            &tom,
+            concat!(
+                "# Top of Mind\n",
+                "Last updated: (not yet)\n\n",
+                "## Current Focus\n",
+                "(not yet set)\n\n",
+                "## In Flight\n",
+                "(nothing yet)\n\n",
+                "## Recent Decisions\n",
+                "(none yet)\n\n",
+                "## Open Questions\n",
+                "(none yet)\n\n",
+                "## Parked\n",
+                "(nothing yet)\n",
+            ),
+        ) {
+            tracing::warn!("Failed to seed TOP_OF_MIND.md: {}", e);
+        }
+    }
+
+    // Seed NEST.md if it doesn't exist
+    let nest_md = nest.join("NEST.md");
+    if !nest_md.exists() {
+        if let Err(e) = std::fs::write(
+            &nest_md,
+            concat!(
+            "# Nest\n\n",
+            "Persistent knowledge directory. Knowledge written here persists across sessions.\n\n",
+            "## Directories\n\n",
+            "| Directory | Purpose |\n",
+            "|-----------|--------|\n",
+            "| GUIDES/ | Verified procedures — \"How do I do X?\" |\n",
+            "| RESEARCH/ | Findings and analysis |\n",
+            "| PLANS/ | Specs, proposals, designs |\n",
+            "| WORK_LOGS/ | What was tried, learned, decided, and why |\n",
+            "| skills/ | Teachable workflows (auto-available via summon) |\n",
+            "| recipes/ | Conversation starters with parameters |\n",
+            "| .scratch/ | Temporary working files |\n",
+            "| OUTBOX/ | Documents meant to be shared externally |\n\n",
+            "## Conventions\n\n",
+            "- Check CATALOG.md before researching from scratch\n",
+            "- Knowledge files use YAML frontmatter: title, tags, status, created\n",
+            "- Filenames: ALL_CAPS_WITH_UNDERSCORES.md\n",
+            "- WORK_LOGS: date-prefixed YYYYMMDD_HHMM_SLUG.md\n",
+            "- Update TOP_OF_MIND.md when focus shifts or decisions are made\n",
+        ),
+        ) {
+            tracing::warn!("Failed to seed NEST.md: {}", e);
+        }
+    }
+
+    // Seed empty CATALOG.md if it doesn't exist
+    let catalog = nest.join("CATALOG.md");
+    if !catalog.exists() {
+        if let Err(e) = std::fs::write(
+            &catalog,
+            "# Nest Catalog\n\n*Empty nest. Start working to build knowledge.*\n",
+        ) {
+            tracing::warn!("Failed to seed CATALOG.md: {}", e);
+        }
+    }
+}
+
 pub async fn ensure_session(session_manager: &SessionManager) -> Result<Session> {
     let claw_sessions = session_manager
         .list_sessions_by_types(&[SessionType::Claw])
@@ -108,6 +199,7 @@ struct ClawContext {
     nest: Vec<NestFile>,
     soul: String,
     owner: String,
+    top_of_mind: String,
     skills: Vec<SkillInfo>,
     recipes: Vec<RecipeInfo>,
 }
@@ -288,6 +380,14 @@ fn gather_nest() -> Vec<NestFile> {
             }
         } else {
             // Exact file — include full content.
+            // Skip files with dedicated template variables or unbounded growth.
+            // CATALOG.md grows with the nest — the agent reads it on demand.
+            if matches!(
+                *pattern,
+                "SOUL.md" | "OWNER.md" | "TOP_OF_MIND.md" | "CATALOG.md"
+            ) {
+                continue;
+            }
             let path = dir.join(pattern);
             let content = std::fs::read_to_string(&path).ok();
             if content.is_some() {
@@ -310,11 +410,14 @@ pub async fn setup_agent(
     agent.restore_provider_from_session(session).await?;
     agent.load_extensions_from_session(session).await;
 
+    feather_nest();
+
     let sessions = gather_recent_sessions(session_manager).await;
     let recent_files = gather_recent_files();
     let nest = gather_nest();
     let soul = read_nest_file("SOUL.md");
     let owner = read_nest_file("OWNER.md");
+    let top_of_mind = read_nest_file("TOP_OF_MIND.md");
     let skills = gather_skills();
     let recipes = gather_recipes();
 
@@ -324,6 +427,7 @@ pub async fn setup_agent(
         nest,
         soul,
         owner,
+        top_of_mind,
         skills,
         recipes,
     };
