@@ -1965,4 +1965,22 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_secrets_file_created_with_restricted_permissions() -> Result<(), ConfigError> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_path = dir.path().join("secrets.yaml");
+
+        let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
+        config.set_secret("key", &"value")?;
+
+        let mode = std::fs::metadata(&secrets_path)?.permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+
+        Ok(())
+    }
 }
