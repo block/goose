@@ -28,9 +28,6 @@ impl McpAppCache {
             if self.get_app(APPS_EXTENSION_NAME, uri).is_none() {
                 if let Ok(mut app) = GooseApp::from_html(html) {
                     app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
-                    if let Ok(render_html) = app.to_render_html() {
-                        app.resource.text = Some(render_html);
-                    }
                     let _ = self.store_app(&app);
                 }
             }

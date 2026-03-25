@@ -258,12 +258,7 @@ impl AppsManagerClient {
         let ext_descriptions: HashMap<String, String> = ext_infos
             .into_iter()
             .map(|info| {
-                let desc = info
-                    .instructions
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .to_string();
+                let desc = info.instructions.lines().next().unwrap_or("").to_string();
                 (info.name, desc)
             })
             .collect();
@@ -284,18 +279,13 @@ impl AppsManagerClient {
                     .input_schema
                     .get("properties")
                     .and_then(|p| p.as_object())
-                    .map(|props| {
-                        props
-                            .keys()
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    })
+                    .map(|props| props.keys().cloned().collect::<Vec<_>>().join(", "))
                     .unwrap_or_default();
-                by_extension
-                    .entry(ext.to_string())
-                    .or_default()
-                    .push((tool_name.to_string(), desc, params));
+                by_extension.entry(ext.to_string()).or_default().push((
+                    tool_name.to_string(),
+                    desc,
+                    params,
+                ));
             }
         }
 
@@ -308,8 +298,7 @@ impl AppsManagerClient {
                 .filter(|d| !d.is_empty())
                 .map(|d| format!(" — {d}"))
                 .unwrap_or_default();
-            let is_ident =
-                ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+            let is_ident = ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
             let ext_accessor = if is_ident {
                 format!("goose.{ext}")
             } else {
@@ -399,12 +388,6 @@ impl AppsManagerClient {
 
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
-
-        // Dump the full prompt for debugging
-        let _ = std::fs::write(
-            "/tmp/prompt.txt",
-            format!("=== SYSTEM ===\n{}\n\n=== USER ===\n{}", system_prompt, user_prompt),
-        );
 
         let mut model_config = provider.get_model_config();
         model_config.max_tokens = Some(16384);
@@ -743,9 +726,7 @@ impl McpClientTrait for AppsManagerClient {
             .load_app(app_name)
             .map_err(|_| Error::TransportClosed)?;
 
-        let html = app
-            .to_render_html()
-            .map_err(|_| Error::TransportClosed)?;
+        let html = app.to_render_html().map_err(|_| Error::TransportClosed)?;
 
         Ok(ReadResourceResult {
             contents: vec![ResourceContents::text(html, uri)],
@@ -796,5 +777,3 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
 
     Err(format!("LLM did not call the required tool: {}", tool_name))
 }
-
-
