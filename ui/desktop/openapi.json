@@ -4653,6 +4653,9 @@
           "requires_auth": {
             "type": "boolean"
           },
+          "skip_canonical_filtering": {
+            "type": "boolean"
+          },
           "supports_streaming": {
             "type": "boolean",
             "nullable": true

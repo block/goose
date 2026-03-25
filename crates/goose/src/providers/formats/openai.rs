@@ -490,6 +490,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 }
 
 pub fn get_usage(usage: &Value) -> Usage {
+    let usage = usage
+        .get("usage")
+        .filter(|nested| nested.is_object())
+        .unwrap_or(usage);
+
     let input_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
@@ -500,16 +505,27 @@ pub fn get_usage(usage: &Value) -> Usage {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
+    let cache_read_input_tokens = usage
+        .get("cache_read_input_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
+    let cache_write_input_tokens = usage
+        .get("cache_creation_input_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
     let total_tokens = usage
         .get("total_tokens")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
         .or_else(|| match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input + output),
+            (Some(input), Some(output)) => Some(input.saturating_add(output)),
             _ => None,
         });
 
     Usage::new(input_tokens, output_tokens, total_tokens)
+        .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
 }
 
 fn extract_usage_with_output_tokens(chunk: &StreamingChunk) -> Option<ProviderUsage> {
@@ -1728,6 +1744,43 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[test]
+    fn test_get_usage_preserves_provider_totals_with_cache_fields() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "cache_read_input_tokens": 80,
+            "cache_creation_input_tokens": 20
+        }));
+
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
+        assert_eq!(usage.cache_write_input_tokens, Some(20));
+    }
+
+    #[test]
+    fn test_get_usage_reads_nested_usage_object() {
+        let usage = get_usage(&json!({
+            "id": "chatcmpl_test",
+            "usage": {
+                "prompt_tokens": 84,
+                "completion_tokens": 21,
+                "total_tokens": 105,
+                "cache_read_input_tokens": 60,
+                "cache_creation_input_tokens": 10
+            }
+        }));
+
+        assert_eq!(usage.input_tokens, Some(84));
+        assert_eq!(usage.output_tokens, Some(21));
+        assert_eq!(usage.total_tokens, Some(105));
+        assert_eq!(usage.cache_read_input_tokens, Some(60));
+        assert_eq!(usage.cache_write_input_tokens, Some(10));
     }
 
     #[tokio::test]

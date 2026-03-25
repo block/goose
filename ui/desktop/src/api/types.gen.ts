@@ -217,6 +217,7 @@ export type DeclarativeProviderConfig = {
     models: Array<ModelInfo>;
     name: string;
     requires_auth?: boolean;
+    skip_canonical_filtering?: boolean;
     supports_streaming?: boolean | null;
     timeout_seconds?: number | null;
 };
