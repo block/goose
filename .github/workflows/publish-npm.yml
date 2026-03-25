@@ -13,6 +13,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'crates/goose-acp/**'
+      - 'ui/acp/**'
+      - '.github/workflows/publish-npm.yml'
+      - '.github/workflows/build-native-packages.yml'
   workflow_dispatch:
     inputs:
       dry-run:
@@ -37,9 +42,6 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: build-native
-    environment:
-      name: npm-production-publishing
-      url: https://www.npmjs.com/org/block
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -47,13 +49,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '24.10.0'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4
         with:
-          version: 9
+          version: 10.30.3
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
@@ -104,21 +106,27 @@ jobs:
       - name: Dry run summary
         if: inputs.dry-run == true || github.ref != 'refs/heads/main'
         run: |
-          echo "## 🧪 Dry Run Mode" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Native binaries downloaded and copied successfully" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Packages built successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🧪 Dry Run Mode"
+            echo ""
+            echo "✅ Native binaries downloaded and copied successfully"
+            echo "✅ Packages built successfully"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "⚠️  Skipping actual npm publish (not on main branch)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Current branch:** \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Publishing is only allowed from the \`main\` branch for security." >> $GITHUB_STEP_SUMMARY
+            {
+              echo "⚠️  Skipping actual npm publish (not on main branch)"
+              echo ""
+              echo "**Current branch:** \`${{ github.ref }}\`"
+              echo ""
+              echo "Publishing is only allowed from the \`main\` branch for security."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️  Skipping actual npm publish (dry-run mode)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "To publish for real, run this workflow without dry-run enabled." >> $GITHUB_STEP_SUMMARY
+            {
+              echo "⚠️  Skipping actual npm publish (dry-run mode)"
+              echo ""
+              echo "To publish for real, run this workflow without dry-run enabled."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Create Release Pull Request or Publish to npm
@@ -139,6 +147,8 @@ jobs:
       - name: Summary
         if: steps.changesets.outputs.published == 'true' && inputs.dry-run != true && github.ref == 'refs/heads/main'
         run: |
-          echo "## Published Packages" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | "- \(.name)@\(.version)"' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Published Packages"
+            echo ""
+            echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | "- \(.name)@\(.version)"'
+          } >> "$GITHUB_STEP_SUMMARY"
