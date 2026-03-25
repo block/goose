@@ -22,12 +22,12 @@ use super::formats::openai_responses::{
     create_responses_request, responses_api_to_streaming_message,
 };
 use super::oauth;
-use super::utils::stream_chunk_timeout;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, map_http_error_to_provider_error,
     stream_openai_compat,
 };
 use super::retry::ProviderRetry;
+use super::utils::stream_chunk_timeout;
 use super::utils::{ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
