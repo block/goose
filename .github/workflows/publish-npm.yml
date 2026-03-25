@@ -72,11 +72,11 @@ jobs:
       - name: List downloaded artifacts (debug)
         run: |
           echo "Downloaded artifact structure:"
-          ls -R native-binaries/
+          ls -R ../native-binaries/
 
       - name: Copy binaries to package directories
         run: |
-          for platform_dir in native-binaries/goose-*; do
+          for platform_dir in ../native-binaries/goose-*; do
             platform=$(basename "$platform_dir" | sed 's/^goose-/goose-acp-server-/')
             pkg_dir="goose-acp-server/${platform}"
             
