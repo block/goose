@@ -107,7 +107,7 @@ jobs:
           source ./bin/activate-hermit
           # Update version in package.json 
           cd ui/desktop
-          pnpm version "${VERSION}" --no-git-tag-version --allow-same-version
+          npm pkg set "version=${VERSION}"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -141,7 +141,7 @@ jobs:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: macos-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/pnpm-lock.yaml') }}
+          key: macos-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
           restore-keys: |
             macos-pnpm-cache-v1-${{ runner.os }}-
 

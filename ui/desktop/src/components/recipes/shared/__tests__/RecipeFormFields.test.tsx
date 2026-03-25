@@ -35,6 +35,7 @@ describe('RecipeFormFields', () => {
       model: undefined,
       provider: undefined,
       extensions: undefined,
+      subRecipes: [],
       ...initialValues,
     };
 
@@ -289,6 +290,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -385,6 +387,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -555,6 +558,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -631,6 +635,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -898,6 +903,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             onSubmit(value);
@@ -929,6 +935,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -998,6 +1005,128 @@ describe('RecipeFormFields', () => {
 
       expect(screen.getByText('Extensions (Optional)')).toBeInTheDocument();
       expect(screen.getByText('1 extension selected')).toBeInTheDocument();
+    });
+  });
+
+  describe('Subrecipes Field', () => {
+    it('renders the subrecipes section in advanced options', async () => {
+      const user = userEvent.setup();
+      render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('Subrecipes')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /add existing/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /create new subrecipe/i })).toBeInTheDocument();
+    });
+
+    it('pre-fills subrecipes from initial values', async () => {
+      const user = userEvent.setup();
+      const initialValues: Partial<RecipeFormData> = {
+        subRecipes: [
+          {
+            name: 'data_fetcher',
+            path: '~/.config/goose/recipes/abc123.yaml',
+            description: 'Fetches data from an API',
+            sequential_when_repeated: false,
+          },
+        ],
+      };
+
+      render(<TestWrapper initialValues={initialValues} />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('data_fetcher')).toBeInTheDocument();
+      expect(screen.getByText('~/.config/goose/recipes/abc123.yaml')).toBeInTheDocument();
+      expect(screen.getByText('Fetches data from an API')).toBeInTheDocument();
+    });
+
+    it('displays pre-configured values for a subrecipe', async () => {
+      const user = userEvent.setup();
+      const initialValues: Partial<RecipeFormData> = {
+        subRecipes: [
+          {
+            name: 'report_generator',
+            path: '~/.config/goose/recipes/def456.yaml',
+            sequential_when_repeated: false,
+            values: { output_format: 'pdf', language: 'en' },
+          },
+        ],
+      };
+
+      render(<TestWrapper initialValues={initialValues} />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('report_generator')).toBeInTheDocument();
+      expect(screen.getByText('Pre-configured values:')).toBeInTheDocument();
+      expect(screen.getByText('output_format')).toBeInTheDocument();
+      expect(screen.getByText('pdf')).toBeInTheDocument();
+      expect(screen.getByText('language')).toBeInTheDocument();
+      expect(screen.getByText('en')).toBeInTheDocument();
+    });
+
+    it('shows sequential badge when subrecipe has sequential_when_repeated set', async () => {
+      const user = userEvent.setup();
+      const initialValues: Partial<RecipeFormData> = {
+        subRecipes: [
+          {
+            name: 'sequential_tool',
+            path: '~/.config/goose/recipes/ghi789.yaml',
+            sequential_when_repeated: true,
+          },
+        ],
+      };
+
+      render(<TestWrapper initialValues={initialValues} />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('sequential_tool')).toBeInTheDocument();
+      expect(screen.getByText('Sequential')).toBeInTheDocument();
+    });
+
+    it('opens the add existing subrecipe modal on button click', async () => {
+      const user = userEvent.setup();
+      render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
+
+      const addButton = screen.getByRole('button', { name: /add existing/i });
+      await user.click(addButton);
+
+      expect(screen.getByRole('heading', { name: /add subrecipe/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^path/i)).toBeInTheDocument();
+    });
+
+    it('removes a subrecipe when its delete button is clicked', async () => {
+      const user = userEvent.setup();
+      const initialValues: Partial<RecipeFormData> = {
+        subRecipes: [
+          {
+            name: 'to_be_deleted',
+            path: '~/.config/goose/recipes/jkl012.yaml',
+            sequential_when_repeated: false,
+          },
+        ],
+      };
+
+      render(<TestWrapper initialValues={initialValues} />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('to_be_deleted')).toBeInTheDocument();
+
+      // The delete button is the last icon button inside the subrecipe card
+      const subrecipeCard = screen.getByText('to_be_deleted').closest('.border');
+      const deleteButton = subrecipeCard?.querySelectorAll('button')[1];
+
+      expect(subrecipeCard).toBeTruthy();
+      expect(deleteButton).toBeTruthy();
+      await user.click(deleteButton!);
+      expect(screen.queryByText('to_be_deleted')).not.toBeInTheDocument();
     });
   });
 });

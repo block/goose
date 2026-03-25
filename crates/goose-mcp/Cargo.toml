@@ -33,4 +33,4 @@ lopdf = "0.36.0"
 docx-rs = "0.4.7"
 image = { version = "0.24.9", features = ["jpeg"] }
 umya-spreadsheet = "2.2.3"
-shell-words = "1.1.1"
+shell-words = { workspace = true }

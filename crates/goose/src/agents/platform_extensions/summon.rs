@@ -22,7 +22,7 @@ use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
     ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
@@ -860,7 +860,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<CallToolResult, String> {
         self.cleanup_completed_tasks().await;
 
         let source_name = arguments
@@ -877,17 +877,27 @@ impl SummonClient {
         let working_dir = self.get_working_dir(session_id).await;
 
         if source_name.is_none() {
-            return self.handle_load_discovery(session_id, &working_dir).await;
+            return self
+                .handle_load_discovery(session_id, &working_dir)
+                .await
+                .map(CallToolResult::success);
         }
 
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            return self.handle_load_task_result(name, cancel).await;
+            let content = self.handle_load_task_result(name, cancel).await?;
+            let mut meta = Meta::new();
+            meta.0.insert(
+                "subagent_session_id".to_string(),
+                serde_json::Value::String(name.to_string()),
+            );
+            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
         }
 
         self.handle_load_source(session_id, name, &working_dir)
             .await
+            .map(CallToolResult::success)
     }
 
     async fn handle_load_task_result(
@@ -1200,7 +1210,7 @@ impl SummonClient {
         session_id: &str,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<CallToolResult, String> {
         self.cleanup_completed_tasks().await;
 
         let params: DelegateParams = arguments
@@ -1232,7 +1242,13 @@ impl SummonClient {
         }
 
         if params.r#async {
-            return self.handle_async_delegate(session_id, params).await;
+            let (content, task_id) = self.handle_async_delegate(session_id, params).await?;
+            let mut meta = Meta::new();
+            meta.0.insert(
+                "subagent_session_id".to_string(),
+                serde_json::Value::String(task_id),
+            );
+            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
         }
 
         let working_dir = session.working_dir.clone();
@@ -1276,6 +1292,8 @@ impl SummonClient {
             Arc::new(Mutex::new(Vec::new())),
         );
 
+        let subagent_session_id = subagent_session.id.clone();
+
         let result = run_subagent_task(SubagentRunParams {
             config: agent_config,
             recipe,
@@ -1286,10 +1304,24 @@ impl SummonClient {
             on_message: None,
             notification_tx: Some(notif_tx),
         })
-        .await
-        .map_err(|e| format!("Delegation failed: {}", e))?;
+        .await;
 
-        Ok(vec![Content::text(result)])
+        let mut meta = Meta::new();
+        meta.0.insert(
+            "subagent_session_id".to_string(),
+            serde_json::Value::String(subagent_session_id),
+        );
+
+        match result {
+            Ok(text) => {
+                Ok(CallToolResult::success(vec![Content::text(text)]).with_meta(Some(meta)))
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Delegation failed: {}",
+                e
+            ))])
+            .with_meta(Some(meta))),
+        }
     }
 
     fn validate_delegate_params(&self, params: &DelegateParams) -> Result<(), String> {
@@ -1681,7 +1713,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         params: DelegateParams,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<(Vec<Content>, String), String> {
         let task_count = self.background_tasks.lock().await.len();
         let max_tasks = max_background_tasks();
         if task_count >= max_tasks {
@@ -1789,11 +1821,12 @@ impl SummonClient {
             .await
             .insert(task_id.clone(), task);
 
-        Ok(vec![Content::text(format!(
+        let content = vec![Content::text(format!(
             "Task {} started in background: \"{}\"\n\
              Continue with other work. When you need the result, use load(source: \"{}\").",
             task_id, description, task_id
-        ))])
+        ))];
+        Ok((content, task_id))
     }
 }
 
@@ -1836,20 +1869,29 @@ impl McpClientTrait for SummonClient {
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let session_id = &ctx.session_id;
-        let content = match name {
-            "load" => self.handle_load(session_id, arguments).await,
+        match name {
+            "load" => match self.handle_load(session_id, arguments).await {
+                Ok(result) => Ok(result),
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {}",
+                    error
+                ))])),
+            },
             "delegate" => {
-                self.handle_delegate(session_id, arguments, cancellation_token)
+                match self
+                    .handle_delegate(session_id, arguments, cancellation_token)
                     .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                        "Error: {}",
+                        error
+                    ))])),
+                }
             }
-            _ => Err(format!("Unknown tool: {}", name)),
-        };
-
-        match content {
-            Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: {}",
-                error
+            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error: Unknown tool: {}",
+                name
             ))])),
         }
     }

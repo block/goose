@@ -49,8 +49,25 @@ struct DeltaToolCall {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+enum DeltaContent {
+    String(String),
+    Array(Vec<ContentPart>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ContentPart {
+    r#type: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(rename = "thoughtSignature")]
+    thought_signature: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct Delta {
-    content: Option<String>,
+    #[serde(default)]
+    content: Option<DeltaContent>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
@@ -74,6 +91,32 @@ struct StreamingChunk {
     model: Option<String>,
 }
 
+fn extract_content_and_signature(
+    delta_content: Option<&DeltaContent>,
+) -> (Option<String>, Option<String>) {
+    match delta_content {
+        Some(DeltaContent::String(s)) => (Some(s.clone()), None),
+        Some(DeltaContent::Array(parts)) => {
+            let text_parts: Vec<_> = parts.iter().filter(|p| p.r#type == "text").collect();
+
+            let text = text_parts
+                .iter()
+                .filter_map(|p| p.text.as_deref())
+                .collect::<String>();
+
+            let signature = text_parts
+                .iter()
+                .find_map(|p| p.thought_signature.as_ref())
+                .cloned();
+
+            let text = if text.is_empty() { None } else { Some(text) };
+
+            (text, signature)
+        }
+        None => (None, None),
+    }
+}
+
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages {
@@ -83,7 +126,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
         let mut output = Vec::new();
         let mut content_array = Vec::new();
-        let mut text_array = Vec::new();
+        let mut has_non_text_content = false;
         let mut reasoning_text = String::new();
 
         for content in &message.content {
@@ -93,16 +136,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         if message.role == Role::User {
                             if let Some(image_path) = detect_image_path(&text.text) {
                                 if let Ok(image) = load_image_file(image_path) {
+                                    has_non_text_content = true;
                                     content_array.push(json!({"type": "text", "text": text.text}));
                                     content_array.push(convert_image(&image, image_format));
                                 } else {
-                                    text_array.push(text.text.clone());
+                                    content_array.push(json!({"type": "text", "text": text.text}));
                                 }
                             } else {
-                                text_array.push(text.text.clone());
+                                content_array.push(json!({"type": "text", "text": text.text}));
                             }
                         } else {
-                            text_array.push(text.text.clone());
+                            content_array.push(json!({"type": "text", "text": text.text}));
                         }
                     }
                 }
@@ -216,6 +260,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
                     if message.role == Role::User {
+                        has_non_text_content = true;
                         content_array.push(convert_image(image, image_format));
                     } else {
                         content_array.push(json!({
@@ -261,9 +306,15 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         }
 
         if !content_array.is_empty() {
-            converted["content"] = json!(content_array);
-        } else if !text_array.is_empty() {
-            converted["content"] = json!(text_array.join("\n"));
+            if has_non_text_content {
+                converted["content"] = json!(content_array);
+            } else {
+                let texts: Vec<String> = content_array
+                    .iter()
+                    .filter_map(|v| v["text"].as_str().map(|s| s.to_string()))
+                    .collect();
+                converted["content"] = json!(texts.join("\n"));
+            }
         }
 
         // Some strict OpenAI-compatible providers require "content" to be present
@@ -439,6 +490,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 }
 
 pub fn get_usage(usage: &Value) -> Usage {
+    let usage = usage
+        .get("usage")
+        .filter(|nested| nested.is_object())
+        .unwrap_or(usage);
+
     let input_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
@@ -449,16 +505,27 @@ pub fn get_usage(usage: &Value) -> Usage {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
+    let cache_read_input_tokens = usage
+        .get("cache_read_input_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
+    let cache_write_input_tokens = usage
+        .get("cache_creation_input_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
     let total_tokens = usage
         .get("total_tokens")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
         .or_else(|| match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input + output),
+            (Some(input), Some(output)) => Some(input.saturating_add(output)),
             _ => None,
         });
 
     Usage::new(input_tokens, output_tokens, total_tokens)
+        .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
 }
 
 fn extract_usage_with_output_tokens(chunk: &StreamingChunk) -> Option<ProviderUsage> {
@@ -564,6 +631,7 @@ where
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
         let mut accumulated_reasoning_content = String::new();
+        let mut last_signature: Option<String> = None;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -685,14 +753,23 @@ where
                             serde_json::from_str::<Value>(arguments)
                         };
 
-                        let metadata = extra_fields.as_ref().filter(|m| !m.is_empty());
+                        let metadata = if let Some(sig) = &last_signature {
+                            let mut combined = extra_fields.clone().unwrap_or_default();
+                            combined.insert(
+                                crate::providers::formats::google::THOUGHT_SIGNATURE_KEY.to_string(),
+                                json!(sig)
+                            );
+                            Some(combined)
+                        } else {
+                            extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
+                        };
 
                         let content = match parsed {
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
-                                    metadata,
+                                    metadata.as_ref(),
                                 )
                             },
                             Err(e) => {
@@ -704,7 +781,7 @@ where
                                     )),
                                     data: None,
                                 };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata)
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
                             }
                         };
                         contents.push(content);
@@ -731,13 +808,20 @@ where
 
                 if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
                     if !reasoning.is_empty() {
-                        content.push(MessageContent::thinking(reasoning, ""));
+                        let signature = last_signature.as_deref().unwrap_or("");
+                        content.push(MessageContent::thinking(reasoning, signature));
                     }
                 }
 
-                if let Some(text) = &chunk.choices[0].delta.content {
+                let (text_content, thought_signature) = extract_content_and_signature(chunk.choices[0].delta.content.as_ref());
+
+                if let Some(sig) = thought_signature {
+                    last_signature = Some(sig);
+                }
+
+                if let Some(text) = text_content {
                     if !text.is_empty() {
-                        content.push(MessageContent::text(text));
+                        content.push(MessageContent::text(&text));
                     }
                 }
 
@@ -748,7 +832,6 @@ where
                         content,
                     );
 
-                    // Add ID if present
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
@@ -1149,6 +1232,40 @@ mod tests {
         assert!(content.unwrap().contains(png_path_str));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_text_and_image_preserves_order() {
+        // Text before image: order should be [text, image]
+        let msg_text_first = Message::user()
+            .with_text("Describe this image")
+            .with_image("aW1hZ2VkYXRh", "image/png");
+
+        let spec = format_messages(&[msg_text_first], &ImageFormat::OpenAi);
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "user");
+
+        let content = spec[0]["content"]
+            .as_array()
+            .expect("content should be an array");
+        assert_eq!(content.len(), 2, "expected text + image entries");
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "Describe this image");
+        assert_eq!(content[1]["type"], "image_url");
+
+        // Image before text: order should be [image, text]
+        let msg_image_first = Message::user()
+            .with_image("aW1hZ2VkYXRh", "image/png")
+            .with_text("What do you see?");
+
+        let spec2 = format_messages(&[msg_image_first], &ImageFormat::OpenAi);
+        let content2 = spec2[0]["content"]
+            .as_array()
+            .expect("content should be an array");
+        assert_eq!(content2.len(), 2, "expected image + text entries");
+        assert_eq!(content2[0]["type"], "image_url");
+        assert_eq!(content2[1]["type"], "text");
+        assert_eq!(content2[1]["text"], "What do you see?");
     }
 
     #[test]
@@ -1627,6 +1744,43 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[test]
+    fn test_get_usage_preserves_provider_totals_with_cache_fields() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "cache_read_input_tokens": 80,
+            "cache_creation_input_tokens": 20
+        }));
+
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
+        assert_eq!(usage.cache_write_input_tokens, Some(20));
+    }
+
+    #[test]
+    fn test_get_usage_reads_nested_usage_object() {
+        let usage = get_usage(&json!({
+            "id": "chatcmpl_test",
+            "usage": {
+                "prompt_tokens": 84,
+                "completion_tokens": 21,
+                "total_tokens": 105,
+                "cache_read_input_tokens": 60,
+                "cache_creation_input_tokens": 10
+            }
+        }));
+
+        assert_eq!(usage.input_tokens, Some(84));
+        assert_eq!(usage.output_tokens, Some(21));
+        assert_eq!(usage.total_tokens, Some(105));
+        assert_eq!(usage.cache_read_input_tokens, Some(60));
+        assert_eq!(usage.cache_write_input_tokens, Some(10));
     }
 
     #[tokio::test]
