@@ -216,7 +216,7 @@ export default function ProviderConfigurationModal({
 
       const hasOAuthKey = params.some((key) => key.oauth_flow);
       const hasOnlyOptionalDefaults =
-        params.length > 0 && params.every((key) => !key.required && key.default !== undefined);
+        params.length > 0 && params.every((key) => !key.required && key.default != null);
       const usesConfiguredMarker = hasOAuthKey || params.length === 0 || hasOnlyOptionalDefaults;
       if (usesConfiguredMarker) {
         const configuredMarker = `${provider.name}_configured`;

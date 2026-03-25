@@ -1,6 +1,6 @@
 import { getProviderModels, readConfig } from '../../../../../../api';
 
-const hasStoredConfigValue = (value: unknown) => value !== null && value !== undefined;
+const hasConfigValue = (value: unknown) => value !== null && value !== undefined;
 
 /**
  * Standalone function to submit provider configuration
@@ -26,7 +26,7 @@ export const providerConfigSubmitHandler = async (
   const configuredMarker = `${provider.name}_configured`;
   const allOptionalWithDefaults =
     parameters.length > 0 &&
-    parameters.every((param) => !param.required && param.default !== undefined);
+    parameters.every((param) => !param.required && hasConfigValue(param.default));
   const needsConfiguredMarker = parameters.length === 0 || allOptionalWithDefaults;
 
   // Save current NON-SECRET config values for rollback on failure
@@ -41,7 +41,7 @@ export const providerConfigSubmitHandler = async (
         const currentValue = await readConfig({
           body: { key: param.name, is_secret: false },
         });
-        if (hasStoredConfigValue(currentValue.data)) {
+        if (hasConfigValue(currentValue.data)) {
           previousConfigValues[param.name] = {
             value: currentValue.data,
             isSecret: false,
@@ -61,7 +61,7 @@ export const providerConfigSubmitHandler = async (
       const currentMarker = await readConfig({
         body: { key: configuredMarker, is_secret: false },
       });
-      if (hasStoredConfigValue(currentMarker.data)) {
+      if (hasConfigValue(currentMarker.data)) {
         previousConfiguredMarker = currentMarker.data;
         hadConfiguredMarker = true;
       }
@@ -76,7 +76,7 @@ export const providerConfigSubmitHandler = async (
       const promises: Promise<void>[] = [];
 
       for (const param of parameters) {
-        if (param.default !== undefined) {
+        if (hasConfigValue(param.default)) {
           const value =
             configValues[param.name] !== undefined ? configValues[param.name] : param.default;
           promises.push(upsertFn(param.name, value, param.secret === true));

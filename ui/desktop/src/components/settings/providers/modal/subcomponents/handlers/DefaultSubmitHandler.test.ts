@@ -118,4 +118,40 @@ describe('providerConfigSubmitHandler', () => {
     expect(upsertFn).toHaveBeenNthCalledWith(2, 'test-provider_configured', true, false);
     expect(apiMocks.getProviderModels).not.toHaveBeenCalled();
   });
+
+  it('treats null defaults as missing values for marker-based configuration', async () => {
+    apiMocks.readConfig.mockRejectedValue(new Error('missing'));
+    apiMocks.getProviderModels.mockRejectedValue(new Error('boom'));
+
+    const upsertFn = vi.fn().mockResolvedValue(undefined);
+    const removeFn = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      providerConfigSubmitHandler(
+        upsertFn,
+        removeFn,
+        {
+          name: 'catalog-provider',
+          metadata: {
+            config_keys: [
+              {
+                name: 'OPTIONAL_HEADER',
+                default: null,
+                required: false,
+                secret: false,
+              },
+            ],
+          },
+        },
+        {}
+      )
+    ).rejects.toThrow('boom');
+
+    expect(apiMocks.getProviderModels).toHaveBeenCalledWith({
+      path: { name: 'catalog-provider' },
+      throwOnError: true,
+    });
+    expect(upsertFn).not.toHaveBeenCalled();
+    expect(removeFn).not.toHaveBeenCalled();
+  });
 });
