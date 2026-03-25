@@ -14,15 +14,24 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-#[cfg(unix)]
-fn set_owner_only_permissions(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-}
+fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
 
-#[cfg(not(unix))]
-fn set_owner_only_permissions(_path: &Path) -> std::io::Result<()> {
-    Ok(())
+        file.write_all(content.as_bytes())
+    }
+
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, content)
+    }
 }
 
 const KEYRING_SERVICE: &str = "goose";
@@ -866,12 +875,8 @@ impl Config {
                 }
             }
             SecretStorage::File { path } => {
-                let created = !path.exists();
                 let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
-                if created {
-                    set_owner_only_permissions(path)?;
-                }
+                write_secrets_file(path, &yaml_value)?;
             }
         };
 
@@ -911,12 +916,8 @@ impl Config {
                 }
             }
             SecretStorage::File { path } => {
-                let created = !path.exists();
                 let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
-                if created {
-                    set_owner_only_permissions(path)?;
-                }
+                write_secrets_file(path, &yaml_value)?;
             }
         };
 
@@ -955,12 +956,8 @@ impl Config {
     fn write_secrets_to_file(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
         std::fs::create_dir_all(Paths::config_dir())?;
         let path = Self::secrets_file_path();
-        let created = !path.exists();
         let yaml_value = serde_yaml::to_string(values)?;
-        std::fs::write(&path, yaml_value)?;
-        if created {
-            set_owner_only_permissions(&path)?;
-        }
+        write_secrets_file(&path, &yaml_value)?;
         Ok(())
     }
 
