@@ -230,18 +230,20 @@ impl Provider for CopilotCliProvider {
                 match reader.read_line(&mut line).await {
                     Ok(0) => break,
                     Ok(_) => {
-                        if !line.trim().is_empty() {
-                            let content = line.trim_end_matches('\n').trim_end_matches('\r');
-                            lines.push(content.to_string());
-                            // Yield partial text as it arrives, preserving leading whitespace
-                            let mut partial = Message::new(
-                                Role::Assistant,
-                                stream_timestamp,
-                                vec![MessageContent::text(content)],
-                            );
-                            partial.id = Some(message_id.clone());
-                            yield (Some(partial), None);
+                        // Preserve line content including trailing newline so that
+                        // collect_stream concatenation keeps line breaks intact.
+                        // Only strip \r for Windows line endings.
+                        let content = line.replace('\r', "");
+                        if !content.trim().is_empty() {
+                            lines.push(content.clone());
                         }
+                        let mut partial = Message::new(
+                            Role::Assistant,
+                            stream_timestamp,
+                            vec![MessageContent::text(&content)],
+                        );
+                        partial.id = Some(message_id.clone());
+                        yield (Some(partial), None);
                     }
                     Err(e) => {
                         let _ = child.wait().await;
