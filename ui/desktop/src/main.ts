@@ -1734,6 +1734,40 @@ ipcMain.handle('stop-mesh', async () => {
   }
 });
 
+ipcMain.handle('ensure-mesh-provider', async (_event, models: string[], displayName: string) => {
+  const os = await import('os');
+  const path = await import('path');
+  const fsSync = await import('fs');
+
+  // Resolve the same config dir goose uses
+  const pathRoot = process.env.GOOSE_PATH_ROOT;
+  const configDir = pathRoot
+    ? path.default.join(pathRoot, 'config')
+    : path.default.join(os.default.homedir(), '.config', 'goose');
+  const customDir = path.default.join(configDir, 'custom_providers');
+
+  if (!fsSync.default.existsSync(customDir)) {
+    fsSync.default.mkdirSync(customDir, { recursive: true });
+  }
+
+  const providerJson = {
+    name: 'mesh',
+    engine: 'openai',
+    display_name: displayName,
+    description: 'Decentralized LLM inference via mesh-llm',
+    api_key_env: '',
+    base_url: 'http://localhost:9337',
+    models: models.map((m) => ({ name: m, context_limit: 128000 })),
+    timeout_seconds: 600,
+    supports_streaming: true,
+    requires_auth: false,
+  };
+
+  const filePath = path.default.join(customDir, 'mesh.json');
+  fsSync.default.writeFileSync(filePath, JSON.stringify(providerJson, null, 2));
+  return { success: true };
+});
+
 ipcMain.handle('download-mesh', async () => {
   if (process.platform !== 'darwin') {
     return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
