@@ -1,0 +1,242 @@
+{
+  "launcher.placeholder": {
+    "defaultMessage": "Ask goose anything..."
+  },
+  "searchBar.caseSensitive": {
+    "defaultMessage": "Case Sensitive"
+  },
+  "searchBar.close": {
+    "defaultMessage": "Close ({shortcut})"
+  },
+  "searchBar.next": {
+    "defaultMessage": "Next ({shortcut})"
+  },
+  "searchBar.placeholder": {
+    "defaultMessage": "Search conversation..."
+  },
+  "searchBar.previous": {
+    "defaultMessage": "Previous ({shortcut})"
+  },
+  "sessions.action.delete": {
+    "defaultMessage": "Delete session"
+  },
+  "sessions.action.duplicate": {
+    "defaultMessage": "Duplicate session"
+  },
+  "sessions.action.editName": {
+    "defaultMessage": "Edit session name"
+  },
+  "sessions.action.export": {
+    "defaultMessage": "Export session"
+  },
+  "sessions.action.openNewWindow": {
+    "defaultMessage": "Open in new window"
+  },
+  "sessions.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "sessions.chatHistory": {
+    "defaultMessage": "Chat history"
+  },
+  "sessions.chatHistoryDesc": {
+    "defaultMessage": "View and search your past conversations with Goose. {shortcut} to search."
+  },
+  "sessions.delete.message": {
+    "defaultMessage": "Are you sure you want to delete the session \"{name}\"? This action cannot be undone."
+  },
+  "sessions.delete.title": {
+    "defaultMessage": "Delete Session"
+  },
+  "sessions.edit.placeholder": {
+    "defaultMessage": "Enter session description"
+  },
+  "sessions.edit.title": {
+    "defaultMessage": "Edit Session Description"
+  },
+  "sessions.empty.description": {
+    "defaultMessage": "Your chat history will appear here"
+  },
+  "sessions.empty.title": {
+    "defaultMessage": "No chat sessions found"
+  },
+  "sessions.error.loading": {
+    "defaultMessage": "Error Loading Sessions"
+  },
+  "sessions.error.tryAgain": {
+    "defaultMessage": "Try Again"
+  },
+  "sessions.extensions": {
+    "defaultMessage": "Extensions:"
+  },
+  "sessions.import": {
+    "defaultMessage": "Import Session"
+  },
+  "sessions.loadingMore": {
+    "defaultMessage": "Loading more sessions..."
+  },
+  "sessions.save": {
+    "defaultMessage": "Save"
+  },
+  "sessions.saving": {
+    "defaultMessage": "Saving..."
+  },
+  "sessions.search.noResults": {
+    "defaultMessage": "No matching sessions found"
+  },
+  "sessions.search.noResultsDesc": {
+    "defaultMessage": "Try adjusting your search terms"
+  },
+  "sessions.searchPlaceholder": {
+    "defaultMessage": "Search history..."
+  },
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "Failed to delete session \"{name}\": {error}"
+  },
+  "sessions.toast.deleted": {
+    "defaultMessage": "Session deleted successfully"
+  },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
+  },
+  "sessions.toast.duplicated": {
+    "defaultMessage": "Session \"{name}\" duplicated successfully"
+  },
+  "sessions.toast.exported": {
+    "defaultMessage": "Session exported successfully"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "Failed to import session: {error}"
+  },
+  "sessions.toast.imported": {
+    "defaultMessage": "Session imported successfully"
+  },
+  "sessions.toast.updateFailed": {
+    "defaultMessage": "Failed to update session description: {error}"
+  },
+  "sessions.toast.updated": {
+    "defaultMessage": "Session description updated successfully"
+  },
+  "settings.appearance.description": {
+    "defaultMessage": "Configure how goose appears on your system"
+  },
+  "settings.appearance.title": {
+    "defaultMessage": "Appearance"
+  },
+  "settings.close": {
+    "defaultMessage": "Close"
+  },
+  "settings.costTracking.description": {
+    "defaultMessage": "Show model pricing and usage costs"
+  },
+  "settings.costTracking.title": {
+    "defaultMessage": "Cost Tracking"
+  },
+  "settings.dockIcon.description": {
+    "defaultMessage": "Show goose in the dock"
+  },
+  "settings.dockIcon.title": {
+    "defaultMessage": "Dock icon"
+  },
+  "settings.help.description": {
+    "defaultMessage": "Help us improve goose by reporting issues or requesting new features"
+  },
+  "settings.help.reportBug": {
+    "defaultMessage": "Report a Bug"
+  },
+  "settings.help.requestFeature": {
+    "defaultMessage": "Request a Feature"
+  },
+  "settings.help.title": {
+    "defaultMessage": "Help & feedback"
+  },
+  "settings.menuBarIcon.description": {
+    "defaultMessage": "Show goose in the menu bar"
+  },
+  "settings.menuBarIcon.title": {
+    "defaultMessage": "Menu bar icon"
+  },
+  "settings.navigation.customize": {
+    "defaultMessage": "Customize Items"
+  },
+  "settings.navigation.description": {
+    "defaultMessage": "Customize navigation layout and behavior"
+  },
+  "settings.navigation.mode": {
+    "defaultMessage": "Mode"
+  },
+  "settings.navigation.position": {
+    "defaultMessage": "Position"
+  },
+  "settings.navigation.style": {
+    "defaultMessage": "Style"
+  },
+  "settings.navigation.title": {
+    "defaultMessage": "Navigation"
+  },
+  "settings.notifications.configGuide": {
+    "defaultMessage": "Configuration guide"
+  },
+  "settings.notifications.description": {
+    "defaultMessage": "Notifications are managed by your OS - {link}"
+  },
+  "settings.notifications.modal.macInstructions": {
+    "defaultMessage": "To enable notifications on macOS:"
+  },
+  "settings.notifications.modal.macStep1": {
+    "defaultMessage": "Open System Preferences"
+  },
+  "settings.notifications.modal.macStep2": {
+    "defaultMessage": "Click on Notifications"
+  },
+  "settings.notifications.modal.macStep3": {
+    "defaultMessage": "Find and select goose in the application list"
+  },
+  "settings.notifications.modal.macStep4": {
+    "defaultMessage": "Enable notifications and adjust settings as desired"
+  },
+  "settings.notifications.modal.title": {
+    "defaultMessage": "How to Enable Notifications"
+  },
+  "settings.notifications.modal.winInstructions": {
+    "defaultMessage": "To enable notifications on Windows:"
+  },
+  "settings.notifications.modal.winStep1": {
+    "defaultMessage": "Open Settings"
+  },
+  "settings.notifications.modal.winStep2": {
+    "defaultMessage": "Go to System > Notifications"
+  },
+  "settings.notifications.modal.winStep3": {
+    "defaultMessage": "Find and select goose in the application list"
+  },
+  "settings.notifications.modal.winStep4": {
+    "defaultMessage": "Toggle notifications on and adjust settings as desired"
+  },
+  "settings.notifications.openSettings": {
+    "defaultMessage": "Open Settings"
+  },
+  "settings.notifications.title": {
+    "defaultMessage": "Notifications"
+  },
+  "settings.preventSleep.description": {
+    "defaultMessage": "Keep your computer awake while goose is running a task (screen can still lock)"
+  },
+  "settings.preventSleep.title": {
+    "defaultMessage": "Prevent Sleep"
+  },
+  "settings.theme.description": {
+    "defaultMessage": "Customize the look and feel of goose"
+  },
+  "settings.theme.title": {
+    "defaultMessage": "Theme"
+  },
+  "settings.updates.description": {
+    "defaultMessage": "Check for and install updates to keep goose running at its best"
+  },
+  "settings.updates.title": {
+    "defaultMessage": "Updates"
+  },
+  "settings.version.title": {
+    "defaultMessage": "Version"
+  }
+}

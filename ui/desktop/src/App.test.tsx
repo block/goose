@@ -7,6 +7,7 @@ import React from 'react';
 import { screen, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppInner } from './App';
+import { IntlTestWrapper } from './i18n/test-utils';
 
 // Set up globals for jsdom
 Object.defineProperty(window, 'location', {
@@ -215,7 +216,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />);
+    render(<AppInner />, { wrapper: IntlTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -238,7 +239,7 @@ describe('App Component - Brand New State', () => {
     // Set up search params to simulate view=settings deep link
     mockSearchParams.set('view', 'settings');
 
-    render(<AppInner />);
+    render(<AppInner />, { wrapper: IntlTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -256,7 +257,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />);
+    render(<AppInner />, { wrapper: IntlTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -279,7 +280,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />);
+    render(<AppInner />, { wrapper: IntlTestWrapper });
 
     // Wait for initialization and recovery
     await waitFor(() => {
