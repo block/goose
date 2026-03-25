@@ -51,7 +51,6 @@ export default function SettingsView({
   const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
   const { localInference } = useFeatures();
-  const meshEnabled = window.appConfig?.get('GOOSE_MESH_ENABLED') !== false;
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -161,7 +160,7 @@ export default function SettingsView({
                       Local Inference
                     </TabsTrigger>
                   )}
-                  {meshEnabled && (
+                  {!tunnelDisabled && (
                     <TabsTrigger
                       value="mesh"
                       className="flex gap-2"
@@ -223,7 +222,7 @@ export default function SettingsView({
                   </TabsContent>
                 )}
 
-                {meshEnabled && (
+                {!tunnelDisabled && (
                   <TabsContent
                     value="mesh"
                     className="mt-0 focus-visible:outline-none focus-visible:ring-0"

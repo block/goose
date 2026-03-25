@@ -537,8 +537,6 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
-  // Mesh tab: shown by default in open-source, set GOOSE_MESH_ENABLED=false to hide
-  GOOSE_MESH_ENABLED: process.env.GOOSE_MESH_ENABLED !== 'false',
 };
 
 const windowMap = new Map<number, BrowserWindow>();
