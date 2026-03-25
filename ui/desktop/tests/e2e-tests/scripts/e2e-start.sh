@@ -91,6 +91,6 @@ export GOOSE_MODEL="${GOOSE_MODEL:-claude-haiku-4-5-20251001}"
 # API key is provider-specific (e.g. ANTHROPIC_API_KEY, OPENAI_API_KEY).
 # Set it in ~/.config/goose/e2e.env for local dev, or via env vars in CI.
 export GOOSE_TELEMETRY_ENABLED=false
-export ENABLE_PLAYWRIGHT=true
+export E2E=true
 export PLAYWRIGHT_DEBUG_PORT="$CDP_PORT"
 pnpm exec electron-forge start

@@ -58,9 +58,11 @@ function shouldSetupUpdater(): boolean {
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
 }
 
+const isE2ETest = !!process.env.E2E;
+
 // In e2e test mode, isolate userData to the session directory so that
 // recipe hashes, settings, and other persisted state start clean.
-if (process.env.ENABLE_PLAYWRIGHT && process.env.GOOSE_PATH_ROOT) {
+if (isE2ETest && process.env.GOOSE_PATH_ROOT) {
   app.setPath('userData', path.join(process.env.GOOSE_PATH_ROOT, 'userData'));
 }
 
@@ -182,7 +184,7 @@ app.whenReady().then(() => {
   });
 });
 
-if (process.env.ENABLE_PLAYWRIGHT) {
+if (process.env.E2E || process.env.ENABLE_PLAYWRIGHT) {
   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
   console.log(`[Main] Enabling Playwright remote debugging on port ${debugPort}`);
   app.commandLine.appendSwitch('remote-debugging-port', debugPort);
@@ -652,7 +654,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     },
   });
 
-  if (process.env.ENABLE_PLAYWRIGHT) {
+  if (process.env.E2E) {
     mainWindow.setSize(1152, 864);
   }
 
@@ -1716,7 +1718,7 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 ipcMain.handle('show-message-box', async (_event, options) => {
   // In e2e test mode, auto-confirm dialogs so CDP-based tests can proceed
   // without needing to interact with native OS dialogs.
-  if (process.env.ENABLE_PLAYWRIGHT) {
+  if (process.env.E2E) {
     return { response: 1 };
   }
   return dialog.showMessageBox(options);
