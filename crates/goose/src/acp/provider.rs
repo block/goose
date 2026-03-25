@@ -25,6 +25,7 @@ use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex, OnceCell};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::acp::{map_permission_response, PermissionDecision, PermissionMapping};
+use crate::subprocess::configure_subprocess;
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -938,6 +939,7 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
         cmd.env(key, value);
     }
 
+    configure_subprocess(&mut cmd);
     cmd.spawn().context("failed to spawn ACP process")
 }
 
