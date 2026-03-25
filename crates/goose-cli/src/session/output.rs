@@ -449,7 +449,11 @@ pub fn goose_mode_message(text: &str) {
 }
 
 static SHOW_THINKING: LazyLock<bool> = LazyLock::new(|| {
-    std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() && std::io::stdout().is_terminal()
+    let from_env = std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok();
+    let from_config = Config::global()
+        .get_param::<bool>("GOOSE_CLI_SHOW_THINKING")
+        .unwrap_or(false);
+    (from_env || from_config) && std::io::stdout().is_terminal()
 });
 
 fn should_show_thinking() -> bool {
