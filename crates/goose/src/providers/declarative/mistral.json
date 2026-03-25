@@ -51,5 +51,6 @@
       "context_limit": 128000
     }
   ],
-  "supports_streaming": true
+  "supports_streaming": true,
+  "supports_stream_options": false
 }

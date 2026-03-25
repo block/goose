@@ -4656,6 +4656,10 @@
           "skip_canonical_filtering": {
             "type": "boolean"
           },
+          "supports_stream_options": {
+            "type": "boolean",
+            "nullable": true
+          },
           "supports_streaming": {
             "type": "boolean",
             "nullable": true

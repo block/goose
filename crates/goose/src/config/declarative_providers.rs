@@ -51,6 +51,7 @@ pub struct DeclarativeProviderConfig {
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
     pub supports_streaming: Option<bool>,
+    pub supports_stream_options: Option<bool>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
     #[serde(default)]
@@ -212,6 +213,7 @@ pub fn create_custom_provider(
         headers: params.headers,
         timeout_seconds: None,
         supports_streaming: params.supports_streaming,
+        supports_stream_options: None,
         requires_auth: params.requires_auth,
         catalog_provider_id: params.catalog_provider_id,
         base_path: params.base_path,
@@ -278,6 +280,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             },
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming: params.supports_streaming,
+            supports_stream_options: existing_config.supports_stream_options,
             requires_auth: params.requires_auth,
             catalog_provider_id: params.catalog_provider_id,
             base_path: params.base_path,
