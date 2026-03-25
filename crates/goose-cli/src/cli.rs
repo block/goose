@@ -297,7 +297,7 @@ pub struct ModelOptions {
         long = "provider",
         value_name = "PROVIDER",
         help = "Specify the LLM provider to use (e.g., 'openai', 'anthropic')",
-        long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers include openai, anthropic, ollama, databricks, gemini-cli, claude-code, and others."
+        long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers include openai, anthropic, ollama, databricks, gemini-cli, copilot-cli, claude-code, and others."
     )]
     pub provider: Option<String>,
 

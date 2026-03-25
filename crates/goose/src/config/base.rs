@@ -1006,6 +1006,7 @@ impl Config {
 }
 
 config_value!(CLAUDE_CODE_COMMAND, String, "claude");
+config_value!(COPILOT_CLI_COMMAND, String, "copilot");
 config_value!(GEMINI_CLI_COMMAND, String, "gemini");
 config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
 config_value!(CODEX_COMMAND, String, "codex");

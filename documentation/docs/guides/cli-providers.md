@@ -2,7 +2,7 @@
 sidebar_position: 45
 title: CLI Providers
 sidebar_label: CLI Providers
-description: Use Claude Code, Codex, Cursor Agent, or Gemini CLI subscriptions in goose
+description: Use Claude Code, Codex, Copilot CLI, Cursor Agent, or Gemini CLI subscriptions in goose
 ---
 
 # CLI Providers
@@ -11,7 +11,7 @@ description: Use Claude Code, Codex, Cursor Agent, or Gemini CLI subscriptions i
 The Claude Code (`claude-code`), Codex (`codex`), and Gemini CLI (`gemini-cli`) providers are deprecated. Use the [ACP providers](/docs/guides/acp-providers) (`claude-acp`, `codex-acp`, `gemini-acp`) instead, which support goose extensions via MCP and use the standardized Agent Client Protocol. CLI providers are kept for backward compatibility only.
 :::
 
-goose can make use of pass-through providers that integrate with existing CLI tools from Anthropic, OpenAI, Cursor, and Google. These providers allow you to use your existing Claude Code, Codex, Cursor Agent, and Google Gemini CLI subscriptions through goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
+goose can make use of pass-through providers that integrate with existing CLI tools from Anthropic, GitHub, OpenAI, Cursor, and Google. These providers allow you to use your existing Claude Code, Codex, Copilot CLI, Cursor Agent, and Google Gemini CLI subscriptions through goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
 
 :::warning Limitations
 These providers don’t fully support all goose features, may have platform or capability limitations, and can sometimes require advanced debugging if issues arise. They’re included here purely as a convenience.
@@ -21,7 +21,7 @@ These providers don’t fully support all goose features, may have platform or c
 
 CLI providers are useful if you:
 
-- already have a Claude Code, Codex, Cursor, or Google Gemini CLI subscription and want to use it through goose instead of paying per token
+- already have a Claude Code, Codex, Copilot CLI, Cursor, or Google Gemini CLI subscription and want to use it through goose instead of paying per token
 - need session persistence to save, resume, and export conversation history
 - want to use goose recipes and scheduled tasks to create repeatable workflows
 - prefer unified commands across different AI providers
@@ -95,6 +95,18 @@ The Cursor provider integrates with Cursor's [CLI agent](https://docs.cursor.com
 
 - cursor-agent tool installed and configured.
 - CLI tool authenticated.
+
+### Copilot CLI
+
+The Copilot CLI provider integrates with GitHub's [Copilot CLI tool](https://docs.github.com/en/copilot/github-copilot-in-the-cli), providing access to models through your GitHub Copilot subscription.
+
+**Features:**
+- Access to multiple models including GPT-4.1, GPT-5, Claude Sonnet 4, and Gemini 2.5 Pro
+
+**Requirements:**
+- GitHub Copilot CLI tool installed and configured
+- Active GitHub Copilot subscription
+- CLI tool authenticated with your GitHub account
 
 ### Gemini CLI
 
@@ -216,6 +228,40 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    │  default
    ```
 
+### Copilot CLI
+
+1. **Install GitHub Copilot CLI**
+
+   Follow the [installation instructions for GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) to install and configure the Copilot CLI tool.
+
+2. **Authenticate with GitHub**
+
+   Ensure your Copilot CLI is authenticated and working.
+
+3. **Configure goose**
+
+   Set the provider environment variable:
+   ```bash
+   export GOOSE_PROVIDER=copilot-cli
+   ```
+
+   Or configure through the goose CLI using `goose configure`:
+
+   ```bash
+   ┌   goose-configure
+   │
+   ◇  What would you like to configure?
+   │  Configure Providers
+   │
+   ◇  Which model provider should we use?
+   │  Copilot CLI
+   │
+   ◇  Model fetch complete
+   │
+   ◇  Enter a model from that provider:
+   │  default
+   ```
+
 ### Gemini CLI
 
 1. **Install Gemini CLI Tool**
@@ -323,6 +369,13 @@ GOOSE_PROVIDER=claude-code GOOSE_MODE=approve goose session
 | `GOOSE_PROVIDER` | Set to `cursor-agent` to use this provider | None |
 | `CURSOR_AGENT_COMMAND` | Path to the Cursor Agent command | `cursor-agent` |
 
+### Copilot CLI Configuration
+
+| Environment Variable | Description | Default |
+|---------------------|-------------|---------|
+| `GOOSE_PROVIDER` | Set to `copilot-cli` to use this provider | None |
+| `COPILOT_CLI_COMMAND` | Path to the Copilot CLI command | `copilot` |
+
 ### OpenAI Codex Configuration
 
 | Environment Variable | Description | Default |
@@ -373,6 +426,7 @@ The CLI providers automatically filter out goose's extension information from sy
 
 - **Claude Code**: Converts goose messages to text content blocks with role prefixes (Human:/Assistant:), similar to Codex and Gemini CLI
 - **Codex**: Converts messages to simple text prompts with role prefixes (Human:/Assistant:), similar to Gemini CLI
+- **Copilot CLI**: Converts messages to simple text prompts with role prefixes (Human:/Assistant:)
 - **Cursor Agent**: Converts goose messages to Cursor's JSON message format, handling tool calls and responses appropriately
 - **Gemini CLI**: Converts messages to simple text prompts with role prefixes (Human:/Assistant:)
 
@@ -380,6 +434,7 @@ The CLI providers automatically filter out goose's extension information from sy
 
 - **Claude Code**: Parses streaming JSON responses to extract text content and usage information
 - **Codex**: Parses newline-delimited JSON events to extract text content and usage information
+- **Copilot CLI**: Processes plain text responses from the CLI tool
 - **Cursor Agent**: Parses JSON responses to extract text content and usage information
 - **Gemini CLI**: Processes plain text responses from the CLI tool
 

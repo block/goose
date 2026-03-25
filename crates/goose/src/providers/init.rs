@@ -19,6 +19,7 @@ use super::{
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
+    copilot_cli::CopilotCliProvider,
     gemini_acp::GeminiAcpProvider,
     gemini_cli::GeminiCliProvider,
     githubcopilot::GithubCopilotProvider,
@@ -64,6 +65,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);
         registry.register::<GcpVertexAIProvider>(false);
+        registry.register::<CopilotCliProvider>(false);
         registry.register::<GeminiCliProvider>(false);
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
