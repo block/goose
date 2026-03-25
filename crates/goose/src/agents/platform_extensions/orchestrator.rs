@@ -101,7 +101,7 @@ struct InterruptAgentParams {
 }
 
 /// Known paths in the nest. Entries ending in `/*` are directories (any .md file inside is valid).
-pub const NEST_PATHS: &[&str] = &["SOUL.md", "OWNER.md", "guides/*"];
+pub const NEST_PATHS: &[&str] = &["SOUL.md", "OWNER.md", "guides/*", "skills/*", "recipes/*"];
 
 pub fn nest_dir() -> PathBuf {
     crate::config::paths::Paths::data_dir().join("nest")

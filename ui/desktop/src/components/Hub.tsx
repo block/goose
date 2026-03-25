@@ -93,12 +93,11 @@ export default function Hub({
 
   // rAF is more reliable than autoFocus across async render boundaries (Suspense, OnboardingGuard, etc.)
   useEffect(() => {
-    if (mode === 'classic') {
-      const frameId = requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
-      return () => cancelAnimationFrame(frameId);
-    }
+    if (mode !== 'classic') return;
+    const frameId = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frameId);
   }, [mode]);
 
   const handleSubmit = async (input: UserInput) => {

@@ -90,10 +90,26 @@ struct NestFile {
 }
 
 #[derive(Serialize)]
+struct SkillInfo {
+    name: String,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct RecipeInfo {
+    name: String,
+    description: String,
+}
+
+#[derive(Serialize)]
 struct ClawContext {
     sessions: Vec<SessionInfo>,
     recent_files: Vec<RecentFile>,
     nest: Vec<NestFile>,
+    soul: String,
+    owner: String,
+    skills: Vec<SkillInfo>,
+    recipes: Vec<RecipeInfo>,
 }
 
 async fn gather_recent_sessions(session_manager: &SessionManager) -> Vec<SessionInfo> {
@@ -208,6 +224,45 @@ fn walk_dir(
     }
 }
 
+fn read_nest_file(name: &str) -> String {
+    use crate::agents::platform_extensions::orchestrator::nest_dir;
+    let path = nest_dir().join(name);
+    std::fs::read_to_string(path).unwrap_or_default()
+}
+
+fn gather_skills() -> Vec<SkillInfo> {
+    use crate::agents::platform_extensions::orchestrator::nest_dir;
+    use crate::agents::platform_extensions::summon::{scan_skills_from_dir, SourceKind};
+
+    let dir = nest_dir().join("skills");
+    let mut seen = std::collections::HashSet::new();
+    scan_skills_from_dir(&dir, &mut seen)
+        .into_iter()
+        .filter(|s| s.kind == SourceKind::Skill)
+        .map(|s| SkillInfo {
+            name: s.name,
+            description: s.description,
+        })
+        .collect()
+}
+
+fn gather_recipes() -> Vec<RecipeInfo> {
+    use crate::agents::platform_extensions::orchestrator::nest_dir;
+    use crate::agents::platform_extensions::summon::{scan_recipes_from_dir, SourceKind};
+
+    let dir = nest_dir().join("recipes");
+    let mut sources = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    scan_recipes_from_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
+    sources
+        .into_iter()
+        .map(|s| RecipeInfo {
+            name: s.name,
+            description: s.description,
+        })
+        .collect()
+}
+
 fn gather_nest() -> Vec<NestFile> {
     use crate::agents::platform_extensions::orchestrator::{nest_dir, NEST_PATHS};
 
@@ -258,11 +313,19 @@ pub async fn setup_agent(
     let sessions = gather_recent_sessions(session_manager).await;
     let recent_files = gather_recent_files();
     let nest = gather_nest();
+    let soul = read_nest_file("SOUL.md");
+    let owner = read_nest_file("OWNER.md");
+    let skills = gather_skills();
+    let recipes = gather_recipes();
 
     let context = ClawContext {
         sessions,
         recent_files,
         nest,
+        soul,
+        owner,
+        skills,
+        recipes,
     };
 
     let prompt = crate::prompt_template::render_template("active_agent.md", &context)

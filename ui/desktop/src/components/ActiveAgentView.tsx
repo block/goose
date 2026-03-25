@@ -6,6 +6,7 @@ import { useChatStream, CustomReplyFn } from '../hooks/useChatStream';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import ChatInput from './ChatInput';
 import LoadingGoose from './LoadingGoose';
+import { DiagnosticsModal } from './ui/Diagnostics';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { View, ViewOptions } from '../utils/navigationUtils';
 
@@ -40,6 +41,19 @@ function ActiveAgentChat({
 }) {
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const hasAutoPrompted = useRef(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+
+  // Cmd+Shift+D to open diagnostics
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'd') {
+        e.preventDefault();
+        setDiagnosticsOpen(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const {
     messages,
@@ -71,7 +85,7 @@ function ActiveAgentChat({
 
     hasAutoPrompted.current = true;
     streamHandleSubmit({
-      msg: 'Check in.',
+      msg: 'CHECK-IN',
       images: [],
       metadata: { userVisible: false, agentVisible: true },
     }).catch((err) => {
@@ -135,6 +149,14 @@ function ActiveAgentChat({
           hideBottomBar={true}
         />
       </div>
+
+      {diagnosticsOpen && (
+        <DiagnosticsModal
+          isOpen={diagnosticsOpen}
+          onClose={() => setDiagnosticsOpen(false)}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   );
 }
