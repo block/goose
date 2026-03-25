@@ -11,11 +11,11 @@ use crate::providers::formats::ollama::{create_request, response_to_streaming_me
 use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use futures::future::BoxFuture;
 use reqwest::Response;
 use rmcp::model::Tool;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -64,8 +64,12 @@ fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
         // Ollama does not support stream_options; remove it to prevent hangs.
         obj.remove("stream_options");
 
-        // Convert max_completion_tokens to Ollama's options.num_predict.
-        if let Some(max_tokens) = obj.remove("max_completion_tokens") {
+        // Convert max_completion_tokens / max_tokens to Ollama's options.num_predict.
+        // Reasoning models emit max_completion_tokens; non-reasoning models emit max_tokens.
+        let max_tokens = obj
+            .remove("max_completion_tokens")
+            .or_else(|| obj.remove("max_tokens"));
+        if let Some(max_tokens) = max_tokens {
             let options = obj.entry("options").or_insert_with(|| json!({}));
             if let Some(options_obj) = options.as_object_mut() {
                 options_obj.entry("num_predict").or_insert(max_tokens);
@@ -420,14 +424,16 @@ mod tests {
             payload.get("stream_options").is_some(),
             "create_request should produce stream_options (unsupported by Ollama)"
         );
+        // Non-reasoning models emit max_tokens (reasoning models emit max_completion_tokens);
+        // neither is supported by Ollama.
         assert!(
-            payload.get("max_completion_tokens").is_some(),
-            "create_request should produce max_completion_tokens (unsupported by Ollama)"
+            payload.get("max_tokens").is_some(),
+            "create_request should produce max_tokens (unsupported by Ollama)"
         );
     }
 
     // Verifies the fix for issue #7715: apply_ollama_options strips stream_options
-    // and converts max_completion_tokens to options.num_predict.
+    // and converts max_tokens / max_completion_tokens to options.num_predict.
     #[test]
     fn test_apply_ollama_options_strips_unsupported_fields() {
         use crate::providers::formats::ollama::create_request;
@@ -456,12 +462,16 @@ mod tests {
             "stream_options should be removed for Ollama"
         );
         assert!(
+            payload.get("max_tokens").is_none(),
+            "max_tokens should be removed for Ollama"
+        );
+        assert!(
             payload.get("max_completion_tokens").is_none(),
             "max_completion_tokens should be removed for Ollama"
         );
         assert_eq!(
             payload["options"]["num_predict"], 4096,
-            "max_completion_tokens should be moved to options.num_predict"
+            "max_tokens should be moved to options.num_predict"
         );
         assert_eq!(payload["stream"], true, "stream field should be preserved");
     }
