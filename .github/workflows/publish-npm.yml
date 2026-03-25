@@ -67,16 +67,16 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ needs.build-native.outputs.artifact-name }}
-          path: ../native-binaries
+          path: native-binaries
 
       - name: List downloaded artifacts (debug)
         run: |
           echo "Downloaded artifact structure:"
-          ls -R ../native-binaries/
+          ls -R native-binaries/
 
       - name: Copy binaries to package directories
         run: |
-          for platform_dir in ../native-binaries/goose-*; do
+          for platform_dir in native-binaries/goose-*; do
             platform=$(basename "$platform_dir" | sed 's/^goose-/goose-acp-server-/')
             pkg_dir="goose-acp-server/${platform}"
             
