@@ -4,6 +4,7 @@ import { startTetrateSetup } from '../../utils/tetrateSetup';
 import { Tetrate } from '../icons';
 import LocalModelPicker from './LocalModelPicker';
 import { HardDrive } from 'lucide-react';
+import { useFeatures } from '../../contexts/FeaturesContext';
 
 const TETRATE = 'tetrate' as const;
 const NANOGPT = 'nano-gpt' as const;
@@ -26,6 +27,7 @@ const cardClass = (isSelected: boolean) =>
   }`;
 
 export default function FreeOptionCards({ onConfigured }: FreeOptionCardsProps) {
+  const { localInference } = useFeatures();
   const [error, setError] = useState<{
     message: string;
     type: typeof TETRATE | typeof NANOGPT;
@@ -109,23 +111,25 @@ export default function FreeOptionCards({ onConfigured }: FreeOptionCardsProps) 
             </p>
           </div>
 
-          <div onClick={handleRunLocallyClick} className={cardClass(false)}>
-            <div className="flex items-start justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <HardDrive className="w-5 h-5 text-text-default" />
-                <span className="font-medium text-text-default text-base">Use a Local Model</span>
-                <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-green-600 text-white rounded-full">
-                  Free &amp; Private
-                </span>
+          {localInference && (
+            <div onClick={handleRunLocallyClick} className={cardClass(false)}>
+              <div className="flex items-start justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-5 h-5 text-text-default" />
+                  <span className="font-medium text-text-default text-base">Use a Local Model</span>
+                  <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-green-600 text-white rounded-full">
+                    Free &amp; Private
+                  </span>
+                </div>
+                <div className="text-text-muted group-hover:text-text-default transition-colors">
+                  <ChevronRight />
+                </div>
               </div>
-              <div className="text-text-muted group-hover:text-text-default transition-colors">
-                <ChevronRight />
-              </div>
+              <p className="text-text-muted text-sm">
+                Download a model and run entirely on your machine. No API keys, no accounts.
+              </p>
             </div>
-            <p className="text-text-muted text-sm">
-              Download a model and run entirely on your machine. No API keys, no accounts.
-            </p>
-          </div>
+          )}
         </div>
 
         {error && (

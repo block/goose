@@ -385,7 +385,7 @@ async fn resume_agent(
             }
         })?;
 
-    let extension_results = if payload.load_model_and_extensions {
+    let (extension_results, session) = if payload.load_model_and_extensions {
         let agent = state
             .get_agent_for_route(payload.session_id.clone())
             .await
@@ -394,13 +394,26 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        agent
+        let provider_changed = agent
             .restore_provider_from_session(&session)
             .await
             .map_err(|e| ErrorResponse {
                 message: e.to_string(),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
+
+        let session = if provider_changed {
+            state
+                .session_manager()
+                .get_session(&payload.session_id, true)
+                .await
+                .map_err(|err| ErrorResponse {
+                    message: format!("Failed to re-fetch session: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                })?
+        } else {
+            session
+        };
 
         let extension_results =
             if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
@@ -420,9 +433,9 @@ async fn resume_agent(
                 agent.load_extensions_from_session(&session).await
             };
 
-        Some(extension_results)
+        (Some(extension_results), session)
     } else {
-        None
+        (None, session)
     };
 
     Ok(Json(ResumeAgentResponse {
@@ -538,6 +551,9 @@ async fn get_tools(
                 get_parameter_names(&tool),
                 permission,
             )
+            .with_input_schema(serde_json::Value::Object(
+                tool.input_schema.as_ref().clone(),
+            ))
         })
         .collect::<Vec<ToolInfo>>();
     tools.sort_by(|a, b| a.name.cmp(&b.name));

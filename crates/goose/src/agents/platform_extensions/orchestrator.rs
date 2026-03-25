@@ -101,7 +101,22 @@ struct InterruptAgentParams {
 }
 
 /// Known paths in the nest. Entries ending in `/*` are directories (any .md file inside is valid).
-pub const NEST_PATHS: &[&str] = &["SOUL.md", "OWNER.md", "guides/*", "skills/*", "recipes/*"];
+pub const NEST_PATHS: &[&str] = &[
+    "SOUL.md",
+    "OWNER.md",
+    "TOP_OF_MIND.md",
+    "NEST.md",
+    "CATALOG.md",
+    "GUIDES/*",
+    "RESEARCH/*",
+    "PLANS/*",
+    "WORK_LOGS/*",
+    "guides/*", // backward compat — original casing from Douwe's initial impl
+    "skills/*",
+    "recipes/*",
+    "OUTBOX/*",
+    ".scratch/*",
+];
 
 pub fn nest_dir() -> PathBuf {
     crate::config::paths::Paths::data_dir().join("nest")
@@ -131,13 +146,13 @@ fn is_valid_nest_path(name: &str) -> bool {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ReadDocumentParams {
-    /// Path relative to the nest, e.g. "SOUL.md", "OWNER.md", or "guides/rust.md"
+    /// Path relative to the nest, e.g. "SOUL.md", "TOP_OF_MIND.md", "GUIDES/setup.md", or "skills/lint/SKILL.md"
     name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct WriteDocumentParams {
-    /// Path relative to the nest, e.g. "SOUL.md", "OWNER.md", or "guides/rust.md"
+    /// Path relative to the nest, e.g. "SOUL.md", "TOP_OF_MIND.md", "GUIDES/setup.md", or "RESEARCH/findings.md"
     name: String,
     /// The full markdown content to write
     content: String,

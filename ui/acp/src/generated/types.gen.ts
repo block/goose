@@ -3,10 +3,9 @@
 
 /**
  * Add an extension to an active session.
- * Method: `_agent/extensions/add`
  */
 export type AddExtensionRequest = {
-    session_id: string;
+    sessionId: string;
     /**
      * Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).
      */
@@ -22,19 +21,17 @@ export type EmptyResponse = {
 
 /**
  * Remove an extension from an active session.
- * Method: `_agent/extensions/remove`
  */
 export type RemoveExtensionRequest = {
-    session_id: string;
+    sessionId: string;
     name: string;
 };
 
 /**
  * List all tools available in a session.
- * Method: `_agent/tools`
  */
 export type GetToolsRequest = {
-    session_id: string;
+    sessionId: string;
 };
 
 export type GetToolsResponse = {
@@ -46,12 +43,11 @@ export type GetToolsResponse = {
 
 /**
  * Read a resource from an extension.
- * Method: `_agent/resource/read`
  */
 export type ReadResourceRequest = {
-    session_id: string;
+    sessionId: string;
     uri: string;
-    extension_name: string;
+    extensionName: string;
 };
 
 export type ReadResourceResponse = {
@@ -63,28 +59,18 @@ export type ReadResourceResponse = {
 
 /**
  * Update the working directory for a session.
- * Method: `_agent/working_dir/update`
  */
 export type UpdateWorkingDirRequest = {
-    session_id: string;
-    working_dir: string;
-};
-
-/**
- * List all sessions.
- * Method: `_session/list`
- */
-export type ListSessionsResponse = {
-    sessions: Array<unknown>;
+    sessionId: string;
+    workingDir: string;
 };
 
 /**
  * Get a session by ID.
- * Method: `_session/get`
  */
 export type GetSessionRequest = {
-    session_id: string;
-    include_messages?: boolean;
+    sessionId: string;
+    includeMessages?: boolean;
 };
 
 /**
@@ -99,18 +85,16 @@ export type GetSessionResponse = {
 
 /**
  * Delete a session.
- * Method: `_session/delete`
  */
 export type DeleteSessionRequest = {
-    session_id: string;
+    sessionId: string;
 };
 
 /**
  * Export a session as a JSON string.
- * Method: `_session/export`
  */
 export type ExportSessionRequest = {
-    session_id: string;
+    sessionId: string;
 };
 
 export type ExportSessionResponse = {
@@ -119,7 +103,6 @@ export type ExportSessionResponse = {
 
 /**
  * Import a session from a JSON string.
- * Method: `_session/import`
  */
 export type ImportSessionRequest = {
     data: string;
@@ -134,7 +117,6 @@ export type ImportSessionResponse = {
 
 /**
  * List configured extensions and any warnings.
- * Method: `_config/extensions`
  */
 export type GetExtensionsResponse = {
     /**
@@ -154,7 +136,7 @@ export type ExtRequest = {
 
 export type ExtResponse = {
     id: string;
-    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | ListSessionsResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | unknown;
+    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | unknown;
 } | {
     error: {
         code: number;
