@@ -3,7 +3,7 @@ use super::base::MessageStream;
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
+use super::utils::{stream_idle_timeout, with_line_idle_timeout, RequestLog};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -198,6 +198,7 @@ impl Provider for GoogleProvider {
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new())
                 .map_err(anyhow::Error::from);
+            let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);

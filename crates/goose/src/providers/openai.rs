@@ -11,7 +11,7 @@ use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::ImageFormat;
+use super::utils::{stream_idle_timeout, with_line_idle_timeout, ImageFormat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
@@ -457,6 +457,7 @@ impl Provider for OpenAiProvider {
                 Ok(Box::pin(try_stream! {
                     let stream_reader = StreamReader::new(stream);
                     let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+                    let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
                     let message_stream = responses_api_to_streaming_message(framed);
                     pin!(message_stream);

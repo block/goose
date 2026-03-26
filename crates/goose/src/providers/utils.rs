@@ -4,8 +4,10 @@ use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
+use async_stream::stream;
 use base64::Engine;
 use fs_err::File;
+use futures::Stream;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
@@ -14,8 +16,10 @@ use serde_json::{json, Value};
 use std::fmt::Display;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::OnceLock;
 use std::time::Duration;
+use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -518,6 +522,58 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
         }
     }
     r
+}
+
+/// Default timeout for idle SSE streams: 5 minutes.
+/// If no new SSE line arrives from the server within this duration, the stream
+/// is considered stalled. Configurable via `GOOSE_STREAM_TIMEOUT` env var (in seconds).
+const DEFAULT_STREAM_IDLE_TIMEOUT_SECS: u64 = 300;
+
+/// Returns the stream idle timeout duration, checking the env var once.
+pub fn stream_idle_timeout() -> Duration {
+    static TIMEOUT: OnceLock<Duration> = OnceLock::new();
+    *TIMEOUT.get_or_init(|| {
+        let secs = std::env::var("GOOSE_STREAM_TIMEOUT")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(DEFAULT_STREAM_IDLE_TIMEOUT_SECS);
+        Duration::from_secs(secs)
+    })
+}
+
+/// Wraps a stream of SSE lines with a per-item idle timeout.
+///
+/// The timeout resets every time a new item arrives from the underlying stream.
+/// This measures actual network inactivity (no data from the server), not how
+/// long the downstream parser takes to accumulate and yield parsed messages.
+///
+/// If no new SSE line arrives within `timeout_duration`, the stream yields an
+/// error and terminates.
+pub fn with_line_idle_timeout<S>(
+    inner: S,
+    timeout_duration: Duration,
+) -> Pin<Box<dyn Stream<Item = Result<String, anyhow::Error>> + Send>>
+where
+    S: Stream<Item = Result<String, anyhow::Error>> + Send + 'static,
+{
+    Box::pin(stream! {
+        tokio::pin!(inner);
+        loop {
+            match tokio::time::timeout(timeout_duration, inner.next()).await {
+                Ok(Some(item)) => yield item,
+                Ok(None) => break, // stream ended normally
+                Err(_elapsed) => {
+                    yield Err(anyhow::anyhow!(
+                        "Stream stalled: no data received from server for {} seconds. \
+                         Set GOOSE_STREAM_TIMEOUT to adjust (current: {}s).",
+                        timeout_duration.as_secs(),
+                        timeout_duration.as_secs(),
+                    ));
+                    break;
+                }
+            }
+        }
+    })
 }
 
 #[cfg(test)]

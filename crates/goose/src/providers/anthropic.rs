@@ -20,7 +20,7 @@ use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
+use crate::providers::utils::{stream_idle_timeout, with_line_idle_timeout, RequestLog};
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -254,6 +254,7 @@ impl Provider for AnthropicProvider {
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
+            let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);

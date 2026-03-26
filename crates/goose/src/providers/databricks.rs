@@ -26,7 +26,7 @@ use super::openai_compatible::{
     stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::{stream_idle_timeout, with_line_idle_timeout, ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -367,6 +367,7 @@ impl Provider for DatabricksProvider {
             Ok(Box::pin(try_stream! {
                 let stream_reader = StreamReader::new(stream);
                 let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+                let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
                 let message_stream = responses_api_to_streaming_message(framed);
                 pin!(message_stream);
