@@ -296,25 +296,22 @@ async fn child_process_client(
     }
 }
 
-fn extract_auth_error(
-    res: &Result<McpClient, ClientInitializeError>,
-) -> Option<&AuthRequiredError> {
+fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>) -> bool {
     match res {
-        Ok(_) => None,
-        Err(err) => match err {
-            ClientInitializeError::TransportError {
-                error: DynamicTransportError { error, .. },
-                ..
-            } => error
-                .downcast_ref::<StreamableHttpError<reqwest::Error>>()
-                .and_then(|auth_error| match auth_error {
-                    StreamableHttpError::AuthRequired(auth_required_error) => {
-                        Some(auth_required_error)
-                    }
-                    _ => None,
-                }),
-            _ => None,
-        },
+        Ok(_) => false,
+        Err(ClientInitializeError::TransportError {
+            error: DynamicTransportError { error, .. },
+            ..
+        }) => error
+            .downcast_ref::<StreamableHttpError<reqwest::Error>>()
+            .is_some_and(|auth_error| match auth_error {
+                StreamableHttpError::AuthRequired(AuthRequiredError { .. }) => true,
+                StreamableHttpError::UnexpectedServerResponse(body) => body.starts_with("HTTP 401"),
+                _ => false,
+            })
+            // Some servers wrap the 401 before rmcp exposes a typed auth error.
+            || error.to_string().contains("unexpected server response: HTTP 401"),
+        _ => false,
     }
 }
 
@@ -453,7 +450,7 @@ async fn create_streamable_http_client(
     )
     .await;
 
-    if extract_auth_error(&client_res).is_some() {
+    if should_attempt_oauth_fallback(&client_res) {
         let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
             .await
             .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
