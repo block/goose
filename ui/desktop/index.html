@@ -17,13 +17,19 @@
               
               if (isDark) {
                 document.documentElement.classList.add('dark');
+                document.documentElement.style.colorScheme = 'dark';
               } else {
                 document.documentElement.classList.remove('dark');
+                document.documentElement.style.colorScheme = 'light';
               }
             } else {
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
               if (systemPrefersDark) {
                 document.documentElement.classList.add('dark');
+                document.documentElement.style.colorScheme = 'dark';
+              } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.style.colorScheme = 'light';
               }
             }
           } catch (error) {
@@ -31,6 +37,10 @@
             const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             if (systemPrefersDark) {
               document.documentElement.classList.add('dark');
+              document.documentElement.style.colorScheme = 'dark';
+            } else {
+              document.documentElement.classList.remove('dark');
+              document.documentElement.style.colorScheme = 'light';
             }
           }
         }

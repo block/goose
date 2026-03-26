@@ -111,7 +111,7 @@ impl ProviderDef for GoogleProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GOOGLE_PROVIDER_NAME,
-            "Google Gemini",
+            "Google Gemini (API Key)",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
             GOOGLE_KNOWN_MODELS.to_vec(),
@@ -121,6 +121,12 @@ impl ProviderDef for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST), false),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://aistudio.google.com and sign in with your Google account",
+            "Click 'Get API key' on the left sidebar",
+            "Create a new API key or select an existing one",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(

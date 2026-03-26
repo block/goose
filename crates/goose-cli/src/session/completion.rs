@@ -1,3 +1,4 @@
+use goose::config::GooseMode;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
@@ -5,6 +6,7 @@ use rustyline::validate::Validator;
 use rustyline::{Context, Helper, Result};
 use std::borrow::Cow;
 use std::sync::Arc;
+use strum::VariantNames;
 
 use super::{CompletionCache, HintStatus};
 
@@ -81,7 +83,7 @@ impl GooseCompleter {
 
     /// Complete flags for the /mode command
     fn complete_mode_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
-        let modes = ["auto", "approve", "smart_approve", "chat"];
+        let modes = GooseMode::VARIANTS;
 
         let parts: Vec<&str> = line.split_whitespace().collect();
 
@@ -473,18 +475,12 @@ mod tests {
 
         // Add prompt info with arguments
         let test_prompt1_args = vec![
-            PromptArgument {
-                name: "required_arg".to_string(),
-                description: Some("A required argument".to_string()),
-                required: Some(true),
-                title: None,
-            },
-            PromptArgument {
-                name: "optional_arg".to_string(),
-                description: Some("An optional argument".to_string()),
-                required: Some(false),
-                title: None,
-            },
+            PromptArgument::new("required_arg")
+                .with_description("A required argument")
+                .with_required(true),
+            PromptArgument::new("optional_arg")
+                .with_description("An optional argument")
+                .with_required(false),
         ];
 
         let test_prompt1_info = output::PromptInfo {

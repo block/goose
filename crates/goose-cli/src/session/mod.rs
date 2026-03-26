@@ -34,11 +34,13 @@ use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
+use strum::VariantNames;
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
@@ -76,10 +78,6 @@ enum StreamEvent {
         extension_id: String,
         #[serde(flatten)]
         data: NotificationData,
-    },
-    ModelChange {
-        model: String,
-        mode: String,
     },
     Error {
         error: String,
@@ -209,7 +207,9 @@ pub async fn classify_planner_response(
     message_text: String,
     provider: Arc<dyn Provider>,
 ) -> Result<PlannerResponseType> {
-    let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
+    let prompt = format!(
+        "The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}"
+    );
 
     let message = Message::user().with_text(&prompt);
     let model_config = provider.get_model_config();
@@ -326,7 +326,7 @@ impl CliSession {
                     s.push('_');
                     s.push_str(path);
                 }
-                s
+                name_to_key(&s)
             })
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "unnamed".to_string());
@@ -578,7 +578,7 @@ impl CliSession {
             }
             InputResult::GooseMode(mode) => {
                 history.save(editor);
-                self.handle_goose_mode(&mode)?;
+                self.handle_goose_mode(&mode).await?;
             }
             InputResult::Plan(options) => {
                 self.handle_plan_mode(options).await?;
@@ -630,6 +630,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                println!();
                 output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
@@ -711,20 +712,21 @@ impl CliSession {
         }
     }
 
-    fn handle_goose_mode(&self, mode: &str) -> Result<()> {
+    async fn handle_goose_mode(&self, mode: &str) -> Result<()> {
         let config = Config::global();
         let mode = match GooseMode::from_str(&mode.to_lowercase()) {
             Ok(mode) => mode,
             Err(_) => {
                 output::render_error(&format!(
-                    "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                    mode
+                    "Invalid mode '{mode}'. Mode must be one of: {}",
+                    GooseMode::VARIANTS.join(", ")
                 ));
                 return Ok(());
             }
         };
+        self.agent.update_goose_mode(mode, &self.session_id).await?;
         config.set_goose_mode(mode)?;
-        output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+        output::goose_mode_message(&format!("Goose mode set to '{mode}'"));
         Ok(())
     }
 
@@ -884,7 +886,7 @@ impl CliSession {
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
-                    let curr_goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+                    let curr_goose_mode = config.get_goose_mode().unwrap_or_default();
                     if curr_goose_mode != GooseMode::Auto {
                         config.set_goose_mode(GooseMode::Auto).unwrap();
                     }
@@ -981,6 +983,10 @@ impl CliSession {
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::DenyOnce,
+                                    }).await;
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         id,
@@ -1063,13 +1069,6 @@ impl CliSession {
                         }
                         Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
                             self.messages = updated_conversation;
-                        }
-                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
-                            if is_stream_json_mode {
-                                emit_stream_event(&StreamEvent::ModelChange { model: model.clone(), mode: mode.clone() });
-                            } else if self.debug {
-                                eprintln!("Model changed to {} in {} mode", model, mode);
-                            }
                         }
                         Some(Err(e)) => {
                             handle_agent_error(&e, is_stream_json_mode);
@@ -1756,7 +1755,9 @@ fn display_log_notification(
                 let _ = progress_bars.hide();
             }
             if !is_json_mode {
-                print!("{}", formatted_message);
+                for line in formatted_message.lines() {
+                    println!("    {}", console::style(line).dim());
+                }
                 std::io::stdout().flush().unwrap();
             }
         } else if ntype == "shell_output" {
@@ -1771,7 +1772,7 @@ fn display_log_notification(
                     let _ = progress_bars.hide();
                 }
                 if !is_json_mode {
-                    println!("{}", formatted_message);
+                    println!("    {}", console::style(formatted_message).dim());
                 }
             }
         }
@@ -2025,7 +2026,7 @@ mod tests {
     #[test_case(
         "https://mcp.kiwi.com", 300,
         ExtensionConfig::StreamableHttp {
-            name: "mcp.kiwi.com".into(),
+            name: "mcp_kiwi_com".into(),
             uri: "https://mcp.kiwi.com".into(),
             envs: Envs::default(),
             env_keys: vec![],

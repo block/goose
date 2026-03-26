@@ -90,6 +90,9 @@ interface ChatInputProps {
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
+  sessionLoaded?: boolean;
 }
 
 export default function ChatInput({
@@ -117,6 +120,9 @@ export default function ChatInput({
   append: _append,
   onWorkingDirChange,
   inputRef,
+  sessionModel,
+  sessionProvider,
+  sessionLoaded,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -139,7 +145,34 @@ export default function ChatInput({
     null
   ) as React.RefObject<HTMLDivElement>;
   const { getProviders } = useConfig();
-  const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
+  const {
+    getCurrentModelAndProvider,
+    currentModel: configModel,
+    currentProvider: configProvider,
+  } = useModelAndProvider();
+
+  // Local override for when the user changes the model in the modal,
+  // before the session object is re-fetched from the backend.
+  const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(
+    null
+  );
+  const effectiveModel = modelOverride?.model ?? sessionModel ?? configModel;
+  const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? configProvider;
+
+  // Clear override when the underlying data catches up (session props for
+  // active chats, config defaults for Hub / no-session contexts).
+  useEffect(() => {
+    if (!modelOverride) return;
+    const sessionCaughtUp =
+      sessionModel === modelOverride.model && sessionProvider === modelOverride.provider;
+    const configCaughtUp =
+      !sessionId &&
+      configModel === modelOverride.model &&
+      configProvider === modelOverride.provider;
+    if (sessionCaughtUp || configCaughtUp) {
+      setModelOverride(null);
+    }
+  }, [sessionModel, sessionProvider, configModel, configProvider, sessionId, modelOverride]);
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -369,10 +402,16 @@ export default function ChatInput({
       // Reset token limit loaded state
       setIsTokenLimitLoaded(false);
 
-      // Get current model and provider first to avoid unnecessary provider fetches
-      const { model, provider } = await getCurrentModelAndProvider();
+      // Use effective model/provider (includes overrides from in-session model changes),
+      // fall back to config defaults
+      let model = effectiveModel;
+      let provider = effectiveProvider;
       if (!model || !provider) {
-        console.log('No model or provider found');
+        const configModelAndProvider = await getCurrentModelAndProvider();
+        model = configModelAndProvider.model;
+        provider = configModelAndProvider.provider;
+      }
+      if (!model || !provider) {
         setIsTokenLimitLoaded(true);
         return;
       }
@@ -417,11 +456,12 @@ export default function ChatInput({
     }
   };
 
-  // Initial load and refresh when model changes
+  // Initial load and refresh when model changes (effective model includes overrides,
+  // config model is the fallback for Hub/no-session contexts)
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentModel, currentProvider]);
+  }, [effectiveModel, effectiveProvider, configModel, configProvider]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -1509,6 +1549,8 @@ export default function ChatInput({
                   inputTokens={accumulatedInputTokens}
                   outputTokens={accumulatedOutputTokens}
                   sessionCosts={sessionCosts}
+                  model={effectiveModel}
+                  provider={effectiveProvider}
                 />
               </div>
             </>
@@ -1520,11 +1562,15 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
+                sessionModel={effectiveModel}
+                sessionProvider={effectiveProvider}
+                onModelChanged={setModelOverride}
+                sessionLoaded={sessionLoaded}
               />
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-primary mx-2" />
-          <BottomMenuModeSelection />
+          <BottomMenuModeSelection sessionId={sessionId} />
           <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (

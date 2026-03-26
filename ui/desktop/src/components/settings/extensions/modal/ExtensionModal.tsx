@@ -311,8 +311,6 @@ export default function ExtensionModal({
       } catch (error) {
         console.error('Error during submission:', error);
       }
-    } else {
-      console.log('Form validation failed');
     }
   };
 
@@ -387,7 +385,7 @@ export default function ExtensionModal({
                 />
               </div>
 
-              {formData.type === 'stdio' && (
+              {(formData.type === 'stdio' || formData.type === 'streamable_http') && (
                 <>
                   <hr className="border-t border-border-primary" />
 

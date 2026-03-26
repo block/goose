@@ -37,6 +37,8 @@ jobs:
   bundle-desktop:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:
       id-token: write
       contents: read
@@ -105,10 +107,12 @@ jobs:
           source ./bin/activate-hermit
           # Update version in package.json 
           cd ui/desktop
-          npm version "${VERSION}" --no-git-tag-version --allow-same-version
+          npm pkg set "version=${VERSION}"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-deployment-target-12
 
       # Build the project
       - name: Build goosed
@@ -131,18 +135,18 @@ jobs:
         run: |
           cp target/release/goosed ui/desktop/src/bin/goosed
 
-      - name: Cache npm dependencies
+      - name: Cache pnpm dependencies
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: macos-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          key: macos-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
           restore-keys: |
-            macos-npm-cache-v1-${{ runner.os }}-
+            macos-pnpm-cache-v1-${{ runner.os }}-
 
       - name: Install dependencies
-        run: source ../../bin/activate-hermit && npm ci
+        run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
       # Check disk space before bundling
@@ -155,7 +159,7 @@ jobs:
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            npm run bundle:default && break
+            pnpm run bundle:default && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5

@@ -17,7 +17,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
-use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use super::streaming_buffer::MarkdownBuffer;
@@ -76,7 +75,9 @@ thread_local! {
                     .unwrap_or(Theme::Ansi)
             )
     );
-    static SHOW_FULL_TOOL_OUTPUT: RefCell<bool> = const { RefCell::new(false) };
+    static SHOW_FULL_TOOL_OUTPUT: RefCell<bool> = RefCell::new(
+        Config::global().get_param::<bool>("GOOSE_SHOW_FULL_OUTPUT").unwrap_or(false)
+    );
 }
 
 pub fn set_theme(theme: Theme) {
@@ -235,12 +236,11 @@ pub fn render_message(message: &Message, debug: bool) {
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+            MessageContent::ToolResponse(resp) => render_tool_response(resp, debug),
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
             MessageContent::Thinking(t) => render_thinking(&t.thinking, theme),
-            MessageContent::Reasoning(r) => render_thinking(&r.text, theme),
             MessageContent::RedactedThinking(_) => {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
@@ -280,10 +280,10 @@ pub fn render_message_streaming(
     let theme = get_theme();
 
     for content in &message.content {
-        if !matches!(
-            content,
-            MessageContent::Thinking(_) | MessageContent::Reasoning(_)
-        ) {
+        if !matches!(content, MessageContent::Thinking(_)) {
+            if *thinking_header_shown {
+                println!();
+            }
             *thinking_header_shown = false;
         }
 
@@ -299,7 +299,7 @@ pub fn render_message_streaming(
             }
             MessageContent::ToolResponse(resp) => {
                 flush_markdown_buffer(buffer, theme);
-                render_tool_response(resp, theme, debug);
+                render_tool_response(resp, debug);
             }
             MessageContent::ActionRequired(action) => {
                 flush_markdown_buffer(buffer, theme);
@@ -321,9 +321,6 @@ pub fn render_message_streaming(
             }
             MessageContent::Thinking(t) => {
                 render_thinking_streaming(&t.thinking, buffer, thinking_header_shown, theme);
-            }
-            MessageContent::Reasoning(r) => {
-                render_thinking_streaming(&r.text, buffer, thinking_header_shown, theme);
             }
             MessageContent::RedactedThinking(_) => {
                 flush_markdown_buffer(buffer, theme);
@@ -450,12 +447,11 @@ pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
 }
 
-static SHOW_THINKING: LazyLock<bool> = LazyLock::new(|| {
-    std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() && std::io::stdout().is_terminal()
-});
-
 fn should_show_thinking() -> bool {
-    *SHOW_THINKING
+    Config::global()
+        .get_param::<bool>("GOOSE_CLI_SHOW_THINKING")
+        .unwrap_or(false)
+        && std::io::stdout().is_terminal()
 }
 
 fn render_thinking(text: &str, theme: Theme) {
@@ -485,9 +481,9 @@ fn render_thinking_streaming(
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.to_string().as_str() {
-            "developer__text_editor" => render_text_editor_request(call, debug),
-            "developer__shell" => render_shell_request(call, debug),
-            "execute" | "execute_code" => render_execute_code_request(call, debug),
+            name if is_shell_tool_name(name) => render_shell_request(call, debug),
+            name if is_file_tool_name(name) => render_text_editor_request(call, debug),
+            "execute_typescript" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
@@ -498,7 +494,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
+fn render_tool_response(resp: &ToolResponse, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
@@ -526,12 +522,61 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 if debug {
                     println!("{:#?}", content);
                 } else if let Some(text) = content.as_text() {
-                    print_markdown(&text.text, theme);
+                    print_tool_output(&text.text);
                 }
             }
         }
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => {
+            println!("    {}", style(e.to_string()).red().dim());
+        }
     }
+}
+
+fn print_tool_output(text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    if !std::io::stdout().is_terminal() {
+        print!("{}", text);
+        return;
+    }
+    let max_lines = if get_show_full_tool_output() {
+        usize::MAX
+    } else {
+        20
+    };
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() <= max_lines {
+        for line in &lines {
+            println!("    {}", style(line).dim());
+        }
+    } else {
+        let head = max_lines / 2;
+        let tail = max_lines - head;
+        for line in &lines[..head] {
+            println!("    {}", style(line).dim());
+        }
+        println!(
+            "    {}",
+            style(format!(
+                "... ({} lines hidden, /toggle to show all)",
+                lines.len() - head - tail
+            ))
+            .dim()
+            .italic()
+        );
+        for line in &lines[lines.len() - tail..] {
+            println!("    {}", style(line).dim());
+        }
+    }
+}
+
+fn is_shell_tool_name(name: &str) -> bool {
+    matches!(name, "shell")
+}
+
+fn is_file_tool_name(name: &str) -> bool {
+    matches!(name, "write" | "edit")
 }
 
 pub fn render_error(message: &str) {
@@ -821,7 +866,7 @@ pub fn render_subagent_tool_call(
     arguments: Option<&JsonObject>,
     debug: bool,
 ) {
-    if tool_name == "code_execution__execute_code" {
+    if tool_name == "code_execution__execute_typescript" {
         let tool_graph = arguments
             .and_then(|args| args.get("tool_graph"))
             .and_then(Value::as_array)
@@ -850,7 +895,7 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
         "  {} {} {} {} tool call{}",
         style("▸").dim(),
         style(format!("[subagent:{}]", short_id)).dim(),
-        style("execute_code").dim(),
+        style("execute_typescript").dim(),
         style(count).dim(),
         plural,
     );
@@ -903,6 +948,7 @@ fn print_tool_header(call: &CallToolRequestParams) {
         )
     };
     println!();
+    println!("  {}", style("─".repeat(40)).dim());
     println!("{}", tool_header);
 }
 
@@ -1250,7 +1296,6 @@ pub fn display_session_info(
     provider: &str,
     model: &str,
     session_id: &Option<String>,
-    provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
     set_terminal_title();
 
@@ -1262,16 +1307,7 @@ pub fn display_session_info(
         "new session"
     };
 
-    let model_display = if let Some(provider_inst) = provider_instance {
-        if let Some(lead_worker) = provider_inst.as_lead_worker() {
-            let (lead_model, worker_model) = lead_worker.get_model_info();
-            format!("{} → {}", lead_model, worker_model)
-        } else {
-            model.to_string()
-        }
-    } else {
-        model.to_string()
-    };
+    let model_display = model.to_string();
 
     let cwd_display = std::env::current_dir()
         .ok()

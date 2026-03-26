@@ -8,6 +8,8 @@ import {
   type HfModelInfo,
   type HfQuantVariant,
 } from '../../../api';
+import { toastError } from '../../../toasts';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return 'unknown';
@@ -179,13 +181,17 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     try {
       const response = await downloadHfModel({
         body: { spec },
+        throwOnError: true,
       });
       if (response.data) {
         onDownloadStarted(response.data);
         setDirectSpec('');
       }
     } catch (e) {
-      console.error('Direct download failed:', e);
+      toastError({
+        title: 'Direct download failed',
+        msg: 'Failed to start the download. Check the spec: ' + errorMessage(e),
+      });
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);
@@ -214,9 +220,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         </div>
       </div>
 
-      {error && !searching && (
-        <p className="text-xs text-text-muted">{error}</p>
-      )}
+      {error && !searching && <p className="text-xs text-text-muted">{error}</p>}
 
       {results.length > 0 && (
         <div className="space-y-1 max-h-96 overflow-y-auto">
@@ -289,9 +293,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                               )}
                             </div>
                             {variant.description && (
-                              <span className="text-xs text-text-muted">
-                                {variant.description}
-                              </span>
+                              <span className="text-xs text-text-muted">{variant.description}</span>
                             )}
                           </div>
                           <Button
@@ -323,7 +325,8 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       <div>
         <h4 className="text-sm font-medium text-text-default mb-2">Direct Download</h4>
         <p className="text-xs text-text-muted mb-2">
-          Specify a model directly: <code className="bg-background-subtle px-1 rounded">user/repo:quantization</code>
+          Specify a model directly:{' '}
+          <code className="bg-background-subtle px-1 rounded">user/repo:quantization</code>
         </p>
         <div className="flex gap-2">
           <input

@@ -184,7 +184,7 @@ elif [ "$OS" = "windows" ]; then
     echo "Error: Windows currently only supports x86_64 architecture."
     exit 1
   fi
-  FILE="goose-$ARCH-pc-windows-gnu.zip"
+  FILE="goose-$ARCH-pc-windows-msvc.zip"
   EXTRACT_CMD="unzip"
   OUT_FILE="goose.exe"
 else
@@ -235,7 +235,7 @@ set +e  # Disable immediate exit on error
 if [ "$EXTRACT_CMD" = "tar" ]; then
   tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
   extract_exit_code=$?
-  
+
   # Check for tar errors
   if [ $extract_exit_code -ne 0 ]; then
     if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
@@ -252,7 +252,7 @@ else
   # Use unzip for Windows
   unzip -q "$FILE" -d "$TMP_DIR" 2> unzip_error.log
   extract_exit_code=$?
-  
+
   # Check for unzip errors
   if [ $extract_exit_code -ne 0 ]; then
     echo "Error: Failed to extract $FILE. See details below:"
@@ -292,7 +292,21 @@ echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
 if [ "$OS" = "windows" ]; then
   mv "$EXTRACT_DIR/goose.exe" "$GOOSE_BIN_DIR/$OUT_FILE"
 else
-  mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
+  # On Linux, if the target binary is currently running, writing to it fails
+  # with ETXTBSY ("Text file busy"). Rename the old binary out of the way
+  # first, then move the new one in. If the move fails, restore the old binary
+  # so the user is never left without an executable.
+  if [ -f "$GOOSE_BIN_DIR/$OUT_FILE" ]; then
+    mv "$GOOSE_BIN_DIR/$OUT_FILE" "$GOOSE_BIN_DIR/$OUT_FILE.old"
+    if ! mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"; then
+      echo "Error: failed to install new binary, restoring previous version"
+      mv "$GOOSE_BIN_DIR/$OUT_FILE.old" "$GOOSE_BIN_DIR/$OUT_FILE"
+      exit 1
+    fi
+    rm -f "$GOOSE_BIN_DIR/$OUT_FILE.old"
+  else
+    mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
+  fi
 fi
 
 # Copy Windows runtime DLLs if they exist
@@ -322,7 +336,7 @@ fi
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
   echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
-  
+
   if [ "$OS" = "windows" ]; then
     echo "To add goose to your PATH in PowerShell:"
     echo ""
@@ -382,9 +396,6 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
     fi
 
   fi
-  
+
   echo ""
 fi
-
-
-

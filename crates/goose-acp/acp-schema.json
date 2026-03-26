@@ -5,7 +5,7 @@
     "AddExtensionRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         },
         "config": {
@@ -13,12 +13,12 @@
         }
       },
       "required": [
-        "session_id",
+        "sessionId",
         "config"
       ],
-      "description": "Add an extension to an active session.\nMethod: `_agent/extensions/add`",
+      "description": "Add an extension to an active session.",
       "x-side": "agent",
-      "x-method": "extensions/add"
+      "x-method": "_goose/extensions/add"
     },
     "EmptyResponse": {
       "type": "object",
@@ -28,7 +28,7 @@
     "RemoveExtensionRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         },
         "name": {
@@ -36,26 +36,26 @@
         }
       },
       "required": [
-        "session_id",
+        "sessionId",
         "name"
       ],
-      "description": "Remove an extension from an active session.\nMethod: `_agent/extensions/remove`",
+      "description": "Remove an extension from an active session.",
       "x-side": "agent",
-      "x-method": "extensions/remove"
+      "x-method": "_goose/extensions/remove"
     },
     "GetToolsRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         }
       },
       "required": [
-        "session_id"
+        "sessionId"
       ],
-      "description": "List all tools available in a session.\nMethod: `_agent/tools`",
+      "description": "List all tools available in a session.",
       "x-side": "agent",
-      "x-method": "tools"
+      "x-method": "_goose/tools"
     },
     "GetToolsResponse": {
       "type": "object",
@@ -70,29 +70,29 @@
         "tools"
       ],
       "x-side": "agent",
-      "x-method": "tools"
+      "x-method": "_goose/tools"
     },
     "ReadResourceRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         },
         "uri": {
           "type": "string"
         },
-        "extension_name": {
+        "extensionName": {
           "type": "string"
         }
       },
       "required": [
-        "session_id",
+        "sessionId",
         "uri",
-        "extension_name"
+        "extensionName"
       ],
-      "description": "Read a resource from an extension.\nMethod: `_agent/resource/read`",
+      "description": "Read a resource from an extension.",
       "x-side": "agent",
-      "x-method": "resource/read"
+      "x-method": "_goose/resource/read"
     },
     "ReadResourceResponse": {
       "type": "object",
@@ -105,56 +105,41 @@
         "result"
       ],
       "x-side": "agent",
-      "x-method": "resource/read"
+      "x-method": "_goose/resource/read"
     },
     "UpdateWorkingDirRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         },
-        "working_dir": {
+        "workingDir": {
           "type": "string"
         }
       },
       "required": [
-        "session_id",
-        "working_dir"
+        "sessionId",
+        "workingDir"
       ],
-      "description": "Update the working directory for a session.\nMethod: `_agent/working_dir/update`",
+      "description": "Update the working directory for a session.",
       "x-side": "agent",
-      "x-method": "working_dir/update"
-    },
-    "ListSessionsResponse": {
-      "type": "object",
-      "properties": {
-        "sessions": {
-          "type": "array",
-          "items": true
-        }
-      },
-      "required": [
-        "sessions"
-      ],
-      "description": "List all sessions.\nMethod: `_session/list`",
-      "x-side": "agent",
-      "x-method": "session/list"
+      "x-method": "_goose/working_dir/update"
     },
     "GetSessionRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         },
-        "include_messages": {
+        "includeMessages": {
           "type": "boolean",
           "default": false
         }
       },
       "required": [
-        "session_id"
+        "sessionId"
       ],
-      "description": "Get a session by ID.\nMethod: `_session/get`",
+      "description": "Get a session by ID.",
       "x-side": "agent",
       "x-method": "session/get"
     },
@@ -175,30 +160,30 @@
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         }
       },
       "required": [
-        "session_id"
+        "sessionId"
       ],
-      "description": "Delete a session.\nMethod: `_session/delete`",
+      "description": "Delete a session.",
       "x-side": "agent",
       "x-method": "session/delete"
     },
     "ExportSessionRequest": {
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "type": "string"
         }
       },
       "required": [
-        "session_id"
+        "sessionId"
       ],
-      "description": "Export a session as a JSON string.\nMethod: `_session/export`",
+      "description": "Export a session as a JSON string.",
       "x-side": "agent",
-      "x-method": "session/export"
+      "x-method": "_goose/session/export"
     },
     "ExportSessionResponse": {
       "type": "object",
@@ -211,7 +196,7 @@
         "data"
       ],
       "x-side": "agent",
-      "x-method": "session/export"
+      "x-method": "_goose/session/export"
     },
     "ImportSessionRequest": {
       "type": "object",
@@ -223,9 +208,9 @@
       "required": [
         "data"
       ],
-      "description": "Import a session from a JSON string.\nMethod: `_session/import`",
+      "description": "Import a session from a JSON string.",
       "x-side": "agent",
-      "x-method": "session/import"
+      "x-method": "_goose/session/import"
     },
     "ImportSessionResponse": {
       "type": "object",
@@ -238,7 +223,7 @@
         "session"
       ],
       "x-side": "agent",
-      "x-method": "session/import"
+      "x-method": "_goose/session/import"
     },
     "GetExtensionsResponse": {
       "type": "object",
@@ -259,9 +244,9 @@
         "extensions",
         "warnings"
       ],
-      "description": "List configured extensions and any warnings.\nMethod: `_config/extensions`",
+      "description": "List configured extensions and any warnings.",
       "x-side": "agent",
-      "x-method": "config/extensions"
+      "x-method": "_goose/config/extensions"
     },
     "ExtRequest": {
       "properties": {
@@ -326,7 +311,7 @@
                       "$ref": "#/$defs/GetSessionRequest"
                     }
                   ],
-                  "description": "Params for _goose/session/get",
+                  "description": "Params for session/get",
                   "title": "GetSessionRequest"
                 },
                 {
@@ -335,7 +320,7 @@
                       "$ref": "#/$defs/DeleteSessionRequest"
                     }
                   ],
-                  "description": "Params for _goose/session/delete",
+                  "description": "Params for session/delete",
                   "title": "DeleteSessionRequest"
                 },
                 {
@@ -409,14 +394,6 @@
                         }
                       ],
                       "title": "ReadResourceResponse"
-                    },
-                    {
-                      "allOf": [
-                        {
-                          "$ref": "#/$defs/ListSessionsResponse"
-                        }
-                      ],
-                      "title": "ListSessionsResponse"
                     },
                     {
                       "allOf": [

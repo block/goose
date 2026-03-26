@@ -29,7 +29,7 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
+pub fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
         MessageContent::ToolRequest(tool_request) => {
             if let Ok(tool_call) = &tool_request.tool_call {
@@ -79,8 +79,11 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
     user_message: Message,
+    /// Override the server's conversation history. Only use this when you need absolute control
+    /// over the conversation state (e.g., administrative tools). For normal operations, the server
+    /// is the source of truth - use truncate/fork endpoints to modify conversation history instead.
     #[serde(default)]
-    conversation_so_far: Option<Vec<Message>>,
+    override_conversation: Option<Vec<Message>>,
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
@@ -120,7 +123,7 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum MessageEvent {
     Message {
@@ -134,10 +137,6 @@ pub enum MessageEvent {
         reason: String,
         token_state: TokenState,
     },
-    ModelChange {
-        model: String,
-        mode: String,
-    },
     Notification {
         request_id: String,
         #[schema(value_type = Object)]
@@ -146,10 +145,15 @@ pub enum MessageEvent {
     UpdateConversation {
         conversation: Conversation,
     },
+    /// Sent at the start of an SSE stream to inform the client about
+    /// in-flight requests it can reattach to.
+    ActiveRequests {
+        request_ids: Vec<String>,
+    },
     Ping,
 }
 
-async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
+pub async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
     session_manager
         .get_session(session_id, false)
         .await
@@ -240,7 +244,7 @@ pub async fn reply(
     let cancel_token = CancellationToken::new();
 
     let user_message = request.user_message;
-    let conversation_so_far = request.conversation_so_far;
+    let override_conversation = request.override_conversation;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -285,7 +289,7 @@ pub async fn reply(
             retry_config: None,
         };
 
-        let mut all_messages = match conversation_so_far {
+        let mut all_messages = match override_conversation {
             Some(history) => {
                 let conv = Conversation::new_unvalidated(history);
                 if let Err(e) = state
@@ -355,9 +359,6 @@ pub async fn reply(
                             all_messages = new_messages.clone();
                             stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
 
-                        }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
                             stream_event(MessageEvent::Notification{
@@ -477,7 +478,7 @@ mod tests {
 
         #[tokio::test(flavor = "multi_thread")]
         async fn test_reply_endpoint() {
-            let state = AppState::new().await.unwrap();
+            let state = AppState::new(true).await.unwrap();
 
             let app = routes(state);
 
@@ -489,7 +490,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
                         user_message: Message::user().with_text("test message"),
-                        conversation_so_far: None,
+                        override_conversation: None,
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,

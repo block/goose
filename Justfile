@@ -11,10 +11,8 @@ check-everything:
     cargo fmt --all
     @echo "  → Running clippy linting..."
     cargo clippy --all-targets -- -D warnings
-    @echo "  → Checking for banned TLS crates..."
-    ./scripts/check-no-native-tls.sh
     @echo "  → Checking UI code formatting..."
-    cd ui/desktop && npm run lint:check
+    cd ui/desktop && pnpm run lint:check
     @echo "  → Validating OpenAPI schema..."
     ./scripts/check-openapi-schema.sh
     @echo ""
@@ -125,7 +123,7 @@ copy-binary-windows:
 run-ui:
     @just release-binary
     @echo "Running UI..."
-    cd ui/desktop && npm install && npm run start-gui
+    cd ui/desktop && pnpm install && pnpm run start-gui
 
 run-ui-playwright:
     #!/usr/bin/env sh
@@ -134,19 +132,20 @@ run-ui-playwright:
     RUN_DIR="$HOME/goose-runs/$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$RUN_DIR"
     echo "Using isolated directory: $RUN_DIR"
-    cd ui/desktop && ENABLE_PLAYWRIGHT=true GOOSE_PATH_ROOT="$RUN_DIR" npm run start-gui
+    cd ui/desktop && ENABLE_PLAYWRIGHT=true GOOSE_PATH_ROOT="$RUN_DIR" pnpm run start-gui
 
 run-ui-only:
     @echo "Running UI..."
-    cd ui/desktop && npm install && npm run start-gui
+    cd ui/desktop && pnpm install && pnpm run start-gui
 
 debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
     cd ui/desktop && \
     export GOOSE_EXTERNAL_BACKEND=true && \
+    export GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" && \
     {{ if alpha == "alpha" { "export ALPHA=true &&" } else { "" } }} \
-    npm install && \
-    npm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}
+    pnpm install && \
+    pnpm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}
 
 # Run UI with main process debugging enabled
 # To debug main process:
@@ -159,15 +158,15 @@ debug-ui-main-process:
 	@echo "🔍 Starting goose UI with main process debugging enabled"
 	@just release-binary
 	cd ui/desktop && \
-	npm install && \
-	npm run start-gui-debug
+	pnpm install && \
+	pnpm run start-gui-debug
 
 # Package the desktop app locally for testing (macOS)
 # Applies ad-hoc code signing with entitlements (needed for mic access, etc.)
 package-ui:
     @just release-binary
     @echo "Packaging desktop app..."
-    cd ui/desktop && npm install && npm run package
+    cd ui/desktop && pnpm install && pnpm run package
     @echo "Signing with entitlements..."
     codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist ui/desktop/out/Goose-darwin-arm64/Goose.app
     @echo "Done! Launch with: open ui/desktop/out/Goose-darwin-arm64/Goose.app"
@@ -176,14 +175,14 @@ package-ui:
 run-ui-alpha:
     @just release-binary
     @echo "Running UI with alpha features..."
-    cd ui/desktop && npm install && ALPHA=true npm run start-alpha-gui
+    cd ui/desktop && pnpm install && ALPHA=true pnpm run start-alpha-gui
 
 # Run UI with latest (Windows version)
 run-ui-windows:
     @just release-windows
     @powershell.exe -Command "Write-Host 'Copying Windows binary...'"
     @just copy-binary-windows
-    @powershell.exe -Command "Write-Host 'Running UI...'; Set-Location ui/desktop; npm install; npm run start-gui"
+    @powershell.exe -Command "Write-Host 'Running UI...'; Set-Location ui/desktop; pnpm install; pnpm run start-gui"
 
 # Run Docusaurus server for documentation
 run-docs:
@@ -214,17 +213,17 @@ generate-manpages:
 
 # make GUI with latest binary
 lint-ui:
-    cd ui/desktop && npm run lint:check
+    cd ui/desktop && pnpm run lint:check
 
 # make GUI with latest binary
 make-ui:
     @just release-binary
-    cd ui/desktop && npm run bundle:default
+    cd ui/desktop && pnpm run bundle:default
 
 # make GUI with latest binary and alpha features enabled
 make-ui-alpha:
     @just release-binary
-    cd ui/desktop && npm run bundle:alpha
+    cd ui/desktop && pnpm run bundle:alpha
 
 # make GUI with latest Windows binary
 make-ui-windows:
@@ -239,7 +238,7 @@ make-ui-windows:
         cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
         cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
         echo "Starting Windows package build..." && \
-        (cd ui/desktop && npm run bundle:windows) && \
+        (cd ui/desktop && pnpm run bundle:windows) && \
         echo "Windows package build complete!"; \
     else \
         echo "Windows binary not found."; \
@@ -249,7 +248,7 @@ make-ui-windows:
 # make GUI with latest binary
 make-ui-intel:
     @just release-intel
-    cd ui/desktop && npm run bundle:intel
+    cd ui/desktop && pnpm run bundle:intel
 
 
 
@@ -259,11 +258,11 @@ run-dev:
     cargo build
     @just copy-binary debug
     @echo "Running UI..."
-    cd ui/desktop && npm run start-gui
+    cd ui/desktop && pnpm run start-gui
 
 # Install all dependencies (run once after fresh clone)
 install-deps:
-    cd ui/desktop && npm install
+    cd ui/desktop && pnpm install
     cd documentation && yarn
 
 ensure-release-branch:
@@ -305,28 +304,49 @@ get-next-minor-version:
 get-next-patch-version:
     @python -c "import sys; v=sys.argv[1].split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')" $(just get-tag-version)
 
-# set cargo and app versions, must be semver
-prepare-release version:
+# derive the prior release tag from a version
+# patch bump (e.g. 1.25.1): prior is v1.25.0 (deterministic)
+# minor bump (e.g. 1.26.0): prior is highest v1.25.* GitHub release
+get-prior-version version:
+    #!/usr/bin/env bash
+    IFS='.' read -r major minor patch <<< "{{ version }}"
+    if [[ "$patch" -gt 0 ]]; then
+      echo "v${major}.${minor}.$((patch - 1))"
+    elif [[ "$minor" -gt 0 ]]; then
+      prev_minor=$((minor - 1))
+      prefix="v${major}.${prev_minor}."
+      best=$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases \
+        --json tagName --jq "[.[] | select(.tagName | startswith(\"${prefix}\"))][0].tagName")
+      if [[ -n "$best" && "$best" != "null" ]]; then
+        echo "$best"
+      fi
+    fi
+
+# update version numbers in all manifests
+bump-version version:
     @just validate {{ version }} || exit 1
-
-    @git switch -c "release/{{ version }}"
     @uvx --from=toml-cli toml set --toml-path=Cargo.toml "workspace.package.version" {{ version }}
-
-    @cd ui/desktop && npm version {{ version }} --no-git-tag-version --allow-same-version
-
-    # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
-    # used to update Cargo.lock after we've bumped versions in Cargo.toml
+    @cd ui/desktop && npm pkg set "version={{ version }}"
+    # update Cargo.lock after bumping versions in Cargo.toml
     @cargo update --workspace
     @just set-openapi-version {{ version }}
+
+# rebuild canonical model registry and mapping report from models.dev
+build-canonical-models:
     @cargo run --bin build_canonical_models
+
+# bump version, rebuild canonical models, and commit
+prepare-release version:
+    @just bump-version {{ version }}
+    @just build-canonical-models
     @git add \
         Cargo.toml \
         Cargo.lock \
         ui/desktop/package.json \
-        ui/desktop/package-lock.json \
+        ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
         crates/goose/src/providers/canonical/data/canonical_models.json \
-        crates/goose/src/providers/canonical/data/canonical_mapping_report.json
+        crates/goose/src/providers/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:
@@ -384,9 +404,9 @@ win-bld-rls:
 win-bld-rls-all:
   just win-bld "--release" "--workspace --all-targets --all-features"
 
-### Install npm stuff
+### Install pnpm stuff
 win-app-deps:
-  cd ui{{s}}desktop ; npm install
+  cd ui{{s}}desktop ; pnpm install
 
 ### Windows copy {release|debug} files to ui\desktop\src\bin
 ### s = os dependent file separator
@@ -406,13 +426,13 @@ win-copy-oth profile:
 win-app-copy profile="release":
   just win-copy-{{ if os() == "windows" { "win" } else { "oth" } }} {{profile}}
 
-### Only copy binaries, npm install, start-gui
+### Only copy binaries, pnpm install, start-gui
 ### profile = release or debug
 ### s = os dependent file separator
 win-app-run profile:
   just win-app-copy {{profile}}
   just win-app-deps
-  cd ui{{s}}desktop ; npm run start-gui
+  cd ui{{s}}desktop ; pnpm run start-gui
 
 ### Only run debug desktop, no build
 win-run-dbg:

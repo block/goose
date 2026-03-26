@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { listSessions } from '../api';
+import { getSession, listSessions } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { useConfig } from '../components/ConfigContext';
 import { useNavigation } from './useNavigation';
@@ -65,6 +65,19 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       fetchSessions();
     }
   }, [fetchOnMount, fetchSessions]);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (recentSessions.some((s) => s.id === activeSessionId)) return;
+
+    getSession({ path: { session_id: activeSessionId }, throwOnError: false }).then((response) => {
+      if (!response.data) return;
+      setRecentSessions((prev) => {
+        if (prev.some((s) => s.id === activeSessionId)) return prev;
+        return [response.data as Session, ...prev].slice(0, MAX_RECENT_SESSIONS);
+      });
+    });
+  }, [activeSessionId, recentSessions]);
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -146,10 +159,16 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   const handleNewChat = useCallback(async () => {
     if (isCreatingSessionRef.current) return;
 
-    const emptyNewSession = sessionsRef.current.find((s) => shouldShowNewChatTitle(s));
+    // Only reuse the current window's own active session if it is empty.
+    // Previously this grabbed the first empty session globally, which caused
+    // multiple windows to claim the same empty session after a restart/upgrade.
+    const currentActiveSession = activeSessionId
+      ? sessionsRef.current.find((s) => s.id === activeSessionId)
+      : undefined;
+    const canReuseActive = currentActiveSession && shouldShowNewChatTitle(currentActiveSession);
 
-    if (emptyNewSession) {
-      resumeSession(emptyNewSession, setView);
+    if (canReuseActive) {
+      resumeSession(currentActiveSession, setView);
     } else {
       isCreatingSessionRef.current = true;
       try {
@@ -163,7 +182,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       }
     }
     onNavigate?.();
-  }, [setView, onNavigate, extensionsList]);
+  }, [setView, onNavigate, extensionsList, activeSessionId]);
 
   const handleSessionClick = useCallback(
     (sessionId: string) => {

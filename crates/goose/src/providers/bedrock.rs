@@ -181,12 +181,12 @@ impl BedrockProvider {
             .get_param::<u64>("BEDROCK_MAX_RETRY_INTERVAL_MS")
             .unwrap_or(BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS);
 
-        RetryConfig {
+        RetryConfig::new(
             max_retries,
             initial_interval_ms,
             backoff_multiplier,
             max_interval_ms,
-        }
+        )
     }
 
     fn should_enable_caching(&self) -> bool {
@@ -284,10 +284,11 @@ impl BedrockProvider {
                     ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
                 }
                 ConverseError::ValidationException(err)
-                    if err
-                        .message()
-                        .unwrap_or_default()
-                        .contains("Input is too long for requested model.") =>
+                    if {
+                        let msg = err.message().unwrap_or_default();
+                        msg.contains("Input is too long for requested model.")
+                            || msg.contains("prompt is too long")
+                    } =>
                 {
                     ProviderError::ContextLengthExceeded(format!(
                         "Failed to call Bedrock: {:?}",
@@ -322,7 +323,7 @@ impl ProviderDef for BedrockProvider {
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
-                ConfigKey::new("AWS_REGION", false, false, None, true),
+                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1"), true),
                 ConfigKey::new("AWS_BEARER_TOKEN_BEDROCK", false, true, None, true),
                 ConfigKey::new("BEDROCK_ENABLE_CACHING", false, false, Some("false"), false),
             ],
@@ -355,10 +356,6 @@ impl Provider for BedrockProvider {
         Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -428,6 +425,7 @@ mod tests {
                 toolshim_model: None,
                 fast_model_config: None,
                 request_params: None,
+                reasoning: None,
             },
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
@@ -454,10 +452,17 @@ mod tests {
             .iter()
             .find(|k| k.name == "AWS_REGION")
             .expect("AWS_REGION config key should exist");
-        assert!(!aws_region.required, "AWS_REGION should not be required");
+        assert!(
+            aws_region.required,
+            "AWS_REGION is required for Bedrock to be marked as configured"
+        );
         assert!(
             !aws_region.secret,
             "AWS_REGION should not be marked as secret"
+        );
+        assert!(
+            aws_region.default.is_some(),
+            "AWS_REGION should have a default value"
         );
 
         let bearer_token = meta

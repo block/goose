@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useModelAndProvider } from '../components/ModelAndProviderContext';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { Session } from '../api';
 
@@ -26,12 +25,15 @@ export const useCostTracking = ({
     };
   }>({});
 
-  const { currentModel, currentProvider } = useModelAndProvider();
+  const currentModel = session?.model_config?.model_name ?? undefined;
+  const currentProvider = session?.provider_name ?? undefined;
   const prevModelRef = useRef<string | undefined>(undefined);
   const prevProviderRef = useRef<string | undefined>(undefined);
 
   // Handle model changes and accumulate costs
   useEffect(() => {
+    if (!currentModel || !currentProvider) return;
+
     const handleModelChange = async () => {
       if (
         prevModelRef.current !== undefined &&
@@ -67,13 +69,6 @@ export const useCostTracking = ({
           }));
         }
 
-        console.log(
-          'Model changed from',
-          `${prevProviderRef.current}/${prevModelRef.current}`,
-          'to',
-          `${currentProvider}/${currentModel}`,
-          '- saved costs and restored session token counters'
-        );
       }
 
       prevModelRef.current = currentModel || undefined;

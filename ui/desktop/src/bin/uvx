@@ -20,19 +20,29 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 
 log "Starting uvx setup script."
 
-# Ensure ~/.config/goose/mcp-hermit/bin exists
-log "Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist."
-mkdir -p ~/.config/goose/mcp-hermit/bin
+if [ -n "${GOOSE_PATH_ROOT:-}" ]; then
+    RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_PATH_ROOT}/config"
+elif [ -n "${GOOSE_CONFIG_DIR:-}" ]; then
+    log "GOOSE_CONFIG_DIR is deprecated for desktop shims; prefer GOOSE_PATH_ROOT."
+    RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_CONFIG_DIR}"
+else
+    RESOLVED_GOOSE_CONFIG_DIR="${HOME}/.config/goose"
+fi
+MCP_HERMIT_DIR="${RESOLVED_GOOSE_CONFIG_DIR}/mcp-hermit"
 
-# Change to the ~/.config/goose/mcp-hermit directory
-log "Changing to directory ~/.config/goose/mcp-hermit."
-cd ~/.config/goose/mcp-hermit
+# Ensure mcp-hermit/bin exists
+log "Creating directory ${MCP_HERMIT_DIR}/bin if it does not exist."
+mkdir -p "${MCP_HERMIT_DIR}/bin"
+
+# Change to the mcp-hermit directory
+log "Changing to directory ${MCP_HERMIT_DIR}."
+cd "${MCP_HERMIT_DIR}"
 
 # Check if hermit binary exists and download if not
-if [ ! -f ~/.config/goose/mcp-hermit/bin/hermit ]; then
+if [ ! -f "${MCP_HERMIT_DIR}/bin/hermit" ]; then
     log "Hermit binary not found. Downloading hermit binary."
     curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
-        | gzip -dc > ~/.config/goose/mcp-hermit/bin/hermit && chmod +x ~/.config/goose/mcp-hermit/bin/hermit
+        | gzip -dc > "${MCP_HERMIT_DIR}/bin/hermit" && chmod +x "${MCP_HERMIT_DIR}/bin/hermit"
     log "Hermit binary downloaded and made executable."
 else
     log "Hermit binary already exists. Skipping download."
@@ -40,12 +50,12 @@ fi
 
 
 log "setting hermit cache to be local for MCP servers"
-mkdir -p ~/.config/goose/mcp-hermit/cache
-export HERMIT_STATE_DIR=~/.config/goose/mcp-hermit/cache
+mkdir -p "${MCP_HERMIT_DIR}/cache"
+export HERMIT_STATE_DIR="${MCP_HERMIT_DIR}/cache"
 
 # Update PATH
-export PATH=~/.config/goose/mcp-hermit/bin:$PATH
-log "Updated PATH to include ~/.config/goose/mcp-hermit/bin."
+export PATH="${MCP_HERMIT_DIR}/bin:${PATH}"
+log "Updated PATH to include ${MCP_HERMIT_DIR}/bin."
 
 
 # Verify hermit installation

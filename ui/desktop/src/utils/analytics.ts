@@ -67,12 +67,7 @@ async function sendEvent(
 export type AnalyticsEvent =
   | { name: 'page_view'; properties: { page: string; referrer?: string } }
   | { name: 'onboarding_started'; properties: Record<string, never> }
-  | {
-      name: 'onboarding_provider_selected';
-      properties: {
-        method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'local' | 'other';
-      };
-    }
+  | { name: 'onboarding_provider_selected'; properties: { provider?: string; method?: string } }
   | {
       name: 'onboarding_completed';
       properties: { provider: string; model?: string; duration_seconds?: number };
@@ -80,7 +75,10 @@ export type AnalyticsEvent =
   | { name: 'onboarding_abandoned'; properties: { step: string; duration_seconds?: number } }
   | {
       name: 'onboarding_setup_failed';
-      properties: { provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local'; error_message?: string };
+      properties: {
+        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local';
+        error_message?: string;
+      };
     }
   | {
       name: 'error_occurred';
@@ -283,12 +281,13 @@ export function trackOnboardingStarted(): void {
   trackEvent({ name: 'onboarding_started', properties: {} });
 }
 
-export function trackOnboardingProviderSelected(
-  method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'local' | 'other'
-): void {
+export function trackOnboardingProviderSelected(options: {
+  provider?: string;
+  method?: string;
+}): void {
   trackEvent({
     name: 'onboarding_provider_selected',
-    properties: { method },
+    properties: options,
   });
 }
 
@@ -300,18 +299,6 @@ export function trackOnboardingCompleted(provider: string, model?: string): void
   trackEvent({
     name: 'onboarding_completed',
     properties: { provider, model, duration_seconds: durationSeconds },
-  });
-  onboardingStartTime = null;
-}
-
-export function trackOnboardingAbandoned(step: string): void {
-  const durationSeconds = onboardingStartTime
-    ? Math.round((Date.now() - onboardingStartTime) / 1000)
-    : undefined;
-
-  trackEvent({
-    name: 'onboarding_abandoned',
-    properties: { step, duration_seconds: durationSeconds },
   });
   onboardingStartTime = null;
 }

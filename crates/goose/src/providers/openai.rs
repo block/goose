@@ -65,6 +65,8 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
+    custom_models: Option<Vec<String>>,
+    skip_canonical_filtering: bool,
 }
 
 impl OpenAiProvider {
@@ -126,6 +128,8 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            custom_models: None,
+            skip_canonical_filtering: false,
         })
     }
 
@@ -140,6 +144,8 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            custom_models: None,
+            skip_canonical_filtering: false,
         }
     }
 
@@ -150,7 +156,17 @@ impl OpenAiProvider {
         let global_config = crate::config::Config::global();
 
         let api_key: Option<String> = if config.requires_auth && !config.api_key_env.is_empty() {
-            global_config.get_secret(&config.api_key_env).ok()
+            Some(global_config.get_secret::<String>(&config.api_key_env).map_err(|e| {
+                use crate::config::ConfigError;
+                match e {
+                    ConfigError::NotFound(_) => anyhow::anyhow!(
+                        "Required API key {} is not set. Configure it via `goose configure` or set the {} environment variable.",
+                        config.api_key_env,
+                        config.api_key_env
+                    ),
+                    other => anyhow::anyhow!("Failed to read {}: {}", config.api_key_env, other),
+                }
+            })?)
         } else {
             None
         };
@@ -168,11 +184,15 @@ impl OpenAiProvider {
         } else {
             format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
         };
-        let base_path = url.path().trim_start_matches('/').to_string();
-        let base_path = if base_path.is_empty() || base_path == "v1" || base_path == "v1/" {
-            "v1/chat/completions".to_string()
+        let base_path = if let Some(ref explicit_path) = config.base_path {
+            explicit_path.trim_start_matches('/').to_string()
         } else {
-            base_path
+            let url_path = url.path().trim_start_matches('/').to_string();
+            if url_path.is_empty() || url_path == "v1" || url_path == "v1/" {
+                "v1/chat/completions".to_string()
+            } else {
+                url_path
+            }
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
@@ -195,6 +215,12 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        let custom_models = if !config.models.is_empty() {
+            Some(config.models.iter().map(|m| m.name.clone()).collect())
+        } else {
+            None
+        };
+
         Ok(Self {
             api_client,
             base_path,
@@ -204,6 +230,8 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            custom_models,
+            skip_canonical_filtering: config.skip_canonical_filtering,
         })
     }
 
@@ -229,6 +257,7 @@ impl OpenAiProvider {
         let normalized_model = model_name.to_ascii_lowercase();
         (normalized_model.starts_with("gpt-5") && normalized_model.contains("codex"))
             || normalized_model.starts_with("gpt-5.2-pro")
+            || normalized_model.starts_with("gpt-5.4")
     }
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
@@ -245,6 +274,34 @@ impl OpenAiProvider {
         }
 
         Self::is_responses_model(model_name)
+    }
+
+    /// Providers known to reject `max_completion_tokens` and require
+    /// the legacy `max_tokens` field instead.
+    const PROVIDERS_NEEDING_MAX_TOKENS_REMAP: &[&str] = &[
+        "cerebras",
+        "custom_deepseek",
+        "groq",
+        "inception",
+        "kimi",
+        "lmstudio",
+        "mistral",
+        "moonshot",
+        "ovhcloud",
+    ];
+
+    fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
+        if !Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
+            return payload;
+        }
+
+        if let Some(obj) = payload.as_object_mut() {
+            if let Some(value) = obj.remove("max_completion_tokens") {
+                obj.entry("max_tokens").or_insert(value);
+            }
+        }
+
+        payload
     }
 
     fn map_base_path(base_path: &str, target: &str, fallback: &str) -> String {
@@ -266,6 +323,40 @@ impl OpenAiProvider {
         } else {
             fallback.to_string()
         }
+    }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
+        let models_path =
+            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
+        let response = self
+            .api_client
+            .request(None, &models_path)
+            .response_get()
+            .await?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            let body = response.text().await.unwrap_or_default();
+            return Err(ProviderError::EndpointNotFound(body));
+        }
+
+        let json = handle_response_openai_compat(response).await?;
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
+        let mut models: Vec<String> = data
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(models)
     }
 }
 
@@ -306,6 +397,12 @@ impl ProviderDef for OpenAiProvider {
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600"), false),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://platform.openai.com and sign up or log in",
+            "Navigate to API Keys in the left sidebar",
+            "Click 'Create new secret key'",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(
@@ -322,36 +419,31 @@ impl Provider for OpenAiProvider {
         &self.name
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        self.skip_canonical_filtering
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let models_path =
-            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
-        let response = self
-            .api_client
-            .request(None, &models_path)
-            .response_get()
-            .await?;
-        let json = handle_response_openai_compat(response).await?;
-        if let Some(err_obj) = json.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
+        if let Some(custom_models) = &self.custom_models {
+            match self.fetch_models_from_api().await {
+                Ok(models) => return Ok(models),
+                Err(e) if e.is_endpoint_not_found() => {
+                    tracing::debug!(
+                        "Models endpoint not implemented for provider '{}' ({}), using predefined list",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
+                Err(e) => return Err(e),
+            }
         }
 
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
-        let mut models: Vec<String> = data
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        self.fetch_models_from_api().await
     }
 
     fn supports_embeddings(&self) -> bool {
@@ -453,6 +545,7 @@ impl Provider for OpenAiProvider {
                 &ImageFormat::OpenAi,
                 self.supports_streaming,
             )?;
+            let payload = self.sanitize_request_for_compat(payload);
             let mut log = RequestLog::start(model_config, &payload)?;
 
             let response = self
@@ -564,7 +657,100 @@ impl EmbeddingCapable for OpenAiProvider {
 
 #[cfg(test)]
 mod tests {
-    use super::OpenAiProvider;
+    use super::*;
+    use serde_json::json;
+
+    fn make_provider(name: &str) -> OpenAiProvider {
+        OpenAiProvider {
+            api_client: ApiClient::new("http://localhost".to_string(), AuthMethod::NoAuth).unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            organization: None,
+            project: None,
+            model: ModelConfig::new_or_fail("test-model"),
+            custom_headers: None,
+            supports_streaming: true,
+            name: name.to_string(),
+            custom_models: None,
+            skip_canonical_filtering: false,
+        }
+    }
+
+    #[test]
+    fn sanitize_remaps_max_completion_tokens_for_compat_provider() {
+        let provider = make_provider("mistral");
+        let payload = json!({
+            "model": "mistral-medium-latest",
+            "messages": [],
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert!(!obj.contains_key("max_completion_tokens"));
+        assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
+    }
+
+    #[test]
+    fn sanitize_preserves_existing_max_tokens_for_compat_provider() {
+        let provider = make_provider("mistral");
+        let payload = json!({
+            "model": "mistral-medium-latest",
+            "messages": [],
+            "max_tokens": 4096,
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert!(!obj.contains_key("max_completion_tokens"));
+        assert_eq!(obj.get("max_tokens").unwrap(), &json!(4096));
+    }
+
+    #[test]
+    fn sanitize_noop_for_native_openai_provider() {
+        let provider = make_provider("openai");
+        let payload = json!({
+            "model": "o3",
+            "messages": [],
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert!(obj.contains_key("max_completion_tokens"));
+        assert!(!obj.contains_key("max_tokens"));
+    }
+
+    #[test]
+    fn sanitize_noop_for_unknown_provider() {
+        let provider = make_provider("some_future_provider");
+        let payload = json!({
+            "model": "future-model",
+            "messages": [],
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert!(obj.contains_key("max_completion_tokens"));
+        assert!(!obj.contains_key("max_tokens"));
+    }
+
+    #[test]
+    fn sanitize_no_token_params() {
+        let provider = make_provider("groq");
+        let payload = json!({
+            "model": "llama-3.3-70b-versatile",
+            "messages": []
+        });
+
+        let result = provider.sanitize_request_for_compat(payload.clone());
+        assert_eq!(result, payload);
+    }
 
     #[test]
     fn gpt_5_2_codex_uses_responses_when_base_path_is_default() {
@@ -595,6 +781,22 @@ mod tests {
         assert!(!OpenAiProvider::should_use_responses_api(
             "gpt-5.2-codex",
             "openai/v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_with_date_uses_responses() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4-2026-03-01",
+            "v1/chat/completions"
         ));
     }
 

@@ -7,24 +7,17 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
-# Include 3rd-party licenses for JavaScript/CSS minified files
-include = [
-    "licenses/chart-js.license",
-    "licenses/d3-js.license",
-    "licenses/d3-sankey.license",
-    "licenses/leaflet.license",
-    "licenses/leaflet-markercluster.license",
-    "licenses/mermaid.license"
-]
-
 [lints]
 workspace = true
+
+[features]
+rustls-tls = ["reqwest/rustls"]
+native-tls = ["reqwest/native-tls"]
 
 [dependencies]
 rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-tokio-stream = { workspace = true, features = ["io-util"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing-appender = { workspace = true }
@@ -33,42 +26,15 @@ base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true }
-shellexpand = { workspace = true }
 indoc = { workspace = true }
-xcap = "=0.4.0"
-reqwest = { workspace = true, features = ["json", "rustls", "system-proxy"], default-features = false }
+reqwest = { workspace = true, features = ["json", "system-proxy"], default-features = false }
 chrono = { workspace = true }
 etcetera = { workspace = true }
 tempfile = { workspace = true }
 include_dir = { workspace = true }
-regex = { workspace = true }
 once_cell = { workspace = true }
-ignore = { workspace = true }
 lopdf = "0.36.0"
 docx-rs = "0.4.7"
 image = { version = "0.24.9", features = ["jpeg"] }
 umya-spreadsheet = "2.2.3"
-which = {workspace = true}
-lru = { workspace = true }
-tree-sitter = "0.26"
-tree-sitter-python = "0.25"
-tree-sitter-rust = "0.24"
-tree-sitter-javascript = "0.25"
-tree-sitter-go = "0.25"
-tree-sitter-java = "0.23"
-tree-sitter-kotlin-ng = "1.1"
-tree-sitter-swift = "0.7"
-tree-sitter-ruby = "0.23"
-rayon = "1.10"
-libc = "0.2"
-# TODO: Fork mpatch or replace with a custom implementation using `similar` crate
-# for fuzzy patch matching. Current crate has limited maintenance (single maintainer,
-# ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
-mpatch = "=0.2.0"
-tokio-util = { workspace = true }
-shell-words = "1.1.1"
-
-[dev-dependencies]
-serial_test = { workspace = true }
-
-[features]
+shell-words = { workspace = true }

@@ -12,9 +12,12 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
-use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
+use goose::providers::catalog::{
+    get_provider_template, get_providers_by_format, ProviderCatalogEntry, ProviderFormat,
+    ProviderTemplate,
+};
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{
@@ -94,6 +97,10 @@ pub struct UpdateCustomProviderRequest {
     pub headers: Option<std::collections::HashMap<String, String>>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
+    #[serde(default)]
+    pub catalog_provider_id: Option<String>,
+    #[serde(default)]
+    pub base_path: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -128,6 +135,7 @@ pub enum ConfigValueResponse {
 pub enum CommandType {
     Builtin,
     Recipe,
+    Skill,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -141,16 +149,6 @@ pub struct SlashCommandsResponse {
     pub commands: Vec<SlashCommand>,
 }
 
-#[derive(Deserialize, ToSchema)]
-pub struct DetectProviderRequest {
-    pub api_key: String,
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct DetectProviderResponse {
-    pub provider_name: String,
-    pub models: Vec<String>,
-}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -390,14 +388,23 @@ pub async fn get_provider_models(
     }
 }
 
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct SlashCommandsQuery {
+    /// Optional working directory to discover local skills from
+    pub working_dir: Option<String>,
+}
+
 #[utoipa::path(
     get,
     path = "/config/slash_commands",
+    params(SlashCommandsQuery),
     responses(
         (status = 200, description = "Slash commands retrieved successfully", body = SlashCommandsResponse)
     )
 )]
-pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorResponse> {
+pub async fn get_slash_commands(
+    axum::extract::Query(query): axum::extract::Query<SlashCommandsQuery>,
+) -> Result<Json<SlashCommandsResponse>, ErrorResponse> {
     let mut commands: Vec<_> = slash_commands::list_commands()
         .iter()
         .map(|command| SlashCommand {
@@ -413,6 +420,23 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorRe
             help: cmd_def.description.to_string(),
             command_type: CommandType::Builtin,
         });
+    }
+
+    let working_dir = query.working_dir.map(std::path::PathBuf::from);
+    for source in
+        goose::agents::platform_extensions::summon::list_installed_sources(working_dir.as_deref())
+    {
+        if matches!(
+            source.kind,
+            goose::agents::platform_extensions::summon::SourceKind::Skill
+                | goose::agents::platform_extensions::summon::SourceKind::BuiltinSkill
+        ) {
+            commands.push(SlashCommand {
+                command: source.name,
+                help: source.description,
+                command_type: CommandType::Skill,
+            });
+        }
     }
 
     Ok(Json(SlashCommandsResponse { commands }))
@@ -528,31 +552,6 @@ pub async fn upsert_permissions(
 
 #[utoipa::path(
     post,
-    path = "/config/detect-provider",
-    request_body = DetectProviderRequest,
-    responses(
-        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
-        (status = 404, description = "No matching provider found"),
-    )
-)]
-pub async fn detect_provider(
-    Json(detect_request): Json<DetectProviderRequest>,
-) -> Result<Json<DetectProviderResponse>, ErrorResponse> {
-    let api_key = detect_request.api_key.trim();
-
-    match detect_provider_from_api_key(api_key).await {
-        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
-            provider_name,
-            models,
-        })),
-        None => Err(ErrorResponse::not_found(
-            "Could not detect provider from the provided API key",
-        )),
-    }
-}
-
-#[utoipa::path(
-    post,
     path = "/config/backup",
     responses(
         (status = 200, description = "Config file backed up", body = String),
@@ -625,19 +624,24 @@ pub async fn validate_config() -> Result<Json<String>, ErrorResponse> {
 
     Ok(Json("Config file is valid".to_string()))
 }
+#[derive(Serialize, ToSchema)]
+pub struct CreateCustomProviderResponse {
+    pub provider_name: String,
+}
+
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
     request_body = UpdateCustomProviderRequest,
     responses(
-        (status = 200, description = "Custom provider created successfully", body = String),
+        (status = 200, description = "Custom provider created successfully", body = CreateCustomProviderResponse),
         (status = 400, description = "Invalid request"),
         (status = 500, description = "Internal server error")
     )
 )]
 pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
-) -> Result<Json<String>, ErrorResponse> {
+) -> Result<Json<CreateCustomProviderResponse>, ErrorResponse> {
     let config = goose::config::declarative_providers::create_custom_provider(
         goose::config::declarative_providers::CreateCustomProviderParams {
             engine: request.engine,
@@ -648,12 +652,16 @@ pub async fn create_custom_provider(
             supports_streaming: request.supports_streaming,
             headers: request.headers,
             requires_auth: request.requires_auth,
+            catalog_provider_id: request.catalog_provider_id,
+            base_path: request.base_path,
         },
     )?;
 
     goose::providers::refresh_custom_providers().await?;
 
-    Ok(Json(format!("Custom provider added - ID: {}", config.id())))
+    Ok(Json(CreateCustomProviderResponse {
+        provider_name: config.id().to_string(),
+    }))
 }
 
 #[utoipa::path(
@@ -694,6 +702,24 @@ pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<Strin
 }
 
 #[utoipa::path(
+    post,
+    path = "/config/providers/{name}/cleanup",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., githubcopilot)")
+    ),
+    responses(
+        (status = 200, description = "Provider cache cleaned up successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn cleanup_provider_cache(
+    Path(name): Path<String>,
+) -> Result<Json<String>, ErrorResponse> {
+    goose::providers::cleanup_provider(&name).await?;
+    Ok(Json(format!("Cleaned up provider cache: {}", name)))
+}
+
+#[utoipa::path(
     put,
     path = "/config/custom-providers/{id}",
     request_body = UpdateCustomProviderRequest,
@@ -718,6 +744,8 @@ pub async fn update_custom_provider(
             supports_streaming: request.supports_streaming,
             headers: request.headers,
             requires_auth: request.requires_auth,
+            catalog_provider_id: request.catalog_provider_id,
+            base_path: request.base_path,
         },
     )?;
 
@@ -768,6 +796,54 @@ pub async fn set_config_provider(
             ))
         })?;
     Ok(())
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/provider-catalog",
+    params(
+        ("format" = Option<String>, Query, description = "Filter by provider format (openai, anthropic, ollama)")
+    ),
+    responses(
+        (status = 200, description = "Provider catalog retrieved successfully", body = [ProviderCatalogEntry]),
+        (status = 400, description = "Invalid format parameter")
+    )
+)]
+pub async fn get_provider_catalog(
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+) -> Result<Json<Vec<ProviderCatalogEntry>>, ErrorResponse> {
+    let format_str = params.get("format").map(|s| s.as_str()).unwrap_or("openai");
+
+    let format = format_str.parse::<ProviderFormat>().map_err(|_| {
+        ErrorResponse::bad_request(format!(
+            "Invalid format '{}'. Must be one of: openai, anthropic, ollama",
+            format_str
+        ))
+    })?;
+
+    let providers = get_providers_by_format(format).await;
+    Ok(Json(providers))
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/provider-catalog/{id}",
+    params(
+        ("id" = String, Path, description = "Provider ID from models.dev")
+    ),
+    responses(
+        (status = 200, description = "Provider template retrieved successfully", body = ProviderTemplate),
+        (status = 404, description = "Provider not found in catalog")
+    )
+)]
+pub async fn get_provider_catalog_template(
+    Path(id): Path<String>,
+) -> Result<Json<ProviderTemplate>, ErrorResponse> {
+    let template = get_provider_template(&id).ok_or_else(|| {
+        ErrorResponse::not_found(format!("Provider '{}' not found in catalog", id))
+    })?;
+
+    Ok(Json(template))
 }
 
 #[utoipa::path(
@@ -836,7 +912,15 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
-        .route("/config/detect-provider", post(detect_provider))
+        .route("/config/provider-catalog", get(get_provider_catalog))
+        .route(
+            "/config/provider-catalog/{id}",
+            get(get_provider_catalog_template),
+        )
+        .route(
+            "/config/providers/{name}/cleanup",
+            post(cleanup_provider_cache),
+        )
         .route("/config/slash_commands", get(get_slash_commands))
         .route(
             "/config/canonical-model-info",

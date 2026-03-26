@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
 
 import {
@@ -25,6 +25,22 @@ const THINKING_LEVEL_OPTIONS = [
   { value: 'low', label: 'Low - Better latency, lighter reasoning' },
   { value: 'high', label: 'High - Deeper reasoning, higher latency' },
 ];
+
+const CLAUDE_THINKING_EFFORT_OPTIONS = [
+  { value: 'low', label: 'Low - Minimal thinking, fastest responses' },
+  { value: 'medium', label: 'Medium - Moderate thinking' },
+  { value: 'high', label: 'High - Deep reasoning (default)' },
+  { value: 'max', label: 'Max - No constraints on thinking depth' },
+];
+
+function isClaudeModel(name: string | null | undefined): boolean {
+  return !!name && name.toLowerCase().startsWith('claude-');
+}
+
+function supportsAdaptiveThinking(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.includes('claude-opus-4-6') || lower.includes('claude-sonnet-4-6');
+}
 
 const PREFERRED_MODEL_PATTERNS = [
   /claude-sonnet-4/i,
@@ -68,9 +84,11 @@ type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
-  onModelSelected?: (model: string) => void;
+  onModelSelected?: (model: string, provider: string) => void;
   initialProvider?: string | null;
   titleOverride?: string;
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
 };
 export const SwitchModelModal = ({
   sessionId,
@@ -79,16 +97,27 @@ export const SwitchModelModal = ({
   onModelSelected,
   initialProvider,
   titleOverride,
+  sessionModel,
+  sessionProvider,
 }: SwitchModelModalProps) => {
-  const { getProviders, read } = useConfig();
-  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
+  const { getProviders, read, upsert } = useConfig();
+  const {
+    changeModel,
+    currentModel: configModel,
+    currentProvider: configProvider,
+  } = useModelAndProvider();
+  // Use session-specific model/provider if available, otherwise fall back to config defaults
+  const currentModel = sessionModel ?? configModel;
+  const currentProvider = sessionProvider ?? configProvider;
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
   );
-  const [model, setModel] = useState<string>(currentModel || '');
+  const [model, setModel] = useState<string>(
+    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
+  );
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -102,10 +131,43 @@ export const SwitchModelModal = ({
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
+  const [providerWarnings, setProviderWarnings] = useState<Record<string, string>>({});
   const [thinkingLevel, setThinkingLevel] = useState<string>('low');
+  const [claudeThinkingType, setClaudeThinkingType] = useState<string>('disabled');
+  const [claudeThinkingEffort, setClaudeThinkingEffort] = useState<string>('high');
+  const [claudeThinkingBudget, setClaudeThinkingBudget] = useState<string>('16000');
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
+  const showClaudeThinking = isClaudeModel(modelName);
+  const modelSupportsAdaptive = modelName ? supportsAdaptiveThinking(modelName) : false;
+
+  useEffect(() => {
+    if (!showClaudeThinking) return;
+    if (claudeThinkingType === 'adaptive' && !modelSupportsAdaptive) {
+      setClaudeThinkingType('disabled');
+    }
+  }, [modelName, showClaudeThinking, modelSupportsAdaptive, claudeThinkingType]);
+
+  useEffect(() => {
+    const readConfig = async (key: string): Promise<string | null> => {
+      try {
+        const val = (await read(key, false)) as string;
+        return val || null;
+      } catch (e) {
+        console.warn(`Could not read ${key}, using default:`, e);
+        return null;
+      }
+    };
+    (async () => {
+      const tt = await readConfig('CLAUDE_THINKING_TYPE');
+      if (tt) setClaudeThinkingType(tt);
+      const effort = await readConfig('CLAUDE_THINKING_EFFORT');
+      if (effort) setClaudeThinkingEffort(effort);
+      const budget = await readConfig('CLAUDE_THINKING_BUDGET');
+      if (budget) setClaudeThinkingBudget(budget);
+    })();
+  }, [read]);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -167,10 +229,35 @@ export const SwitchModelModal = ({
         };
       }
 
-      await changeModel(sessionId, modelObj);
-      onModelSelected?.(modelObj.name);
+      if (showClaudeThinking) {
+        const params: Record<string, unknown> = {
+          ...modelObj.request_params,
+          thinking_type: claudeThinkingType,
+        };
+        if (claudeThinkingType === 'adaptive') {
+          params.effort = claudeThinkingEffort;
+        } else if (claudeThinkingType === 'enabled') {
+          params.budget_tokens = parseInt(claudeThinkingBudget, 10) || 16000;
+        }
+        modelObj = { ...modelObj, request_params: params };
 
-      trackModelChanged(modelObj.provider || '', modelObj.name);
+        upsert('CLAUDE_THINKING_TYPE', claudeThinkingType, false).catch(console.warn);
+        if (claudeThinkingType === 'adaptive') {
+          upsert('CLAUDE_THINKING_EFFORT', claudeThinkingEffort, false).catch(console.warn);
+        } else if (claudeThinkingType === 'enabled') {
+          upsert(
+            'CLAUDE_THINKING_BUDGET',
+            parseInt(claudeThinkingBudget, 10) || 16000,
+            false
+          ).catch(console.warn);
+        }
+      }
+
+      const success = await changeModel(sessionId, modelObj);
+      if (success) {
+        onModelSelected?.(modelObj.name, modelObj.provider || '');
+        trackModelChanged(modelObj.provider || '', modelObj.name);
+      }
 
       onClose();
     }
@@ -183,24 +270,37 @@ export const SwitchModelModal = ({
     }
   }, [attemptedSubmit, validateForm]);
 
+  // Initialize predefined model selection from session/config model.
+  // Separate effect so it re-runs when currentModel loads asynchronously.
+  useEffect(() => {
+    if (!usePredefinedModels || !currentModel) return;
+    const models = getPredefinedModelsFromEnv();
+    const matchingModel = models.find((m) => m.name === currentModel);
+    if (matchingModel) {
+      setSelectedPredefinedModel(matchingModel);
+    }
+  }, [usePredefinedModels, currentModel]);
+
+  // For manual mode: one-time sync of provider/model when session data
+  // arrives after the modal has already mounted. Uses a ref so it only
+  // fires once and doesn't interfere with user-driven changes (e.g.
+  // switching provider clears model intentionally).
+  const manualSyncDone = useRef(false);
+  useEffect(() => {
+    if (usePredefinedModels || manualSyncDone.current) return;
+    if (initialProvider && initialProvider !== currentProvider) return;
+    if (currentModel && currentProvider) {
+      if (!provider) setProvider(currentProvider);
+      if (!model) setModel(currentModel);
+      manualSyncDone.current = true;
+    }
+  }, [currentModel, currentProvider, usePredefinedModels, provider, model, initialProvider]);
+
   useEffect(() => {
     // Load predefined models if enabled
     if (usePredefinedModels) {
       const models = getPredefinedModelsFromEnv();
       setPredefinedModels(models);
-
-      // Initialize selected predefined model with current model
-      (async () => {
-        try {
-          const currentModelName = (await read('GOOSE_MODEL', false)) as string;
-          const matchingModel = models.find((model) => model.name === currentModelName);
-          if (matchingModel) {
-            setSelectedPredefinedModel(matchingModel);
-          }
-        } catch (error) {
-          console.error('Failed to get current model for selection:', error);
-        }
-      })();
     }
 
     // Load providers for manual model selection
@@ -229,8 +329,12 @@ export const SwitchModelModal = ({
           options: { value: string; label: string; provider: string; providerType: ProviderType }[];
         }[] = [];
         const errorMap: Record<string, string> = {};
+        const warningMap: Record<string, string> = {};
 
-        results.forEach(({ provider: p, models, error }) => {
+        results.forEach(({ provider: p, models, error, warning }) => {
+          if (warning) {
+            warningMap[p.name] = warning;
+          }
           if (error) {
             errorMap[p.name] = error;
             return;
@@ -264,8 +368,9 @@ export const SwitchModelModal = ({
           }
         });
 
-        // Save provider errors to state
+        // Save provider errors and warnings to state
         setProviderErrors(errorMap);
+        setProviderWarnings(warningMap);
 
         setModelOptions(groupedOptions);
         setOriginalModelOptions(groupedOptions);
@@ -364,6 +469,57 @@ export const SwitchModelModal = ({
     }
   };
 
+  const claudeThinkingTypeOptions = [
+    ...(modelSupportsAdaptive
+      ? [{ value: 'adaptive', label: 'Adaptive - Claude decides when and how much to think' }]
+      : []),
+    { value: 'enabled', label: 'Enabled - Fixed token budget for thinking' },
+    { value: 'disabled', label: 'Disabled - No extended thinking' },
+  ];
+
+  const claudeThinkingControls = showClaudeThinking && (
+    <div className="mt-2 flex flex-col gap-3">
+      <div>
+        <label className="text-sm text-textSubtle mb-1 block">Extended Thinking</label>
+        <Select
+          options={claudeThinkingTypeOptions}
+          value={claudeThinkingTypeOptions.find((o) => o.value === claudeThinkingType)}
+          onChange={(newValue: unknown) => {
+            const option = newValue as { value: string; label: string } | null;
+            setClaudeThinkingType(option?.value || 'disabled');
+          }}
+          placeholder="Select thinking mode"
+        />
+      </div>
+      {claudeThinkingType === 'adaptive' && (
+        <div>
+          <label className="text-sm text-textSubtle mb-1 block">Thinking Effort</label>
+          <Select
+            options={CLAUDE_THINKING_EFFORT_OPTIONS}
+            value={CLAUDE_THINKING_EFFORT_OPTIONS.find((o) => o.value === claudeThinkingEffort)}
+            onChange={(newValue: unknown) => {
+              const option = newValue as { value: string; label: string } | null;
+              setClaudeThinkingEffort(option?.value || 'high');
+            }}
+            placeholder="Select effort level"
+          />
+        </div>
+      )}
+      {claudeThinkingType === 'enabled' && (
+        <div>
+          <label className="text-sm text-textSubtle mb-1 block">Thinking Budget (tokens)</label>
+          <Input
+            className="border-2 px-4 py-2"
+            type="number"
+            min="1024"
+            value={claudeThinkingBudget}
+            onChange={(e) => setClaudeThinkingBudget(e.target.value)}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={true} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
@@ -455,6 +611,8 @@ export const SwitchModelModal = ({
                   />
                 </div>
               )}
+
+              {claudeThinkingControls}
             </div>
           ) : (
             /* Manual Provider/Model Selection */
@@ -559,6 +717,13 @@ export const SwitchModelModal = ({
                       {attemptedSubmit && validationErrors.model && (
                         <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
                       )}
+                      {provider && providerWarnings[provider] && (
+                        <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 mt-2">
+                          <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                            {providerWarnings[provider]}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2">
@@ -600,6 +765,8 @@ export const SwitchModelModal = ({
                       />
                     </div>
                   )}
+
+                  {claudeThinkingControls}
                 </>
               )}
             </div>

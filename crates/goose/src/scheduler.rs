@@ -18,6 +18,7 @@ use crate::config::paths::Paths;
 use crate::config::{resolve_extensions_for_new_session, Config};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+#[cfg(feature = "telemetry")]
 use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
@@ -267,6 +268,7 @@ impl Scheduler {
                     Ok(_) => tracing::info!("Job '{}' completed", task_job_id),
                     Err(ref e) => {
                         tracing::error!("Job '{}' failed: {}", task_job_id, e);
+                        #[cfg(feature = "telemetry")]
                         crate::posthog::emit_error("scheduler_job_failed", &e.to_string());
                     }
                 }
@@ -462,7 +464,77 @@ impl Scheduler {
         }
     }
 
+    async fn sync_from_storage(&self) {
+        if !self.storage_path.exists() {
+            return;
+        }
+        let data = match fs::read_to_string(&self.storage_path) {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+        if data.trim().is_empty() {
+            return;
+        }
+        let disk_jobs: Vec<ScheduledJob> = match serde_json::from_str(&data) {
+            Ok(jobs) => jobs,
+            Err(_) => return,
+        };
+
+        let disk_ids: std::collections::HashSet<String> =
+            disk_jobs.iter().map(|j| j.id.clone()).collect();
+
+        let (jobs_to_add, jobs_to_remove): (Vec<ScheduledJob>, Vec<(String, JobId)>) = {
+            let jobs_guard = self.jobs.lock().await;
+            let to_add = disk_jobs
+                .into_iter()
+                .filter(|j| !jobs_guard.contains_key(&j.id))
+                .collect();
+            let to_remove = jobs_guard
+                .iter()
+                .filter(|(id, (_, j))| !disk_ids.contains(*id) && !j.currently_running)
+                .map(|(id, (uuid, _))| (id.clone(), *uuid))
+                .collect();
+            (to_add, to_remove)
+        };
+
+        for job in jobs_to_add {
+            if !Path::new(&job.source).exists() {
+                tracing::warn!(
+                    "Skipping sync of job '{}': recipe file not found at {}",
+                    job.id,
+                    job.source
+                );
+                continue;
+            }
+            let cron_task = match self.create_cron_task(job.clone()) {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to create cron task for '{}' during sync: {}",
+                        job.id,
+                        e
+                    );
+                    continue;
+                }
+            };
+            let uuid = match self.tokio_scheduler.add(cron_task).await {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::error!("Failed to register job '{}' during sync: {}", job.id, e);
+                    continue;
+                }
+            };
+            self.jobs.lock().await.insert(job.id.clone(), (uuid, job));
+        }
+
+        for (id, uuid) in jobs_to_remove {
+            let _ = self.tokio_scheduler.remove(&uuid).await;
+            self.jobs.lock().await.remove(&id);
+        }
+    }
+
     pub async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
+        self.sync_from_storage().await;
         self.jobs
             .lock()
             .await
@@ -749,6 +821,7 @@ async fn execute_job(
             std::env::current_dir()?,
             format!("Scheduled job: {}", job.id),
             SessionType::Scheduled,
+            agent.config.goose_mode,
         )
         .await?;
 
@@ -767,6 +840,7 @@ async fn execute_job(
     drop(jobs_guard);
 
     let start_time = std::time::Instant::now();
+    #[cfg(feature = "telemetry")]
     tokio::spawn(async move {
         let mut props = HashMap::new();
         props.insert(
@@ -780,9 +854,17 @@ async fn execute_job(
 
     let prompt_text = recipe
         .prompt
-        .as_ref()
-        .or(recipe.instructions.as_ref())
-        .unwrap();
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            recipe
+                .instructions
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+        })
+        .ok_or_else(|| {
+            anyhow!("Recipe must specify at least one of `instructions` or `prompt`.")
+        })?;
 
     let user_message = Message::user().with_text(prompt_text);
     let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
@@ -828,25 +910,28 @@ async fn execute_job(
         .apply()
         .await?;
 
-    let duration_secs = start_time.elapsed().as_secs();
-    tokio::spawn(async move {
-        let mut props = HashMap::new();
-        props.insert(
-            "trigger".to_string(),
-            serde_json::Value::String("automated".to_string()),
-        );
-        props.insert(
-            "status".to_string(),
-            serde_json::Value::String("completed".to_string()),
-        );
-        props.insert(
-            "duration_seconds".to_string(),
-            serde_json::Value::Number(serde_json::Number::from(duration_secs)),
-        );
-        if let Err(e) = posthog::emit_event("schedule_job_completed", props).await {
-            tracing::debug!("Failed to send schedule telemetry: {}", e);
-        }
-    });
+    #[cfg(feature = "telemetry")]
+    {
+        let duration_secs = start_time.elapsed().as_secs();
+        tokio::spawn(async move {
+            let mut props = HashMap::new();
+            props.insert(
+                "trigger".to_string(),
+                serde_json::Value::String("automated".to_string()),
+            );
+            props.insert(
+                "status".to_string(),
+                serde_json::Value::String("completed".to_string()),
+            );
+            props.insert(
+                "duration_seconds".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(duration_secs)),
+            );
+            if let Err(e) = posthog::emit_event("schedule_job_completed", props).await {
+                tracing::debug!("Failed to send schedule telemetry: {}", e);
+            }
+        });
+    }
 
     Ok(session.id)
 }
@@ -935,6 +1020,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
@@ -961,6 +1052,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_paused_job_does_not_run() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
@@ -984,5 +1081,48 @@ mod tests {
 
         let jobs = scheduler.list_scheduled_jobs().await;
         assert!(jobs[0].last_run.is_none(), "Paused job should not run");
+    }
+
+    #[tokio::test]
+    async fn test_job_with_no_prompt_does_not_panic() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
+        ]);
+        let temp_dir = tempdir().unwrap();
+        let recipe_path = temp_dir.path().join("no_prompt.yaml");
+        fs::write(
+            &recipe_path,
+            "title: missing\ndescription: no prompt or instructions\n",
+        )
+        .unwrap();
+
+        let storage_path = temp_dir.path().join("schedule.json");
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
+
+        let job = ScheduledJob {
+            id: "no_prompt_job".to_string(),
+            source: recipe_path.to_string_lossy().to_string(),
+            cron: "* * * * * *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+        };
+
+        // Schedule the job and let it run — should not panic
+        scheduler.add_scheduled_job(job, true).await.unwrap();
+        sleep(Duration::from_millis(1500)).await;
+
+        // The job should have attempted to run (last_run set) but not crashed the scheduler
+        let jobs = scheduler.list_scheduled_jobs().await;
+        assert!(
+            jobs[0].last_run.is_some(),
+            "Job should have attempted to run without panicking"
+        );
     }
 }

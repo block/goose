@@ -14,7 +14,7 @@ import { PanelLeft, Settings } from 'lucide-react';
 
 This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a goose extension, enabling powerful code analysis and file management. With this extension, goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
 
-:::tip TLDR
+:::tip Quick Install
   **Command**
   ```sh
   npx -y @modelcontextprotocol/server-filesystem </path/to/allowed/directory>
