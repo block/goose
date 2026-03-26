@@ -55,7 +55,6 @@ impl Hooks {
 
         let fill_pct = ((current_tokens as f64 / context_limit as f64) * 100.0) as u32;
 
-        // Get configured ContextFill thresholds from settings
         let event_configs = self
             .settings
             .get_hooks_for_event(HookEventKind::ContextFill);
@@ -63,7 +62,6 @@ impl Hooks {
             return None;
         }
 
-        // Find thresholds that are newly crossed
         let mut new_thresholds = Vec::new();
         {
             let mut fired = self

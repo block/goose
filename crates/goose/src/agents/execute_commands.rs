@@ -89,7 +89,6 @@ impl Agent {
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
-        // Load hooks and fire PreCompact
         let hooks = Hooks::load(&session.working_dir, self.hook_context_fill_state.clone());
         let invocation = crate::hooks::HookInvocation::pre_compact(
             session_id.to_string(),
@@ -123,7 +122,6 @@ impl Agent {
         self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
 
-        // Fire PostCompact hook and inject context if any.
         // The helper also pushes to the in-memory conversation, but we don't need
         // that here — session persistence happens via session_manager.add_message()
         // inside the helper, and this conversation is about to be dropped.

@@ -91,7 +91,6 @@ impl Agent {
         try_stream! {
         for request in tool_requests.iter() {
             if let Ok(tool_call) = request.tool_call.clone() {
-                // Find the corresponding inspection result for this tool request
                 let security_message = inspection_results.iter()
                     .find(|result| result.tool_request_id == request.id)
                     .and_then(|result| {
@@ -117,7 +116,6 @@ impl Agent {
                 let confirmation = confirmation_rx.await
                     .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
 
-                // Log user decision if this was a security alert
                 if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
                     tracing::info!(
                         monotonic_counter.goose.prompt_injection_user_decisions = 1,
@@ -129,7 +127,6 @@ impl Agent {
                 }
 
                 if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                    // Fire PreToolUse hook — if blocked, treat as declined
                     let invocation = crate::hooks::HookInvocation::pre_tool_use(
                         session.id.clone(),
                         tool_call.name.to_string(),
@@ -147,7 +144,6 @@ impl Agent {
                         .await
                         .unwrap_or_default();
                     if outcome.blocked {
-                        // Hook blocked — fill declined response and continue to next tool
                         if let Some(response_msg) = request_to_response_map.get(&request.id) {
                             let mut response = response_msg.lock().await;
                             *response = response.clone().with_tool_response_with_metadata(
@@ -177,14 +173,12 @@ impl Agent {
                         ),
                     }));
 
-                    // Update the shared permission manager when user selects "Always Allow"
                     if confirmation.permission == Permission::AlwaysAllow {
                         self.tool_inspection_manager
                             .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
                             .await;
                     }
                 } else {
-                    // User declined - update the specific response message for this request
                     if let Some(response_msg) = request_to_response_map.get(&request.id) {
                         let mut response = response_msg.lock().await;
                         *response = response.clone().with_tool_response_with_metadata(
@@ -213,7 +207,6 @@ impl Agent {
         try_stream! {
                 if let Ok(tool_call) = tool_request.tool_call.clone() {
                     if self.is_frontend_tool(&tool_call.name).await {
-                        // Send frontend tool request and wait for response
                         yield Message::assistant().with_frontend_tool_request(
                             tool_request.id.clone(),
                             Ok(tool_call.clone())

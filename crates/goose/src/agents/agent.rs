@@ -426,7 +426,6 @@ impl Agent {
         // Handle pre-approved and read-only tools
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
-                // Fire PreToolUse hook — if blocked, create error response
                 let invocation = crate::hooks::HookInvocation::pre_tool_use(
                     session.id.clone(),
                     tool_call.name.to_string(),
@@ -1123,7 +1122,6 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        // Load hooks configuration
         let hooks = Hooks::load(&session.working_dir, self.hook_context_fill_state.clone());
 
         let needs_auto_compact = check_if_compaction_needed(
@@ -1165,11 +1163,10 @@ impl Agent {
                     )
                 );
 
-                // Fire PreCompact hook
                 let invocation = crate::hooks::HookInvocation::pre_compact(
                     session_config.id.clone(),
                     conversation_to_compact.messages().len(),
-                    true,  // manual = true for explicit compaction
+                    false,
                     session.working_dir.to_string_lossy().to_string(),
                 );
                 let _ = hooks
@@ -1200,7 +1197,7 @@ impl Agent {
                             &session_config.id,
                             pre_compact_len,
                             post_compact_len,
-                            true,
+                            false,
                             &session.working_dir,
                             &session_manager,
                             &mut compacted_conversation,
@@ -1277,7 +1274,14 @@ impl Agent {
 
         let working_dir = session.working_dir.clone();
 
-        // Fire SessionStart hook on first reply only (new session: exactly 1 user message, no assistant response yet)
+        let user_prompt = conversation
+            .messages()
+            .iter()
+            .rev()
+            .find(|m| m.role == rmcp::model::Role::User)
+            .map(|m| m.as_concat_text())
+            .unwrap_or_default();
+
         if conversation.messages().len() == 1
             && conversation.messages()[0].role == rmcp::model::Role::User
         {
@@ -1307,14 +1311,7 @@ impl Agent {
             }
         }
 
-        // Fire UserPromptSubmit hook with the last user message
-        if let Some(last_user_msg) = conversation
-            .messages()
-            .iter()
-            .rev()
-            .find(|m| m.role == rmcp::model::Role::User)
-        {
-            let user_prompt = last_user_msg.as_concat_text();
+        if !user_prompt.is_empty() {
             let invocation = crate::hooks::HookInvocation::user_prompt_submit(
                 session_id.clone(),
                 user_prompt,
@@ -1590,7 +1587,6 @@ impl Agent {
                                                     Some((request_id, item)) => {
                                                         match item {
                                                             ToolStreamItem::Result(output) => {
-                                                                // Fire PostToolUse or PostToolUseFailure hooks
                                                                 if let Some(original_request) = request_id_to_request.get(&request_id) {
                                                                     if let Ok(ref tool_call) = original_request.tool_call {
                                                                         let tool_input = serde_json::to_value(&tool_call.arguments)
@@ -1796,7 +1792,6 @@ impl Agent {
                                 )
                             );
 
-                            // Fire PreCompact hook (recovery compaction)
                             let invocation = crate::hooks::HookInvocation::pre_compact(
                                 session_config.id.clone(),
                                 conversation.messages().len(),
@@ -2013,7 +2008,6 @@ impl Agent {
                 tokio::task::yield_now().await;
             }
 
-            // Fire Stop hook before finishing
             let invocation = crate::hooks::HookInvocation::stop(
                 session_id.clone(),
                 None,  // reason
@@ -2028,7 +2022,6 @@ impl Agent {
                 )
                 .await;
 
-            // Fire SessionEnd hook after stop
             let invocation = crate::hooks::HookInvocation::session_end(
                 session_id.clone(),
                 None,
