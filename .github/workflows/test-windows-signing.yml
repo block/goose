@@ -11,7 +11,7 @@ jobs:
   test-signing:
     name: Test Azure Trusted Signing
     runs-on: windows-latest
-
+    environment: signing
 
     steps:
       - name: Build hello world executable

@@ -11,7 +11,6 @@ impl SubprocessExt for Command {
     fn set_no_window(&mut self) -> &mut Self {
         #[cfg(windows)]
         {
-            use std::os::windows::process::CommandExt;
             self.creation_flags(CREATE_NO_WINDOW_FLAG);
         }
         self
