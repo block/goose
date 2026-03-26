@@ -115,7 +115,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     }
 
     if (result.error && !result.data) {
-      console.log(result.error);
+      console.error(result.error);
       return extensionsList;
     }
 
@@ -179,7 +179,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         return providersData;
       } catch (error) {
         console.error('Failed to fetch providers:', error);
-        return [];
+        return providersListRef.current;
       }
     }
     return providersListRef.current;

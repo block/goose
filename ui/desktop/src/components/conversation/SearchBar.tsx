@@ -146,7 +146,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   return (
     <div
-      className={`sticky top-0 bg-background-inverse text-text-inverse z-[60] mb-4 ${
+      className={`sticky top-0 bg-background-inverse text-text-inverse z-30 mb-4 ${
         isExiting ? 'search-bar-exit' : 'search-bar-enter'
       }`}
     >

@@ -10,8 +10,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{
-    ErrorCode, ErrorData, LoggingLevel, LoggingMessageNotification,
-    LoggingMessageNotificationMethod, LoggingMessageNotificationParam, ServerNotification,
+    ErrorCode, ErrorData, LoggingLevel, LoggingMessageNotificationParam, Notification,
+    ServerNotification,
 };
 use serde::Serialize;
 use std::future::Future;
@@ -208,7 +208,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                     }
                     conversation.push(msg);
                 }
-                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
                     conversation = updated_conversation;
                 }
@@ -231,7 +231,12 @@ async fn build_subagent_prompt(
     session_id: &str,
     system_instructions: String,
 ) -> Result<String> {
-    let tools = agent.list_tools(session_id, None).await;
+    let tools: Vec<_> = agent
+        .list_tools(session_id, None)
+        .await
+        .into_iter()
+        .filter(super::reply_parts::is_tool_visible_to_model)
+        .collect();
     render_template(
         "subagent_system.md",
         &SubagentPromptContext {
@@ -272,12 +277,10 @@ pub fn create_tool_notification(
         let tool_call = req.tool_call.as_ref().ok()?;
 
         Some(ServerNotification::LoggingMessageNotification(
-            LoggingMessageNotification {
-                method: LoggingMessageNotificationMethod,
-                params: LoggingMessageNotificationParam {
-                    level: LoggingLevel::Info,
-                    logger: Some(format!("subagent:{}", subagent_id)),
-                    data: serde_json::json!({
+            Notification::new(
+                LoggingMessageNotificationParam::new(
+                    LoggingLevel::Info,
+                    serde_json::json!({
                         "type": SUBAGENT_TOOL_REQUEST_TYPE,
                         "subagent_id": subagent_id,
                         "tool_call": {
@@ -285,9 +288,9 @@ pub fn create_tool_notification(
                             "arguments": tool_call.arguments
                         }
                     }),
-                },
-                extensions: Default::default(),
-            },
+                )
+                .with_logger(format!("subagent:{}", subagent_id)),
+            ),
         ))
     } else {
         None
@@ -303,12 +306,8 @@ mod tests {
 
     #[test]
     fn create_tool_notification_for_tool_request() {
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "developer__shell".to_string().into(),
-            arguments: Some(json!({"command": "ls"}).as_object().unwrap().clone()),
-        };
+        let tool_call = CallToolRequestParams::new("developer__shell".to_string())
+            .with_arguments(json!({"command": "ls"}).as_object().unwrap().clone());
         let content = MessageContent::tool_request("req1", Ok(tool_call));
         let notification =
             create_tool_notification(&content, "session_1").expect("expected notification");

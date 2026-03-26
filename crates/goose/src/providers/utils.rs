@@ -5,13 +5,13 @@ use crate::model::ModelConfig;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
 use base64::Engine;
+use fs_err::File;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fmt::Display;
-use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -190,6 +190,28 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             );
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}", final_status)))
         }
+    }
+}
+
+pub fn extract_reasoning_effort(model_name: &str) -> (String, Option<String>) {
+    let is_reasoning_model = model_name.starts_with("o1")
+        || model_name.starts_with("o2")
+        || model_name.starts_with("o3")
+        || model_name.starts_with("o4")
+        || model_name.starts_with("gpt-5");
+
+    if !is_reasoning_model {
+        return (model_name.to_string(), None);
+    }
+
+    let parts: Vec<&str> = model_name.split('-').collect();
+    let last_part = parts.last().unwrap();
+    match *last_part {
+        "low" | "medium" | "high" => {
+            let base_name = parts[..parts.len() - 1].join("-");
+            (base_name, Some(last_part.to_string()))
+        }
+        _ => (model_name.to_string(), Some("medium".to_string())),
     }
 }
 
@@ -414,10 +436,10 @@ impl RequestLog {
             let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
 
             for i in (0..LOGS_TO_KEEP - 1).rev() {
-                let _ = std::fs::rename(log_path(i), log_path(i + 1));
+                let _ = fs_err::rename(log_path(i), log_path(i + 1));
             }
 
-            std::fs::rename(&self.temp_path, log_path(0))?;
+            fs_err::rename(&self.temp_path, log_path(0))?;
         }
         Ok(())
     }

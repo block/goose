@@ -11,9 +11,12 @@ use tokio_util::io::StreamReader;
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::formats::anthropic::{create_request, response_to_streaming_message};
+use super::formats::anthropic::{
+    create_request, response_to_streaming_message, thinking_type, ThinkingType,
+};
 use super::openai_compatible::handle_status_openai_compat;
 use super::openai_compatible::map_http_error_to_provider_error;
+use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -25,6 +28,9 @@ const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.6 models
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     // Claude 4.5 models with aliases
     "claude-sonnet-4-5",
     "claude-sonnet-4-5-20250929",
@@ -49,6 +55,7 @@ pub struct AnthropicProvider {
     model: ModelConfig,
     supports_streaming: bool,
     name: String,
+    custom_models: Option<Vec<String>>,
 }
 
 impl AnthropicProvider {
@@ -74,6 +81,7 @@ impl AnthropicProvider {
             model,
             supports_streaming: true,
             name: ANTHROPIC_PROVIDER_NAME.to_string(),
+            custom_models: None,
         })
     }
 
@@ -113,26 +121,68 @@ impl AnthropicProvider {
             ));
         }
 
+        let custom_models = if !config.models.is_empty() {
+            Some(config.models.iter().map(|m| m.name.clone()).collect())
+        } else {
+            None
+        };
+
         Ok(Self {
             api_client,
             model,
             supports_streaming,
             name: config.name.clone(),
+            custom_models,
         })
     }
 
     fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
         let mut headers = Vec::new();
 
-        let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
         if self.model.model_name.starts_with("claude-3-7-sonnet-") {
-            if is_thinking_enabled {
+            if thinking_type(&self.model) == ThinkingType::Enabled {
                 headers.push(("anthropic-beta", "output-128k-2025-02-19"));
             }
             headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
         }
 
         headers
+    }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self.api_client.request(None, "v1/models").api_get().await?;
+
+        if response.status == StatusCode::NOT_FOUND {
+            let msg = response
+                .payload
+                .as_ref()
+                .and_then(|p| p.get("error").and_then(|e| e.get("message")))
+                .and_then(|m| m.as_str())
+                .unwrap_or("models endpoint not found")
+                .to_string();
+            return Err(ProviderError::EndpointNotFound(msg));
+        }
+
+        if response.status != StatusCode::OK {
+            return Err(map_http_error_to_provider_error(
+                response.status,
+                response.payload,
+            ));
+        }
+
+        let json = response.payload.unwrap_or_default();
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed(
+                "Missing 'data' array in Anthropic models response".to_string(),
+            )
+        })?;
+
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(models)
     }
 }
 
@@ -163,6 +213,11 @@ impl ProviderDef for AnthropicProvider {
                 ),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://platform.claude.com/settings/keys",
+            "Click 'Create Key'",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(
@@ -184,28 +239,22 @@ impl Provider for AnthropicProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request(None, "v1/models").api_get().await?;
-
-        if response.status != StatusCode::OK {
-            return Err(map_http_error_to_provider_error(
-                response.status,
-                response.payload,
-            ));
+        if let Some(custom_models) = &self.custom_models {
+            match self.fetch_models_from_api().await {
+                Ok(models) => return Ok(models),
+                Err(e) if e.is_endpoint_not_found() => {
+                    tracing::debug!(
+                        "Models endpoint not implemented for provider '{}' ({}), using predefined list",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
+                Err(e) => return Err(e),
+            }
         }
 
-        let json = response.payload.unwrap_or_default();
-        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::RequestFailed(
-                "Missing 'data' array in Anthropic models response".to_string(),
-            )
-        })?;
-
-        let mut models: Vec<String> = arr
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        self.fetch_models_from_api().await
     }
 
     async fn stream(
@@ -222,19 +271,22 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(Some(session_id), "v1/messages");
+        let conditional_headers = self.get_conditional_headers();
         let mut log = RequestLog::start(model_config, &payload)?;
 
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        let response = self
+            .with_retry(|| async {
+                let mut request = self.api_client.request(Some(session_id), "v1/messages");
+                for (key, value) in &conditional_headers {
+                    request = request.header(key, value)?;
+                }
+                let resp = request.response_post(&payload).await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

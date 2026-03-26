@@ -3,277 +3,232 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Map Visualization</title>
-    
+    <title>Map</title>
+
+    <style>{{LEAFLET_CSS}}</style>
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        {{LEAFLET_CSS}}
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f7fa;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
+        body { padding: 0; }
+
+        .map-header {
+            padding: 12px 16px;
             text-align: center;
         }
-        
-        .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 2.5em;
-            font-weight: 300;
+
+        .map-header:empty { display: none; }
+
+        .map-title {
+            font-size: var(--font-heading-md-size);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: 4px;
         }
-        
-        .header p {
-            margin: 0;
-            font-size: 1.1em;
-            opacity: 0.9;
+
+        .map-subtitle {
+            font-size: var(--font-text-md-size);
+            color: var(--color-text-secondary);
         }
-        
-        #map {
+
+        .map-title:empty, .map-subtitle:empty { display: none; }
+
+        #map { width: 100%; height: 440px; }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 0;
+            justify-content: stretch;
+        }
+
+        :root[data-display-mode="fullscreen"] #mapRoot,
+        :root[data-display-mode="pip"] #mapRoot {
+            display: flex;
+            flex-direction: column;
             width: 100%;
-            height: 600px;
-            border-radius: 0 0 12px 12px;
+            height: 100%;
         }
-        
-        .custom-popup {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+        :root[data-display-mode="fullscreen"] #map,
+        :root[data-display-mode="pip"] #map {
+            flex: 1;
+            height: auto;
         }
-        
+
         .custom-popup h3 {
-            margin: 0 0 10px 0;
-            color: #333;
+            margin: 0 0 6px 0;
+            font-size: var(--font-text-sm-size);
+            font-weight: var(--font-weight-semibold);
         }
-        
+
         .custom-popup p {
-            margin: 5px 0;
-            color: #666;
+            margin: 3px 0;
+            font-size: var(--font-text-xs-size);
+            color: var(--color-text-secondary);
         }
-        
-        .marker-cluster-small {
-            background-color: rgba(181, 226, 140, 0.6);
-        }
-        
-        .marker-cluster-small div {
-            background-color: rgba(110, 204, 57, 0.6);
-        }
-        
-        .marker-cluster-medium {
-            background-color: rgba(241, 211, 87, 0.6);
-        }
-        
-        .marker-cluster-medium div {
-            background-color: rgba(240, 194, 12, 0.6);
-        }
-        
-        .marker-cluster-large {
-            background-color: rgba(253, 156, 115, 0.6);
-        }
-        
-        .marker-cluster-large div {
-            background-color: rgba(241, 128, 23, 0.6);
-            color: white;
-            text-align: center;
-            line-height: 40px;
-            font-weight: bold;
-        }
-        
-        .marker-cluster {
-            border-radius: 50%;
-        }
-        
-        /* MarkerCluster CSS */
-        .marker-cluster-small div,
-        .marker-cluster-medium div,
-        .marker-cluster-large div {
-            width: 30px;
-            height: 30px;
-            margin-left: 5px;
-            margin-top: 5px;
-            text-align: center;
-            border-radius: 15px;
-            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+
+        .marker-cluster { border-radius: 50%; }
+        .marker-cluster-small { background-color: rgba(92,152,249,0.35); }
+        .marker-cluster-small div { background-color: rgba(92,152,249,0.7); }
+        .marker-cluster-medium { background-color: rgba(240,160,60,0.35); }
+        .marker-cluster-medium div { background-color: rgba(240,160,60,0.7); }
+        .marker-cluster-large { background-color: rgba(249,112,102,0.35); }
+        .marker-cluster-large div { background-color: rgba(249,112,102,0.7); }
+        .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+            width: 30px; height: 30px; margin-left: 5px; margin-top: 5px;
+            text-align: center; border-radius: 15px;
+            font: 12px var(--font-sans, sans-serif);
+            line-height: 30px; color: #fff; font-weight: var(--font-weight-semibold);
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div id="mapRoot" style="display:none;width:100%;">
+        <div class="map-header">
+            <div class="map-title" id="mapTitle"></div>
+            <div class="map-subtitle" id="mapSubtitle"></div>
+        </div>
         <div id="map"></div>
     </div>
 
+    <script>{{LEAFLET_JS}}</script>
+    <script>{{MARKERCLUSTER_JS}}</script>
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-        {{LEAFLET_JS}}
-    </script>
-    
-    <script>
-        {{MARKERCLUSTER_JS}}
-    </script>
+    (function () {
+        "use strict";
 
-    <script>
-        // Data from the tool
-        const mapData = {{MAP_DATA}};
-        
-        // Initialize map
-        let map;
-        let markerClusterGroup;
-        
-        function initMap() {
-            // Determine initial center and zoom
-            let initialLat = mapData.center ? mapData.center.lat : 39.8283;
-            let initialLng = mapData.center ? mapData.center.lng : -98.5795;
-            let initialZoom = mapData.zoom || 4;
-            
-            map = L.map('map').setView([initialLat, initialLng], initialZoom);
-            
-            // Add tile layers
-            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 18
-            });
-            
-            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '© Esri, © OpenStreetMap contributors',
-                maxZoom: 18
-            });
-            
-            const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenTopoMap contributors',
-                maxZoom: 17
-            });
-            
-            // Add default layer
-            osmLayer.addTo(map);
-            
-            // Layer control
-            const baseLayers = {
-                "OpenStreetMap": osmLayer,
-                "Satellite": satelliteLayer,
-                "Topographic": topoLayer
-            };
-            
-            L.control.layers(baseLayers).addTo(map);
-            
-            // Initialize marker cluster group if clustering is enabled
+        var map, markerClusterGroup, savedBounds, tileLayer;
+
+        var markerPalette = ["#5c98f9", "#47c9a2", "#f0a03c", "#f97066", "#9b8afb"];
+
+        function getColorByValue(value, maxValue) {
+            var ratio = value / maxValue;
+            var idx = Math.min(Math.floor(ratio * markerPalette.length), markerPalette.length - 1);
+            return markerPalette[idx];
+        }
+
+        function initMap(mapData) {
+            if (map) { map.remove(); map = null; }
+            markerClusterGroup = null;
+
+            var lat = mapData.center ? mapData.center.lat : 39.8283;
+            var lng = mapData.center ? mapData.center.lng : -98.5795;
+            var zoom = mapData.zoom || 4;
+
+            map = L.map("map").setView([lat, lng], zoom);
+
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            var tileUrl = isDark
+                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+            tileLayer = L.tileLayer(tileUrl, {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                subdomains: "abcd",
+            }).addTo(map);
+
             if (mapData.clustering !== false) {
                 markerClusterGroup = L.markerClusterGroup({
                     chunkedLoading: true,
                     maxClusterRadius: mapData.clusterRadius || 50,
-                    iconCreateFunction: function(cluster) {
-                        const count = cluster.getChildCount();
-                        let className = 'marker-cluster-small';
-                        
-                        if (count > 10) {
-                            className = 'marker-cluster-medium';
-                        }
-                        if (count > 100) {
-                            className = 'marker-cluster-large';
-                        }
-                        
-                        return new L.DivIcon({
-                            html: '<div><span>' + count + '</span></div>',
-                            className: 'marker-cluster ' + className,
-                            iconSize: new L.Point(40, 40)
-                        });
-                    }
+                    iconCreateFunction: function (cluster) {
+                        var count = cluster.getChildCount();
+                        var cls = count > 100 ? "marker-cluster-large" : count > 10 ? "marker-cluster-medium" : "marker-cluster-small";
+                        return new L.DivIcon({ html: "<div><span>" + count + "</span></div>", className: "marker-cluster " + cls, iconSize: new L.Point(40, 40) });
+                    },
                 });
             }
         }
-        
-        function renderMarkers() {
-            const markers = mapData.markers || [];
-            const maxValue = Math.max(...markers.map(m => m.value || 1), 1);
-            
-            markers.forEach(point => {
-                // Create custom icon based on value
-                const value = point.value || 1;
-                const size = Math.max(10, Math.min(30, (value / maxValue) * 30));
-                const color = point.color || getColorByValue(value, maxValue);
-                
-                const customIcon = L.divIcon({
-                    className: 'custom-marker',
-                    html: `<div style="
-                        background-color: ${color};
-                        width: ${size}px;
-                        height: ${size}px;
-                        border-radius: 50%;
-                        border: 2px solid white;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        color: white;
-                        font-weight: bold;
-                        font-size: ${Math.max(8, size * 0.4)}px;
-                    ">${point.label || (value > 1000 ? Math.round(value/1000) + 'k' : value)}</div>`,
+
+        function renderMarkers(mapData) {
+            var markers = mapData.markers || [];
+            var maxValue = Math.max.apply(null, markers.map(function (m) { return m.value || 1; }).concat([1]));
+
+            markers.forEach(function (point) {
+                var value = point.value || 1;
+                var size = Math.max(10, Math.min(28, (value / maxValue) * 28));
+                var color = point.color || getColorByValue(value, maxValue);
+
+                var icon = L.divIcon({
+                    className: "custom-marker",
+                    html: '<div style="background:' + color + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>',
                     iconSize: [size, size],
-                    iconAnchor: [size/2, size/2]
+                    iconAnchor: [size / 2, size / 2],
                 });
-                
-                const marker = L.marker([point.lat, point.lng], { 
-                    icon: point.useDefaultIcon ? new L.Icon.Default() : customIcon 
-                });
-                
-                // Create popup content if provided
+
+                var marker = L.marker([point.lat, point.lng], { icon: point.useDefaultIcon ? new L.Icon.Default() : icon });
+
                 if (point.popup || point.name || point.description) {
-                    const popupContent = point.popup || `
-                        <div class="custom-popup">
-                            ${point.name ? `<h3>${point.name}</h3>` : ''}
-                            ${point.value !== undefined ? `<p><strong>Value:</strong> ${point.value.toLocaleString()}</p>` : ''}
-                            <p><strong>Location:</strong> ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}</p>
-                            ${point.description ? `<p><strong>Description:</strong> ${point.description}</p>` : ''}
-                        </div>
-                    `;
-                    marker.bindPopup(popupContent);
+                    var html = point.popup || '<div class="custom-popup">' +
+                        (point.name ? "<h3>" + point.name + "</h3>" : "") +
+                        (point.value !== undefined ? "<p><strong>Value:</strong> " + point.value.toLocaleString() + "</p>" : "") +
+                        "<p>" + point.lat.toFixed(4) + ", " + point.lng.toFixed(4) + "</p>" +
+                        (point.description ? "<p>" + point.description + "</p>" : "") +
+                        "</div>";
+                    marker.bindPopup(html);
                 }
-                
-                // Add to cluster group or directly to map
-                if (markerClusterGroup) {
-                    markerClusterGroup.addLayer(marker);
-                } else {
-                    marker.addTo(map);
-                }
+
+                if (markerClusterGroup) markerClusterGroup.addLayer(marker);
+                else marker.addTo(map);
             });
-            
-            // Add cluster group to map if using clustering
-            if (markerClusterGroup) {
-                map.addLayer(markerClusterGroup);
-            }
-            
-            // Fit map to marker bounds if autoFit is enabled
+
+            if (markerClusterGroup) map.addLayer(markerClusterGroup);
+
             if (mapData.autoFit !== false && markers.length > 0) {
-                const group = new L.featureGroup(markers.map(m => L.marker([m.lat, m.lng])));
-                map.fitBounds(group.getBounds().pad(0.1));
+                var group = new L.featureGroup(markers.map(function (m) { return L.marker([m.lat, m.lng]); }));
+                savedBounds = group.getBounds();
+                map.fitBounds(savedBounds.pad(0.05));
             }
         }
-        
-        function getColorByValue(value, maxValue) {
-            const ratio = value / maxValue;
-            if (ratio > 0.8) return '#d73027';
-            if (ratio > 0.6) return '#f46d43';
-            if (ratio > 0.4) return '#fdae61';
-            if (ratio > 0.2) return '#74add1';
-            return '#4575b4';
+
+        function renderData(mapData) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("mapRoot").style.display = "";
+
+            document.getElementById("mapTitle").textContent = mapData.title || "";
+            document.getElementById("mapSubtitle").textContent = mapData.subtitle || "";
+
+            initMap(mapData);
+            renderMarkers(mapData);
+            setTimeout(McpAppBridge.reportSize, 80);
         }
-        
-        // Initialize everything when page loads
-        window.addEventListener('load', function() {
-            initMap();
-            renderMarkers();
+
+        function safeRender(data) {
+            try { renderData(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-map",
+            onData: safeRender,
+            onTheme: function () {
+                if (map) setTimeout(function () {
+                    map.invalidateSize();
+                    if (savedBounds) map.fitBounds(savedBounds.pad(0.05));
+                    var isDark = document.documentElement.style.colorScheme === "dark";
+                    var newUrl = isDark
+                        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+                    if (tileLayer) {
+                        tileLayer.setUrl(newUrl);
+                    }
+                }, 100);
+            },
+            extractData: function (msg) {
+                var sc = msg.params && msg.params.structuredContent;
+                if (sc) {
+                    if (sc.data) return sc.data;
+                    if (sc.markers) return sc;
+                }
+                var args = msg.params && msg.params.arguments;
+                if (args) {
+                    if (args.data) return args.data;
+                    if (args.markers) return args;
+                }
+                return null;
+            },
         });
+    })();
     </script>
 </body>
 </html>

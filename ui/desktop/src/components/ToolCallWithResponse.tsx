@@ -13,11 +13,13 @@ import {
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { ChevronRight, FlaskConical } from 'lucide-react';
+import { ChevronRight, ExternalLink, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResponse, ContentBlock, EmbeddedResource } from '../api';
+
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 
@@ -31,6 +33,7 @@ type UiMeta = {
   ui?: {
     resourceUri?: string;
   };
+  subagent_session_id?: string;
 };
 
 type ToolResultWithMeta = {
@@ -64,7 +67,34 @@ interface ToolCallWithResponseProps {
   isApprovalClicked?: boolean;
 }
 
-function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+function getSubagentSessionId(
+  toolResponse?: ToolResponseMessageContent,
+  notifications?: NotificationEvent[]
+): string | null {
+  const result = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const sessionId =
+    result?.status === 'success' ? result?.value?._meta?.subagent_session_id : undefined;
+  if (typeof sessionId === 'string') return sessionId;
+
+  // Fallback: extract from subagent notifications (e.g. when delegate was cancelled mid-stream)
+  if (notifications) {
+    for (const n of notifications) {
+      const message = n.message as { method?: string; params?: Record<string, unknown> };
+      if (message.method !== 'notifications/message') continue;
+      const data = message.params?.data;
+      if (data && typeof data === 'object' && 'type' in data && 'subagent_id' in data) {
+        const record = data as Record<string, unknown>;
+        if (record.type === 'subagent_tool_request' && typeof record.subagent_id === 'string') {
+          return record.subagent_id;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function getToolResultContent(toolResult: Record<string, unknown>): ContentBlock[] {
   if (toolResult.status !== 'success') {
     return [];
   }
@@ -75,8 +105,11 @@ function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
   });
 }
 
-function isEmbeddedResource(content: Content): content is EmbeddedResource {
-  return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
+function isEmbeddedResource(
+  content: ContentBlock
+): content is EmbeddedResource & { type: 'resource' } {
+  const c = content as Record<string, unknown>;
+  return c.type === 'resource' && typeof c.resource === 'object' && c.resource !== null;
 }
 
 interface McpAppWrapperProps {
@@ -110,6 +143,8 @@ function McpAppWrapper({
     requestWithMeta.toolCall.status === 'success' ? requestWithMeta.toolCall.value.name : '';
   const delimiterIndex = toolCallName.lastIndexOf('__');
   const extensionName = delimiterIndex === -1 ? '' : toolCallName.substring(0, delimiterIndex);
+  const toolName =
+    delimiterIndex === -1 ? toolCallName : toolCallName.substring(delimiterIndex + 2);
 
   const toolArguments =
     requestWithMeta.toolCall.status === 'success'
@@ -120,7 +155,9 @@ function McpAppWrapper({
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
   const toolResult =
-    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
+    resultWithMeta?.status === 'success' && resultWithMeta.value
+      ? (resultWithMeta.value as unknown as CallToolResult)
+      : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -132,6 +169,7 @@ function McpAppWrapper({
         toolInput={toolInput}
         toolResult={toolResult}
         extensionName={extensionName}
+        toolName={toolName}
         sessionId={sessionId}
         append={append}
       />
@@ -217,13 +255,11 @@ export default function ToolCallWithResponse({
         !hasMcpAppResourceURI &&
         toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
-          const resourceContent = isEmbeddedResource(content)
-            ? { ...content, type: 'resource' as const }
-            : null;
-          if (resourceContent && isUIResource(resourceContent)) {
+          if (!isEmbeddedResource(content)) return null;
+          if (isUIResource(content)) {
             return (
               <div key={index} className="mt-3">
-                <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-border-primary rounded-lg bg-background-secondary flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
@@ -349,9 +385,9 @@ const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
   const extensionName = parts.slice(1).reverse().join('__') || '';
   const toolGraph = toolCall.arguments?.tool_graph;
 
-  if (toolName === 'execute_code' && toolGraph && toolGraph.length > 0) {
+  if (toolName === 'execute_typescript' && toolGraph && toolGraph.length > 0) {
     const plural = toolGraph.length === 1 ? '' : 's';
-    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
+    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_typescript`;
     const lines = toolGraph.map((node, idx) => {
       const deps =
         node.depends_on && node.depends_on.length > 0
@@ -627,13 +663,32 @@ function ToolCallView({
         }
         break;
 
+      case 'delegate': {
+        if (args.instructions) {
+          const instr = getStringValue(args.instructions);
+          const truncated = instr.length > 80 ? instr.substring(0, 80) + '…' : instr;
+          return `delegating: ${truncated}`;
+        }
+        if (args.source) {
+          return `delegating to ${getStringValue(args.source)}`;
+        }
+        return 'delegating task';
+      }
+
+      case 'load': {
+        if (args.source) {
+          return `loading ${getStringValue(args.source)}`;
+        }
+        return 'loading source';
+      }
+
       case 'final_output':
         return 'final output';
 
       case 'computer_control':
         return `poking around...`;
 
-      case 'execute': {
+      case 'execute_typescript': {
         const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
         if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
           if (toolGraph.length === 1) {
@@ -731,7 +786,7 @@ function ToolCallView({
         const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
 
         if (
-          toolCall.name === 'code_execution__execute' &&
+          toolCall.name === 'code_execution__execute_typescript' &&
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
@@ -782,6 +837,28 @@ function ToolCallView({
           ))}
         </>
       )}
+
+      {(() => {
+        if (loadingStatus === 'loading') return null;
+        const subagentSessionId = getSubagentSessionId(toolResponse, notifications);
+        if (!subagentSessionId) return null;
+        return (
+          <div className="border-t border-border-primary">
+            <button
+              onClick={() => {
+                window.electron.createChatWindow({
+                  resumeSessionId: subagentSessionId,
+                  viewType: 'pair',
+                });
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-background-secondary transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              <span>View subagent session</span>
+            </button>
+          </div>
+        );
+      })()}
     </ToolCallExpandable>
   );
 }
@@ -857,33 +934,22 @@ interface ToolResultViewProps {
     name: string;
     arguments: Record<string, unknown>;
   };
-  result: Content;
+  result: ContentBlock;
   isStartExpanded: boolean;
 }
 
-function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
-  const hasText = (c: Content): c is Content & { text: string } =>
+function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+  const hasText = (c: ContentBlock): c is ContentBlock & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
-  const hasImage = (c: Content): c is Content & { data: string; mimeType: string } => {
+  const hasImage = (c: ContentBlock): c is ContentBlock & { data: string; mimeType: string } => {
     if (!('data' in c && 'mimeType' in c)) return false;
     const mimeType = (c as Record<string, unknown>).mimeType;
     return typeof mimeType === 'string' && mimeType.startsWith('image');
   };
 
-  const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
-
-  const wrapMarkdown = (text: string): string => {
-    if (
-      ['code_execution__list_functions', 'code_execution__get_function_details'].includes(
-        toolCall.name
-      )
-    ) {
-      return '```typescript\n' + text + '\n```';
-    } else {
-      return text;
-    }
-  };
+  const hasResource = (c: ContentBlock): c is ContentBlock & { resource: unknown } =>
+    'resource' in c;
 
   return (
     <ToolCallExpandable
@@ -892,10 +958,9 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
     >
       <div className="pl-4 pr-4 py-4">
         {hasText(result) && (
-          <MarkdownContent
-            content={wrapMarkdown(result.text)}
-            className="whitespace-pre-wrap max-w-full overflow-x-auto"
-          />
+          <pre className="font-mono text-xs whitespace-pre-wrap max-w-full overflow-x-auto">
+            {result.text.trim()}
+          </pre>
         )}
         {hasImage(result) && (
           <img
@@ -913,6 +978,34 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
         )}
       </div>
     </ToolCallExpandable>
+  );
+}
+
+function SubagentLogEntry({ log }: { log: string }) {
+  const subagentMatch = log.match(/^\[subagent:(\w+)\]\s*([\s\S]*)/);
+  if (!subagentMatch) {
+    return <span className="font-sans text-sm text-textSubtle">{log}</span>;
+  }
+
+  const [, , rest] = subagentMatch;
+  const [firstLine, ...detailLines] = rest.split('\n');
+  const parts = firstLine.split(' | ');
+  const toolName = parts[0]?.trim() || firstLine;
+  const extensionName = parts[1]?.trim();
+
+  return (
+    <div className="font-sans text-sm text-textSubtle">
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+        <span className="font-medium text-text-secondary">{toolName}</span>
+        {extensionName && <span className="text-textSubtle opacity-60">· {extensionName}</span>}
+      </span>
+      {detailLines.length > 0 && (
+        <pre className="ml-3 mt-0.5 text-xs text-textSubtle whitespace-pre-wrap">
+          {detailLines.join('\n')}
+        </pre>
+      )}
+    </div>
   );
 }
 
@@ -940,11 +1033,14 @@ function ToolLogsView({
   // in this case, this is array of strings which once added do not change so this cuts
   // down on the possibility of unwanted runs
 
+  const subagentLogCount = logs.filter((l) => l.startsWith('[subagent:')).length;
+  const labelText = subagentLogCount > 0 ? `Activity (${subagentLogCount})` : 'Logs';
+
   return (
     <ToolCallExpandable
       label={
         <span className="pl-4 py-1 font-sans text-sm flex items-center">
-          <span>Logs</span>
+          <span>{labelText}</span>
           {working && (
             <div className="mx-2 inline-block">
               <span
@@ -964,9 +1060,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
-            {log}
-          </span>
+          <SubagentLogEntry key={i} log={log} />
         ))}
       </div>
     </ToolCallExpandable>

@@ -27,7 +27,6 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Installation](https://block.github.io/goose/docs/getting-started/installation)
 - [Tutorials](https://block.github.io/goose/docs/category/tutorials)
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
-- [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/HOWTOAI.md)
 - [Governance](https://github.com/block/goose/blob/main/GOVERNANCE.md)
 - [Custom Distributions](https://github.com/block/goose/blob/main/CUSTOM_DISTROS.md) - build your own goose distro with preconfigured providers, extensions, and branding
 
@@ -35,7 +34,7 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Diagnostics & Reporting](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)
 - [Known Issues](https://block.github.io/goose/docs/troubleshooting/known-issues)
 
-# a little goose humor 🦢
+# a little goose humor 🪿
 
 > Why did the developer choose goose as their AI agent?
 > 

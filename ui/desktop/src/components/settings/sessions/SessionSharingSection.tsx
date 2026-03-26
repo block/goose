@@ -8,7 +8,6 @@ import { trackSettingToggled } from '../../../utils/analytics';
 
 export default function SessionSharingSection() {
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
-  console.log('envBaseUrlShare', envBaseUrlShare);
 
   // If env is set, force sharing enabled and set the baseUrl accordingly.
   const [sessionSharingConfig, setSessionSharingConfig] = useState({

@@ -14,7 +14,7 @@ import { PanelLeft } from 'lucide-react';
 
 This tutorial covers how to add the [Dev.to MCP Server](https://github.com/nickytonline/dev-to-mcp) as a goose extension to enable access to the Dev.to public API. With this extension, goose can fetch articles, tags, user info, comments, and more—without requiring authentication.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?type=streamable_http&url=http%3A%2F%2Flocalhost%3A3000%2Fmcp&id=dev-to&name=Dev.to&description=Access%20Dev.to%20articles%20and%20content)

@@ -5,7 +5,7 @@ use super::CliSession;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{get_all_extensions, Config, ExtensionConfig};
+use goose::config::{get_all_extensions, Config, ExtensionConfig, GooseMode};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -187,8 +187,7 @@ async fn offer_extension_debugging_help(
     // Create a debugging prompt with context about the extension failure
     let debug_prompt = format!(
         "I'm having trouble starting an extension called '{}'. Here's the error I encountered:\n\n{}\n\nCan you help me diagnose what might be wrong and suggest how to fix it? Please consider common issues like:\n- Missing dependencies or tools\n- Configuration problems\n- Network connectivity (for remote extensions)\n- Permission issues\n- Path or environment variable problems",
-        extension_name,
-        error_message
+        extension_name, error_message
     );
 
     // Create a minimal agent for debugging
@@ -201,6 +200,7 @@ async fn offer_extension_debugging_help(
             std::env::current_dir()?,
             "CLI Session".to_string(),
             SessionType::Hidden,
+            debug_agent.config.goose_mode,
         )
         .await?;
 
@@ -359,7 +359,10 @@ fn resolve_provider_and_model(
         .or(saved_provider)
         .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
         .or_else(|| config.get_goose_provider().ok())
-        .expect("No provider configured. Run 'goose configure' first");
+        .unwrap_or_else(|| {
+            output::render_error("No provider configured. Run 'goose configure' first.");
+            process::exit(1);
+        });
 
     let model_name = session_config
         .model
@@ -367,7 +370,10 @@ fn resolve_provider_and_model(
         .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
         .or_else(|| recipe_settings.and_then(|s| s.goose_model.clone()))
         .or_else(|| config.get_goose_model().ok())
-        .expect("No model configured. Run 'goose configure' first");
+        .unwrap_or_else(|| {
+            output::render_error("No model configured. Run 'goose configure' first.");
+            process::exit(1);
+        });
 
     let model_config = if session_config.resume
         && saved_model_config
@@ -400,13 +406,25 @@ fn resolve_provider_and_model(
 async fn resolve_session_id(
     session_config: &SessionBuilderConfig,
     session_manager: &goose::session::session_manager::SessionManager,
+    goose_mode: GooseMode,
 ) -> String {
     if session_config.no_session {
-        let working_dir = std::env::current_dir().expect("Could not get working directory");
+        let working_dir = std::env::current_dir().unwrap_or_else(|e| {
+            output::render_error(&format!("Could not get working directory: {}", e));
+            process::exit(1);
+        });
         let session = session_manager
-            .create_session(working_dir, "CLI Session".to_string(), SessionType::Hidden)
+            .create_session(
+                working_dir,
+                "CLI Session".to_string(),
+                SessionType::Hidden,
+                goose_mode,
+            )
             .await
-            .expect("Could not create session");
+            .unwrap_or_else(|e| {
+                output::render_error(&format!("Could not create session: {}", e));
+                process::exit(1);
+            });
         session.id
     } else if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
@@ -445,7 +463,10 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
             process::exit(1);
         });
 
-    let current_workdir = std::env::current_dir().expect("Failed to get current working directory");
+    let current_workdir = std::env::current_dir().unwrap_or_else(|e| {
+        output::render_error(&format!("Failed to get current working directory: {}", e));
+        process::exit(1);
+    });
     if current_workdir == session.working_dir {
         return;
     }
@@ -461,7 +482,10 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
         ))
         .initial_value(true)
         .interact()
-        .expect("Failed to get user input");
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to get user input: {}", e));
+            process::exit(1);
+        });
 
         if change_workdir {
             if !session.working_dir.exists() {
@@ -566,13 +590,19 @@ async fn configure_session_prompts(
 
     let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
     if let Some(ref path) = system_prompt_file {
-        let override_prompt =
-            std::fs::read_to_string(path).expect("Failed to read system prompt file");
+        let override_prompt = std::fs::read_to_string(path).unwrap_or_else(|e| {
+            output::render_error(&format!(
+                "Failed to read system prompt file '{}': {}",
+                path, e
+            ));
+            process::exit(1);
+        });
         session.agent.override_system_prompt(override_prompt).await;
     }
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
+    #[cfg(feature = "telemetry")]
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
@@ -606,7 +636,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
-    let session_id = resolve_session_id(&session_config, &session_manager).await;
+    let session_id =
+        resolve_session_id(&session_config, &session_manager, agent.config.goose_mode).await;
 
     if session_config.resume {
         handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
@@ -640,24 +671,22 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         }
     };
-    let provider_for_display = Arc::clone(&new_provider);
-
-    if let Some(lead_worker) = new_provider.as_lead_worker() {
-        let (lead_model, worker_model) = lead_worker.get_model_info();
-        tracing::info!(
-            "🤖 Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
-            lead_model,
-            worker_model
-        );
-    } else {
-        tracing::info!("🤖 Using model: {}", resolved.model_name);
-    }
+    let provider_for_debug = Arc::clone(&new_provider);
+    tracing::info!("🤖 Using model: {}", resolved.model_name);
 
     agent
         .update_provider(new_provider, &session_id)
         .await
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
+
+    agent
+        .update_goose_mode(agent.config.goose_mode, &session_id)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to set session mode: {}", e));
             process::exit(1);
         });
 
@@ -676,7 +705,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let agent_ptr = resolve_and_load_extensions(
         agent,
         extensions_for_provider,
-        Arc::clone(&provider_for_display),
+        Arc::clone(&provider_for_debug),
         session_config.interactive,
         &session_id,
     )
@@ -716,7 +745,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             &resolved.provider_name,
             &resolved.model_name,
             &Some(session_id),
-            Some(&provider_for_display),
         );
     }
     session

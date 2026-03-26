@@ -4,7 +4,6 @@ import type {
   McpUiToolCancelledNotification,
   McpUiDisplayMode,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { Content } from '../../api';
 
 /**
  * Space-separated sandbox tokens for iframe permissions.
@@ -37,10 +36,11 @@ export type McpAppToolInputPartial = McpUiToolInputPartialNotification['params']
 
 export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
 
-export type McpAppToolResult = {
-  content: Content[];
-  structuredContent?: unknown;
-};
+/**
+ * Callback fired when the display mode changes, either via user-initiated
+ * host-side controls or app-initiated `ui/request-display-mode` changes.
+ */
+export type OnDisplayModeChange = (mode: GooseDisplayMode) => void;
 
 export type SamplingMessage = {
   role: 'user' | 'assistant';

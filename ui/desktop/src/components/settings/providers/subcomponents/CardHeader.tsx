@@ -21,7 +21,6 @@ interface ProviderNameAndStatusProps {
 }
 
 const ProviderNameAndStatus = memo(({ name, isConfigured }: ProviderNameAndStatusProps) => {
-  // Remove the console.log completely
   return (
     <div className="flex items-center justify-between w-full">
       <CardTitle name={name} />

@@ -20,14 +20,13 @@ path = "src/bin/generate_manpages.rs"
 
 [dependencies]
 clap_mangen = "0.2.31"
-goose = { path = "../goose" }
-goose-acp = { path = "../goose-acp" }
+goose = { path = "../goose", default-features = false }
+goose-acp = { path = "../goose-acp", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = "0.3.5"
 console = "0.16.1"
-uuid = { workspace = true }
 dotenvy = { workspace = true }
 bat = { version = "0.26.1", default-features = false, features = ["regex-onig"] }
 anyhow = { workspace = true }
@@ -36,6 +35,7 @@ tokio = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
+strum = { workspace = true }
 tempfile = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }
@@ -48,14 +48,10 @@ shlex = "1.3.0"
 async-trait = { workspace = true }
 base64 = { workspace = true }
 regex = { workspace = true }
-tar = "0.4"
-reqwest = { workspace = true, features = ["blocking", "rustls"], default-features = false }
-zip = { version = "^8.0", default-features = false, features = ["deflate"] }
+tar = "0.4.45"
+reqwest = { workspace = true, features = ["blocking"], default-features = false }
+zip = { workspace = true }
 bzip2 = "0.5"
-# Web server dependencies
-axum = { workspace = true, features = ["ws", "macros"] }
-tower-http = { workspace = true, features = ["cors", "fs", "auth"] }
-http = { workspace = true }
 webbrowser = { workspace = true }
 indicatif = "0.18.1"
 tokio-util = { workspace = true, features = ["compat", "rt"] }
@@ -65,15 +61,42 @@ url = { workspace = true }
 urlencoding = { workspace = true }
 clap_complete = "4.5.62"
 comfy-table = "7.2.2"
+sha2 = { workspace = true }
+sigstore-verify = { version = "0.6", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3", features = ["wincred"] }
+winapi = { workspace = true }
 
 [features]
+default = ["code-mode", "local-inference", "aws-providers", "telemetry", "otel", "rustls-tls"]
+code-mode = ["goose/code-mode", "goose-acp/code-mode"]
+local-inference = ["goose/local-inference"]
+aws-providers = ["goose/aws-providers"]
+cuda = ["goose/cuda", "local-inference"]
+telemetry = ["goose/telemetry"]
+otel = ["goose/otel"]
 # disables the update command
 disable-update = []
+rustls-tls = [
+    "reqwest/rustls",
+    "sigstore-verify/rustls",
+    "goose/rustls-tls",
+    "goose-mcp/rustls-tls",
+]
+native-tls = [
+    "reqwest/native-tls",
+    "sigstore-verify/native-tls",
+    "goose/native-tls",
+    "goose-mcp/native-tls",
+]
 
 [dev-dependencies]
 tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winapi",
+]
