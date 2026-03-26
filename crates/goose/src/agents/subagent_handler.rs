@@ -208,7 +208,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                     }
                     conversation.push(msg);
                 }
-                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
                     conversation = updated_conversation;
                 }
@@ -231,7 +231,12 @@ async fn build_subagent_prompt(
     session_id: &str,
     system_instructions: String,
 ) -> Result<String> {
-    let tools = agent.list_tools(session_id, None).await;
+    let tools: Vec<_> = agent
+        .list_tools(session_id, None)
+        .await
+        .into_iter()
+        .filter(super::reply_parts::is_tool_visible_to_model)
+        .collect();
     render_template(
         "subagent_system.md",
         &SubagentPromptContext {

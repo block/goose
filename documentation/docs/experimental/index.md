@@ -25,9 +25,9 @@ The list of experimental features may change as goose development progresses. So
       link="/docs/experimental/ollama"
     />
     <Card 
-      title="Mobile Access via Secure Tunneling"
-      description="Enable remote access to goose Desktop from the goose AI mobile app via secure tunneling."
-      link="/docs/experimental/mobile-access"
+      title="Remote Access"
+      description="Access goose remotely via the goose AI mobile app or messaging platforms like Telegram."
+      link="/docs/experimental/remote-access"
     />
     <Card 
       title="goose for VS Code Extension"

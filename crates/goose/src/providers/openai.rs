@@ -65,6 +65,7 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
+    skip_canonical_filtering: bool,
 }
 
 impl OpenAiProvider {
@@ -126,6 +127,7 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            skip_canonical_filtering: false,
         })
     }
 
@@ -140,6 +142,7 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            skip_canonical_filtering: false,
         }
     }
 
@@ -208,6 +211,7 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            skip_canonical_filtering: config.skip_canonical_filtering,
         })
     }
 
@@ -233,6 +237,7 @@ impl OpenAiProvider {
         let normalized_model = model_name.to_ascii_lowercase();
         (normalized_model.starts_with("gpt-5") && normalized_model.contains("codex"))
             || normalized_model.starts_with("gpt-5.2-pro")
+            || normalized_model.starts_with("gpt-5.4")
     }
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
@@ -358,6 +363,10 @@ impl ProviderDef for OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn skip_canonical_filtering(&self) -> bool {
+        self.skip_canonical_filtering
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -616,6 +625,7 @@ mod tests {
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),
+            skip_canonical_filtering: false,
         }
     }
 
@@ -725,6 +735,22 @@ mod tests {
         assert!(!OpenAiProvider::should_use_responses_api(
             "gpt-5.2-codex",
             "openai/v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_4_with_date_uses_responses() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.4-2026-03-01",
+            "v1/chat/completions"
         ));
     }
 

@@ -10,7 +10,7 @@ use syn::{
 /// Generates two methods on the impl:
 ///
 /// 1. `handle_custom_request` — a dispatcher that:
-///    - Prefixes each method name with `_goose/`
+///    - Uses each annotation string as the method name (include `_goose/` for goose-only methods)
 ///    - Parses JSON params into the handler's typed parameter (if any)
 ///    - Serializes the handler's return value to JSON
 ///
@@ -79,13 +79,13 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let arms: Vec<_> = routes
         .iter()
         .map(|route| {
-            let full_method = format!("_goose/{}", route.method_name);
+            let method = &route.method_name;
             let fn_ident = &route.fn_ident;
 
             match &route.param_type {
                 Some(_) => {
                     quote! {
-                        #full_method => {
+                        #method => {
                             let req = serde_json::from_value(params)
                                 .map_err(|e| sacp::Error::invalid_params().data(e.to_string()))?;
                             let result = self.#fn_ident(req).await?;
@@ -96,7 +96,7 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
                 None => {
                     quote! {
-                        #full_method => {
+                        #method => {
                             let result = self.#fn_ident().await?;
                             serde_json::to_value(&result)
                                 .map_err(|e| sacp::Error::internal_error().data(e.to_string()))
@@ -111,7 +111,7 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let schema_entries: Vec<_> = routes
         .iter()
         .map(|route| {
-            let full_method = format!("_goose/{}", route.method_name);
+            let method = &route.method_name;
 
             let params_expr = if let Some(pt) = &route.param_type {
                 if is_json_value(pt) {
@@ -157,7 +157,7 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             quote! {
                 crate::custom_requests::CustomMethodSchema {
-                    method: #full_method.to_string(),
+                    method: #method.to_string(),
                     params_schema: #params_expr,
                     params_type_name: #params_name_expr,
                     response_schema: #response_expr,

@@ -1,8 +1,6 @@
 import { AppEvents } from '../constants/events';
 import React, {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -42,8 +40,7 @@ import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
-const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
-export const useCurrentModelInfo = () => useContext(CurrentModelContext);
+
 
 interface BaseChatProps {
   setChat: (chat: ChatType) => void;

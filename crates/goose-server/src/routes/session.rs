@@ -296,6 +296,13 @@ async fn delete_session(
             }
         })?;
 
+    // Cancel any in-flight replies before dropping the bus, so spawned
+    // agent tasks stop consuming tokens for a deleted session.
+    if let Some(bus) = state.get_event_bus(&session_id).await {
+        bus.cancel_all_requests().await;
+    }
+    state.remove_event_bus(&session_id).await;
+
     Ok(StatusCode::OK)
 }
 
@@ -396,6 +403,7 @@ async fn fork_session(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get session: {}", e);
+                #[cfg(feature = "telemetry")]
                 goose::posthog::emit_error("session_get_failed", &e.to_string());
                 ErrorResponse {
                     message: if e.to_string().contains("not found") {
@@ -416,6 +424,7 @@ async fn fork_session(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to copy session: {}", e);
+                #[cfg(feature = "telemetry")]
                 goose::posthog::emit_error("session_copy_failed", &e.to_string());
                 ErrorResponse {
                     message: format!("Failed to copy session: {}", e),
@@ -434,6 +443,7 @@ async fn fork_session(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to truncate conversation: {}", e);
+                #[cfg(feature = "telemetry")]
                 goose::posthog::emit_error("session_truncate_failed", &e.to_string());
                 ErrorResponse {
                     message: format!("Failed to truncate conversation: {}", e),

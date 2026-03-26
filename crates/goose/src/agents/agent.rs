@@ -163,7 +163,6 @@ pub struct Agent {
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
-    ModelChange { model: String, mode: String },
     HistoryReplaced(Conversation),
 }
 
@@ -371,15 +370,29 @@ impl Agent {
             self.tool_inspection_manager.apply_tool_annotations(&tools);
         }
 
+        let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+        {
+            Ok(v) => v,
+            Err(_) => {
+                let context_limit = self
+                    .provider()
+                    .await
+                    .map(|p| p.get_model_config().context_limit())
+                    .unwrap_or(crate::model::DEFAULT_CONTEXT_LIMIT);
+                let compaction_threshold = Config::global()
+                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
+                crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
+            }
+        };
+
         Ok(ReplyContext {
             conversation,
             tools,
             toolshim_tools,
             system_prompt,
             goose_mode,
-            tool_call_cut_off: Config::global()
-                .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
-                .unwrap_or(10),
+            tool_call_cut_off,
             initial_messages,
         })
     }
@@ -667,6 +680,7 @@ impl Agent {
                 )
                 .await;
             result.unwrap_or_else(|e| {
+                #[cfg(feature = "telemetry")]
                 crate::posthog::emit_error(
                     "tool_execution_failed",
                     &format!("{}: {}", tool_call.name, e),
@@ -1027,6 +1041,7 @@ impl Agent {
             let command = message_text.split_whitespace().next();
             if let Some(cmd) = command {
                 if crate::slash_commands::get_recipe_for_command(cmd).is_some() {
+                    #[cfg(feature = "telemetry")]
                     crate::posthog::emit_custom_slash_command_used();
                 }
             }
@@ -1365,11 +1380,12 @@ impl Agent {
                     break;
                 }
 
-                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pair(
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
                     self.provider().await?,
                     session_config.id.clone(),
                     conversation.clone(),
                     tool_call_cut_off,
+                    0,
                 );
 
                 let conversation_with_moim = super::moim::inject_moim(
@@ -1402,27 +1418,6 @@ impl Agent {
                         Ok((response, usage)) => {
                             compaction_attempts = 0;
 
-                            // Emit model change event if provider is lead-worker
-                            let provider = self.provider().await?;
-                            if let Some(lead_worker) = provider.as_lead_worker() {
-                                if let Some(ref usage) = usage {
-                                    let active_model = usage.model.clone();
-                                    let (lead_model, worker_model) = lead_worker.get_model_info();
-                                    let mode = if active_model == lead_model {
-                                        "lead"
-                                    } else if active_model == worker_model {
-                                        "worker"
-                                    } else {
-                                        "unknown"
-                                    };
-
-                                    yield AgentEvent::ModelChange {
-                                        model: active_model,
-                                        mode: mode.to_string(),
-                                    };
-                                }
-                            }
-
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
                             }
@@ -1444,7 +1439,6 @@ impl Agent {
                                         last_assistant_text = text;
                                     }
 
-                                    // Check ContextFill hooks after each LLM response
                                     if let Some(ref u) = usage {
                                         if let Some(total) = u.usage.total_tokens {
                                             let ctx_limit = self.provider().await?.get_model_config().context_limit();
@@ -1488,7 +1482,6 @@ impl Agent {
                                     }
                                 }
                                 if goose_mode == GooseMode::Chat {
-                                    // Skip all remaining tool calls in chat mode
                                     for request in remaining_requests.iter() {
                                         if let Some(response_msg) = request_to_response_map.get(&request.id) {
                                             let mut response = response_msg.lock().await;
@@ -1543,7 +1536,7 @@ impl Agent {
                                         &hooks,
                                     ).await?;
 
-                                    let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+                                    let tool_futures_arc = Arc::new(Mutex::new(std::mem::take(&mut tool_futures)));
 
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
@@ -1564,11 +1557,11 @@ impl Agent {
                                         futures_lock.drain(..).collect::<Vec<_>>()
                                     };
 
-                                    // Build request_id -> ToolRequest map for PostToolUse hooks
                                     let request_id_to_request: HashMap<String, &ToolRequest> =
                                         frontend_requests.iter().chain(remaining_requests.iter())
                                             .map(|r| (r.id.clone(), r))
                                             .collect();
+
 
                                     let with_id = tool_futures
                                         .into_iter()
@@ -1726,9 +1719,8 @@ impl Agent {
                                     conversation.push(thinking_msg);
                                 }
 
-                                // Collect reasoning content to attach to tool request messages
                                 let reasoning_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Reasoning(_)))
+                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
                                     .collect();
 
@@ -1737,7 +1729,6 @@ impl Agent {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
 
-                                        // Attach reasoning content to EVERY split tool request message.
                                         // Providers like Kimi require reasoning_content on all assistant
                                         // messages with tool_calls when thinking mode is enabled.
                                         for rc in &reasoning_content {
@@ -1753,7 +1744,6 @@ impl Agent {
                                             );
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
-                                        // Persist the tool request and response as a pair
                                         session_manager.add_message(&session_config.id, &request_msg).await?;
                                         session_manager.add_message(&session_config.id, &final_response).await?;
                                         conversation.push(request_msg);
@@ -1778,6 +1768,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             compaction_attempts += 1;
 
@@ -1855,13 +1846,20 @@ impl Agent {
                                     break;
                                 }
                                 Err(e) => {
+                                    #[cfg(feature = "telemetry")]
                                     crate::posthog::emit_error("compaction_failed", &e.to_string());
                                     error!("Compaction failed: {}", e);
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_text(
+                                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
+                                        )
+                                    );
                                     break;
                                 }
                             }
                         }
                         Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
@@ -1885,6 +1883,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
@@ -1895,6 +1894,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
@@ -1974,35 +1974,36 @@ impl Agent {
                     }
                 }
 
-                if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
+                if let Ok(summaries) = tool_pair_summarization_task.await {
                     let mut updated_messages = conversation.messages().clone();
 
-                    let matching: Vec<&mut Message> = updated_messages
-                        .iter_mut()
-                        .filter(|msg| {
-                            msg.id.is_some() && msg.content.iter().any(|c| match c {
-                                MessageContent::ToolRequest(req) => req.id == tool_id,
-                                MessageContent::ToolResponse(resp) => resp.id == tool_id,
-                                _ => false,
+                    for (summary_msg, tool_id) in summaries {
+                        let matching: Vec<&mut Message> = updated_messages
+                            .iter_mut()
+                            .filter(|msg| {
+                                msg.id.is_some() && msg.content.iter().any(|c| match c {
+                                    MessageContent::ToolRequest(req) => req.id == tool_id,
+                                    MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                    _ => false,
+                                })
                             })
-                        })
-                        .collect();
+                            .collect();
 
-                    if matching.len() == 2 {
-                        for msg in matching {
-                            let id = msg.id.as_ref().unwrap();
-                            msg.metadata = msg.metadata.with_agent_invisible();
-                            SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
-                                metadata.with_agent_invisible()
-                            }).await?;
+                        if matching.len() == 2 {
+                            for msg in matching {
+                                let id = msg.id.as_ref().unwrap();
+                                msg.metadata = msg.metadata.with_agent_invisible();
+                                SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    metadata.with_agent_invisible()
+                                }).await?;
+                            }
+                            session_manager.add_message(&session_config.id, &summary_msg).await?;
+                        } else {
+                            warn!("Expected a tool request/reply pair, but found {} matching messages",
+                                matching.len());
                         }
-                        conversation = Conversation::new_unvalidated(updated_messages);
-                        session_manager.add_message(&session_config.id, &summary_msg).await?;
-                        conversation.push(summary_msg);
-                    } else {
-                        warn!("Expected a tool request/reply pair, but found {} matching messages",
-                            matching.len());
                     }
+                    conversation = Conversation::new_unvalidated(updated_messages);
                 }
 
                 if exit_chat {
@@ -2099,7 +2100,8 @@ impl Agent {
 
     /// Restore the provider from session data or fall back to global config
     /// This is used when resuming a session to restore the provider state
-    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<()> {
+    /// Returns true if the session's provider was replaced with a fallback.
+    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<bool> {
         let config = Config::global();
 
         let provider_name = session
@@ -2124,9 +2126,69 @@ impl Agent {
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
 
-        let provider = crate::providers::create(&provider_name, model_config, extensions)
+        let (provider, provider_changed) = if crate::providers::get_from_registry(&provider_name)
             .await
-            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+            .is_ok()
+        {
+            let p = crate::providers::create(&provider_name, model_config, extensions)
+                .await
+                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+            (p, false)
+        } else {
+            let fallback_provider_name = config
+                .get_goose_provider()
+                .ok()
+                .filter(|name| name != &provider_name)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Could not create provider: provider '{}' not found",
+                        provider_name
+                    )
+                })?;
+
+            tracing::warn!(
+                "Session provider '{}' unavailable, falling back to '{}'",
+                provider_name,
+                fallback_provider_name
+            );
+
+            let fallback_model_name = config
+                .get_goose_model()
+                .ok()
+                .ok_or_else(|| anyhow!("Could not configure fallback provider: missing model"))?;
+            let fallback_model_config = crate::model::ModelConfig::new(&fallback_model_name)
+                .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?
+                .with_canonical_limits(&fallback_provider_name);
+
+            let fallback_provider = crate::providers::create(
+                &fallback_provider_name,
+                fallback_model_config.clone(),
+                extensions,
+            )
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "Could not create provider '{}' or fallback '{}': {}",
+                    provider_name,
+                    fallback_provider_name,
+                    e
+                )
+            })?;
+
+            if let Err(e) = self
+                .config
+                .session_manager
+                .update(&session.id)
+                .provider_name(&fallback_provider_name)
+                .model_config(fallback_model_config)
+                .apply()
+                .await
+            {
+                tracing::warn!("Failed to update session provider: {}", e);
+            }
+
+            (fallback_provider, true)
+        };
 
         self.update_provider(provider, &session.id).await?;
         // Propagate session mode to the new provider
@@ -2137,7 +2199,7 @@ impl Agent {
                 .map_err(|e| anyhow!("Failed to propagate mode to provider: {}", e))?;
         }
         *self.current_goose_mode.lock().await = session.goose_mode;
-        Ok(())
+        Ok(provider_changed)
     }
 
     /// Override the system prompt with a custom template
@@ -2260,14 +2322,17 @@ impl Agent {
             .build();
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
-        let tools = self
+        let tools: Vec<_> = self
             .extension_manager
             .get_prefixed_tools(session_id, None)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
                 e
-            })?;
+            })?
+            .into_iter()
+            .filter(super::reply_parts::is_tool_visible_to_model)
+            .collect();
 
         messages.push(Message::user().with_text(recipe_prompt));
 

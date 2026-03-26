@@ -35,6 +35,7 @@ pub async fn inject_moim(
         let has_unexpected_issues = issues.iter().any(|issue| {
             !issue.contains("Merged consecutive user messages")
                 && !issue.contains("Merged consecutive assistant messages")
+                && !issue.contains("Added placeholder to empty tool result")
         });
 
         if has_unexpected_issues {

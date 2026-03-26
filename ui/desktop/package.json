@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.27.0",
+  "version": "1.29.0",
   "description": "Goose App",
   "engines": {
     "node": "^24.10.0",
@@ -41,7 +41,8 @@
     "start-alpha-gui": "ALPHA=true pnpm run start-gui"
   },
   "dependencies": {
-    "@mcp-ui/client": "^6.1.0",
+    "@aaif/goose-acp": "workspace:*",
+    "@mcp-ui/client": "6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.1.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -54,7 +55,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/themes": "^3.3.0",
-    "@tanstack/react-form": "^1.28.3",
+    "@tanstack/react-form": "1.28.3",
     "@types/react-router-dom": "^5.3.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -69,7 +70,6 @@
     "electron-window-state": "^5.0.3",
     "express": "^5.2.1",
     "framer-motion": "^12.34.3",
-    "goose-acp-types": "file:../acp",
     "katex": "^0.16.33",
     "lodash": "^4.17.23",
     "lucide-react": "^0.575.0",
@@ -121,6 +121,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.24",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
@@ -150,18 +151,6 @@
   },
   "keywords": [],
   "license": "Apache-2.0",
-  "pnpm": {
-    "overrides": {
-      "react": "^19.2.4",
-      "react-dom": "^19.2.4"
-    },
-    "onlyBuiltDependencies": [
-      "@modelcontextprotocol/ext-apps",
-      "electron",
-      "electron-winstaller",
-      "esbuild"
-    ]
-  },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
       "bash -c 'pnpm run typecheck'",
