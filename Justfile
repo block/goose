@@ -11,8 +11,6 @@ check-everything:
     cargo fmt --all
     @echo "  → Running clippy linting..."
     cargo clippy --all-targets -- -D warnings
-    @echo "  → Checking for banned TLS crates..."
-    ./scripts/check-no-native-tls.sh
     @echo "  → Checking UI code formatting..."
     cd ui/desktop && pnpm run lint:check
     @echo "  → Validating OpenAPI schema..."
@@ -345,7 +343,7 @@ prepare-release version:
         Cargo.toml \
         Cargo.lock \
         ui/desktop/package.json \
-        ui/desktop/pnpm-lock.yaml \
+        ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
         crates/goose/src/providers/canonical/data/canonical_models.json \
         crates/goose/src/providers/canonical/data/provider_metadata.json

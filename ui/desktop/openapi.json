@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.28.0"
+    "version": "1.29.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -965,39 +965,6 @@
           },
           "500": {
             "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/config/detect-provider": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "detect_provider",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DetectProviderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Provider detected successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DetectProviderResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No matching provider found"
           }
         }
       }
@@ -4653,6 +4620,9 @@
           "requires_auth": {
             "type": "boolean"
           },
+          "skip_canonical_filtering": {
+            "type": "boolean"
+          },
           "supports_streaming": {
             "type": "boolean",
             "nullable": true
@@ -4694,35 +4664,6 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
-          }
-        }
-      },
-      "DetectProviderRequest": {
-        "type": "object",
-        "required": [
-          "api_key"
-        ],
-        "properties": {
-          "api_key": {
-            "type": "string"
-          }
-        }
-      },
-      "DetectProviderResponse": {
-        "type": "object",
-        "required": [
-          "provider_name",
-          "models"
-        ],
-        "properties": {
-          "models": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "provider_name": {
             "type": "string"
           }
         }

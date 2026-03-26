@@ -102,7 +102,7 @@ jobs:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: intel-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/pnpm-lock.yaml') }}
+          key: intel-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
           restore-keys: |
             intel-pnpm-cache-v1-${{ runner.os }}-
 
