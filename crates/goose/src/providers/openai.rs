@@ -66,6 +66,7 @@ pub struct OpenAiProvider {
     supports_streaming: bool,
     name: String,
     custom_models: Option<Vec<String>>,
+    skip_canonical_filtering: bool,
 }
 
 impl OpenAiProvider {
@@ -128,6 +129,7 @@ impl OpenAiProvider {
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
             custom_models: None,
+            skip_canonical_filtering: false,
         })
     }
 
@@ -143,6 +145,7 @@ impl OpenAiProvider {
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
             custom_models: None,
+            skip_canonical_filtering: false,
         }
     }
 
@@ -218,6 +221,7 @@ impl OpenAiProvider {
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
             custom_models,
+            skip_canonical_filtering: config.skip_canonical_filtering,
         })
     }
 
@@ -403,6 +407,10 @@ impl ProviderDef for OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn skip_canonical_filtering(&self) -> bool {
+        self.skip_canonical_filtering
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -653,6 +661,7 @@ mod tests {
             supports_streaming: true,
             name: name.to_string(),
             custom_models: None,
+            skip_canonical_filtering: false,
         }
     }
 

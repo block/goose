@@ -217,6 +217,7 @@ export type DeclarativeProviderConfig = {
     models: Array<ModelInfo>;
     name: string;
     requires_auth?: boolean;
+    skip_canonical_filtering?: boolean;
     supports_streaming?: boolean | null;
     timeout_seconds?: number | null;
 };
@@ -231,15 +232,6 @@ export type DecodeRecipeResponse = {
 
 export type DeleteRecipeRequest = {
     id: string;
-};
-
-export type DetectProviderRequest = {
-    api_key: string;
-};
-
-export type DetectProviderResponse = {
-    models: Array<string>;
-    provider_name: string;
 };
 
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
@@ -471,6 +463,15 @@ export type ExtensionQuery = {
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
     warnings?: Array<string>;
+};
+
+export type FeaturesResponse = {
+    /**
+     * Map of feature name to enabled status
+     */
+    features: {
+        [key: string]: boolean;
+    };
 };
 
 export type ForkRequest = {
@@ -1173,6 +1174,8 @@ export type SaveRecipeRequest = {
 };
 
 export type SaveRecipeResponse = {
+    file_name: string;
+    file_path: string;
     id: string;
 };
 
@@ -1454,6 +1457,9 @@ export type ToolExecution = {
  */
 export type ToolInfo = {
     description: string;
+    input_schema?: {
+        [key: string]: unknown;
+    };
     name: string;
     parameters: Array<string>;
     permission?: PermissionLevel | null;
@@ -2341,29 +2347,6 @@ export type UpdateCustomProviderResponses = {
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
-export type DetectProviderData = {
-    body: DetectProviderRequest;
-    path?: never;
-    query?: never;
-    url: '/config/detect-provider';
-};
-
-export type DetectProviderErrors = {
-    /**
-     * No matching provider found
-     */
-    404: unknown;
-};
-
-export type DetectProviderResponses = {
-    /**
-     * Provider detected successfully
-     */
-    200: DetectProviderResponse;
-};
-
-export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
-
 export type GetExtensionsData = {
     body?: never;
     path?: never;
@@ -3118,6 +3101,22 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type GetFeaturesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/features';
+};
+
+export type GetFeaturesResponses = {
+    /**
+     * Compile-time feature flags
+     */
+    200: FeaturesResponse;
+};
+
+export type GetFeaturesResponse = GetFeaturesResponses[keyof GetFeaturesResponses];
 
 export type StartNanogptSetupData = {
     body?: never;

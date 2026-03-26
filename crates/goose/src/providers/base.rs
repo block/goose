@@ -372,6 +372,8 @@ pub struct Usage {
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
+    pub cache_read_input_tokens: Option<i32>,
+    pub cache_write_input_tokens: Option<i32>,
 }
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
@@ -394,6 +396,13 @@ impl Add for Usage {
             sum_optionals(self.input_tokens, other.input_tokens),
             sum_optionals(self.output_tokens, other.output_tokens),
             sum_optionals(self.total_tokens, other.total_tokens),
+        )
+        .with_cache_tokens(
+            sum_optionals(self.cache_read_input_tokens, other.cache_read_input_tokens),
+            sum_optionals(
+                self.cache_write_input_tokens,
+                other.cache_write_input_tokens,
+            ),
         )
     }
 }
@@ -425,7 +434,19 @@ impl Usage {
             input_tokens,
             output_tokens,
             total_tokens: calculated_total,
+            cache_read_input_tokens: None,
+            cache_write_input_tokens: None,
         }
+    }
+
+    pub fn with_cache_tokens(
+        mut self,
+        cache_read_input_tokens: Option<i32>,
+        cache_write_input_tokens: Option<i32>,
+    ) -> Self {
+        self.cache_read_input_tokens = cache_read_input_tokens;
+        self.cache_write_input_tokens = cache_write_input_tokens;
+        self
     }
 }
 
@@ -534,9 +555,17 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        false
+    }
+
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
+
+        if self.skip_canonical_filtering() {
+            return Ok(all_models);
+        }
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
@@ -1077,5 +1106,20 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    #[test]
+    fn test_usage_addition_includes_cached_tokens() {
+        let usage_a =
+            Usage::new(Some(100), Some(20), Some(120)).with_cache_tokens(Some(10), Some(5));
+        let usage_b = Usage::new(Some(50), Some(8), Some(58)).with_cache_tokens(Some(4), Some(1));
+
+        let combined = usage_a + usage_b;
+
+        assert_eq!(combined.input_tokens, Some(150));
+        assert_eq!(combined.output_tokens, Some(28));
+        assert_eq!(combined.total_tokens, Some(178));
+        assert_eq!(combined.cache_read_input_tokens, Some(14));
+        assert_eq!(combined.cache_write_input_tokens, Some(6));
     }
 }
