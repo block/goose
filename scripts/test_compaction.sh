@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$GOOSE_PROVIDER" = "anthropic" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "Skipping tests: ANTHROPIC_API_KEY is not set."
+  exit 0
+fi
+
 # Compaction smoke test script
 # Tests both manual (trigger prompt) and auto compaction (threshold-based)
 #

@@ -313,6 +313,13 @@ extensions:
         return;
       }
 
+      const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+      if (providerName === 'anthropic' && !anthropicApiKey) {
+        testContext.skip('Skipping tool execution test - no ANTHROPIC_API_KEY configured');
+        return;
+      }
+
+
       const modelResponse = await readConfig({
         client: ctx.client,
         body: {
