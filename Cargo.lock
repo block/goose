@@ -6926,9 +6926,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_config"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88750f27b7000e143e8b7c5703947fe9565b1a616e119513578bf08ef40fc24f"
+checksum = "c89eac48aabd3fdd2ed13839c006aff8be43f5ba70858378162551414103199d"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -8036,9 +8036,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba6b9d2f0efe2258b23767f1f9e0054cfbcac9c2d6f81a031214143096d7864f"
+checksum = "2231b2c085b371c01bc90c0e6c1cab8834711b6394533375bdbf870b0166d419"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -8048,6 +8048,8 @@ dependencies = [
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
+ "hyper 1.8.1",
+ "hyper-util",
  "oauth2",
  "pastey",
  "pin-project-lite",
@@ -8071,9 +8073,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab9d95d7ed26ad8306352b0d5f05b593222b272790564589790d210aa15caa9e"
+checksum = "36ea0e100fadf81be85d7ff70f86cd805c7572601d4ab2946207f36540854b43"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
