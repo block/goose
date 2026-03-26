@@ -35,7 +35,6 @@ jobs:
   build-desktop-windows:
     name: Build Desktop (Windows)
     runs-on: windows-latest
-    environment: ${{ inputs.signing && 'signing' || '' }}
 
     steps:
       - name: Checkout repository
@@ -153,8 +152,27 @@ jobs:
           echo "📋 Binary files in resources/bin:"
           ls -la ./dist-windows/resources/bin/
 
+      - name: Upload unsigned distribution
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: windows-unsigned
+          path: ui/desktop/dist-windows/
+
+  sign-desktop-windows:
+    name: Sign Desktop (Windows)
+    needs: build-desktop-windows
+    if: inputs.signing
+    runs-on: windows-latest
+    environment: signing
+
+    steps:
+      - name: Download unsigned distribution
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: windows-unsigned
+          path: dist-windows
+
       - name: Azure login
-        if: inputs.signing && inputs.signing == true
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -162,23 +180,21 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Sign Windows executables with Azure Trusted Signing
-        if: inputs.signing && inputs.signing == true
         uses: azure/trusted-signing-action@b443cf8ea4124818d2ea9f043cba29fc3ec47b16  # v1.2.0
         with:
           endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
           files: |
-            ${{ github.workspace }}/ui/desktop/dist-windows/Goose.exe
-            ${{ github.workspace }}/ui/desktop/dist-windows/resources/bin/goosed.exe
+            ${{ github.workspace }}/dist-windows/Goose.exe
+            ${{ github.workspace }}/dist-windows/resources/bin/goosed.exe
 
       - name: Verify signed executables
-        if: inputs.signing && inputs.signing == true
         shell: pwsh
         run: |
           $files = @(
-            "ui/desktop/dist-windows/Goose.exe",
-            "ui/desktop/dist-windows/resources/bin/goosed.exe"
+            "dist-windows/Goose.exe",
+            "dist-windows/resources/bin/goosed.exe"
           )
           foreach ($file in $files) {
             Write-Output "Verifying signature: $file"
@@ -190,19 +206,35 @@ jobs:
       - name: Create Windows zip package
         shell: bash
         run: |
-          cd ui/desktop
-          echo "📦 Creating Windows zip package..."
-
           7z a -tzip "Goose-win32-x64.zip" dist-windows/
 
-          echo "✅ Windows zip package created:"
-          ls -la Goose-win32-x64.zip
-
-          mkdir -p out/Goose-win32-x64/
-          cp Goose-win32-x64.zip out/Goose-win32-x64/
-
-      - name: Upload Windows build artifacts
+      - name: Upload signed Windows build
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-win32-x64
-          path: ui/desktop/out/Goose-win32-x64/Goose-win32-x64.zip
+          path: Goose-win32-x64.zip
+
+  # When signing is disabled, package the unsigned build directly
+  package-desktop-windows:
+    name: Package Desktop (Windows)
+    needs: build-desktop-windows
+    if: ${{ !inputs.signing }}
+    runs-on: windows-latest
+
+    steps:
+      - name: Download unsigned distribution
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: windows-unsigned
+          path: dist-windows
+
+      - name: Create Windows zip package
+        shell: bash
+        run: |
+          7z a -tzip "Goose-win32-x64.zip" dist-windows/
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: Goose-win32-x64
+          path: Goose-win32-x64.zip
