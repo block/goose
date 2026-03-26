@@ -300,11 +300,10 @@ jobs:
         id: changesets
         uses: changesets/action@6d3568c53fbe1db6c1f9ab1c7fbf9092bc18627f # v1
         with:
-          publish: pnpm run release
-          version: pnpm run version
+          publish: cd ui && pnpm run release
+          version: cd ui && pnpm run version
           commit: 'chore: version packages'
           title: 'chore: version packages'
-          cwd: ui
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
