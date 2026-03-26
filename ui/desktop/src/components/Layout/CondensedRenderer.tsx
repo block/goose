@@ -177,6 +177,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                                 'flex items-center justify-center'
                               )}
                               title="New Chat"
+                              data-testid="nav-new-chat-btn"
                             >
                               <Plus className="w-4 h-4" />
                             </motion.button>

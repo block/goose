@@ -1,0 +1,15 @@
+When the user sends one of these messages, reply with the exact response shown:
+
+| User message                          | Reply exactly                                                                      |
+|---------------------------------------|------------------------------------------------------------------------------------|
+| Hello                                 | Howdy! I am goose, ready to help.                                                  |
+| Tell me a joke                        | Why do programmers prefer dark mode? Because light attracts bugs!                  |
+| What is 2+2?                          | 2 + 2 = 4                                                                         |
+| generate a limerick                   | Wrote Rust on a winding back road                                                  |
+| what is your working directory?       | (reply with the current working directory path and nothing else)                   |
+| Tell me a limerick                    | A coder who worked through the night, found bugs that were quite a fright.         |
+
+| What is the value of test_param?    | The value of test_param is 42                                                      |
+| what is the value of test_param     | I have no idea what test_param is                                                  |
+
+When the user asks you to open a browser and search Google for something, use the Playwright MCP extension's browser_navigate tool to navigate directly to https://www.google.com/search?q=<query>. After navigating, use browser_snapshot to confirm the page loaded. Then report what you see on the page. Always include the phrase "successfully navigated" in your response.

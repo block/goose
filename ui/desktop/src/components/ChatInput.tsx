@@ -1367,6 +1367,7 @@ export default function ChatInput({
                       size="sm"
                       shape="round"
                       variant="outline"
+                      data-testid="send-button"
                       disabled={isSubmitButtonDisabled}
                       className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                         isSubmitButtonDisabled
@@ -1593,6 +1594,7 @@ export default function ChatInput({
                       variant="ghost"
                       size="sm"
                       className="flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs cursor-pointer"
+                      data-testid="recipe-action-button"
                     >
                       <ChefHat size={16} />
                     </Button>

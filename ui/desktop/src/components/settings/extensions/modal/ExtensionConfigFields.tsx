@@ -24,6 +24,7 @@ export default function ExtensionConfigFields({
           <label className="text-sm font-medium mb-2 block text-text-primary">Command</label>
           <div className="relative">
             <Input
+              data-testid="ext-command-input"
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"

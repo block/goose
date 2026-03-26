@@ -28,6 +28,7 @@ export default function ExtensionInfoFields({
           <label className="text-sm font-medium mb-2 block text-text-primary">Extension Name</label>
           <div className="relative">
             <Input
+              data-testid="ext-name-input"
               value={name}
               onChange={(e) => onChange('name', e.target.value)}
               placeholder="Enter extension name..."

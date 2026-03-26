@@ -1,0 +1,20 @@
+[
+  ["wait", "[data-testid='chat-input']", "--timeout", "60000"],
+  ["find", "role", "button", "click", "--name", "Settings"],
+  ["wait", "--text", "Settings"],
+  ["wait", "[data-testid='settings-models-tab']"],
+  ["find", "testid", "settings-models-tab", "click"],
+  ["wait", "--text", "Switch models"],
+  ["find", "testid", "settings-local-inference-tab", "click"],
+  ["wait", "--text", "Local Inference Models"],
+  ["find", "testid", "settings-chat-tab", "click"],
+  ["wait", "--text", "Conversation Limits"],
+  ["find", "testid", "settings-sharing-tab", "click"],
+  ["wait", "--text", "Use external server"],
+  ["find", "testid", "settings-prompts-tab", "click"],
+  ["wait", "--text", "system.md"],
+  ["find", "testid", "settings-keyboard-tab", "click"],
+  ["wait", "--text", "Focus Goose Window"],
+  ["find", "testid", "settings-app-tab", "click"],
+  ["wait", "--text", "Menu bar icon"]
+]

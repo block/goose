@@ -109,7 +109,16 @@ export default function CreateSubRecipeInline({
     } finally {
       setIsSaving(false);
     }
-  }, [form, name, toolDescription, sequentialWhenRepeated, values, existingSubRecipes, onSubRecipeSaved, onClose]);
+  }, [
+    form,
+    name,
+    toolDescription,
+    sequentialWhenRepeated,
+    values,
+    existingSubRecipes,
+    onSubRecipeSaved,
+    onClose,
+  ]);
 
   if (!isOpen) return null;
 

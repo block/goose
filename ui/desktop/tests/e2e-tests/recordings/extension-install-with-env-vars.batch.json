@@ -1,0 +1,16 @@
+[
+  ["wait", "[data-testid='chat-input']", "--timeout", "60000"],
+  ["eval", "window.electron.emit('add-extension', {}, 'goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Use%20up-to-date%20code%20and%20docs&env=TEST_ACCESS_TOKEN')"],
+  ["wait", "--text", "Confirm Extension Installation"],
+  ["find", "role", "button", "click", "--name", "Yes"],
+  ["wait", "--text", "Add custom extension"],
+  ["wait", "--text", "Environment Variables"],
+  ["wait", "--fn", "document.querySelector('[data-testid=\"env-var-key-0\"]')?.value === 'TEST_ACCESS_TOKEN'"],
+  ["wait", "[data-testid='env-var-value-0']"],
+  ["find", "testid", "env-var-value-0", "fill", "test-secret-value-123"],
+  ["wait", "[data-testid='extension-submit-btn']:not([disabled])"],
+  ["scrollintoview", "[data-testid='extension-submit-btn']"],
+  ["find", "testid", "extension-submit-btn", "click"],
+  ["wait", "--text", "Context7"],
+  ["wait", "--text", "Default Extensions (8)"]
+]

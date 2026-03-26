@@ -11,3 +11,6 @@ src/bin/goose-npm/
 src/bin/temporal.db
 # Signing credentials
 .env.signing
+
+tests/e2e-tests/results/
+tests/e2e-tests/results-*/

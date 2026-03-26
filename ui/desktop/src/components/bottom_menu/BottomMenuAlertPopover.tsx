@@ -205,6 +205,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       <div className="relative">
         <button
           ref={triggerRef}
+          data-testid="bottom-menu-alert-dot"
           className="cursor-pointer flex items-center justify-center min-w-5 min-h-5 rounded hover:bg-background-secondary"
           onClick={() => {
             setIsOpen(true);

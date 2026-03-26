@@ -55,7 +55,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606  # v1
 
       - name: Install Dependencies
         run: |
@@ -63,7 +63,7 @@ jobs:
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
 
       - name: Build Binary for Smoke Tests
         run: |
@@ -81,6 +81,40 @@ jobs:
         with:
           name: goosed-binary
           path: target/debug/goosed
+          retention-days: 1
+
+  e2e-desktop-tests:
+    name: E2E Desktop Tests
+    runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606  # v1
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
+
+      - name: Install GNU timeout (if missing)
+        run: command -v timeout || brew install coreutils
+
+      - name: Run E2E Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSE_DISABLE_KEYRING: 1
+          AGENT_BROWSER_DEFAULT_TIMEOUT: 30000
+        run: source bin/activate-hermit && just e2e
+
+      - name: Upload E2E Test Results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: e2e-test-results
+          path: ui/desktop/tests/e2e-tests/results/
           retention-days: 1
 
   smoke-tests:

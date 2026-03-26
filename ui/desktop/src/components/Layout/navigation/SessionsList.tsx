@@ -68,7 +68,9 @@ export const SessionsList: React.FC<SessionsListProps> = ({
               >
                 <div className="w-4 flex-shrink-0" />
                 <Plus className="w-4 h-4 flex-shrink-0 text-text-secondary" />
-                <span className="text-text-primary">Start New Chat</span>
+                <span className="text-text-primary" data-testid="nav-start-new-chat">
+                  Start New Chat
+                </span>
               </div>
             )}
 
@@ -134,7 +136,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
               >
                 <div className="w-4 flex-shrink-0" />
                 <History className="w-4 h-4 flex-shrink-0" />
-                <span>Show All</span>
+                <span data-testid="nav-show-all-sessions">Show All</span>
               </div>
             )}
           </div>

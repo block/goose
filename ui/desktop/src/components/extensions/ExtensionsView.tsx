@@ -113,6 +113,7 @@ export default function ExtensionsView({
             {/* Action Buttons */}
             <div className="flex gap-4 mb-8">
               <Button
+                data-testid="add-custom-extension-btn"
                 className="flex items-center gap-2 justify-center"
                 variant="default"
                 onClick={() => setIsAddModalOpen(true)}
