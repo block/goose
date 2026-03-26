@@ -12,7 +12,7 @@ use super::api_client::ApiClient;
 use super::base::{MessageStream, Provider};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::{stream_idle_timeout, with_stream_idle_timeout, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, response_to_streaming_message};
@@ -240,6 +240,7 @@ pub fn stream_openai_compat(
     let stream = response.bytes_stream().map_err(std::io::Error::other);
 
     Ok(Box::pin(try_stream! {
+        let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);

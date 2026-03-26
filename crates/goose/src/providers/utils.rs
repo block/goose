@@ -4,8 +4,10 @@ use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
+use async_stream::stream;
 use base64::Engine;
 use fs_err::File;
+use futures::Stream;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
@@ -14,8 +16,10 @@ use serde_json::{json, Value};
 use std::fmt::Display;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::OnceLock;
 use std::time::Duration;
+use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -520,10 +524,70 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
     r
 }
 
+/// Default timeout for idle SSE streams: 5 minutes.
+/// If no new SSE line arrives from the server within this duration, the stream
+/// is considered stalled. Configurable via `GOOSE_STREAM_TIMEOUT` env var (in seconds).
+const DEFAULT_STREAM_IDLE_TIMEOUT_SECS: u64 = 300;
+
+/// Returns the stream idle timeout duration, checking the env var once.
+pub fn stream_idle_timeout() -> Duration {
+    static TIMEOUT: OnceLock<Duration> = OnceLock::new();
+    *TIMEOUT.get_or_init(|| {
+        let secs = std::env::var("GOOSE_STREAM_TIMEOUT")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(DEFAULT_STREAM_IDLE_TIMEOUT_SECS);
+        Duration::from_secs(secs)
+    })
+}
+
+/// Wraps the raw response stream with a per-chunk idle timeout.
+///
+/// The timeout resets every time a new chunk arrives from the underlying byte
+/// stream, so slow or fragmented line assembly does not look like provider
+/// inactivity to the timeout layer.
+///
+/// If no new chunk arrives within `timeout_duration`, the stream yields an
+/// error and terminates.
+pub fn with_stream_idle_timeout<S, B>(
+    inner: S,
+    timeout_duration: Duration,
+) -> Pin<Box<dyn Stream<Item = std::io::Result<B>> + Send>>
+where
+    S: Stream<Item = std::io::Result<B>> + Send + 'static,
+    B: Send + 'static,
+{
+    Box::pin(stream! {
+        tokio::pin!(inner);
+        loop {
+            match tokio::time::timeout(timeout_duration, inner.next()).await {
+                Ok(Some(item)) => yield item,
+                Ok(None) => break, // stream ended normally
+                Err(_elapsed) => {
+                    yield Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!(
+                            "Stream stalled: no data received from server for {} seconds. \
+                             Set GOOSE_STREAM_TIMEOUT to adjust (current: {}s).",
+                            timeout_duration.as_secs(),
+                            timeout_duration.as_secs(),
+                        ),
+                    ));
+                    break;
+                }
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::io::Cursor;
+    use tokio_stream::StreamExt;
+    use tokio_util::codec::{FramedRead, LinesCodec};
+    use tokio_util::io::StreamReader;
 
     #[test]
     fn test_detect_image_path() {
@@ -847,5 +911,38 @@ mod tests {
             parse_google_retry_delay(&payload),
             Some(Duration::from_secs(42))
         );
+    }
+
+    #[tokio::test]
+    async fn test_with_stream_idle_timeout_allows_fragmented_line_delivery() {
+        let stream = stream! {
+            yield Ok::<_, std::io::Error>(Cursor::new(b"data: part".to_vec()));
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            yield Ok::<_, std::io::Error>(Cursor::new(b"ial".to_vec()));
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            yield Ok::<_, std::io::Error>(Cursor::new(b"\n".to_vec()));
+        };
+
+        let stream = with_stream_idle_timeout(stream, Duration::from_millis(30));
+        let stream_reader = StreamReader::new(stream);
+        let mut framed = FramedRead::new(stream_reader, LinesCodec::new());
+
+        let line = framed.next().await.unwrap().unwrap();
+        assert_eq!(line, "data: partial");
+    }
+
+    #[tokio::test]
+    async fn test_with_stream_idle_timeout_errors_when_stream_stalls() {
+        let stream = stream! {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            yield Ok::<_, std::io::Error>(Cursor::new(b"late".to_vec()));
+        };
+
+        let mut stream =
+            std::pin::pin!(with_stream_idle_timeout(stream, Duration::from_millis(10)));
+
+        let err = stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::TimedOut);
+        assert!(err.to_string().contains("Stream stalled"));
     }
 }
