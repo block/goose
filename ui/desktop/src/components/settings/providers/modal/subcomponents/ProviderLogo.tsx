@@ -8,6 +8,7 @@ import OpenRouterLogo from './icons/openrouter@3x.png';
 import SnowflakeLogo from './icons/snowflake@3x.png';
 import XaiLogo from './icons/xai@3x.png';
 import MiniMaxLogo from './icons/minimax@3x.png';
+import TanzuLogo from './icons/tanzu@3x.png';
 import DefaultLogo from './icons/default@3x.png';
 
 // Map provider names to their logos
@@ -22,6 +23,7 @@ const providerLogos: Record<string, string> = {
   snowflake: SnowflakeLogo,
   xai: XaiLogo,
   minimax: MiniMaxLogo,
+  tanzu_ai: TanzuLogo,
   default: DefaultLogo,
 };
 
