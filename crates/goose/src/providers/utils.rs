@@ -541,20 +541,21 @@ pub fn stream_idle_timeout() -> Duration {
     })
 }
 
-/// Wraps a stream of SSE lines with a per-item idle timeout.
+/// Wraps the raw response stream with a per-chunk idle timeout.
 ///
-/// The timeout resets every time a new item arrives from the underlying stream.
-/// This measures actual network inactivity (no data from the server), not how
-/// long the downstream parser takes to accumulate and yield parsed messages.
+/// The timeout resets every time a new chunk arrives from the underlying byte
+/// stream, so slow or fragmented line assembly does not look like provider
+/// inactivity to the timeout layer.
 ///
-/// If no new SSE line arrives within `timeout_duration`, the stream yields an
+/// If no new chunk arrives within `timeout_duration`, the stream yields an
 /// error and terminates.
-pub fn with_line_idle_timeout<S>(
+pub fn with_stream_idle_timeout<S, B>(
     inner: S,
     timeout_duration: Duration,
-) -> Pin<Box<dyn Stream<Item = Result<String, anyhow::Error>> + Send>>
+) -> Pin<Box<dyn Stream<Item = std::io::Result<B>> + Send>>
 where
-    S: Stream<Item = Result<String, anyhow::Error>> + Send + 'static,
+    S: Stream<Item = std::io::Result<B>> + Send + 'static,
+    B: Send + 'static,
 {
     Box::pin(stream! {
         tokio::pin!(inner);
@@ -563,11 +564,14 @@ where
                 Ok(Some(item)) => yield item,
                 Ok(None) => break, // stream ended normally
                 Err(_elapsed) => {
-                    yield Err(anyhow::anyhow!(
-                        "Stream stalled: no data received from server for {} seconds. \
-                         Set GOOSE_STREAM_TIMEOUT to adjust (current: {}s).",
-                        timeout_duration.as_secs(),
-                        timeout_duration.as_secs(),
+                    yield Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!(
+                            "Stream stalled: no data received from server for {} seconds. \
+                             Set GOOSE_STREAM_TIMEOUT to adjust (current: {}s).",
+                            timeout_duration.as_secs(),
+                            timeout_duration.as_secs(),
+                        ),
                     ));
                     break;
                 }
@@ -580,6 +584,10 @@ where
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::io::Cursor;
+    use tokio_stream::StreamExt;
+    use tokio_util::codec::{FramedRead, LinesCodec};
+    use tokio_util::io::StreamReader;
 
     #[test]
     fn test_detect_image_path() {
@@ -903,5 +911,38 @@ mod tests {
             parse_google_retry_delay(&payload),
             Some(Duration::from_secs(42))
         );
+    }
+
+    #[tokio::test]
+    async fn test_with_stream_idle_timeout_allows_fragmented_line_delivery() {
+        let stream = stream! {
+            yield Ok::<_, std::io::Error>(Cursor::new(b"data: part".to_vec()));
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            yield Ok::<_, std::io::Error>(Cursor::new(b"ial".to_vec()));
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            yield Ok::<_, std::io::Error>(Cursor::new(b"\n".to_vec()));
+        };
+
+        let stream = with_stream_idle_timeout(stream, Duration::from_millis(30));
+        let stream_reader = StreamReader::new(stream);
+        let mut framed = FramedRead::new(stream_reader, LinesCodec::new());
+
+        let line = framed.next().await.unwrap().unwrap();
+        assert_eq!(line, "data: partial");
+    }
+
+    #[tokio::test]
+    async fn test_with_stream_idle_timeout_errors_when_stream_stalls() {
+        let stream = stream! {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            yield Ok::<_, std::io::Error>(Cursor::new(b"late".to_vec()));
+        };
+
+        let mut stream =
+            std::pin::pin!(with_stream_idle_timeout(stream, Duration::from_millis(10)));
+
+        let err = stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::TimedOut);
+        assert!(err.to_string().contains("Stream stalled"));
     }
 }
