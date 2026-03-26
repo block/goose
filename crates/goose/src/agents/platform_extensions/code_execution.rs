@@ -263,8 +263,7 @@ impl CodeExecutionClient {
             .ok_or("Missing arguments for execute_typescript")?;
 
         let code_mode = self.get_code_mode(session_id).await?;
-        let (registry, content_store) =
-            self.build_callback_registry(session_id, &code_mode)?;
+        let (registry, content_store) = self.build_callback_registry(session_id, &code_mode)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
