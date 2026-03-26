@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Goose CLI built from the `feat/tanzu-ai-provider` branch
+- goose CLI built from the `feat/tanzu-ai-provider` branch
 - A Tanzu AI Services endpoint and API key (single-model or multi-model plan)
 
 ## Locate the CLI Binary
@@ -128,7 +128,7 @@ goose session
 
 ## Quick Curl Verification
 
-Before testing with Goose, you can verify endpoints directly:
+Before testing with goose, you can verify endpoints directly:
 
 ```bash
 # Test models endpoint
