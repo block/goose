@@ -22,11 +22,11 @@ use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
     ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -214,22 +214,11 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
 /// Returns discovered skills, skipping any whose names are already in `seen`.
 fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>) -> Vec<Source> {
     let mut sources = Vec::new();
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return sources,
-    };
-
-    for entry in entries.flatten() {
-        let skill_dir = entry.path();
-        if !skill_dir.is_dir() {
+    let mut visited_dirs = HashSet::new();
+    for skill_file in collect_skill_files(dir, &mut visited_dirs) {
+        let Some(skill_dir) = skill_file.parent() else {
             continue;
-        }
-
-        let skill_file = skill_dir.join("SKILL.md");
-        if !skill_file.exists() {
-            continue;
-        }
-
+        };
         let content = match std::fs::read_to_string(&skill_file) {
             Ok(c) => c,
             Err(e) => {
@@ -238,15 +227,77 @@ fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>
             }
         };
 
-        if let Some(mut source) = parse_skill_content(&content, skill_dir.clone()) {
+        if let Some(mut source) = parse_skill_content(&content, skill_dir.to_path_buf()) {
             if !seen.contains(&source.name) {
-                source.supporting_files = find_supporting_files(&skill_dir, &skill_file);
+                let mut visited_support_dirs = HashSet::new();
+                source.supporting_files =
+                    find_supporting_files(skill_dir, &mut visited_support_dirs);
                 seen.insert(source.name.clone());
                 sources.push(source);
             }
         }
     }
     sources
+}
+
+fn collect_skill_files(dir: &Path, visited_dirs: &mut HashSet<PathBuf>) -> Vec<PathBuf> {
+    let mut skill_files = Vec::new();
+
+    walk_files_recursively(
+        dir,
+        visited_dirs,
+        &mut |path| !should_skip_skill_walk_dir(path),
+        &mut |path| {
+            if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
+                skill_files.push(path.to_path_buf());
+            }
+        },
+    );
+
+    skill_files
+}
+
+fn should_skip_skill_walk_dir(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some(".git") | Some(".hg") | Some(".svn")
+    )
+}
+
+fn walk_files_recursively<F, G>(
+    dir: &Path,
+    visited_dirs: &mut HashSet<PathBuf>,
+    should_descend: &mut G,
+    visit_file: &mut F,
+) where
+    F: FnMut(&Path),
+    G: FnMut(&Path) -> bool,
+{
+    let canonical_dir = match std::fs::canonicalize(dir) {
+        Ok(path) => path,
+        Err(_) => return,
+    };
+
+    if !visited_dirs.insert(canonical_dir) {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_dir() {
+            if should_descend(&path) {
+                walk_files_recursively(&path, visited_dirs, should_descend, visit_file);
+            }
+        } else if path.is_file() {
+            visit_file(&path);
+        }
+    }
 }
 
 fn scan_recipes_from_dir(
@@ -427,29 +478,26 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     sources
 }
 
-/// Collect all files in a skill directory (excluding SKILL.md itself),
-/// recursing one level into subdirectories.
-fn find_supporting_files(directory: &Path, skill_file: &Path) -> Vec<PathBuf> {
+/// Collect all files in a skill directory recursively, excluding SKILL.md itself.
+fn find_supporting_files(directory: &Path, visited_dirs: &mut HashSet<PathBuf>) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    let entries = match std::fs::read_dir(directory) {
-        Ok(e) => e,
-        Err(_) => return files,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() && path != skill_file {
-            files.push(path);
-        } else if path.is_dir() {
-            if let Ok(sub_entries) = std::fs::read_dir(&path) {
-                for sub_entry in sub_entries.flatten() {
-                    let sub_path = sub_entry.path();
-                    if sub_path.is_file() {
-                        files.push(sub_path);
-                    }
-                }
+
+    walk_files_recursively(
+        directory,
+        visited_dirs,
+        &mut |path| !should_skip_skill_walk_dir(path) && !path.join("SKILL.md").is_file(),
+        &mut |path| {
+            let is_skill_md = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n == "SKILL.md")
+                .unwrap_or(false);
+            if !is_skill_md {
+                files.push(path.to_path_buf());
             }
-        }
-    }
+        },
+    );
+
     files
 }
 
@@ -471,9 +519,8 @@ fn current_epoch_millis() -> u64 {
 
 /// Get maximum number of concurrent background tasks
 fn max_background_tasks() -> usize {
-    std::env::var("GOOSE_MAX_BACKGROUND_TASKS")
-        .ok()
-        .and_then(|v| v.parse().ok())
+    Config::global()
+        .get_param::<usize>("GOOSE_MAX_BACKGROUND_TASKS")
         .unwrap_or(5)
 }
 
@@ -858,7 +905,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<CallToolResult, String> {
         self.cleanup_completed_tasks().await;
 
         let source_name = arguments
@@ -875,17 +922,27 @@ impl SummonClient {
         let working_dir = self.get_working_dir(session_id).await;
 
         if source_name.is_none() {
-            return self.handle_load_discovery(session_id, &working_dir).await;
+            return self
+                .handle_load_discovery(session_id, &working_dir)
+                .await
+                .map(CallToolResult::success);
         }
 
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            return self.handle_load_task_result(name, cancel).await;
+            let content = self.handle_load_task_result(name, cancel).await?;
+            let mut meta = Meta::new();
+            meta.0.insert(
+                "subagent_session_id".to_string(),
+                serde_json::Value::String(name.to_string()),
+            );
+            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
         }
 
         self.handle_load_source(session_id, name, &working_dir)
             .await
+            .map(CallToolResult::success)
     }
 
     async fn handle_load_task_result(
@@ -1198,7 +1255,7 @@ impl SummonClient {
         session_id: &str,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<CallToolResult, String> {
         self.cleanup_completed_tasks().await;
 
         let params: DelegateParams = arguments
@@ -1230,7 +1287,13 @@ impl SummonClient {
         }
 
         if params.r#async {
-            return self.handle_async_delegate(session_id, params).await;
+            let (content, task_id) = self.handle_async_delegate(session_id, params).await?;
+            let mut meta = Meta::new();
+            meta.0.insert(
+                "subagent_session_id".to_string(),
+                serde_json::Value::String(task_id),
+            );
+            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
         }
 
         let working_dir = session.working_dir.clone();
@@ -1274,6 +1337,8 @@ impl SummonClient {
             Arc::new(Mutex::new(Vec::new())),
         );
 
+        let subagent_session_id = subagent_session.id.clone();
+
         let result = run_subagent_task(SubagentRunParams {
             config: agent_config,
             recipe,
@@ -1284,10 +1349,24 @@ impl SummonClient {
             on_message: None,
             notification_tx: Some(notif_tx),
         })
-        .await
-        .map_err(|e| format!("Delegation failed: {}", e))?;
+        .await;
 
-        Ok(vec![Content::text(result)])
+        let mut meta = Meta::new();
+        meta.0.insert(
+            "subagent_session_id".to_string(),
+            serde_json::Value::String(subagent_session_id),
+        );
+
+        match result {
+            Ok(text) => {
+                Ok(CallToolResult::success(vec![Content::text(text)]).with_meta(Some(meta)))
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Delegation failed: {}",
+                e
+            ))])
+            .with_meta(Some(meta))),
+        }
     }
 
     fn validate_delegate_params(&self, params: &DelegateParams) -> Result<(), String> {
@@ -1679,7 +1758,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         params: DelegateParams,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<(Vec<Content>, String), String> {
         let task_count = self.background_tasks.lock().await.len();
         let max_tasks = max_background_tasks();
         if task_count >= max_tasks {
@@ -1787,11 +1866,12 @@ impl SummonClient {
             .await
             .insert(task_id.clone(), task);
 
-        Ok(vec![Content::text(format!(
+        let content = vec![Content::text(format!(
             "Task {} started in background: \"{}\"\n\
              Continue with other work. When you need the result, use load(source: \"{}\").",
             task_id, description, task_id
-        ))])
+        ))];
+        Ok((content, task_id))
     }
 }
 
@@ -1834,20 +1914,29 @@ impl McpClientTrait for SummonClient {
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let session_id = &ctx.session_id;
-        let content = match name {
-            "load" => self.handle_load(session_id, arguments).await,
+        match name {
+            "load" => match self.handle_load(session_id, arguments).await {
+                Ok(result) => Ok(result),
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {}",
+                    error
+                ))])),
+            },
             "delegate" => {
-                self.handle_delegate(session_id, arguments, cancellation_token)
+                match self
+                    .handle_delegate(session_id, arguments, cancellation_token)
                     .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                        "Error: {}",
+                        error
+                    ))])),
+                }
             }
-            _ => Err(format!("Unknown tool: {}", name)),
-        };
-
-        match content {
-            Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: {}",
-                error
+            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error: Unknown tool: {}",
+                name
             ))])),
         }
     }
@@ -2009,22 +2098,26 @@ You review code."#;
         let temp_dir = TempDir::new().unwrap();
 
         let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
-        fs::create_dir_all(&skill_dir).unwrap();
+        fs::create_dir_all(skill_dir.join("templates/nested")).unwrap();
         fs::write(
             skill_dir.join("SKILL.md"),
             "---\nname: my-skill\ndescription: A skill with scripts\n---\nRun check_all.sh",
         )
         .unwrap();
         fs::write(skill_dir.join("myscript.sh"), "#!/bin/bash\necho ok").unwrap();
-        fs::create_dir(skill_dir.join("templates")).unwrap();
         fs::write(skill_dir.join("templates/report.txt"), "template content").unwrap();
+        fs::write(
+            skill_dir.join("templates/nested/checklist.txt"),
+            "nested template content",
+        )
+        .unwrap();
 
         let client = SummonClient::new(create_test_context()).unwrap();
         let sources = client.discover_filesystem_sources(temp_dir.path());
 
         let skill = sources.iter().find(|s| s.name == "my-skill").unwrap();
         assert_eq!(skill.path, skill_dir);
-        assert_eq!(skill.supporting_files.len(), 2);
+        assert_eq!(skill.supporting_files.len(), 3);
 
         let file_names: Vec<String> = skill
             .supporting_files
@@ -2033,6 +2126,167 @@ You review code."#;
             .collect();
         assert!(file_names.contains(&"myscript.sh".to_string()));
         assert!(file_names.contains(&"report.txt".to_string()));
+        assert!(file_names.contains(&"checklist.txt".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_nested_claude_catalog_skills_discovered() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let root_skill_file = temp_dir.path().join(".claude/skills/SKILL.md");
+        fs::create_dir_all(root_skill_file.parent().unwrap()).unwrap();
+        fs::write(
+            &root_skill_file,
+            "---\nname: root-skill\ndescription: Root level skill\n---\nRoot content",
+        )
+        .unwrap();
+
+        let nested_skill_dir = temp_dir.path().join(".claude/skills/catalog/internal/ai");
+        fs::create_dir_all(&nested_skill_dir).unwrap();
+        fs::write(
+            nested_skill_dir.join("SKILL.md"),
+            "---\nname: nested-skill\ndescription: Nested catalog skill\n---\nNested content",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let root_skill = sources.iter().find(|s| s.name == "root-skill").unwrap();
+        assert_eq!(root_skill.path, temp_dir.path().join(".claude/skills"));
+
+        let nested_skill = sources.iter().find(|s| s.name == "nested-skill").unwrap();
+        assert_eq!(nested_skill.path, nested_skill_dir);
+    }
+
+    #[tokio::test]
+    async fn test_root_skill_supporting_files_exclude_nested_skill_subtrees() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let root_skill_dir = temp_dir.path().join(".claude/skills");
+        fs::create_dir_all(&root_skill_dir).unwrap();
+        fs::write(
+            root_skill_dir.join("SKILL.md"),
+            "---\nname: root-skill\ndescription: Root level skill\n---\nRoot content",
+        )
+        .unwrap();
+        fs::write(root_skill_dir.join("README.md"), "root readme").unwrap();
+
+        let nested_skill_dir = root_skill_dir.join("catalog/internal/ai");
+        fs::create_dir_all(&nested_skill_dir).unwrap();
+        fs::write(
+            nested_skill_dir.join("SKILL.md"),
+            "---\nname: nested-skill\ndescription: Nested catalog skill\n---\nNested content",
+        )
+        .unwrap();
+        fs::write(nested_skill_dir.join("notes.md"), "nested notes").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let root_skill = sources.iter().find(|s| s.name == "root-skill").unwrap();
+        assert!(root_skill
+            .supporting_files
+            .contains(&root_skill_dir.join("README.md")));
+        assert!(!root_skill
+            .supporting_files
+            .contains(&nested_skill_dir.join("SKILL.md")));
+        assert!(!root_skill
+            .supporting_files
+            .contains(&nested_skill_dir.join("notes.md")));
+    }
+
+    #[tokio::test]
+    async fn test_skill_discovery_preserves_dot_prefixed_paths() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let dot_skill_dir = temp_dir.path().join(".claude/skills/.team");
+        fs::create_dir_all(&dot_skill_dir).unwrap();
+        fs::write(
+            dot_skill_dir.join("SKILL.md"),
+            "---\nname: team-skill\ndescription: Dot skill\n---\nTeam content",
+        )
+        .unwrap();
+        fs::write(dot_skill_dir.join(".env.example"), "EXAMPLE=1").unwrap();
+
+        let git_skill_dir = temp_dir.path().join(".claude/skills/.git/hidden-skill");
+        fs::create_dir_all(&git_skill_dir).unwrap();
+        fs::write(
+            git_skill_dir.join("SKILL.md"),
+            "---\nname: hidden-git-skill\ndescription: Hidden git skill\n---\nHidden content",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let dot_skill = sources.iter().find(|s| s.name == "team-skill").unwrap();
+        assert_eq!(dot_skill.path, dot_skill_dir);
+        assert!(dot_skill
+            .supporting_files
+            .contains(&dot_skill_dir.join(".env.example")));
+        assert!(!sources.iter().any(|s| s.name == "hidden-git-skill"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_symlinked_skill_directory_is_discovered() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let shared_skill_dir = temp_dir.path().join("shared-skills/ai");
+        fs::create_dir_all(&shared_skill_dir).unwrap();
+        fs::write(
+            shared_skill_dir.join("SKILL.md"),
+            "---\nname: shared-ai\ndescription: Shared skill\n---\nShared content",
+        )
+        .unwrap();
+        fs::write(shared_skill_dir.join("notes.md"), "shared notes").unwrap();
+
+        let linked_catalog_dir = temp_dir.path().join(".claude/skills/catalog/internal");
+        fs::create_dir_all(&linked_catalog_dir).unwrap();
+        std::os::unix::fs::symlink(&shared_skill_dir, linked_catalog_dir.join("ai")).unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let skill = sources.iter().find(|s| s.name == "shared-ai").unwrap();
+        assert_eq!(skill.path, linked_catalog_dir.join("ai"));
+        assert!(skill
+            .supporting_files
+            .contains(&linked_catalog_dir.join("ai/notes.md")));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_skill_discovery_avoids_symlink_cycles() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("refs")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill with a loop\n---\nLoop safe",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("refs/guide.md"), "guide content").unwrap();
+        std::os::unix::fs::symlink(&skill_dir, skill_dir.join("refs/loop")).unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let skill = sources.iter().find(|s| s.name == "my-skill").unwrap();
+        assert_eq!(skill.path, skill_dir);
+        assert!(skill
+            .supporting_files
+            .contains(&skill_dir.join("refs/guide.md")));
+        assert_eq!(
+            skill
+                .supporting_files
+                .iter()
+                .filter(|path| *path == &skill_dir.join("refs/guide.md"))
+                .count(),
+            1
+        );
     }
 
     #[tokio::test]

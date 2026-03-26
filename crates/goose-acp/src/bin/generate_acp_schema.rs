@@ -17,15 +17,10 @@ fn main() {
         .map(|(k, v)| (k, serde_json::to_value(v).unwrap_or(json!({}))))
         .collect();
 
-    // Strip the `_goose/` prefix to get the bare method name for x-method.
-    fn bare_method(full: &str) -> &str {
-        full.strip_prefix("_goose/").unwrap_or(full)
-    }
-
     // Track which types map to which methods so we can detect shared types.
     let mut type_methods: HashMap<String, Vec<String>> = HashMap::new();
     for m in &methods {
-        let method = bare_method(&m.method).to_string();
+        let method = m.method.clone();
         if let Some(name) = &m.params_type_name {
             type_methods
                 .entry(name.clone())
@@ -172,7 +167,7 @@ fn main() {
         .iter()
         .map(|m| {
             json!({
-                "method": bare_method(&m.method),
+                "method": &m.method,
                 "requestType": m.params_type_name,
                 "responseType": m.response_type_name,
             })

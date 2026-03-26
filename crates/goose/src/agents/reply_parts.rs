@@ -96,7 +96,7 @@ fn try_coerce_boolean(s: &str) -> Value {
     }
 }
 
-fn coerce_tool_arguments(
+pub(crate) fn coerce_tool_arguments(
     arguments: Option<serde_json::Map<String, Value>>,
     tool_schema: &Value,
 ) -> Option<serde_json::Map<String, Value>> {
@@ -154,6 +154,7 @@ impl Agent {
             .await;
         #[cfg(not(feature = "code-mode"))]
         let code_execution_active = false;
+        #[cfg(feature = "code-mode")]
         if code_execution_active {
             let disclosure_style =
                 crate::agents::platform_extensions::code_execution::get_tool_disclosure();
@@ -200,6 +201,10 @@ impl Agent {
                 })
                 .collect();
         }
+
+        // Filter out tools not visible to the model per MCP Apps visibility spec.
+        // Tools with `_meta.ui.visibility` that doesn't include "model" are app-only.
+        tools.retain(is_tool_visible_to_model);
 
         // Stable tool ordering is important for multi session prompt caching.
         tools.sort_by(|a, b| a.name.cmp(&b.name));
@@ -470,6 +475,48 @@ impl Agent {
     }
 }
 
+/// Check whether a tool should be callable by an app based on MCP Apps visibility metadata.
+///
+/// Per the MCP Apps spec (2026-01-26), if `_meta.ui.visibility` is present and does not
+/// include `"app"`, the tool is model-only and must not be callable by app UIs.
+/// If the field is absent, the tool defaults to visible to both model and app.
+pub fn is_tool_visible_to_app(tool: &Tool) -> bool {
+    let Some(meta) = &tool.meta else {
+        return true;
+    };
+    let Some(ui) = meta.0.get("ui") else {
+        return true;
+    };
+    let Some(visibility) = ui.get("visibility") else {
+        return true;
+    };
+    let Some(arr) = visibility.as_array() else {
+        return true;
+    };
+    arr.iter().any(|v| v.as_str() == Some("app"))
+}
+
+/// Check whether a tool should be visible to the model based on MCP Apps visibility metadata.
+///
+/// Per the MCP Apps spec (2026-01-26), tools may declare `_meta.ui.visibility` as an array
+/// of `"model"` and/or `"app"`. If the field is absent, the tool defaults to visible to both.
+/// If present and does not include `"model"`, the tool is app-only and must not be sent to the LLM.
+pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
+    let Some(meta) = &tool.meta else {
+        return true;
+    };
+    let Some(ui) = meta.0.get("ui") else {
+        return true;
+    };
+    let Some(visibility) = ui.get("visibility") else {
+        return true;
+    };
+    let Some(arr) = visibility.as_array() else {
+        return true;
+    };
+    arr.iter().any(|v| v.as_str() == Some("model"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -613,5 +660,98 @@ mod tests {
             error_seen,
             "Error should have been propagated, not silently ignored"
         );
+    }
+
+    fn make_tool_with_meta(meta_json: Option<serde_json::Value>) -> Tool {
+        let mut tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }));
+        if let Some(v) = meta_json {
+            let obj = v.as_object().unwrap().clone();
+            tool = tool.with_meta(rmcp::model::Meta(obj));
+        }
+        tool
+    }
+
+    #[test]
+    fn test_tool_visible_when_no_meta() {
+        let tool = make_tool_with_meta(None);
+        assert!(is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_visible_when_meta_has_no_ui() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"other": "stuff"})));
+        assert!(is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_visible_when_ui_has_no_visibility() {
+        let tool = make_tool_with_meta(Some(
+            serde_json::json!({"ui": {"resourceUri": "ui://foo/bar"}}),
+        ));
+        assert!(is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_visible_when_visibility_includes_model() {
+        let tool = make_tool_with_meta(Some(
+            serde_json::json!({"ui": {"visibility": ["model", "app"]}}),
+        ));
+        assert!(is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_visible_when_visibility_is_model_only() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": ["model"]}})));
+        assert!(is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_hidden_when_visibility_is_app_only() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": ["app"]}})));
+        assert!(!is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_hidden_when_visibility_is_empty() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": []}})));
+        assert!(!is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_tool_visible_when_visibility_is_not_array() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": "model"}})));
+        assert!(is_tool_visible_to_model(&tool));
+    }
+
+    #[test]
+    fn test_app_visible_when_no_meta() {
+        let tool = make_tool_with_meta(None);
+        assert!(is_tool_visible_to_app(&tool));
+    }
+
+    #[test]
+    fn test_app_visible_when_visibility_includes_app() {
+        let tool = make_tool_with_meta(Some(
+            serde_json::json!({"ui": {"visibility": ["model", "app"]}}),
+        ));
+        assert!(is_tool_visible_to_app(&tool));
+    }
+
+    #[test]
+    fn test_app_visible_when_visibility_is_app_only() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": ["app"]}})));
+        assert!(is_tool_visible_to_app(&tool));
+    }
+
+    #[test]
+    fn test_app_hidden_when_visibility_is_model_only() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": ["model"]}})));
+        assert!(!is_tool_visible_to_app(&tool));
+    }
+
+    #[test]
+    fn test_app_hidden_when_visibility_is_empty() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": []}})));
+        assert!(!is_tool_visible_to_app(&tool));
     }
 }

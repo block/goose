@@ -15,7 +15,6 @@ export default function ResetProviderSection(_props: ResetProviderSectionProps) 
       await remove('GOOSE_PROVIDER', false);
       await remove('GOOSE_MODEL', false);
 
-      // Refresh the page to trigger the ProviderGuard check
       window.location.reload();
     } catch (error) {
       console.error('Failed to reset provider and model:', error);

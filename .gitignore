@@ -24,7 +24,7 @@ target/
 *.pdb
 
 # UI
-./ui/desktop/node_modules
+node_modules
 ./ui/desktop/out
 
 # Generated goose DLLs (built at build time, not checked in)
@@ -41,7 +41,6 @@ debug_*.txt
 
 # Docs
 # Dependencies
-/node_modules
 
 # Production
 /build
