@@ -8,6 +8,7 @@ import { trackSettingToggled } from '../../../utils/analytics';
 import { LocalModelManager } from './LocalModelManager';
 import { MicrophoneSelector } from './MicrophoneSelector';
 import { DICTATION_ALLOWED_PROVIDERS } from '../../../updates';
+import { useFeatures } from '../../../contexts/FeaturesContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,7 @@ import {
 } from '../../ui/dropdown-menu';
 
 export const DictationSettings = () => {
+  const { localInference, isLoading: isFeaturesLoading } = useFeatures();
   const [provider, setProvider] = useState<DictationProvider | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatus>>(
     {}
@@ -32,6 +34,8 @@ export const DictationSettings = () => {
   };
 
   useEffect(() => {
+    if (isFeaturesLoading) return;
+
     const loadSettings = async () => {
       const providerValue = await read('voice_dictation_provider', false);
       let loadedProvider: DictationProvider | null = (providerValue as DictationProvider) || null;
@@ -45,6 +49,11 @@ export const DictationSettings = () => {
         await upsert('voice_dictation_provider', '', false);
       }
 
+      if (!localInference && loadedProvider === 'local') {
+        loadedProvider = null;
+        await upsert('voice_dictation_provider', '', false);
+      }
+
       setProvider(loadedProvider);
 
       const micValue = await read('voice_dictation_preferred_mic', false);
@@ -54,7 +63,7 @@ export const DictationSettings = () => {
     };
 
     loadSettings();
-  }, [read, upsert]);
+  }, [read, upsert, localInference, isFeaturesLoading]);
 
   const handleProviderChange = (value: string) => {
     const newProvider = value === 'disabled' ? null : (value as DictationProvider);

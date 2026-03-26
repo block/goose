@@ -65,6 +65,7 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
+    skip_canonical_filtering: bool,
 }
 
 impl OpenAiProvider {
@@ -126,6 +127,7 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            skip_canonical_filtering: false,
         })
     }
 
@@ -140,6 +142,7 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            skip_canonical_filtering: false,
         }
     }
 
@@ -218,6 +221,7 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            skip_canonical_filtering: config.skip_canonical_filtering,
         })
     }
 
@@ -369,6 +373,10 @@ impl ProviderDef for OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn skip_canonical_filtering(&self) -> bool {
+        self.skip_canonical_filtering
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -627,6 +635,7 @@ mod tests {
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),
+            skip_canonical_filtering: false,
         }
     }
 

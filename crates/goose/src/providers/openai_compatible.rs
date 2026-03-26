@@ -248,7 +248,8 @@ pub fn stream_openai_compat(
         pin!(message_stream);
         while let Some(message) = message_stream.next().await {
             let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+                e.downcast::<ProviderError>()
+                    .unwrap_or_else(|e| ProviderError::RequestFailed(format!("Stream decode error: {e}")))
             )?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
