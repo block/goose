@@ -17,7 +17,6 @@ on:
       - 'crates/goose-acp/**'
       - 'ui/acp/**'
       - '.github/workflows/publish-npm.yml'
-      - '.github/workflows/build-native-packages.yml'
   workflow_dispatch:
     inputs:
       dry-run:
@@ -25,6 +24,11 @@ on:
         required: false
         type: boolean
         default: true
+      skip-cache:
+        description: 'Skip cache and rebuild everything'
+        required: false
+        type: boolean
+        default: false
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -34,14 +38,163 @@ permissions:
   id-token: write  # Required for npm provenance
 
 jobs:
-  build-native:
-    name: Build native binaries
-    uses: ./.github/workflows/build-native-packages.yml
-
-  release:
-    name: Release
+  # Generate ACP TypeScript schema first - this is needed before building npm packages
+  generate-schema:
+    name: Generate ACP Schema
     runs-on: ubuntu-latest
-    needs: build-native
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Generate cache key
+        id: cache-key
+        run: |
+          # Create a cache key based on ACP crate files
+          HASH=$(find crates/goose-acp -type f -name "*.rs" -o -name "Cargo.toml" | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          echo "key=acp-schema-$HASH" >> "$GITHUB_OUTPUT"
+          echo "Generated cache key: acp-schema-$HASH"
+
+      - name: Check cache
+        id: cache
+        if: inputs.skip-cache != true
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: |
+            crates/goose-acp/acp-schema.json
+            crates/goose-acp/acp-meta.json
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Setup Rust
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+
+      - name: Setup Rust cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+
+      - name: Build and run generate-acp-schema
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cargo build --release --bin generate-acp-schema
+          cargo run --release --bin generate-acp-schema
+        working-directory: crates/goose-acp
+
+      - name: Upload schema artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: acp-schema
+          path: |
+            crates/goose-acp/acp-schema.json
+            crates/goose-acp/acp-meta.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # Build goose binaries for all platforms
+  build-goose-binaries:
+    name: Build goose (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - platform: darwin-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - platform: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - platform: linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - platform: win32-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    outputs:
+      cache-key-base: ${{ steps.cache-key.outputs.key-base }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Generate cache key
+        id: cache-key
+        run: |
+          # Create a cache key based on Rust source files
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            HASH=$(find crates -type f -name "*.rs" -o -name "Cargo.toml" -o -name "Cargo.lock" | sort | sha256sum | cut -d' ' -f1)
+          else
+            HASH=$(find crates -type f \( -name "*.rs" -o -name "Cargo.toml" -o -name "Cargo.lock" \) | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          fi
+          echo "key-base=goose-binary-$HASH" >> "$GITHUB_OUTPUT"
+          echo "key=goose-binary-$HASH-${{ matrix.platform }}" >> "$GITHUB_OUTPUT"
+          echo "Generated cache key: goose-binary-$HASH-${{ matrix.platform }}"
+        shell: bash
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Add Intel target for cross-compilation (macOS ARM64 → x86_64)
+        if: matrix.platform == 'darwin-x64'
+        run: rustup target add x86_64-apple-darwin
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.platform == 'linux-arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          key: ${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Check binary cache
+        id: binary-cache
+        if: inputs.skip-cache != true
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: |
+            target/${{ matrix.target }}/release/goose${{ matrix.platform == 'win32-x64' && '.exe' || '' }}
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Build goose binary
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        run: cargo build --release --target ${{ matrix.target }} --bin goose
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p artifact/bin
+          cp target/${{ matrix.target }}/release/goose artifact/bin/
+          chmod +x artifact/bin/goose
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p artifact/bin
+          cp target/${{ matrix.target }}/release/goose.exe artifact/bin/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: goose-${{ matrix.platform }}
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Publish to npm
+  release:
+    name: Release to npm
+    runs-on: ubuntu-latest
+    needs: [generate-schema, build-goose-binaries]
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -57,60 +210,73 @@ jobs:
         with:
           version: 10.30.3
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
-
-      - name: Download native binaries
+      - name: Download ACP schema
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: ${{ needs.build-native.outputs.artifact-name }}
-          path: native-binaries
+          name: acp-schema
+          path: crates/goose-acp
+
+      - name: Download goose binaries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: goose-*
+          path: goose-binaries
 
       - name: List downloaded artifacts (debug)
         run: |
-          echo "Downloaded artifact structure:"
-          ls -R native-binaries/
-
-      - name: Copy binaries to package directories
-        run: |
-          for platform_dir in native-binaries/goose-acp-server-*; do
-            platform=$(basename "$platform_dir")
-            pkg_dir="ui/goose-acp-server/${platform}"
-            
-            echo "Copying binaries for ${platform}..."
-            mkdir -p "${pkg_dir}/bin"
-            cp -v "${platform_dir}/bin/"* "${pkg_dir}/bin/"
-            chmod +x "${pkg_dir}/bin/"*
-          done
-
+          echo "Downloaded ACP schema:"
+          ls -lh crates/goose-acp/acp-*.json
           echo ""
-          echo "Verification - copied binaries:"
-          ls -lh ui/goose-acp-server/*/bin/
+          echo "Downloaded goose binaries:"
+          ls -R goose-binaries/
 
       - name: Install dependencies
         run: |
           cd ui
           pnpm install --frozen-lockfile
 
+      - name: Generate TypeScript types from schema
+        run: |
+          cd ui/acp
+          # The schema JSON files are already downloaded, just generate TS types
+          # This only runs the TypeScript generation part, no Rust compilation
+          npx tsx generate-schema.ts
+
       - name: Build packages
         run: |
           cd ui/acp
-          pnpm run build
+          # Build only TypeScript, schema is already generated
+          pnpm run build:ts
           
           cd ../text
           pnpm run build
 
-      - name: Dry run summary
+      - name: Prepare summary
+        run: |
+          {
+            echo "## 📦 Build Summary"
+            echo ""
+            echo "### ACP Schema"
+            echo "✅ Generated and cached"
+            echo ""
+            echo "### Goose Binaries"
+            echo "✅ Built for all platforms:"
+            for dir in goose-binaries/goose-*; do
+              platform=$(basename "$dir" | sed 's/goose-//')
+              echo "  - $platform"
+            done
+            echo ""
+            echo "### npm Packages"
+            echo "✅ @aaif/goose-acp"
+            echo "✅ @aaif/goose-text"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dry run notice
         if: inputs.dry-run == true || github.ref != 'refs/heads/main'
         run: |
           {
             echo "## 🧪 Dry Run Mode"
-            echo ""
-            echo "✅ Native binaries downloaded and copied successfully"
-            echo "✅ Packages built successfully"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.ref }}" != "refs/heads/main" ]; then
@@ -132,7 +298,7 @@ jobs:
       - name: Create Release Pull Request or Publish to npm
         if: inputs.dry-run != true && github.ref == 'refs/heads/main'
         id: changesets
-        uses: changesets/action@6d3568c53fbe1db6c1f9ab1c7fbf9092bc18627f # v1
+        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
         with:
           publish: pnpm run release
           version: pnpm run version
@@ -144,11 +310,11 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
-      - name: Summary
+      - name: Publish summary
         if: steps.changesets.outputs.published == 'true' && inputs.dry-run != true && github.ref == 'refs/heads/main'
         run: |
           {
-            echo "## Published Packages"
+            echo "## 🚀 Published Packages"
             echo ""
             echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | "- \(.name)@\(.version)"'
           } >> "$GITHUB_STEP_SUMMARY"

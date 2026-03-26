@@ -281,7 +281,9 @@ export default function ProviderConfigurationModal({
                       : `Sign in with ${provider.metadata.display_name}`}
                   </Button>
                   <p className="text-sm text-text-secondary text-center">
-                    A browser window will open for you to complete the login.
+                    {provider.metadata.config_keys.some((key) => key.device_code_flow)
+                      ? 'A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in.'
+                      : 'A browser window will open for you to complete the login.'}
                   </p>
                 </div>
               ) : provider.metadata.config_keys.length === 0 &&

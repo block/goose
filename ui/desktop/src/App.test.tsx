@@ -61,10 +61,6 @@ vi.mock('./sessions', () => ({
   generateSessionId: vi.fn(),
 }));
 
-vi.mock('./utils/openRouterSetup', () => ({
-  startOpenRouterSetup: vi.fn().mockResolvedValue({ success: false, message: 'Test' }),
-}));
-
 // Mock the ConfigContext module
 vi.mock('./components/ConfigContext', () => ({
   useConfig: () => ({
@@ -81,19 +77,6 @@ vi.mock('./components/ConfigContext', () => ({
 // Mock other components to simplify testing
 vi.mock('./components/ErrorBoundary', () => ({
   ErrorUI: ({ error }: { error: Error }) => <div>Error: {error.message}</div>,
-}));
-
-// Mock ProviderGuard to show the welcome screen when no provider is configured
-vi.mock('./components/ProviderGuard', () => ({
-  default: ({ children }: { children: React.ReactNode }) => {
-    // In a real app, ProviderGuard would check for provider and show welcome screen
-    // For this test, we'll simulate that behavior
-    const hasProvider = window.electron?.getConfig()?.GOOSE_DEFAULT_PROVIDER;
-    if (!hasProvider) {
-      return <div>Welcome to Goose!</div>;
-    }
-    return <>{children}</>;
-  },
 }));
 
 vi.mock('./components/ModelAndProviderContext', () => ({
