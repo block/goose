@@ -298,7 +298,7 @@ jobs:
       - name: Create Release Pull Request or Publish to npm
         if: inputs.dry-run != true && github.ref == 'refs/heads/main'
         id: changesets
-        uses: changesets/action@6d3568c53fbe1db6c1f9ab1c7fbf9092bc18627f # v1
+        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
         with:
           publish: pnpm run release
           version: pnpm run version

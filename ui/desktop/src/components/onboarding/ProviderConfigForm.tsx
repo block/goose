@@ -56,6 +56,8 @@ function OAuthForm({
     }
   };
 
+  const isDeviceCodeFlow = provider.metadata.config_keys.some((key) => key.device_code_flow);
+
   return (
     <div className="flex flex-col items-center gap-3 py-4">
       <Button
@@ -68,7 +70,9 @@ function OAuthForm({
         {isLoading ? 'Signing in...' : `Sign in with ${provider.metadata.display_name}`}
       </Button>
       <p className="text-xs text-text-muted text-center">
-        A browser window will open for you to complete the login.
+        {isDeviceCodeFlow
+          ? 'A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in.'
+          : 'A browser window will open for you to complete the login.'}
       </p>
     </div>
   );
