@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::builtin_extension::register_builtin_extensions;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
@@ -356,6 +356,7 @@ async fn get_or_create_session_id(
     identifier: Option<Identifier>,
     resume: bool,
     no_session: bool,
+    goose_mode: GooseMode,
 ) -> Result<Option<String>> {
     if no_session {
         return Ok(None);
@@ -399,6 +400,7 @@ async fn get_or_create_session_id(
                     std::env::current_dir()?,
                     "CLI Session".to_string(),
                     SessionType::User,
+                    goose_mode,
                 )
                 .await?;
             return Ok(Some(session.id));
@@ -411,7 +413,12 @@ async fn get_or_create_session_id(
         let has_user_provided_name = id.name.is_some();
         let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
         let session = session_manager
-            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+            .create_session(
+                std::env::current_dir()?,
+                name.clone(),
+                SessionType::User,
+                goose_mode,
+            )
             .await?;
 
         if has_user_provided_name {
@@ -858,6 +865,7 @@ enum Command {
         command: TermCommand,
     },
     /// Manage local inference models
+    #[cfg(feature = "local-inference")]
     #[command(about = "Manage local inference models", visible_alias = "lm")]
     LocalModels {
         #[command(subcommand)]
@@ -885,6 +893,7 @@ enum Command {
     },
 }
 
+#[cfg(feature = "local-inference")]
 #[derive(Subcommand)]
 enum LocalModelsCommand {
     /// Search HuggingFace for GGUF models
@@ -1006,6 +1015,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Update { .. }) => "update",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Term { .. }) => "term",
+        #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
         Some(Command::ValidateExtensions { .. }) => "validate-extensions",
@@ -1129,7 +1139,8 @@ async fn handle_interactive_session(
         }
     }
 
-    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
     if fork {
         if let Some(id) = session_id {
@@ -1342,8 +1353,14 @@ async fn handle_run_command(
         }
     }
 
-    let session_id =
-        get_or_create_session_id(identifier, run_behavior.resume, run_behavior.no_session).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let session_id = get_or_create_session_id(
+        identifier,
+        run_behavior.resume,
+        run_behavior.no_session,
+        goose_mode,
+    )
+    .await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1459,6 +1476,7 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
     }
 }
 
+#[cfg(feature = "local-inference")]
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::{
@@ -1629,7 +1647,8 @@ async fn handle_default_session() -> Result<()> {
         configure_telemetry_consent_dialog()?;
     }
 
-    let session_id = get_or_create_session_id(None, false, false).await?;
+    let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let session_id = get_or_create_session_id(None, false, false, goose_mode).await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1744,6 +1763,7 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
         Some(Command::ValidateExtensions { file }) => {
             use goose::agents::validate_extensions::validate_bundled_extensions;

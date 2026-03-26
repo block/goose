@@ -1,7 +1,9 @@
+#[cfg(windows)]
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
@@ -53,44 +55,59 @@ pub struct ShellOutput {
 /// source the user's profile and recover the full PATH.
 #[cfg(not(windows))]
 fn resolve_login_shell_path() -> Option<String> {
-    let shell = if PathBuf::from("/bin/bash").is_file() {
-        "/bin/bash".to_string()
-    } else {
-        std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
-    };
+    let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| {
+        if PathBuf::from("/bin/bash").is_file() {
+            "/bin/bash".to_string()
+        } else {
+            std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
+        }
+    });
 
-    std::process::Command::new(&shell)
+    let mut child = std::process::Command::new(&shell)
         .args(["-l", "-i", "-c", "echo $PATH"])
         .stdin(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                // Take the last non-empty line — interactive shells may emit
-                // extra output from profile scripts before our echo.
-                String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .rev()
-                    .find(|line| !line.trim().is_empty())
-                    .map(|line| line.trim().to_string())
-                    .filter(|path| !path.is_empty())
-            } else {
-                None
-            }
-        })
+        .spawn()
+        .ok()?;
+
+    let mut stdout = child.stdout.take()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        use std::io::Read;
+        if stdout.read_to_end(&mut buf).is_ok() {
+            let _ = tx.send(buf);
+        }
+    });
+
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(buf) if child.wait().is_ok_and(|s| s.success()) => {
+            // Take the last non-empty line — interactive shells may emit
+            // extra output from profile scripts before our echo.
+            String::from_utf8_lossy(&buf)
+                .lines()
+                .rev()
+                .find(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_string())
+                .filter(|path| !path.is_empty())
+        }
+        _ => {
+            let _ = child.kill();
+            let _ = child.wait();
+            None
+        }
+    }
 }
 
-/// Returns the user's full login shell PATH, resolved once and cached.
 #[cfg(not(windows))]
-fn user_login_path() -> Option<&'static str> {
-    static CACHED: OnceLock<Option<String>> = OnceLock::new();
-    CACHED.get_or_init(resolve_login_shell_path).as_deref()
-}
+static LOGIN_PATH: LazyLock<Option<String>> = LazyLock::new(resolve_login_shell_path);
 
 pub struct ShellTool {
     output_dir: tempfile::TempDir,
     call_index: AtomicUsize,
+    #[cfg(not(windows))]
+    login_path: Option<String>,
 }
 
 impl ShellTool {
@@ -98,6 +115,18 @@ impl ShellTool {
         Ok(Self {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
+            #[cfg(not(windows))]
+            login_path: LOGIN_PATH.clone(),
+        })
+    }
+
+    #[cfg(test)]
+    pub fn new_for_test() -> std::io::Result<Self> {
+        Ok(Self {
+            output_dir: tempfile::tempdir()?,
+            call_index: AtomicUsize::new(0),
+            #[cfg(not(windows))]
+            login_path: None,
         })
     }
 
@@ -114,7 +143,19 @@ impl ShellTool {
             return Self::error_result("Command cannot be empty.", None);
         }
 
-        let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
+        #[cfg(not(windows))]
+        let login_path = self.login_path.as_deref();
+        #[cfg(windows)]
+        let login_path: Option<&str> = None;
+
+        let execution = match run_command(
+            &params.command,
+            params.timeout_secs,
+            working_dir,
+            login_path,
+        )
+        .await
+        {
             Ok(execution) => execution,
             Err(error) => return Self::error_result(&error, None),
         };
@@ -226,14 +267,14 @@ async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
+    login_path: Option<&str>,
 ) -> Result<ExecutionOutput, String> {
     let mut command = build_shell_command(command_line);
     if let Some(path) = working_dir {
         command.current_dir(path);
     }
 
-    #[cfg(not(windows))]
-    if let Some(path) = user_login_path() {
+    if let Some(path) = login_path {
         command.env("PATH", path);
     }
 
@@ -323,18 +364,37 @@ async fn run_command(
 fn build_shell_command(command_line: &str) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
-        let mut command = tokio::process::Command::new("cmd");
-        command.arg("/C").raw_arg(command_line);
+        let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| "cmd".to_string());
+        let shell_stem = Path::new(&shell)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("cmd")
+            .to_lowercase();
+        let mut command = tokio::process::Command::new(&shell);
+        match shell_stem.as_str() {
+            "pwsh" | "powershell" => {
+                command.args(["-NoProfile", "-NonInteractive", "-Command", command_line]);
+            }
+            "cmd" => {
+                command.arg("/C").raw_arg(command_line);
+            }
+            // POSIX-like shells (bash, zsh, etc.) on Windows (e.g. Cygwin/MSYS2)
+            _ => {
+                command.args(["-c", command_line]);
+            }
+        }
         command
     };
 
     #[cfg(not(windows))]
     let mut command = {
-        let shell = if PathBuf::from("/bin/bash").is_file() {
-            "/bin/bash".to_string()
-        } else {
-            std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
-        };
+        let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| {
+            if PathBuf::from("/bin/bash").is_file() {
+                "/bin/bash".to_string()
+            } else {
+                std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
+            }
+        });
         let mut command = tokio::process::Command::new(shell);
         command.arg("-c").arg(command_line);
         command
@@ -468,7 +528,7 @@ mod tests {
 
     #[tokio::test]
     async fn shell_executes_command() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "echo hello".to_string(),
@@ -483,7 +543,7 @@ mod tests {
     #[cfg(not(windows))]
     #[tokio::test]
     async fn shell_returns_error_for_non_zero_exit() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "echo fail && exit 7".to_string(),
@@ -499,7 +559,7 @@ mod tests {
     #[tokio::test]
     async fn shell_uses_working_dir_for_relative_execution() {
         let dir = tempfile::tempdir().unwrap();
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let result = tool
             .shell_with_cwd(
                 ShellParams {
@@ -598,7 +658,7 @@ mod tests {
 
     #[test]
     fn call_index_cycles_through_slots() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         for _cycle in 0..3 {
             for expected in 0..OUTPUT_SLOTS {
                 let slot = tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
@@ -609,7 +669,7 @@ mod tests {
 
     #[test]
     fn concurrent_calls_get_distinct_slots() {
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let mut slots: Vec<usize> = (0..OUTPUT_SLOTS)
             .map(|_| tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS)
             .collect();
@@ -630,7 +690,7 @@ mod tests {
             }
         }
 
-        let tool = ShellTool::new().unwrap();
+        let tool = ShellTool::new_for_test().unwrap();
         let start = std::time::Instant::now();
         let result = tool
             .shell(ShellParams {

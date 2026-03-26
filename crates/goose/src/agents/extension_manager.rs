@@ -222,6 +222,12 @@ pub fn is_first_class_extension(name: &str) -> bool {
         .is_some_and(|def| def.unprefixed_tools)
 }
 
+pub fn is_hidden_extension(name: &str) -> bool {
+    PLATFORM_EXTENSIONS
+        .get(name_to_key(name).as_str())
+        .is_some_and(|def| def.hidden)
+}
+
 /// Result of resolving a tool call to its owning extension
 struct ResolvedTool {
     extension_name: String,
@@ -1543,10 +1549,10 @@ impl ExtensionManager {
     pub async fn search_available_extensions(&self) -> Result<Vec<Content>, ErrorData> {
         let mut output_parts = vec![];
 
-        // First get disabled extensions from current config
+        // First get disabled extensions from current config (skip hidden ones)
         let mut disabled_extensions: Vec<String> = vec![];
         for extension in get_all_extensions() {
-            if !extension.enabled {
+            if !extension.enabled && !is_hidden_extension(&extension.config.name()) {
                 let config = extension.config.clone();
                 let description = match &config {
                     ExtensionConfig::Builtin {
@@ -1571,9 +1577,15 @@ impl ExtensionManager {
             }
         }
 
-        // Get currently enabled extensions that can be disabled
-        let enabled_extensions: Vec<String> =
-            self.extensions.lock().await.keys().cloned().collect();
+        // Get currently enabled extensions that can be disabled (skip hidden ones)
+        let enabled_extensions: Vec<String> = self
+            .extensions
+            .lock()
+            .await
+            .keys()
+            .filter(|name| !is_hidden_extension(name))
+            .cloned()
+            .collect();
 
         // Build output string
         if !disabled_extensions.is_empty() {

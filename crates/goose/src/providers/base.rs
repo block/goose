@@ -8,8 +8,7 @@ use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
-use crate::config::goose_mode::GooseMode;
-use crate::config::ExtensionConfig;
+use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -177,6 +176,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// step-by-step instructions for set up providers eg: api key
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
 }
 
 impl ProviderMetadata {
@@ -209,6 +211,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -229,6 +232,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            setup_steps: vec![],
         }
     }
 
@@ -241,7 +245,13 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            setup_steps: vec![],
         }
+    }
+
+    pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
+        self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
+        self
     }
 }
 
@@ -362,6 +372,8 @@ pub struct Usage {
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
+    pub cache_read_input_tokens: Option<i32>,
+    pub cache_write_input_tokens: Option<i32>,
 }
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
@@ -384,6 +396,13 @@ impl Add for Usage {
             sum_optionals(self.input_tokens, other.input_tokens),
             sum_optionals(self.output_tokens, other.output_tokens),
             sum_optionals(self.total_tokens, other.total_tokens),
+        )
+        .with_cache_tokens(
+            sum_optionals(self.cache_read_input_tokens, other.cache_read_input_tokens),
+            sum_optionals(
+                self.cache_write_input_tokens,
+                other.cache_write_input_tokens,
+            ),
         )
     }
 }
@@ -415,7 +434,19 @@ impl Usage {
             input_tokens,
             output_tokens,
             total_tokens: calculated_total,
+            cache_read_input_tokens: None,
+            cache_write_input_tokens: None,
         }
+    }
+
+    pub fn with_cache_tokens(
+        mut self,
+        cache_read_input_tokens: Option<i32>,
+        cache_write_input_tokens: Option<i32>,
+    ) -> Self {
+        self.cache_read_input_tokens = cache_read_input_tokens;
+        self.cache_write_input_tokens = cache_write_input_tokens;
+        self
     }
 }
 
@@ -440,18 +471,6 @@ pub enum PermissionRouting {
     Noop,
 }
 
-/// Trait for LeadWorkerProvider-specific functionality
-pub trait LeadWorkerProviderTrait {
-    /// Get information about the lead and worker models for logging
-    fn get_model_info(&self) -> (String, String);
-
-    /// Get the currently active model name
-    fn get_active_model(&self) -> String;
-
-    /// Get (lead_turns, failure_threshold, fallback_turns)
-    fn get_settings(&self) -> (usize, usize, usize);
-}
-
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -459,6 +478,10 @@ pub trait Provider: Send + Sync {
     fn get_name(&self) -> &str;
 
     /// Primary streaming method that all providers must implement.
+    ///
+    /// Note: Do not add `#[instrument]` here — the call sites (`complete` and
+    /// `stream_response_from_provider`) create the telemetry span so that
+    /// `session.id` is set once rather than in every provider.
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -469,6 +492,10 @@ pub trait Provider: Send + Sync {
     ) -> Result<MessageStream, ProviderError>;
 
     /// Complete with a specific model config.
+    #[tracing::instrument(
+        skip(self, model_config, session_id, system, messages, tools),
+        fields(session.id = %session_id, gen_ai.request.model = %model_config.model_name)
+    )]
     async fn complete(
         &self,
         model_config: &ModelConfig,
@@ -528,9 +555,17 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        false
+    }
+
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
+
+        if self.skip_canonical_filtering() {
+            return Ok(all_models);
+        }
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
@@ -604,6 +639,14 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Whether the provider manages its own conversation context (e.g. CLI
+    /// wrappers like Claude Code or Gemini CLI). When true, goose-side
+    /// context management such as tool-pair summarization is skipped because
+    /// the provider's internal state is the source of truth.
+    fn manages_own_context(&self) -> bool {
+        false
+    }
+
     async fn supports_cache_control(&self) -> bool {
         false
     }
@@ -617,23 +660,6 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
-    }
-
-    /// Check if this provider is a LeadWorkerProvider
-    /// This is used for logging model information at startup
-    fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
-        None
-    }
-
-    /// Get the currently active model name
-    /// For regular providers, this returns the configured model
-    /// For LeadWorkerProvider, this returns the currently active model (lead or worker)
-    fn get_active_model_name(&self) -> String {
-        if let Some(lead_worker) = self.as_lead_worker() {
-            lead_worker.get_active_model()
-        } else {
-            self.get_model_config().model_name
-        }
     }
 
     /// Returns the first 3 user messages as strings for session naming
@@ -700,6 +726,16 @@ pub trait Provider: Send + Sync {
         ))
     }
 
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "credential refresh not supported by this provider".to_string(),
+        ))
+    }
+
+    async fn update_mode(&self, _session_id: &str, _mode: GooseMode) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::Noop
     }
@@ -710,10 +746,6 @@ pub trait Provider: Send + Sync {
         _confirmation: &PermissionConfirmation,
     ) -> bool {
         false
-    }
-
-    async fn update_mode(&self, _session_id: &str, _mode: GooseMode) -> Result<(), ProviderError> {
-        Ok(())
     }
 }
 
@@ -1074,5 +1106,20 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    #[test]
+    fn test_usage_addition_includes_cached_tokens() {
+        let usage_a =
+            Usage::new(Some(100), Some(20), Some(120)).with_cache_tokens(Some(10), Some(5));
+        let usage_b = Usage::new(Some(50), Some(8), Some(58)).with_cache_tokens(Some(4), Some(1));
+
+        let combined = usage_a + usage_b;
+
+        assert_eq!(combined.input_tokens, Some(150));
+        assert_eq!(combined.output_tokens, Some(28));
+        assert_eq!(combined.total_tokens, Some(178));
+        assert_eq!(combined.cache_read_input_tokens, Some(14));
+        assert_eq!(combined.cache_write_input_tokens, Some(6));
     }
 }

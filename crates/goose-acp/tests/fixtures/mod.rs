@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use fs_err as fs;
 pub use goose::acp::{map_permission_response, PermissionDecision, PermissionMapping};
 use goose::builtin_extension::register_builtin_extensions;
+use goose::config::paths::Paths;
 use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
 use goose::providers::base::Provider;
@@ -14,8 +15,11 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    AuthMethod, McpServer, ReadTextFileRequest, ReadTextFileResponse, SessionModeState,
-    SessionModelState, ToolCallStatus, WriteTextFileRequest, WriteTextFileResponse,
+    AuthMethod, CreateTerminalResponse, KillTerminalResponse, ListSessionsResponse, McpServer,
+    ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState,
+    SessionModelState, SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse,
+    ToolCallContent, ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
+    WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
@@ -152,13 +156,16 @@ pub async fn spawn_acp_server_in_process(
     data_root: &std::path::Path,
     goose_mode: GooseMode,
     provider_factory: Option<ProviderConstructor>,
+    current_model: &str,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
+    // TODO: Paths::in_state_dir is global, ignoring per-test data_root
+    fs::create_dir_all(Paths::in_state_dir("logs")).unwrap();
     let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
     if !config_path.exists() {
         fs::write(
             &config_path,
-            format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\n"),
+            format!("GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\n"),
         )
         .unwrap();
     }
@@ -177,27 +184,95 @@ pub async fn spawn_acp_server_in_process(
         })
     });
 
-    let agent = Arc::new(
-        GooseAcpAgent::new(
-            provider_factory,
-            builtins.to_vec(),
-            data_root.to_path_buf(),
-            data_root.to_path_buf(),
-            goose_mode,
-            true,
-        )
-        .await
-        .unwrap(),
-    );
+    let agent = GooseAcpAgent::new(
+        provider_factory,
+        builtins.to_vec(),
+        data_root.to_path_buf(),
+        data_root.to_path_buf(),
+        goose_mode,
+        true,
+    )
+    .await
+    .unwrap();
+    let agent = Arc::new(agent);
     let permission_manager = agent.permission_manager();
     let (transport, handle) = serve_agent_in_process(agent).await;
 
     (transport, handle, permission_manager)
 }
 
+#[derive(Debug)]
 pub struct TestOutput {
     pub text: String,
     pub tool_status: Option<ToolCallStatus>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Notification {
+    UserMessage,
+    AgentMessage,
+    AgentThought,
+    ToolCall,
+    ToolCallKind(ToolKind),
+    ToolCallContent(String),
+    ToolCallStatus(ToolCallStatus),
+    Plan,
+    AvailableCommands,
+    CurrentMode,
+    ConfigOption,
+}
+
+pub fn to_notifications(updates: &[SessionUpdate]) -> Vec<Notification> {
+    let mut out = Vec::new();
+    for u in updates {
+        match u {
+            SessionUpdate::UserMessageChunk(_) => {
+                if out.last() != Some(&Notification::UserMessage) {
+                    out.push(Notification::UserMessage);
+                }
+            }
+            SessionUpdate::AgentMessageChunk(_) => {
+                if out.last() != Some(&Notification::AgentMessage) {
+                    out.push(Notification::AgentMessage);
+                }
+            }
+            SessionUpdate::AgentThoughtChunk(_) => {
+                if out.last() != Some(&Notification::AgentThought) {
+                    out.push(Notification::AgentThought);
+                }
+            }
+            SessionUpdate::ToolCall(_) => out.push(Notification::ToolCall),
+            SessionUpdate::ToolCallUpdate(upd) => {
+                if let Some(kind) = upd.fields.kind {
+                    out.push(Notification::ToolCallKind(kind));
+                }
+                if let Some(ref content) = upd.fields.content {
+                    for c in content {
+                        let tag = match c {
+                            ToolCallContent::Content(_) => "content",
+                            ToolCallContent::Diff(_) => "diff",
+                            ToolCallContent::Terminal(_) => "terminal",
+                            _ => "unknown",
+                        };
+                        out.push(Notification::ToolCallContent(tag.into()));
+                    }
+                }
+                if let Some(status) = upd.fields.status {
+                    out.push(Notification::ToolCallStatus(status));
+                }
+            }
+            SessionUpdate::Plan(_) => out.push(Notification::Plan),
+            SessionUpdate::AvailableCommandsUpdate(_) => out.push(Notification::AvailableCommands),
+            SessionUpdate::CurrentModeUpdate(_) => out.push(Notification::CurrentMode),
+            SessionUpdate::ConfigOptionUpdate(_) => out.push(Notification::ConfigOption),
+            _ => {}
+        }
+    }
+    out
+}
+
+pub fn assert_notifications(actual: &[Notification], expected: &[Notification]) {
+    assert_eq!(actual, expected);
 }
 
 type ReadTextFileHandler =
@@ -266,7 +341,126 @@ impl FsFixture {
     }
 }
 
-pub struct SessionResult<S> {
+/// Expected terminal calls. Each variant carries (expected_input, return_value) data,
+/// like OpenAiFixture's (pattern, response) pairs.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum TerminalCall {
+    Create(String, String),      // (command, terminal_id)
+    WaitForExit(String, u32),    // (terminal_id, exit_code)
+    Output(String, String, u32), // (terminal_id, text, exit_code)
+    Release(String),             // terminal_id
+    Kill(String),                // terminal_id
+}
+
+impl TerminalCall {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Create(..) => "create",
+            Self::WaitForExit(..) => "wait_for_exit",
+            Self::Output(..) => "output",
+            Self::Release(_) => "release",
+            Self::Kill(_) => "kill",
+        }
+    }
+}
+
+pub struct TerminalFixture {
+    queue: Arc<Mutex<VecDeque<TerminalCall>>>,
+    errors: Arc<Mutex<Vec<String>>>,
+}
+
+impl TerminalFixture {
+    pub fn new(calls: Vec<TerminalCall>) -> Arc<Self> {
+        Arc::new(Self {
+            queue: Arc::new(Mutex::new(VecDeque::from(calls))),
+            errors: Arc::new(Mutex::new(Vec::new())),
+        })
+    }
+
+    fn pop(&self, expected: &str) -> Option<TerminalCall> {
+        let Some(call) = self.queue.lock().unwrap().pop_front() else {
+            self.record_error(format!("unexpected {expected}: queue empty"));
+            return None;
+        };
+        if call.name() != expected {
+            self.record_error(format!("expected {expected}, got {}", call.name()));
+            return None;
+        }
+        Some(call)
+    }
+
+    fn record_error(&self, msg: String) {
+        self.errors.lock().unwrap().push(msg);
+    }
+
+    fn validate_terminal_id(&self, method: &str, expected: &str, actual: &TerminalId) {
+        if expected != actual.0.as_ref() {
+            self.record_error(format!(
+                "{method}: expected terminal_id {expected}, got {actual}"
+            ));
+        }
+    }
+
+    pub fn on_create(&self, command: &str) -> CreateTerminalResponse {
+        if let Some(TerminalCall::Create(expect_command, terminal_id)) = self.pop("create") {
+            if command != expect_command {
+                self.record_error(format!(
+                    "create: expected command {expect_command}, got {command}"
+                ));
+            }
+            CreateTerminalResponse::new(TerminalId::new(terminal_id))
+        } else {
+            CreateTerminalResponse::new(TerminalId::new("error"))
+        }
+    }
+
+    pub fn on_wait_for_exit(&self, terminal_id: &TerminalId) -> WaitForTerminalExitResponse {
+        if let Some(TerminalCall::WaitForExit(expected_id, exit_code)) = self.pop("wait_for_exit") {
+            self.validate_terminal_id("wait_for_exit", &expected_id, terminal_id);
+            WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(exit_code))
+        } else {
+            WaitForTerminalExitResponse::new(TerminalExitStatus::new().exit_code(1))
+        }
+    }
+
+    pub fn on_output(&self, terminal_id: &TerminalId) -> TerminalOutputResponse {
+        if let Some(TerminalCall::Output(expected_id, text, exit_code)) = self.pop("output") {
+            self.validate_terminal_id("output", &expected_id, terminal_id);
+            TerminalOutputResponse::new(text, false)
+                .exit_status(TerminalExitStatus::new().exit_code(exit_code))
+        } else {
+            TerminalOutputResponse::new("", false)
+        }
+    }
+
+    pub fn on_release(&self, terminal_id: &TerminalId) -> ReleaseTerminalResponse {
+        if let Some(TerminalCall::Release(expected_id)) = self.pop("release") {
+            self.validate_terminal_id("release", &expected_id, terminal_id);
+        }
+        ReleaseTerminalResponse::new()
+    }
+
+    pub fn on_kill(&self, terminal_id: &TerminalId) -> KillTerminalResponse {
+        if let Some(TerminalCall::Kill(expected_id)) = self.pop("kill") {
+            self.validate_terminal_id("kill", &expected_id, terminal_id);
+        }
+        KillTerminalResponse::new()
+    }
+
+    pub fn assert_called(&self) {
+        let errors = self.errors.lock().unwrap();
+        assert!(errors.is_empty(), "terminal fixture errors: {errors:?}");
+        let queue = self.queue.lock().unwrap();
+        assert!(
+            queue.is_empty(),
+            "terminal fixture has unconsumed calls: {queue:?}"
+        );
+    }
+}
+
+#[derive(Debug)]
+pub struct SessionData<S> {
     pub session: S,
     pub models: Option<SessionModelState>,
     pub modes: Option<SessionModeState>,
@@ -276,10 +470,17 @@ pub struct TestConnectionConfig {
     pub mcp_servers: Vec<McpServer>,
     pub builtins: Vec<String>,
     pub goose_mode: GooseMode,
+    pub cwd: Option<tempfile::TempDir>,
     pub data_root: PathBuf,
     pub provider_factory: Option<ProviderConstructor>,
     pub read_text_file: Option<ReadTextFileHandler>,
     pub write_text_file: Option<WriteTextFileHandler>,
+    pub terminal: Option<Arc<TerminalFixture>>,
+    // When true, strips config_options from responses to test the legacy set_mode/set_model path.
+    #[allow(dead_code)]
+    pub strip_config_options: bool,
+    // The model the server-side provider starts with. Defaults to TEST_MODEL.
+    pub current_model: String,
 }
 
 impl Default for TestConnectionConfig {
@@ -288,10 +489,14 @@ impl Default for TestConnectionConfig {
             mcp_servers: Vec::new(),
             builtins: Vec::new(),
             goose_mode: GooseMode::default(),
+            cwd: None,
             data_root: PathBuf::new(),
             provider_factory: None,
             read_text_file: None,
             write_text_file: None,
+            terminal: None,
+            strip_config_options: false,
+            current_model: TEST_MODEL.to_string(),
         }
     }
 }
@@ -302,30 +507,46 @@ pub trait Connection: Sized {
 
     fn expected_session_id() -> Arc<dyn ExpectedSessionId>;
     async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self;
-    async fn new_session(&mut self) -> SessionResult<Self::Session>;
+    async fn new_session(&mut self) -> anyhow::Result<SessionData<Self::Session>>;
     async fn load_session(
         &mut self,
         session_id: &str,
         mcp_servers: Vec<McpServer>,
-    ) -> SessionResult<Self::Session>;
+    ) -> anyhow::Result<SessionData<Self::Session>>;
+    async fn list_sessions(&self) -> anyhow::Result<ListSessionsResponse>;
+    async fn close_session(&self, session_id: &str) -> anyhow::Result<()>;
+    async fn delete_session(&self, session_id: &str) -> anyhow::Result<()>;
     async fn set_mode(&self, session_id: &str, mode_id: &str) -> anyhow::Result<()>;
     async fn set_model(&self, session_id: &str, model_id: &str) -> anyhow::Result<()>;
+    async fn set_config_option(
+        &self,
+        session_id: &str,
+        config_id: &str,
+        value: &str,
+    ) -> anyhow::Result<()>;
     fn auth_methods(&self) -> &[AuthMethod];
+    fn data_root(&self) -> std::path::PathBuf;
     fn reset_openai(&self);
     fn reset_permissions(&self);
 }
 
 #[async_trait]
-pub trait Session {
+pub trait Session: std::fmt::Debug {
     fn session_id(&self) -> &sacp::schema::SessionId;
-    async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+    fn work_dir(&self) -> std::path::PathBuf;
+    fn notifications(&self) -> Vec<Notification>;
+    async fn prompt(
+        &mut self,
+        text: &str,
+        decision: PermissionDecision,
+    ) -> anyhow::Result<TestOutput>;
     async fn prompt_with_image(
         &mut self,
         text: &str,
         image_b64: &str,
         mime_type: &str,
         decision: PermissionDecision,
-    ) -> TestOutput;
+    ) -> anyhow::Result<TestOutput>;
 }
 
 #[allow(dead_code)]
@@ -352,6 +573,15 @@ where
         // Re-raise the original panic so the test shows the real failure message.
         std::panic::resume_unwind(err);
     }
+}
+
+pub async fn send_custom(
+    cx: &sacp::ConnectionTo<sacp::Agent>,
+    method: &str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, sacp::Error> {
+    let msg = sacp::UntypedMessage::new(method, params).unwrap();
+    cx.send_request(msg).block_task().await
 }
 
 pub mod provider;

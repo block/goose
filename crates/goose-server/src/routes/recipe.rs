@@ -103,6 +103,8 @@ pub struct SaveRecipeRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SaveRecipeResponse {
     id: String,
+    file_name: String,
+    file_path: String,
 }
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ParseRecipeRequest {
@@ -459,9 +461,18 @@ async fn save_recipe(
     };
 
     match local_recipes::save_recipe_to_file(request.recipe, file_path.clone()) {
-        Ok(save_file_path) => Ok(Json(SaveRecipeResponse {
-            id: short_id_from_path(&save_file_path.display().to_string()),
-        })),
+        Ok(save_file_path) => {
+            let file_name = save_file_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let file_path_str = save_file_path.display().to_string();
+            Ok(Json(SaveRecipeResponse {
+                id: short_id_from_path(&file_path_str),
+                file_name,
+                file_path: file_path_str,
+            }))
+        }
         Err(e) => Err(ErrorResponse {
             message: e.to_string(),
             status: StatusCode::INTERNAL_SERVER_ERROR,

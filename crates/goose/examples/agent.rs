@@ -1,7 +1,7 @@
 use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
-use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
+use goose::config::{GooseMode, DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::conversation::message::Message;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
@@ -24,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
             PathBuf::default(),
             "max-turn-test".to_string(),
             SessionType::Hidden,
+            GooseMode::default(),
         )
         .await?;
 

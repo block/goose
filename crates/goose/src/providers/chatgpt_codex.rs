@@ -45,15 +45,64 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
-pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
-pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
-    "gpt-5.2-codex",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-mini",
-    "gpt-5.1-codex-max",
+pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.3-codex";
+
+#[derive(Debug)]
+pub struct ChatGptCodexModelAttrs {
+    pub name: &'static str,
+    pub reasoning_levels: &'static [&'static str],
+}
+
+pub const CHATGPT_CODEX_KNOWN_MODELS: &[ChatGptCodexModelAttrs] = &[
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.4",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.3-codex",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.2-codex",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.1-codex",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.1-codex-mini",
+        reasoning_levels: &["medium", "high"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.1-codex-max",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
 ];
 
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
+
+const DEFAULT_REASONING_LEVELS: &[&str] = &["medium", "high"];
+
+pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
+    CHATGPT_CODEX_KNOWN_MODELS
+        .iter()
+        .find(|m| m.name == model_name)
+        .map(|m| m.reasoning_levels)
+        .unwrap_or(DEFAULT_REASONING_LEVELS)
+}
+
+fn known_model_names() -> Vec<&'static str> {
+    CHATGPT_CODEX_KNOWN_MODELS.iter().map(|m| m.name).collect()
+}
+
+const GPT_53_CODEX_TOOL_PREAMBLE: &str = "\
+You are a coding agent. You have access to tools to accomplish tasks. \
+Always use your tools to fulfill requests - do not just describe what you would do. \
+Keep going until the query is completely resolved before yielding back to the user. \
+Autonomously resolve the query using the tools available to you. \
+Do NOT guess or make up an answer. \
+Before making tool calls, send a brief message explaining what you're about to do.";
 
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
@@ -172,6 +221,26 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
     Ok(items)
 }
 
+fn get_reasoning_effort(model_name: &str) -> String {
+    let config = crate::config::Config::global();
+    let effort = config
+        .get_chatgpt_codex_reasoning_effort()
+        .map(String::from)
+        .unwrap_or_else(|_| "medium".to_string());
+
+    let valid_levels = reasoning_levels_for_model(model_name);
+    if valid_levels.contains(&effort.as_str()) {
+        effort
+    } else {
+        tracing::warn!(
+            "Invalid CHATGPT_CODEX_REASONING_EFFORT '{}' for model '{}', using 'medium'",
+            effort,
+            model_name
+        );
+        "medium".to_string()
+    }
+}
+
 fn create_codex_request(
     model_config: &ModelConfig,
     system: &str,
@@ -179,12 +248,19 @@ fn create_codex_request(
     tools: &[Tool],
 ) -> Result<Value> {
     let input_items = build_input_items(messages)?;
+    let reasoning_effort = get_reasoning_effort(&model_config.model_name);
+
+    let instructions = match model_config.model_name.as_str() {
+        "gpt-5.3-codex" => format!("{GPT_53_CODEX_TOOL_PREAMBLE}\n\n{system}"),
+        _ => system.to_string(),
+    };
 
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
         "store": false,
-        "instructions": system,
+        "reasoning": {"effort": reasoning_effort},
+        "instructions": instructions,
     });
 
     let payload_obj = payload
@@ -205,6 +281,8 @@ fn create_codex_request(
             .collect();
 
         payload_obj.insert("tools".to_string(), json!(tools_spec));
+        payload_obj.insert("tool_choice".to_string(), json!("auto"));
+        payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
     }
 
     if let Some(temp) = model_config.temperature {
@@ -854,7 +932,7 @@ impl ProviderDef for ChatGptCodexProvider {
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
             CHATGPT_CODEX_DEFAULT_MODEL,
-            CHATGPT_CODEX_KNOWN_MODELS.to_vec(),
+            known_model_names(),
             CHATGPT_CODEX_DOC_URL,
             vec![ConfigKey::new_oauth(
                 "CHATGPT_CODEX_TOKEN",
@@ -927,10 +1005,7 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CHATGPT_CODEX_KNOWN_MODELS
-            .iter()
-            .map(|s| s.to_string())
-            .collect())
+        Ok(known_model_names().into_iter().map(String::from).collect())
     }
 }
 
@@ -1214,5 +1289,27 @@ mod tests {
         let claims = parse_jwt_claims_with_jwks(&token, &jwks).unwrap();
 
         assert_eq!(claims.chatgpt_account_id.as_deref(), Some("account-1"));
+    }
+
+    #[test_case("unknown-model", &["medium", "high"]; "unknown model gets default reasoning levels")]
+    fn test_reasoning_levels_for_model(model: &str, expected: &[&str]) {
+        assert_eq!(reasoning_levels_for_model(model), expected);
+    }
+
+    #[test]
+    fn test_gpt53_preamble_injected() {
+        let model = ModelConfig::new("gpt-5.3-codex").unwrap();
+        let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
+        let instructions = payload["instructions"].as_str().unwrap();
+        assert!(instructions.contains(GPT_53_CODEX_TOOL_PREAMBLE));
+        assert!(instructions.contains("system prompt"));
+    }
+
+    #[test]
+    fn test_other_models_no_preamble() {
+        let model = ModelConfig::new("gpt-5.4").unwrap();
+        let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
+        let instructions = payload["instructions"].as_str().unwrap();
+        assert_eq!(instructions, "system prompt");
     }
 }
