@@ -152,27 +152,50 @@ impl McpClientTrait for DeveloperClient {
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let working_dir = ctx.working_dir.as_deref();
+        let allowed_paths = ctx.allowed_paths.as_ref();
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
+                Ok(params) => {
+                    Ok(self
+                        .edit_tools
+                        .file_write_with_cwd(params, working_dir, allowed_paths))
+                }
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
+                Ok(params) => {
+                    Ok(self
+                        .edit_tools
+                        .file_edit_with_cwd(params, working_dir, allowed_paths))
+                }
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "tree" => match Self::parse_args::<TreeParams>(arguments) {
-                Ok(params) => Ok(self.tree_tool.tree_with_cwd(params, working_dir)),
+                Ok(params) => {
+                    let path = match edit::validate_and_resolve_path(
+                        &params.path,
+                        working_dir,
+                        allowed_paths,
+                    ) {
+                        Ok(p) => p,
+                        Err(msg) => {
+                            return Ok(CallToolResult::error(vec![
+                                Content::text(msg).with_priority(0.0)
+                            ]))
+                        }
+                    };
+                    Ok(self.tree_tool.tree_at_depth(path, params.depth))
+                }
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
