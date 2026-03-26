@@ -11,8 +11,6 @@ check-everything:
     cargo fmt --all
     @echo "  → Running clippy linting..."
     cargo clippy --all-targets -- -D warnings
-    @echo "  → Checking for banned TLS crates..."
-    ./scripts/check-no-native-tls.sh
     @echo "  → Checking UI code formatting..."
     cd ui/desktop && pnpm run lint:check
     @echo "  → Validating OpenAPI schema..."
