@@ -756,6 +756,22 @@ impl SummonClient {
         name: &str,
         working_dir: &Path,
     ) -> Result<Option<Source>, String> {
+        // Detect absolute file paths — these aren't valid source names.
+        // On Unix: starts with '/'
+        // On Windows: starts with drive letter like 'C:\' or 'C:/'
+        let looks_like_absolute_path = Path::new(name).is_absolute()
+            || (name.len() >= 3
+                && name.as_bytes()[0].is_ascii_alphabetic()
+                && name.as_bytes()[1] == b':'
+                && (name.as_bytes()[2] == b'\\' || name.as_bytes()[2] == b'/'));
+        if looks_like_absolute_path {
+            return Err(format!(
+                "'{}' looks like a file path. Use file tools (e.g. read_file) to read files directly. \
+                 The load() tool is for loading skills, recipes, and agents — use load() with no arguments to see available sources.",
+                name
+            ));
+        }
+
         let sources = self.get_sources(session_id, working_dir).await;
 
         if let Some(mut source) = sources.iter().find(|s| s.name == name).cloned() {
@@ -2500,6 +2516,51 @@ You review code."#;
         assert!(
             !err.contains("root:"),
             "should not contain /etc/passwd content: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_source_rejects_windows_absolute_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let result = client
+            .handle_load_source("test", r"c:\Users\localuser\file.cs", temp_dir.path())
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("looks like a file path"),
+            "should detect Windows backslash path: {}",
+            err
+        );
+
+        let result = client
+            .handle_load_source("test", "C:/Users/localuser/file.cs", temp_dir.path())
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("looks like a file path"),
+            "should detect Windows forward-slash path: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_source_rejects_unix_absolute_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let result = client
+            .handle_load_source("test", "/home/user/file.rs", temp_dir.path())
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("looks like a file path"),
+            "should detect Unix absolute path: {}",
             err
         );
     }
