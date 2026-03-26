@@ -11,7 +11,7 @@
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
     },
-    "version": "1.27.0"
+    "version": "1.29.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -665,6 +665,35 @@
         }
       }
     },
+    "/agent/update_session": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal error"
+          }
+        }
+      }
+    },
     "/agent/update_working_dir": {
       "post": {
         "tags": [
@@ -812,9 +841,9 @@
           "200": {
             "description": "Custom provider created successfully",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/CreateCustomProviderResponse"
                 }
               }
             }
@@ -938,39 +967,6 @@
           },
           "500": {
             "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/config/detect-provider": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "detect_provider",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DetectProviderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Provider detected successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DetectProviderResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No matching provider found"
           }
         }
       }
@@ -1351,6 +1347,40 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/config/providers/{name}/cleanup": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "cleanup_provider_cache",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., githubcopilot)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider cache cleaned up successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -1859,6 +1889,46 @@
           },
           "504": {
             "description": "Request timeout"
+          }
+        }
+      }
+    },
+    "/features": {
+      "get": {
+        "tags": [
+          "super::routes::features"
+        ],
+        "operationId": "get_features",
+        "responses": {
+          "200": {
+            "description": "Compile-time feature flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/handle_nanogpt": {
+      "post": {
+        "tags": [
+          "super::routes::setup"
+        ],
+        "operationId": "start_nanogpt_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3201,6 +3271,127 @@
         ]
       }
     },
+    "/sessions/{id}/cancel": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cancellation accepted"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/events": {
+      "get": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/sessions/{id}/reply": {
+      "post": {
+        "tags": [
+          "super::routes::session_events"
+        ],
+        "operationId": "session_reply",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionReplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -3900,6 +4091,17 @@
           "structuredContent": {}
         }
       },
+      "CancelRequest": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "required": [
@@ -3972,13 +4174,17 @@
             ],
             "description": "Optional default value for the key"
           },
+          "device_code_flow": {
+            "type": "boolean",
+            "description": "Whether this OAuth flow uses the device code grant (RFC 8628)\nWhen true, the user must enter a verification code in the browser"
+          },
           "name": {
             "type": "string",
             "description": "The name of the configuration key (e.g., \"API_KEY\")"
           },
           "oauth_flow": {
             "type": "boolean",
-            "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
+            "description": "Whether this key should be configured using an OAuth flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
           "primary": {
             "type": "boolean",
@@ -4270,6 +4476,17 @@
           "$ref": "#/components/schemas/Message"
         }
       },
+      "CreateCustomProviderResponse": {
+        "type": "object",
+        "required": [
+          "provider_name"
+        ],
+        "properties": {
+          "provider_name": {
+            "type": "string"
+          }
+        }
+      },
       "CreateRecipeRequest": {
         "type": "object",
         "required": [
@@ -4456,6 +4673,9 @@
           "requires_auth": {
             "type": "boolean"
           },
+          "skip_canonical_filtering": {
+            "type": "boolean"
+          },
           "supports_streaming": {
             "type": [
               "boolean",
@@ -4501,35 +4721,6 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
-          }
-        }
-      },
-      "DetectProviderRequest": {
-        "type": "object",
-        "required": [
-          "api_key"
-        ],
-        "properties": {
-          "api_key": {
-            "type": "string"
-          }
-        }
-      },
-      "DetectProviderResponse": {
-        "type": "object",
-        "required": [
-          "provider_name",
-          "models"
-        ],
-        "properties": {
-          "models": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "provider_name": {
             "type": "string"
           }
         }
@@ -4736,6 +4927,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "primary": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "When true, the field is shown prominently in the UI (not collapsed).\nDefaults to the value of `required` if not specified."
           },
           "required": {
             "type": "boolean"
@@ -5209,6 +5407,24 @@
           }
         }
       },
+      "FeaturesResponse": {
+        "type": "object",
+        "required": [
+          "features"
+        ],
+        "properties": {
+          "features": {
+            "type": "object",
+            "description": "Map of feature name to enabled status",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ForkRequest": {
         "type": "object",
         "required": [
@@ -5306,6 +5522,15 @@
               }
             }
           }
+        ]
+      },
+      "GooseMode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "approve",
+          "smart_approve",
+          "chat"
         ]
       },
       "HfGgufFile": {
@@ -5936,27 +6161,6 @@
                 }
               }
             ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReasoningContent"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "reasoning"
-                    ]
-                  }
-                }
-              }
-            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -6031,28 +6235,6 @@
           {
             "type": "object",
             "required": [
-              "model",
-              "mode",
-              "type"
-            ],
-            "properties": {
-              "mode": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "ModelChange"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
               "request_id",
               "message",
               "type"
@@ -6086,6 +6268,28 @@
                 "type": "string",
                 "enum": [
                   "UpdateConversation"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Sent at the start of an SSE stream to inform the client about\nin-flight requests it can reattach to.",
+            "required": [
+              "request_ids",
+              "type"
+            ],
+            "properties": {
+              "request_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ActiveRequests"
                 ]
               }
             }
@@ -6746,6 +6950,13 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          },
+          "setup_steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "step-by-step instructions for set up providers eg: api key"
           }
         }
       },
@@ -6962,17 +7173,6 @@
             "type": "string"
           },
           "uri": {
-            "type": "string"
-          }
-        }
-      },
-      "ReasoningContent": {
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
             "type": "string"
           }
         }
@@ -7573,9 +7773,17 @@
       "SaveRecipeResponse": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "file_name",
+          "file_path"
         ],
         "properties": {
+          "file_name": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           }
@@ -7714,6 +7922,9 @@
           },
           "extension_data": {
             "$ref": "#/components/schemas/ExtensionData"
+          },
+          "goose_mode": {
+            "$ref": "#/components/schemas/GooseMode"
           },
           "id": {
             "type": "string"
@@ -7927,6 +8138,54 @@
           }
         }
       },
+      "SessionReplyRequest": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_message"
+        ],
+        "properties": {
+          "override_conversation": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "recipe_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipe_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Client-generated UUIDv7 identifying this request."
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        }
+      },
+      "SessionReplyResponse": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          }
+        }
+      },
       "SessionType": {
         "type": "string",
         "enum": [
@@ -7935,7 +8194,8 @@
           "sub_agent",
           "hidden",
           "terminal",
-          "gateway"
+          "gateway",
+          "acp"
         ]
       },
       "SessionsQuery": {
@@ -8516,6 +8776,9 @@
           "description": {
             "type": "string"
           },
+          "input_schema": {
+            "type": "object"
+          },
           "name": {
             "type": "string"
           },
@@ -8825,6 +9088,23 @@
           "name": {
             "type": "string",
             "description": "Updated name for the session (max 200 characters)"
+          }
+        }
+      },
+      "UpdateSessionRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "goose_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },

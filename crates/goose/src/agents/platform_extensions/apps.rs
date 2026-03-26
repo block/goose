@@ -1,5 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::reply_parts::coerce_tool_arguments;
+use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::goose_apps::McpAppResource;
@@ -283,7 +285,11 @@ impl AppsManagerClient {
             }
         }
 
-        extract_tool_response(&response, "create_app_content")
+        extract_tool_response(
+            &response,
+            "create_app_content",
+            &Self::schema::<CreateAppContentResponse>(),
+        )
     }
 
     async fn generate_updated_app_content(
@@ -322,7 +328,11 @@ impl AppsManagerClient {
             }
         }
 
-        extract_tool_response(&response, "update_app_content")
+        extract_tool_response(
+            &response,
+            "update_app_content",
+            &Self::schema::<UpdateAppContentResponse>(),
+        )
     }
 
     async fn handle_list_apps(
@@ -526,12 +536,12 @@ impl McpClientTrait for AppsManagerClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let result = match name {
             "list_apps" => self.handle_list_apps(arguments).await,
             "create_app" => self.handle_create_app(session_id, arguments).await,
@@ -651,7 +661,10 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
 fn extract_tool_response<T: serde::de::DeserializeOwned>(
     response: &Message,
     tool_name: &str,
+    tool_schema: &JsonObject,
 ) -> Result<T, String> {
+    let schema_value = serde_json::Value::Object(tool_schema.clone());
+
     for content in &response.content {
         if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
             if let Ok(tool_call) = &tool_req.tool_call {
@@ -661,7 +674,10 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
                         .as_ref()
                         .ok_or("Missing tool call parameters")?;
 
-                    return serde_json::from_value(serde_json::Value::Object(params.clone()))
+                    let coerced = coerce_tool_arguments(Some(params.clone()), &schema_value)
+                        .unwrap_or_else(|| params.clone());
+
+                    return serde_json::from_value(serde_json::Value::Object(coerced))
                         .map_err(|e| format!("Failed to parse tool response: {}", e));
                 }
             }

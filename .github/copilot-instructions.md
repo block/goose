@@ -43,7 +43,6 @@
 - Core crates: `goose` (agent logic), `goose-cli` (CLI), `goose-server` (backend), `goose-mcp` (MCP servers)
 - Error handling: Use `anyhow::Result`, not `unwrap()` in production code
 - Async runtime: tokio
-- See HOWTOAI.md for AI-assisted code standards
 - MCP protocol implementations require extra scrutiny
 - Naming convention: In `documentation/docs` and `documentation/blog`, always refer to the project as "goose" (lowercase), never "Goose" (even at the start of sentences)
 

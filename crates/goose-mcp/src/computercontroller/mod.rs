@@ -1,3 +1,5 @@
+#[cfg(not(windows))]
+use crate::subprocess::merged_path;
 use crate::subprocess::SubprocessExt;
 #[cfg(target_os = "macos")]
 use base64::Engine;
@@ -346,8 +348,10 @@ impl ComputerControllerServer {
         let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
             Arc::new(create_system_automation());
 
-        let os_specific_instructions = match std::env::consts::OS {
-            "windows" => indoc! {r#"
+        let has_display = system_automation.has_display();
+
+        let os_specific_instructions = match (std::env::consts::OS, has_display) {
+            ("windows", _) => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run PowerShell or Batch scripts
@@ -363,7 +367,7 @@ impl ComputerControllerServer {
               - System automation using PowerShell
               - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
             "#},
-            "macos" => indoc! {r#"
+            ("macos", _) => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run Shell, Ruby, or AppleScript scripts
@@ -457,7 +461,7 @@ impl ComputerControllerServer {
               - If something fails, check `permissions status` for missing permissions
               - Use `capture_screenshot: true` on click/type/press actions to verify the result
             "#},
-            _ => indoc! {r#"
+            (_, true) => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run Shell scripts
@@ -480,6 +484,19 @@ impl ComputerControllerServer {
               - Simulating keyboard/mouse input
               - Automating UI interactions
               - Desktop environment control
+            "#},
+            (_, false) => indoc! {r#"
+            Here are some extra tools:
+            automation_script
+              - Create and run Shell scripts
+              - Shell (bash) is recommended for most tasks
+              - Scripts can save their output to files
+              - Linux-specific features:
+                - System automation through shell scripting
+                - D-Bus system services integration
+
+            Note: No display server detected (headless mode). The computer_control tool
+            is not available in this environment. Use automation_script for shell-based tasks.
             "#},
         };
 
@@ -517,8 +534,13 @@ impl ComputerControllerServer {
             cache_dir = cache_dir.display()
         };
 
+        let mut tool_router = Self::tool_router();
+        if !has_display {
+            tool_router.remove_route("computer_control");
+        }
+
         Self {
-            tool_router: Self::tool_router(),
+            tool_router,
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
@@ -843,21 +865,24 @@ impl ComputerControllerServer {
                         )
                     })?
             }
-            _ => Command::new(shell)
-                .arg(shell_arg)
-                .arg(&command)
-                .env("GOOSE_TERMINAL", "1")
-                .env("AGENT", "goose")
-                .set_no_window()
-                .output()
-                .await
-                .map_err(|e| {
+            _ => {
+                let mut cmd = Command::new(shell);
+                cmd.arg(shell_arg)
+                    .arg(&command)
+                    .env("GOOSE_TERMINAL", "1")
+                    .env("AGENT", "goose");
+                #[cfg(not(windows))]
+                if let Some(path) = merged_path() {
+                    cmd.env("PATH", path);
+                }
+                cmd.set_no_window().output().await.map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to run script: {}", e),
                         None,
                     )
-                })?,
+                })?
+            }
         };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -1045,16 +1070,18 @@ impl ComputerControllerServer {
 
     #[cfg(target_os = "macos")]
     fn run_peekaboo_cmd(&self, args: &[&str]) -> Result<String, ErrorData> {
-        let output = std::process::Command::new("peekaboo")
-            .args(args)
-            .output()
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to run peekaboo: {}", e),
-                    None,
-                )
-            })?;
+        let mut cmd = std::process::Command::new("peekaboo");
+        cmd.args(args);
+        if let Some(path) = merged_path() {
+            cmd.env("PATH", path);
+        }
+        let output = cmd.output().map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to run peekaboo: {}", e),
+                None,
+            )
+        })?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         if !output.status.success() {

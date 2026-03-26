@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
+use crate::hints::load_hints::build_gitignore;
 use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
 use crate::{
     config::{Config, GooseMode},
@@ -54,6 +55,7 @@ pub struct SystemPromptBuilder<'a, M> {
     subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
+    goose_mode: Option<GooseMode>,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -90,14 +92,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
     pub fn with_hints(mut self, working_dir: &Path) -> Self {
         let hints_filenames = get_context_filenames();
-        let ignore_patterns = {
-            let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
-            builder.build().unwrap_or_else(|_| {
-                ignore::gitignore::GitignoreBuilder::new(working_dir)
-                    .build()
-                    .expect("Failed to build default gitignore")
-            })
-        };
+        let ignore_patterns = build_gitignore(working_dir);
 
         let hints = load_hint_files(working_dir, &hints_filenames, &ignore_patterns);
 
@@ -109,6 +104,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
     pub fn with_enable_subagents(mut self, subagents_enabled: bool) -> Self {
         self.subagents_enabled = subagents_enabled;
+        self
+    }
+
+    pub fn with_goose_mode(mut self, mode: GooseMode) -> Self {
+        self.goose_mode = Some(mode);
         self
     }
 
@@ -134,8 +134,9 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             })
             .collect();
 
-        let config = Config::global();
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+        let goose_mode = self
+            .goose_mode
+            .unwrap_or_else(|| Config::global().get_goose_mode().unwrap_or_default());
 
         let extension_tool_limits = self
             .extension_tool_count
@@ -256,6 +257,7 @@ impl PromptManager {
             subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
+            goose_mode: None,
         }
     }
 
@@ -409,6 +411,7 @@ mod tests {
     #[tokio::test]
     async fn test_all_platform_extensions() {
         use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
+        use crate::config::GooseMode;
         use crate::session::SessionManager;
         use std::sync::Arc;
 
@@ -419,6 +422,7 @@ mod tests {
                 tmp_dir.path().to_path_buf(),
                 "test session".to_owned(),
                 crate::session::SessionType::Hidden,
+                GooseMode::default(),
             )
             .await
             .unwrap();

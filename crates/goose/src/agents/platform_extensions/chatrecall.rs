@@ -1,5 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
+use crate::session::session_manager::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -55,6 +57,13 @@ impl ChatRecallClient {
             "#}.to_string());
 
         Ok(Self { info, context })
+    }
+
+    fn search_session_types(&self) -> Vec<SessionType> {
+        match self.context.session.as_ref().map(|s| s.session_type) {
+            Some(SessionType::Acp) => vec![SessionType::Acp],
+            _ => vec![SessionType::User, SessionType::Scheduled],
+        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -176,6 +185,7 @@ impl ChatRecallClient {
                     after_date,
                     before_date,
                     exclude_session_id,
+                    self.search_session_types(),
                 )
                 .await
             {
@@ -273,12 +283,12 @@ impl McpClientTrait for ChatRecallClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let content = match name {
             "chatrecall" => self.handle_chatrecall(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),

@@ -421,30 +421,6 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
         insert(&mut props, "setting_max_turns", max_turns);
     }
 
-    if let Ok(lead_model) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
-        insert(&mut props, "setting_lead_model", lead_model);
-    }
-    if let Ok(lead_provider) = config.get_param::<String>("GOOSE_LEAD_PROVIDER") {
-        insert(&mut props, "setting_lead_provider", lead_provider);
-    }
-    if let Ok(lead_turns) = config.get_param::<i64>("GOOSE_LEAD_TURNS") {
-        insert(&mut props, "setting_lead_turns", lead_turns);
-    }
-    if let Ok(lead_failure_threshold) = config.get_param::<i64>("GOOSE_LEAD_FAILURE_THRESHOLD") {
-        insert(
-            &mut props,
-            "setting_lead_failure_threshold",
-            lead_failure_threshold,
-        );
-    }
-    if let Ok(lead_fallback_turns) = config.get_param::<i64>("GOOSE_LEAD_FALLBACK_TURNS") {
-        insert(
-            &mut props,
-            "setting_lead_fallback_turns",
-            lead_fallback_turns,
-        );
-    }
-
     let extensions = get_enabled_extensions();
     insert(&mut props, "extensions_count", extensions.len() as u64);
     let extension_names: Vec<String> = extensions.iter().map(|e| e.name()).collect();
@@ -581,15 +557,14 @@ pub async fn emit_event(
     event_name: &str,
     mut properties: HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
-    if !is_telemetry_enabled() {
+    // Only onboarding events are enabled for now. These bypass the telemetry
+    // check so we can track the funnel before the user makes their choice.
+    let is_onboarding_event =
+        event_name.starts_with("onboarding_") || event_name == "telemetry_preference_set";
+    if !is_onboarding_event {
         return Ok(());
     }
 
-    // Temporarily disabled - only session_started events are sent
-    let _ = (event_name, &mut properties);
-    return Ok(());
-
-    #[allow(unreachable_code)]
     let installation = load_or_create_installation();
 
     insert(&mut properties, "os", std::env::consts::OS);

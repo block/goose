@@ -73,7 +73,7 @@ cp ../../target/release/goosed src/bin/
 #### Option A: ZIP Distribution (Recommended)
 Works on all Linux distributions:
 ```bash
-pnpm run make -- --targets=@electron-forge/maker-zip
+pnpm run make --targets=@electron-forge/maker-zip
 ```
 
 Output: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
@@ -81,7 +81,7 @@ Output: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
 #### Option B: DEB Package
 For Debian/Ubuntu systems:
 ```bash
-pnpm run make -- --targets=@electron-forge/maker-deb
+pnpm run make --targets=@electron-forge/maker-deb
 ```
 
 Output: `out/make/deb/x64/goose_{version}_amd64.deb`
@@ -148,7 +148,7 @@ sudo apt install flatpak flatpak-builder
 flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
 # Build with Electron Forge
-pnpm run make -- --targets=@electron-forge/maker-flatpak
+pnpm run make --targets=@electron-forge/maker-flatpak
 ```
 
 Output: `out/make/flatpak/x86_64/*.flatpak`

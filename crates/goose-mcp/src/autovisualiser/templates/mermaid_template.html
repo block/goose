@@ -5,168 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mermaid Diagram</title>
 
-    <script>
-        {{MERMAID_MIN}}
-    </script>
+    <script>{{MERMAID_MIN}}</script>
 
+    <style>{{MCP_APP_BASE_CSS}}</style>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
-        }
+        body { padding: 16px; }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            padding: 30px;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 2em;
-            font-weight: 300;
-            color: #333;
-        }
-
-        .mermaid {
+        #mermaidOutput {
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 400px;
+            min-height: 120px;
         }
 
-        /* Mermaid specific styles */
-        .mermaid .node {
-            fill: #667eea !important;
-            stroke: #4a5fc1 !important;
-            stroke-width: 2px !important;
+        #mermaidOutput svg {
+            max-width: 100%;
+            height: auto;
         }
 
-        .mermaid .node text {
-            fill: white !important;
-            font-weight: 500 !important;
-        }
-
-        .mermaid .edgePath path {
-            stroke: #667eea !important;
-            stroke-width: 2px !important;
-        }
-
-        .mermaid .edgeLabel text {
-            fill: #333 !important;
+        .mermaid-error {
+            color: var(--color-text-danger, #f94b4b);
+            font-size: var(--font-text-sm-size);
+            font-family: var(--font-mono, monospace);
+            white-space: pre-wrap;
+            padding: 12px;
+            border-radius: var(--border-radius-md);
+            background: var(--color-background-secondary);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Mermaid Diagram</h1>
-        </div>
-        <div class="mermaid">
-            {{MERMAID_CODE}}
-        </div>
-    </div>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div id="mermaidOutput" style="display:none;width:100%;"></div>
 
+    <script>{{MCP_APP_BRIDGE}}</script>
     <script>
-        // Initialize Mermaid
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: 'default',
-            themeVariables: {
-                primaryColor: '#667eea',
-                primaryTextColor: '#fff',
-                primaryBorderColor: '#4a5fc1',
-                lineColor: '#667eea',
-                sectionBkgColor: '#f8f9fa',
-                altSectionBkgColor: '#e9ecef',
-                gridColor: '#e9ecef',
-                tertiaryColor: '#f8f9fa'
-            },
-            flowchart: {
-                useMaxWidth: true,
-                htmlLabels: true,
-                curve: 'basis'
-            },
-            sequence: {
-                useMaxWidth: true,
-                htmlLabels: true,
-                diagramMarginX: 50,
-                diagramMarginY: 10,
-                actorMargin: 50,
-                width: 150,
-                height: 65,
-                boxMargin: 10,
-                boxTextMargin: 5,
-                noteMargin: 10,
-                messageMargin: 35,
-                mirrorActors: true,
-                bottomMarginAdj: 1,
-                useMaxWidth: true
-            },
-            gantt: {
-                useMaxWidth: true,
-                titleTopMargin: 25,
-                barHeight: 20,
-                barGap: 4,
-                topPadding: 50,
-                leftPadding: 75,
-                gridLineStartPadding: 35,
-                fontSize: 11,
-                fontFamily: '"Open Sans", sans-serif',
-                numberSectionStyles: 4,
-                axisFormat: '%Y-%m-%d'
-            }
-        });
+    (function () {
+        "use strict";
 
-        function reportContentSize() {
-            const contentHeight = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
+        var mermaidReady = false;
 
-            // Send size change message to parent window (for MCP-UI iframe auto-resize)
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'ui-size-change',
-                    payload: {
-                        height: contentHeight
+        function initMermaid() {
+            if (mermaidReady) return;
+            mermaidReady = true;
+
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: isDark ? "dark" : "default",
+                themeVariables: isDark
+                    ? {
+                        primaryColor: "#3d5a9e",
+                        primaryTextColor: "#e0e0e0",
+                        primaryBorderColor: "#4a6bb5",
+                        lineColor: "#7cacff",
+                        secondaryColor: "#3f434b",
+                        tertiaryColor: "#474e57",
+                        background: "#22252a",
+                        mainBkg: "#3d5a9e",
+                        nodeBorder: "#4a6bb5",
+                        clusterBkg: "#2a2e35",
+                        titleColor: "#e0e0e0",
+                        edgeLabelBackground: "#2a2e35",
                     }
-                }, '*');
-            }
+                    : {
+                        primaryColor: "#5c98f9",
+                        primaryTextColor: "#3f434b",
+                        primaryBorderColor: "#4a82d9",
+                        lineColor: "#5c98f9",
+                        secondaryColor: "#f4f6f7",
+                        tertiaryColor: "#e3e6ea",
+                        background: "#ffffff",
+                        mainBkg: "#5c98f9",
+                        nodeBorder: "#4a82d9",
+                    },
+                flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" },
+                sequence: { useMaxWidth: true },
+                gantt: { useMaxWidth: true },
+            });
         }
 
-        // Initialize on load
-        window.onload = function() {
-            // Report initial size
-            setTimeout(reportContentSize, 100);
+        // Normalise common diagram-type casing the LLM gets wrong.
+        // Mermaid is case-sensitive: "gitgraph" fails, "gitGraph" works, etc.
+        var diagramCasing = {
+            gitgraph: "gitGraph",
+            sequencediagram: "sequenceDiagram",
+            classdiagram: "classDiagram",
+            statediagram: "stateDiagram",
+            erdiagram: "erDiagram",
+            ganttchart: "gantt",
+            flowchart: "flowchart",
+            piechart: "pie",
+            mindmap: "mindmap",
+            timeline: "timeline",
+        };
 
-            // Watch for size changes using ResizeObserver if available
-            if (typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    reportContentSize();
-                });
-                resizeObserver.observe(document.body);
-                resizeObserver.observe(document.documentElement);
+        function normaliseMermaidCode(code) {
+            // Fix the diagram type keyword on the first non-empty line
+            return code.replace(/^(\s*)(\S+)/, function (match, ws, keyword) {
+                var fixed = diagramCasing[keyword.toLowerCase()];
+                return fixed ? ws + fixed : match;
+            });
+        }
+
+        function renderMermaid(mermaidCode) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            var output = document.getElementById("mermaidOutput");
+            output.style.display = "";
+
+            if (!mermaidCode || typeof mermaidCode !== "string") {
+                McpAppBridge.showError("No valid Mermaid code provided");
+                return;
             }
 
-            // Fallback: also report on window resize
-            window.addEventListener('resize', reportContentSize);
-        };
+            initMermaid();
+
+            var code = normaliseMermaidCode(mermaidCode);
+            var uid = "mermaid-" + Date.now();
+
+            // Mermaid injects error SVGs into the DOM as side effects even
+            // when the promise rejects.  Clean the output container first so
+            // stale artefacts from a previous render don't linger, and clean
+            // again in the catch path to remove any error SVGs mermaid added.
+            output.innerHTML = "";
+
+            mermaid.render(uid, code).then(function (result) {
+                output.innerHTML = result.svg;
+                setTimeout(McpAppBridge.reportSize, 80);
+            }).catch(function (err) {
+                // Remove any error artefacts mermaid injected (bomb-icon SVGs, etc.)
+                document.querySelectorAll('[id^="d' + uid + '"]').forEach(function (el) { el.remove(); });
+                output.innerHTML = '<div class="mermaid-error">' + (err.message || err) + "</div>";
+                setTimeout(McpAppBridge.reportSize, 80);
+            });
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-mermaid",
+            onData: renderMermaid,
+            extractData: function (msg) {
+                var sc = msg.params && msg.params.structuredContent;
+                if (sc) {
+                    if (sc.mermaid_code) return sc.mermaid_code;
+                    if (sc.data && sc.data.mermaid_code) return sc.data.mermaid_code;
+                }
+                var args = msg.params && msg.params.arguments;
+                if (args) {
+                    if (args.mermaid_code) return args.mermaid_code;
+                    if (args.data && args.data.mermaid_code) return args.data.mermaid_code;
+                }
+                return null;
+            },
+        });
+    })();
     </script>
 </body>
 </html>

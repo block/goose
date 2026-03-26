@@ -18,7 +18,7 @@ The extension uses the [Agent Client Protocol (ACP)](/docs/guides/acp-clients) t
 
 :::info Prerequisites
 - [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher
-- [goose CLI](/docs/getting-started/installation) version 1.16.0 or higher
+- [goose CLI](/docs/getting-started/installation)
 :::
 
 1. Go to [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose)

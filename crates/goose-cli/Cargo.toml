@@ -27,7 +27,6 @@ rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = "0.4.0"
 console = "0.16.1"
-uuid = { workspace = true }
 dotenvy = { workspace = true }
 bat = { version = "0.26.1", default-features = false, features = ["regex-onig"] }
 anyhow = { workspace = true }
@@ -62,18 +61,42 @@ url = { workspace = true }
 urlencoding = { workspace = true }
 clap_complete = "4.5.62"
 comfy-table = "7.2.2"
+sha2 = { workspace = true }
+sigstore-verify = { version = "0.6", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3", features = ["wincred"] }
+winapi = { workspace = true }
 
 [features]
-default = ["code-mode"]
+default = ["code-mode", "local-inference", "aws-providers", "telemetry", "otel", "rustls-tls"]
 code-mode = ["goose/code-mode", "goose-acp/code-mode"]
-cuda = ["goose/cuda"]
+local-inference = ["goose/local-inference"]
+aws-providers = ["goose/aws-providers"]
+cuda = ["goose/cuda", "local-inference"]
+telemetry = ["goose/telemetry"]
+otel = ["goose/otel"]
 # disables the update command
 disable-update = []
+rustls-tls = [
+    "reqwest/rustls",
+    "sigstore-verify/rustls",
+    "goose/rustls-tls",
+    "goose-mcp/rustls-tls",
+]
+native-tls = [
+    "reqwest/native-tls",
+    "sigstore-verify/native-tls",
+    "goose/native-tls",
+    "goose-mcp/native-tls",
+]
 
 [dev-dependencies]
 tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winapi",
+]

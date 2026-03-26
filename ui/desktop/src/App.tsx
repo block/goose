@@ -15,7 +15,7 @@ import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
-import ProviderGuard from './components/ProviderGuard';
+import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -39,6 +39,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { FeaturesProvider } from './contexts/FeaturesContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -158,7 +159,7 @@ const PairRouteWrapper = ({
   return null;
 };
 
-const SettingsRoute = () => {
+const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -174,7 +175,13 @@ const SettingsRoute = () => {
     viewOptions.section = sectionFromUrl;
   }
 
-  return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
+  return (
+    <SettingsView
+      onClose={() => navigate('/')}
+      setView={setView}
+      viewOptions={{ ...viewOptions, sessionId: activeSessionId }}
+    />
+  );
 };
 
 const SessionsRoute = () => {
@@ -240,11 +247,7 @@ const ConfigureProvidersRoute = () => {
   );
 };
 
-interface WelcomeRouteProps {
-  onSelectProvider: () => void;
-}
-
-const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
+const WelcomeRoute = () => {
   const navigate = useNavigate();
 
   return (
@@ -256,7 +259,6 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
         isOnboarding={true}
         onProviderLaunched={(model?: string) => {
           trackOnboardingCompleted('other', model);
-          onSelectProvider();
           navigate('/', { replace: true });
         }}
       />
@@ -342,7 +344,6 @@ export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
-  const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -641,20 +642,17 @@ export function AppInner() {
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
-            <Route
-              path="welcome"
-              element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
-            />
+            <Route path="welcome" element={<WelcomeRoute />} />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
               path="/"
               element={
-                <ProviderGuard didSelectProvider={didSelectProvider}>
+                <OnboardingGuard>
                   <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
                     <AppLayout activeSessions={activeSessions} />
                   </ChatProvider>
-                </ProviderGuard>
+                </OnboardingGuard>
               }
             >
               <Route index element={<HubRouteWrapper />} />
@@ -667,7 +665,14 @@ export function AppInner() {
                   />
                 }
               />
-              <Route path="settings" element={<SettingsRoute />} />
+              <Route
+                path="settings"
+                element={
+                  <SettingsRoute
+                    activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId}
+                  />
+                }
+              />
               <Route
                 path="extensions"
                 element={
@@ -702,13 +707,15 @@ export function AppInner() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-        <TelemetryOptOutModal controlled={false} />
-      </ModelAndProviderProvider>
+      <FeaturesProvider>
+        <ModelAndProviderProvider>
+          <HashRouter>
+            <AppInner />
+          </HashRouter>
+          <AnnouncementModal />
+          <TelemetryOptOutModal controlled={false} />
+        </ModelAndProviderProvider>
+      </FeaturesProvider>
     </ThemeProvider>
   );
 }

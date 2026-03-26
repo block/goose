@@ -6,6 +6,7 @@ use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::pin;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -81,13 +82,30 @@ impl DatabricksAuth {
 
 struct DatabricksAuthProvider {
     auth: DatabricksAuth,
+    token_cache: Arc<Mutex<Option<String>>>,
 }
 
 #[async_trait]
 impl AuthProvider for DatabricksAuthProvider {
     async fn get_auth_header(&self) -> Result<(String, String)> {
         let token = match &self.auth {
-            DatabricksAuth::Token(token) => token.clone(),
+            DatabricksAuth::Token(original) => {
+                let cached = self.token_cache.lock().unwrap().clone();
+                match cached {
+                    Some(t) => t,
+                    None => {
+                        // Cache was cleared by refresh_credentials(); re-read
+                        // from config which may have a sidecar-rotated token.
+                        // Fall back to the constructor-provided token if config
+                        // lookup fails (e.g. from_params usage).
+                        let fresh = crate::config::Config::global()
+                            .get_secret::<String>("DATABRICKS_TOKEN")
+                            .unwrap_or_else(|_| original.clone());
+                        *self.token_cache.lock().unwrap() = Some(fresh.clone());
+                        fresh
+                    }
+                }
+            }
             DatabricksAuth::OAuth {
                 host,
                 client_id,
@@ -112,9 +130,15 @@ pub struct DatabricksProvider {
     fast_retry_config: RetryConfig,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    token_cache: Arc<Mutex<Option<String>>>,
 }
 
 impl DatabricksProvider {
+    pub async fn cleanup() -> Result<()> {
+        super::oauth::cleanup_oauth_cache()
+    }
+
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
@@ -140,8 +164,15 @@ impl DatabricksProvider {
             DatabricksAuth::oauth(host.clone())
         };
 
-        let auth_method =
-            AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));
+        let token_cache = Arc::new(Mutex::new(match &auth {
+            DatabricksAuth::Token(t) => Some(t.clone()),
+            _ => None,
+        }));
+
+        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
+            auth: auth.clone(),
+            token_cache: token_cache.clone(),
+        }));
 
         let api_client =
             ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
@@ -154,6 +185,7 @@ impl DatabricksProvider {
             retry_config,
             fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
+            token_cache,
         };
         provider.model =
             model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
@@ -185,12 +217,12 @@ impl DatabricksProvider {
             .and_then(|v: String| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
 
-        RetryConfig {
+        RetryConfig::new(
             max_retries,
             initial_interval_ms,
             backoff_multiplier,
             max_interval_ms,
-        }
+        )
     }
 
     fn load_fast_retry_config(_config: &crate::config::Config) -> RetryConfig {
@@ -199,9 +231,12 @@ impl DatabricksProvider {
     }
 
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
+        let token_cache = Arc::new(Mutex::new(Some(api_key.clone())));
         let auth = DatabricksAuth::token(api_key);
-        let auth_method =
-            AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));
+        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
+            auth: auth.clone(),
+            token_cache: token_cache.clone(),
+        }));
 
         let api_client = ApiClient::with_timeout(host, auth_method, Duration::from_secs(600))?;
 
@@ -213,6 +248,7 @@ impl DatabricksProvider {
             retry_config: RetryConfig::default(),
             fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
             name: DATABRICKS_PROVIDER_NAME.to_string(),
+            token_cache,
         })
     }
 
@@ -285,6 +321,13 @@ impl Provider for DatabricksProvider {
         self.retry_config.clone()
     }
 
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        crate::config::Config::global().invalidate_secrets_cache();
+        *self.token_cache.lock().unwrap() = None;
+        tracing::info!("Invalidated secrets cache and token cache for credential refresh");
+        Ok(())
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -346,6 +389,18 @@ impl Provider for DatabricksProvider {
                 .unwrap()
                 .insert("stream".to_string(), Value::Bool(true));
 
+            if let Some(opts) = payload
+                .get_mut("stream_options")
+                .and_then(|v| v.as_object_mut())
+            {
+                opts.entry("include_usage").or_insert(json!(true));
+            } else {
+                payload
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("stream_options".to_string(), json!({"include_usage": true}));
+            }
+
             let mut log = RequestLog::start(model_config, &payload)?;
             let response = self
                 .with_retry(|| async {
@@ -357,16 +412,40 @@ impl Provider for DatabricksProvider {
                         let status = resp.status();
                         let error_text = resp.text().await.unwrap_or_default();
 
-                        // Parse as JSON if possible to pass to map_http_error_to_provider_error
                         let json_payload = serde_json::from_str::<Value>(&error_text).ok();
                         return Err(map_http_error_to_provider_error(status, json_payload));
                     }
                     Ok(resp)
                 })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                .await;
+
+            let response = match response {
+                Err(e) if e.to_string().contains("stream_options") => {
+                    payload.as_object_mut().unwrap().remove("stream_options");
+                    self.with_retry(|| async {
+                        let resp = self
+                            .api_client
+                            .response_post(Some(session_id), &path, &payload)
+                            .await?;
+                        if !resp.status().is_success() {
+                            let status = resp.status();
+                            let error_text = resp.text().await.unwrap_or_default();
+                            let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                            return Err(map_http_error_to_provider_error(status, json_payload));
+                        }
+                        Ok(resp)
+                    })
+                    .await
+                    .inspect_err(|e| {
+                        let _ = log.error(e);
+                    })?
+                }
+                Err(e) => {
+                    let _ = log.error(&e);
+                    return Err(e);
+                }
+                Ok(resp) => resp,
+            };
 
             stream_openai_compat(response, log)
         }

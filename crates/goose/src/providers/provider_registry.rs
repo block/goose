@@ -12,10 +12,13 @@ pub type ProviderConstructor = Arc<
         + Sync,
 >;
 
+pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
+
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
+    pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
 }
 
@@ -61,6 +64,7 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
+                cleanup: None,
                 provider_type: if preferred {
                     ProviderType::Preferred
                 } else {
@@ -121,12 +125,14 @@ impl ProviderRegistry {
 
         if let Some(ref env_vars) = config.env_vars {
             for ev in env_vars {
+                // Default primary to `required` so required fields show prominently in the UI
+                let primary = ev.primary.unwrap_or(ev.required);
                 config_keys.push(super::base::ConfigKey::new(
                     &ev.name,
                     ev.required,
                     ev.secret,
                     ev.default.as_deref(),
-                    false,
+                    primary,
                 ));
             }
         }
@@ -139,6 +145,7 @@ impl ProviderRegistry {
             known_models,
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
+            setup_steps: vec![],
         };
 
         self.entries.insert(
@@ -152,9 +159,16 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
+                cleanup: None,
                 provider_type,
             },
         );
+    }
+
+    pub fn set_cleanup(&mut self, name: &str, cleanup: ProviderCleanup) {
+        if let Some(entry) = self.entries.get_mut(name) {
+            entry.cleanup = Some(cleanup);
+        }
     }
 
     pub fn with_providers<F>(mut self, setup: F) -> Self
