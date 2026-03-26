@@ -40,7 +40,7 @@ pub async fn run() -> Result<()> {
     let settings = configuration::Settings::new()?;
 
     let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY")
-        .unwrap_or_else(|_| hex::encode(rand::random::<[u8; 32]>()));
+        .expect("GOOSE_SERVER__SECRET_KEY must be set");
 
     let app_state = state::AppState::new(settings.tls).await?;
 
