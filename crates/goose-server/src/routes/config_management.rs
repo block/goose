@@ -12,7 +12,6 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
-use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::catalog::{
@@ -149,16 +148,6 @@ pub struct SlashCommandsResponse {
     pub commands: Vec<SlashCommand>,
 }
 
-#[derive(Deserialize, ToSchema)]
-pub struct DetectProviderRequest {
-    pub api_key: String,
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct DetectProviderResponse {
-    pub provider_name: String,
-    pub models: Vec<String>,
-}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -536,31 +525,6 @@ pub async fn upsert_permissions(
 
 #[utoipa::path(
     post,
-    path = "/config/detect-provider",
-    request_body = DetectProviderRequest,
-    responses(
-        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
-        (status = 404, description = "No matching provider found"),
-    )
-)]
-pub async fn detect_provider(
-    Json(detect_request): Json<DetectProviderRequest>,
-) -> Result<Json<DetectProviderResponse>, ErrorResponse> {
-    let api_key = detect_request.api_key.trim();
-
-    match detect_provider_from_api_key(api_key).await {
-        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
-            provider_name,
-            models,
-        })),
-        None => Err(ErrorResponse::not_found(
-            "Could not detect provider from the provided API key",
-        )),
-    }
-}
-
-#[utoipa::path(
-    post,
     path = "/config/backup",
     responses(
         (status = 200, description = "Config file backed up", body = String),
@@ -930,7 +894,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/config/providers/{name}/cleanup",
             post(cleanup_provider_cache),
         )
-        .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route(
             "/config/canonical-model-info",

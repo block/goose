@@ -32,6 +32,7 @@ use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
+use crate::subprocess::configure_subprocess;
 
 /// Sentinel: resolved to SessionModelState.current_model_id at connect time.
 pub const ACP_CURRENT_MODEL: &str = "current";
@@ -938,6 +939,7 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
         cmd.env(key, value);
     }
 
+    configure_subprocess(&mut cmd);
     cmd.spawn().context("failed to spawn ACP process")
 }
 
