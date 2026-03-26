@@ -171,7 +171,6 @@ export function buildToolCallCardLines(
   const bodyRows: Array<{ text: string; color?: string; italic?: boolean }> = [];
 
   const runningText = info.status === "in_progress" ? " running…" : "";
-  const tabHint = "";
   bodyRows.push({ text: "__HEADER__" });
 
   if (hasLocations) {
@@ -220,7 +219,6 @@ export function buildToolCallCardLines(
               <Text color={TEXT_SECONDARY} bold>{info.title}</Text>
               {runningText ? <Text color={TEXT_DIM} italic>{runningText}</Text> : null}
             </Box>
-            {tabHint ? <Text color={TEXT_DIM} italic>{tabHint}</Text> : null}
           </Box>
           <Text color={borderColor} dimColor={dimBorder}> │</Text>
         </Box>,
