@@ -3,6 +3,7 @@ use serde_json::Value;
 use super::base::{ProviderUsage, Usage};
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
+use crate::utils::safe_truncate;
 use rmcp::model::Role;
 
 pub(crate) fn extract_usage_tokens(usage_info: &Value) -> Usage {
@@ -75,7 +76,7 @@ pub(crate) fn generate_simple_session_description(
             if desc.is_empty() {
                 "Simple task".to_string()
             } else {
-                desc
+                safe_truncate(&desc, 100)
             }
         })
         .unwrap_or_else(|| "Simple task".to_string());
