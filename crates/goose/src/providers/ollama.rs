@@ -2,7 +2,7 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
-use super::retry::ProviderRetry;
+use super::retry::{ProviderRetry, RetryConfig};
 use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
@@ -35,6 +35,14 @@ pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
     "qwen3-coder:480b-cloud",
 ];
 pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
+
+// Ollama-specific retry config: large models can take 30-120s to load into memory,
+// during which Ollama returns 500 errors. Use more retries with gradual backoff
+// to wait for the model to become ready.
+const OLLAMA_MAX_RETRIES: usize = 10;
+const OLLAMA_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
+const OLLAMA_BACKOFF_MULTIPLIER: f64 = 1.5;
+const OLLAMA_MAX_RETRY_INTERVAL_MS: u64 = 15_000;
 
 #[derive(serde::Serialize)]
 pub struct OllamaProvider {
@@ -211,6 +219,16 @@ impl Provider for OllamaProvider {
         self.model.clone()
     }
 
+    fn retry_config(&self) -> RetryConfig {
+        RetryConfig::new(
+            OLLAMA_MAX_RETRIES,
+            OLLAMA_INITIAL_RETRY_INTERVAL_MS,
+            OLLAMA_BACKOFF_MULTIPLIER,
+            OLLAMA_MAX_RETRY_INTERVAL_MS,
+        )
+        .transient_only()
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -339,5 +357,38 @@ mod tests {
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
         assert!(payload.get("options").is_none());
+    }
+
+    #[test]
+    fn test_ollama_retry_config_is_transient_only() {
+        let config = RetryConfig::new(
+            OLLAMA_MAX_RETRIES,
+            OLLAMA_INITIAL_RETRY_INTERVAL_MS,
+            OLLAMA_BACKOFF_MULTIPLIER,
+            OLLAMA_MAX_RETRY_INTERVAL_MS,
+        )
+        .transient_only();
+
+        assert!(config.transient_only);
+
+        use super::super::errors::ProviderError;
+        use super::super::retry::should_retry;
+
+        assert!(!should_retry(
+            &ProviderError::RequestFailed("Resource not found (404)".into()),
+            &config
+        ));
+        assert!(!should_retry(
+            &ProviderError::RequestFailed("Bad request (400)".into()),
+            &config
+        ));
+        assert!(should_retry(
+            &ProviderError::ServerError("500 model loading".into()),
+            &config
+        ));
+        assert!(should_retry(
+            &ProviderError::NetworkError("connection refused".into()),
+            &config
+        ));
     }
 }

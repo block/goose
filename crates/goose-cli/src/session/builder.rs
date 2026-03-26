@@ -579,6 +579,7 @@ async fn configure_session_prompts(
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
+    #[cfg(feature = "telemetry")]
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();

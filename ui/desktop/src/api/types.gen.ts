@@ -91,11 +91,16 @@ export type ConfigKey = {
      */
     default?: string | null;
     /**
+     * Whether this OAuth flow uses the device code grant (RFC 8628)
+     * When true, the user must enter a verification code in the browser
+     */
+    device_code_flow?: boolean;
+    /**
      * The name of the configuration key (e.g., "API_KEY")
      */
     name: string;
     /**
-     * Whether this key should be configured using OAuth device code flow
+     * Whether this key should be configured using an OAuth flow
      * When true, the provider's configure_oauth() method will be called instead of prompting for manual input
      */
     oauth_flow: boolean;
@@ -234,15 +239,6 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
-export type DetectProviderRequest = {
-    api_key: string;
-};
-
-export type DetectProviderResponse = {
-    models: Array<string>;
-    provider_name: string;
-};
-
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
@@ -335,6 +331,11 @@ export type EnvVarConfig = {
     default?: string | null;
     description?: string | null;
     name: string;
+    /**
+     * When true, the field is shown prominently in the UI (not collapsed).
+     * Defaults to the value of `required` if not specified.
+     */
+    primary?: boolean | null;
     required?: boolean;
     secret?: boolean;
 };
@@ -1285,7 +1286,7 @@ export type SessionReplyResponse = {
     request_id: string;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway' | 'acp';
 
 export type SessionsQuery = {
     limit: number;
@@ -2355,29 +2356,6 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
-
-export type DetectProviderData = {
-    body: DetectProviderRequest;
-    path?: never;
-    query?: never;
-    url: '/config/detect-provider';
-};
-
-export type DetectProviderErrors = {
-    /**
-     * No matching provider found
-     */
-    404: unknown;
-};
-
-export type DetectProviderResponses = {
-    /**
-     * Provider detected successfully
-     */
-    200: DetectProviderResponse;
-};
-
-export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;

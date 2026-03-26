@@ -3,12 +3,15 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{Config, GooseMode};
+#[cfg(feature = "telemetry")]
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer};
 
-use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
+#[cfg(feature = "telemetry")]
+use crate::commands::configure::configure_telemetry_consent_dialog;
+use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -1108,6 +1111,7 @@ async fn handle_interactive_session(
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
 ) -> Result<()> {
+    #[cfg(feature = "telemetry")]
     if get_telemetry_choice().is_none() {
         configure_telemetry_consent_dialog()?;
     }
@@ -1332,6 +1336,7 @@ async fn handle_run_command(
     output_opts: OutputOptions,
     model_opts: ModelOptions,
 ) -> Result<()> {
+    #[cfg(feature = "telemetry")]
     if run_behavior.interactive && get_telemetry_choice().is_none() {
         configure_telemetry_consent_dialog()?;
     }
@@ -1643,6 +1648,7 @@ async fn handle_default_session() -> Result<()> {
         return handle_configure().await;
     }
 
+    #[cfg(feature = "telemetry")]
     if get_telemetry_choice().is_none() {
         configure_telemetry_consent_dialog()?;
     }

@@ -15,9 +15,7 @@ import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
-import ProviderGuard from './components/ProviderGuard';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
-import { USE_NEW_ONBOARDING } from './featureFlags';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -249,11 +247,7 @@ const ConfigureProvidersRoute = () => {
   );
 };
 
-interface WelcomeRouteProps {
-  onSelectProvider: () => void;
-}
-
-const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
+const WelcomeRoute = () => {
   const navigate = useNavigate();
 
   return (
@@ -265,7 +259,6 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
         isOnboarding={true}
         onProviderLaunched={(model?: string) => {
           trackOnboardingCompleted('other', model);
-          onSelectProvider();
           navigate('/', { replace: true });
         }}
       />
@@ -351,7 +344,6 @@ export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
-  const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -650,28 +642,17 @@ export function AppInner() {
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
-            <Route
-              path="welcome"
-              element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
-            />
+            <Route path="welcome" element={<WelcomeRoute />} />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
               path="/"
               element={
-                USE_NEW_ONBOARDING ? (
-                  <OnboardingGuard>
-                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                      <AppLayout activeSessions={activeSessions} />
-                    </ChatProvider>
-                  </OnboardingGuard>
-                ) : (
-                  <ProviderGuard didSelectProvider={didSelectProvider}>
-                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                      <AppLayout activeSessions={activeSessions} />
-                    </ChatProvider>
-                  </ProviderGuard>
-                )
+                <OnboardingGuard>
+                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                    <AppLayout activeSessions={activeSessions} />
+                  </ChatProvider>
+                </OnboardingGuard>
               }
             >
               <Route index element={<HubRouteWrapper />} />
