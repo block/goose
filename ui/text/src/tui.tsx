@@ -24,6 +24,9 @@ import { renderMarkdown } from "./markdown.js";
 import { buildToolCallCardLines, ToolCallCompact, findFeaturedToolCallId } from "./toolcall.js";
 import type { ToolCallInfo } from "./toolcall.js";
 import { CRANBERRY, TEAL, GOLD, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_DIM, RULE_COLOR } from "./colors.js";
+import { SlashCommandMenu, detectSlashCommand, filterCommands } from "./slash-commands.js";
+import type { SlashCommand } from "./slash-commands.js";
+import { ProviderModelSwitcher } from "./provider-model-switcher.js";
 
 interface PendingPermission {
   toolTitle: string;
@@ -273,6 +276,9 @@ function InputBar({
   onSubmit,
   queued,
   scrollHint,
+  slashCommands,
+  slashCommandIdx,
+  showSlashMenu,
 }: {
   width: number;
   input: string;
@@ -280,9 +286,22 @@ function InputBar({
   onSubmit: (v: string) => void;
   queued: boolean;
   scrollHint: boolean;
+  slashCommands?: SlashCommand[];
+  slashCommandIdx?: number;
+  showSlashMenu?: boolean;
 }) {
   return (
     <Box flexDirection="column" width={width} marginBottom={1}>
+      {showSlashMenu && slashCommands && slashCommands.length > 0 && (
+        <Box marginBottom={1}>
+          <SlashCommandMenu
+            commands={slashCommands}
+            filter={detectSlashCommand(input).commandText}
+            selectedIdx={slashCommandIdx || 0}
+            width={width}
+          />
+        </Box>
+      )}
       <Box
         flexDirection="column"
         borderStyle="round"
@@ -568,6 +587,10 @@ function App({
   const [viewTurnIdx, setViewTurnIdx] = useState(-1);
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
+
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashCommandIdx, setSlashCommandIdx] = useState(0);
+  const [showProviderModelSwitcher, setShowProviderModelSwitcher] = useState(false);
 
   const clientRef = useRef<GooseClient | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -868,14 +891,52 @@ function App({
     exit,
   ]);
 
+  const slashCommands: SlashCommand[] = [
+    {
+      name: "model",
+      description: "Switch provider or model",
+      handler: () => {
+        setShowProviderModelSwitcher(true);
+        setShowSlashMenu(false);
+      },
+    },
+    {
+      name: "provider",
+      description: "Switch provider or model",
+      handler: () => {
+        setShowProviderModelSwitcher(true);
+        setShowSlashMenu(false);
+      },
+    },
+  ];
+
   const handleSubmit = useCallback(
     (value: string) => {
       const trimmed = value.trim();
       if (!trimmed) return;
+
+      // Check if this is a slash command
+      const { isSlashCommand, commandText } = detectSlashCommand(trimmed);
+      if (isSlashCommand) {
+        const filtered = filterCommands(slashCommands, commandText);
+        const exactMatch = filtered.find(
+          (cmd) => cmd.name.toLowerCase() === commandText.toLowerCase(),
+        );
+        const commandToExecute = exactMatch || filtered[slashCommandIdx];
+        
+        if (commandToExecute) {
+          setInput("");
+          setShowSlashMenu(false);
+          commandToExecute.handler();
+          return;
+        }
+      }
+
       setInput("");
       setViewTurnIdx(-1);
       setToolCallsExpanded(false);
       setScrollOffset(0);
+      setShowSlashMenu(false);
 
       if (loading || isProcessingRef.current) {
         queueRef.current.push(trimmed);
@@ -884,16 +945,38 @@ function App({
         sendPrompt(trimmed);
       }
     },
-    [loading, sendPrompt],
+    [loading, sendPrompt, slashCommandIdx, slashCommands],
   );
+
+  useEffect(() => {
+    const { isSlashCommand } = detectSlashCommand(input);
+    setShowSlashMenu(isSlashCommand);
+    if (isSlashCommand) {
+      setSlashCommandIdx(0);
+    }
+  }, [input]);
 
   useInput((ch, key) => {
     if (key.escape || (ch === "c" && key.ctrl)) {
+      if (showProviderModelSwitcher) {
+        setShowProviderModelSwitcher(false);
+        return;
+      }
       if (pendingPermission) {
         resolvePermission("cancelled");
         return;
       }
+      if (showSlashMenu) {
+        setInput("");
+        setShowSlashMenu(false);
+        return;
+      }
       exit();
+    }
+
+    if (showProviderModelSwitcher) {
+      // Provider/model switcher handles its own input
+      return;
     }
 
     if (pendingPermission) {
@@ -924,6 +1007,22 @@ function App({
         const match = opts.find((o) => o.kind === targetKind);
         if (match) resolvePermission({ optionId: match.optionId });
       }
+      return;
+    }
+
+    if (showSlashMenu) {
+      const { commandText } = detectSlashCommand(input);
+      const filtered = filterCommands(slashCommands, commandText);
+
+      if (key.upArrow) {
+        setSlashCommandIdx((i) => (i - 1 + filtered.length) % filtered.length);
+        return;
+      }
+      if (key.downArrow) {
+        setSlashCommandIdx((i) => (i + 1) % filtered.length);
+        return;
+      }
+      // Return key is handled by handleSubmit
       return;
     }
 
@@ -1082,7 +1181,34 @@ function App({
           onSubmit={handleSubmit}
           queued={queuedMessages.length > 0}
           scrollHint={turns.length > 1}
+          slashCommands={slashCommands}
+          slashCommandIdx={slashCommandIdx}
+          showSlashMenu={showSlashMenu}
         />
+      )}
+
+      {showProviderModelSwitcher && clientRef.current && sessionIdRef.current && (
+        <Box
+          position="absolute"
+          flexDirection="column"
+          width={termWidth}
+          height={termHeight}
+          justifyContent="center"
+          alignItems="center"
+        >
+          <ProviderModelSwitcher
+            client={clientRef.current}
+            sessionId={sessionIdRef.current}
+            width={innerWidth}
+            onComplete={() => {
+              setShowProviderModelSwitcher(false);
+              setStatus("model updated");
+            }}
+            onCancel={() => {
+              setShowProviderModelSwitcher(false);
+            }}
+          />
+        </Box>
       )}
     </Box>
   );
