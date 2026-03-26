@@ -102,11 +102,7 @@ Manage agent sessions: list, view, start, send messages, and interrupt agents.
 
 
 You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:
-• agent-browser - Debug visual bugs and interact with web apps using agent-browser CLI. Use when debugging, inspecting, navigating, filling forms, clicking buttons, taking screenshots, scraping data, testing web apps, or automating browser tasks. Supports desktop browsers and iOS Simulator (Mobile Safari). 93% less context than Playwright MCP.
-• codesearch - Use when searching, finding, locating, discovering, querying, looking up, or browsing code patterns, files, or implementations across all Square repositories via go/codesearch.
-• find-skills - Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.
 • goose-doc-guide - Reference goose documentation to create, configure, or explain goose-specific features like recipes, extensions, sessions, and providers. You MUST fetch relevant goose docs before answering. You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
-• skill-management - Manage AI agent skills using the sq-agents CLI. Use when asked to find, search, discover, browse, install, list, show, or remove skills.
 ## todo
 
 ### Instructions

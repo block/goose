@@ -296,14 +296,24 @@ impl CodeExecutionClient {
         // If the entire return value was just a content ref, return only
         // the resolved rich content. Otherwise return the text output
         // (with refs intact) plus the rich content alongside it.
-        // Only treat as a pure content ref if the wrapper has our sentinel key,
-        // which distinguishes it from real tool objects that happen to contain
-        // _goose_content_ref (injected) alongside their own fields.
+        // Only treat as a pure content ref if the wrapper has exactly the
+        // shape produced by `create_tool_callback`: {_goose_content_ref,
+        // _goose_pure_ref, text_result} and nothing else. This prevents
+        // the fast path from triggering when a script spreads the wrapper
+        // into a larger object (e.g. `return { ...r, status: "ok" }`),
+        // which would silently discard the caller-added fields.
         let is_pure_ref = output
             .output
             .as_ref()
-            .and_then(|v| v.get("_goose_pure_ref"))
-            .and_then(|v| v.as_bool())
+            .and_then(|v| v.as_object())
+            .map(|map| {
+                map.get("_goose_pure_ref")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                    && map.len() == 3
+                    && map.contains_key("_goose_content_ref")
+                    && map.contains_key("text_result")
+            })
             .unwrap_or(false);
 
         if is_pure_ref && !rich_contents.is_empty() {
