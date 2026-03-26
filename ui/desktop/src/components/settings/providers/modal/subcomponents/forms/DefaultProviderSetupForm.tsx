@@ -127,47 +127,109 @@ export default function DefaultProviderSetupForm({
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
 
-  function getRenderValue(parameter: ConfigKey): string | undefined {
-    if (parameter.secret) {
-      return undefined;
-    }
-
+  function getRenderValue(parameter: ConfigKey): string {
     const entry = configValues[parameter.name];
-    return entry?.value || (entry?.serverValue as string) || '';
+    // If the user has edited the field (even to empty string), use their value.
+    // This prevents the input from snapping back to the stored serverValue
+    // when the user backspaces to clear the field.
+    if (entry?.value !== undefined) {
+      return entry.value;
+    }
+    if (parameter.secret) {
+      return '';
+    }
+    // Convert serverValue to string explicitly — native booleans (false) would
+    // be falsy and get collapsed to '' by the || operator, losing the value.
+    if (entry?.serverValue !== undefined && entry?.serverValue !== null) {
+      return String(entry.serverValue);
+    }
+    return '';
+  }
+
+  // Detect boolean parameters (default is "true" or "false")
+  function isBooleanParameter(parameter: ConfigKey): boolean {
+    const def = parameter.default?.toLowerCase();
+    return def === 'true' || def === 'false';
+  }
+
+  function getBooleanValue(parameter: ConfigKey): boolean {
+    const raw = getRenderValue(parameter);
+    const val = String(raw).toLowerCase();
+    if (val === '' && parameter.default) {
+      return parameter.default.toLowerCase() === 'true';
+    }
+    return val === 'true';
+  }
+
+  // Pretty label for boolean toggle (strip provider prefix, humanize)
+  function getBooleanLabel(parameter: ConfigKey): string {
+    let name = parameter.name.toUpperCase();
+    const prefix = provider.name.toUpperCase().replace('-', '_') + '_';
+    if (name.startsWith(prefix)) {
+      name = name.slice(prefix.length);
+    }
+    return envToPrettyName(name);
   }
 
   const renderParametersList = (parameters: ConfigKey[]) => {
-    return parameters.map((parameter) => (
-      <div key={parameter.name}>
-        <label className="block text-sm font-medium text-text-primary mb-1">
-          {getFieldLabel(parameter)}
-          {parameter.required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <Input
-          type="text"
-          value={getRenderValue(parameter)}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            setConfigValues((prev) => {
-              const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
-              return {
-                ...prev,
-                [parameter.name]: newValue,
-              };
-            });
-          }}
-          placeholder={getPlaceholder(parameter)}
-          className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
-            validationErrors[parameter.name]
-              ? 'border-2 border-red-500'
-              : 'border border-border-primary hover:border-border-primary'
-          } bg-background-primary text-lg placeholder:text-text-secondary font-regular text-text-primary`}
-          required={parameter.required}
-        />
-        {validationErrors[parameter.name] && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
-        )}
-      </div>
-    ));
+    return parameters.map((parameter) => {
+      if (isBooleanParameter(parameter)) {
+        return (
+          <div key={parameter.name} className="flex items-center space-x-2 py-2">
+            <input
+              type="checkbox"
+              id={`toggle-${parameter.name}`}
+              checked={getBooleanValue(parameter)}
+              onChange={(e) => {
+                setConfigValues((prev) => ({
+                  ...prev,
+                  [parameter.name]: {
+                    ...(prev[parameter.name] || {}),
+                    value: e.target.checked ? 'true' : 'false',
+                  },
+                }));
+              }}
+              className="rounded border-border-primary h-4 w-4"
+            />
+            <label htmlFor={`toggle-${parameter.name}`} className="text-sm text-text-secondary">
+              {getBooleanLabel(parameter)}
+            </label>
+          </div>
+        );
+      }
+
+      return (
+        <div key={parameter.name}>
+          <label className="block text-sm font-medium text-text-primary mb-1">
+            {getFieldLabel(parameter)}
+            {parameter.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <Input
+            type="text"
+            value={getRenderValue(parameter)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setConfigValues((prev) => {
+                const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
+                return {
+                  ...prev,
+                  [parameter.name]: newValue,
+                };
+              });
+            }}
+            placeholder={getPlaceholder(parameter)}
+            className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
+              validationErrors[parameter.name]
+                ? 'border-2 border-red-500'
+                : 'border border-border-primary hover:border-border-primary'
+            } bg-background-primary text-lg placeholder:text-text-secondary font-regular text-text-primary`}
+            required={parameter.required}
+          />
+          {validationErrors[parameter.name] && (
+            <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
+          )}
+        </div>
+      );
+    });
   };
 
   let aboveFoldParameters = parameters.filter(
