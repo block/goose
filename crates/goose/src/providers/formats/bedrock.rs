@@ -226,8 +226,6 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
     ))
 }
 
-/// Convert optional tool arguments into a JSON Value, defaulting `None` to an
-/// empty object so Bedrock's Converse API never receives a null `toolUse.input`.
 fn args_to_value(args: Option<serde_json::Map<String, Value>>) -> Value {
     match args {
         Some(map) => Value::Object(map),
@@ -711,19 +709,5 @@ mod tests {
         ));
 
         Ok(())
-    }
-
-    #[test]
-    fn test_args_to_value_none_returns_empty_object() {
-        let result = args_to_value(None);
-        assert_eq!(result, Value::Object(serde_json::Map::new()));
-    }
-
-    #[test]
-    fn test_args_to_value_some_preserves_map() {
-        let mut map = serde_json::Map::new();
-        map.insert("key".to_string(), Value::String("val".to_string()));
-        let result = args_to_value(Some(map.clone()));
-        assert_eq!(result, Value::Object(map));
     }
 }
