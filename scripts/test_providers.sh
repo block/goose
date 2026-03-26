@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$GOOSE_PROVIDER" = "anthropic" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "Skipping tests: ANTHROPIC_API_KEY is not set."
+  exit 0
+fi
+
 LIB_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$LIB_DIR/test_providers_lib.sh"
 

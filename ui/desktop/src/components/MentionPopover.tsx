@@ -33,6 +33,138 @@ export interface DisplayItemWithMatch extends DisplayItem {
   matchedText: string;
 }
 
+
+const priorityDirs = new Set([
+  'Desktop',
+            'Documents',
+            'Downloads',
+            'Projects',
+            'Development',
+            'Code',
+            'src',
+            'components',
+            'icons',
+]);
+
+const skipDirs = new Set([
+  '.git',
+            '.svn',
+            '.hg',
+            'node_modules',
+            '__pycache__',
+            'target',
+            'dist',
+            'build',
+            '.cache',
+            '.npm',
+            '.yarn',
+            'Library',
+            'System',
+            'Applications',
+            '.Trash',
+]);
+
+const allowedHiddenDirs = new Set([
+  '.github',
+            '.vscode',
+            '.idea',
+            '.config',
+            '.gitlab',
+            '.circleci',
+            '.azure',
+            '.jenkins',
+]);
+
+const skipDirsDeep = new Set(['.git', '.svn', '.hg', 'node_modules', '__pycache__']);
+
+const commonExtensions = new Set([
+  // Code items
+              'txt',
+              'md',
+              'js',
+              'ts',
+              'jsx',
+              'tsx',
+              'py',
+              'java',
+              'cpp',
+              'c',
+              'h',
+              'css',
+              'html',
+              'json',
+              'xml',
+              'yaml',
+              'yml',
+              'toml',
+              'ini',
+              'cfg',
+              'sh',
+              'bat',
+              'ps1',
+              'rb',
+              'go',
+              'rs',
+              'php',
+              'sql',
+              'r',
+              'scala',
+              'swift',
+              'kt',
+              'dart',
+              'vue',
+              'svelte',
+              'astro',
+              'scss',
+              'less',
+              // Documentation
+              'readme',
+              'license',
+              'changelog',
+              'contributing',
+              // Config items
+              'gitignore',
+              'dockerignore',
+              'editorconfig',
+              'prettierrc',
+              'eslintrc',
+              // Images and assets
+              'png',
+              'jpg',
+              'jpeg',
+              'gif',
+              'svg',
+              'ico',
+              'webp',
+              'bmp',
+              'tiff',
+              'tif',
+              // Vector and design items
+              'ai',
+              'eps',
+              'sketch',
+              'fig',
+              'xd',
+              'psd',
+              // Other common items
+              'pdf',
+              'doc',
+              'docx',
+              'xls',
+              'xlsx',
+              'ppt',
+              'pptx',
+]);
+
+const knownFiles = new Set([
+  'readme',
+              'license',
+              'changelog',
+              'contributing',
+              'dockerfile',
+              'makefile',
+]);
+
 interface MentionPopoverProps {
   isOpen: boolean;
   onClose: () => void;
@@ -143,54 +275,13 @@ const MentionPopover = forwardRef<
           const results: DisplayItem[] = [];
 
           // Common directories to prioritize or skip
-          const priorityDirs = [
-            'Desktop',
-            'Documents',
-            'Downloads',
-            'Projects',
-            'Development',
-            'Code',
-            'src',
-            'components',
-            'icons',
-          ];
-          const skipDirs = [
-            '.git',
-            '.svn',
-            '.hg',
-            'node_modules',
-            '__pycache__',
-            'target',
-            'dist',
-            'build',
-            '.cache',
-            '.npm',
-            '.yarn',
-            'Library',
-            'System',
-            'Applications',
-            '.Trash',
-          ];
-
-          const allowedHiddenDirs = [
-            '.github',
-            '.vscode',
-            '.idea',
-            '.config',
-            '.gitlab',
-            '.circleci',
-            '.azure',
-            '.jenkins',
-          ];
 
           // Don't skip as many directories at deeper levels to find more items
-          const skipDirsAtDepth =
-            depth > 2 ? ['.git', '.svn', '.hg', 'node_modules', '__pycache__'] : skipDirs;
 
           // Sort items to prioritize certain directories
           const sortedItems = items.sort((a, b) => {
-            const aPriority = priorityDirs.includes(a);
-            const bPriority = priorityDirs.includes(b);
+            const aPriority = priorityDirs.has(a);
+            const bPriority = priorityDirs.has(b);
             if (aPriority && !bPriority) return -1;
             if (!aPriority && bPriority) return 1;
             return a.localeCompare(b);
@@ -204,99 +295,21 @@ const MentionPopover = forwardRef<
             const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
 
             // Skip items in the skip list
-            if (skipDirsAtDepth.includes(item)) {
+            if ((depth > 2 ? skipDirsDeep : skipDirs).has(item)) {
               continue;
             }
 
             // Skip hidden items except for allowed hidden directories
-            if (item.startsWith('.') && !allowedHiddenDirs.includes(item)) {
+            if (item.startsWith('.') && !allowedHiddenDirs.has(item)) {
               continue;
             }
 
             // First, check if this looks like a file based on extension
             const hasExtension = item.includes('.');
             const ext = item.split('.').pop()?.toLowerCase();
-            const commonExtensions = [
-              // Code items
-              'txt',
-              'md',
-              'js',
-              'ts',
-              'jsx',
-              'tsx',
-              'py',
-              'java',
-              'cpp',
-              'c',
-              'h',
-              'css',
-              'html',
-              'json',
-              'xml',
-              'yaml',
-              'yml',
-              'toml',
-              'ini',
-              'cfg',
-              'sh',
-              'bat',
-              'ps1',
-              'rb',
-              'go',
-              'rs',
-              'php',
-              'sql',
-              'r',
-              'scala',
-              'swift',
-              'kt',
-              'dart',
-              'vue',
-              'svelte',
-              'astro',
-              'scss',
-              'less',
-              // Documentation
-              'readme',
-              'license',
-              'changelog',
-              'contributing',
-              // Config items
-              'gitignore',
-              'dockerignore',
-              'editorconfig',
-              'prettierrc',
-              'eslintrc',
-              // Images and assets
-              'png',
-              'jpg',
-              'jpeg',
-              'gif',
-              'svg',
-              'ico',
-              'webp',
-              'bmp',
-              'tiff',
-              'tif',
-              // Vector and design items
-              'ai',
-              'eps',
-              'sketch',
-              'fig',
-              'xd',
-              'psd',
-              // Other common items
-              'pdf',
-              'doc',
-              'docx',
-              'xls',
-              'xlsx',
-              'ppt',
-              'pptx',
-            ];
 
             // If it has a known file extension, treat it as a file
-            if (hasExtension && ext && commonExtensions.includes(ext)) {
+            if (hasExtension && ext && commonExtensions.has(ext)) {
               results.push({
                 extra: fullPath,
                 name: item,
@@ -307,15 +320,7 @@ const MentionPopover = forwardRef<
             }
 
             // If it's a known file without extension (README, LICENSE, etc.)
-            const knownFiles = [
-              'readme',
-              'license',
-              'changelog',
-              'contributing',
-              'dockerfile',
-              'makefile',
-            ];
-            if (!hasExtension && knownFiles.includes(item.toLowerCase())) {
+            if (!hasExtension && knownFiles.has(item.toLowerCase())) {
               results.push({
                 extra: fullPath,
                 name: item,
@@ -337,7 +342,7 @@ const MentionPopover = forwardRef<
               });
 
               // Recursively scan directories more aggressively
-              if (depth < 4 || priorityDirs.includes(item)) {
+              if (depth < 4 || priorityDirs.has(item)) {
                 const subFiles = await scanDirectoryFromRoot(fullPath, itemRelativePath, depth + 1);
                 results.push(...subFiles);
               }

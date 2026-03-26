@@ -20,14 +20,18 @@ const RMS_THRESHOLD = 0.015;
 // the dev server (http://localhost) and packaged builds (file://).
 const WORKLET_URL = new URL('audio-capture-worklet.js', window.location.href.split('#')[0]).href;
 
-function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
-  const buf = new ArrayBuffer(44 + samples.length * 2);
+function encodeWav(samples: Float32Array[], sampleRate: number): ArrayBuffer {
+  let totalLength = 0;
+  for (const chunk of samples) {
+    totalLength += chunk.length;
+  }
+  const buf = new ArrayBuffer(44 + totalLength * 2);
   const v = new DataView(buf);
   const w = (o: number, s: string) => {
     for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
   };
   w(0, 'RIFF');
-  v.setUint32(4, 36 + samples.length * 2, true);
+  v.setUint32(4, 36 + totalLength * 2, true);
   w(8, 'WAVE');
   w(12, 'fmt ');
   v.setUint32(16, 16, true);
@@ -38,12 +42,14 @@ function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
   v.setUint16(32, 2, true);
   v.setUint16(34, 16, true);
   w(36, 'data');
-  v.setUint32(40, samples.length * 2, true);
+  v.setUint32(40, totalLength * 2, true);
   let o = 44;
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    o += 2;
+  for (const chunk of samples) {
+    for (let i = 0; i < chunk.length; i++) {
+      const s = Math.max(-1, Math.min(1, chunk[i]));
+      v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      o += 2;
+    }
   }
   return buf;
 }
@@ -111,7 +117,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     check();
   }, [read, config]);
 
-  const transcribeChunk = useCallback(async (samples: Float32Array) => {
+  const transcribeChunk = useCallback(async (samples: Float32Array[]) => {
     const prov = providerRef.current;
     if (!prov) return;
 
@@ -140,15 +146,8 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     const chunks = samplesRef.current;
     if (chunks.length === 0) return;
 
-    const total = chunks.reduce((n, c) => n + c.length, 0);
-    const merged = new Float32Array(total);
-    let off = 0;
-    for (const c of chunks) {
-      merged.set(c, off);
-      off += c.length;
-    }
     samplesRef.current = [];
-    transcribeChunk(merged);
+    transcribeChunk(chunks);
   }, [transcribeChunk]);
 
   const flushRef = useRef(flush);
@@ -163,9 +162,9 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         speechStartRef.current = now;
       }
       silenceStartRef.current = 0;
-      samplesRef.current.push(new Float32Array(samples));
+      samplesRef.current.push(samples);
     } else if (isSpeakingRef.current) {
-      samplesRef.current.push(new Float32Array(samples));
+      samplesRef.current.push(samples);
 
       if (silenceStartRef.current === 0) {
         silenceStartRef.current = now;
