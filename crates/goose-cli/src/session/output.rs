@@ -17,7 +17,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
-use std::sync::LazyLock;
 use std::time::Duration;
 
 use super::streaming_buffer::MarkdownBuffer;
@@ -448,12 +447,11 @@ pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
 }
 
-static SHOW_THINKING: LazyLock<bool> = LazyLock::new(|| {
-    std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() && std::io::stdout().is_terminal()
-});
-
 fn should_show_thinking() -> bool {
-    *SHOW_THINKING
+    Config::global()
+        .get_param::<bool>("GOOSE_CLI_SHOW_THINKING")
+        .unwrap_or(false)
+        && std::io::stdout().is_terminal()
 }
 
 fn render_thinking(text: &str, theme: Theme) {

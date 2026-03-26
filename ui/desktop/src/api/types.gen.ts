@@ -331,6 +331,11 @@ export type EnvVarConfig = {
     default?: string | null;
     description?: string | null;
     name: string;
+    /**
+     * When true, the field is shown prominently in the UI (not collapsed).
+     * Defaults to the value of `required` if not specified.
+     */
+    primary?: boolean | null;
     required?: boolean;
     secret?: boolean;
 };
