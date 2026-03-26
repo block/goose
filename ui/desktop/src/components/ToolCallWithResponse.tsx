@@ -290,6 +290,7 @@ interface ToolCallExpandableProps {
   label: string | React.ReactNode;
   isStartExpanded?: boolean;
   isForceExpand?: boolean;
+  isForceCollapse?: boolean;
   children: React.ReactNode;
   className?: string;
 }
@@ -298,6 +299,7 @@ function ToolCallExpandable({
   label,
   isStartExpanded = false,
   isForceExpand,
+  isForceCollapse,
   children,
   className = '',
 }: ToolCallExpandableProps) {
@@ -307,23 +309,42 @@ function ToolCallExpandable({
   React.useEffect(() => {
     if (isForceExpand) setIsExpanded(true);
   }, [isForceExpand]);
+  React.useEffect(() => {
+    if (isForceCollapse && isExpandedState === null) {
+      // Only auto-collapse if user hasn't manually interacted
+      setIsExpanded(false);
+    }
+  }, [isForceCollapse, isExpandedState]);
+
+  // Check if there's any content to display
+  const hasContent = React.useMemo(() => {
+    if (!children) return false;
+    // Check if children is an empty array or null/undefined
+    if (Array.isArray(children)) {
+      return children.some((child) => child != null);
+    }
+    return true; // If children exists and is not an array, assume it has content
+  }, [children]);
 
   return (
     <div className={className}>
       <Button
-        onClick={toggleExpand}
+        onClick={hasContent ? toggleExpand : undefined}
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
+        disabled={!hasContent}
       >
         <span className="flex items-center font-sans text-sm truncate flex-1 min-w-0">{label}</span>
-        <ChevronRight
-          className={cn(
-            'group-hover:opacity-100 transition-transform opacity-70',
-            isExpanded && 'rotate-90'
-          )}
-        />
+        {hasContent && (
+          <ChevronRight
+            className={cn(
+              'group-hover:opacity-100 transition-transform opacity-70',
+              isExpanded && 'rotate-90'
+            )}
+          />
+        )}
       </Button>
-      {isExpanded && <div>{children}</div>}
+      {isExpanded && hasContent && <div>{children}</div>}
     </div>
   );
 }
@@ -771,6 +792,7 @@ function ToolCallView({
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
       isForceExpand={false}
+      isForceCollapse={!isRenderingProgress && loadingStatus !== 'loading'}
       label={
         extensionTooltip ? (
           <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
