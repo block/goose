@@ -311,8 +311,6 @@ export default function ExtensionModal({
       } catch (error) {
         console.error('Error during submission:', error);
       }
-    } else {
-      console.log('Form validation failed');
     }
   };
 
