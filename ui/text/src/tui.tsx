@@ -319,7 +319,7 @@ function buildTurnBodyLines({
   spinIdx,
   pendingPermission,
   permissionIdx,
-  expandedToolCall,
+  toolCallsExpanded,
 }: {
   turn: Turn;
   width: number;
@@ -328,32 +328,32 @@ function buildTurnBodyLines({
   spinIdx: number;
   pendingPermission: PendingPermission | null;
   permissionIdx: number;
-  expandedToolCall: string | null;
+  toolCallsExpanded: boolean;
 }): React.ReactNode[] {
   const toolCallIds = turn.toolCallOrder;
   const toolCalls = turn.toolCalls;
-  const featuredId = findFeaturedToolCallId(toolCallIds, toolCalls);
 
   const lines: React.ReactNode[] = [];
 
   lines.push(<Box key="gap-top" height={1} />);
 
-  for (const tcId of toolCallIds) {
+  for (let i = 0; i < toolCallIds.length; i++) {
+    const tcId = toolCallIds[i]!;
     const tc = toolCalls.get(tcId);
     if (!tc) continue;
 
-    if (tcId === featuredId || expandedToolCall === tcId) {
-      const cardLines = buildToolCallCardLines(tc, CONTENT_INDENT, width, expandedToolCall === tcId, `tc-${tcId}`);
+    if (toolCallsExpanded) {
+      const cardLines = buildToolCallCardLines(tc, CONTENT_INDENT, width, true, `tc-${tcId}`);
       lines.push(...cardLines);
     } else {
-      lines.push(
-        <ToolCallCompact
-          key={`tc-${tcId}`}
-          info={tc}
-          indent={CONTENT_INDENT}
-          width={width}
-        />,
-      );
+      const compactLines = ToolCallCompact({
+        info: tc,
+        indent: CONTENT_INDENT,
+        width,
+        keyPrefix: `tc-${tcId}`,
+        showTabHint: i === 0,
+      });
+      lines.push(...compactLines);
     }
   }
 
@@ -566,7 +566,7 @@ function App({
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
 
   const [viewTurnIdx, setViewTurnIdx] = useState(-1);
-  const [expandedToolCall, setExpandedToolCall] = useState<string | null>(null);
+  const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
 
   const clientRef = useRef<GooseClient | null>(null);
@@ -589,7 +589,7 @@ function App({
   }, [turns]);
 
   useEffect(() => {
-    setExpandedToolCall(null);
+    setToolCallsExpanded(false);
     setScrollOffset(0);
   }, [viewTurnIdx, turns.length]);
 
@@ -684,7 +684,7 @@ function App({
       },
     ]);
     setViewTurnIdx(-1);
-    setExpandedToolCall(null);
+    setToolCallsExpanded(false);
     setScrollOffset(0);
   }, []);
 
@@ -874,7 +874,7 @@ function App({
       if (!trimmed) return;
       setInput("");
       setViewTurnIdx(-1);
-      setExpandedToolCall(null);
+      setToolCallsExpanded(false);
       setScrollOffset(0);
 
       if (loading || isProcessingRef.current) {
@@ -933,10 +933,7 @@ function App({
       const currentTurn = turns[effectiveIdx];
       if (!currentTurn || currentTurn.toolCallOrder.length === 0) return;
 
-      const featuredId = findFeaturedToolCallId(currentTurn.toolCallOrder, currentTurn.toolCalls);
-      if (!featuredId) return;
-
-      setExpandedToolCall((prev) => (prev === featuredId ? null : featuredId));
+      setToolCallsExpanded((prev) => !prev);
       return;
     }
 
@@ -1019,7 +1016,7 @@ function App({
     spinIdx,
     pendingPermission: isLatest ? pendingPermission : null,
     permissionIdx,
-    expandedToolCall,
+    toolCallsExpanded,
   });
 
   const allBodyLines = isLatest

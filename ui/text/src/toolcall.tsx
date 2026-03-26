@@ -171,7 +171,7 @@ export function buildToolCallCardLines(
   const bodyRows: Array<{ text: string; color?: string; italic?: boolean }> = [];
 
   const runningText = info.status === "in_progress" ? " running…" : "";
-  const tabHint = hasTruncated && !expanded ? "tab ↔" : "";
+  const tabHint = "";
   bodyRows.push({ text: "__HEADER__" });
 
   if (hasLocations) {
@@ -252,28 +252,55 @@ export function ToolCallCompact({
   info,
   indent,
   width,
+  keyPrefix = "compact",
+  showTabHint = false,
 }: {
   info: ToolCallInfo;
   indent: number;
   width: number;
-}) {
+  keyPrefix?: string;
+  showTabHint?: boolean;
+}): React.ReactNode[] {
   const statusInfo = STATUS_INDICATORS[info.status] ?? STATUS_INDICATORS.pending!;
   const kindIcon = KIND_ICONS[info.kind ?? "other"] ?? "⚙";
   const summary = summarizeContent(info);
-  const maxSummaryWidth = width - indent - 12 - info.title.length;
+  const borderColor = info.status === "failed" ? CRANBERRY : CEDAR;
+  const dimBorder = info.status !== "failed";
+  
+  const cardWidth = Math.min(width - indent - 2, 72);
+  const innerWidth = cardWidth - 2;
+  
+  const tabHintText = "tab ↔";
+  const maxSummaryWidth = innerWidth - info.title.length - 8 - (showTabHint ? tabHintText.length + 2 : 0);
   const trimmedSummary =
     summary.length > maxSummaryWidth && maxSummaryWidth > 3
       ? summary.slice(0, maxSummaryWidth - 1) + "…"
       : summary;
 
-  return (
-    <Box marginLeft={indent} height={1}>
-      <Text color={statusInfo.color}>{statusInfo.icon} </Text>
-      <Text>{kindIcon} </Text>
-      <Text color={TEXT_SECONDARY}>{info.title}</Text>
-      {trimmedSummary ? (
-        <Text color={TEXT_DIM}> — {trimmedSummary}</Text>
-      ) : null}
-    </Box>
-  );
+  const topBorder = "╭" + "─".repeat(innerWidth) + "╮";
+  const botBorder = "╰" + "─".repeat(innerWidth) + "╯";
+
+  return [
+    <Box key={`${keyPrefix}-top`} marginLeft={indent} height={1}>
+      <Text color={borderColor} dimColor={dimBorder}>{topBorder}</Text>
+    </Box>,
+    <Box key={`${keyPrefix}-content`} marginLeft={indent} width={cardWidth} height={1}>
+      <Text color={borderColor} dimColor={dimBorder}>│ </Text>
+      <Box flexGrow={1} justifyContent="space-between">
+        <Box>
+          <Text color={statusInfo.color}>{statusInfo.icon} </Text>
+          <Text>{kindIcon} </Text>
+          <Text color={TEXT_SECONDARY} bold>{info.title}</Text>
+          {trimmedSummary ? (
+            <Text color={TEXT_DIM}> — {trimmedSummary}</Text>
+          ) : null}
+        </Box>
+        {showTabHint && <Text color={TEXT_DIM} italic>{tabHintText}</Text>}
+      </Box>
+      <Text color={borderColor} dimColor={dimBorder}> │</Text>
+    </Box>,
+    <Box key={`${keyPrefix}-bot`} marginLeft={indent} height={1}>
+      <Text color={borderColor} dimColor={dimBorder}>{botBorder}</Text>
+    </Box>,
+  ];
 }
