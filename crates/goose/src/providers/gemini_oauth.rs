@@ -35,6 +35,15 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
+const HTTP_TIMEOUT_SECS: u64 = 600;
+
+static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+        .build()
+        .expect("failed to build HTTP client")
+});
+
 // Google OAuth credentials for installed-app flow.
 // Users can override via environment variables. The defaults match the
 // well-known public credentials published by the Gemini CLI.
@@ -229,7 +238,7 @@ async fn exchange_code_for_tokens(
     redirect_uri: &str,
     pkce: &PkceChallenge,
 ) -> Result<TokenResponse> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let client_id = google_oauth_client_id();
     let client_secret = google_oauth_client_secret();
     let params = [
@@ -258,7 +267,7 @@ async fn exchange_code_for_tokens(
 }
 
 async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let client_id = google_oauth_client_id();
     let client_secret = google_oauth_client_secret();
     let params = [
@@ -325,7 +334,7 @@ async fn code_assist_request(access_token: &str, method: &str, body: &Value) -> 
         "{}/{}:{}",
         CODE_ASSIST_ENDPOINT, CODE_ASSIST_API_VERSION, method
     );
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", access_token))
@@ -353,7 +362,7 @@ async fn code_assist_get(access_token: &str, path: &str) -> Result<Value> {
         "{}/{}/{}",
         CODE_ASSIST_ENDPOINT, CODE_ASSIST_API_VERSION, path
     );
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let resp = client
         .get(&url)
         .header("Authorization", format!("Bearer {}", access_token))
@@ -404,7 +413,7 @@ async fn setup_code_assist(access_token: &str) -> Result<String> {
         if tier.id.is_some() {
             return Err(anyhow!(
                 "Your Google account is set up for Gemini but no project was returned. \
-                 You may need to set GOOGLE_CLOUD_PROJECT environment variable."
+                 Please verify your Gemini and Google Cloud project configuration and try again."
             ));
         }
     }
@@ -848,7 +857,7 @@ impl GeminiOAuthProvider {
             CODE_ASSIST_ENDPOINT, CODE_ASSIST_API_VERSION
         );
 
-        let mut request = reqwest::Client::new()
+        let mut request = HTTP_CLIENT
             .post(&url)
             .header(
                 "Authorization",
