@@ -35,7 +35,7 @@ jobs:
   build-desktop-windows:
     name: Build Desktop (Windows)
     runs-on: windows-latest
-    environment: ${{ inputs.signing && 'signing' || '' }}
+    environment: signing
 
     steps:
       - name: Checkout repository
