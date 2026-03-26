@@ -140,8 +140,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
 
   useEffect(() => {
     const handleSessionDeleted = (event: Event) => {
-      const { sessionId } = (event as CustomEvent<{ sessionId?: string }>).detail || {};
-      if (!sessionId) return;
+      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
 
       setRecentSessions((prev) => prev.filter((session) => session.id !== sessionId));
       sessionsRef.current = sessionsRef.current.filter((session) => session.id !== sessionId);
@@ -149,14 +148,11 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       if (lastSessionIdRef.current === sessionId) {
         lastSessionIdRef.current = null;
       }
-
-      void fetchSessions();
     };
 
     const handleSessionRenamed = (event: Event) => {
       const { sessionId, newName } =
-        (event as CustomEvent<{ sessionId?: string; newName?: string }>).detail || {};
-      if (!sessionId || !newName) return;
+        (event as CustomEvent<{ sessionId: string; newName: string }>).detail;
 
       setRecentSessions((prev) =>
         prev.map((session) => (session.id === sessionId ? { ...session, name: newName } : session))
@@ -173,7 +169,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
       window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
     };
-  }, [fetchSessions]);
+  }, []);
 
   const handleNavClick = useCallback(
     (path: string) => {
