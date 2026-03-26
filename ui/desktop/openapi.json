@@ -4157,13 +4157,17 @@
             "description": "Optional default value for the key",
             "nullable": true
           },
+          "device_code_flow": {
+            "type": "boolean",
+            "description": "Whether this OAuth flow uses the device code grant (RFC 8628)\nWhen true, the user must enter a verification code in the browser"
+          },
           "name": {
             "type": "string",
             "description": "The name of the configuration key (e.g., \"API_KEY\")"
           },
           "oauth_flow": {
             "type": "boolean",
-            "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
+            "description": "Whether this key should be configured using an OAuth flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
           "primary": {
             "type": "boolean",
@@ -4853,6 +4857,11 @@
           },
           "name": {
             "type": "string"
+          },
+          "primary": {
+            "type": "boolean",
+            "description": "When true, the field is shown prominently in the UI (not collapsed).\nDefaults to the value of `required` if not specified.",
+            "nullable": true
           },
           "required": {
             "type": "boolean"

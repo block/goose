@@ -69,6 +69,7 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client-reqwest",
 ] }
 oauth2 = { version = "5.0", default-features = false }
+arboard = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
@@ -214,6 +215,8 @@ env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
 goose-test-support = { path = "../goose-test-support" }
+bytes.workspace = true
+http.workspace = true
 
 [[example]]
 name = "agent"

@@ -191,7 +191,7 @@ mod tests {
         // Should be a Declarative (fixed) provider
         assert_eq!(*provider_type, ProviderType::Declarative);
 
-        assert_eq!(meta.display_name, "Tanzu AI Services");
+        assert_eq!(meta.display_name, "VMware Tanzu Platform");
         assert_eq!(meta.default_model, "openai/gpt-oss-120b");
 
         // First config key should be TANZU_AI_API_KEY (secret, required)
