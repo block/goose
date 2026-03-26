@@ -17,7 +17,8 @@ const typeOrder: Record<DisplayItemType, number> = {
   Directory: 0,
   File: 1,
   Builtin: 2,
-  Recipe: 3,
+  Skill: 3,
+  Recipe: 4,
 };
 
 export interface DisplayItem {
@@ -441,6 +442,16 @@ const MentionPopover = forwardRef<
         });
     }, [items, query, currentWorkingDir]);
 
+    const getSelectionText = (item: DisplayItem): string => {
+      if (item.itemType === 'Skill') {
+        return `Use the ${item.name} skill to `;
+      }
+      if (['Builtin', 'Recipe'].includes(item.itemType)) {
+        return '/' + item.name;
+      }
+      return item.extra;
+    };
+
     // Expose methods to parent component
     useImperativeHandle(
       ref,
@@ -448,7 +459,7 @@ const MentionPopover = forwardRef<
         getDisplayFiles: () => displayItems,
         selectFile: (index: number) => {
           if (displayItems[index]) {
-            onSelect(displayItems[index].extra);
+            onSelect(getSelectionText(displayItems[index]));
             onClose();
           }
         },
@@ -459,7 +470,10 @@ const MentionPopover = forwardRef<
     useEffect(() => {
       const loadData = async () => {
         if (isSlashCommand) {
-          const response = await getSlashCommands({ throwOnError: true });
+          const response = await getSlashCommands({
+            query: { working_dir: currentWorkingDir },
+            throwOnError: true,
+          });
           const commandItems: DisplayItem[] = (response.data?.commands || []).map((cmd) => ({
             name: cmd.command,
             extra: cmd.help,
@@ -475,7 +489,7 @@ const MentionPopover = forwardRef<
       if (isOpen) {
         loadData();
       }
-    }, [isOpen, isSlashCommand, scanFilesFromRoot]);
+    }, [isOpen, isSlashCommand, scanFilesFromRoot, currentWorkingDir]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -509,12 +523,7 @@ const MentionPopover = forwardRef<
     const handleItemClick = (index: number) => {
       if (index >= 0 && index < displayItems.length) {
         onSelectedIndexChange(index);
-        const displayItem = displayItems[index];
-        onSelect(
-          ['Builtin', 'Recipe'].includes(displayItem.itemType)
-            ? '/' + displayItem.name
-            : displayItem.extra
-        );
+        onSelect(getSelectionText(displayItems[index]));
         onClose();
       }
     };
@@ -551,7 +560,7 @@ const MentionPopover = forwardRef<
               >
                 {displayItems.map((item, index) => (
                   <div
-                    key={item.extra}
+                    key={`${item.itemType}-${item.name}`}
                     onClick={() => handleItemClick(index)}
                     data-selected={index === selectedIndex}
                     className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${

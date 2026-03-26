@@ -80,7 +80,7 @@ export type CheckProviderRequest = {
     provider: string;
 };
 
-export type CommandType = 'Builtin' | 'Recipe';
+export type CommandType = 'Builtin' | 'Recipe' | 'Skill';
 
 /**
  * Configuration key metadata for provider setup
@@ -2837,7 +2837,12 @@ export type SetConfigProviderData = {
 export type GetSlashCommandsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Optional working directory to discover local skills from
+         */
+        working_dir?: string | null;
+    };
     url: '/config/slash_commands';
 };
 

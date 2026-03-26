@@ -1569,6 +1569,18 @@
           "super::routes::config_management"
         ],
         "operationId": "get_slash_commands",
+        "parameters": [
+          {
+            "name": "working_dir",
+            "in": "query",
+            "description": "Optional working directory to discover local skills from",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Slash commands retrieved successfully",
@@ -4139,7 +4151,8 @@
         "type": "string",
         "enum": [
           "Builtin",
-          "Recipe"
+          "Recipe",
+          "Skill"
         ]
       },
       "ConfigKey": {
