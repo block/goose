@@ -152,8 +152,6 @@ export type ContentBlock = ({
     type: 'resource_link';
 } & RawResource);
 
-export type ContentBlockRef = ContentBlock;
-
 export type Conversation = Array<Message>;
 
 export type CreateRecipeRequest = {
@@ -540,8 +538,6 @@ export type ImageContent = {
     data: string;
     mimeType: string;
 };
-
-export type ImageContentSchemaRef = ImageContent;
 
 export type ImportAppRequest = {
     html: string;
@@ -1140,8 +1136,6 @@ export type RetryConfig = {
 
 export type Role = 'user' | 'assistant';
 
-export type RoleSchemaRef = Role;
-
 export type RunNowResponse = {
     session_id: string;
 };
@@ -1374,8 +1368,6 @@ export type TextContent = {
     };
     text: string;
 };
-
-export type TextContentSchemaRef = TextContent;
 
 export type ThinkingContent = {
     signature: string;

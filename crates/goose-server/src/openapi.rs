@@ -14,7 +14,7 @@ use rmcp::model::{
     RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
     ResourceContents, Role, TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
-use utoipa::{Modify, OpenApi, ToSchema};
+use utoipa::{Modify, OpenApi, PartialSchema, ToSchema};
 
 use goose::config::declarative_providers::{
     DeclarativeProviderConfig, EnvVarConfig, LoadedProvider, ProviderEngine,
@@ -387,16 +387,14 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
-/// utoipa renders `Vec<u8>` as `array<integer>` which produces `number[]` in TS codegen,
-/// failing typecheck at `new Blob([response.data])`. This fixup sets `string/binary` so
-/// codegen emits `Blob | File`. There is no utoipa annotation for response body format.
-struct BinaryResponseFixup;
+struct OpenApiFixups;
 
-impl Modify for BinaryResponseFixup {
+impl Modify for OpenApiFixups {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-        use utoipa::openapi::schema::Schema;
+        use utoipa::openapi::schema::{Discriminator, Schema};
         use utoipa::openapi::RefOr;
 
+        // Fix diagnostics endpoint: Vec<u8> renders as array<integer> but we need binary
         if let Some(path) = openapi.paths.paths.get_mut("/diagnostics/{session_id}") {
             if let Some(op) = &mut path.get {
                 if let Some(RefOr::T(resp)) = op.responses.responses.get_mut("200") {
@@ -413,12 +411,37 @@ impl Modify for BinaryResponseFixup {
                 }
             }
         }
+
+        if let Some(components) = &mut openapi.components {
+            // Proxy types used via value_type overwrite real schemas with self-refs.
+            // Re-insert the authoritative schemas from derive_utoipa! macros.
+            let real_schemas: Vec<(&str, RefOr<Schema>)> = vec![
+                ("TextContent", TextContentSchema::schema()),
+                ("ImageContent", ImageContentSchema::schema()),
+                ("Role", RoleSchema::schema()),
+                ("ContentBlock", ContentBlockSchema::schema()),
+            ];
+            for (name, schema) in real_schemas {
+                components.schemas.insert(name.to_string(), schema);
+            }
+
+            // Restore discriminators for tagged enums (utoipa 5 drops them)
+            for (name, property_name) in [
+                ("MessageContent", "type"),
+                ("ActionRequiredData", "actionType"),
+                ("ExtensionConfig", "type"),
+            ] {
+                if let Some(RefOr::T(Schema::OneOf(one_of))) = components.schemas.get_mut(name) {
+                    one_of.discriminator = Some(Discriminator::new(property_name));
+                }
+            }
+        }
     }
 }
 
 #[derive(OpenApi)]
 #[openapi(
-    modifiers(&BinaryResponseFixup),
+    modifiers(&OpenApiFixups),
     paths(
         super::routes::status::status,
         super::routes::status::system_info,

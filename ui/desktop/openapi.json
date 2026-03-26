@@ -3791,7 +3791,10 @@
               "user_data": {}
             }
           }
-        ]
+        ],
+        "discriminator": {
+          "propertyName": "actionType"
+        }
       },
       "AddExtensionRequest": {
         "type": "object",
@@ -3888,7 +3891,7 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ContentBlockRef"
+              "$ref": "#/components/schemas/ContentBlock"
             }
           },
           "isError": {
@@ -4260,9 +4263,6 @@
             ]
           }
         ]
-      },
-      "ContentBlockRef": {
-        "$ref": "#/components/schemas/ContentBlock"
       },
       "Conversation": {
         "type": "array",
@@ -5121,7 +5121,10 @@
             }
           }
         ],
-        "description": "Represents the different types of MCP extensions that can be added to the manager"
+        "description": "Represents the different types of MCP extensions that can be added to the manager",
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "ExtensionData": {
         "type": "object",
@@ -5448,9 +5451,6 @@
           }
         }
       },
-      "ImageContentSchemaRef": {
-        "$ref": "#/components/schemas/ImageContent"
-      },
       "ImportAppRequest": {
         "type": "object",
         "required": [
@@ -5721,7 +5721,7 @@
             "$ref": "#/components/schemas/MessageMetadata"
           },
           "role": {
-            "$ref": "#/components/schemas/RoleSchemaRef"
+            "$ref": "#/components/schemas/Role"
           }
         }
       },
@@ -5730,7 +5730,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/TextContentSchemaRef"
+                "$ref": "#/components/schemas/TextContent"
               },
               {
                 "type": "object",
@@ -5751,7 +5751,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ImageContentSchemaRef"
+                "$ref": "#/components/schemas/ImageContent"
               },
               {
                 "type": "object",
@@ -5959,7 +5959,10 @@
             ]
           }
         ],
-        "description": "Content passed inside a message, which can be both simple content and tool content"
+        "description": "Content passed inside a message, which can be both simple content and tool content",
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "MessageEvent": {
         "oneOf": [
@@ -7436,9 +7439,6 @@
           }
         ]
       },
-      "RoleSchemaRef": {
-        "$ref": "#/components/schemas/Role"
-      },
       "RunNowResponse": {
         "type": "object",
         "required": [
@@ -8335,9 +8335,6 @@
             "type": "string"
           }
         }
-      },
-      "TextContentSchemaRef": {
-        "$ref": "#/components/schemas/TextContent"
       },
       "ThinkingContent": {
         "type": "object",

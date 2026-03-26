@@ -134,9 +134,6 @@ pub struct CallToolRequest {
     arguments: Value,
 }
 
-/// Ref-only proxy so utoipa emits `$ref: "#/components/schemas/ContentBlock"`.
-/// The actual schema is registered via `derive_utoipa!(RawContent as ContentBlockSchema => "ContentBlock")`.
-/// Uses a distinct name to avoid overwriting the real schema with a self-reference.
 #[allow(dead_code)]
 pub enum ContentBlockRef {}
 
@@ -148,7 +145,7 @@ impl utoipa::PartialSchema for ContentBlockRef {
 
 impl utoipa::ToSchema for ContentBlockRef {
     fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("ContentBlockRef")
+        std::borrow::Cow::Borrowed("ContentBlock")
     }
 }
 
