@@ -60,7 +60,7 @@ export default function DefaultProviderSetupForm({
         const configKey = `${parameter.name}`;
         const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
 
-        if (configValue) {
+        if (configValue !== undefined && configValue !== null) {
           values[parameter.name] = { serverValue: configValue };
         } else if (parameter.default !== undefined && parameter.default !== null) {
           values[parameter.name] = { value: parameter.default };
