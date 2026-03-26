@@ -46,6 +46,7 @@ fn map_provider_name(provider: &str) -> &str {
         "azure_openai" => "azure",
         "aws_bedrock" => "amazon-bedrock",
         "gcp_vertex_ai" => "google-vertex",
+        "gemini_oauth" => "google",
         _ => provider,
     }
 }

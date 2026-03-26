@@ -21,6 +21,7 @@ use super::{
     gcpvertexai::GcpVertexAIProvider,
     gemini_acp::GeminiAcpProvider,
     gemini_cli::GeminiCliProvider,
+    gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     litellm::LiteLLMProvider,
@@ -65,6 +66,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<DatabricksProvider>(true);
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
+        registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
         registry.register::<LiteLLMProvider>(false);
