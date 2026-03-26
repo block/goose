@@ -26,7 +26,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::map_http_error_to_provider_error;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::RequestLog;
+use crate::providers::utils::{stream_idle_timeout, with_line_idle_timeout, RequestLog};
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::Tool;
 
@@ -603,6 +603,7 @@ impl Provider for GcpVertexAIProvider {
                 tokio_util::codec::LinesCodec::new(),
             )
             .map_err(anyhow::Error::from);
+            let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
             let mut message_stream = response_to_streaming_message(framed, &context_clone);
 

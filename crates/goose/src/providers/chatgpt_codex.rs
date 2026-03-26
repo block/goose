@@ -7,6 +7,7 @@ use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status_openai_compat;
 use crate::providers::retry::ProviderRetry;
+use crate::providers::utils::{stream_idle_timeout, with_line_idle_timeout};
 use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
@@ -986,6 +987,7 @@ impl Provider for ChatGptCodexProvider {
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+            let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
             let message_stream = responses_api_to_streaming_message(framed);
             pin!(message_stream);

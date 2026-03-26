@@ -3,7 +3,7 @@ use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetad
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
 use super::retry::{ProviderRetry, RetryConfig};
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::{stream_idle_timeout, with_line_idle_timeout, ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -364,6 +364,7 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
+        let framed = with_line_idle_timeout(framed, stream_idle_timeout());
 
         let timed_lines = with_line_timeout(framed, OLLAMA_CHUNK_TIMEOUT_SECS);
         let message_stream = response_to_streaming_message_ollama(timed_lines);
