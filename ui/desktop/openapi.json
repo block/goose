@@ -7904,7 +7904,8 @@
           "sub_agent",
           "hidden",
           "terminal",
-          "gateway"
+          "gateway",
+          "acp"
         ]
       },
       "SessionsQuery": {

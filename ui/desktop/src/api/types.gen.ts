@@ -1276,7 +1276,7 @@ export type SessionReplyResponse = {
     request_id: string;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway' | 'acp';
 
 export type SessionsQuery = {
     limit: number;
