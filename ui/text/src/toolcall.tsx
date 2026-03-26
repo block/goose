@@ -252,14 +252,14 @@ export function ToolCallCompact({
   info,
   indent,
   width,
-  keyPrefix = "compact",
-  showTabHint = false,
+  keyPrefix,
+  showTabHint,
 }: {
   info: ToolCallInfo;
   indent: number;
   width: number;
-  keyPrefix?: string;
-  showTabHint?: boolean;
+  keyPrefix: string;
+  showTabHint: boolean;
 }): React.ReactNode[] {
   const statusInfo = STATUS_INDICATORS[info.status] ?? STATUS_INDICATORS.pending!;
   const kindIcon = KIND_ICONS[info.kind ?? "other"] ?? "⚙";
