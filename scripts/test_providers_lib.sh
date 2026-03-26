@@ -75,9 +75,9 @@ is_provider_available() {
     github_copilot)  has_env GITHUB_COPILOT_TOKEN || has_file "$HOME/.config/goose/github_copilot_token.json" ;;
     chatgpt_codex)   has_env CHATGPT_CODEX_TOKEN || has_file "$HOME/.config/goose/chatgpt_codex_token.json" ;;
     ollama)          has_env OLLAMA_HOST || has_cmd ollama ;;
-    claude-code)     has_cmd claude ;;
-    codex)           has_cmd codex ;;
-    gemini-cli)      has_cmd gemini ;;
+    claude-code)     has_cmd claude && has_env ANTHROPIC_API_KEY ;;
+    codex)           has_cmd codex && has_env OPENAI_API_KEY ;;
+    gemini-cli)      has_cmd gemini && has_env GEMINI_API_KEY ;;
     cursor-agent)    has_cmd cursor-agent ;;
     *)               return 0 ;;
   esac
