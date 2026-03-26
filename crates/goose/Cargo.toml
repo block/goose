@@ -8,7 +8,16 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = ["code-mode", "local-inference", "aws-providers"]
+default = ["code-mode", "local-inference", "aws-providers", "telemetry", "otel", "rustls-tls"]
+telemetry = []
+otel = [
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-appender-tracing",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry-stdout",
+]
 code-mode = ["dep:pctx_code_mode"]
 local-inference = [
     "dep:candle-core",
@@ -27,6 +36,26 @@ aws-providers = [
     "dep:aws-sdk-sagemakerruntime",
 ]
 cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
+rustls-tls = [
+    "reqwest/rustls",
+    "rmcp/reqwest",
+    "sqlx/runtime-tokio-rustls",
+    "jsonwebtoken/aws_lc_rs",
+    "oauth2/reqwest",
+    "oauth2/rustls-tls",
+]
+native-tls = [
+    "dep:pem",
+    "dep:pkcs1",
+    "dep:pkcs8",
+    "dep:sec1",
+    "reqwest/native-tls",
+    "rmcp/reqwest-native-tls",
+    "sqlx/runtime-tokio-native-tls",
+    "jsonwebtoken/rust_crypto",
+    "oauth2/reqwest",
+    "oauth2/native-tls",
+]
 
 [lints]
 workspace = true
@@ -35,17 +64,16 @@ workspace = true
 lru = { workspace = true }
 rmcp = { workspace = true, features = [
     "client",
-    "reqwest",
     "transport-child-process",
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
-oauth2 = "5.0"
+oauth2 = { version = "5.0", default-features = false }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
-reqwest = { workspace = true, features = ["rustls", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"], default-features = false }
+reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"], default-features = false }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -71,12 +99,12 @@ lazy_static = "1.5.0"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-futures = { workspace = true }
-tracing-opentelemetry = { workspace = true }
-opentelemetry = { workspace = true }
-opentelemetry_sdk = { workspace = true }
-opentelemetry-appender-tracing = { workspace = true }
-opentelemetry-otlp = { workspace = true }
-opentelemetry-stdout = { workspace = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-appender-tracing = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+opentelemetry-stdout = { workspace = true, optional = true }
 keyring = { version = "3.6.2", features = [
     "apple-native",
     "windows-native",
@@ -94,7 +122,6 @@ tokio-cron-scheduler = "0.14.0"
 urlencoding = { workspace = true }
 v_htmlescape = "0.15"
 sqlx = { version = "0.8", default-features = false, features = [
-    "runtime-tokio-rustls",
     "sqlite",
     "chrono",
     "json",
@@ -111,7 +138,7 @@ aws-sdk-bedrockruntime = { version = "=1.120.0", default-features = false, featu
 aws-sdk-sagemakerruntime = { version = "1.62.0", default-features = false, features = ["default-https-client", "rt-tokio"], optional = true }
 
 # For GCP Vertex AI provider auth
-jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "10.3.0", default-features = false, features = ["use_pem"] }
 
 blake3 = "1.5"
 fs2 = { workspace = true }
@@ -160,6 +187,10 @@ llama-cpp-2 = { version = "0.1.137", features = ["sampler"], optional = true }
 encoding_rs = "0.8.35"
 pastey = "0.2.1"
 shell-words = { workspace = true }
+pem = { version = "3", optional = true }
+pkcs1 = { version = "0.7", default-features = false, features = ["pkcs8"], optional = true }
+pkcs8 = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
+sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }

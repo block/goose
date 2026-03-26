@@ -168,10 +168,10 @@ function ProviderCards({
   }, [refreshProviders]);
 
   const onProviderConfigured = useCallback(
-    (provider: ProviderDetails) => {
+    async (provider: ProviderDetails) => {
       setConfiguringProvider(null);
       if (refreshProviders) {
-        refreshProviders();
+        await refreshProviders();
       }
       setSwitchModelProvider(provider.name);
       setShowSwitchModelModal(true);

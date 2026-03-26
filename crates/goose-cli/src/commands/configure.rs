@@ -20,6 +20,7 @@ use goose::config::{
     PermissionManager,
 };
 use goose::model::ModelConfig;
+#[cfg(feature = "telemetry")]
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
 use goose::providers::chatgpt_codex::reasoning_levels_for_model;
@@ -44,6 +45,7 @@ pub async fn handle_configure() -> anyhow::Result<()> {
     }
 }
 
+#[cfg(feature = "telemetry")]
 pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
     let config = Config::global();
 
@@ -114,6 +116,7 @@ async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
     );
     println!();
 
+    #[cfg(feature = "telemetry")]
     configure_telemetry_consent_dialog()?;
 
     println!();
@@ -1264,13 +1267,21 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
 }
 
 pub async fn configure_settings_dialog() -> anyhow::Result<()> {
-    let setting_type = cliclack::select("What setting would you like to configure?")
-        .item("goose_mode", "goose mode", "Configure goose mode")
-        .item(
+    #[allow(unused_mut)]
+    let mut setting_select = cliclack::select("What setting would you like to configure?").item(
+        "goose_mode",
+        "goose mode",
+        "Configure goose mode",
+    );
+    #[cfg(feature = "telemetry")]
+    {
+        setting_select = setting_select.item(
             "telemetry",
             "Telemetry",
             "Enable or disable anonymous usage data collection",
-        )
+        );
+    }
+    let setting_type = setting_select
         .item(
             "tool_permission",
             "Tool Permission",
@@ -1309,6 +1320,7 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
         }
+        #[cfg(feature = "telemetry")]
         "telemetry" => {
             configure_telemetry_dialog()?;
         }
@@ -1383,6 +1395,7 @@ pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "telemetry")]
 pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 

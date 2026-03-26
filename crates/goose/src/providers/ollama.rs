@@ -2,7 +2,7 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
-use super::retry::ProviderRetry;
+use super::retry::{ProviderRetry, RetryConfig};
 use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
@@ -35,6 +35,14 @@ pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
     "qwen3-coder:480b-cloud",
 ];
 pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
+
+// Ollama-specific retry config: large models can take 30-120s to load into memory,
+// during which Ollama returns 500 errors. Use more retries with gradual backoff
+// to wait for the model to become ready.
+const OLLAMA_MAX_RETRIES: usize = 10;
+const OLLAMA_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
+const OLLAMA_BACKOFF_MULTIPLIER: f64 = 1.5;
+const OLLAMA_MAX_RETRY_INTERVAL_MS: u64 = 15_000;
 
 #[derive(serde::Serialize)]
 pub struct OllamaProvider {
@@ -225,6 +233,16 @@ impl Provider for OllamaProvider {
         self.model.clone()
     }
 
+    fn retry_config(&self) -> RetryConfig {
+        RetryConfig::new(
+            OLLAMA_MAX_RETRIES,
+            OLLAMA_INITIAL_RETRY_INTERVAL_MS,
+            OLLAMA_BACKOFF_MULTIPLIER,
+            OLLAMA_MAX_RETRY_INTERVAL_MS,
+        )
+        .transient_only()
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -397,8 +415,6 @@ mod tests {
         assert!(payload.get("options").is_none());
     }
 
-    // Reproduces issue #7715: the generic OpenAI create_request produces fields
-    // that Ollama does not support, causing it to hang indefinitely.
     #[test]
     fn test_raw_create_request_contains_unsupported_ollama_fields() {
         use crate::providers::formats::ollama::create_request;
@@ -419,21 +435,16 @@ mod tests {
         )
         .unwrap();
 
-        // Before the fix, the payload includes fields unsupported by Ollama.
         assert!(
             payload.get("stream_options").is_some(),
             "create_request should produce stream_options (unsupported by Ollama)"
         );
-        // Non-reasoning models emit max_tokens (reasoning models emit max_completion_tokens);
-        // neither is supported by Ollama.
         assert!(
             payload.get("max_tokens").is_some(),
             "create_request should produce max_tokens (unsupported by Ollama)"
         );
     }
 
-    // Verifies the fix for issue #7715: apply_ollama_options strips stream_options
-    // and converts max_tokens / max_completion_tokens to options.num_predict.
     #[test]
     fn test_apply_ollama_options_strips_unsupported_fields() {
         use crate::providers::formats::ollama::create_request;
@@ -476,13 +487,10 @@ mod tests {
         assert_eq!(payload["stream"], true, "stream field should be preserved");
     }
 
-    // Verifies the streaming timeout fires when a stream stalls, preventing
-    // the infinite hang described in issue #7715.
     #[tokio::test]
     async fn test_stream_ollama_timeout_on_stall() {
         use std::convert::Infallible;
 
-        // Build a fake HTTP response that sends one chunk then stalls forever.
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, Infallible>>(1);
         tx.send(Ok(bytes::Bytes::from(
             "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"},\"index\":0}],\
@@ -490,7 +498,6 @@ mod tests {
         )))
         .await
         .unwrap();
-        // Keep tx alive so the stream doesn't end; it just stops sending.
         let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
         let body = reqwest::Body::wrap_stream(stream);
         let response = http::Response::builder().status(200).body(body).unwrap();
@@ -504,7 +511,6 @@ mod tests {
 
         let mut msg_stream = stream_ollama(response, log).unwrap();
 
-        // The stream should timeout within OLLAMA_CHUNK_TIMEOUT_SECS.
         let result =
             tokio::time::timeout(Duration::from_secs(OLLAMA_CHUNK_TIMEOUT_SECS + 5), async {
                 let mut last_err = None;
@@ -531,7 +537,39 @@ mod tests {
             Err(_) => panic!("Outer timeout elapsed -- per-chunk timeout did not fire"),
         }
 
-        // Keep tx alive so the inner stream doesn't close prematurely.
         drop(tx);
+    }
+
+    #[test]
+    fn test_ollama_retry_config_is_transient_only() {
+        let config = RetryConfig::new(
+            OLLAMA_MAX_RETRIES,
+            OLLAMA_INITIAL_RETRY_INTERVAL_MS,
+            OLLAMA_BACKOFF_MULTIPLIER,
+            OLLAMA_MAX_RETRY_INTERVAL_MS,
+        )
+        .transient_only();
+
+        assert!(config.transient_only);
+
+        use super::super::errors::ProviderError;
+        use super::super::retry::should_retry;
+
+        assert!(!should_retry(
+            &ProviderError::RequestFailed("Resource not found (404)".into()),
+            &config
+        ));
+        assert!(!should_retry(
+            &ProviderError::RequestFailed("Bad request (400)".into()),
+            &config
+        ));
+        assert!(should_retry(
+            &ProviderError::ServerError("500 model loading".into()),
+            &config
+        ));
+        assert!(should_retry(
+            &ProviderError::NetworkError("connection refused".into()),
+            &config
+        ));
     }
 }
