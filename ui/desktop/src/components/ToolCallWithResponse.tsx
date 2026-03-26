@@ -291,6 +291,7 @@ interface ToolCallExpandableProps {
   isStartExpanded?: boolean;
   isForceExpand?: boolean;
   isForceCollapse?: boolean;
+  hasContent?: boolean;
   children: React.ReactNode;
   className?: string;
 }
@@ -300,6 +301,7 @@ function ToolCallExpandable({
   isStartExpanded = false,
   isForceExpand,
   isForceCollapse,
+  hasContent = true,
   children,
   className = '',
 }: ToolCallExpandableProps) {
@@ -311,20 +313,9 @@ function ToolCallExpandable({
   }, [isForceExpand]);
   React.useEffect(() => {
     if (isForceCollapse && isExpandedState === null) {
-      // Only auto-collapse if user hasn't manually interacted
       setIsExpanded(false);
     }
   }, [isForceCollapse, isExpandedState]);
-
-  // Check if there's any content to display
-  const hasContent = React.useMemo(() => {
-    if (!children) return false;
-    // Check if children is an empty array or null/undefined
-    if (Array.isArray(children)) {
-      return children.some((child) => child != null);
-    }
-    return true; // If children exists and is not an array, assume it has content
-  }, [children]);
 
   return (
     <div className={className}>
@@ -788,11 +779,27 @@ function ToolCallView({
       <span className="truncate flex-1 min-w-0">{getToolLabelContent()}</span>
     </span>
   );
+
+  const isCodeExecution =
+    toolCall.name === 'code_execution__execute_typescript' &&
+    (typeof (toolCall.arguments?.code as unknown) === 'string' ||
+      Array.isArray(toolCall.arguments?.tool_graph as unknown));
+  const hasSubagent =
+    loadingStatus !== 'loading' && !!getSubagentSessionId(toolResponse, notifications);
+  const hasContent =
+    isCodeExecution ||
+    !!isToolDetails ||
+    (logs != null && logs.length > 0) ||
+    (!isCancelledMessage && toolResults.length > 0) ||
+    (toolResults.length === 0 && progressEntries.length > 0) ||
+    hasSubagent;
+
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
       isForceExpand={false}
       isForceCollapse={!isRenderingProgress && loadingStatus !== 'loading'}
+      hasContent={hasContent}
       label={
         extensionTooltip ? (
           <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
