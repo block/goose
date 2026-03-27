@@ -1106,11 +1106,13 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
 
     let timeout = prompt_extension_timeout()?;
 
-    let shell_parts = shlex::split(&command_str)
-        .ok_or_else(|| anyhow::anyhow!("Invalid shell quoting in command"))?;
-    let mut parts = shell_parts.into_iter();
-    let cmd = parts.next().unwrap_or_default();
-    let args: Vec<String> = parts.collect();
+    let mut parts = crate::session::CliSession::split_quoted(&command_str)?;
+    let cmd = if parts.is_empty() {
+        String::new()
+    } else {
+        parts.remove(0)
+    };
+    let args = parts;
 
     let description = prompt_extension_description()?;
     let (envs, env_keys) = collect_env_vars()?;

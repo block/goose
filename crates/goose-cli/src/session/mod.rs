@@ -270,11 +270,40 @@ impl CliSession {
         &self.session_id
     }
 
+    pub fn split_quoted(input: &str) -> Result<Vec<String>> {
+        let mut parts = Vec::new();
+        let mut current = String::new();
+        let mut in_double_quote = false;
+        let mut in_single_quote = false;
+
+        for c in input.chars() {
+            match c {
+                '"' if !in_single_quote => in_double_quote = !in_double_quote,
+                '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+                c if c.is_whitespace() && !in_double_quote && !in_single_quote => {
+                    if !current.is_empty() {
+                        parts.push(std::mem::take(&mut current));
+                    }
+                }
+                _ => current.push(c),
+            }
+        }
+
+        if in_double_quote || in_single_quote {
+            return Err(anyhow::anyhow!("Unmatched quote in command"));
+        }
+
+        if !current.is_empty() {
+            parts.push(current);
+        }
+
+        Ok(parts)
+    }
+
     /// Parse a stdio extension command string into an ExtensionConfig
     /// Format: "ENV1=val1 ENV2=val2 command args..."
     pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
-        let mut parts: Vec<String> = shlex::split(extension_command)
-            .ok_or_else(|| anyhow::anyhow!("Invalid shell quoting in extension command"))?;
+        let mut parts = Self::split_quoted(extension_command)?;
         let mut envs = HashMap::new();
 
         while let Some(part) = parts.first() {
@@ -2037,6 +2066,25 @@ mod tests {
     #[test]
     fn test_parse_stdio_extension_no_command() {
         assert!(CliSession::parse_stdio_extension("").is_err());
+    }
+
+    #[test]
+    fn test_split_quoted_windows_paths() {
+        // Unquoted Windows path — backslashes preserved
+        assert_eq!(
+            CliSession::split_quoted(r"C:\tools\mcp.exe --arg value").unwrap(),
+            vec![r"C:\tools\mcp.exe", "--arg", "value"]
+        );
+        // Quoted Windows path with spaces — backslashes preserved
+        assert_eq!(
+            CliSession::split_quoted(r#""C:\Program Files\server\mcp.exe" --arg"#).unwrap(),
+            vec![r"C:\Program Files\server\mcp.exe", "--arg"]
+        );
+    }
+
+    #[test]
+    fn test_split_quoted_unmatched_quote() {
+        assert!(CliSession::split_quoted(r#""unmatched"#).is_err());
     }
 
     #[test_case(
