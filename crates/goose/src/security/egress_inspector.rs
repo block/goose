@@ -32,9 +32,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     let mut destinations = Vec::new();
 
     static URL_RE: OnceLock<Regex> = OnceLock::new();
-    let url_re = URL_RE.get_or_init(|| {
-        Regex::new(r#"(?i)(https?|ftp)://[^\s'"<>|;&)]+"#).unwrap()
-    });
+    let url_re = URL_RE.get_or_init(|| Regex::new(r#"(?i)(https?|ftp)://[^\s'"<>|;&)]+"#).unwrap());
     for cap in url_re.find_iter(command) {
         let url = cap.as_str().to_string();
         let domain = extract_domain_from_url(&url).unwrap_or_default();
@@ -48,9 +46,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     }
 
     static GIT_SSH_RE: OnceLock<Regex> = OnceLock::new();
-    let git_ssh_re = GIT_SSH_RE.get_or_init(|| {
-        Regex::new(r#"git@([^:]+):([^\s'"]+)"#).unwrap()
-    });
+    let git_ssh_re = GIT_SSH_RE.get_or_init(|| Regex::new(r#"git@([^:]+):([^\s'"]+)"#).unwrap());
     for cap in git_ssh_re.captures_iter(command) {
         let domain = cap[1].to_string();
         let path = cap[2].to_string();
@@ -62,9 +58,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     }
 
     static S3_RE: OnceLock<Regex> = OnceLock::new();
-    let s3_re = S3_RE.get_or_init(|| {
-        Regex::new(r#"s3://([^/\s'"]+)(/[^\s'"]*)?"#).unwrap()
-    });
+    let s3_re = S3_RE.get_or_init(|| Regex::new(r#"s3://([^/\s'"]+)(/[^\s'"]*)?"#).unwrap());
     for cap in s3_re.captures_iter(command) {
         let bucket = cap[1].to_string();
         let full = cap[0].to_string();
@@ -76,9 +70,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     }
 
     static GCS_RE: OnceLock<Regex> = OnceLock::new();
-    let gcs_re = GCS_RE.get_or_init(|| {
-        Regex::new(r#"gs://([^/\s'"]+)(/[^\s'"]*)?"#).unwrap()
-    });
+    let gcs_re = GCS_RE.get_or_init(|| Regex::new(r#"gs://([^/\s'"]+)(/[^\s'"]*)?"#).unwrap());
     for cap in gcs_re.captures_iter(command) {
         let bucket = cap[1].to_string();
         let full = cap[0].to_string();
@@ -90,9 +82,8 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     }
 
     static SCP_RE: OnceLock<Regex> = OnceLock::new();
-    let scp_re = SCP_RE.get_or_init(|| {
-        Regex::new(r"(?:scp|rsync)\s+.*?(?:\S+@)?([a-zA-Z0-9][\w.-]+):").unwrap()
-    });
+    let scp_re = SCP_RE
+        .get_or_init(|| Regex::new(r"(?:scp|rsync)\s+.*?(?:\S+@)?([a-zA-Z0-9][\w.-]+):").unwrap());
     for cap in scp_re.captures_iter(command) {
         let host = cap[1].to_string();
         destinations.push(EgressDestination {
@@ -151,11 +142,18 @@ fn extract_domain_from_url(url: &str) -> Option<String> {
     let authority = after_scheme.split('/').next()?;
     let host_port = authority.split('@').last()?;
     let host = if host_port.contains('[') {
-        host_port.split(']').next().map(|s| s.trim_start_matches('['))?
+        host_port
+            .split(']')
+            .next()
+            .map(|s| s.trim_start_matches('['))?
     } else {
         host_port.split(':').next()?
     };
-    if host.is_empty() { None } else { Some(host.to_string()) }
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_string())
+    }
 }
 
 fn is_shell_tool(name: &str) -> bool {
@@ -221,7 +219,10 @@ impl ToolInspector for EgressInspector {
             }
 
             for dest in &destinations {
-                eprintln!("[EGRESS] {} | {} | {}", dest.kind, dest.domain, dest.destination);
+                eprintln!(
+                    "[EGRESS] {} | {} | {}",
+                    dest.kind, dest.domain, dest.destination
+                );
                 tracing::info!(
                     egress_kind = dest.kind.as_str(),
                     destination = dest.destination.as_str(),
@@ -235,7 +236,11 @@ impl ToolInspector for EgressInspector {
                 action: InspectionAction::Allow,
                 reason: format!(
                     "Egress destinations detected: {}",
-                    destinations.iter().map(|d| d.domain.as_str()).collect::<Vec<_>>().join(", ")
+                    destinations
+                        .iter()
+                        .map(|d| d.domain.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 ),
                 confidence: 0.0,
                 inspector_name: self.name().to_string(),
@@ -270,8 +275,13 @@ mod tests {
 
     #[test]
     fn test_extract_domain_from_url() {
-        assert_eq!(extract_domain_from_url("https://example.com/path"), Some("example.com".to_string()));
-        assert_eq!(extract_domain_from_url("https://user:pass@example.com/path"), Some("example.com".to_string()));
+        assert_eq!(
+            extract_domain_from_url("https://example.com/path"),
+            Some("example.com".to_string())
+        );
+        assert_eq!(
+            extract_domain_from_url("https://user:pass@example.com/path"),
+            Some("example.com".to_string())
+        );
     }
-
 }
