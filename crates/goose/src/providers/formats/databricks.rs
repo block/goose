@@ -583,19 +583,19 @@ pub fn create_request(
 
     let is_openai_reasoning_model = model_config.is_openai_reasoning_model();
     let (model_name, reasoning_effort) = if is_openai_reasoning_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
-
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
-            }
-            _ => (
-                model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
-        }
+        use crate::model::ThinkingEffort;
+        let effort = model_config
+            .thinking_effort()
+            .unwrap_or(ThinkingEffort::Medium);
+        let effort_str = match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High | ThinkingEffort::Max => "high",
+        };
+        (
+            model_config.model_name.to_string(),
+            Some(effort_str.to_string()),
+        )
     } else {
         (model_config.model_name.to_string(), None)
     };
@@ -667,6 +667,9 @@ pub fn create_request(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
+                if key == "thinking_effort" {
+                    continue;
+                }
                 obj.insert(key.clone(), value.clone());
             }
         }
@@ -1057,15 +1060,17 @@ mod tests {
 
     #[test]
     fn test_create_request_reasoning_effort() -> anyhow::Result<()> {
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         let model_config = ModelConfig {
-            model_name: "o3-mini-high".to_string(),
+            model_name: "o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
             fast_model_config: None,
-            request_params: None,
+            request_params: Some(params),
             reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1075,15 +1080,11 @@ mod tests {
 
     #[test]
     fn test_create_request_adaptive_thinking_for_46_models() -> anyhow::Result<()> {
-        let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", Some("adaptive")),
-            ("CLAUDE_THINKING_EFFORT", Some("low")),
-            ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
-        ]);
-
         let mut model_config = ModelConfig::new_or_fail("databricks-claude-opus-4-6");
         model_config.max_tokens = Some(4096);
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), serde_json::json!("low"));
+        model_config.request_params = Some(params);
 
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
 
@@ -1098,20 +1099,17 @@ mod tests {
 
     #[test]
     fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
-        let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
-            ("CLAUDE_THINKING_ENABLED", Some("1")),
-            ("CLAUDE_THINKING_BUDGET", Some("10000")),
-        ]);
-
         let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
         model_config.max_tokens = Some(4096);
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), serde_json::json!("high"));
+        model_config.request_params = Some(params);
 
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
 
         assert_eq!(request["thinking"]["type"], "enabled");
-        assert_eq!(request["thinking"]["budget_tokens"], 10000);
-        assert_eq!(request["max_tokens"], 14096);
+        assert_eq!(request["thinking"]["budget_tokens"], 16000);
+        assert_eq!(request["max_tokens"], 20096);
         assert_eq!(request["temperature"], 2);
         assert!(request.get("max_completion_tokens").is_none());
 

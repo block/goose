@@ -868,8 +868,26 @@ pub fn create_request(
         ));
     }
 
-    let (model_name, reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
-    let is_reasoning_model = reasoning_effort.is_some();
+    let (base_name, legacy_effort) = extract_reasoning_effort(&model_config.model_name);
+    let is_reasoning_model = legacy_effort.is_some();
+
+    let (model_name, reasoning_effort) = if is_reasoning_model {
+        use crate::model::ThinkingEffort;
+        let effort = model_config
+            .thinking_effort()
+            .unwrap_or(ThinkingEffort::Medium);
+        let effort_str = match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High | ThinkingEffort::Max => "high",
+        };
+        (
+            base_name,
+            Some(effort_str.to_string()),
+        )
+    } else {
+        (base_name, None)
+    };
 
     let system_message = json!({
         "role": if is_reasoning_model { "developer" } else { "system" },
@@ -1600,8 +1618,9 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_o1_default() -> anyhow::Result<()> {
-        // Test default medium reasoning effort for O1 model
+    fn test_create_request_o1_medium_effort() -> anyhow::Result<()> {
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("medium"));
         let model_config = ModelConfig {
             model_name: "o1".to_string(),
             context_limit: Some(4096),
@@ -1610,7 +1629,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model_config: None,
-            request_params: None,
+            request_params: Some(params),
             reasoning: None,
         };
         let request = create_request(
@@ -1643,16 +1662,17 @@ mod tests {
 
     #[test]
     fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
-        // Test custom reasoning effort for O3 model
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
         let model_config = ModelConfig {
-            model_name: "o3-mini-high".to_string(),
+            model_name: "o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
             fast_model_config: None,
-            request_params: None,
+            request_params: Some(params),
             reasoning: None,
         };
         let request = create_request(
