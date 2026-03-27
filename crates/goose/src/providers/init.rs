@@ -16,6 +16,7 @@ use super::{
     claude_code::ClaudeCodeProvider,
     codex::CodexProvider,
     codex_acp::CodexAcpProvider,
+    copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
@@ -59,6 +60,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<ClaudeAcpProvider>(false);
         registry.register::<ClaudeCodeProvider>(true);
         registry.register::<CodexAcpProvider>(false);
+        registry.register::<CopilotAcpProvider>(false);
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);
