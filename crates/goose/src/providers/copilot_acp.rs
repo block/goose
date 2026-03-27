@@ -18,8 +18,18 @@ const COPILOT_ACP_DOC_URL: &str =
 const ACP_AGENT_MODE: &str = "https://agentclientprotocol.com/protocol/session-modes#agent";
 const ACP_PLAN_MODE: &str = "https://agentclientprotocol.com/protocol/session-modes#plan";
 const ACP_AUTOPILOT_MODE: &str = "https://agentclientprotocol.com/protocol/session-modes#autopilot";
+const COPILOT_ALLOW_OPTION_ID: &str = "allow_once";
+const COPILOT_REJECT_OPTION_ID: &str = "reject_once";
 
 pub struct CopilotAcpProvider;
+
+fn copilot_permission_mapping() -> PermissionMapping {
+    PermissionMapping {
+        allow_option_id: Some(COPILOT_ALLOW_OPTION_ID.to_string()),
+        reject_option_id: Some(COPILOT_REJECT_OPTION_ID.to_string()),
+        rejected_tool_status: sacp::schema::ToolCallStatus::Failed,
+    }
+}
 
 impl ProviderDef for CopilotAcpProvider {
     type Provider = AcpProvider;
@@ -52,11 +62,7 @@ impl ProviderDef for CopilotAcpProvider {
             let resolved_command = SearchPaths::builder().with_npm().resolve(&command_name)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
-            let permission_mapping = PermissionMapping {
-                allow_option_id: Some("allow".to_string()),
-                reject_option_id: Some("reject".to_string()),
-                rejected_tool_status: sacp::schema::ToolCallStatus::Failed,
-            };
+            let permission_mapping = copilot_permission_mapping();
 
             let mut args = vec!["--acp".to_string()];
             if model.model_name != ACP_CURRENT_MODEL {
@@ -87,5 +93,24 @@ impl ProviderDef for CopilotAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_copilot_permission_mapping_uses_acp_option_ids() {
+        let permission_mapping = copilot_permission_mapping();
+
+        assert_eq!(
+            permission_mapping.allow_option_id.as_deref(),
+            Some(COPILOT_ALLOW_OPTION_ID)
+        );
+        assert_eq!(
+            permission_mapping.reject_option_id.as_deref(),
+            Some(COPILOT_REJECT_OPTION_ID)
+        );
     }
 }

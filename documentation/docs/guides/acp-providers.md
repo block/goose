@@ -42,7 +42,7 @@ Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter f
 
 ### GitHub Copilot CLI ACP
 
-Uses [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server) directly via its native `--acp` flag. No shim needed. Supports goose extensions by passing them through as MCP servers. ACP support in Copilot CLI is currently in public preview.
+Uses [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server) directly via its native `--acp` flag. No shim needed. Supports goose extensions by passing them through as MCP servers.
 
 **Requirements:**
 - Active GitHub Copilot subscription or organization-managed Copilot access
@@ -311,7 +311,7 @@ See [codex-acp](https://github.com/zed-industries/codex-acp) for approval policy
 - Models are fetched dynamically from Copilot CLI and may vary by account plan or preview access.
 
 **Notes:**
-- ACP support in Copilot CLI is in public preview and may change as GitHub evolves the CLI.
+- ACP support in Copilot CLI may change as GitHub evolves the CLI.
 
 ### Gemini ACP Configuration
 
