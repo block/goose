@@ -1106,9 +1106,11 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
 
     let timeout = prompt_extension_timeout()?;
 
-    let mut parts = command_str.split_whitespace();
-    let cmd = parts.next().unwrap_or("").to_string();
-    let args: Vec<String> = parts.map(String::from).collect();
+    let shell_parts = shlex::split(&command_str)
+        .ok_or_else(|| anyhow::anyhow!("Invalid shell quoting in command"))?;
+    let mut parts = shell_parts.into_iter();
+    let cmd = parts.next().unwrap_or_default();
+    let args: Vec<String> = parts.collect();
 
     let description = prompt_extension_description()?;
     let (envs, env_keys) = collect_env_vars()?;
