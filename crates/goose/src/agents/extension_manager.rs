@@ -535,7 +535,7 @@ async fn create_unix_socket_http_client(
             .to_str()
             .unwrap_or("goose")
             .parse()
-            .unwrap(),
+            .unwrap_or_else(|_| reqwest::header::HeaderValue::from_static("goose")),
     );
     for (key, value) in headers {
         let header_name = HeaderName::try_from(key)
@@ -715,7 +715,10 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     capability,
                     &effective_working_dir,
-                    socket.as_ref().map(|s| substitute_env_vars(s, &all_envs)).as_deref(),
+                    socket
+                        .as_ref()
+                        .map(|s| substitute_env_vars(s, &all_envs))
+                        .as_deref(),
                 )
                 .await?
             }
