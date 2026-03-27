@@ -2070,12 +2070,10 @@ mod tests {
 
     #[test]
     fn test_split_quoted_windows_paths() {
-        // Unquoted Windows path — backslashes preserved
         assert_eq!(
             CliSession::split_quoted(r"C:\tools\mcp.exe --arg value").unwrap(),
             vec![r"C:\tools\mcp.exe", "--arg", "value"]
         );
-        // Quoted Windows path with spaces — backslashes preserved
         assert_eq!(
             CliSession::split_quoted(r#""C:\Program Files\server\mcp.exe" --arg"#).unwrap(),
             vec![r"C:\Program Files\server\mcp.exe", "--arg"]
