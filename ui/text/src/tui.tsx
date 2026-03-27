@@ -25,7 +25,7 @@ import type {
 import { ndJsonStream } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@aaif/goose-acp";
 import { renderMarkdown } from "./markdown.js";
-import { buildToolCallCardLines, ToolCallCompact, findFeaturedToolCallId } from "./toolcall.js";
+import { ToolCallCard } from "./toolcall.js";
 import type { ToolCallInfo } from "./toolcall.js";
 import { CRANBERRY, TEAL, GOLD, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_DIM, RULE_COLOR } from "./colors.js";
 
@@ -128,9 +128,6 @@ const PERMISSION_KEYS: Record<string, string> = {
   reject_always: "N",
 };
 
-const INDENT = 3;
-const CONTENT_INDENT = 5;
-
 function Rule({ width }: { width: number }) {
   return <Text color={RULE_COLOR}>{"─".repeat(Math.max(width, 1))}</Text>;
 }
@@ -193,7 +190,7 @@ function Header({
 
 function UserPrompt({ text }: { text: string }) {
   return (
-    <Box paddingLeft={INDENT} paddingTop={1}>
+    <Box>
       <Text color={CRANBERRY} bold>
         {"❯ "}
       </Text>
@@ -215,11 +212,10 @@ function PermissionDialog({
   selectedIdx: number;
   width: number;
 }) {
-  const dialogWidth = Math.min(width - CONTENT_INDENT - 2, 58);
+  const dialogWidth = Math.min(width - 2, 58);
   return (
     <Box
       flexDirection="column"
-      marginLeft={CONTENT_INDENT}
       marginTop={1}
       paddingX={2}
       paddingY={1}
@@ -262,7 +258,7 @@ function PermissionDialog({
 
 function QueuedMessage({ text }: { text: string }) {
   return (
-    <Box paddingLeft={INDENT}>
+    <Box>
       <Text color={TEXT_DIM}>❯ </Text>
       <Text color={TEXT_DIM}>{text}</Text>
       <Text color={GOLD} dimColor>
@@ -280,6 +276,7 @@ function InputBar({
   onSubmit,
   queued,
   scrollHint,
+  placeholder,
 }: {
   width: number;
   input: string;
@@ -287,33 +284,37 @@ function InputBar({
   onSubmit: (v: string) => void;
   queued: boolean;
   scrollHint: boolean;
+  placeholder?: string;
 }) {
   return (
-    <Box flexDirection="column" width={width} marginBottom={1}>
-      <Box
-        flexDirection="column"
-        borderStyle="round"
-        borderColor={RULE_COLOR}
-        paddingX={1}
-        width={width}
-      >
-        <Box justifyContent="space-between">
-          <Box flexGrow={1}>
-            <Text color={CRANBERRY} bold>
-              {"❯ "}
-            </Text>
-            <TextInput value={input} onChange={onChange} onSubmit={onSubmit} />
-          </Box>
-          {scrollHint && <Text color={TEXT_DIM}>shift+↑↓ history</Text>}
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={RULE_COLOR}
+      paddingX={1}
+      width={width}
+    >
+      <Box justifyContent="space-between">
+        <Box flexGrow={1}>
+          <Text color={CRANBERRY} bold>
+            {"❯ "}
+          </Text>
+          <TextInput
+            value={input}
+            onChange={onChange}
+            onSubmit={onSubmit}
+            placeholder={placeholder}
+          />
         </Box>
-        {queued && (
-          <Box>
-            <Text color={GOLD} dimColor italic>
-              message queued — will send when goose finishes
-            </Text>
-          </Box>
-        )}
+        {scrollHint && <Text color={TEXT_DIM}>shift+↑↓ history</Text>}
       </Box>
+      {queued && (
+        <Box>
+          <Text color={GOLD} dimColor italic>
+            message queued — will send when goose finishes
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -338,18 +339,17 @@ function buildTurnBodyLines({
   toolCallsExpanded: boolean;
 }): React.ReactNode[] {
   const lines: React.ReactNode[] = [];
-
-  lines.push(<Box key="gap-top" height={1} />);
+  const hasToolCalls = turn.responseItems.some(item => item.itemType === "tool_call");
 
   let toolCallIndex = 0;
   let textChunkIndex = 0;
 
-  // Render items in the order they arrived
   for (let i = 0; i < turn.responseItems.length; i++) {
     const item = turn.responseItems[i]!;
 
+    lines.push(<Text key={`gap-${i}`}> </Text>);
+
     if (item.itemType === "tool_call") {
-      const tcId = item.toolCallId;
       const info: ToolCallInfo = {
         toolCallId: item.toolCallId,
         title: item.title,
@@ -361,42 +361,36 @@ function buildTurnBodyLines({
         locations: item.locations,
       };
 
-      if (toolCallsExpanded) {
-        const cardLines = buildToolCallCardLines(info, CONTENT_INDENT, width, true, `tc-${tcId}`);
-        lines.push(...cardLines);
-      } else {
-        const compactLines = ToolCallCompact({
-          info,
-          indent: CONTENT_INDENT,
-          width,
-          keyPrefix: `tc-${tcId}`,
-          showTabHint: toolCallIndex === 0,
-        });
-        lines.push(...compactLines);
-      }
+      const toolCallLines = ToolCallCard({
+        info,
+        width,
+        expanded: toolCallsExpanded,
+        showTabHint: toolCallIndex === 0 && hasToolCalls,
+        keyPrefix: `tc-${item.toolCallId}`,
+      });
+      lines.push(...toolCallLines);
       toolCallIndex++;
-    } else if (item.itemType === "content_chunk") {
-      if (item.content.type === "text") {
-        const text = item.content.text;
-        if (text) {
-          const rendered = renderMarkdown(text);
-          const mdLines = rendered.split("\n");
-          for (let j = 0; j < mdLines.length; j++) {
-            lines.push(
-              <Box key={`text-${textChunkIndex}-${j}`} paddingLeft={CONTENT_INDENT}>
-                <Text>{mdLines[j]}</Text>
-              </Box>,
-            );
-          }
-          textChunkIndex++;
+    } else if (item.itemType === "content_chunk" && item.content.type === "text") {
+      const text = item.content.text;
+      if (text) {
+        const rendered = renderMarkdown(text);
+        const mdLines = rendered.split("\n");
+        for (let j = 0; j < mdLines.length; j++) {
+          lines.push(
+            <Box key={`text-${textChunkIndex}-${j}`}>
+              <Text>{mdLines[j]}</Text>
+            </Box>,
+          );
         }
+        textChunkIndex++;
       }
     }
   }
 
   if (loading && !pendingPermission) {
+    lines.push(<Text key="gap-loading"> </Text>);
     lines.push(
-      <Box key="loading" paddingLeft={CONTENT_INDENT}>
+      <Box key="loading">
         <Spinner idx={spinIdx} />
         <Text color={TEXT_DIM} italic>
           {" "}
@@ -407,6 +401,7 @@ function buildTurnBodyLines({
   }
 
   if (pendingPermission) {
+    lines.push(<Text key="gap-permission"> </Text>);
     lines.push(
       <PermissionDialog
         key="permission"
@@ -485,37 +480,26 @@ function ScrollableBody({
 function SplashScreen({
   animFrame,
   width,
-  height,
   status,
   loading,
   spinIdx,
-  showInput,
-  input,
-  onInputChange,
-  onInputSubmit,
 }: {
   animFrame: number;
   width: number;
-  height: number;
   status: string;
   loading: boolean;
   spinIdx: number;
-  showInput: boolean;
-  input: string;
-  onInputChange: (v: string) => void;
-  onInputSubmit: (v: string) => void;
 }) {
   const frame = GOOSE_FRAMES[animFrame % GOOSE_FRAMES.length]!;
   const statusColor = status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
-  const inputWidth = Math.min(56, width - 8);
 
   return (
     <Box
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
+      flexGrow={1}
       width={width}
-      height={height}
     >
       <Box flexDirection="column" alignItems="center">
         {frame.map((line, i) => (
@@ -532,33 +516,10 @@ function SplashScreen({
       </Box>
       <Text color={TEXT_DIM}>your on-machine AI agent</Text>
 
-      {showInput ? (
-        <Box flexDirection="column" alignItems="center" marginTop={2}>
-          <Box width={inputWidth}>
-            <Rule width={inputWidth} />
-          </Box>
-          <Box>
-            <Text color={CRANBERRY} bold>
-              {"❯ "}
-            </Text>
-            <TextInput
-              value={input}
-              placeholder={INITIAL_GREETING}
-              onChange={onInputChange}
-              onSubmit={onInputSubmit}
-              showCursor
-            />
-          </Box>
-          <Box width={inputWidth}>
-            <Rule width={inputWidth} />
-          </Box>
-        </Box>
-      ) : (
-        <Box marginTop={2} gap={1}>
-          {loading && <Spinner idx={spinIdx} />}
-          <Text color={statusColor}>{status}</Text>
-        </Box>
-      )}
+      <Box marginTop={2} gap={1}>
+        {loading && <Spinner idx={spinIdx} />}
+        <Text color={statusColor}>{status}</Text>
+      </Box>
     </Box>
   );
 }
@@ -988,27 +949,9 @@ function App({
     }
   });
 
-  const GUTTER = 2;
-  const innerWidth = Math.max(termWidth - GUTTER * 2, 20);
-
-  if (bannerVisible) {
-    return (
-      <Box flexDirection="column" width={termWidth} height={termHeight}>
-        <SplashScreen
-          animFrame={gooseFrame}
-          width={termWidth}
-          height={termHeight}
-          status={status}
-          loading={loading}
-          spinIdx={spinIdx}
-          showInput={!loading && !initialPrompt}
-          input={input}
-          onInputChange={setInput}
-          onInputSubmit={handleSubmit}
-        />
-      </Box>
-    );
-  }
+  const PAD_X = 2;
+  const PAD_Y = 1;
+  const contentWidth = Math.max(termWidth - PAD_X * 2, 20);
 
   const effectiveTurnIdx =
     viewTurnIdx === -1 ? turns.length - 1 : viewTurnIdx;
@@ -1023,9 +966,9 @@ function App({
     toolCallsById: new Map(),
   };
 
-  const bodyLines = buildTurnBodyLines({
+  const responseLines = buildTurnBodyLines({
     turn: currentTurn ?? emptyTurn,
-    width: innerWidth,
+    width: contentWidth,
     loading: isLatest && loading,
     status,
     spinIdx,
@@ -1034,69 +977,79 @@ function App({
     toolCallsExpanded,
   });
 
-  const allBodyLines = isLatest
-    ? [
-        ...bodyLines,
-        ...queuedMessages.map((text, i) => (
-          <QueuedMessage key={`q-${i}`} text={text} />
-        )),
-      ]
-    : bodyLines;
+  const scrollLines: React.ReactNode[] = [];
+  if (currentTurn) {
+    scrollLines.push(<Text key="prompt-gap"> </Text>);
+    scrollLines.push(<UserPrompt key="prompt" text={currentTurn.userText} />);
+    scrollLines.push(...responseLines);
+  }
+  if (isLatest) {
+    scrollLines.push(
+      ...queuedMessages.map((text, i) => (
+        <QueuedMessage key={`q-${i}`} text={text} />
+      )),
+    );
+  }
+
+  const showInputBar = !pendingPermission && !initialPrompt && !isViewingHistory;
 
   return (
     <Box
       flexDirection="column"
       width={termWidth}
       height={termHeight}
-      paddingX={GUTTER}
+      paddingX={PAD_X}
+      paddingY={PAD_Y}
     >
-      <Header
-        width={innerWidth}
-        status={status}
-        loading={loading}
-        spinIdx={spinIdx}
-        hasPendingPermission={!!pendingPermission}
-        turnInfo={
-          turns.length > 1
-            ? { current: effectiveTurnIdx + 1, total: turns.length }
-            : undefined
-        }
-      />
-
-      {currentTurn ? (
+      {bannerVisible ? (
+        <SplashScreen
+          animFrame={gooseFrame}
+          width={contentWidth}
+          status={status}
+          loading={loading}
+          spinIdx={spinIdx}
+        />
+      ) : (
         <>
-          <UserPrompt text={currentTurn.userText} />
-
+          <Header
+            width={contentWidth}
+            status={status}
+            loading={loading}
+            spinIdx={spinIdx}
+            hasPendingPermission={!!pendingPermission}
+            turnInfo={
+              turns.length > 1
+                ? { current: effectiveTurnIdx + 1, total: turns.length }
+                : undefined
+            }
+          />
           <ScrollableBody
-            lines={allBodyLines}
-            width={innerWidth}
+            lines={scrollLines}
+            width={contentWidth}
             scrollOffset={scrollOffset}
           />
+          {isViewingHistory && (
+            <Box flexDirection="column" width={contentWidth}>
+              <Rule width={contentWidth} />
+              <Box justifyContent="center" width={contentWidth}>
+                <Text color={GOLD}>
+                  turn {effectiveTurnIdx + 1}/{turns.length}
+                </Text>
+                <Text color={TEXT_DIM}> — shift+↓ to return</Text>
+              </Box>
+            </Box>
+          )}
         </>
-      ) : (
-        <Box flexDirection="column" flexGrow={1} />
       )}
-
-      {isViewingHistory && (
-        <Box flexDirection="column" width={innerWidth}>
-          <Rule width={innerWidth} />
-          <Box justifyContent="center" width={innerWidth}>
-            <Text color={GOLD}>
-              turn {effectiveTurnIdx + 1}/{turns.length}
-            </Text>
-            <Text color={TEXT_DIM}> — shift+↓ to return</Text>
-          </Box>
-        </Box>
-      )}
-
-      {!isViewingHistory && !pendingPermission && !initialPrompt && (
+      {showInputBar && (
         <InputBar
-          width={innerWidth}
+          width={contentWidth}
           input={input}
           onChange={setInput}
           onSubmit={handleSubmit}
           queued={queuedMessages.length > 0}
-          scrollHint={turns.length > 1}
+          scrollHint={!bannerVisible && turns.length > 1}
+          placeholder={bannerVisible ? INITIAL_GREETING : undefined}
         />
       )}
     </Box>
