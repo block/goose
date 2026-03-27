@@ -7,5 +7,6 @@ unmaintained = "none"
 unsound = "none"
 
 ignore = [
+    "RUSTSEC-2024-0370",  # proc-macro-error is unmaintained
     "RUSTSEC-2023-0071",  # rsa: Marvin Attack timing sidechannel (no safe upgrade available, via jsonwebtoken)
 ]
