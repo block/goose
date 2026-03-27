@@ -225,7 +225,6 @@ impl ToolInspector for EgressInspector {
                 );
                 tracing::info!(
                     egress_kind = dest.kind.as_str(),
-                    destination = dest.destination.as_str(),
                     domain = dest.domain.as_str(),
                     "egress destination detected"
                 );
