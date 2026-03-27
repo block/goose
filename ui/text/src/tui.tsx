@@ -17,6 +17,10 @@ import type {
   ToolCallStatus,
   ToolKind,
   Stream,
+  ContentChunk,
+  ToolCall,
+  ToolCallUpdate,
+  SessionUpdate,
 } from "@agentclientprotocol/sdk";
 import { ndJsonStream } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@aaif/goose-acp";
@@ -31,11 +35,14 @@ interface PendingPermission {
   resolve: (response: RequestPermissionResponse) => void;
 }
 
+type ResponseItem =
+  | (ContentChunk & { itemType: "content_chunk" })
+  | (ToolCall & { itemType: "tool_call" });
+
 interface Turn {
   userText: string;
-  toolCalls: Map<string, ToolCallInfo>;
-  toolCallOrder: string[];
-  agentText: string;
+  responseItems: ResponseItem[];
+  toolCallsById: Map<string, number>; // maps toolCallId to index in responseItems
 }
 
 function isErrorStatus(status: string): boolean {
@@ -330,45 +337,60 @@ function buildTurnBodyLines({
   permissionIdx: number;
   toolCallsExpanded: boolean;
 }): React.ReactNode[] {
-  const toolCallIds = turn.toolCallOrder;
-  const toolCalls = turn.toolCalls;
-
   const lines: React.ReactNode[] = [];
 
   lines.push(<Box key="gap-top" height={1} />);
 
-  for (let i = 0; i < toolCallIds.length; i++) {
-    const tcId = toolCallIds[i]!;
-    const tc = toolCalls.get(tcId);
-    if (!tc) continue;
+  let toolCallIndex = 0;
+  let textChunkIndex = 0;
 
-    if (toolCallsExpanded) {
-      const cardLines = buildToolCallCardLines(tc, CONTENT_INDENT, width, true, `tc-${tcId}`);
-      lines.push(...cardLines);
-    } else {
-      const compactLines = ToolCallCompact({
-        info: tc,
-        indent: CONTENT_INDENT,
-        width,
-        keyPrefix: `tc-${tcId}`,
-        showTabHint: i === 0,
-      });
-      lines.push(...compactLines);
-    }
-  }
+  // Render items in the order they arrived
+  for (let i = 0; i < turn.responseItems.length; i++) {
+    const item = turn.responseItems[i]!;
 
-  if (turn.agentText) {
-    if (toolCallIds.length > 0) {
-      lines.push(<Box key="gap-agent" height={1} />);
-    }
-    const rendered = renderMarkdown(turn.agentText);
-    const mdLines = rendered.split("\n");
-    for (let i = 0; i < mdLines.length; i++) {
-      lines.push(
-        <Box key={`md-${i}`} paddingLeft={CONTENT_INDENT}>
-          <Text>{mdLines[i]}</Text>
-        </Box>,
-      );
+    if (item.itemType === "tool_call") {
+      const tcId = item.toolCallId;
+      const info: ToolCallInfo = {
+        toolCallId: item.toolCallId,
+        title: item.title,
+        status: item.status ?? "pending",
+        kind: item.kind,
+        rawInput: item.rawInput,
+        rawOutput: item.rawOutput,
+        content: item.content,
+        locations: item.locations,
+      };
+
+      if (toolCallsExpanded) {
+        const cardLines = buildToolCallCardLines(info, CONTENT_INDENT, width, true, `tc-${tcId}`);
+        lines.push(...cardLines);
+      } else {
+        const compactLines = ToolCallCompact({
+          info,
+          indent: CONTENT_INDENT,
+          width,
+          keyPrefix: `tc-${tcId}`,
+          showTabHint: toolCallIndex === 0,
+        });
+        lines.push(...compactLines);
+      }
+      toolCallIndex++;
+    } else if (item.itemType === "content_chunk") {
+      if (item.content.type === "text") {
+        const text = item.content.text;
+        if (text) {
+          const rendered = renderMarkdown(text);
+          const mdLines = rendered.split("\n");
+          for (let j = 0; j < mdLines.length; j++) {
+            lines.push(
+              <Box key={`text-${textChunkIndex}-${j}`} paddingLeft={CONTENT_INDENT}>
+                <Text>{mdLines[j]}</Text>
+              </Box>,
+            );
+          }
+          textChunkIndex++;
+        }
+      }
     }
   }
 
@@ -597,43 +619,55 @@ function App({
     setTurns((prev) => {
       if (prev.length === 0) return prev;
       const last = { ...prev[prev.length - 1]! };
-      last.agentText = last.agentText + text;
-      return [...prev.slice(0, -1), last];
+      const newItems = [...last.responseItems];
+      
+      // If last item is a content chunk with text, append to it; otherwise create new content chunk
+      if (newItems.length > 0 && newItems[newItems.length - 1]!.itemType === "content_chunk") {
+        const lastItem = newItems[newItems.length - 1] as ContentChunk & { itemType: "content_chunk" };
+        if (lastItem.content.type === "text") {
+          newItems[newItems.length - 1] = {
+            ...lastItem,
+            content: {
+              ...lastItem.content,
+              text: lastItem.content.text + text,
+            },
+          };
+        } else {
+          // Last item is not text, create new content chunk
+          newItems.push({
+            itemType: "content_chunk",
+            content: { type: "text", text },
+          });
+        }
+      } else {
+        // No items or last item is tool call, create new content chunk
+        newItems.push({
+          itemType: "content_chunk",
+          content: { type: "text", text },
+        });
+      }
+      
+      return [...prev.slice(0, -1), { ...last, responseItems: newItems }];
     });
   }, []);
 
   const handleToolCall = useCallback(
-    (tc: {
-      toolCallId: string;
-      title: string;
-      status?: ToolCallStatus;
-      kind?: ToolKind;
-      rawInput?: unknown;
-      rawOutput?: unknown;
-      content?: ToolCallContent[];
-      locations?: Array<{ path: string; line?: number | null }>;
-    }) => {
+    (tc: ToolCall) => {
       setTurns((prev) => {
         if (prev.length === 0) return prev;
         const last = { ...prev[prev.length - 1]! };
-        const newMap = new Map(last.toolCalls);
-        const info: ToolCallInfo = {
-          toolCallId: tc.toolCallId,
-          title: tc.title,
-          status: tc.status ?? "pending",
-          kind: tc.kind,
-          rawInput: tc.rawInput,
-          rawOutput: tc.rawOutput,
-          content: tc.content,
-          locations: tc.locations,
-        };
-        newMap.set(tc.toolCallId, info);
-        const newOrder = last.toolCallOrder.includes(tc.toolCallId)
-          ? last.toolCallOrder
-          : [...last.toolCallOrder, tc.toolCallId];
+        
+        const newItems = [...last.responseItems];
+        const newById = new Map(last.toolCallsById);
+        
+        // Add new tool call to the array
+        const index = newItems.length;
+        newItems.push({ ...tc, itemType: "tool_call" });
+        newById.set(tc.toolCallId, index);
+        
         return [
           ...prev.slice(0, -1),
-          { ...last, toolCalls: newMap, toolCallOrder: newOrder },
+          { ...last, responseItems: newItems, toolCallsById: newById },
         ];
       });
     },
@@ -641,33 +675,30 @@ function App({
   );
 
   const handleToolCallUpdate = useCallback(
-    (update: {
-      toolCallId: string;
-      title?: string | null;
-      status?: ToolCallStatus | null;
-      kind?: ToolKind | null;
-      rawInput?: unknown;
-      rawOutput?: unknown;
-      content?: ToolCallContent[] | null;
-      locations?: Array<{ path: string; line?: number | null }> | null;
-    }) => {
+    (update: ToolCallUpdate) => {
       setTurns((prev) => {
         if (prev.length === 0) return prev;
         const last = { ...prev[prev.length - 1]! };
-        const newMap = new Map(last.toolCalls);
-        const existing = newMap.get(update.toolCallId);
-        if (!existing) return prev;
-        const updated: ToolCallInfo = { ...existing };
+        
+        const index = last.toolCallsById.get(update.toolCallId);
+        if (index === undefined) return prev;
+        
+        const item = last.responseItems[index];
+        if (!item || item.itemType !== "tool_call") return prev;
+        
+        const updated: ToolCall & { itemType: "tool_call" } = { ...item };
         if (update.title != null) updated.title = update.title;
         if (update.status != null) updated.status = update.status;
         if (update.kind != null) updated.kind = update.kind;
         if (update.rawInput !== undefined) updated.rawInput = update.rawInput;
-        if (update.rawOutput !== undefined)
-          updated.rawOutput = update.rawOutput;
+        if (update.rawOutput !== undefined) updated.rawOutput = update.rawOutput;
         if (update.content != null) updated.content = update.content;
         if (update.locations != null) updated.locations = update.locations;
-        newMap.set(update.toolCallId, updated);
-        return [...prev.slice(0, -1), { ...last, toolCalls: newMap }];
+        
+        const newItems = [...last.responseItems];
+        newItems[index] = updated;
+        
+        return [...prev.slice(0, -1), { ...last, responseItems: newItems }];
       });
     },
     [],
@@ -678,9 +709,8 @@ function App({
       ...prev,
       {
         userText: text,
-        toolCalls: new Map(),
-        toolCallOrder: [],
-        agentText: "",
+        responseItems: [],
+        toolCallsById: new Map(),
       },
     ]);
     setViewTurnIdx(-1);
@@ -778,27 +808,9 @@ function App({
                   appendAgent(update.content.text);
                 }
               } else if (update.sessionUpdate === "tool_call") {
-                handleToolCall({
-                  toolCallId: update.toolCallId,
-                  title: update.title,
-                  status: update.status,
-                  kind: update.kind,
-                  rawInput: update.rawInput,
-                  rawOutput: update.rawOutput,
-                  content: update.content,
-                  locations: update.locations,
-                });
+                handleToolCall(update);
               } else if (update.sessionUpdate === "tool_call_update") {
-                handleToolCallUpdate({
-                  toolCallId: update.toolCallId,
-                  title: update.title,
-                  status: update.status,
-                  kind: update.kind,
-                  rawInput: update.rawInput,
-                  rawOutput: update.rawOutput,
-                  content: update.content,
-                  locations: update.locations,
-                });
+                handleToolCallUpdate(update);
               }
             },
             requestPermission: async (
@@ -931,7 +943,11 @@ function App({
       const effectiveIdx =
         viewTurnIdx === -1 ? turns.length - 1 : viewTurnIdx;
       const currentTurn = turns[effectiveIdx];
-      if (!currentTurn || currentTurn.toolCallOrder.length === 0) return;
+      if (!currentTurn) return;
+      
+      // Check if there are any tool calls in the response items
+      const hasToolCalls = currentTurn.responseItems.some(item => item.itemType === "tool_call");
+      if (!hasToolCalls) return;
 
       setToolCallsExpanded((prev) => !prev);
       return;
@@ -1003,9 +1019,8 @@ function App({
 
   const emptyTurn: Turn = {
     userText: "",
-    toolCalls: new Map(),
-    toolCallOrder: [],
-    agentText: "",
+    responseItems: [],
+    toolCallsById: new Map(),
   };
 
   const bodyLines = buildTurnBodyLines({
