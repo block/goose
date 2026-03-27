@@ -6,4 +6,6 @@ yanked = "deny"
 unmaintained = "none"
 unsound = "none"
 
-ignore = []
+ignore = [
+    "RUSTSEC-2023-0071",  # rsa: Marvin Attack timing sidechannel (no safe upgrade available, via jsonwebtoken)
+]
