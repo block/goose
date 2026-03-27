@@ -273,7 +273,8 @@ impl CliSession {
     /// Parse a stdio extension command string into an ExtensionConfig
     /// Format: "ENV1=val1 ENV2=val2 command args..."
     pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
-        let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
+        let mut parts: Vec<String> = shlex::split(extension_command)
+            .ok_or_else(|| anyhow::anyhow!("Invalid shell quoting in extension command"))?;
         let mut envs = HashMap::new();
 
         while let Some(part) = parts.first() {
@@ -289,7 +290,7 @@ impl CliSession {
             return Err(anyhow::anyhow!("No command provided in extension string"));
         }
 
-        let cmd = parts.remove(0).to_string();
+        let cmd = parts.remove(0);
         let name = std::path::Path::new(&cmd)
             .file_name()
             .and_then(|f| f.to_str())
@@ -299,7 +300,7 @@ impl CliSession {
         Ok(ExtensionConfig::Stdio {
             name,
             cmd,
-            args: parts.iter().map(|s| s.to_string()).collect(),
+            args: parts,
             envs: Envs::new(envs),
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
@@ -2013,6 +2014,21 @@ mod tests {
             available_tools: vec![],
         }
         ; "env_prefix_name_from_cmd"
+    )]
+    #[test_case(
+        r#""/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java" -classpath "/path/with spaces/lib.jar" Main"#,
+        ExtensionConfig::Stdio {
+            name: "java".into(),
+            cmd: "/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java".into(),
+            args: vec!["-classpath".into(), "/path/with spaces/lib.jar".into(), "Main".into()],
+            envs: Envs::default(),
+            env_keys: vec![],
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "quoted_path_with_spaces"
     )]
     fn test_parse_stdio_extension(input: &str, expected: ExtensionConfig) {
         assert_eq!(CliSession::parse_stdio_extension(input).unwrap(), expected);
