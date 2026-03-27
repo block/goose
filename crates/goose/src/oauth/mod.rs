@@ -108,19 +108,16 @@ pub async fn oauth_flow(
         .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
         .unwrap_or_default();
 
-    credential_store
-        .save(StoredCredentials {
-            client_id,
-            token_response,
-            granted_scopes,
-            token_received_at: Some(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|duration| duration.as_secs())
-                    .unwrap_or(0),
-            ),
-        })
-        .await?;
+    let credentials: StoredCredentials = serde_json::from_value(serde_json::json!({
+        "client_id": client_id,
+        "token_response": token_response,
+        "granted_scopes": granted_scopes,
+        "token_received_at": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0),
+    }))?;
+    credential_store.save(credentials).await?;
 
     auth_manager.set_credential_store(credential_store);
 

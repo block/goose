@@ -60,6 +60,8 @@ enum RecipeExtensionConfigInternal {
         env_keys: Vec<String>,
         #[serde(default)]
         headers: HashMap<String, String>,
+        #[serde(default)]
+        socket: Option<String>,
         timeout: Option<u64>,
         #[serde(default)]
         bundled: Option<bool>,
@@ -139,6 +141,7 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 envs,
                 env_keys,
                 headers,
+                socket,
                 timeout,
                 bundled,
                 available_tools
