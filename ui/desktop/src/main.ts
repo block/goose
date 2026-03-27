@@ -1564,6 +1564,262 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+// ── Mesh-LLM lifecycle ──────────────────────────────────────────────
+
+const MESH_DOWNLOAD_URL =
+  'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
+
+async function findMeshBinary(): Promise<string | null> {
+  const { execSync } = await import('child_process');
+  const os = await import('os');
+  const path = await import('path');
+  const fsSync = await import('fs');
+
+  // 1. PATH
+  try {
+    const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+    if (binPath) return binPath;
+  } catch {
+    // ignore
+  }
+
+  // 2. ~/.mesh-llm/ (our download location)
+  const meshDir = path.default.join(os.default.homedir(), '.mesh-llm', 'mesh-llm');
+  if (fsSync.default.existsSync(meshDir)) return meshDir;
+
+  // 3. ~/.local/bin/
+  const localBin = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
+  if (fsSync.default.existsSync(localBin)) return localBin;
+
+  return null;
+}
+
+ipcMain.handle('check-mesh', async () => {
+  const http = await import('http');
+  const result: {
+    running: boolean;
+    installed: boolean;
+    models: string[];
+    token?: string;
+    peerCount?: number;
+    nodeStatus?: string;
+    binaryPath?: string;
+  } = { running: false, installed: true, models: [] };
+
+  // Check if mesh-llm binary exists
+  const binary = await findMeshBinary();
+  if (binary) {
+    result.binaryPath = binary;
+  } else {
+    result.installed = false;
+    // Still probe the API — maybe it's running from somewhere unexpected
+  }
+
+  // Probe the API
+  try {
+    const modelsData: { running: boolean; models: string[] } = await new Promise((resolve) => {
+      const req = http.default.get('http://localhost:9337/v1/models', { timeout: 3000 }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const models = (data.data || []).map((m: { id: string }) => m.id);
+            resolve({ running: true, models });
+          } catch {
+            resolve({ running: false, models: [] });
+          }
+        });
+      });
+      req.on('error', () => resolve({ running: false, models: [] }));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ running: false, models: [] });
+      });
+    });
+
+    result.running = modelsData.running;
+    result.models = modelsData.models;
+  } catch {
+    // API not reachable
+  }
+
+  // If running, also grab console status for invite token + peer info
+  if (result.running) {
+    try {
+      const statusData: { token?: string; peerCount?: number; nodeStatus?: string } =
+        await new Promise((resolve) => {
+          const req = http.default.get(
+            'http://localhost:3131/api/status',
+            { timeout: 3000 },
+            (res) => {
+              let body = '';
+              res.on('data', (chunk: Buffer) => {
+                body += chunk.toString();
+              });
+              res.on('end', () => {
+                try {
+                  const data = JSON.parse(body);
+                  resolve({
+                    token: data.token,
+                    peerCount: Array.isArray(data.peers) ? data.peers.length : undefined,
+                    nodeStatus: data.node_status,
+                  });
+                } catch {
+                  resolve({});
+                }
+              });
+            }
+          );
+          req.on('error', () => resolve({}));
+          req.on('timeout', () => {
+            req.destroy();
+            resolve({});
+          });
+        });
+      result.token = statusData.token;
+      result.peerCount = statusData.peerCount;
+      result.nodeStatus = statusData.nodeStatus;
+    } catch {
+      // console not available — that's fine
+    }
+  }
+
+  return result;
+});
+
+ipcMain.handle('start-mesh', async (_event, args: string[]) => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const os = await import('os');
+
+  const binary = await findMeshBinary();
+  if (!binary) {
+    return {
+      started: false,
+      error: 'mesh-llm not found. Download it first from the Mesh settings tab.',
+    };
+  }
+
+  // Log to ~/.mesh-llm/mesh-llm.log
+  const logDir = path.default.join(os.default.homedir(), '.mesh-llm');
+  if (!fs.default.existsSync(logDir)) {
+    fs.default.mkdirSync(logDir, { recursive: true });
+  }
+  const logPath = path.default.join(logDir, 'mesh-llm.log');
+  const out = fs.default.openSync(logPath, 'a');
+
+  // Spawn detached — mesh-llm outlives Goose
+  const child = spawn(binary, args, {
+    detached: true,
+    stdio: ['ignore', out, out],
+  });
+  child.unref();
+
+  return { started: true, pid: child.pid };
+});
+
+ipcMain.handle('stop-mesh', async () => {
+  const { execSync } = await import('child_process');
+  try {
+    const binary = await findMeshBinary();
+    if (binary) {
+      execSync(`"${binary}" stop`, { timeout: 5000, encoding: 'utf8' });
+    }
+    return { stopped: true };
+  } catch {
+    return { stopped: false };
+  }
+});
+
+ipcMain.handle('ensure-mesh-provider', async (_event, models: string[], displayName: string) => {
+  const os = await import('os');
+  const path = await import('path');
+  const fsSync = await import('fs');
+
+  // Resolve the same config dir goose uses
+  const pathRoot = process.env.GOOSE_PATH_ROOT;
+  const configDir = pathRoot
+    ? path.default.join(pathRoot, 'config')
+    : path.default.join(os.default.homedir(), '.config', 'goose');
+  const customDir = path.default.join(configDir, 'custom_providers');
+
+  if (!fsSync.default.existsSync(customDir)) {
+    fsSync.default.mkdirSync(customDir, { recursive: true });
+  }
+
+  const providerJson = {
+    name: 'mesh',
+    engine: 'openai',
+    display_name: displayName,
+    description: 'Decentralized LLM inference via mesh-llm',
+    api_key_env: '',
+    base_url: 'http://localhost:9337',
+    models: models.map((m) => ({ name: m, context_limit: 128000 })),
+    timeout_seconds: 600,
+    supports_streaming: true,
+    requires_auth: false,
+  };
+
+  const filePath = path.default.join(customDir, 'mesh.json');
+  fsSync.default.writeFileSync(filePath, JSON.stringify(providerJson, null, 2));
+  return { success: true };
+});
+
+ipcMain.handle('download-mesh', async () => {
+  if (process.platform !== 'darwin') {
+    return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
+  }
+
+  const os = await import('os');
+  const path = await import('path');
+  const fsSync = await import('fs');
+  const { execSync } = await import('child_process');
+
+  const installDir = path.default.join(os.default.homedir(), '.mesh-llm');
+  if (!fsSync.default.existsSync(installDir)) {
+    fsSync.default.mkdirSync(installDir, { recursive: true });
+  }
+
+  try {
+    // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
+    execSync(`curl -fsSL '${MESH_DOWNLOAD_URL}' | tar xz --strip-components=1 -C '${installDir}'`, {
+      timeout: 120000,
+      encoding: 'utf8',
+    });
+
+    const binary = path.default.join(installDir, 'mesh-llm');
+    if (!fsSync.default.existsSync(binary)) {
+      return { downloaded: false, error: 'Download succeeded but mesh-llm binary not found' };
+    }
+
+    // macOS: ad-hoc codesign + clear quarantine to avoid Gatekeeper prompts
+    if (process.platform === 'darwin') {
+      for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
+        const bin = path.default.join(installDir, name);
+        if (fsSync.default.existsSync(bin)) {
+          try {
+            execSync(`codesign -s - '${bin}' 2>/dev/null`, { timeout: 10000 });
+          } catch {
+            // codesign may fail if already signed
+          }
+          try {
+            execSync(`xattr -cr '${bin}' 2>/dev/null`, { timeout: 10000 });
+          } catch {
+            // xattr may fail
+          }
+        }
+      }
+    }
+
+    return { downloaded: true, binaryPath: binary };
+  } catch (err) {
+    return { downloaded: false, error: `Download failed: ${err}` };
+  }
+});
+
 ipcMain.handle('check-ollama', async () => {
   try {
     return new Promise((resolve) => {

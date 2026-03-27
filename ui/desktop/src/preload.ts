@@ -114,6 +114,19 @@ type ElectronAPI = {
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
+  checkMesh: () => Promise<{
+    running: boolean;
+    installed: boolean;
+    models: string[];
+    token?: string;
+    peerCount?: number;
+    nodeStatus?: string;
+    binaryPath?: string;
+  }>;
+  startMesh: (args: string[]) => Promise<{ started: boolean; error?: string; pid?: number }>;
+  stopMesh: () => Promise<{ stopped: boolean }>;
+  downloadMesh: () => Promise<{ downloaded: boolean; error?: string; binaryPath?: string }>;
+  ensureMeshProvider: (models: string[], displayName: string) => Promise<{ success: boolean }>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
@@ -201,6 +214,12 @@ const electronAPI: ElectronAPI = {
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
+  checkMesh: () => ipcRenderer.invoke('check-mesh'),
+  startMesh: (args: string[]) => ipcRenderer.invoke('start-mesh', args),
+  stopMesh: () => ipcRenderer.invoke('stop-mesh'),
+  downloadMesh: () => ipcRenderer.invoke('download-mesh'),
+  ensureMeshProvider: (models: string[], displayName: string) =>
+    ipcRenderer.invoke('ensure-mesh-provider', models, displayName),
   selectFileOrDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke('select-file-or-directory', defaultPath),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
