@@ -366,15 +366,15 @@ importers:
         specifier: ^4.0.18
         version: 4.1.0(@types/node@25.5.0)(@vitest/ui@4.1.0)(jsdom@28.1.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  goose-acp-server/goose-acp-server-darwin-arm64: {}
+  goose-binary/goose-binary-darwin-arm64: {}
 
-  goose-acp-server/goose-acp-server-darwin-x64: {}
+  goose-binary/goose-binary-darwin-x64: {}
 
-  goose-acp-server/goose-acp-server-linux-arm64: {}
+  goose-binary/goose-binary-linux-arm64: {}
 
-  goose-acp-server/goose-acp-server-linux-x64: {}
+  goose-binary/goose-binary-linux-x64: {}
 
-  goose-acp-server/goose-acp-server-win32-x64: {}
+  goose-binary/goose-binary-win32-x64: {}
 
   text:
     dependencies:
@@ -422,21 +422,21 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
     optionalDependencies:
-      '@aaif/goose-acp-server-darwin-arm64':
+      '@aaif/goose-binary-darwin-arm64':
         specifier: workspace:*
-        version: link:../goose-acp-server/goose-acp-server-darwin-arm64
-      '@aaif/goose-acp-server-darwin-x64':
+        version: link:../goose-binary/goose-binary-darwin-arm64
+      '@aaif/goose-binary-darwin-x64':
         specifier: workspace:*
-        version: link:../goose-acp-server/goose-acp-server-darwin-x64
-      '@aaif/goose-acp-server-linux-arm64':
+        version: link:../goose-binary/goose-binary-darwin-x64
+      '@aaif/goose-binary-linux-arm64':
         specifier: workspace:*
-        version: link:../goose-acp-server/goose-acp-server-linux-arm64
-      '@aaif/goose-acp-server-linux-x64':
+        version: link:../goose-binary/goose-binary-linux-arm64
+      '@aaif/goose-binary-linux-x64':
         specifier: workspace:*
-        version: link:../goose-acp-server/goose-acp-server-linux-x64
-      '@aaif/goose-acp-server-win32-x64':
+        version: link:../goose-binary/goose-binary-linux-x64
+      '@aaif/goose-binary-win32-x64':
         specifier: workspace:*
-        version: link:../goose-acp-server/goose-acp-server-win32-x64
+        version: link:../goose-binary/goose-binary-win32-x64
 
 packages:
 
