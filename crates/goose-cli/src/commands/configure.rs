@@ -1106,7 +1106,7 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
 
     let timeout = prompt_extension_timeout()?;
 
-    let mut parts = crate::session::CliSession::split_quoted(&command_str)?;
+    let mut parts = crate::session::split_quoted(&command_str)?;
     let cmd = if parts.is_empty() {
         String::new()
     } else {
