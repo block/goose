@@ -17,9 +17,24 @@ function HomepageHeader() {
             <GooseLogo />
           </div>
           <p className={styles.subtitle}>{siteConfig.tagline}</p>
-          <Link className="button button--primary button--lg" to="docs/getting-started/installation">
-            install goose
-          </Link>
+          <div className={styles.installBlock}>
+            <div className={styles.installTabs}>
+              <code className={styles.installCommand}>
+                brew install block/tap/goose
+              </code>
+            </div>
+            <p className={styles.installNote}>
+              Free and open source. Works with ChatGPT, Claude, Gemini, and local models.
+            </p>
+          </div>
+          <div className={styles.heroButtons}>
+            <Link className="button button--primary button--lg" to="docs/getting-started/installation">
+              Get Started
+            </Link>
+            <Link className="button button--outline button--lg" to="docs/quickstart">
+              Quickstart Guide
+            </Link>
+          </div>
         </div>
 
         <div className={styles.videoColumn}>
@@ -39,7 +54,7 @@ function HomepageHeader() {
 
 export default function Home(): ReactNode {
   return (
-    <Layout description="your open source AI agent, automating engineering tasks seamlessly">
+    <Layout description="Goose is an open-source AI agent by Block. Connect any LLM to your tools via MCP. Desktop app, CLI, scheduled agents, and 100+ extensions. Free to start.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

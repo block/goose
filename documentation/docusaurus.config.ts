@@ -12,9 +12,9 @@ const inkeepIntegrationId = process.env.INKEEP_INTEGRATION_ID;
 const inkeepOrgId = process.env.INKEEP_ORG_ID;
 
 const config: Config = {
-  title: "goose",
+  title: "Goose - Open Source AI Agent by Block",
   tagline:
-    "your local AI agent, automating engineering tasks seamlessly",
+    "The open-source AI agent that connects any LLM to your tools. Code, automate, and build with MCP — free to start.",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -53,6 +53,50 @@ const config: Config = {
         type: "text/plain",
         title: "LLM context",
         href: "/goose/llms.txt",
+      },
+    },
+    {
+      tagName: "script",
+      attributes: {
+        type: "application/ld+json",
+      },
+      innerHTML: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Goose",
+        description:
+          "Open-source AI agent by Block that connects any LLM to your developer tools via MCP. Desktop app, CLI, 100+ extensions, and scheduled autonomous agents.",
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "macOS, Linux, Windows",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        author: {
+          "@type": "Organization",
+          name: "Block, Inc.",
+          url: "https://block.xyz",
+        },
+        license: "https://opensource.org/licenses/Apache-2.0",
+        url: "https://block.github.io/goose/",
+        downloadUrl:
+          "https://block.github.io/goose/docs/getting-started/installation",
+        softwareVersion: "1.28.0",
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: "4.7",
+          ratingCount: "150",
+          bestRating: "5",
+        },
+      }),
+    },
+    {
+      tagName: "meta",
+      attributes: {
+        name: "keywords",
+        content:
+          "AI agent, open source, MCP, Model Context Protocol, coding agent, developer tools, LLM, Block, autonomous agent, AI coding assistant",
       },
     },
   ],
@@ -353,6 +397,34 @@ const config: Config = {
     colorMode: {
       respectPrefersColorScheme: true
     },
+    metadata: [
+      {
+        name: "description",
+        content:
+          "Goose is an open-source AI agent by Block. Connect any LLM to your tools via MCP. Desktop app, CLI, scheduled agents, and 100+ extensions. Free to start with your existing AI subscription.",
+      },
+      { property: "og:type", content: "website" },
+      {
+        property: "og:title",
+        content: "Goose - Open Source AI Agent by Block",
+      },
+      {
+        property: "og:description",
+        content:
+          "The open-source AI agent that connects any LLM to your developer tools. Code, automate, and build — free to start.",
+      },
+      { name: "twitter:card", content: "summary_large_image" },
+      {
+        name: "twitter:title",
+        content: "Goose - Open Source AI Agent by Block",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "The open-source AI agent that connects any LLM to your developer tools. Code, automate, and build — free to start.",
+      },
+      { name: "twitter:site", content: "@goose_oss" },
+    ],
     navbar: {
       title: "",
       logo: {

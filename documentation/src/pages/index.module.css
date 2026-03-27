@@ -37,7 +37,46 @@
 .subtitle {
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
-  max-width: 30ch;
+  max-width: 36ch;
+}
+
+.installBlock {
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-width: 420px;
+}
+
+.installTabs {
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.installCommand {
+  display: block;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-family: var(--ifm-font-family-monospace);
+  background: var(--ifm-color-emphasis-200);
+  border-radius: 6px;
+  color: var(--ifm-font-color-base);
+  user-select: all;
+  cursor: text;
+  text-align: center;
+}
+
+.installNote {
+  font-size: 0.8rem;
+  color: var(--ifm-color-emphasis-600);
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.heroButtons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .videoColumn {
