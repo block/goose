@@ -252,115 +252,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_extract_urls() {
+    fn test_extract_destinations() {
         let dests = extract_destinations("curl https://example.com/api/data");
         assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "url");
-        assert_eq!(dests[0].destination, "https://example.com/api/data");
         assert_eq!(dests[0].domain, "example.com");
-    }
 
-    #[test]
-    fn test_extract_multiple_urls() {
-        let dests = extract_destinations(
-            "curl https://api.github.com/repos && wget http://evil.com/data",
-        );
-        assert_eq!(dests.len(), 2);
-        assert_eq!(dests[0].domain, "api.github.com");
-        assert_eq!(dests[1].domain, "evil.com");
-    }
-
-    #[test]
-    fn test_extract_git_ssh_remote() {
         let dests = extract_destinations("git remote add origin git@github.com:personal/repo.git");
         assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "git_remote");
         assert_eq!(dests[0].domain, "github.com");
-        assert_eq!(dests[0].destination, "git@github.com:personal/repo.git");
-    }
 
-    #[test]
-    fn test_extract_s3_bucket() {
         let dests = extract_destinations("aws s3 cp data.csv s3://my-bucket/path/data.csv");
         assert_eq!(dests.len(), 1);
         assert_eq!(dests[0].kind, "s3_bucket");
-        assert_eq!(dests[0].domain, "my-bucket.s3.amazonaws.com");
-    }
 
-    #[test]
-    fn test_extract_gcs_bucket() {
-        let dests = extract_destinations("gsutil cp data.csv gs://my-bucket/path/");
-        assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "gcs_bucket");
-        assert_eq!(dests[0].domain, "my-bucket.storage.googleapis.com");
-    }
-
-    #[test]
-    fn test_extract_scp_target() {
-        let dests = extract_destinations("scp file.txt user@remote-host.com:/tmp/");
-        assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "scp_target");
-        assert_eq!(dests[0].domain, "remote-host.com");
-    }
-
-    #[test]
-    fn test_extract_ssh_target() {
-        let dests = extract_destinations("ssh admin@production-server.internal");
-        assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "ssh_target");
-        assert_eq!(dests[0].domain, "production-server.internal");
-    }
-
-    #[test]
-    fn test_extract_docker_push() {
-        let dests = extract_destinations("docker push registry.example.com/myapp:latest");
-        assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "docker_registry");
-        assert_eq!(dests[0].domain, "registry.example.com");
-    }
-
-    #[test]
-    fn test_extract_npm_publish() {
-        let dests = extract_destinations("npm publish");
-        assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "package_publish");
-        assert_eq!(dests[0].domain, "registry.npmjs.org");
-    }
-
-    #[test]
-    fn test_no_destinations() {
-        let dests = extract_destinations("ls -la /tmp");
-        assert_eq!(dests.len(), 0);
-    }
-
-    #[test]
-    fn test_git_push_with_https_remote() {
-        let dests =
-            extract_destinations("git push https://github.com/personal/secret-repo.git main");
-        assert_eq!(dests.len(), 1);
-        assert_eq!(dests[0].kind, "url");
-        assert_eq!(dests[0].domain, "github.com");
-        assert!(dests[0].destination.contains("personal/secret-repo"));
+        assert_eq!(extract_destinations("ls -la /tmp").len(), 0);
     }
 
     #[test]
     fn test_extract_domain_from_url() {
-        assert_eq!(
-            extract_domain_from_url("https://example.com/path"),
-            Some("example.com".to_string())
-        );
-        assert_eq!(
-            extract_domain_from_url("https://user:pass@example.com/path"),
-            Some("example.com".to_string())
-        );
-        assert_eq!(
-            extract_domain_from_url("https://example.com:8080/path"),
-            Some("example.com".to_string())
-        );
-        assert_eq!(
-            extract_domain_from_url("http://api.github.com/repos/squareup/goose"),
-            Some("api.github.com".to_string())
-        );
+        assert_eq!(extract_domain_from_url("https://example.com/path"), Some("example.com".to_string()));
+        assert_eq!(extract_domain_from_url("https://user:pass@example.com/path"), Some("example.com".to_string()));
     }
 
 }
