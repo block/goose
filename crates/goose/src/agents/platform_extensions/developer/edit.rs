@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -42,8 +43,12 @@ impl EditTools {
         &self,
         params: FileReadParams,
         working_dir: Option<&Path>,
+        allowed_paths: Option<&HashSet<PathBuf>>,
     ) -> CallToolResult {
-        let path = resolve_path(&params.path, working_dir);
+        let path = match validate_and_resolve_path(&params.path, working_dir, allowed_paths) {
+            Ok(p) => p,
+            Err(msg) => return CallToolResult::error(vec![Content::text(msg).with_priority(0.0)]),
+        };
 
         match fs::read_to_string(&path) {
             Ok(content) => {
@@ -59,15 +64,19 @@ impl EditTools {
     }
 
     pub fn file_write(&self, params: FileWriteParams) -> CallToolResult {
-        self.file_write_with_cwd(params, None)
+        self.file_write_with_cwd(params, None, None)
     }
 
     pub fn file_write_with_cwd(
         &self,
         params: FileWriteParams,
         working_dir: Option<&Path>,
+        allowed_paths: Option<&HashSet<PathBuf>>,
     ) -> CallToolResult {
-        let path = resolve_path(&params.path, working_dir);
+        let path = match validate_and_resolve_path(&params.path, working_dir, allowed_paths) {
+            Ok(p) => p,
+            Err(msg) => return CallToolResult::error(vec![Content::text(msg).with_priority(0.0)]),
+        };
 
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
@@ -103,15 +112,19 @@ impl EditTools {
     }
 
     pub fn file_edit(&self, params: FileEditParams) -> CallToolResult {
-        self.file_edit_with_cwd(params, None)
+        self.file_edit_with_cwd(params, None, None)
     }
 
     pub fn file_edit_with_cwd(
         &self,
         params: FileEditParams,
         working_dir: Option<&Path>,
+        allowed_paths: Option<&HashSet<PathBuf>>,
     ) -> CallToolResult {
-        let path = resolve_path(&params.path, working_dir);
+        let path = match validate_and_resolve_path(&params.path, working_dir, allowed_paths) {
+            Ok(p) => p,
+            Err(msg) => return CallToolResult::error(vec![Content::text(msg).with_priority(0.0)]),
+        };
 
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
@@ -212,17 +225,103 @@ fn apply_line_limit(content: &str, line: Option<u32>, limit: Option<u32>) -> Str
     lines[start..end].concat()
 }
 
-pub fn resolve_path(path: &str, working_dir: Option<&Path>) -> PathBuf {
-    let path = PathBuf::from(path);
-    if path.is_absolute() {
-        path
+/// Resolve a user-supplied path, optionally enforcing confinement to a set of allowed base paths.
+///
+/// * `working_dir` — used to resolve relative paths. Falls back to `cwd` when `None`.
+/// * `allowed_paths` — when `Some`, the resolved path must be inside at least one of the
+///   listed base directories. When `None`, no confinement is enforced.
+pub fn validate_and_resolve_path(
+    path: &str,
+    working_dir: Option<&Path>,
+    allowed_paths: Option<&HashSet<PathBuf>>,
+) -> Result<PathBuf, String> {
+    let path_buf = PathBuf::from(path);
+
+    // Resolve relative paths against working_dir (or cwd).
+    let cwd_fallback;
+    let base = match working_dir {
+        Some(dir) => dir,
+        None => {
+            cwd_fallback = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            cwd_fallback.as_path()
+        }
+    };
+    let joined = if path_buf.is_absolute() {
+        path_buf
     } else {
-        working_dir
-            .map(Path::to_path_buf)
-            .or_else(|| std::env::current_dir().ok())
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(path)
+        base.join(&path_buf)
+    };
+
+    // If no confinement, just resolve and return.
+    let Some(bases) = allowed_paths else {
+        return Ok(joined);
+    };
+
+    // Build the set of canonical base paths for confinement checks.
+    let canonical_bases: Vec<PathBuf> =
+        bases.iter().filter_map(|b| b.canonicalize().ok()).collect();
+    if canonical_bases.is_empty() && !bases.is_empty() {
+        return Err("Failed to resolve allowed base directories for confinement".to_string());
     }
+
+    let is_within_bases = |p: &Path| canonical_bases.iter().any(|cb| p.starts_with(cb));
+
+    // Walk the path component-by-component through the filesystem,
+    // then validate the result against allowed base directories.
+    let resolved = resolve_confined(&joined, path)?;
+
+    if !is_within_bases(&resolved) {
+        return Err(format!("Path escapes allowed directories: {path}"));
+    }
+    Ok(resolved)
+}
+
+/// Walk path components, resolving each through the filesystem where possible.
+///
+/// Existing components are canonicalized (following symlinks). Once a non-existent
+/// component is encountered, subsequent `..` and `.` are rejected outright — they
+/// are ambiguous without the filesystem and create path-confusion escapes. Dangling
+/// symlinks (exist but can't be canonicalized) are also rejected since their targets
+/// cannot be verified.
+fn resolve_confined(joined: &Path, original_path: &str) -> Result<PathBuf, String> {
+    let mut resolved = PathBuf::new();
+    let mut past_fs = false;
+
+    for component in joined.components() {
+        if past_fs {
+            // Beyond the filesystem boundary: only plain names are safe.
+            match component {
+                std::path::Component::ParentDir | std::path::Component::CurDir => {
+                    return Err(format!(
+                        "Path contains traversal after non-existent segment: {original_path}"
+                    ));
+                }
+                _ => resolved.push(component),
+            }
+            continue;
+        }
+
+        let candidate = resolved.join(component.as_os_str());
+        if candidate.symlink_metadata().is_ok() {
+            // Component exists — canonicalize to follow symlinks.
+            match candidate.canonicalize() {
+                Ok(canonical) => resolved = canonical,
+                Err(_) => {
+                    // Exists but can't canonicalize (dangling symlink). We cannot
+                    // verify where it points, so reject under confinement.
+                    return Err(format!(
+                        "Path contains an unresolvable symlink: {original_path}"
+                    ));
+                }
+            }
+        } else {
+            // Component doesn't exist on the filesystem.
+            resolved.push(component);
+            past_fs = true;
+        }
+    }
+
+    Ok(resolved)
 }
 
 fn count_lines_before(content: &str, byte_pos: usize) -> usize {
@@ -323,6 +422,7 @@ mod tests {
                 limit: None,
             },
             None,
+            None,
         );
 
         assert!(!result.is_error.unwrap_or(false));
@@ -342,6 +442,7 @@ mod tests {
                 line: Some(2),
                 limit: Some(1),
             },
+            None,
             None,
         );
 
@@ -480,6 +581,7 @@ mod tests {
                 content: "relative write".to_string(),
             },
             Some(dir.path()),
+            None,
         );
 
         assert!(!result.is_error.unwrap_or(false));
@@ -502,6 +604,7 @@ mod tests {
                 after: "after".to_string(),
             },
             Some(dir.path()),
+            None,
         );
 
         assert!(!result.is_error.unwrap_or(false));
@@ -509,5 +612,206 @@ mod tests {
             fs::read_to_string(dir.path().join("relative-edit.txt")).unwrap(),
             "after"
         );
+    }
+
+    // --- Path confinement tests ---
+
+    /// Helper: create a confined set containing just the given directory.
+    fn confined(dir: &Path) -> HashSet<PathBuf> {
+        HashSet::from([dir.to_path_buf()])
+    }
+
+    #[test]
+    fn test_absolute_path_outside_allowed_dirs_rejected() {
+        let dir = setup();
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path("/etc/passwd", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes allowed directories"));
+    }
+
+    #[test]
+    fn test_absolute_path_inside_allowed_dir_allowed() {
+        let dir = setup();
+        let file = dir.path().join("allowed.txt");
+        fs::write(&file, "ok").unwrap();
+        let abs_path = file.to_string_lossy().to_string();
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path(&abs_path, Some(dir.path()), Some(&allowed));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_dotdot_traversal_rejected() {
+        let dir = setup();
+        let allowed = confined(dir.path());
+        let result =
+            validate_and_resolve_path("../../etc/passwd", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes allowed directories"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_outside_allowed_dir_rejected() {
+        let dir = setup();
+        let outside = setup();
+        let target = outside.path().join("outside.txt");
+        fs::write(&target, "secret").unwrap();
+
+        std::os::unix::fs::symlink(&target, dir.path().join("link.txt")).unwrap();
+
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path("link.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes allowed directories"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_inside_allowed_dir_allowed() {
+        let dir = setup();
+        let target = dir.path().join("real.txt");
+        fs::write(&target, "ok").unwrap();
+
+        std::os::unix::fs::symlink(&target, dir.path().join("link.txt")).unwrap();
+
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path("link.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_write_new_file_within_allowed_dir() {
+        let dir = setup();
+        fs::create_dir_all(dir.path().join("subdir")).unwrap();
+        let allowed = confined(dir.path());
+        let result =
+            validate_and_resolve_path("subdir/new_file.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_ok());
+        assert!(result
+            .unwrap()
+            .starts_with(dir.path().canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn test_write_new_file_dotdot_escape_rejected() {
+        let dir = setup();
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path("../escape.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes allowed directories"));
+    }
+
+    #[test]
+    fn test_no_confinement_allows_absolute_paths() {
+        let result = validate_and_resolve_path("/tmp/some_file.txt", None, None);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), PathBuf::from("/tmp/some_file.txt"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_ancestor_escape_on_new_file_rejected() {
+        // A symlink dir inside the workspace pointing outside: link -> /outside
+        // Writing to link/newdir/file.txt should be rejected because the ancestor
+        // "link" resolves outside the allowed directory.
+        let dir = setup();
+        let outside = setup();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
+
+        let allowed = confined(dir.path());
+        let result =
+            validate_and_resolve_path("link/newdir/file.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes allowed directories"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_dangling_symlink_outside_allowed_dir_rejected() {
+        // A dangling symlink (target doesn't exist) pointing outside the workspace
+        // should be rejected even though the parent dir is inside.
+        let dir = setup();
+        std::os::unix::fs::symlink("/tmp/nonexistent_target.txt", dir.path().join("link.txt"))
+            .unwrap();
+
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path("link.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("symlink"));
+    }
+
+    #[test]
+    fn test_dotdot_traversal_with_nonexistent_prefix_rejected() {
+        // a/../../escape.txt should be rejected even when "a" doesn't exist,
+        // because .. after a non-existent component is always rejected.
+        let dir = setup();
+        let allowed = confined(dir.path());
+        let result =
+            validate_and_resolve_path("a/../../escape.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("traversal after non-existent"));
+    }
+
+    #[test]
+    fn test_multiple_allowed_paths() {
+        let dir1 = setup();
+        let dir2 = setup();
+        let file1 = dir1.path().join("file1.txt");
+        let file2 = dir2.path().join("file2.txt");
+        fs::write(&file1, "ok").unwrap();
+        fs::write(&file2, "ok").unwrap();
+
+        let allowed = HashSet::from([dir1.path().to_path_buf(), dir2.path().to_path_buf()]);
+
+        // File in dir1 is allowed
+        let result =
+            validate_and_resolve_path(&file1.to_string_lossy(), Some(dir1.path()), Some(&allowed));
+        assert!(result.is_ok());
+
+        // File in dir2 is also allowed
+        let result =
+            validate_and_resolve_path(&file2.to_string_lossy(), Some(dir1.path()), Some(&allowed));
+        assert!(result.is_ok());
+
+        // File outside both is rejected
+        let result = validate_and_resolve_path("/etc/passwd", Some(dir1.path()), Some(&allowed));
+        assert!(result.is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_dotdot_across_symlink_rejected() {
+        // link -> /tmp/outside, then "link/../newdir/file.txt" should be rejected
+        // because `link/..` resolves through the symlink to /tmp, escaping the workspace.
+        let dir = setup();
+        let outside = setup();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
+
+        let allowed = confined(dir.path());
+        let result =
+            validate_and_resolve_path("link/../newdir/file.txt", Some(dir.path()), Some(&allowed));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("escapes allowed directories"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_dotdot_rewind_into_symlink_after_missing_rejected() {
+        // missing/../link/new/file.txt — "missing" doesn't exist so `..` after it
+        // is rejected outright (traversal after non-existent segment).
+        let dir = setup();
+        let outside = setup();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
+
+        let allowed = confined(dir.path());
+        let result = validate_and_resolve_path(
+            "missing/../link/new/file.txt",
+            Some(dir.path()),
+            Some(&allowed),
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("traversal after non-existent"));
     }
 }

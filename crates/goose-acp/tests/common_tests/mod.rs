@@ -187,12 +187,12 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
     fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
 
     let expected_session_id = C::expected_session_id();
-    let prompt = "Use the read tool to read /tmp/test_acp_read.txt and output only its contents.";
+    let prompt = "Use the read tool to read test_acp_read.txt and output only its contents.";
     let openai = OpenAiFixture::new(
         vec![
             (
                 prompt.to_string(),
-                include_str!("../test_data/openai_fs_read_tool_call.txt"),
+                include_str!("../test_data/openai_fs_read_relative_tool_call.txt"),
             ),
             (
                 r#""content":"test-read-content-12345""#.into(),
@@ -205,7 +205,7 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
 
     let fs = FsFixture::new();
     let config = TestConnectionConfig {
-        read_text_file: Some(fs.read_handler("/tmp/test_acp_read.txt", "test-read-content-12345")),
+        read_text_file: Some(fs.read_handler("test_acp_read.txt", "test-read-content-12345")),
         data_root: temp_dir.path().to_path_buf(),
         ..Default::default()
     };
@@ -232,19 +232,16 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
 }
 
 pub async fn run_fs_write_text_file_false<C: Connection>() {
-    let _ = fs::remove_file("/tmp/test_acp_write.txt");
-
     let expected_session_id = C::expected_session_id();
-    let prompt =
-        "Use the write tool to write 'test-write-content-67890' to /tmp/test_acp_write.txt";
+    let prompt = "Use the write tool to write 'test-write-content-67890' to test_acp_write.txt";
     let openai = OpenAiFixture::new(
         vec![
             (
                 prompt.to_string(),
-                include_str!("../test_data/openai_fs_write_tool_call.txt"),
+                include_str!("../test_data/openai_fs_write_relative_tool_call.txt"),
             ),
             (
-                r#"Created /tmp/test_acp_write.txt"#.into(),
+                r#"Created test_acp_write.txt"#.into(),
                 include_str!("../test_data/openai_fs_write_tool_result.txt"),
             ),
         ],
@@ -265,8 +262,9 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
         .await
         .unwrap();
     assert!(!output.text.is_empty());
+    let written = session.work_dir().join("test_acp_write.txt");
     assert_eq!(
-        fs::read_to_string("/tmp/test_acp_write.txt").unwrap(),
+        fs::read_to_string(&written).unwrap(),
         "test-write-content-67890"
     );
     assert_notifications(
@@ -283,16 +281,15 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
 
 pub async fn run_fs_write_text_file_true<C: Connection>() {
     let expected_session_id = C::expected_session_id();
-    let prompt =
-        "Use the write tool to write 'test-write-content-67890' to /tmp/test_acp_write.txt";
+    let prompt = "Use the write tool to write 'test-write-content-67890' to test_acp_write.txt";
     let openai = OpenAiFixture::new(
         vec![
             (
                 prompt.to_string(),
-                include_str!("../test_data/openai_fs_write_tool_call.txt"),
+                include_str!("../test_data/openai_fs_write_relative_tool_call.txt"),
             ),
             (
-                r#"Created /tmp/test_acp_write.txt"#.into(),
+                r#"Created test_acp_write.txt"#.into(),
                 include_str!("../test_data/openai_fs_write_tool_result.txt"),
             ),
         ],
@@ -303,9 +300,7 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
     let fs = FsFixture::new();
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
-        write_text_file: Some(
-            fs.write_handler("/tmp/test_acp_write.txt", "test-write-content-67890"),
-        ),
+        write_text_file: Some(fs.write_handler("test_acp_write.txt", "test-write-content-67890")),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;

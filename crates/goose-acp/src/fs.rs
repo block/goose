@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use fs_err as fs;
 use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
 use goose::agents::platform_extensions::developer::edit::{
-    resolve_path, string_replace, FileEditParams, FileReadParams, FileWriteParams,
+    string_replace, validate_and_resolve_path, FileEditParams, FileReadParams, FileWriteParams,
 };
 use goose::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_LIMIT_BYTES};
 use goose::agents::platform_extensions::developer::DeveloperClient;
@@ -131,7 +131,14 @@ impl AcpTools {
             Ok(p) => p,
             Err(e) => return Ok(error_result(e)),
         };
-        let path = resolve_path(&params.path, ctx.working_dir.as_deref());
+        let path = match validate_and_resolve_path(
+            &params.path,
+            ctx.working_dir.as_deref(),
+            ctx.allowed_paths.as_ref(),
+        ) {
+            Ok(p) => p,
+            Err(msg) => return Ok(error_result(msg)),
+        };
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new()
@@ -156,7 +163,14 @@ impl AcpTools {
             Ok(p) => p,
             Err(e) => return Ok(error_result(e)),
         };
-        let path = resolve_path(&params.path, ctx.working_dir.as_deref());
+        let path = match validate_and_resolve_path(
+            &params.path,
+            ctx.working_dir.as_deref(),
+            ctx.allowed_paths.as_ref(),
+        ) {
+            Ok(p) => p,
+            Err(msg) => return Ok(error_result(msg)),
+        };
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new()
@@ -193,7 +207,14 @@ impl AcpTools {
             Ok(p) => p,
             Err(e) => return Ok(error_result(e)),
         };
-        let path = resolve_path(&params.path, ctx.working_dir.as_deref());
+        let path = match validate_and_resolve_path(
+            &params.path,
+            ctx.working_dir.as_deref(),
+            ctx.allowed_paths.as_ref(),
+        ) {
+            Ok(p) => p,
+            Err(msg) => return Ok(error_result(msg)),
+        };
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new()

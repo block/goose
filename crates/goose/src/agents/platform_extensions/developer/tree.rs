@@ -27,7 +27,7 @@ impl TreeTool {
 
     pub fn tree(&self, params: TreeParams) -> CallToolResult {
         let root = PathBuf::from(&params.path);
-        self.tree_at(root, params.depth)
+        self.tree_at_depth(root, params.depth)
     }
 
     pub fn tree_with_cwd(&self, params: TreeParams, working_dir: Option<&Path>) -> CallToolResult {
@@ -41,10 +41,10 @@ impl TreeTool {
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join(path)
         };
-        self.tree_at(root, params.depth)
+        self.tree_at_depth(root, params.depth)
     }
 
-    fn tree_at(&self, root: PathBuf, depth: u32) -> CallToolResult {
+    pub fn tree_at_depth(&self, root: PathBuf, depth: u32) -> CallToolResult {
         if !root.exists() {
             return CallToolResult::error(vec![Content::text(format!(
                 "Path does not exist: {}",

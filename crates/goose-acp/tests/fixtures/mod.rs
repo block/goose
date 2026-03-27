@@ -298,8 +298,8 @@ impl FsFixture {
         let content = content.to_string();
         Arc::new(move |req: &ReadTextFileRequest| {
             let path = req.path.to_str().unwrap_or("");
-            if path != expected_path {
-                let err = format!("expected path {expected_path}, got {path}");
+            if !path.ends_with(&expected_path) {
+                let err = format!("expected path ending with {expected_path}, got {path}");
                 calls.lock().unwrap().push(Err(err.clone()));
                 return Err(err);
             }
@@ -318,8 +318,8 @@ impl FsFixture {
         let expected_content = expected_content.to_string();
         Arc::new(move |req: &WriteTextFileRequest| {
             let path = req.path.to_str().unwrap_or("");
-            if path != expected_path {
-                let err = format!("expected path {expected_path}, got {path}");
+            if !path.ends_with(&expected_path) {
+                let err = format!("expected path ending with {expected_path}, got {path}");
                 calls.lock().unwrap().push(Err(err.clone()));
                 return Err(err);
             }
