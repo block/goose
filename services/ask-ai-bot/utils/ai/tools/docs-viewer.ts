@@ -6,7 +6,7 @@ function getDocsDir(): string {
 }
 
 function generateWebUrl(filePath: string): string {
-  const baseUrl = "https://block.github.io/goose/docs";
+  const baseUrl = "https://aaif-goose.github.io/goose/docs";
   // Remove file extension for the URL path
   const urlPath = filePath.replace(/\.[^/.]+$/, "");
   return `${baseUrl}/${urlPath}`;
