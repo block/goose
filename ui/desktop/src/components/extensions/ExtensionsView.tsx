@@ -124,7 +124,7 @@ export default function ExtensionsView({
                 className="flex items-center gap-2 justify-center"
                 variant="secondary"
                 onClick={() =>
-                  window.open('https://block.github.io/goose/v1/extensions/', '_blank')
+                  window.open('https://aaif-goose.github.io/goose/v1/extensions/', '_blank')
                 }
               >
                 <GPSIcon size={12} />
