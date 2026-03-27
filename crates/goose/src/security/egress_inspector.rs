@@ -33,7 +33,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
     static URL_RE: OnceLock<Regex> = OnceLock::new();
     let url_re = URL_RE.get_or_init(|| {
-        Regex::new(r"(?i)(https?|ftp)://[^\s'\"<>|;&)]+").unwrap()
+        Regex::new(r#"(?i)(https?|ftp)://[^\s'"<>|;&)]+"#).unwrap()
     });
     for cap in url_re.find_iter(command) {
         let url = cap.as_str().to_string();
@@ -49,7 +49,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
     static GIT_SSH_RE: OnceLock<Regex> = OnceLock::new();
     let git_ssh_re = GIT_SSH_RE.get_or_init(|| {
-        Regex::new(r"git@([^:]+):([^\s'\"]+)").unwrap()
+        Regex::new(r#"git@([^:]+):([^\s'"]+)"#).unwrap()
     });
     for cap in git_ssh_re.captures_iter(command) {
         let domain = cap[1].to_string();
@@ -63,7 +63,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
     static S3_RE: OnceLock<Regex> = OnceLock::new();
     let s3_re = S3_RE.get_or_init(|| {
-        Regex::new(r"s3://([^/\s'\"]+)(/[^\s'\"]*)?").unwrap()
+        Regex::new(r#"s3://([^/\s'"]+)(/[^\s'"]*)?"#).unwrap()
     });
     for cap in s3_re.captures_iter(command) {
         let bucket = cap[1].to_string();
@@ -77,7 +77,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
     static GCS_RE: OnceLock<Regex> = OnceLock::new();
     let gcs_re = GCS_RE.get_or_init(|| {
-        Regex::new(r"gs://([^/\s'\"]+)(/[^\s'\"]*)?").unwrap()
+        Regex::new(r#"gs://([^/\s'"]+)(/[^\s'"]*)?"#).unwrap()
     });
     for cap in gcs_re.captures_iter(command) {
         let bucket = cap[1].to_string();
@@ -104,7 +104,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
     static SSH_RE: OnceLock<Regex> = OnceLock::new();
     let ssh_re = SSH_RE.get_or_init(|| {
-        Regex::new(r"ssh\s+(?:-[^\s]+\s+)*(?:\S+@)?([a-zA-Z0-9][\w.-]+)").unwrap()
+        Regex::new(r"ssh\s+(?:-\w+\s+\S+\s+)*(?:\S+@)?([a-zA-Z0-9][\w.-]+)").unwrap()
     });
     for cap in ssh_re.captures_iter(command) {
         let host = cap[1].to_string();
@@ -119,7 +119,7 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
     static DOCKER_RE: OnceLock<Regex> = OnceLock::new();
     let docker_re = DOCKER_RE.get_or_init(|| {
-        Regex::new(r"docker\s+(?:push|login)\s+(?:--[^\s]+\s+)*([^\s'\"]+)").unwrap()
+        Regex::new(r#"docker\s+(?:push|login)\s+(?:--[^\s]+\s+)*([^\s'"]+)"#).unwrap()
     });
     for cap in docker_re.captures_iter(command) {
         let target = cap[1].to_string();
@@ -148,14 +148,14 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 
 fn extract_domain_from_url(url: &str) -> Option<String> {
     let after_scheme = url.find("://").map(|i| &url[i + 3..]).unwrap_or(url);
-    let host_port = after_scheme.split('/').next()?;
+    let authority = after_scheme.split('/').next()?;
+    let host_port = authority.split('@').last()?;
     let host = if host_port.contains('[') {
         host_port.split(']').next().map(|s| s.trim_start_matches('['))?
     } else {
         host_port.split(':').next()?
     };
-    let domain = host.split('@').last()?;
-    if domain.is_empty() { None } else { Some(domain.to_string()) }
+    if host.is_empty() { None } else { Some(host.to_string()) }
 }
 
 fn is_shell_tool(name: &str) -> bool {
@@ -221,12 +221,12 @@ impl ToolInspector for EgressInspector {
             }
 
             for dest in &destinations {
+                eprintln!("[EGRESS] {} | {} | {}", dest.kind, dest.domain, dest.destination);
                 tracing::info!(
-                    monotonic_counter.goose.egress_destination = 1,
                     egress_kind = dest.kind.as_str(),
                     destination = dest.destination.as_str(),
                     domain = dest.domain.as_str(),
-                    "Egress destination detected"
+                    "egress destination detected"
                 );
             }
 
@@ -235,7 +235,7 @@ impl ToolInspector for EgressInspector {
                 action: InspectionAction::Allow,
                 reason: format!(
                     "Egress destinations detected: {}",
-                    dest_summary.join(", ")
+                    destinations.iter().map(|d| d.domain.as_str()).collect::<Vec<_>>().join(", ")
                 ),
                 confidence: 0.0,
                 inspector_name: self.name().to_string(),
