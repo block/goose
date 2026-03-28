@@ -374,24 +374,38 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         let TerminalEvent::Key(KeyEvent { code, kind, modifiers, .. }) = event else { return; };
         if kind == KeyEventKind::Release { return; }
 
-        // Ctrl-C or Escape
-        if code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)
-            || code == KeyCode::Esc
-        {
+        // Escape — dismiss dialogs / cancel turn only; never exits.
+        if code == KeyCode::Esc {
             if pending_elicit.read().is_some() {
-                // Dismiss elicitation with empty response.
                 if let Some(tx) = pending_elicit_reply.read().take() {
                     let _ = tx.send(String::new());
                 }
                 pending_elicit.set(None);
             } else if pending_perm.read().is_some() {
-                // Cancel the pending permission.
                 if let Some(tx) = pending_reply.read().take() {
                     let _ = tx.send(PermissionChoice::Cancelled);
                 }
                 pending_perm.set(None);
             } else if loading.get() {
-                // Cancel the running agent turn instead of exiting.
+                cancel_token.read().cancel();
+                status.set("stopping…".to_string());
+            }
+            return;
+        }
+
+        // Ctrl-C — cancel turn if loading, otherwise exit.
+        if code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL) {
+            if pending_elicit.read().is_some() {
+                if let Some(tx) = pending_elicit_reply.read().take() {
+                    let _ = tx.send(String::new());
+                }
+                pending_elicit.set(None);
+            } else if pending_perm.read().is_some() {
+                if let Some(tx) = pending_reply.read().take() {
+                    let _ = tx.send(PermissionChoice::Cancelled);
+                }
+                pending_perm.set(None);
+            } else if loading.get() {
                 cancel_token.read().cancel();
                 status.set("stopping…".to_string());
             } else {
