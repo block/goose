@@ -44,7 +44,10 @@ pub fn Header(props: &HeaderProps) -> impl Into<AnyElement<'static>> {
                     #(props.turn_info.filter(|(_, t)| *t > 1).map(|(c, t)| element! {
                         Text(content: format!("{c}/{t}"), color: TEXT_DIM)
                     }))
-                    Text(content: "^C exit", color: TEXT_DIM)
+                    Text(
+                        content: if props.loading { "^C stop" } else { "^C exit" }.to_string(),
+                        color: if props.loading { CRANBERRY } else { TEXT_DIM },
+                    )
                 }
             }
             Text(content: rule, color: RULE)

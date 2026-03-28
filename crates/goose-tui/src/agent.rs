@@ -16,6 +16,7 @@ use goose::providers::create;
 use goose::session::session_manager::SessionType;
 use rmcp::model::RawContent;
 use tokio::sync::{mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use crate::types::{AgentMsg, PermissionChoice, PermissionOption, PermissionReq, ToolCallInfo, ToolStatus};
@@ -82,14 +83,25 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
 
 /// Long-running tokio task.  Receives prompts on `prompt_rx`, streams
 /// `AgentMsg` events back on `event_tx`.
+///
+/// `cancel_rx` is a channel through which the UI sends a fresh
+/// `CancellationToken` for each new turn.  When the token is cancelled the
+/// current stream is dropped and an `AgentMsg::Finished` is sent immediately.
 pub async fn run_agent_loop(
     handle: AgentHandle,
     mut prompt_rx: mpsc::Receiver<String>,
     event_tx: mpsc::Sender<AgentMsg>,
+    mut cancel_rx: mpsc::Receiver<CancellationToken>,
 ) {
     let AgentHandle { agent, session_id } = handle;
 
     while let Some(prompt) = prompt_rx.recv().await {
+        // Drain any stale tokens; keep the latest one sent for this turn.
+        let mut token = CancellationToken::new();
+        while let Ok(t) = cancel_rx.try_recv() {
+            token = t;
+        }
+
         let user_msg = Message::user().with_text(prompt);
         let session_config = SessionConfig {
             id: session_id.clone(),
@@ -106,10 +118,11 @@ pub async fn run_agent_loop(
             }
         };
 
-        process_stream(&agent, stream, &event_tx).await;
+        process_stream(&agent, stream, &event_tx, &token).await;
 
+        let stop_reason = if token.is_cancelled() { "cancelled" } else { "end_turn" };
         let _ = event_tx
-            .send(AgentMsg::Finished { stop_reason: "end_turn".into() })
+            .send(AgentMsg::Finished { stop_reason: stop_reason.into() })
             .await;
     }
 }
@@ -118,8 +131,14 @@ async fn process_stream(
     agent: &Arc<Agent>,
     mut stream: futures::stream::BoxStream<'_, Result<AgentEvent, anyhow::Error>>,
     event_tx: &mpsc::Sender<AgentMsg>,
+    cancel: &CancellationToken,
 ) {
-    while let Some(event) = stream.next().await {
+    loop {
+        let event = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => break,
+            ev = stream.next() => match ev { Some(e) => e, None => break },
+        };
         match event {
             Ok(AgentEvent::Message(msg)) => {
                 for content in msg.content {
@@ -134,6 +153,7 @@ async fn process_stream(
         }
     }
 }
+
 
 async fn handle_message_content(
     agent: &Arc<Agent>,
