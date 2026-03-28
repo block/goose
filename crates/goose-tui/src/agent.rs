@@ -120,6 +120,29 @@ pub async fn run_agent_loop(
             token = t;
         }
 
+        // Intercept slash commands before sending to the LLM.
+        if prompt.trim().starts_with('/') {
+            match agent.execute_command(prompt.trim(), &session_id).await {
+                Ok(Some(msg)) => {
+                    let text = extract_message_text(&msg);
+                    let is_clear = prompt.trim() == "/clear";
+                    let _ = event_tx.send(AgentMsg::TextChunk(text)).await;
+                    if is_clear {
+                        let _ = event_tx.send(AgentMsg::ConversationCleared).await;
+                    }
+                    let _ = event_tx
+                        .send(AgentMsg::Finished { stop_reason: "end_turn".into() })
+                        .await;
+                    continue;
+                }
+                Ok(None) => { /* not an agent command — fall through to reply() */ }
+                Err(e) => {
+                    let _ = event_tx.send(AgentMsg::Error(e.to_string())).await;
+                    continue;
+                }
+            }
+        }
+
         let user_msg = build_user_message(&prompt).await;
         let session_config = SessionConfig {
             id: session_id.clone(),
@@ -378,4 +401,15 @@ async fn attach_path(path: &Path) -> anyhow::Result<AttachResult> {
         let label = format!("File: {}", path.display());
         Ok(AttachResult::Text { label, content })
     }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Extract a plain-text string from a Message returned by execute_command.
+fn extract_message_text(msg: &Message) -> String {
+    msg.content.iter().filter_map(|c| match c {
+        MessageContent::Text(_) => c.as_text().map(str::to_owned),
+        MessageContent::SystemNotification(n) => Some(n.msg.clone()),
+        _ => None,
+    }).collect::<Vec<_>>().join("\n")
 }

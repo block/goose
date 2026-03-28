@@ -17,7 +17,9 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::Agent;
+use goose::agents::execute_commands::list_commands as list_agent_commands;
 use goose::config::{get_all_extensions, set_extension_enabled, ExtensionEntry, GooseMode};
+use goose::slash_commands::list_commands as list_recipe_commands;
 use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
 use goose::providers::{create as create_provider, providers as list_providers};
@@ -43,10 +45,11 @@ use crate::types::{
 
 const MAX_QUEUE: usize = 10;
 
-/// All slash commands with their short descriptions.
-const SLASH_COMMANDS: &[(&str, &str)] = &[
+/// TUI-only slash commands (handled before reaching the agent).
+const TUI_SLASH_COMMANDS: &[(&str, &str)] = &[
     ("/ext",   "list and toggle extensions"),
     ("/model", "switch model"),
+    ("/exit",  "exit goose"),
 ];
 
 // ── Control messages (keyboard → async futures) ───────────────────────────────
@@ -320,6 +323,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     pending_elicit.set(Some(req));
                 }
 
+                AgentMsg::ConversationCleared => {
+                    turns.set(Vec::new());
+                    token_total.set(0);
+                }
+
                 AgentMsg::TokenUsage { total, .. } => {
                     token_total.set(total);
                 }
@@ -530,7 +538,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             let matches = slash_completions(&cur_input);
             if !matches.is_empty() {
                 let idx = completion_idx.get() % matches.len();
-                let completed = matches[idx].0.to_string();
+                let completed = matches[idx].0.clone();
                 input.set(completed);
                 completion_idx.set((idx + 1) % matches.len());
                 return;
@@ -557,7 +565,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             if text.is_empty() { return; }
             input.set(String::new());
             completion_idx.set(0);
-            if check_slash_command(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
+            if check_slash_command(&text, &mut should_exit, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
                 return;
             }
             send_prompt_to_agent(
@@ -584,7 +592,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             expanded_tc.set(None);
             scroll_offset.set(0);
 
-            if check_slash_command(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
+            if check_slash_command(&text, &mut should_exit, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
                 return;
             }
 
@@ -798,21 +806,40 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
 // ── Helper: compute slash command completions ─────────────────────────────────
 
-fn slash_completions(input: &str) -> Vec<(&'static str, &'static str)> {
+fn slash_completions(input: &str) -> Vec<(String, String)> {
     if !input.starts_with('/') || input.contains(' ') {
         return vec![];
     }
-    SLASH_COMMANDS
+    // TUI-local commands
+    let mut out: Vec<(String, String)> = TUI_SLASH_COMMANDS
         .iter()
         .filter(|(cmd, _)| cmd.starts_with(input))
-        .copied()
-        .collect()
+        .map(|(c, d)| (c.to_string(), d.to_string()))
+        .collect();
+    // Agent built-in commands (/compact, /clear, /prompts, /prompt)
+    for cmd in list_agent_commands() {
+        let full = format!("/{}", cmd.name);
+        if full.starts_with(input) {
+            out.push((full, cmd.description.to_string()));
+        }
+    }
+    // User recipe commands
+    for mapping in list_recipe_commands() {
+        let full = mapping.command.clone();
+        let full = if full.starts_with('/') { full } else { format!("/{}", full) };
+        if full.starts_with(input) {
+            out.push((full, "recipe".to_string()));
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
 }
 
 // ── Helper: check slash commands (sync — called from keyboard handler) ────────
 
 fn check_slash_command(
     text: &str,
+    should_exit: &mut State<bool>,
     ext_visible: &mut State<bool>,
     ext_entries: &mut State<Vec<ExtensionEntry>>,
     ext_idx: &mut State<usize>,
@@ -820,6 +847,10 @@ fn check_slash_command(
     model_idx: &mut State<usize>,
 ) -> bool {
     match text.trim() {
+        "/exit" | "/quit" => {
+            should_exit.set(true);
+            true
+        }
         "/ext" => {
             ext_entries.set(get_all_extensions());
             ext_idx.set(0);

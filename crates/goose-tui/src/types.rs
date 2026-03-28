@@ -78,6 +78,8 @@ pub enum AgentMsg {
     /// Agent needs free-text input from the user (elicitation).
     ElicitationRequest(ElicitationReq, oneshot::Sender<String>),
     Finished { stop_reason: String },
+    /// Agent cleared the conversation history (/clear command).
+    ConversationCleared,
     /// Token usage after a completed turn.
     TokenUsage { input: i64, output: i64, total: i64 },
     Error(String),
