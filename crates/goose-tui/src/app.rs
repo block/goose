@@ -597,11 +597,12 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
         if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && banner_visible.get() {
             let raw = input.read().clone();
-            let matches = slash_completions(&raw);
+            let trimmed = raw.trim();
+            let matches = slash_completions(trimmed);
             let text = if !matches.is_empty() {
                 matches[completion_idx.get() % matches.len()].0.clone()
             } else {
-                raw.trim().to_string()
+                trimmed.to_string()
             };
             if text.is_empty() { return; }
             input.set(String::new());
@@ -626,11 +627,12 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
         if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && !banner_visible.get() {
             let raw = input.read().clone();
-            let matches = slash_completions(&raw);
+            let trimmed = raw.trim();
+            let matches = slash_completions(trimmed);
             let text = if !matches.is_empty() {
                 matches[completion_idx.get() % matches.len()].0.clone()
             } else {
-                raw.trim().to_string()
+                trimmed.to_string()
             };
             if text.is_empty() { return; }
             input.set(String::new());
@@ -854,6 +856,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 // ── Helper: compute slash command completions ─────────────────────────────────
 
 fn slash_completions(input: &str) -> Vec<(String, String)> {
+    let input = input.trim();
     if !input.starts_with('/') || input.contains(' ') {
         return vec![];
     }
