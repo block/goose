@@ -65,6 +65,65 @@ fn sha256_fingerprint(der: &[u8]) -> String {
     }
 }
 
+/// Returns the directory used for caching TLS files: `$HOME/.config/goose/tls/`.
+/// Returns `None` if the `HOME` environment variable is not set.
+fn get_tls_cache_dir() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(std::path::PathBuf::from(home).join(".config").join("goose").join("tls"))
+}
+
+/// Attempt to load a previously cached TLS configuration from disk.
+///
+/// Reads `server.pem`, `server.key`, and `server.fingerprint` from the cache
+/// directory.  Returns `None` on any error (missing files, parse failures, …).
+#[cfg(feature = "rustls-tls")]
+async fn load_cached_tls() -> Option<TlsSetup> {
+    let dir = get_tls_cache_dir()?;
+    let cert_bytes = std::fs::read(dir.join("server.pem")).ok()?;
+    let key_bytes = std::fs::read(dir.join("server.key")).ok()?;
+    let fingerprint = std::fs::read_to_string(dir.join("server.fingerprint")).ok()?;
+    let fingerprint = fingerprint.trim().to_string();
+
+    let config =
+        axum_server::tls_rustls::RustlsConfig::from_pem(cert_bytes, key_bytes)
+            .await
+            .ok()?;
+
+    Some(TlsSetup { config, fingerprint })
+}
+
+#[cfg(feature = "native-tls")]
+async fn load_cached_tls() -> Option<TlsSetup> {
+    let dir = get_tls_cache_dir()?;
+    let cert_bytes = std::fs::read(dir.join("server.pem")).ok()?;
+    let key_bytes = std::fs::read(dir.join("server.key")).ok()?;
+    let fingerprint = std::fs::read_to_string(dir.join("server.fingerprint")).ok()?;
+    let fingerprint = fingerprint.trim().to_string();
+
+    let config =
+        axum_server::tls_openssl::OpenSSLConfig::from_pem(&cert_bytes, &key_bytes).ok()?;
+
+    Some(TlsSetup { config, fingerprint })
+}
+
+/// Persist the TLS certificate, private key, and fingerprint to the cache
+/// directory so they can be reused on the next startup.
+///
+/// All errors are silently ignored — this is a best-effort optimisation and
+/// must never prevent the server from starting.
+fn save_tls_to_cache(cert_pem: &str, key_pem: &str, fingerprint: &str) {
+    let dir = match get_tls_cache_dir() {
+        Some(d) => d,
+        None => return,
+    };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let _ = std::fs::write(dir.join("server.pem"), cert_pem);
+    let _ = std::fs::write(dir.join("server.key"), key_pem);
+    let _ = std::fs::write(dir.join("server.fingerprint"), fingerprint);
+}
+
 /// Generate a self-signed TLS certificate for localhost (127.0.0.1) and
 /// return a [`TlsSetup`] containing the server config and the SHA-256
 /// fingerprint of the generated certificate (colon-separated hex).
@@ -75,6 +134,12 @@ pub async fn self_signed_config() -> Result<TlsSetup> {
     #[cfg(feature = "rustls-tls")]
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
+    // Fast path: reuse a previously cached certificate if one exists.
+    if let Some(cached) = load_cached_tls().await {
+        println!("GOOSED_CERT_FINGERPRINT={}", cached.fingerprint);
+        return Ok(cached);
+    }
+
     let (cert, key_pair) = generate_self_signed_cert()?;
 
     let fingerprint = sha256_fingerprint(cert.der());
@@ -82,6 +147,9 @@ pub async fn self_signed_config() -> Result<TlsSetup> {
 
     let cert_pem = cert.pem();
     let key_pem = key_pair.serialize_pem();
+
+    // Persist for future restarts before moving the strings into the config.
+    save_tls_to_cache(&cert_pem, &key_pem, &fingerprint);
 
     #[cfg(feature = "rustls-tls")]
     let config = axum_server::tls_rustls::RustlsConfig::from_pem(
