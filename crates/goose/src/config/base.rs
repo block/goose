@@ -648,7 +648,14 @@ impl Config {
                         Err(e) => return Err(e),
                     }
                 }
-                SecretStorage::File { path } => self.read_secrets_from_file(path)?,
+                SecretStorage::File { path } => {
+                    let file_secrets = self.read_secrets_from_file(path)?;
+                    if file_secrets.is_empty() && cfg!(target_os = "windows") {
+                        self.try_migrate_from_keyring(path).unwrap_or(file_secrets)
+                    } else {
+                        file_secrets
+                    }
+                }
             };
 
             *cache = Some(loaded.clone());
@@ -983,6 +990,42 @@ impl Config {
         let yaml_value = serde_yaml::to_string(values)?;
         write_secrets_file(&path, &yaml_value)?;
         Ok(())
+    }
+
+    /// One-time migration for Windows users upgrading from keyring-backed storage.
+    /// If the secrets file is empty/missing but the keyring has entries, copy them
+    /// to the file and delete the keyring entry so subsequent loads hit the file.
+    fn try_migrate_from_keyring(
+        &self,
+        file_path: &Path,
+    ) -> Result<HashMap<String, Value>, ConfigError> {
+        let entry = Self::get_keyring_entry(KEYRING_SERVICE)
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
+
+        let content = entry
+            .get_password()
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
+
+        let secrets: HashMap<String, Value> = serde_json::from_str(&content)?;
+        if secrets.is_empty() {
+            return Ok(secrets);
+        }
+
+        let yaml_value = serde_yaml::to_string(&secrets)?;
+        write_secrets_file(file_path, &yaml_value)?;
+
+        // Best-effort cleanup: delete the keyring entry so it's never read again.
+        if let Err(e) = entry.delete_credential() {
+            tracing::warn!("Failed to remove migrated keyring entry: {}", e);
+        }
+
+        tracing::info!(
+            "Migrated {} secret(s) from Windows Credential Manager to {:?}",
+            secrets.len(),
+            file_path
+        );
+
+        Ok(secrets)
     }
 
     pub fn invalidate_secrets_cache(&self) {
