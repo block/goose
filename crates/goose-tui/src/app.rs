@@ -26,6 +26,7 @@ use crate::agent::{build_agent, run_agent_loop};
 use crate::components::elicitation_dialog::ElicitationDialog;
 use crate::components::extension_dialog::ExtensionDialog;
 use crate::components::model_dialog::ModelDialog;
+use crate::components::slash_completion::SlashCompletion;
 use crate::colors::*;
 use crate::components::{
     header::Header,
@@ -41,6 +42,12 @@ use crate::types::{
 };
 
 const MAX_QUEUE: usize = 10;
+
+/// All slash commands with their short descriptions.
+const SLASH_COMMANDS: &[(&str, &str)] = &[
+    ("/ext",   "list and toggle extensions"),
+    ("/model", "switch model"),
+];
 
 // ── Control messages (keyboard → async futures) ───────────────────────────────
 
@@ -122,11 +129,14 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mut ext_idx      = hooks.use_state(|| 0usize);
 
     // Model dialog state.
-    let mut model_visible   = hooks.use_state(|| false);
-    let mut model_entries   = hooks.use_state(Vec::<ModelInfo>::new);
-    let mut model_idx       = hooks.use_state(|| 0usize);
-    let mut current_model   = hooks.use_state(String::new);
+    let mut model_visible    = hooks.use_state(|| false);
+    let mut model_entries    = hooks.use_state(Vec::<ModelInfo>::new);
+    let mut model_idx        = hooks.use_state(|| 0usize);
+    let mut current_model    = hooks.use_state(String::new);
     let mut provider_name_st = hooks.use_state(String::new);
+
+    // Slash-command completion state.
+    let mut completion_idx = hooks.use_state(|| 0usize);
 
     // ── spinner tick ──────────────────────────────────────────────────────────
     hooks.use_future(async move {
@@ -514,8 +524,17 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
-        // Tab — expand/collapse featured tool call.
+        // Tab — complete slash command if active, otherwise expand/collapse tool call.
         if code == KeyCode::Tab {
+            let cur_input = input.read().clone();
+            let matches = slash_completions(&cur_input);
+            if !matches.is_empty() {
+                let idx = completion_idx.get() % matches.len();
+                let completed = matches[idx].0.to_string();
+                input.set(completed);
+                completion_idx.set((idx + 1) % matches.len());
+                return;
+            }
             let t = turns.read();
             let idx = view_turn_idx.get().unwrap_or(t.len().saturating_sub(1));
             if let Some(turn) = t.get(idx) {
@@ -537,6 +556,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             let text = input.read().trim().to_string();
             if text.is_empty() { return; }
             input.set(String::new());
+            completion_idx.set(0);
             if check_slash_command(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
                 return;
             }
@@ -559,6 +579,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             let text = input.read().trim().to_string();
             if text.is_empty() { return; }
             input.set(String::new());
+            completion_idx.set(0);
             view_turn_idx.set(None);
             expanded_tc.set(None);
             scroll_offset.set(0);
@@ -611,11 +632,13 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let cwd_snap      = working_dir.read().clone();
     let tokens        = token_total.get();
     let mode_str      = goose_mode.get().to_string();
-    let ext_snap      = ext_entries.read().clone();
-    let ext_open      = ext_visible.get();
-    let model_snap    = model_entries.read().clone();
-    let model_open    = model_visible.get();
+    let ext_snap       = ext_entries.read().clone();
+    let ext_open       = ext_visible.get();
+    let model_snap     = model_entries.read().clone();
+    let model_open     = model_visible.get();
     let cur_model_snap = current_model.read().clone();
+    let input_snap     = input.read().clone();
+    let completions    = slash_completions(&input_snap);
 
     // Always return a single root View; use conditional #() blocks inside.
     element! {
@@ -745,6 +768,20 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         }
                     }))
 
+                    // Slash-command completion popup (shown above input bar when typing /)
+                    #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && !ext_open && !model_open && !completions.is_empty() && props.initial_prompt.is_none()).then(|| {
+                        let items: Vec<(String, String)> = completions.iter()
+                            .map(|(c, d)| (c.to_string(), d.to_string()))
+                            .collect();
+                        element! {
+                            SlashCompletion(
+                                completions: items,
+                                selected_idx: completion_idx.get() % completions.len().max(1),
+                                width: term_width - 4,
+                            )
+                        }
+                    }))
+
                     // Input bar (hidden when permission/elicitation/extension dialog is active)
                     #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && !ext_open && !model_open && props.initial_prompt.is_none()).then(|| element! {
                         InputBar(
@@ -757,6 +794,19 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             }))
         }
     }
+}
+
+// ── Helper: compute slash command completions ─────────────────────────────────
+
+fn slash_completions(input: &str) -> Vec<(&'static str, &'static str)> {
+    if !input.starts_with('/') || input.contains(' ') {
+        return vec![];
+    }
+    SLASH_COMMANDS
+        .iter()
+        .filter(|(cmd, _)| cmd.starts_with(input))
+        .copied()
+        .collect()
 }
 
 // ── Helper: check slash commands (sync — called from keyboard handler) ────────
