@@ -579,8 +579,7 @@ impl SummonClient {
 
         Tool::new(
             "load",
-            "Load a registered recipe, skill, or agent into your current context, or discover available sources.\n\
-             This tool only works with registered sources — to read arbitrary files, use read_file instead.\n\n\
+            "Load a registered recipe, skill, or agent into your current context, or discover available sources.\n\n\
              Call with no arguments to list all available sources (subrecipes, recipes, skills, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
@@ -1342,12 +1341,7 @@ impl SummonClient {
         let source = self
             .resolve_source(session_id, source_name, working_dir)
             .await?
-            .ok_or_else(|| {
-                format!(
-                    "'{}' is not a registered recipe, skill, or agent.",
-                    source_name
-                )
-            })?;
+            .ok_or_else(|| format!("Source '{}' not found", source_name))?;
 
         if source_name.contains('/')
             && matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
