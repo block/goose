@@ -29,6 +29,7 @@ pub struct ToolCallInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToolStatus {
+    #[allow(dead_code)]
     Pending,
     Running,
     Success,
@@ -36,12 +37,13 @@ pub enum ToolStatus {
 }
 
 impl ToolStatus {
+    #[allow(dead_code)]
     pub fn symbol(&self) -> &'static str {
         match self {
             Self::Pending => "○",
             Self::Running => "◐",
             Self::Success => "✓",
-            Self::Error   => "✗",
+            Self::Error => "✗",
         }
     }
 }
@@ -53,15 +55,54 @@ impl ToolStatus {
 /// the KIND_ICONS table used by the Node.js text TUI.
 pub fn tool_kind_icon(name: &str) -> &'static str {
     let n = name.to_ascii_lowercase();
-    if n.contains("think")                                           { return "💭"; }
-    if n.contains("fetch") || n.contains("http") || n.contains("web") || n.contains("url") || n.contains("browse") { return "🌐"; }
-    if n.contains("shell") || n.contains("bash") || n.contains("exec") || n.contains("run") || n.contains("command") { return "▶"; }
-    if n.contains("search") || n.contains("grep") || n.contains("find") || n.contains("glob") { return "🔍"; }
-    if n.contains("delete") || n.contains("remove") || n.contains("unlink") { return "🗑"; }
-    if n.contains("move")   || n.contains("rename") || n.contains("copy")  { return "📦"; }
-    if n.contains("edit")   || n.contains("write")  || n.contains("create") || n.contains("patch") || n.contains("str_replace") || n.contains("append") { return "✏️"; }
-    if n.contains("read")   || n.contains("view")   || n.contains("cat")   || n.contains("list")  || n.contains("get") { return "📖"; }
-    if n.contains("switch") || n.contains("mode")                           { return "🔀"; }
+    if n.contains("think") {
+        return "💭";
+    }
+    if n.contains("fetch")
+        || n.contains("http")
+        || n.contains("web")
+        || n.contains("url")
+        || n.contains("browse")
+    {
+        return "🌐";
+    }
+    if n.contains("shell")
+        || n.contains("bash")
+        || n.contains("exec")
+        || n.contains("run")
+        || n.contains("command")
+    {
+        return "▶";
+    }
+    if n.contains("search") || n.contains("grep") || n.contains("find") || n.contains("glob") {
+        return "🔍";
+    }
+    if n.contains("delete") || n.contains("remove") || n.contains("unlink") {
+        return "🗑";
+    }
+    if n.contains("move") || n.contains("rename") || n.contains("copy") {
+        return "📦";
+    }
+    if n.contains("edit")
+        || n.contains("write")
+        || n.contains("create")
+        || n.contains("patch")
+        || n.contains("str_replace")
+        || n.contains("append")
+    {
+        return "✏️";
+    }
+    if n.contains("read")
+        || n.contains("view")
+        || n.contains("cat")
+        || n.contains("list")
+        || n.contains("get")
+    {
+        return "📖";
+    }
+    if n.contains("switch") || n.contains("mode") {
+        return "🔀";
+    }
     "⚙"
 }
 
@@ -77,16 +118,25 @@ pub enum AgentMsg {
     PermissionRequest(PermissionReq, oneshot::Sender<PermissionChoice>),
     /// Agent needs free-text input from the user (elicitation).
     ElicitationRequest(ElicitationReq, oneshot::Sender<String>),
-    Finished { stop_reason: String },
+    Finished {
+        stop_reason: String,
+    },
     /// Agent cleared the conversation history (/clear command).
     ConversationCleared,
     /// Token usage after a completed turn.
-    TokenUsage { input: i64, output: i64, total: i64 },
+    TokenUsage {
+        #[allow(dead_code)]
+        input: i64,
+        #[allow(dead_code)]
+        output: i64,
+        total: i64,
+    },
     Error(String),
 }
 
 #[derive(Clone, Debug)]
 pub struct ElicitationReq {
+    #[allow(dead_code)]
     pub id: String,
     pub message: String,
 }

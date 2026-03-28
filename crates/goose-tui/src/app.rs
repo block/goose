@@ -16,44 +16,42 @@ use iocraft::prelude::*;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use goose::agents::Agent;
 use goose::agents::execute_commands::list_commands as list_agent_commands;
+use goose::agents::Agent;
 use goose::config::{get_all_extensions, set_extension_enabled, ExtensionEntry, GooseMode};
-use goose::slash_commands::list_commands as list_recipe_commands;
 use goose::model::ModelConfig;
 use goose::providers::base::ModelInfo;
 use goose::providers::{create as create_provider, providers as list_providers};
+use goose::slash_commands::list_commands as list_recipe_commands;
 
 use crate::agent::{build_agent, run_agent_loop};
+use crate::colors::*;
 use crate::components::elicitation_dialog::ElicitationDialog;
 use crate::components::extension_dialog::ExtensionDialog;
 use crate::components::model_dialog::ModelDialog;
 use crate::components::slash_completion::SlashCompletion;
-use crate::colors::*;
 use crate::components::{
-    header::Header,
-    input_bar::InputBar,
-    permission_dialog::PermissionDialog,
-    splash::Splash,
+    header::Header, input_bar::InputBar, permission_dialog::PermissionDialog, splash::Splash,
     turn_view::TurnView,
 };
 use crate::markdown::render as md;
 use crate::types::{
-    AgentMsg, ElicitationReq, PendingElicitReply, PendingReply,
-    PermissionChoice, PermissionReq, Turn,
+    AgentMsg, ElicitationReq, PendingElicitReply, PendingReply, PermissionChoice, PermissionReq,
+    Turn,
 };
 
 const MAX_QUEUE: usize = 10;
 
 /// TUI-only slash commands (handled before reaching the agent).
 const TUI_SLASH_COMMANDS: &[(&str, &str)] = &[
-    ("/ext",   "list and toggle extensions"),
+    ("/ext", "list and toggle extensions"),
     ("/model", "switch model"),
-    ("/exit",  "exit goose"),
+    ("/exit", "exit goose"),
 ];
 
 // ── Control messages (keyboard → async futures) ───────────────────────────────
 
+#[allow(clippy::large_enum_variant)]
 enum CtrlMsg {
     SetMode(GooseMode),
     ToggleExt(ExtensionEntry),
@@ -76,27 +74,27 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let (term_width, term_height) = hooks.use_terminal_size();
 
     // ── state ─────────────────────────────────────────────────────────────────
-    let mut should_exit    = hooks.use_state(|| false);
-    let mut turns          = hooks.use_state(Vec::<Turn>::new);
-    let mut input          = hooks.use_state(String::new);
-    let mut loading        = hooks.use_state(|| true);
-    let mut status         = hooks.use_state(|| "connecting…".to_string());
-    let mut spin_idx       = hooks.use_state(|| 0usize);
-    let mut anim_frame     = hooks.use_state(|| 0usize);
+    let mut should_exit = hooks.use_state(|| false);
+    let mut turns = hooks.use_state(Vec::<Turn>::new);
+    let mut input = hooks.use_state(String::new);
+    let mut loading = hooks.use_state(|| true);
+    let mut status = hooks.use_state(|| "connecting…".to_string());
+    let mut spin_idx = hooks.use_state(|| 0usize);
+    let mut anim_frame = hooks.use_state(|| 0usize);
     let mut banner_visible = hooks.use_state(|| false);
-    let mut view_turn_idx  = hooks.use_state(|| None::<usize>); // None = latest
-    let mut expanded_tc    = hooks.use_state(|| None::<String>);
-    let mut scroll_offset  = hooks.use_state(|| 0i32);
+    let mut view_turn_idx = hooks.use_state(|| None::<usize>); // None = latest
+    let mut expanded_tc = hooks.use_state(|| None::<String>);
+    let mut scroll_offset = hooks.use_state(|| 0i32);
 
     // Permission dialog state
-    let mut pending_perm   = hooks.use_state(|| None::<PermissionReq>);
-    let mut perm_idx       = hooks.use_state(|| 0usize);
-    let pending_reply      = hooks.use_state(PendingReply::default);
+    let mut pending_perm = hooks.use_state(|| None::<PermissionReq>);
+    let mut perm_idx = hooks.use_state(|| 0usize);
+    let pending_reply = hooks.use_state(PendingReply::default);
 
     // Elicitation dialog state
-    let mut pending_elicit    = hooks.use_state(|| None::<ElicitationReq>);
-    let mut elicit_input      = hooks.use_state(String::new);
-    let pending_elicit_reply  = hooks.use_state(PendingElicitReply::default);
+    let mut pending_elicit = hooks.use_state(|| None::<ElicitationReq>);
+    let mut elicit_input = hooks.use_state(String::new);
+    let pending_elicit_reply = hooks.use_state(PendingElicitReply::default);
 
     // Working directory + token usage (populated after agent init / each turn)
     let mut working_dir = hooks.use_state(|| "".to_string());
@@ -104,8 +102,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
     // Prompt sender — set once the agent is ready.
     // Arc so it's Clone + 'static inside State.
-    let mut prompt_tx: State<Option<Arc<mpsc::Sender<String>>>> =
-        hooks.use_state(|| None);
+    let mut prompt_tx: State<Option<Arc<mpsc::Sender<String>>>> = hooks.use_state(|| None);
 
     // Queued messages (sent while agent is busy).
     let mut queue = hooks.use_state(VecDeque::<String>::new);
@@ -120,22 +117,21 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         hooks.use_state(|| None);
 
     // Goose mode + extension control state.
-    let mut agent_arc:     State<Option<Arc<Agent>>> = hooks.use_state(|| None);
-    let mut session_id_st: State<String>             = hooks.use_state(String::new);
-    let mut goose_mode:    State<GooseMode>           = hooks.use_state(GooseMode::default);
-    let mut ctrl_tx_st: State<Option<Arc<mpsc::Sender<CtrlMsg>>>> =
-        hooks.use_state(|| None);
+    let mut agent_arc: State<Option<Arc<Agent>>> = hooks.use_state(|| None);
+    let mut session_id_st: State<String> = hooks.use_state(String::new);
+    let mut goose_mode: State<GooseMode> = hooks.use_state(GooseMode::default);
+    let mut ctrl_tx_st: State<Option<Arc<mpsc::Sender<CtrlMsg>>>> = hooks.use_state(|| None);
 
     // Extension dialog state.
-    let mut ext_visible  = hooks.use_state(|| false);
-    let mut ext_entries  = hooks.use_state(Vec::<ExtensionEntry>::new);
-    let mut ext_idx      = hooks.use_state(|| 0usize);
+    let mut ext_visible = hooks.use_state(|| false);
+    let mut ext_entries = hooks.use_state(Vec::<ExtensionEntry>::new);
+    let mut ext_idx = hooks.use_state(|| 0usize);
 
     // Model dialog state.
-    let mut model_visible    = hooks.use_state(|| false);
-    let mut model_entries    = hooks.use_state(Vec::<ModelInfo>::new);
-    let mut model_idx        = hooks.use_state(|| 0usize);
-    let mut current_model    = hooks.use_state(String::new);
+    let mut model_visible = hooks.use_state(|| false);
+    let mut model_entries = hooks.use_state(Vec::<ModelInfo>::new);
+    let mut model_idx = hooks.use_state(|| 0usize);
+    let mut current_model = hooks.use_state(String::new);
     let mut provider_name_st = hooks.use_state(String::new);
 
     // Slash-command completion state.
@@ -191,8 +187,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     let pname = provider_name_st.read().clone();
                     if let Some(agent) = maybe_agent {
                         let extensions = agent.get_extension_configs().await;
-                        if let Ok(model_cfg) = ModelConfig::new(&model_name)
-                            .map(|c| c.with_canonical_limits(&pname))
+                        if let Ok(model_cfg) =
+                            ModelConfig::new(&model_name).map(|c| c.with_canonical_limits(&pname))
                         {
                             if let Ok(new_provider) =
                                 create_provider(&pname, model_cfg, extensions).await
@@ -210,7 +206,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
     // ── agent init + event loop ───────────────────────────────────────────────
     let session_id_hint = props.session_id.clone();
-    let initial_prompt  = props.initial_prompt.clone();
+    let initial_prompt = props.initial_prompt.clone();
 
     hooks.use_future(async move {
         // Channel for sending prompts to the agent worker.
@@ -302,10 +298,16 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     let mut t = turns.read().clone();
                     if let Some(last) = t.last_mut() {
                         if let Some(existing) = last.tool_calls.get_mut(&info.id) {
-                            if !info.title.is_empty() { existing.title = info.title; }
+                            if !info.title.is_empty() {
+                                existing.title = info.title;
+                            }
                             existing.status = info.status;
-                            if info.input_preview.is_some()  { existing.input_preview  = info.input_preview; }
-                            if info.output_preview.is_some() { existing.output_preview = info.output_preview; }
+                            if info.input_preview.is_some() {
+                                existing.input_preview = info.input_preview;
+                            }
+                            if info.output_preview.is_some() {
+                                existing.output_preview = info.output_preview;
+                            }
                         } else {
                             if !last.tool_call_order.contains(&info.id) {
                                 last.tool_call_order.push(info.id.clone());
@@ -376,8 +378,18 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
     // ── keyboard handler ──────────────────────────────────────────────────────
     hooks.use_terminal_events(move |event| {
-        let TerminalEvent::Key(KeyEvent { code, kind, modifiers, .. }) = event else { return; };
-        if kind == KeyEventKind::Release { return; }
+        let TerminalEvent::Key(KeyEvent {
+            code,
+            kind,
+            modifiers,
+            ..
+        }) = event
+        else {
+            return;
+        };
+        if kind == KeyEventKind::Release {
+            return;
+        }
 
         // Escape — dismiss dialogs / cancel turn only; never exits.
         if code == KeyCode::Esc {
@@ -427,10 +439,14 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     ext_visible.set(false);
                 }
                 KeyCode::Up => {
-                    if n > 0 { ext_idx.set((ext_idx.get() + n - 1) % n); }
+                    if n > 0 {
+                        ext_idx.set((ext_idx.get() + n - 1) % n);
+                    }
                 }
                 KeyCode::Down => {
-                    if n > 0 { ext_idx.set((ext_idx.get() + 1) % n); }
+                    if n > 0 {
+                        ext_idx.set((ext_idx.get() + 1) % n);
+                    }
                 }
                 KeyCode::Char(' ') | KeyCode::Enter => {
                     let entries = ext_entries.read().clone();
@@ -453,10 +469,14 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     model_visible.set(false);
                 }
                 KeyCode::Up => {
-                    if n > 0 { model_idx.set((model_idx.get() + n - 1) % n); }
+                    if n > 0 {
+                        model_idx.set((model_idx.get() + n - 1) % n);
+                    }
                 }
                 KeyCode::Down => {
-                    if n > 0 { model_idx.set((model_idx.get() + 1) % n); }
+                    if n > 0 {
+                        model_idx.set((model_idx.get() + 1) % n);
+                    }
                 }
                 KeyCode::Enter => {
                     let entries = model_entries.read().clone();
@@ -486,7 +506,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         if let Some(req) = perm_clone {
             let n = req.options.len();
             match code {
-                KeyCode::Up   => perm_idx.set((perm_idx.get() + n - 1) % n),
+                KeyCode::Up => perm_idx.set((perm_idx.get() + n - 1) % n),
                 KeyCode::Down => perm_idx.set((perm_idx.get() + 1) % n),
                 KeyCode::Enter => {
                     if let Some(opt) = req.options.get(perm_idx.get()) {
@@ -512,7 +532,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         }
 
         // Elicitation dialog: Enter submits the typed response.
-        if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT)
+        if code == KeyCode::Enter
+            && !modifiers.contains(KeyModifiers::SHIFT)
             && pending_elicit.read().is_some()
         {
             let text = elicit_input.read().trim().to_string();
@@ -525,7 +546,10 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         }
 
         // Reset completion selection (and history cursor) when the user types or deletes.
-        if matches!(code, KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete) {
+        if matches!(
+            code,
+            KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete
+        ) {
             completion_idx.set(0);
             history_cursor.set(None);
         }
@@ -551,7 +575,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         // This takes priority over scrolling so the user can recall previous prompts.
         if !modifiers.contains(KeyModifiers::SHIFT) {
             let hist = prompt_history.read().clone();
-            let cur  = history_cursor.get();
+            let cur = history_cursor.get();
             let empty_input = input.read().trim().is_empty();
             if code == KeyCode::Up && !hist.is_empty() && (empty_input || cur.is_some()) {
                 let new_i = cur.map(|i| (i + 1).min(hist.len() - 1)).unwrap_or(0);
@@ -559,17 +583,18 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 history_cursor.set(Some(new_i));
                 return;
             }
-            if code == KeyCode::Down && cur.is_some() {
-                let i = cur.unwrap();
-                if i == 0 {
-                    input.set(String::new());
-                    history_cursor.set(None);
-                } else {
-                    let new_i = i - 1;
-                    input.set(hist[hist.len() - 1 - new_i].clone());
-                    history_cursor.set(Some(new_i));
+            if code == KeyCode::Down {
+                if let Some(i) = cur {
+                    if i == 0 {
+                        input.set(String::new());
+                        history_cursor.set(None);
+                    } else {
+                        let new_i = i - 1;
+                        input.set(hist[hist.len() - 1 - new_i].clone());
+                        history_cursor.set(Some(new_i));
+                    }
+                    return;
                 }
-                return;
             }
         }
 
@@ -594,7 +619,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         }
         if code == KeyCode::Down && modifiers.contains(KeyModifiers::SHIFT) {
             let cur = view_turn_idx.get().unwrap_or(total);
-            view_turn_idx.set(if cur + 1 >= total { None } else { Some(cur + 1) });
+            view_turn_idx.set(if cur + 1 >= total {
+                None
+            } else {
+                Some(cur + 1)
+            });
             expanded_tc.set(None);
             scroll_offset.set(0);
             return;
@@ -627,7 +656,10 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
         // Enter — submit from splash screen (banner visible).
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
-        if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && banner_visible.get() {
+        if code == KeyCode::Enter
+            && !modifiers.contains(KeyModifiers::SHIFT)
+            && banner_visible.get()
+        {
             let raw = input.read().clone();
             let trimmed = raw.trim();
             let matches = slash_completions(trimmed);
@@ -636,12 +668,26 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             } else {
                 trimmed.to_string()
             };
-            if text.is_empty() { return; }
-            { let mut h = prompt_history.read().clone(); h.push(text.clone()); prompt_history.set(h); }
+            if text.is_empty() {
+                return;
+            }
+            {
+                let mut h = prompt_history.read().clone();
+                h.push(text.clone());
+                prompt_history.set(h);
+            }
             history_cursor.set(None);
             input.set(String::new());
             completion_idx.set(0);
-            if check_slash_command(&text, &mut should_exit, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
+            if check_slash_command(
+                &text,
+                &mut should_exit,
+                &mut ext_visible,
+                &mut ext_entries,
+                &mut ext_idx,
+                &mut model_visible,
+                &mut model_idx,
+            ) {
                 return;
             }
             send_prompt_to_agent(
@@ -659,7 +705,10 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
         // Enter — submit from input bar.
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
-        if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && !banner_visible.get() {
+        if code == KeyCode::Enter
+            && !modifiers.contains(KeyModifiers::SHIFT)
+            && !banner_visible.get()
+        {
             let raw = input.read().clone();
             let trimmed = raw.trim();
             let matches = slash_completions(trimmed);
@@ -668,8 +717,14 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             } else {
                 trimmed.to_string()
             };
-            if text.is_empty() { return; }
-            { let mut h = prompt_history.read().clone(); h.push(text.clone()); prompt_history.set(h); }
+            if text.is_empty() {
+                return;
+            }
+            {
+                let mut h = prompt_history.read().clone();
+                h.push(text.clone());
+                prompt_history.set(h);
+            }
             history_cursor.set(None);
             input.set(String::new());
             completion_idx.set(0);
@@ -677,7 +732,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             expanded_tc.set(None);
             scroll_offset.set(0);
 
-            if check_slash_command(&text, &mut should_exit, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
+            if check_slash_command(
+                &text,
+                &mut should_exit,
+                &mut ext_visible,
+                &mut ext_entries,
+                &mut ext_idx,
+                &mut model_visible,
+                &mut model_idx,
+            ) {
                 return;
             }
 
@@ -708,30 +771,34 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         system.exit();
     }
 
-    let turns_snap   = turns.read();
-    let view_idx     = view_turn_idx.get().unwrap_or(turns_snap.len().saturating_sub(1));
-    let cur_turn     = turns_snap.get(view_idx).cloned();
-    let is_history   = view_turn_idx.get().is_some_and(|i| i + 1 < turns_snap.len());
-    let turn_info    = (turns_snap.len() > 1).then_some((view_idx + 1, turns_snap.len()));
-    let turns_total  = turns_snap.len();
+    let turns_snap = turns.read();
+    let view_idx = view_turn_idx
+        .get()
+        .unwrap_or(turns_snap.len().saturating_sub(1));
+    let cur_turn = turns_snap.get(view_idx).cloned();
+    let is_history = view_turn_idx
+        .get()
+        .is_some_and(|i| i + 1 < turns_snap.len());
+    let turn_info = (turns_snap.len() > 1).then_some((view_idx + 1, turns_snap.len()));
+    let turns_total = turns_snap.len();
     drop(turns_snap); // release read lock before potentially triggering re-render
-    let rule         = "─".repeat(term_width as usize);
+    let rule = "─".repeat(term_width as usize);
 
-    let queue_snap    = queue.read().clone();
-    let perm_snap     = pending_perm.read().clone();
-    let elicit_snap   = pending_elicit.read().clone();
+    let queue_snap = queue.read().clone();
+    let perm_snap = pending_perm.read().clone();
+    let elicit_snap = pending_elicit.read().clone();
     let expanded_snap = expanded_tc.read().clone();
-    let banner        = banner_visible.get();
-    let cwd_snap      = working_dir.read().clone();
-    let tokens        = token_total.get();
-    let mode_str      = goose_mode.get().to_string();
-    let ext_snap       = ext_entries.read().clone();
-    let ext_open       = ext_visible.get();
-    let model_snap     = model_entries.read().clone();
-    let model_open     = model_visible.get();
+    let banner = banner_visible.get();
+    let cwd_snap = working_dir.read().clone();
+    let tokens = token_total.get();
+    let mode_str = goose_mode.get().to_string();
+    let ext_snap = ext_entries.read().clone();
+    let ext_open = ext_visible.get();
+    let model_snap = model_entries.read().clone();
+    let model_open = model_visible.get();
     let cur_model_snap = current_model.read().clone();
-    let input_snap     = input.read().clone();
-    let completions    = slash_completions(&input_snap);
+    let input_snap = input.read().clone();
+    let completions = slash_completions(&input_snap);
 
     // Always return a single root View; use conditional #() blocks inside.
     element! {
@@ -912,7 +979,11 @@ fn slash_completions(input: &str) -> Vec<(String, String)> {
     // User recipe commands
     for mapping in list_recipe_commands() {
         let full = mapping.command.clone();
-        let full = if full.starts_with('/') { full } else { format!("/{}", full) };
+        let full = if full.starts_with('/') {
+            full
+        } else {
+            format!("/{}", full)
+        };
         if full.starts_with(input) {
             out.push((full, "recipe".to_string()));
         }
@@ -957,15 +1028,16 @@ fn check_slash_command(
 
 fn cycle_mode(current: GooseMode) -> GooseMode {
     match current {
-        GooseMode::Auto        => GooseMode::Approve,
-        GooseMode::Approve     => GooseMode::SmartApprove,
+        GooseMode::Auto => GooseMode::Approve,
+        GooseMode::Approve => GooseMode::SmartApprove,
         GooseMode::SmartApprove => GooseMode::Chat,
-        GooseMode::Chat        => GooseMode::Auto,
+        GooseMode::Chat => GooseMode::Auto,
     }
 }
 
 // ── Helper: send a prompt to the agent and update state ───────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn send_prompt_to_agent(
     text: String,
     prompt_tx: &State<Option<Arc<mpsc::Sender<String>>>>,
@@ -976,7 +1048,9 @@ fn send_prompt_to_agent(
     status: &mut State<String>,
     banner_visible: &mut State<bool>,
 ) {
-    let Some(tx) = prompt_tx.read().clone() else { return };
+    let Some(tx) = prompt_tx.read().clone() else {
+        return;
+    };
 
     // Create a fresh cancellation token for this turn and share it with
     // the agent worker so it can be cancelled mid-stream.
@@ -987,7 +1061,10 @@ fn send_prompt_to_agent(
     cancel_token.set(Arc::new(token));
 
     let mut t = turns.read().clone();
-    t.push(Turn { user_text: text.clone(), ..Default::default() });
+    t.push(Turn {
+        user_text: text.clone(),
+        ..Default::default()
+    });
     turns.set(t);
 
     banner_visible.set(false);

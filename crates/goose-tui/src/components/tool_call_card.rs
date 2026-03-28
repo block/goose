@@ -89,35 +89,59 @@ pub fn ToolCallCard(props: &ToolCallCardProps) -> impl Into<AnyElement<'static>>
 /// A diff is detected heuristically: the text has at least one `@@` hunk
 /// header and at least two `+`/`-` lines.
 fn render_output(text: &str) -> Vec<AnyElement<'static>> {
-    let has_hunk   = text.lines().any(|l| l.starts_with("@@"));
-    let diff_lines = text.lines().filter(|l| l.starts_with('+') || l.starts_with('-')).count();
-    let is_diff    = has_hunk && diff_lines >= 2;
+    let has_hunk = text.lines().any(|l| l.starts_with("@@"));
+    let diff_lines = text
+        .lines()
+        .filter(|l| l.starts_with('+') || l.starts_with('-'))
+        .count();
+    let is_diff = has_hunk && diff_lines >= 2;
 
     if !is_diff {
         return vec![element! { Text(content: text.to_string(), color: TEXT_SECONDARY) }.into()];
     }
 
-    text.lines().map(|line| {
-        let color = if line.starts_with("+++") || line.starts_with("---") {
-            TEXT_SECONDARY
-        } else if line.starts_with('+') {
-            Color::Rgb { r: 74, g: 222, b: 128 }   // green
-        } else if line.starts_with('-') {
-            Color::Rgb { r: 248, g: 113, b: 113 }   // red
-        } else if line.starts_with("@@") {
-            Color::Rgb { r: 103, g: 232, b: 249 }   // cyan
-        } else {
-            TEXT_DIM
-        };
-        element! { Text(content: line.to_string(), color: color) }.into()
-    }).collect()
+    text.lines()
+        .map(|line| {
+            let color = if line.starts_with("+++") || line.starts_with("---") {
+                TEXT_SECONDARY
+            } else if line.starts_with('+') {
+                Color::Rgb {
+                    r: 74,
+                    g: 222,
+                    b: 128,
+                } // green
+            } else if line.starts_with('-') {
+                Color::Rgb {
+                    r: 248,
+                    g: 113,
+                    b: 113,
+                } // red
+            } else if line.starts_with("@@") {
+                Color::Rgb {
+                    r: 103,
+                    g: 232,
+                    b: 249,
+                } // cyan
+            } else {
+                TEXT_DIM
+            };
+            element! { Text(content: line.to_string(), color: color) }.into()
+        })
+        .collect()
 }
 
 fn status_style(status: &ToolStatus) -> (Color, &'static str) {
     match status {
-        ToolStatus::Pending => (TEXT_DIM,  "○"),
-        ToolStatus::Running => (TEAL,      "◐"),
-        ToolStatus::Success => (Color::Rgb { r: 74, g: 222, b: 128 }, "✓"),
-        ToolStatus::Error   => (CRANBERRY, "✗"),
+        ToolStatus::Pending => (TEXT_DIM, "○"),
+        ToolStatus::Running => (TEAL, "◐"),
+        ToolStatus::Success => (
+            Color::Rgb {
+                r: 74,
+                g: 222,
+                b: 128,
+            },
+            "✓",
+        ),
+        ToolStatus::Error => (CRANBERRY, "✗"),
     }
 }

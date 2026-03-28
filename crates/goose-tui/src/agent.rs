@@ -14,7 +14,9 @@ use goose::action_required_manager::ActionRequiredManager;
 use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::{get_all_extensions, Config};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
-use goose::permission::permission_confirmation::{Permission, PermissionConfirmation, PrincipalType};
+use goose::permission::permission_confirmation::{
+    Permission, PermissionConfirmation, PrincipalType,
+};
 use goose::providers::create;
 use goose::session::session_manager::{SessionManager, SessionType};
 use rmcp::model::RawContent;
@@ -23,7 +25,10 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-use crate::types::{AgentMsg, ElicitationReq, PermissionChoice, PermissionOption, PermissionReq, ToolCallInfo, ToolStatus};
+use crate::types::{
+    AgentMsg, ElicitationReq, PermissionChoice, PermissionOption, PermissionReq, ToolCallInfo,
+    ToolStatus,
+};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -42,8 +47,8 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
 
-    let model_config = goose::model::ModelConfig::new(&model_name)?
-        .with_canonical_limits(&provider_name);
+    let model_config =
+        goose::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
 
     let extensions: Vec<_> = get_all_extensions()
         .into_iter()
@@ -74,7 +79,9 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
     };
 
     agent.update_provider(provider, &session_id).await?;
-    agent.update_goose_mode(agent.config.goose_mode, &session_id).await?;
+    agent
+        .update_goose_mode(agent.config.goose_mode, &session_id)
+        .await?;
 
     for ext in extensions {
         if let Err(e) = agent.add_extension(ext, &session_id).await {
@@ -111,7 +118,12 @@ pub async fn run_agent_loop(
     event_tx: mpsc::Sender<AgentMsg>,
     mut cancel_rx: mpsc::Receiver<CancellationToken>,
 ) {
-    let AgentHandle { agent, session_id, session_manager, .. } = handle;
+    let AgentHandle {
+        agent,
+        session_id,
+        session_manager,
+        ..
+    } = handle;
 
     while let Some(prompt) = prompt_rx.recv().await {
         // Drain any stale tokens; keep the latest one sent for this turn.
@@ -131,7 +143,9 @@ pub async fn run_agent_loop(
                         let _ = event_tx.send(AgentMsg::ConversationCleared).await;
                     }
                     let _ = event_tx
-                        .send(AgentMsg::Finished { stop_reason: "end_turn".into() })
+                        .send(AgentMsg::Finished {
+                            stop_reason: "end_turn".into(),
+                        })
                         .await;
                     continue;
                 }
@@ -161,17 +175,29 @@ pub async fn run_agent_loop(
 
         process_stream(&agent, stream, &event_tx, &token).await;
 
-        let stop_reason = if token.is_cancelled() { "cancelled" } else { "end_turn" };
+        let stop_reason = if token.is_cancelled() {
+            "cancelled"
+        } else {
+            "end_turn"
+        };
         let _ = event_tx
-            .send(AgentMsg::Finished { stop_reason: stop_reason.into() })
+            .send(AgentMsg::Finished {
+                stop_reason: stop_reason.into(),
+            })
             .await;
 
         // Query accumulated token usage for this session and send to UI.
         if let Ok(session) = session_manager.get_session(&session_id, false).await {
-            let input  = session.accumulated_input_tokens.unwrap_or(0) as i64;
+            let input = session.accumulated_input_tokens.unwrap_or(0) as i64;
             let output = session.accumulated_output_tokens.unwrap_or(0) as i64;
-            let total  = session.accumulated_total_tokens.unwrap_or(0) as i64;
-            let _ = event_tx.send(AgentMsg::TokenUsage { input, output, total }).await;
+            let total = session.accumulated_total_tokens.unwrap_or(0) as i64;
+            let _ = event_tx
+                .send(AgentMsg::TokenUsage {
+                    input,
+                    output,
+                    total,
+                })
+                .await;
         }
     }
 }
@@ -202,7 +228,6 @@ async fn process_stream(
         }
     }
 }
-
 
 async fn handle_message_content(
     agent: &Arc<Agent>,
@@ -265,38 +290,69 @@ async fn handle_message_content(
             match &ar.data {
                 ActionRequiredData::ToolConfirmation { id, tool_name, .. } => {
                     let options = vec![
-                        PermissionOption { id: "allow_always".into(), label: "Always allow".into(), key: 'a' },
-                        PermissionOption { id: "allow_once".into(),   label: "Allow once".into(),   key: 'y' },
-                        PermissionOption { id: "deny_once".into(),    label: "Deny once".into(),    key: 'n' },
-                        PermissionOption { id: "deny_always".into(),  label: "Always deny".into(),  key: 'N' },
+                        PermissionOption {
+                            id: "allow_always".into(),
+                            label: "Always allow".into(),
+                            key: 'a',
+                        },
+                        PermissionOption {
+                            id: "allow_once".into(),
+                            label: "Allow once".into(),
+                            key: 'y',
+                        },
+                        PermissionOption {
+                            id: "deny_once".into(),
+                            label: "Deny once".into(),
+                            key: 'n',
+                        },
+                        PermissionOption {
+                            id: "deny_always".into(),
+                            label: "Always deny".into(),
+                            key: 'N',
+                        },
                     ];
-                    let req = PermissionReq { tool_title: tool_name.clone(), options };
+                    let req = PermissionReq {
+                        tool_title: tool_name.clone(),
+                        options,
+                    };
                     let (reply_tx, reply_rx) = oneshot::channel::<PermissionChoice>();
-                    let _ = event_tx.send(AgentMsg::PermissionRequest(req, reply_tx)).await;
+                    let _ = event_tx
+                        .send(AgentMsg::PermissionRequest(req, reply_tx))
+                        .await;
 
                     let choice = reply_rx.await.unwrap_or(PermissionChoice::Cancelled);
                     let permission = match choice {
                         PermissionChoice::Selected(ref opt_id) => match opt_id.as_str() {
                             "allow_always" => Permission::AlwaysAllow,
-                            "allow_once"   => Permission::AllowOnce,
-                            "deny_once"    => Permission::DenyOnce,
-                            "deny_always"  => Permission::AlwaysDeny,
-                            _              => Permission::Cancel,
+                            "allow_once" => Permission::AllowOnce,
+                            "deny_once" => Permission::DenyOnce,
+                            "deny_always" => Permission::AlwaysDeny,
+                            _ => Permission::Cancel,
                         },
                         PermissionChoice::Cancelled => Permission::Cancel,
                     };
-                    agent.handle_confirmation(
-                        id.clone(),
-                        PermissionConfirmation { principal_type: PrincipalType::Tool, permission },
-                    ).await;
+                    agent
+                        .handle_confirmation(
+                            id.clone(),
+                            PermissionConfirmation {
+                                principal_type: PrincipalType::Tool,
+                                permission,
+                            },
+                        )
+                        .await;
                 }
 
                 ActionRequiredData::Elicitation { id, message, .. } => {
                     // Show a free-text input dialog; submit the response via
                     // ActionRequiredManager (the proper elicitation path).
-                    let req = ElicitationReq { id: id.clone(), message: message.clone() };
+                    let req = ElicitationReq {
+                        id: id.clone(),
+                        message: message.clone(),
+                    };
                     let (reply_tx, reply_rx) = oneshot::channel::<String>();
-                    let _ = event_tx.send(AgentMsg::ElicitationRequest(req, reply_tx)).await;
+                    let _ = event_tx
+                        .send(AgentMsg::ElicitationRequest(req, reply_tx))
+                        .await;
 
                     let text = reply_rx.await.unwrap_or_default();
                     let user_data = serde_json::Value::String(text);
@@ -322,10 +378,10 @@ async fn handle_message_content(
 
 /// Recognised image extensions and their MIME types.
 const IMAGE_MIME: &[(&str, &str)] = &[
-    ("png",  "image/png"),
-    ("jpg",  "image/jpeg"),
+    ("png", "image/png"),
+    ("jpg", "image/jpeg"),
     ("jpeg", "image/jpeg"),
-    ("gif",  "image/gif"),
+    ("gif", "image/gif"),
     ("webp", "image/webp"),
 ];
 
@@ -382,7 +438,7 @@ pub async fn build_user_message(text: &str) -> Message {
 
 enum AttachResult {
     Image { data: String, mime: String },
-    Text  { label: String, content: String },
+    Text { label: String, content: String },
 }
 
 async fn attach_path(path: &Path) -> anyhow::Result<AttachResult> {
@@ -395,7 +451,10 @@ async fn attach_path(path: &Path) -> anyhow::Result<AttachResult> {
     if let Some((_, mime)) = IMAGE_MIME.iter().find(|(e, _)| *e == ext.as_str()) {
         let bytes = tokio::fs::read(path).await?;
         let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
-        Ok(AttachResult::Image { data, mime: mime.to_string() })
+        Ok(AttachResult::Image {
+            data,
+            mime: mime.to_string(),
+        })
     } else {
         let content = tokio::fs::read_to_string(path).await?;
         let label = format!("File: {}", path.display());
@@ -407,9 +466,13 @@ async fn attach_path(path: &Path) -> anyhow::Result<AttachResult> {
 
 /// Extract a plain-text string from a Message returned by execute_command.
 fn extract_message_text(msg: &Message) -> String {
-    msg.content.iter().filter_map(|c| match c {
-        MessageContent::Text(_) => c.as_text().map(str::to_owned),
-        MessageContent::SystemNotification(n) => Some(n.msg.clone()),
-        _ => None,
-    }).collect::<Vec<_>>().join("\n")
+    msg.content
+        .iter()
+        .filter_map(|c| match c {
+            MessageContent::Text(_) => c.as_text().map(str::to_owned),
+            MessageContent::SystemNotification(n) => Some(n.msg.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }

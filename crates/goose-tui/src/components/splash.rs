@@ -3,10 +3,42 @@ use iocraft::prelude::*;
 use crate::colors::*;
 
 const FRAMES: &[&[&str]] = &[
-    &["    ,_", "   (o >", "   //\\", "   \\\\ \\", "    \\\\_/", "     |  |", "     ^ ^"],
-    &["     ,_", "    (o >", "    //\\", "    \\\\ \\", "     \\\\_/", "    /  |", "   ^   ^"],
-    &["    ,_", "   (o >", "   //\\", "   \\\\ \\", "    \\\\_/", "     |  |", "     ^  ^"],
-    &["   ,_", "  (o >", "  //\\", "  \\\\ \\", "   \\\\_/", "    |  \\", "    ^   ^"],
+    &[
+        "    ,_",
+        "   (o >",
+        "   //\\",
+        "   \\\\ \\",
+        "    \\\\_/",
+        "     |  |",
+        "     ^ ^",
+    ],
+    &[
+        "     ,_",
+        "    (o >",
+        "    //\\",
+        "    \\\\ \\",
+        "     \\\\_/",
+        "    /  |",
+        "   ^   ^",
+    ],
+    &[
+        "    ,_",
+        "   (o >",
+        "   //\\",
+        "   \\\\ \\",
+        "    \\\\_/",
+        "     |  |",
+        "     ^  ^",
+    ],
+    &[
+        "   ,_",
+        "  (o >",
+        "  //\\",
+        "  \\\\ \\",
+        "   \\\\_/",
+        "    |  \\",
+        "    ^   ^",
+    ],
 ];
 
 const GREETINGS: &[&str] = &[
@@ -44,9 +76,13 @@ pub fn Splash(props: &SplashProps, mut hooks: Hooks) -> impl Into<AnyElement<'st
     let input_width = (props.width.saturating_sub(8)).min(56);
     let rule = "─".repeat(input_width as usize);
 
-    let status_color = if props.status == "ready" { TEAL }
-        else if props.status.starts_with("error") { CRANBERRY }
-        else { TEXT_DIM };
+    let status_color = if props.status == "ready" {
+        TEAL
+    } else if props.status.starts_with("error") {
+        CRANBERRY
+    } else {
+        TEXT_DIM
+    };
 
     element! {
         View(
@@ -69,31 +105,27 @@ pub fn Splash(props: &SplashProps, mut hooks: Hooks) -> impl Into<AnyElement<'st
             Text(content: "your on-machine AI agent", color: TEXT_DIM)
 
             #(if props.show_input {
-                if let Some(mut input_val) = props.input {
-                    Some(element! {
-                        View(flex_direction: FlexDirection::Column, align_items: AlignItems::Center, margin_top: 2) {
-                            View(width: input_width) {
-                                Text(content: rule.clone(), color: RULE)
-                            }
-                            View(flex_direction: FlexDirection::Row) {
-                                Text(content: "❯ ", weight: Weight::Bold, color: CRANBERRY)
-                                View(width: input_width - 2) {
-                                    TextInput(
-                                        has_focus: true,
-                                        value: input_val.to_string(),
-                                        on_change: move |v| input_val.set(v),
-                                    )
-                                }
-                            }
-                            View(width: input_width) {
-                                Text(content: rule.clone(), color: RULE)
-                            }
-                            Text(content: greeting.get(), color: TEXT_DIM)
+                props.input.map(|mut input_val| element! {
+                    View(flex_direction: FlexDirection::Column, align_items: AlignItems::Center, margin_top: 2) {
+                        View(width: input_width) {
+                            Text(content: rule.clone(), color: RULE)
                         }
-                    })
-                } else {
-                    None
-                }
+                        View(flex_direction: FlexDirection::Row) {
+                            Text(content: "❯ ", weight: Weight::Bold, color: CRANBERRY)
+                            View(width: input_width - 2) {
+                                TextInput(
+                                    has_focus: true,
+                                    value: input_val.to_string(),
+                                    on_change: move |v| input_val.set(v),
+                                )
+                            }
+                        }
+                        View(width: input_width) {
+                            Text(content: rule.clone(), color: RULE)
+                        }
+                        Text(content: greeting.get(), color: TEXT_DIM)
+                    }
+                })
             } else {
                 Some(element! {
                     View(margin_top: 2, flex_direction: FlexDirection::Row, gap: 1) {
