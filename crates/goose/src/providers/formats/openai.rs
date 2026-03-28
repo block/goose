@@ -750,7 +750,21 @@ where
                         let parsed = if arguments.is_empty() {
                             Ok(json!({}))
                         } else {
-                            serde_json::from_str::<Value>(arguments)
+                            safely_parse_json(arguments).map_err(|e| {
+                                let trimmed = arguments.trim_end();
+                                if !trimmed.ends_with('}') && !trimmed.ends_with(']') {
+                                    format!(
+                                        "Tool arguments appear truncated after streaming \
+                                         ({} bytes received, no closing brace). \
+                                         Try breaking the operation into smaller pieces. \
+                                         Original error: {}",
+                                        arguments.len(),
+                                        e
+                                    )
+                                } else {
+                                    format!("Could not parse tool arguments ({} bytes): {}", arguments.len(), e)
+                                }
+                            })
                         };
 
                         let metadata = if let Some(sig) = &last_signature {
@@ -772,12 +786,12 @@ where
                                     metadata.as_ref(),
                                 )
                             },
-                            Err(e) => {
+                            Err(msg) => {
                                 let error = ErrorData {
                                     code: ErrorCode::INVALID_PARAMS,
                                     message: Cow::from(format!(
                                         "Could not interpret tool use parameters for id {}: {}",
-                                        id, e
+                                        id, msg
                                     )),
                                     data: None,
                                 };
@@ -2109,5 +2123,87 @@ data: [DONE]"#;
             found_error,
             "expected an error but stream completed successfully"
         );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_tool_arguments() -> anyhow::Result<()> {
+        // Arguments string that does not end with a closing brace — simulates truncation.
+        // Escape double-quotes so the string embeds correctly as a JSON string value.
+        let truncated_args = r#"{"command": "ls /very/long/path/that/gets"#;
+        let escaped_truncated = truncated_args.replace('"', "\\\"");
+        let response_lines = format!(
+            "data: {{\"model\":\"test-model\",\"choices\":[{{\"delta\":{{\"role\":\"assistant\",\"tool_calls\":[{{\"index\":0,\"id\":\"call_trunc\",\"type\":\"function\",\"function\":{{\"name\":\"developer__shell\",\"arguments\":\"{}\"}}}}]}},\"index\":0,\"finish_reason\":\"tool_calls\"}}],\"usage\":{{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}},\"object\":\"chat.completion.chunk\",\"id\":\"test-trunc\",\"created\":1234567890}}\ndata: [DONE]",
+            escaped_truncated
+        );
+
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut found_truncation_error = false;
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(req) = content {
+                        if let Err(error) = &req.tool_call {
+                            let msg_str = error.message.as_ref();
+                            assert!(
+                                msg_str.contains("truncated after streaming"),
+                                "Expected truncation error message, got: {}",
+                                msg_str
+                            );
+                            found_truncation_error = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(
+            found_truncation_error,
+            "Expected a ToolRequest with a truncation error but none was found"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_large_valid_tool_arguments() -> anyhow::Result<()> {
+        // Build valid JSON arguments that are over 15 KB
+        let large_args = format!("{{\"data\": \"{}\"}}", "x".repeat(16000));
+        // Escape the JSON string for embedding inside the outer JSON chunk
+        let escaped_args = large_args.replace('\\', "\\\\").replace('"', "\\\"");
+
+        let response_lines = format!(
+            "data: {{\"model\":\"test-model\",\"choices\":[{{\"delta\":{{\"role\":\"assistant\",\"tool_calls\":[{{\"index\":0,\"id\":\"call_large\",\"type\":\"function\",\"function\":{{\"name\":\"developer__shell\",\"arguments\":\"{}\"}}}}]}},\"index\":0,\"finish_reason\":\"tool_calls\"}}],\"usage\":{{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}},\"object\":\"chat.completion.chunk\",\"id\":\"test-large\",\"created\":1234567890}}\ndata: [DONE]",
+            escaped_args
+        );
+
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut found_tool_call = false;
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(req) = content {
+                        assert!(
+                            req.tool_call.is_ok(),
+                            "Expected successful tool call parse for large valid JSON, got error: {:?}",
+                            req.tool_call.as_ref().err()
+                        );
+                        found_tool_call = true;
+                    }
+                }
+            }
+        }
+
+        assert!(
+            found_tool_call,
+            "Expected a ToolRequest with a successful parse but none was found"
+        );
+        Ok(())
     }
 }
