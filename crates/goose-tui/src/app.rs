@@ -141,6 +141,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     // Slash-command completion state.
     let mut completion_idx = hooks.use_state(|| 0usize);
 
+    // Prompt history (submitted prompts) + navigation cursor.
+    // cursor = None → not navigating; Some(i) → i steps back from the end (0 = most recent).
+    let mut prompt_history: State<Vec<String>> = hooks.use_state(Vec::new);
+    let mut history_cursor: State<Option<usize>> = hooks.use_state(|| None);
+
     // ── spinner tick ──────────────────────────────────────────────────────────
     hooks.use_future(async move {
         loop {
@@ -519,9 +524,10 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
-        // Reset completion selection when the user types or deletes (narrows/widens the list).
+        // Reset completion selection (and history cursor) when the user types or deletes.
         if matches!(code, KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete) {
             completion_idx.set(0);
+            history_cursor.set(None);
         }
 
         // Slash-completion ↑/↓ navigation (captures before scroll when popup is visible).
@@ -538,6 +544,32 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     completion_idx.set((completion_idx.get() + 1) % n);
                     return;
                 }
+            }
+        }
+
+        // Prompt history navigation: Up/Down when input is empty or already navigating.
+        // This takes priority over scrolling so the user can recall previous prompts.
+        if !modifiers.contains(KeyModifiers::SHIFT) {
+            let hist = prompt_history.read().clone();
+            let cur  = history_cursor.get();
+            let empty_input = input.read().trim().is_empty();
+            if code == KeyCode::Up && !hist.is_empty() && (empty_input || cur.is_some()) {
+                let new_i = cur.map(|i| (i + 1).min(hist.len() - 1)).unwrap_or(0);
+                input.set(hist[hist.len() - 1 - new_i].clone());
+                history_cursor.set(Some(new_i));
+                return;
+            }
+            if code == KeyCode::Down && cur.is_some() {
+                let i = cur.unwrap();
+                if i == 0 {
+                    input.set(String::new());
+                    history_cursor.set(None);
+                } else {
+                    let new_i = i - 1;
+                    input.set(hist[hist.len() - 1 - new_i].clone());
+                    history_cursor.set(Some(new_i));
+                }
+                return;
             }
         }
 
@@ -605,6 +637,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 trimmed.to_string()
             };
             if text.is_empty() { return; }
+            { let mut h = prompt_history.read().clone(); h.push(text.clone()); prompt_history.set(h); }
+            history_cursor.set(None);
             input.set(String::new());
             completion_idx.set(0);
             if check_slash_command(&text, &mut should_exit, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
@@ -635,6 +669,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 trimmed.to_string()
             };
             if text.is_empty() { return; }
+            { let mut h = prompt_history.read().clone(); h.push(text.clone()); prompt_history.set(h); }
+            history_cursor.set(None);
             input.set(String::new());
             completion_idx.set(0);
             view_turn_idx.set(None);
