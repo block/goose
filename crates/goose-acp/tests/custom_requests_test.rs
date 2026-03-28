@@ -93,3 +93,157 @@ fn test_custom_unknown_method() {
         assert!(result.is_err(), "expected method_not_found error");
     });
 }
+
+#[test]
+fn test_custom_list_prompts() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/config/prompts",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+        let response = result.unwrap();
+        assert!(response.get("prompts").is_some(), "missing 'prompts' field");
+    });
+}
+
+#[test]
+fn test_custom_provider_info() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/agent/provider_info",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+        let response = result.unwrap();
+        assert!(
+            response.get("providerName").is_some(),
+            "missing 'providerName' field"
+        );
+        assert!(
+            response.get("modelName").is_some(),
+            "missing 'modelName' field"
+        );
+        assert!(
+            response.get("contextLimit").is_some(),
+            "missing 'contextLimit' field"
+        );
+    });
+}
+
+#[test]
+fn test_custom_plan_prompt() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/agent/plan_prompt",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+        let response = result.unwrap();
+        assert!(response.get("prompt").is_some(), "missing 'prompt' field");
+        assert!(
+            response["prompt"].is_string(),
+            "'prompt' should be a string"
+        );
+    });
+}
+
+#[test]
+fn test_custom_session_clear() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/session/clear",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+    });
+}
+
+#[test]
+fn test_custom_prompt_info_not_found() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/config/prompt_info",
+            serde_json::json!({
+                "sessionId": session_id,
+                "name": "nonexistent_prompt"
+            }),
+        )
+        .await;
+        assert!(result.is_err(), "expected error for nonexistent prompt");
+    });
+}
+
+#[test]
+fn test_custom_session_clear_invalid_session() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/session/clear",
+            serde_json::json!({ "sessionId": "nonexistent-session-id" }),
+        )
+        .await;
+        assert!(result.is_err(), "expected error for invalid session");
+    });
+}
+
+#[test]
+fn test_custom_provider_info_invalid_session() {
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/agent/provider_info",
+            serde_json::json!({ "sessionId": "nonexistent-session-id" }),
+        )
+        .await;
+        assert!(result.is_err(), "expected error for invalid session");
+    });
+}
