@@ -435,8 +435,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
-        // Ctrl-M — cycle goose mode.
-        if code == KeyCode::Char('m') && modifiers.contains(KeyModifiers::CONTROL) {
+        // Shift+Tab — cycle goose mode.
+        if code == KeyCode::BackTab {
             let next = cycle_mode(goose_mode.get());
             if let Some(tx) = ctrl_tx_st.read().clone() {
                 let _ = tx.try_send(CtrlMsg::SetMode(next));

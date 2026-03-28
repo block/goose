@@ -49,7 +49,7 @@ pub fn InputBar(props: &InputBarProps) -> impl Into<AnyElement<'static>> {
             View(flex_direction: FlexDirection::Row, gap: 2) {
                 Text(content: "shift+enter for newline", color: TEXT_DIM, italic: true)
                 Text(content: "@path to attach file/image", color: TEXT_DIM, italic: true)
-                Text(content: "^M cycle mode", color: TEXT_DIM, italic: true)
+                Text(content: "shift+tab cycle mode", color: TEXT_DIM, italic: true)
                 Text(content: "/ext extensions", color: TEXT_DIM, italic: true)
                 Text(content: "/model switch model", color: TEXT_DIM, italic: true)
             }
