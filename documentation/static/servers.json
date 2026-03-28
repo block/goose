@@ -36,7 +36,7 @@
   {
     "id": "apify",
     "name": "Apify",
-    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store \u26a1",
     "command": "npx -y @apify/actors-mcp-server",
     "link": "https://github.com/apify/apify-mcp-server",
     "installation_notes": "Install using npx. Requires an Apify API token.",
@@ -784,6 +784,25 @@
     "is_builtin": true,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "writbase",
+    "name": "WritBase",
+    "description": "MCP-native task management for AI agent fleets. Persistent task registry with scoped permissions, inter-agent delegation, and full provenance.",
+    "type": "streamable-http",
+    "url": "https://<project-ref>.supabase.co/functions/v1/mcp-server/mcp",
+    "link": "https://github.com/Writbase/writbase",
+    "installation_notes": "Replace <project-ref> in the URL with your Supabase project reference. Generate an agent key with `npx writbase init` and use it as the Bearer token in the Authorization header.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "Authorization",
+        "description": "Bearer wb_<key_id>_<secret>",
+        "required": true
+      }
+    ]
   },
   {
     "id": "youtube-transcript-mcp",
