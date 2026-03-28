@@ -90,7 +90,8 @@ impl From<keyring::Error> for ConfigError {
 ///
 /// Secrets are loaded with the following precedence:
 /// 1. Environment variables (exact key match)
-/// 2. System keyring (which can be disabled with GOOSE_DISABLE_KEYRING)
+/// 2. System keyring (disabled on Windows due to Credential Manager size limits;
+///    can also be disabled with GOOSE_DISABLE_KEYRING)
 /// 3. If the keyring is disabled, secrets are stored in a secrets file
 ///    (~/.config/goose/secrets.yaml by default)
 ///
@@ -152,13 +153,22 @@ impl Default for Config {
             }
         });
 
-        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
-            Ok(_) => SecretStorage::File {
+        let secrets = if cfg!(target_os = "windows") {
+            // Windows Credential Manager limits entries to 2560 bytes (~1280 UTF-16
+            // chars). MCP OAuth tokens and multiple API keys exceed this quickly,
+            // causing silent "auth_error" failures. Always use file storage on Windows.
+            SecretStorage::File {
                 path: config_dir.join("secrets.yaml"),
-            },
-            Err(_) => SecretStorage::Keyring {
-                service: KEYRING_SERVICE.to_string(),
-            },
+            }
+        } else {
+            match env::var("GOOSE_DISABLE_KEYRING") {
+                Ok(_) => SecretStorage::File {
+                    path: config_dir.join("secrets.yaml"),
+                },
+                Err(_) => SecretStorage::Keyring {
+                    service: KEYRING_SERVICE.to_string(),
+                },
+            }
         };
         Config {
             config_path,
@@ -263,12 +273,20 @@ impl Config {
     /// This is primarily useful for testing or for applications that need
     /// to manage multiple configuration files.
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
+        let secrets = if cfg!(target_os = "windows") {
+            let config_dir = config_path.as_ref().parent().unwrap_or(Path::new("."));
+            SecretStorage::File {
+                path: config_dir.join("secrets.yaml"),
+            }
+        } else {
+            SecretStorage::Keyring {
+                service: service.to_string(),
+            }
+        };
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
             defaults_path: None,
-            secrets: SecretStorage::Keyring {
-                service: service.to_string(),
-            },
+            secrets,
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
         })
@@ -974,6 +992,11 @@ impl Config {
             || lower.contains("org.freedesktop.secrets")
             || lower.contains("platform secure storage")
             || lower.contains("no secret service")
+            // Windows Credential Manager errors
+            || lower.contains("windows vault")
+            || lower.contains("credential manager")
+            || lower.contains("wincred")
+            || lower.contains("the data area passed to a system call is too small")
     }
 
     /// Get a keyring entry for the specified service
@@ -1887,7 +1910,7 @@ mod tests {
         let (config, _defaults) =
             new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true\nsome_key: default_val");
 
-        // Key only in defaults → returns defaults value
+        // Key only in defaults -> returns defaults value
         let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
         assert!(value);
 
@@ -1902,7 +1925,7 @@ mod tests {
     fn test_full_precedence_env_over_config_over_defaults() -> Result<(), ConfigError> {
         let (config, _defaults) = new_test_config_with_defaults("my_key: from_defaults");
 
-        // Only defaults → returns defaults
+        // Only defaults -> returns defaults
         let value: String = config.get_param("my_key")?;
         assert_eq!(value, "from_defaults");
 
@@ -1979,5 +2002,39 @@ mod tests {
         assert_eq!(mode, 0o600);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_windows_keyring_error_patterns_detected() {
+        let config = new_test_config();
+        assert!(config
+            .is_keyring_availability_error("The data area passed to a system call is too small"));
+        assert!(config.is_keyring_availability_error("wincred error"));
+        assert!(config.is_keyring_availability_error("Windows Vault failure"));
+        assert!(config.is_keyring_availability_error("credential manager unavailable"));
+        assert!(!config.is_keyring_availability_error("some other error"));
+    }
+
+    #[test]
+    fn test_default_config_uses_file_storage_on_windows() {
+        if cfg!(target_os = "windows") {
+            let config = Config::default();
+            assert!(
+                matches!(config.secrets, SecretStorage::File { .. }),
+                "Windows should always use file-based secret storage"
+            );
+        }
+    }
+
+    #[test]
+    fn test_new_config_uses_file_storage_on_windows() {
+        if cfg!(target_os = "windows") {
+            let config_file = NamedTempFile::new().unwrap();
+            let config = Config::new(config_file.path(), "goose").unwrap();
+            assert!(
+                matches!(config.secrets, SecretStorage::File { .. }),
+                "Config::new on Windows should use file-based secret storage"
+            );
+        }
     }
 }
