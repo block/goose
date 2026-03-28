@@ -17,10 +17,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::Agent;
-use goose::config::GooseMode;
+use goose::config::{get_all_extensions, set_extension_enabled, ExtensionEntry, GooseMode};
 
 use crate::agent::{build_agent, run_agent_loop};
 use crate::components::elicitation_dialog::ElicitationDialog;
+use crate::components::extension_dialog::ExtensionDialog;
 use crate::colors::*;
 use crate::components::{
     header::Header,
@@ -36,6 +37,13 @@ use crate::types::{
 };
 
 const MAX_QUEUE: usize = 10;
+
+// ── Control messages (keyboard → async futures) ───────────────────────────────
+
+enum CtrlMsg {
+    SetMode(GooseMode),
+    ToggleExt(ExtensionEntry),
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -96,12 +104,17 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mut cancel_tx: State<Option<Arc<mpsc::Sender<CancellationToken>>>> =
         hooks.use_state(|| None);
 
-    // Goose mode toggle state.
-    let mut agent_arc:    State<Option<Arc<Agent>>> = hooks.use_state(|| None);
-    let mut session_id_st: State<String>            = hooks.use_state(String::new);
-    let mut goose_mode:    State<GooseMode>          = hooks.use_state(GooseMode::default);
-    let mut ctrl_tx_st: State<Option<Arc<mpsc::Sender<GooseMode>>>> =
+    // Goose mode + extension control state.
+    let mut agent_arc:     State<Option<Arc<Agent>>> = hooks.use_state(|| None);
+    let mut session_id_st: State<String>             = hooks.use_state(String::new);
+    let mut goose_mode:    State<GooseMode>           = hooks.use_state(GooseMode::default);
+    let mut ctrl_tx_st: State<Option<Arc<mpsc::Sender<CtrlMsg>>>> =
         hooks.use_state(|| None);
+
+    // Extension dialog state.
+    let mut ext_visible  = hooks.use_state(|| false);
+    let mut ext_entries  = hooks.use_state(Vec::<ExtensionEntry>::new);
+    let mut ext_idx      = hooks.use_state(|| 0usize);
 
     // ── spinner tick ──────────────────────────────────────────────────────────
     hooks.use_future(async move {
@@ -112,16 +125,37 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         }
     });
 
-    // ── goose mode control loop ───────────────────────────────────────────────
+    // ── control loop (mode toggle + extension toggle) ─────────────────────────
     hooks.use_future(async move {
-        let (ctx, mut crx) = mpsc::channel::<GooseMode>(4);
+        let (ctx, mut crx) = mpsc::channel::<CtrlMsg>(8);
         ctrl_tx_st.set(Some(Arc::new(ctx)));
-        while let Some(next_mode) = crx.recv().await {
+        while let Some(msg) = crx.recv().await {
             let maybe_agent = agent_arc.read().clone();
-            if let Some(agent) = maybe_agent {
-                let sid = session_id_st.read().clone();
-                if agent.update_goose_mode(next_mode, &sid).await.is_ok() {
-                    goose_mode.set(next_mode);
+            let sid = session_id_st.read().clone();
+            match msg {
+                CtrlMsg::SetMode(next_mode) => {
+                    if let Some(agent) = maybe_agent {
+                        if agent.update_goose_mode(next_mode, &sid).await.is_ok() {
+                            goose_mode.set(next_mode);
+                        }
+                    }
+                }
+                CtrlMsg::ToggleExt(entry) => {
+                    let new_enabled = !entry.enabled;
+                    let key = entry.config.key();
+                    let name = entry.config.name();
+                    // Persist to config file.
+                    set_extension_enabled(&key, new_enabled);
+                    // Apply to running agent.
+                    if let Some(agent) = maybe_agent {
+                        if new_enabled {
+                            let _ = agent.add_extension(entry.config.clone(), &sid).await;
+                        } else {
+                            let _ = agent.remove_extension(&name, &sid).await;
+                        }
+                    }
+                    // Refresh extension list in dialog.
+                    ext_entries.set(get_all_extensions());
                 }
             }
         }
@@ -303,11 +337,37 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
+        // Extension dialog navigation.
+        if ext_visible.get() {
+            let n = ext_entries.read().len();
+            match code {
+                KeyCode::Esc => {
+                    ext_visible.set(false);
+                }
+                KeyCode::Up => {
+                    if n > 0 { ext_idx.set((ext_idx.get() + n - 1) % n); }
+                }
+                KeyCode::Down => {
+                    if n > 0 { ext_idx.set((ext_idx.get() + 1) % n); }
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    let entries = ext_entries.read().clone();
+                    if let Some(entry) = entries.get(ext_idx.get()).cloned() {
+                        if let Some(tx) = ctrl_tx_st.read().clone() {
+                            let _ = tx.try_send(CtrlMsg::ToggleExt(entry));
+                        }
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
         // Ctrl-M — cycle goose mode.
         if code == KeyCode::Char('m') && modifiers.contains(KeyModifiers::CONTROL) {
             let next = cycle_mode(goose_mode.get());
             if let Some(tx) = ctrl_tx_st.read().clone() {
-                let _ = tx.try_send(next);
+                let _ = tx.try_send(CtrlMsg::SetMode(next));
             }
             return;
         }
@@ -403,19 +463,21 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
         if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && banner_visible.get() {
             let text = input.read().trim().to_string();
-            if !text.is_empty() {
-                input.set(String::new());
-                send_prompt_to_agent(
-                    text,
-                    &prompt_tx,
-                    &cancel_tx,
-                    cancel_token,
-                    &mut turns,
-                    &mut loading,
-                    &mut status,
-                    &mut banner_visible,
-                );
+            if text.is_empty() { return; }
+            input.set(String::new());
+            if open_ext_if_slash(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx) {
+                return;
             }
+            send_prompt_to_agent(
+                text,
+                &prompt_tx,
+                &cancel_tx,
+                cancel_token,
+                &mut turns,
+                &mut loading,
+                &mut status,
+                &mut banner_visible,
+            );
             return;
         }
 
@@ -428,6 +490,10 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             view_turn_idx.set(None);
             expanded_tc.set(None);
             scroll_offset.set(0);
+
+            if open_ext_if_slash(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx) {
+                return;
+            }
 
             if loading.get() {
                 if queue.read().len() < MAX_QUEUE {
@@ -473,6 +539,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let cwd_snap      = working_dir.read().clone();
     let tokens        = token_total.get();
     let mode_str      = goose_mode.get().to_string();
+    let ext_snap      = ext_entries.read().clone();
+    let ext_open      = ext_visible.get();
 
     // Always return a single root View; use conditional #() blocks inside.
     element! {
@@ -563,6 +631,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         )
                     }))
 
+                    // Extension dialog
+                    #(ext_open.then(|| element! {
+                        ExtensionDialog(
+                            extensions: ext_snap.clone(),
+                            selected_idx: ext_idx.get(),
+                            width: term_width - 4,
+                        )
+                    }))
+
                     // History navigation indicator
                     #(is_history.then(|| element! {
                         View(flex_direction: FlexDirection::Column, width: term_width - 4) {
@@ -583,8 +660,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         }
                     }))
 
-                    // Input bar (hidden when permission/elicitation dialog is active)
-                    #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && props.initial_prompt.is_none()).then(|| element! {
+                    // Input bar (hidden when permission/elicitation/extension dialog is active)
+                    #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && !ext_open && props.initial_prompt.is_none()).then(|| element! {
                         InputBar(
                             value: input,
                             has_queued: !queue_snap.is_empty(),
@@ -594,6 +671,24 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 }
             }))
         }
+    }
+}
+
+// ── Helper: open extension dialog if text is "/ext" ──────────────────────────
+
+fn open_ext_if_slash(
+    text: &str,
+    ext_visible: &mut State<bool>,
+    ext_entries: &mut State<Vec<ExtensionEntry>>,
+    ext_idx: &mut State<usize>,
+) -> bool {
+    if text.trim() == "/ext" {
+        ext_entries.set(get_all_extensions());
+        ext_idx.set(0);
+        ext_visible.set(true);
+        true
+    } else {
+        false
     }
 }
 
