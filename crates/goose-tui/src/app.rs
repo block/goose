@@ -83,7 +83,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mut status         = hooks.use_state(|| "connecting…".to_string());
     let mut spin_idx       = hooks.use_state(|| 0usize);
     let mut anim_frame     = hooks.use_state(|| 0usize);
-    let mut banner_visible = hooks.use_state(|| true);
+    let mut banner_visible = hooks.use_state(|| false);
     let mut view_turn_idx  = hooks.use_state(|| None::<usize>); // None = latest
     let mut expanded_tc    = hooks.use_state(|| None::<String>);
     let mut scroll_offset  = hooks.use_state(|| 0i32);
