@@ -10,24 +10,28 @@ use std::sync::Arc;
 use anyhow::Result;
 use base64::Engine as _;
 use futures::StreamExt;
+use goose::action_required_manager::ActionRequiredManager;
 use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::{get_all_extensions, Config};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::permission::permission_confirmation::{Permission, PermissionConfirmation, PrincipalType};
 use goose::providers::create;
-use goose::session::session_manager::SessionType;
+use goose::session::session_manager::{SessionManager, SessionType};
 use rmcp::model::RawContent;
+use std::sync::Arc as StdArc;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-use crate::types::{AgentMsg, PermissionChoice, PermissionOption, PermissionReq, ToolCallInfo, ToolStatus};
+use crate::types::{AgentMsg, ElicitationReq, PermissionChoice, PermissionOption, PermissionReq, ToolCallInfo, ToolStatus};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
 pub struct AgentHandle {
     pub agent: Arc<Agent>,
     pub session_id: String,
+    pub working_dir: std::path::PathBuf,
+    pub session_manager: StdArc<SessionManager>,
 }
 
 // ── Initialisation ────────────────────────────────────────────────────────────
@@ -78,7 +82,19 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
         }
     }
 
-    Ok(AgentHandle { agent: Arc::new(agent), session_id })
+    // Read the session's working directory for display in the UI.
+    let working_dir = session_manager
+        .get_session(&session_id, false)
+        .await
+        .map(|s| s.working_dir)
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
+
+    Ok(AgentHandle {
+        agent: Arc::new(agent),
+        session_id,
+        working_dir,
+        session_manager,
+    })
 }
 
 // ── Agent processing loop ─────────────────────────────────────────────────────
@@ -95,7 +111,7 @@ pub async fn run_agent_loop(
     event_tx: mpsc::Sender<AgentMsg>,
     mut cancel_rx: mpsc::Receiver<CancellationToken>,
 ) {
-    let AgentHandle { agent, session_id } = handle;
+    let AgentHandle { agent, session_id, session_manager, .. } = handle;
 
     while let Some(prompt) = prompt_rx.recv().await {
         // Drain any stale tokens; keep the latest one sent for this turn.
@@ -126,6 +142,14 @@ pub async fn run_agent_loop(
         let _ = event_tx
             .send(AgentMsg::Finished { stop_reason: stop_reason.into() })
             .await;
+
+        // Query accumulated token usage for this session and send to UI.
+        if let Ok(session) = session_manager.get_session(&session_id, false).await {
+            let input  = session.accumulated_input_tokens.unwrap_or(0) as i64;
+            let output = session.accumulated_output_tokens.unwrap_or(0) as i64;
+            let total  = session.accumulated_total_tokens.unwrap_or(0) as i64;
+            let _ = event_tx.send(AgentMsg::TokenUsage { input, output, total }).await;
+        }
     }
 }
 
@@ -215,51 +239,54 @@ async fn handle_message_content(
         }
 
         MessageContent::ActionRequired(ar) => {
-            // Only handle ToolConfirmation; ignore Elicitation for now.
-            let (request_id, tool_title) = match &ar.data {
+            match &ar.data {
                 ActionRequiredData::ToolConfirmation { id, tool_name, .. } => {
-                    (id.clone(), tool_name.clone())
+                    let options = vec![
+                        PermissionOption { id: "allow_always".into(), label: "Always allow".into(), key: 'a' },
+                        PermissionOption { id: "allow_once".into(),   label: "Allow once".into(),   key: 'y' },
+                        PermissionOption { id: "deny_once".into(),    label: "Deny once".into(),    key: 'n' },
+                        PermissionOption { id: "deny_always".into(),  label: "Always deny".into(),  key: 'N' },
+                    ];
+                    let req = PermissionReq { tool_title: tool_name.clone(), options };
+                    let (reply_tx, reply_rx) = oneshot::channel::<PermissionChoice>();
+                    let _ = event_tx.send(AgentMsg::PermissionRequest(req, reply_tx)).await;
+
+                    let choice = reply_rx.await.unwrap_or(PermissionChoice::Cancelled);
+                    let permission = match choice {
+                        PermissionChoice::Selected(ref opt_id) => match opt_id.as_str() {
+                            "allow_always" => Permission::AlwaysAllow,
+                            "allow_once"   => Permission::AllowOnce,
+                            "deny_once"    => Permission::DenyOnce,
+                            "deny_always"  => Permission::AlwaysDeny,
+                            _              => Permission::Cancel,
+                        },
+                        PermissionChoice::Cancelled => Permission::Cancel,
+                    };
+                    agent.handle_confirmation(
+                        id.clone(),
+                        PermissionConfirmation { principal_type: PrincipalType::Tool, permission },
+                    ).await;
                 }
+
                 ActionRequiredData::Elicitation { id, message, .. } => {
-                    (id.clone(), message.clone())
+                    // Show a free-text input dialog; submit the response via
+                    // ActionRequiredManager (the proper elicitation path).
+                    let req = ElicitationReq { id: id.clone(), message: message.clone() };
+                    let (reply_tx, reply_rx) = oneshot::channel::<String>();
+                    let _ = event_tx.send(AgentMsg::ElicitationRequest(req, reply_tx)).await;
+
+                    let text = reply_rx.await.unwrap_or_default();
+                    let user_data = serde_json::Value::String(text);
+                    if let Err(e) = ActionRequiredManager::global()
+                        .submit_response(id.clone(), user_data)
+                        .await
+                    {
+                        warn!("Failed to submit elicitation response: {e}");
+                    }
                 }
-                ActionRequiredData::ElicitationResponse { .. } => return,
-            };
 
-            let options = vec![
-                PermissionOption { id: "allow_always".into(), label: "Always allow".into(), key: 'a' },
-                PermissionOption { id: "allow_once".into(),   label: "Allow once".into(),   key: 'y' },
-                PermissionOption { id: "deny_once".into(),    label: "Deny once".into(),    key: 'n' },
-                PermissionOption { id: "deny_always".into(),  label: "Always deny".into(),  key: 'N' },
-            ];
-
-            let req = PermissionReq { tool_title, options };
-            let (reply_tx, reply_rx) = oneshot::channel::<PermissionChoice>();
-            let _ = event_tx.send(AgentMsg::PermissionRequest(req, reply_tx)).await;
-
-            // Block this async task until the UI sends a reply.
-            let choice = reply_rx.await.unwrap_or(PermissionChoice::Cancelled);
-
-            let permission = match choice {
-                PermissionChoice::Selected(ref id) => match id.as_str() {
-                    "allow_always" => Permission::AlwaysAllow,
-                    "allow_once"   => Permission::AllowOnce,
-                    "deny_once"    => Permission::DenyOnce,
-                    "deny_always"  => Permission::AlwaysDeny,
-                    _              => Permission::Cancel,
-                },
-                PermissionChoice::Cancelled => Permission::Cancel,
-            };
-
-            agent
-                .handle_confirmation(
-                    request_id,
-                    PermissionConfirmation {
-                        principal_type: PrincipalType::Tool,
-                        permission,
-                    },
-                )
-                .await;
+                ActionRequiredData::ElicitationResponse { .. } => {}
+            }
         }
 
         // Thinking, system notifications, frontend tool requests — no UI

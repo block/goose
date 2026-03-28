@@ -17,6 +17,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::{build_agent, run_agent_loop};
+use crate::components::elicitation_dialog::ElicitationDialog;
 use crate::colors::*;
 use crate::components::{
     header::Header,
@@ -26,7 +27,10 @@ use crate::components::{
     turn_view::TurnView,
 };
 use crate::markdown::render as md;
-use crate::types::{AgentMsg, PendingReply, PermissionChoice, PermissionReq, Turn};
+use crate::types::{
+    AgentMsg, ElicitationReq, PendingElicitReply, PendingReply,
+    PermissionChoice, PermissionReq, Turn,
+};
 
 const MAX_QUEUE: usize = 10;
 
@@ -62,6 +66,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mut pending_perm   = hooks.use_state(|| None::<PermissionReq>);
     let mut perm_idx       = hooks.use_state(|| 0usize);
     let pending_reply      = hooks.use_state(PendingReply::default);
+
+    // Elicitation dialog state
+    let mut pending_elicit    = hooks.use_state(|| None::<ElicitationReq>);
+    let mut elicit_input      = hooks.use_state(String::new);
+    let pending_elicit_reply  = hooks.use_state(PendingElicitReply::default);
+
+    // Working directory + token usage (populated after agent init / each turn)
+    let mut working_dir = hooks.use_state(|| "".to_string());
+    let mut token_total = hooks.use_state(|| 0i64);
 
     // Prompt sender — set once the agent is ready.
     // Arc so it's Clone + 'static inside State.
@@ -115,6 +128,16 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             Ok(handle) => {
                 loading.set(false);
                 status.set("ready".to_string());
+
+                // Show the session's working directory in the header.
+                let cwd = &handle.working_dir;
+                let home = dirs::home_dir().unwrap_or_default();
+                let display = if let Ok(rel) = cwd.strip_prefix(&home) {
+                    format!("~/{}", rel.display())
+                } else {
+                    cwd.display().to_string()
+                };
+                working_dir.set(display);
 
                 // Spawn the heavy worker on the tokio threadpool.
                 tokio::spawn(run_agent_loop(handle, prx, etx, crx));
@@ -171,6 +194,16 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     pending_perm.set(Some(req));
                 }
 
+                AgentMsg::ElicitationRequest(req, reply_tx) => {
+                    pending_elicit_reply.read().put(reply_tx);
+                    elicit_input.set(String::new());
+                    pending_elicit.set(Some(req));
+                }
+
+                AgentMsg::TokenUsage { total, .. } => {
+                    token_total.set(total);
+                }
+
                 AgentMsg::Finished { stop_reason } => {
                     // agent_text is already rendered incrementally; nothing to do here.
 
@@ -217,7 +250,13 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         if code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)
             || code == KeyCode::Esc
         {
-            if pending_perm.read().is_some() {
+            if pending_elicit.read().is_some() {
+                // Dismiss elicitation with empty response.
+                if let Some(tx) = pending_elicit_reply.read().take() {
+                    let _ = tx.send(String::new());
+                }
+                pending_elicit.set(None);
+            } else if pending_perm.read().is_some() {
                 // Cancel the pending permission.
                 if let Some(tx) = pending_reply.read().take() {
                     let _ = tx.send(PermissionChoice::Cancelled);
@@ -260,6 +299,19 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 }
                 _ => {}
             }
+            return;
+        }
+
+        // Elicitation dialog: Enter submits the typed response.
+        if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT)
+            && pending_elicit.read().is_some()
+        {
+            let text = elicit_input.read().trim().to_string();
+            if let Some(tx) = pending_elicit_reply.read().take() {
+                let _ = tx.send(text);
+            }
+            pending_elicit.set(None);
+            elicit_input.set(String::new());
             return;
         }
 
@@ -375,8 +427,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
     let queue_snap    = queue.read().clone();
     let perm_snap     = pending_perm.read().clone();
+    let elicit_snap   = pending_elicit.read().clone();
     let expanded_snap = expanded_tc.read().clone();
     let banner        = banner_visible.get();
+    let cwd_snap      = working_dir.read().clone();
+    let tokens        = token_total.get();
 
     // Always return a single root View; use conditional #() blocks inside.
     element! {
@@ -410,6 +465,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         loading: loading.get(),
                         spin_idx: spin_idx.get(),
                         turn_info: turn_info,
+                        working_dir: cwd_snap,
+                        token_total: tokens,
                         width: term_width - 4,
                     )
 
@@ -455,6 +512,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         )
                     }))
 
+                    // Elicitation dialog (free-text input from agent)
+                    #(elicit_snap.clone().map(|req| element! {
+                        ElicitationDialog(
+                            request: Some(req),
+                            value: elicit_input,
+                            width: term_width - 4,
+                        )
+                    }))
+
                     // History navigation indicator
                     #(is_history.then(|| element! {
                         View(flex_direction: FlexDirection::Column, width: term_width - 4) {
@@ -475,8 +541,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         }
                     }))
 
-                    // Input bar
-                    #((!is_history && perm_snap.is_none() && props.initial_prompt.is_none()).then(|| element! {
+                    // Input bar (hidden when permission/elicitation dialog is active)
+                    #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && props.initial_prompt.is_none()).then(|| element! {
                         InputBar(
                             value: input,
                             has_queued: !queue_snap.is_empty(),

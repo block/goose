@@ -75,8 +75,18 @@ pub enum AgentMsg {
     /// Agent needs permission; the `Sender` must be resolved before the agent
     /// proceeds.  The UI stores it and sends a reply once the user decides.
     PermissionRequest(PermissionReq, oneshot::Sender<PermissionChoice>),
+    /// Agent needs free-text input from the user (elicitation).
+    ElicitationRequest(ElicitationReq, oneshot::Sender<String>),
     Finished { stop_reason: String },
+    /// Token usage after a completed turn.
+    TokenUsage { input: i64, output: i64, total: i64 },
     Error(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct ElicitationReq {
+    pub id: String,
+    pub message: String,
 }
 
 #[derive(Clone, Debug)]
@@ -111,6 +121,20 @@ impl PendingReply {
     }
 
     pub fn take(&self) -> Option<oneshot::Sender<PermissionChoice>> {
+        self.0.lock().unwrap().take()
+    }
+}
+
+/// Same pattern for elicitation (free-text) reply.
+#[derive(Clone, Default)]
+pub struct PendingElicitReply(pub Arc<Mutex<Option<oneshot::Sender<String>>>>);
+
+impl PendingElicitReply {
+    pub fn put(&self, tx: oneshot::Sender<String>) {
+        *self.0.lock().unwrap() = Some(tx);
+    }
+
+    pub fn take(&self) -> Option<oneshot::Sender<String>> {
         self.0.lock().unwrap().take()
     }
 }
