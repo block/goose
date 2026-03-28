@@ -15,6 +15,12 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
+    // Ensure the parent directory exists (e.g. on a clean Windows profile where
+    // the goose config directory has not been created yet).
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -2036,5 +2042,23 @@ mod tests {
                 "Config::new on Windows should use file-based secret storage"
             );
         }
+    }
+
+    #[test]
+    fn test_set_secret_creates_parent_directory() -> Result<(), ConfigError> {
+        let dir = TempDir::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        // Point secrets to a path whose parent does not exist yet.
+        let secrets_path = dir.path().join("nonexistent_subdir").join("secrets.yaml");
+        assert!(!secrets_path.parent().unwrap().exists());
+
+        let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
+        config.set_secret("api_key", &"secret_value")?;
+
+        assert!(secrets_path.exists());
+        let value: String = config.get_secret("api_key")?;
+        assert_eq!(value, "secret_value");
+
+        Ok(())
     }
 }
