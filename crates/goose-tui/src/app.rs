@@ -308,7 +308,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         }
 
         // Enter — submit from splash screen (banner visible).
-        if code == KeyCode::Enter && banner_visible.get() {
+        // Shift+Enter is handled by TextInput (inserts newline); don't submit.
+        if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && banner_visible.get() {
             let text = input.read().trim().to_string();
             if !text.is_empty() {
                 input.set(String::new());
@@ -327,7 +328,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         }
 
         // Enter — submit from input bar.
-        if code == KeyCode::Enter && !banner_visible.get() {
+        // Shift+Enter is handled by TextInput (inserts newline); don't submit.
+        if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && !banner_visible.get() {
             let text = input.read().trim().to_string();
             if text.is_empty() { return; }
             input.set(String::new());

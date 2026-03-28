@@ -15,6 +15,9 @@ pub fn InputBar(props: &InputBarProps) -> impl Into<AnyElement<'static>> {
         return element!(View);
     };
 
+    // Grow the text box to fit the current line count (at least 1).
+    let line_count = value.read().lines().count().max(1) as u16;
+
     element! {
         View(
             flex_direction: FlexDirection::Column,
@@ -25,13 +28,14 @@ pub fn InputBar(props: &InputBarProps) -> impl Into<AnyElement<'static>> {
             padding_left: 1,
             padding_right: 1,
         ) {
-            View(flex_direction: FlexDirection::Row) {
+            View(flex_direction: FlexDirection::Row, height: line_count) {
                 Text(content: "❯ ", color: CRANBERRY, weight: Weight::Bold)
-                View(flex_grow: 1.0) {
+                View(flex_grow: 1.0, height: line_count) {
                     TextInput(
                         has_focus: true,
                         value: value.to_string(),
                         on_change: move |v| value.set(v),
+                        multiline: true,
                     )
                 }
             }
@@ -42,6 +46,7 @@ pub fn InputBar(props: &InputBarProps) -> impl Into<AnyElement<'static>> {
                     italic: true,
                 )
             }))
+            Text(content: "shift+enter for newline", color: TEXT_DIM, italic: true)
         }
     }
 }
