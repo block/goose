@@ -961,6 +961,56 @@ impl Config {
         Ok(())
     }
 
+    /// Copy all secrets from the system keyring into the file-based storage.
+    ///
+    /// Reads the keyring directly (regardless of which backend is currently active)
+    /// and writes the result to `~/.config/goose/secrets.yaml`.  Returns the number
+    /// of key/value pairs written.  Useful when switching to file-based storage or
+    /// when the keyring is unavailable in CI / container environments.
+    pub fn export_secrets_to_file(&self) -> Result<usize, ConfigError> {
+        // Always read from the real keyring, not the current backend.
+        let values = match self.handle_keyring_operation(
+            |entry| entry.get_password(),
+            KEYRING_SERVICE,
+            None,
+        ) {
+            Ok(content) => serde_json::from_str::<HashMap<String, Value>>(&content)?,
+            // No entry yet — nothing to export.
+            Err(ConfigError::KeyringError(ref msg))
+                if msg.contains("No entry found") || msg.contains("No matching entry found") =>
+            {
+                HashMap::new()
+            }
+            Err(e) => return Err(e),
+        };
+        let n = values.len();
+        self.write_secrets_to_file(&values)?;
+        Ok(n)
+    }
+
+    /// Copy all secrets from the file-based storage into the system keyring.
+    ///
+    /// Reads `~/.config/goose/secrets.yaml` directly (regardless of which backend
+    /// is currently active) and writes the result into the keyring.  Returns the
+    /// number of key/value pairs written.  Useful when switching back to keyring
+    /// storage after having used file-based storage.
+    pub fn import_secrets_from_file(&self) -> Result<usize, ConfigError> {
+        let path = Self::secrets_file_path();
+        let values = self.read_secrets_from_file(&path)?;
+        let n = values.len();
+        if n == 0 {
+            return Ok(0);
+        }
+        let content = serde_json::to_string(&values)?;
+        self.handle_keyring_operation(
+            move |entry| entry.set_password(&content),
+            KEYRING_SERVICE,
+            Some(&values),
+        )?;
+        self.invalidate_secrets_cache();
+        Ok(n)
+    }
+
     pub fn invalidate_secrets_cache(&self) {
         let mut cache = self.secrets_cache.lock().unwrap();
         *cache = None;
