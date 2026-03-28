@@ -479,20 +479,31 @@ impl GooseAcpAgent {
         let skip_developer = acp_developer.is_some();
         let sid_str = session_id.map(|s| s.0.to_string());
 
-        for ext in extensions {
-            if skip_developer && ext.name() == "developer" {
-                continue;
-            }
-            let name = ext.name().to_string();
-            match agent
-                .extension_manager
-                .add_extension(ext, None, None, sid_str.as_deref())
-                .await
-            {
-                Ok(_) => info!(extension = %name, "extension loaded"),
-                Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
-            }
+        // Filter out the developer extension (handled separately via ACP client)
+        if skip_developer {
+            extensions.retain(|ext| ext.name() != "developer");
         }
+
+        // Load all extensions in parallel
+        let ext_manager = &agent.extension_manager;
+        let extension_futures = extensions
+            .into_iter()
+            .map(|ext| {
+                let ext_manager = Arc::clone(ext_manager);
+                let sid = sid_str.clone();
+                async move {
+                    let name = ext.name().to_string();
+                    match ext_manager
+                        .add_extension(ext, None, None, sid.as_deref())
+                        .await
+                    {
+                        Ok(_) => info!(extension = %name, "extension loaded"),
+                        Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+        futures::future::join_all(extension_futures).await;
 
         if let Some((client, config)) = acp_developer {
             let info = client.get_info().cloned();
@@ -932,10 +943,12 @@ impl GooseAcpAgent {
     }
 
     async fn add_mcp_extensions(
-        agent: &Agent,
+        agent: &Arc<Agent>,
         mcp_servers: Vec<McpServer>,
         session_id: &str,
     ) -> Result<(), sacp::Error> {
+        // Phase 1: Convert all configs sequentially (fast, pure computation, fail-fast)
+        let mut configs = Vec::with_capacity(mcp_servers.len());
         for mcp_server in mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
                 Ok(c) => c,
@@ -943,10 +956,22 @@ impl GooseAcpAgent {
                     return Err(sacp::Error::invalid_params().data(msg));
                 }
             };
-            let name = config.name().to_string();
-            if let Err(e) = agent.add_extension(config, session_id).await {
-                return Err(sacp::Error::internal_error()
-                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
+            configs.push(config);
+        }
+
+        if configs.is_empty() {
+            return Ok(());
+        }
+
+        // Phase 2: Load all extensions in parallel, persist state once
+        let results = agent.add_extensions_bulk(configs, session_id).await;
+        for result in &results {
+            if !result.success {
+                let error_msg = result.error.as_deref().unwrap_or("unknown error");
+                return Err(sacp::Error::internal_error().data(format!(
+                    "Failed to add MCP server '{}': {}",
+                    result.name, error_msg
+                )));
             }
         }
         Ok(())
