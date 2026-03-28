@@ -4668,7 +4668,9 @@ name = "goose-tui"
 version = "1.28.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "clap",
+ "dirs 5.0.1",
  "futures",
  "goose",
  "goose-mcp",

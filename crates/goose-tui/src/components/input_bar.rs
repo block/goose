@@ -46,7 +46,10 @@ pub fn InputBar(props: &InputBarProps) -> impl Into<AnyElement<'static>> {
                     italic: true,
                 )
             }))
-            Text(content: "shift+enter for newline", color: TEXT_DIM, italic: true)
+            View(flex_direction: FlexDirection::Row, gap: 2) {
+                Text(content: "shift+enter for newline", color: TEXT_DIM, italic: true)
+                Text(content: "@path to attach file/image", color: TEXT_DIM, italic: true)
+            }
         }
     }
 }
