@@ -12,6 +12,9 @@ pub struct TurnViewProps {
     pub active: bool,
     pub status: String,
     pub width: u16,
+    /// Lines scrolled up from the bottom (unused here; passed to allow future
+    /// margin-top offset driving, but indicators are rendered by the parent).
+    pub scroll_offset: i32,
 }
 
 #[component]
