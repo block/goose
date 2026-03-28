@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use iocraft::prelude::*;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent::{build_agent, run_agent_loop};
 use crate::colors::*;
@@ -70,6 +71,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     // Queued messages (sent while agent is busy).
     let mut queue = hooks.use_state(VecDeque::<String>::new);
 
+    // Cancellation token — replaced each time a new agent turn starts.
+    // Arc so it's Clone + 'static in State.
+    let cancel_token: State<Arc<CancellationToken>> =
+        hooks.use_state(|| Arc::new(CancellationToken::new()));
+
+    // Channel sender for pushing cancel tokens to the agent worker.
+    let mut cancel_tx: State<Option<Arc<mpsc::Sender<CancellationToken>>>> =
+        hooks.use_state(|| None);
+
     // ── spinner tick ──────────────────────────────────────────────────────────
     hooks.use_future(async move {
         loop {
@@ -88,8 +98,12 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         let (ptx, prx) = mpsc::channel::<String>(8);
         // Channel for receiving events from the agent worker.
         let (etx, mut erx) = mpsc::channel::<AgentMsg>(128);
+        // Channel for sending cancellation tokens (one per turn).
+        let (ctx, crx) = mpsc::channel::<CancellationToken>(4);
+        // Store cancel sender so the keyboard handler can reach it.
+        cancel_tx.set(Some(Arc::new(ctx)));
 
-        // Store sender so the submit handler can reach it.
+        // Store prompt sender so the submit handler can reach it.
         prompt_tx.set(Some(Arc::new(ptx)));
 
         match build_agent(session_id_hint).await {
@@ -103,13 +117,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 status.set("ready".to_string());
 
                 // Spawn the heavy worker on the tokio threadpool.
-                tokio::spawn(run_agent_loop(handle, prx, etx));
+                tokio::spawn(run_agent_loop(handle, prx, etx, crx));
 
                 // If an --text prompt was passed, fire it immediately.
                 if let Some(ref text) = initial_prompt {
                     send_prompt_to_agent(
                         text.clone(),
                         &prompt_tx,
+                        &cancel_tx,
+                        cancel_token,
                         &mut turns,
                         &mut loading,
                         &mut status,
@@ -125,7 +141,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 AgentMsg::TextChunk(chunk) => {
                     let mut t = turns.read().clone();
                     if let Some(last) = t.last_mut() {
-                        last.agent_text.push_str(&chunk);
+                        last.agent_raw.push_str(&chunk);
+                        last.agent_text = md(&last.agent_raw);
                     }
                     turns.set(t);
                 }
@@ -155,12 +172,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 }
 
                 AgentMsg::Finished { stop_reason } => {
-                    // Render markdown in the completed turn.
-                    let mut t = turns.read().clone();
-                    if let Some(last) = t.last_mut() {
-                        last.agent_text = md(&last.agent_text);
-                    }
-                    turns.set(t);
+                    // agent_text is already rendered incrementally; nothing to do here.
 
                     loading.set(false);
                     status.set(if stop_reason == "end_turn" {
@@ -178,6 +190,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         send_prompt_to_agent(
                             text,
                             &prompt_tx,
+                            &cancel_tx,
+                            cancel_token,
                             &mut turns,
                             &mut loading,
                             &mut status,
@@ -209,6 +223,10 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     let _ = tx.send(PermissionChoice::Cancelled);
                 }
                 pending_perm.set(None);
+            } else if loading.get() {
+                // Cancel the running agent turn instead of exiting.
+                cancel_token.read().cancel();
+                status.set("stopping…".to_string());
             } else {
                 should_exit.set(true);
             }
@@ -297,6 +315,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 send_prompt_to_agent(
                     text,
                     &prompt_tx,
+                    &cancel_tx,
+                    cancel_token,
                     &mut turns,
                     &mut loading,
                     &mut status,
@@ -325,6 +345,8 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 send_prompt_to_agent(
                     text,
                     &prompt_tx,
+                    &cancel_tx,
+                    cancel_token,
                     &mut turns,
                     &mut loading,
                     &mut status,
@@ -397,6 +419,13 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         }
                     }))
 
+                    // Scroll indicator — content hidden above
+                    #((scroll_offset.get() > 0).then(|| element! {
+                        View(justify_content: JustifyContent::Center, width: term_width - 4) {
+                            Text(content: "▲ scroll up for more ▲", color: TEXT_DIM, italic: true)
+                        }
+                    }))
+
                     // Agent response + tool calls (scrollable)
                     View(flex_grow: 1.0, overflow_y: Overflow::Hidden) {
                         TurnView(
@@ -405,8 +434,16 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                             active: !is_history && loading.get(),
                             status: status.to_string(),
                             width: term_width - 4,
+                            scroll_offset: scroll_offset.get(),
                         )
                     }
+
+                    // Scroll indicator — content hidden below (we've scrolled up)
+                    #((scroll_offset.get() > 0).then(|| element! {
+                        View(justify_content: JustifyContent::Center, width: term_width - 4) {
+                            Text(content: "▼ scroll down for more ▼", color: TEXT_DIM, italic: true)
+                        }
+                    }))
 
                     // Permission dialog (injected inline)
                     #(perm_snap.clone().map(|req| element! {
@@ -455,12 +492,22 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 fn send_prompt_to_agent(
     text: String,
     prompt_tx: &State<Option<Arc<mpsc::Sender<String>>>>,
+    cancel_tx: &State<Option<Arc<mpsc::Sender<CancellationToken>>>>,
+    mut cancel_token: State<Arc<CancellationToken>>,
     turns: &mut State<Vec<Turn>>,
     loading: &mut State<bool>,
     status: &mut State<String>,
     banner_visible: &mut State<bool>,
 ) {
     let Some(tx) = prompt_tx.read().clone() else { return };
+
+    // Create a fresh cancellation token for this turn and share it with
+    // the agent worker so it can be cancelled mid-stream.
+    let token = CancellationToken::new();
+    if let Some(ctx) = cancel_tx.read().clone() {
+        let _ = ctx.try_send(token.clone());
+    }
+    cancel_token.set(Arc::new(token));
 
     let mut t = turns.read().clone();
     t.push(Turn { user_text: text.clone(), ..Default::default() });
@@ -471,7 +518,6 @@ fn send_prompt_to_agent(
     status.set("thinking…".to_string());
 
     // Fire-and-forget: the channel is buffered.
-    // Use try_send since we don't want to block the render thread.
     if tx.try_send(text).is_err() {
         loading.set(false);
         status.set("error: agent channel full".to_string());
