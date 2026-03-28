@@ -90,6 +90,8 @@ path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
 tower = "0.5.2"
+serial_test = { workspace = true }
+tempfile = { workspace = true }
 
 [package.metadata.cargo-machete]
 ignored = [
