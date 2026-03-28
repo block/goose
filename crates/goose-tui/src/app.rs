@@ -596,7 +596,13 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         // Enter — submit from splash screen (banner visible).
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
         if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && banner_visible.get() {
-            let text = input.read().trim().to_string();
+            let raw = input.read().clone();
+            let matches = slash_completions(&raw);
+            let text = if !matches.is_empty() {
+                matches[completion_idx.get() % matches.len()].0.clone()
+            } else {
+                raw.trim().to_string()
+            };
             if text.is_empty() { return; }
             input.set(String::new());
             completion_idx.set(0);
@@ -619,7 +625,13 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
         // Enter — submit from input bar.
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
         if code == KeyCode::Enter && !modifiers.contains(KeyModifiers::SHIFT) && !banner_visible.get() {
-            let text = input.read().trim().to_string();
+            let raw = input.read().clone();
+            let matches = slash_completions(&raw);
+            let text = if !matches.is_empty() {
+                matches[completion_idx.get() % matches.len()].0.clone()
+            } else {
+                raw.trim().to_string()
+            };
             if text.is_empty() { return; }
             input.set(String::new());
             completion_idx.set(0);
