@@ -505,6 +505,28 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
+        // Reset completion selection when the user types or deletes (narrows/widens the list).
+        if matches!(code, KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete) {
+            completion_idx.set(0);
+        }
+
+        // Slash-completion ↑/↓ navigation (captures before scroll when popup is visible).
+        {
+            let cur_input = input.read().clone();
+            let matches = slash_completions(&cur_input);
+            if !matches.is_empty() && !modifiers.contains(KeyModifiers::SHIFT) {
+                let n = matches.len();
+                if code == KeyCode::Up {
+                    completion_idx.set((completion_idx.get() + n - 1) % n);
+                    return;
+                }
+                if code == KeyCode::Down {
+                    completion_idx.set((completion_idx.get() + 1) % n);
+                    return;
+                }
+            }
+        }
+
         // Scroll (↑↓ without shift).
         if code == KeyCode::Up && !modifiers.contains(KeyModifiers::SHIFT) {
             scroll_offset.set(scroll_offset.get() + 3);
@@ -532,15 +554,14 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
-        // Tab — complete slash command if active, otherwise expand/collapse tool call.
+        // Tab — complete highlighted slash command if popup active, else expand/collapse tool call.
         if code == KeyCode::Tab {
             let cur_input = input.read().clone();
             let matches = slash_completions(&cur_input);
             if !matches.is_empty() {
                 let idx = completion_idx.get() % matches.len();
-                let completed = matches[idx].0.clone();
-                input.set(completed);
-                completion_idx.set((idx + 1) % matches.len());
+                input.set(matches[idx].0.clone());
+                // Keep completion_idx so the same item stays highlighted.
                 return;
             }
             let t = turns.read();
