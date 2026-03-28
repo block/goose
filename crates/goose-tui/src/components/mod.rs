@@ -1,5 +1,6 @@
 pub mod elicitation_dialog;
 pub mod extension_dialog;
+pub mod model_dialog;
 pub mod header;
 pub mod input_bar;
 pub mod permission_dialog;

@@ -18,10 +18,14 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::Agent;
 use goose::config::{get_all_extensions, set_extension_enabled, ExtensionEntry, GooseMode};
+use goose::model::ModelConfig;
+use goose::providers::base::ModelInfo;
+use goose::providers::{create as create_provider, providers as list_providers};
 
 use crate::agent::{build_agent, run_agent_loop};
 use crate::components::elicitation_dialog::ElicitationDialog;
 use crate::components::extension_dialog::ExtensionDialog;
+use crate::components::model_dialog::ModelDialog;
 use crate::colors::*;
 use crate::components::{
     header::Header,
@@ -43,6 +47,7 @@ const MAX_QUEUE: usize = 10;
 enum CtrlMsg {
     SetMode(GooseMode),
     ToggleExt(ExtensionEntry),
+    SwitchModel(String),
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -116,6 +121,13 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mut ext_entries  = hooks.use_state(Vec::<ExtensionEntry>::new);
     let mut ext_idx      = hooks.use_state(|| 0usize);
 
+    // Model dialog state.
+    let mut model_visible   = hooks.use_state(|| false);
+    let mut model_entries   = hooks.use_state(Vec::<ModelInfo>::new);
+    let mut model_idx       = hooks.use_state(|| 0usize);
+    let mut current_model   = hooks.use_state(String::new);
+    let mut provider_name_st = hooks.use_state(String::new);
+
     // ── spinner tick ──────────────────────────────────────────────────────────
     hooks.use_future(async move {
         loop {
@@ -156,6 +168,23 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     }
                     // Refresh extension list in dialog.
                     ext_entries.set(get_all_extensions());
+                }
+                CtrlMsg::SwitchModel(model_name) => {
+                    let pname = provider_name_st.read().clone();
+                    if let Some(agent) = maybe_agent {
+                        let extensions = agent.get_extension_configs().await;
+                        if let Ok(model_cfg) = ModelConfig::new(&model_name)
+                            .map(|c| c.with_canonical_limits(&pname))
+                        {
+                            if let Ok(new_provider) =
+                                create_provider(&pname, model_cfg, extensions).await
+                            {
+                                if agent.update_provider(new_provider, &sid).await.is_ok() {
+                                    current_model.set(model_name);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -202,6 +231,22 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 let initial_mode = handle.agent.goose_mode().await;
                 goose_mode.set(initial_mode);
                 session_id_st.set(handle.session_id.clone());
+
+                // Store provider name + current model; pre-load known models for /model dialog.
+                if let Ok(prov) = handle.agent.provider().await {
+                    let pname = prov.get_name().to_string();
+                    let mname = prov.get_model_config().model_name.clone();
+                    let all_providers = list_providers().await;
+                    let known = all_providers
+                        .into_iter()
+                        .find(|(meta, _)| meta.name == pname)
+                        .map(|(meta, _)| meta.known_models)
+                        .unwrap_or_default();
+                    provider_name_st.set(pname);
+                    current_model.set(mname);
+                    model_entries.set(known);
+                }
+
                 agent_arc.set(Some(handle.agent.clone()));
 
                 // Spawn the heavy worker on the tokio threadpool.
@@ -363,6 +408,33 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
+        // Model dialog navigation.
+        if model_visible.get() {
+            let n = model_entries.read().len();
+            match code {
+                KeyCode::Esc => {
+                    model_visible.set(false);
+                }
+                KeyCode::Up => {
+                    if n > 0 { model_idx.set((model_idx.get() + n - 1) % n); }
+                }
+                KeyCode::Down => {
+                    if n > 0 { model_idx.set((model_idx.get() + 1) % n); }
+                }
+                KeyCode::Enter => {
+                    let entries = model_entries.read().clone();
+                    if let Some(info) = entries.get(model_idx.get()).cloned() {
+                        if let Some(tx) = ctrl_tx_st.read().clone() {
+                            let _ = tx.try_send(CtrlMsg::SwitchModel(info.name));
+                        }
+                    }
+                    model_visible.set(false);
+                }
+                _ => {}
+            }
+            return;
+        }
+
         // Ctrl-M — cycle goose mode.
         if code == KeyCode::Char('m') && modifiers.contains(KeyModifiers::CONTROL) {
             let next = cycle_mode(goose_mode.get());
@@ -465,7 +537,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             let text = input.read().trim().to_string();
             if text.is_empty() { return; }
             input.set(String::new());
-            if open_ext_if_slash(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx) {
+            if check_slash_command(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
                 return;
             }
             send_prompt_to_agent(
@@ -491,7 +563,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             expanded_tc.set(None);
             scroll_offset.set(0);
 
-            if open_ext_if_slash(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx) {
+            if check_slash_command(&text, &mut ext_visible, &mut ext_entries, &mut ext_idx, &mut model_visible, &mut model_idx) {
                 return;
             }
 
@@ -541,6 +613,9 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mode_str      = goose_mode.get().to_string();
     let ext_snap      = ext_entries.read().clone();
     let ext_open      = ext_visible.get();
+    let model_snap    = model_entries.read().clone();
+    let model_open    = model_visible.get();
+    let cur_model_snap = current_model.read().clone();
 
     // Always return a single root View; use conditional #() blocks inside.
     element! {
@@ -631,6 +706,16 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         )
                     }))
 
+                    // Model switcher dialog
+                    #(model_open.then(|| element! {
+                        ModelDialog(
+                            models: model_snap.clone(),
+                            current_model: cur_model_snap.clone(),
+                            selected_idx: model_idx.get(),
+                            width: term_width - 4,
+                        )
+                    }))
+
                     // Extension dialog
                     #(ext_open.then(|| element! {
                         ExtensionDialog(
@@ -661,7 +746,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     }))
 
                     // Input bar (hidden when permission/elicitation/extension dialog is active)
-                    #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && !ext_open && props.initial_prompt.is_none()).then(|| element! {
+                    #((!is_history && perm_snap.is_none() && elicit_snap.is_none() && !ext_open && !model_open && props.initial_prompt.is_none()).then(|| element! {
                         InputBar(
                             value: input,
                             has_queued: !queue_snap.is_empty(),
@@ -674,21 +759,30 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     }
 }
 
-// ── Helper: open extension dialog if text is "/ext" ──────────────────────────
+// ── Helper: check slash commands (sync — called from keyboard handler) ────────
 
-fn open_ext_if_slash(
+fn check_slash_command(
     text: &str,
     ext_visible: &mut State<bool>,
     ext_entries: &mut State<Vec<ExtensionEntry>>,
     ext_idx: &mut State<usize>,
+    model_visible: &mut State<bool>,
+    model_idx: &mut State<usize>,
 ) -> bool {
-    if text.trim() == "/ext" {
-        ext_entries.set(get_all_extensions());
-        ext_idx.set(0);
-        ext_visible.set(true);
-        true
-    } else {
-        false
+    match text.trim() {
+        "/ext" => {
+            ext_entries.set(get_all_extensions());
+            ext_idx.set(0);
+            ext_visible.set(true);
+            true
+        }
+        "/model" => {
+            // model_entries was pre-loaded at init; just open the dialog.
+            model_idx.set(0);
+            model_visible.set(true);
+            true
+        }
+        _ => false,
     }
 }
 

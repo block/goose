@@ -51,6 +51,7 @@ pub fn InputBar(props: &InputBarProps) -> impl Into<AnyElement<'static>> {
                 Text(content: "@path to attach file/image", color: TEXT_DIM, italic: true)
                 Text(content: "^M cycle mode", color: TEXT_DIM, italic: true)
                 Text(content: "/ext extensions", color: TEXT_DIM, italic: true)
+                Text(content: "/model switch model", color: TEXT_DIM, italic: true)
             }
         }
     }
