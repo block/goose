@@ -4412,7 +4412,7 @@ dependencies = [
  "pem",
  "pkcs1",
  "pkcs8",
- "pulldown-cmark",
+ "pulldown-cmark 0.13.3",
  "rand 0.8.5",
  "rayon",
  "regex",
@@ -4665,7 +4665,7 @@ dependencies = [
 
 [[package]]
 name = "goose-tui"
-version = "1.28.0"
+version = "1.29.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
