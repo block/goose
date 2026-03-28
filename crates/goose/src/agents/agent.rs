@@ -36,6 +36,7 @@ use crate::conversation::message::{
     ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::hooks::Hooks;
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -152,6 +153,10 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
+
+    /// Persists across turns so ContextFill hooks fire once per threshold crossing,
+    /// not on every turn while above the threshold.
+    pub(super) hook_context_fill_state: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -250,6 +255,9 @@ impl Agent {
                 provider.clone(),
             ),
             container: Mutex::new(None),
+            hook_context_fill_state: Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         }
     }
 
@@ -408,15 +416,51 @@ impl Agent {
     async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
-        request_to_response_map: &mut HashMap<String, Message>,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         session: &Session,
+        hooks: &Hooks,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
         // Handle pre-approved and read-only tools
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
+                let invocation = crate::hooks::HookInvocation::pre_tool_use(
+                    session.id.clone(),
+                    tool_call.name.to_string(),
+                    serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::Value::Null),
+                    session.working_dir.to_string_lossy().to_string(),
+                );
+                let outcome = hooks
+                    .run(
+                        invocation,
+                        &self.extension_manager,
+                        &session.working_dir,
+                        cancel_token.clone().unwrap_or_default(),
+                    )
+                    .await
+                    .unwrap_or_default();
+                if outcome.blocked {
+                    let error_result = Err(rmcp::model::ErrorData::new(
+                        rmcp::model::ErrorCode::INTERNAL_ERROR,
+                        outcome
+                            .reason
+                            .as_deref()
+                            .unwrap_or("Tool execution blocked by hook")
+                            .to_string(),
+                        None,
+                    ));
+                    tool_futures.push((
+                        request.id.clone(),
+                        tool_stream(
+                            Box::new(stream::empty()),
+                            futures::future::ready(error_result),
+                        ),
+                    ));
+                    continue;
+                }
+
                 let (req_id, tool_result) = self
                     .dispatch_tool_call(
                         tool_call,
@@ -443,17 +487,69 @@ impl Agent {
             }
         }
 
-        Self::handle_denied_tools(permission_check_result, request_to_response_map);
+        Self::handle_denied_tools(permission_check_result, request_to_response_map).await;
         Ok(tool_futures)
     }
 
-    fn handle_denied_tools(
+    async fn inject_hook_context(
+        session_id: &str,
+        context: String,
+        session_manager: &SessionManager,
+        conversation: &mut Conversation,
+    ) -> Result<()> {
+        let msg = Message::user()
+            .with_text(context)
+            .with_visibility(false, true);
+        session_manager.add_message(session_id, &msg).await?;
+        conversation.push(msg);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn run_post_compact_hook(
+        &self,
+        hooks: &Hooks,
+        session_id: &str,
+        pre_compact_len: usize,
+        post_compact_len: usize,
+        manual: bool,
+        working_dir: &std::path::Path,
+        session_manager: &SessionManager,
+        conversation: &mut Conversation,
+        cancel_token: CancellationToken,
+    ) -> Result<()> {
+        let invocation = crate::hooks::HookInvocation::post_compact(
+            session_id.to_string(),
+            pre_compact_len,
+            post_compact_len,
+            manual,
+            working_dir.to_string_lossy().to_string(),
+        );
+        if let Ok(outcome) = hooks
+            .run(
+                invocation,
+                &self.extension_manager,
+                working_dir,
+                cancel_token,
+            )
+            .await
+        {
+            if let Some(context) = outcome.context {
+                Self::inject_hook_context(session_id, context, session_manager, conversation)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_denied_tools(
         permission_check_result: &PermissionCheckResult,
-        request_to_response_map: &mut HashMap<String, Message>,
+        request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
     ) {
         for request in &permission_check_result.denied {
-            if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                response.add_tool_response_with_metadata(
+            if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                let mut response = response_msg.lock().await;
+                *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
                     Ok(CallToolResult::error(vec![rmcp::model::Content::text(
                         DECLINED_RESPONSE,
@@ -1026,6 +1122,8 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
+        let hooks = Hooks::load(&session.working_dir, self.hook_context_fill_state.clone());
+
         let needs_auto_compact = check_if_compaction_needed(
             self.provider().await?.as_ref(),
             &conversation,
@@ -1065,6 +1163,21 @@ impl Agent {
                     )
                 );
 
+                let invocation = crate::hooks::HookInvocation::pre_compact(
+                    session_config.id.clone(),
+                    conversation_to_compact.messages().len(),
+                    false,
+                    session.working_dir.to_string_lossy().to_string(),
+                );
+                let _ = hooks
+                    .run(
+                        invocation,
+                        &self.extension_manager,
+                        &session.working_dir,
+                        cancel_token.clone().unwrap_or_default(),
+                    )
+                    .await;
+
                 match compact_messages(
                     self.provider().await?.as_ref(),
                     &session_config.id,
@@ -1073,9 +1186,24 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok((mut compacted_conversation, summarization_usage)) => {
+                        let pre_compact_len = conversation_to_compact.messages().len();
+                        let post_compact_len = compacted_conversation.messages().len();
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                         self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+
+                        self.run_post_compact_hook(
+                            &hooks,
+                            &session_config.id,
+                            pre_compact_len,
+                            post_compact_len,
+                            false,
+                            &session.working_dir,
+                            &session_manager,
+                            &mut compacted_conversation,
+                            cancel_token.clone().unwrap_or_default(),
+                        )
+                        .await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1099,7 +1227,7 @@ impl Agent {
                 }
             };
 
-            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, hooks).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
@@ -1112,6 +1240,7 @@ impl Agent {
         session_config: SessionConfig,
         session: Session,
         cancel_token: Option<CancellationToken>,
+        hooks: Hooks,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
             .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
@@ -1132,9 +1261,10 @@ impl Agent {
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
             let manager_for_spawn = session_manager.clone();
+            let session_id_for_naming = session_id.clone();
             tokio::spawn(async move {
                 if let Err(e) = manager_for_spawn
-                    .maybe_update_name(&session_id, provider)
+                    .maybe_update_name(&session_id_for_naming, provider)
                     .await
                 {
                     warn!("Failed to generate session description: {}", e);
@@ -1142,16 +1272,77 @@ impl Agent {
             });
         }
 
-        // Count tool calls present before this reply — everything added during
-        // the reply loop is part of the current turn and should not be summarized.
-        let pre_turn_tool_count = conversation
+        let working_dir = session.working_dir.clone();
+
+        let user_prompt = conversation
             .messages()
             .iter()
-            .flat_map(|m| m.content.iter())
-            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-            .count();
+            .rev()
+            .find(|m| m.role == rmcp::model::Role::User)
+            .map(|m| m.as_concat_text())
+            .unwrap_or_default();
 
-        let working_dir = session.working_dir.clone();
+        if conversation.messages().len() == 1
+            && conversation.messages()[0].role == rmcp::model::Role::User
+        {
+            let invocation = crate::hooks::HookInvocation::session_start(
+                session_id.clone(),
+                working_dir.to_string_lossy().to_string(),
+            );
+            if let Ok(outcome) = hooks
+                .run(
+                    invocation,
+                    &self.extension_manager,
+                    &working_dir,
+                    cancel_token.clone().unwrap_or_default(),
+                )
+                .await
+            {
+                if let Some(ctx) = outcome.context {
+                    Self::inject_hook_context(
+                        &session_id,
+                        ctx,
+                        &session_manager,
+                        &mut conversation,
+                    )
+                    .await
+                    .ok();
+                }
+            }
+        }
+
+        if !user_prompt.is_empty() {
+            let invocation = crate::hooks::HookInvocation::user_prompt_submit(
+                session_id.clone(),
+                user_prompt,
+                working_dir.to_string_lossy().to_string(),
+            );
+            let outcome = hooks
+                .run(
+                    invocation,
+                    &self.extension_manager,
+                    &working_dir,
+                    cancel_token.clone().unwrap_or_default(),
+                )
+                .await
+                .unwrap_or_default();
+            if outcome.blocked {
+                let block_msg = outcome
+                    .reason
+                    .as_deref()
+                    .unwrap_or("Prompt blocked by hook.")
+                    .to_string();
+                return Ok(Box::pin(async_stream::try_stream! {
+                    yield AgentEvent::Message(Message::assistant().with_text(block_msg));
+                }));
+            }
+            if let Some(ctx) = outcome.context {
+                Self::inject_hook_context(&session_id, ctx, &session_manager, &mut conversation)
+                    .await
+                    .ok();
+            }
+        }
+
         let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", session.id = %session_config.id);
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
@@ -1186,6 +1377,14 @@ impl Agent {
                     break;
                 }
 
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
+                    self.provider().await?,
+                    session_config.id.clone(),
+                    conversation.clone(),
+                    tool_call_cut_off,
+                    0,
+                );
+
                 let conversation_with_moim = super::moim::inject_moim(
                     &session_config.id,
                     conversation.clone(),
@@ -1202,22 +1401,7 @@ impl Agent {
                     &toolshim_tools,
                 ).await?;
 
-                let current_turn_tool_count = conversation.messages().iter()
-                    .flat_map(|m| m.content.iter())
-                    .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-                    .count()
-                    .saturating_sub(pre_turn_tool_count);
-
-                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
-                    self.provider().await?,
-                    session_config.id.clone(),
-                    conversation.clone(),
-                    tool_call_cut_off,
-                    current_turn_tool_count,
-                );
-
                 let mut no_tools_called = true;
-                let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
@@ -1251,23 +1435,43 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    messages_to_add.push(response);
+
+                                    if let Some(ref u) = usage {
+                                        if let Some(total) = u.usage.total_tokens {
+                                            let ctx_limit = self.provider().await?.get_model_config().context_limit();
+                                            if let Some(ctx) = hooks.check_context_fill(
+                                                &session_config.id,
+                                                total as usize,
+                                                ctx_limit,
+                                                &self.extension_manager,
+                                                &working_dir,
+                                                cancel_token.clone().unwrap_or_default(),
+                                            ).await {
+                                                Self::inject_hook_context(&session_config.id, ctx, &session_manager, &mut conversation).await.ok();
+                                            }
+                                        }
+                                    }
+
+                                    session_manager.add_message(&session_config.id, &response).await?;
+                                    conversation.push(response);
                                     continue;
                                 }
 
+                                let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_generated_id())))
+                                    .collect();
+
                                 let mut request_to_response_map = HashMap::new();
                                 let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
-                                for request in frontend_requests.iter().chain(remaining_requests.iter()) {
-                                    request_to_response_map.insert(request.id.clone(), Message::user().with_generated_id());
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                    request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
                                     request_metadata.insert(request.id.clone(), request.metadata.clone());
                                 }
 
-                                for request in frontend_requests.iter() {
-                                    let response_msg = request_to_response_map.get_mut(&request.id)
-                                        .ok_or_else(|| anyhow::anyhow!("missing response entry for request {}", request.id))?;
+                                for (idx, request) in frontend_requests.iter().enumerate() {
                                     let mut frontend_tool_stream = self.handle_frontend_tool_request(
                                         request,
-                                        response_msg,
+                                        tool_response_messages[idx].clone(),
                                     );
 
                                     while let Some(msg) = frontend_tool_stream.try_next().await? {
@@ -1276,8 +1480,9 @@ impl Agent {
                                 }
                                 if goose_mode == GooseMode::Chat {
                                     for request in remaining_requests.iter() {
-                                        if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                                            response.add_tool_response_with_metadata(
+                                        if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                            let mut response = response_msg.lock().await;
+                                            *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
                                                 Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
@@ -1322,25 +1527,38 @@ impl Agent {
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
-                                        &mut request_to_response_map,
+                                        &request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
+                                        &hooks,
                                     ).await?;
 
-                                    {
-                                        let mut tool_approval_stream = self.handle_approval_tool_requests(
-                                            &permission_check_result.needs_approval,
-                                            &mut tool_futures,
-                                            &mut request_to_response_map,
-                                            cancel_token.clone(),
-                                            &session,
-                                            &inspection_results,
-                                        );
+                                    let tool_futures_arc = Arc::new(Mutex::new(std::mem::take(&mut tool_futures)));
 
-                                        while let Some(msg) = tool_approval_stream.try_next().await? {
-                                            yield AgentEvent::Message(msg);
-                                        }
+                                    let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                        &permission_check_result.needs_approval,
+                                        tool_futures_arc.clone(),
+                                        &request_to_response_map,
+                                        cancel_token.clone(),
+                                        &session,
+                                        &inspection_results,
+                                        &hooks,
+                                    );
+
+                                    while let Some(msg) = tool_approval_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
                                     }
+
+                                    tool_futures = {
+                                        let mut futures_lock = tool_futures_arc.lock().await;
+                                        futures_lock.drain(..).collect::<Vec<_>>()
+                                    };
+
+                                    let request_id_to_request: HashMap<String, &ToolRequest> =
+                                        frontend_requests.iter().chain(remaining_requests.iter())
+                                            .map(|r| (r.id.clone(), r))
+                                            .collect();
+
 
                                     let with_id = tool_futures
                                         .into_iter()
@@ -1369,6 +1587,61 @@ impl Agent {
                                                     Some((request_id, item)) => {
                                                         match item {
                                                             ToolStreamItem::Result(output) => {
+                                                                if let Some(original_request) = request_id_to_request.get(&request_id) {
+                                                                    if let Ok(ref tool_call) = original_request.tool_call {
+                                                                        let tool_input = serde_json::to_value(&tool_call.arguments)
+                                                                            .unwrap_or(serde_json::Value::Null);
+                                                                        match &output {
+                                                                            Ok(call_result) => {
+                                                                                let tool_output = serde_json::to_value(&call_result.content)
+                                                                                    .unwrap_or(serde_json::Value::Null);
+                                                                                let invocation = crate::hooks::HookInvocation::post_tool_use(
+                                                                                    session_config.id.clone(),
+                                                                                    tool_call.name.to_string(),
+                                                                                    tool_input,
+                                                                                    tool_output,
+                                                                                    working_dir.to_string_lossy().to_string(),
+                                                                                );
+                                                                                if let Ok(outcome) = hooks
+                                                                                    .run(
+                                                                                        invocation,
+                                                                                        &self.extension_manager,
+                                                                                        &working_dir,
+                                                                                        cancel_token.clone().unwrap_or_default(),
+                                                                                    )
+                                                                                    .await
+                                                                                {
+                                                                                    if let Some(ctx) = outcome.context {
+                                                                                        Self::inject_hook_context(&session_config.id, ctx, &session_manager, &mut conversation).await.ok();
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            Err(error_data) => {
+                                                                                let invocation = crate::hooks::HookInvocation::post_tool_use_failure(
+                                                                                    session_config.id.clone(),
+                                                                                    tool_call.name.to_string(),
+                                                                                    tool_input,
+                                                                                    error_data.message.to_string(),
+                                                                                    working_dir.to_string_lossy().to_string(),
+                                                                                );
+                                                                                if let Ok(outcome) = hooks
+                                                                                    .run(
+                                                                                        invocation,
+                                                                                        &self.extension_manager,
+                                                                                        &working_dir,
+                                                                                        cancel_token.clone().unwrap_or_default(),
+                                                                                    )
+                                                                                    .await
+                                                                                {
+                                                                                    if let Some(ctx) = outcome.context {
+                                                                                        Self::inject_hook_context(&session_config.id, ctx, &session_manager, &mut conversation).await.ok();
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
                                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
@@ -1391,9 +1664,10 @@ impl Agent {
                                                                 {
                                                                     all_install_successful = false;
                                                                 }
-                                                                if let Some(response) = request_to_response_map.get_mut(&request_id) {
+                                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
                                                                     let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
-                                                                    response.add_tool_response_with_metadata(request_id, output, metadata);
+                                                                    let mut response = response_msg.lock().await;
+                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
                                                                 }
                                                             }
                                                             ToolStreamItem::Message(msg) => {
@@ -1437,16 +1711,16 @@ impl Agent {
                                         response.created,
                                         thinking_content,
                                     ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
+                                    session_manager.add_message(&session_config.id, &thinking_msg).await?;
+                                    conversation.push(thinking_msg);
                                 }
 
-                                // Collect reasoning content to attach to tool request messages
                                 let reasoning_content: Vec<MessageContent> = response.content.iter()
                                     .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
                                     .collect();
 
-                                for request in frontend_requests.iter().chain(remaining_requests.iter()) {
+                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
@@ -1464,12 +1738,13 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
-                                        let final_response = request_to_response_map
-                                            .remove(&request.id)
-                                            .unwrap_or_else(|| Message::user().with_generated_id());
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
+                                        let final_response = tool_response_messages[idx]
+                                                                .lock().await.clone();
+                                        session_manager.add_message(&session_config.id, &request_msg).await?;
+                                        session_manager.add_message(&session_config.id, &final_response).await?;
+                                        conversation.push(request_msg);
+                                        conversation.push(final_response.clone());
+                                        yield AgentEvent::Message(final_response);
                                     } else {
                                         error!(
                                             "Tool call could not be parsed: {}",
@@ -1517,6 +1792,21 @@ impl Agent {
                                 )
                             );
 
+                            let invocation = crate::hooks::HookInvocation::pre_compact(
+                                session_config.id.clone(),
+                                conversation.messages().len(),
+                                false,  // manual = false for auto recovery-compact
+                                working_dir.to_string_lossy().to_string(),
+                            );
+                            let _ = hooks
+                                .run(
+                                    invocation,
+                                    &self.extension_manager,
+                                    &working_dir,
+                                    cancel_token.clone().unwrap_or_default(),
+                                )
+                                .await;
+
                             match compact_messages(
                                 self.provider().await?.as_ref(),
                                 &session_config.id,
@@ -1525,9 +1815,26 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
+                                Ok((mut compacted_conversation, usage)) => {
+                                    let pre_compact_len = conversation.messages().len();
+                                    let post_compact_len = compacted_conversation.messages().len();
+
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
+
+                                    self.run_post_compact_hook(
+                                        &hooks,
+                                        &session_config.id,
+                                        pre_compact_len,
+                                        post_compact_len,
+                                        false,
+                                        &working_dir,
+                                        &session_manager,
+                                        &mut compacted_conversation,
+                                        cancel_token.clone().unwrap_or_default(),
+                                    )
+                                    .await?;
+
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
@@ -1623,12 +1930,14 @@ impl Agent {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
                             let message = Message::assistant().with_text(output);
-                            messages_to_add.push(message.clone());
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message.clone());
                             yield AgentEvent::Message(message);
                             exit_chat = true;
                         }
@@ -1640,7 +1949,6 @@ impl Agent {
                                 Ok(should_retry) => {
                                     if should_retry {
                                         info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
                                         session_manager.replace_conversation(&session_config.id, &conversation).await?;
                                         yield AgentEvent::HistoryReplaced(conversation.clone());
                                     } else {
@@ -1659,10 +1967,6 @@ impl Agent {
                             }
                         }
                     }
-                }
-
-                if is_token_cancelled(&cancel_token) {
-                    tool_pair_summarization_task.abort();
                 }
 
                 if let Ok(summaries) = tool_pair_summarization_task.await {
@@ -1688,7 +1992,7 @@ impl Agent {
                                     metadata.with_agent_invisible()
                                 }).await?;
                             }
-                            messages_to_add.push(summary_msg);
+                            session_manager.add_message(&session_config.id, &summary_msg).await?;
                         } else {
                             warn!("Expected a tool request/reply pair, but found {} matching messages",
                                 matching.len());
@@ -1697,16 +2001,39 @@ impl Agent {
                     conversation = Conversation::new_unvalidated(updated_messages);
                 }
 
-                for msg in &messages_to_add {
-                    session_manager.add_message(&session_config.id, msg).await?;
-                }
-                conversation.extend(messages_to_add);
                 if exit_chat {
                     break;
                 }
 
                 tokio::task::yield_now().await;
             }
+
+            let invocation = crate::hooks::HookInvocation::stop(
+                session_id.clone(),
+                None,  // reason
+                working_dir.to_string_lossy().to_string(),
+            );
+            let _ = hooks
+                .run(
+                    invocation,
+                    &self.extension_manager,
+                    &working_dir,
+                    cancel_token.clone().unwrap_or_default(),
+                )
+                .await;
+
+            let invocation = crate::hooks::HookInvocation::session_end(
+                session_id.clone(),
+                None,
+            );
+            let _ = hooks
+                .run(
+                    invocation,
+                    &self.extension_manager,
+                    &working_dir,
+                    cancel_token.clone().unwrap_or_default(),
+                )
+                .await;
 
             if !last_assistant_text.is_empty() {
                 tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
