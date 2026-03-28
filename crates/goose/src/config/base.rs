@@ -650,7 +650,10 @@ impl Config {
                 }
                 SecretStorage::File { path } => {
                     let file_secrets = self.read_secrets_from_file(path)?;
-                    if file_secrets.is_empty() && cfg!(target_os = "windows") {
+                    if cfg!(target_os = "windows")
+                        && file_secrets.is_empty()
+                        && Self::is_default_secrets_path(path)
+                    {
                         self.try_migrate_from_keyring(path).unwrap_or(file_secrets)
                     } else {
                         file_secrets
@@ -992,9 +995,13 @@ impl Config {
         Ok(())
     }
 
+    fn is_default_secrets_path(path: &Path) -> bool {
+        path == Paths::config_dir().join("secrets.yaml")
+    }
+
     /// One-time migration for Windows users upgrading from keyring-backed storage.
-    /// If the secrets file is empty/missing but the keyring has entries, copy them
-    /// to the file and delete the keyring entry so subsequent loads hit the file.
+    /// Only runs for the global default secrets.yaml path, never for custom paths
+    /// created via new_with_file_secrets to preserve isolation.
     fn try_migrate_from_keyring(
         &self,
         file_path: &Path,
