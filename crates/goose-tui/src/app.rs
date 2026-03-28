@@ -431,6 +431,24 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             return;
         }
 
+        // Ctrl-Z — background the TUI (Unix only).
+        #[cfg(unix)]
+        if code == KeyCode::Char('z') && modifiers.contains(KeyModifiers::CONTROL) {
+            use crossterm::{cursor, execute, terminal};
+            use std::io::stdout;
+            // Restore terminal before suspending so the shell prompt is usable.
+            let _ = terminal::disable_raw_mode();
+            let _ = execute!(stdout(), terminal::LeaveAlternateScreen, cursor::Show);
+            // Suspend — blocks until SIGCONT (i.e. the user runs `fg`).
+            unsafe { libc::raise(libc::SIGTSTP); }
+            // SIGCONT received: re-enter TUI mode and force a full repaint.
+            let _ = execute!(stdout(), terminal::EnterAlternateScreen, cursor::Hide);
+            let _ = terminal::enable_raw_mode();
+            // Clear the screen so iocraft redraws from scratch on the next tick.
+            let _ = execute!(stdout(), terminal::Clear(terminal::ClearType::All));
+            return;
+        }
+
         // Extension dialog navigation.
         if ext_visible.get() {
             let n = ext_entries.read().len();

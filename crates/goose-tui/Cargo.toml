@@ -12,7 +12,7 @@ name = "goose-tui"
 path = "src/main.rs"
 
 [dependencies]
-goose = { path = "../goose", default-features = false }
+goose = { path = "../goose", default-features = false, features = ["rustls-tls"] }
 goose-mcp = { path = "../goose-mcp" }
 
 iocraft = "0.7"
@@ -30,7 +30,12 @@ pulldown-cmark = "0.12"
 base64 = { workspace = true }
 dirs = { workspace = true }
 rmcp = { workspace = true }
+crossterm = "0.28"
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [features]
-default = ["code-mode"]
+default = ["code-mode", "rustls-tls"]
 code-mode = ["goose/code-mode"]
+rustls-tls = ["goose/rustls-tls"]
+native-tls = ["goose/native-tls"]
