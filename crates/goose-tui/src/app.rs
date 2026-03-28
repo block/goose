@@ -16,6 +16,9 @@ use iocraft::prelude::*;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use goose::agents::Agent;
+use goose::config::GooseMode;
+
 use crate::agent::{build_agent, run_agent_loop};
 use crate::components::elicitation_dialog::ElicitationDialog;
 use crate::colors::*;
@@ -93,12 +96,34 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let mut cancel_tx: State<Option<Arc<mpsc::Sender<CancellationToken>>>> =
         hooks.use_state(|| None);
 
+    // Goose mode toggle state.
+    let mut agent_arc:    State<Option<Arc<Agent>>> = hooks.use_state(|| None);
+    let mut session_id_st: State<String>            = hooks.use_state(String::new);
+    let mut goose_mode:    State<GooseMode>          = hooks.use_state(GooseMode::default);
+    let mut ctrl_tx_st: State<Option<Arc<mpsc::Sender<GooseMode>>>> =
+        hooks.use_state(|| None);
+
     // ── spinner tick ──────────────────────────────────────────────────────────
     hooks.use_future(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(300)).await;
             spin_idx.set((spin_idx.get() + 1) % 4);
             anim_frame.set(anim_frame.get() + 1);
+        }
+    });
+
+    // ── goose mode control loop ───────────────────────────────────────────────
+    hooks.use_future(async move {
+        let (ctx, mut crx) = mpsc::channel::<GooseMode>(4);
+        ctrl_tx_st.set(Some(Arc::new(ctx)));
+        while let Some(next_mode) = crx.recv().await {
+            let maybe_agent = agent_arc.read().clone();
+            if let Some(agent) = maybe_agent {
+                let sid = session_id_st.read().clone();
+                if agent.update_goose_mode(next_mode, &sid).await.is_ok() {
+                    goose_mode.set(next_mode);
+                }
+            }
         }
     });
 
@@ -138,6 +163,12 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                     cwd.display().to_string()
                 };
                 working_dir.set(display);
+
+                // Read initial goose mode and store agent + session_id for later mode toggles.
+                let initial_mode = handle.agent.goose_mode().await;
+                goose_mode.set(initial_mode);
+                session_id_st.set(handle.session_id.clone());
+                agent_arc.set(Some(handle.agent.clone()));
 
                 // Spawn the heavy worker on the tokio threadpool.
                 tokio::spawn(run_agent_loop(handle, prx, etx, crx));
@@ -268,6 +299,15 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 status.set("stopping…".to_string());
             } else {
                 should_exit.set(true);
+            }
+            return;
+        }
+
+        // Ctrl-M — cycle goose mode.
+        if code == KeyCode::Char('m') && modifiers.contains(KeyModifiers::CONTROL) {
+            let next = cycle_mode(goose_mode.get());
+            if let Some(tx) = ctrl_tx_st.read().clone() {
+                let _ = tx.try_send(next);
             }
             return;
         }
@@ -432,6 +472,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
     let banner        = banner_visible.get();
     let cwd_snap      = working_dir.read().clone();
     let tokens        = token_total.get();
+    let mode_str      = goose_mode.get().to_string();
 
     // Always return a single root View; use conditional #() blocks inside.
     element! {
@@ -467,6 +508,7 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         turn_info: turn_info,
                         working_dir: cwd_snap,
                         token_total: tokens,
+                        goose_mode: mode_str,
                         width: term_width - 4,
                     )
 
@@ -552,6 +594,17 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                 }
             }))
         }
+    }
+}
+
+// ── Helper: cycle through GooseMode variants ──────────────────────────────────
+
+fn cycle_mode(current: GooseMode) -> GooseMode {
+    match current {
+        GooseMode::Auto        => GooseMode::Approve,
+        GooseMode::Approve     => GooseMode::SmartApprove,
+        GooseMode::SmartApprove => GooseMode::Chat,
+        GooseMode::Chat        => GooseMode::Auto,
     }
 }
 

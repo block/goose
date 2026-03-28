@@ -13,6 +13,8 @@ pub struct HeaderProps {
     pub turn_info: Option<(usize, usize)>,
     pub working_dir: String,
     pub token_total: i64,
+    /// Current goose mode (e.g. "auto", "approve", "smart_approve", "chat").
+    pub goose_mode: String,
     pub width: u16,
 }
 
@@ -44,7 +46,7 @@ pub fn Header(props: &HeaderProps) -> impl Into<AnyElement<'static>> {
                         Text(content: format!(" {spinner}"), color: CRANBERRY)
                     }))
                 }
-                // Right side: cwd · tokens · turn counter · exit hint
+                // Right side: cwd · tokens · turn counter · mode · exit hint
                 View(flex_grow: 1.0, justify_content: JustifyContent::End, flex_direction: FlexDirection::Row, gap: 2) {
                     #((!props.working_dir.is_empty()).then(|| element! {
                         Text(content: props.working_dir.clone(), color: TEXT_DIM)
@@ -54,6 +56,9 @@ pub fn Header(props: &HeaderProps) -> impl Into<AnyElement<'static>> {
                     }))
                     #(props.turn_info.filter(|(_, t)| *t > 1).map(|(c, t)| element! {
                         Text(content: format!("{c}/{t}"), color: TEXT_DIM)
+                    }))
+                    #((!props.goose_mode.is_empty()).then(|| element! {
+                        Text(content: props.goose_mode.clone(), color: TEAL)
                     }))
                     Text(
                         content: if props.loading { "^C stop" } else { "^C exit" }.to_string(),
