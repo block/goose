@@ -1,7 +1,7 @@
 use iocraft::prelude::*;
 
 use crate::colors::*;
-use crate::types::{ToolCallInfo, ToolStatus};
+use crate::types::{tool_kind_icon, ToolCallInfo, ToolStatus};
 
 // ── Compact (one-line) view ───────────────────────────────────────────────────
 
@@ -18,9 +18,12 @@ pub fn ToolCallCompact(props: &ToolCallCompactProps) -> impl Into<AnyElement<'st
 
     let (color, sym) = status_style(&info.status);
 
+    let kind = tool_kind_icon(&info.title);
+
     element! {
         View(flex_direction: FlexDirection::Row, padding_left: 5) {
             Text(content: format!("{sym} "), color: color)
+            Text(content: format!("{kind} "), color: TEXT_DIM)
             Text(content: info.title.clone(), color: TEXT_SECONDARY)
         }
     }
@@ -42,6 +45,8 @@ pub fn ToolCallCard(props: &ToolCallCardProps) -> impl Into<AnyElement<'static>>
 
     let (color, sym) = status_style(&info.status);
 
+    let kind = tool_kind_icon(&info.title);
+
     element! {
         View(
             flex_direction: FlexDirection::Column,
@@ -52,6 +57,7 @@ pub fn ToolCallCard(props: &ToolCallCardProps) -> impl Into<AnyElement<'static>>
         ) {
             View(flex_direction: FlexDirection::Row, gap: 1) {
                 Text(content: sym.to_string(), color: color)
+                Text(content: kind.to_string(), color: TEXT_DIM)
                 Text(content: info.title.clone(), color: TEXT_PRIMARY, weight: Weight::Bold)
             }
             #(props.expanded.then(|| {

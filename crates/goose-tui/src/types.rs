@@ -12,7 +12,9 @@ pub struct Turn {
     /// Ordered list of tool call IDs (arrival order).
     pub tool_call_order: Vec<String>,
     pub tool_calls: HashMap<String, ToolCallInfo>,
-    /// Final rendered (markdown → plain text) agent reply.
+    /// Raw accumulated markdown from the agent (used for incremental re-render).
+    pub agent_raw: String,
+    /// Rendered (markdown → plain text) agent reply; updated on every chunk.
     pub agent_text: String,
 }
 
@@ -42,6 +44,25 @@ impl ToolStatus {
             Self::Error   => "✗",
         }
     }
+}
+
+/// Return an icon glyph for a tool based on its name.
+///
+/// Tool names arrive as `{extension}__{tool}` (e.g. `developer__shell`).
+/// We match on keywords in the full name to infer a kind icon, mirroring
+/// the KIND_ICONS table used by the Node.js text TUI.
+pub fn tool_kind_icon(name: &str) -> &'static str {
+    let n = name.to_ascii_lowercase();
+    if n.contains("think")                                           { return "💭"; }
+    if n.contains("fetch") || n.contains("http") || n.contains("web") || n.contains("url") || n.contains("browse") { return "🌐"; }
+    if n.contains("shell") || n.contains("bash") || n.contains("exec") || n.contains("run") || n.contains("command") { return "▶"; }
+    if n.contains("search") || n.contains("grep") || n.contains("find") || n.contains("glob") { return "🔍"; }
+    if n.contains("delete") || n.contains("remove") || n.contains("unlink") { return "🗑"; }
+    if n.contains("move")   || n.contains("rename") || n.contains("copy")  { return "📦"; }
+    if n.contains("edit")   || n.contains("write")  || n.contains("create") || n.contains("patch") || n.contains("str_replace") || n.contains("append") { return "✏️"; }
+    if n.contains("read")   || n.contains("view")   || n.contains("cat")   || n.contains("list")  || n.contains("get") { return "📖"; }
+    if n.contains("switch") || n.contains("mode")                           { return "🔀"; }
+    "⚙"
 }
 
 // ── Agent ↔ UI messages ───────────────────────────────────────────────────────
