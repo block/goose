@@ -3,7 +3,7 @@ use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::routing::put;
 use axum::{
-    extract::Path,
+    extract::{Path, Query},
     routing::{delete, get, post},
     Json, Router,
 };
@@ -21,13 +21,17 @@ use goose::providers::catalog::{
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{
-    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
-    slash_commands,
+    agents::execute_commands, agents::platform_extensions::summon, agents::ExtensionConfig,
+    config::permission::PermissionLevel, slash_commands,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path as FsPath,
+    sync::Arc,
+};
 use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
@@ -131,14 +135,14 @@ pub enum ConfigValueResponse {
     MaskedValue(MaskedSecret),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum CommandType {
     Builtin,
     Recipe,
     Skill,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct SlashCommand {
     pub command: String,
     pub help: String,
@@ -147,6 +151,61 @@ pub struct SlashCommand {
 #[derive(Serialize, ToSchema)]
 pub struct SlashCommandsResponse {
     pub commands: Vec<SlashCommand>,
+}
+
+#[derive(Debug, Deserialize, utoipa::IntoParams, ToSchema)]
+pub struct SlashCommandsQuery {
+    /// Optional working directory to discover local skills from
+    pub working_dir: Option<String>,
+}
+
+fn normalize_slash_skill_name(name: &str) -> Option<String> {
+    let trimmed = name.trim();
+    let mut chars = trimmed.chars();
+    let first = chars.next()?;
+
+    if !first.is_ascii_alphanumeric() {
+        return None;
+    }
+
+    if chars.any(|c| !c.is_ascii_alphanumeric() && c != '-' && c != '_') {
+        return None;
+    }
+
+    Some(trimmed.to_lowercase())
+}
+
+fn skill_slash_commands(
+    working_dir: Option<&FsPath>,
+    reserved_commands: &HashSet<String>,
+) -> Vec<SlashCommand> {
+    summon::list_installed_sources(working_dir)
+        .into_iter()
+        .filter(|source| {
+            matches!(
+                source.kind,
+                summon::SourceKind::Skill | summon::SourceKind::BuiltinSkill
+            )
+        })
+        .filter_map(|skill| {
+            let normalized_name = normalize_slash_skill_name(&skill.name)?;
+            if reserved_commands.contains(&normalized_name) {
+                return None;
+            }
+
+            let help = if skill.description.is_empty() {
+                "Skill".to_string()
+            } else {
+                skill.description
+            };
+
+            Some(SlashCommand {
+                command: skill.name,
+                help,
+                command_type: CommandType::Skill,
+            })
+        })
+        .collect()
 }
 
 #[utoipa::path(
@@ -388,12 +447,6 @@ pub async fn get_provider_models(
     }
 }
 
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct SlashCommandsQuery {
-    /// Optional working directory to discover local skills from
-    pub working_dir: Option<String>,
-}
-
 #[utoipa::path(
     get,
     path = "/config/slash_commands",
@@ -403,7 +456,7 @@ pub struct SlashCommandsQuery {
     )
 )]
 pub async fn get_slash_commands(
-    axum::extract::Query(query): axum::extract::Query<SlashCommandsQuery>,
+    Query(query): Query<SlashCommandsQuery>,
 ) -> Result<Json<SlashCommandsResponse>, ErrorResponse> {
     let mut commands: Vec<_> = slash_commands::list_commands()
         .iter()
@@ -413,6 +466,10 @@ pub async fn get_slash_commands(
             command_type: CommandType::Recipe,
         })
         .collect();
+    let mut reserved_commands: HashSet<String> = commands
+        .iter()
+        .map(|command| command.command.to_lowercase())
+        .collect();
 
     for cmd_def in execute_commands::list_commands() {
         commands.push(SlashCommand {
@@ -420,24 +477,11 @@ pub async fn get_slash_commands(
             help: cmd_def.description.to_string(),
             command_type: CommandType::Builtin,
         });
+        reserved_commands.insert(cmd_def.name.to_lowercase());
     }
 
-    let working_dir = query.working_dir.map(std::path::PathBuf::from);
-    for source in
-        goose::agents::platform_extensions::summon::list_installed_sources(working_dir.as_deref())
-    {
-        if matches!(
-            source.kind,
-            goose::agents::platform_extensions::summon::SourceKind::Skill
-                | goose::agents::platform_extensions::summon::SourceKind::BuiltinSkill
-        ) {
-            commands.push(SlashCommand {
-                command: source.name,
-                help: source.description,
-                command_type: CommandType::Skill,
-            });
-        }
-    }
+    let working_dir = query.working_dir.as_deref().map(FsPath::new);
+    commands.extend(skill_slash_commands(working_dir, &reserved_commands));
 
     Ok(Json(SlashCommandsResponse { commands }))
 }
@@ -948,4 +992,62 @@ pub fn routes(state: Arc<AppState>) -> Router {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use std::fs;
+    use uuid::Uuid;
+
+    fn write_skill(working_dir: &FsPath, folder: &str, name: &str, description: &str) {
+        let skill_dir = working_dir.join(".goose/skills").join(folder);
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            format!(
+                "---\nname: {}\ndescription: {}\n---\nUse this skill.\n",
+                name, description
+            ),
+        )
+        .unwrap();
+    }
+
+    fn temp_working_dir() -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("goose-skill-slash-{}", Uuid::new_v4()));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn skill_slash_commands_include_workspace_skills() {
+        let temp_dir = temp_working_dir();
+        write_skill(&temp_dir, "some-skill", "some-skill", "A custom skill");
+
+        let commands = skill_slash_commands(&temp_dir, &HashSet::new());
+
+        assert!(commands.iter().any(|command| {
+            command.command == "some-skill"
+                && command.command_type == CommandType::Skill
+                && command.help == "A custom skill"
+        }));
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn skill_slash_commands_skip_unsafe_and_reserved_names() {
+        let temp_dir = temp_working_dir();
+        write_skill(&temp_dir, "bad-name", "bad name", "Unsafe name");
+        write_skill(&temp_dir, "clear", "clear", "Reserved");
+        write_skill(&temp_dir, "some-skill", "some-skill", "Allowed");
+
+        let reserved = HashSet::from(["clear".to_string()]);
+        let commands = skill_slash_commands(&temp_dir, &reserved);
+
+        assert!(!commands.iter().any(|command| command.command == "bad name"));
+        assert!(!commands.iter().any(|command| command.command == "clear"));
+        assert!(commands
+            .iter()
+            .any(|command| command.command == "some-skill"));
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+}
