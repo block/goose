@@ -225,6 +225,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             Err(e) => {
                 loading.set(false);
                 status.set(format!("failed: {e}"));
+                // In non-interactive (--text) mode there is no input bar, so the
+                // process would hang forever without an explicit exit signal.
+                if initial_prompt.is_some() {
+                    should_exit.set(true);
+                }
                 return;
             }
             Ok(handle) => {
@@ -732,9 +737,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
         // Enter — submit from input bar.
         // Shift+Enter is handled by TextInput (inserts newline); don't submit.
+        // Also skip if the user is browsing turn history (Shift+↑/↓ navigation).
         if code == KeyCode::Enter
             && !modifiers.contains(KeyModifiers::SHIFT)
             && !banner_visible.get()
+            && view_turn_idx.get().is_none()
         {
             let raw = input.read().clone();
             let trimmed = raw.trim();
@@ -747,6 +754,14 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             if text.is_empty() {
                 return;
             }
+
+            // Guard against queue overflow *before* clearing the input so that
+            // the user's text is not silently lost.
+            if loading.get() && queue.read().len() >= MAX_QUEUE {
+                status.set("queue full — please wait".to_string());
+                return;
+            }
+
             {
                 let mut h = prompt_history.read().clone();
                 h.push(text.clone());
@@ -772,11 +787,9 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             }
 
             if loading.get() {
-                if queue.read().len() < MAX_QUEUE {
-                    let mut q = queue.read().clone();
-                    q.push_back(text);
-                    queue.set(q);
-                }
+                let mut q = queue.read().clone();
+                q.push_back(text);
+                queue.set(q);
             } else {
                 send_prompt_to_agent(
                     text,

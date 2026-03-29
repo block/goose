@@ -1469,7 +1469,12 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
         let _ = cliclack::log::info("Notice: GOOSE_DISABLE_KEYRING environment variable is set and will override the configuration here.");
     }
 
-    let currently_disabled = config.get_param::<String>("GOOSE_DISABLE_KEYRING").is_ok();
+    // "disabled" only when the stored value is the string "true"; an empty-string
+    // sentinel (written when re-enabling keyring) must not be treated as disabled.
+    let currently_disabled = config
+        .get_param::<String>("GOOSE_DISABLE_KEYRING")
+        .map(|v| v == "true")
+        .unwrap_or(false);
 
     let current_status = if currently_disabled {
         "Disabled (using file-based storage)"

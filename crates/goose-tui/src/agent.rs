@@ -44,11 +44,6 @@ pub struct AgentHandle {
 /// Build the Goose agent and open (or resume) a session.
 pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle> {
     let config = Config::global();
-    let provider_name = config.get_goose_provider()?;
-    let model_name = config.get_goose_model()?;
-
-    let model_config =
-        goose::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
 
     let extensions: Vec<_> = get_all_extensions()
         .into_iter()
@@ -56,16 +51,30 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
         .map(|e| e.config)
         .collect();
 
-    let provider = create(&provider_name, model_config, extensions.clone()).await?;
-
     let agent = Agent::new();
     let session_manager = agent.config.session_manager.clone();
 
-    let session_id = if let Some(ref id) = session_id_hint {
-        // Resume: verify the session exists, then use its id.
+    // When resuming a session, prefer the provider/model stored in that session's
+    // metadata over the current global config so behaviour stays consistent.
+    let (provider_name, model_config, session_id) = if let Some(ref id) = session_id_hint {
         let session = session_manager.get_session(id, false).await?;
-        session.id
+        let pname = session
+            .provider_name
+            .as_deref()
+            .map(str::to_owned)
+            .unwrap_or_else(|| config.get_goose_provider().unwrap_or_default());
+        let mcfg = session.model_config.unwrap_or_else(|| {
+            let mname = config.get_goose_model().unwrap_or_default();
+            goose::model::ModelConfig::new(&mname)
+                .unwrap_or_else(|_| goose::model::ModelConfig::new("gpt-4o").unwrap())
+                .with_canonical_limits(&pname)
+        });
+        (pname, mcfg, session.id)
     } else {
+        let provider_name = config.get_goose_provider()?;
+        let model_name = config.get_goose_model()?;
+        let mcfg = goose::model::ModelConfig::new(&model_name)?
+            .with_canonical_limits(&provider_name);
         let cwd = std::env::current_dir()?;
         let session = session_manager
             .create_session(
@@ -75,9 +84,10 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
                 agent.config.goose_mode,
             )
             .await?;
-        session.id
+        (provider_name, mcfg, session.id)
     };
 
+    let provider = create(&provider_name, model_config, extensions.clone()).await?;
     agent.update_provider(provider, &session_id).await?;
     agent
         .update_goose_mode(agent.config.goose_mode, &session_id)

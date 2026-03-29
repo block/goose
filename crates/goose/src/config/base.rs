@@ -984,6 +984,9 @@ impl Config {
             Err(e) => return Err(e),
         };
         let n = values.len();
+        if n == 0 {
+            return Ok(0);
+        }
         self.write_secrets_to_file(&values)?;
         Ok(n)
     }
