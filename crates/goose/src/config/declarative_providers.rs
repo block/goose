@@ -296,10 +296,13 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
                 api_key_env,
                 ..existing_config
             })
-        } else if custom_file.exists() {
-            std::fs::remove_file(custom_file)?;
-            None
         } else {
+            if !existing_config.api_key_env.is_empty() {
+                let _ = config.delete_secret(&existing_config.api_key_env);
+            }
+            if custom_file.exists() {
+                std::fs::remove_file(custom_file)?;
+            }
             None
         }
     };
@@ -330,8 +333,37 @@ pub fn remove_custom_provider(id: &str) -> Result<()> {
     Ok(())
 }
 
+fn find_fixed_provider(id: &str) -> Option<DeclarativeProviderConfig> {
+    FIXED_PROVIDERS.files().find_map(|file| {
+        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
+            return None;
+        }
+        let config: DeclarativeProviderConfig =
+            serde_json::from_str(file.contents_utf8()?).ok()?;
+        (config.name == id).then_some(config)
+    })
+}
+
 pub fn load_provider(id: &str) -> Result<LoadedProvider> {
     let custom_file_path = custom_providers_dir().join(format!("{}.json", id));
+
+    if let Some(fixed) = find_fixed_provider(id) {
+        let config = if custom_file_path.exists() {
+            let content = std::fs::read_to_string(&custom_file_path)?;
+            let shadow: DeclarativeProviderConfig = serde_json::from_str(&content)?;
+            DeclarativeProviderConfig {
+                requires_auth: shadow.requires_auth,
+                api_key_env: shadow.api_key_env,
+                ..fixed
+            }
+        } else {
+            fixed
+        };
+        return Ok(LoadedProvider {
+            config,
+            is_editable: false,
+        });
+    }
 
     if custom_file_path.exists() {
         let content = std::fs::read_to_string(&custom_file_path)?;
@@ -342,29 +374,9 @@ pub fn load_provider(id: &str) -> Result<LoadedProvider> {
         });
     }
 
-    for file in FIXED_PROVIDERS.files() {
-        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-
-        let content = file
-            .contents_utf8()
-            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
-
-        let config: DeclarativeProviderConfig = match serde_json::from_str(content) {
-            Ok(config) => config,
-            Err(_) => continue,
-        };
-        if config.name == id {
-            return Ok(LoadedProvider {
-                config,
-                is_editable: false,
-            });
-        }
-    }
-
     Err(anyhow::anyhow!("Provider not found: {}", id))
 }
+
 pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {
     if !dir.exists() {
         return Ok(Vec::new());
