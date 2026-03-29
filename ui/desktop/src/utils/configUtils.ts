@@ -42,6 +42,7 @@ export const configLabels: Record<string, string> = {
   DATABRICKS_HOST: 'Databricks Host',
 
   // ollama
+  OLLAMA_API_KEY: 'Ollama API Key',
   OLLAMA_HOST: 'Ollama Host',
 
   // azure openai

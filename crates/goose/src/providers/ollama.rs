@@ -13,10 +13,13 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use reqwest::Response;
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Response,
+};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -25,6 +28,7 @@ use url::Url;
 
 const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
+pub const OLLAMA_API_KEY: &str = "OLLAMA_API_KEY";
 pub const OLLAMA_TIMEOUT: u64 = 600;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
@@ -100,31 +104,11 @@ impl OllamaProvider {
         let host: String = config
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
-
-        let timeout: Duration =
+        let timeout =
             Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
-
-        let base = if host.starts_with("http://") || host.starts_with("https://") {
-            host.clone()
-        } else {
-            format!("http://{}", host)
-        };
-
-        let mut base_url =
-            Url::parse(&base).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
-
-        let explicit_port = host.contains(':');
-        let is_localhost = host == "localhost" || host == "127.0.0.1" || host == "::1";
-
-        if base_url.port().is_none() && !explicit_port && !host.starts_with("http") && is_localhost
-        {
-            base_url
-                .set_port(Some(OLLAMA_DEFAULT_PORT))
-                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
-        }
-
-        let api_client =
-            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+        let base_url = normalized_ollama_base_url(&host)?;
+        let api_key = optional_ollama_api_key(config, OLLAMA_API_KEY, &base_url);
+        let api_client = build_api_client(base_url, timeout, api_key, None)?;
 
         Ok(Self {
             api_client,
@@ -139,39 +123,13 @@ impl OllamaProvider {
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
-
-        let base =
-            if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
-                config.base_url.clone()
-            } else {
-                format!("http://{}", config.base_url)
-            };
-
-        let mut base_url = Url::parse(&base)
-            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
-
-        let explicit_default_port =
-            config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
-        let is_https = base_url.scheme() == "https";
-
-        if base_url.port().is_none() && !explicit_default_port && !is_https {
-            base_url
-                .set_port(Some(OLLAMA_DEFAULT_PORT))
-                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
-        }
-
-        let mut api_client =
-            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
-
-        if let Some(headers) = &config.headers {
-            let mut header_map = reqwest::header::HeaderMap::new();
-            for (key, value) in headers {
-                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-                let header_value = reqwest::header::HeaderValue::from_str(value)?;
-                header_map.insert(header_name, header_value);
-            }
-            api_client = api_client.with_headers(header_map)?;
-        }
+        let base_url = normalized_ollama_base_url(&config.base_url)?;
+        let api_key = optional_ollama_api_key(
+            crate::config::Config::global(),
+            &config.api_key_env,
+            &base_url,
+        );
+        let api_client = build_api_client(base_url, timeout, api_key, config.headers.as_ref())?;
 
         let supports_streaming = config.supports_streaming.unwrap_or(true);
 
@@ -198,12 +156,13 @@ impl ProviderDef for OllamaProvider {
         ProviderMetadata::new(
             OLLAMA_PROVIDER_NAME,
             "Ollama",
-            "Local open source models",
+            "Local and hosted open source models",
             OLLAMA_DEFAULT_MODEL,
             OLLAMA_KNOWN_MODELS.to_vec(),
             OLLAMA_DOC_URL,
             vec![
                 ConfigKey::new("OLLAMA_HOST", true, false, Some(OLLAMA_HOST), true),
+                ConfigKey::new(OLLAMA_API_KEY, false, true, None, true),
                 ConfigKey::new(
                     "OLLAMA_TIMEOUT",
                     false,
@@ -379,9 +338,107 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
     }))
 }
 
+pub(crate) fn optional_ollama_api_key(
+    config: &crate::config::Config,
+    key_name: &str,
+    base_url: &Url,
+) -> Option<String> {
+    if !should_lookup_api_key(key_name, base_url) {
+        return None;
+    }
+
+    config
+        .get_secret::<String>(key_name)
+        .ok()
+        .and_then(normalize_api_key)
+}
+
+pub(crate) fn normalized_ollama_base_url(host: &str) -> Result<Url> {
+    let base = if host.starts_with("http://") || host.starts_with("https://") {
+        host.to_string()
+    } else {
+        format!("http://{}", host)
+    };
+
+    let mut base_url = Url::parse(&base).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
+    strip_known_api_suffix(&mut base_url);
+
+    if base_url.port().is_none() && base_url.scheme() == "http" && is_local_host(&base_url) {
+        base_url
+            .set_port(Some(OLLAMA_DEFAULT_PORT))
+            .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
+    }
+
+    Ok(base_url)
+}
+
+fn build_api_client(
+    base_url: Url,
+    timeout: Duration,
+    api_key: Option<String>,
+    headers: Option<&HashMap<String, String>>,
+) -> Result<ApiClient> {
+    let auth = api_key
+        .map(AuthMethod::BearerToken)
+        .unwrap_or(AuthMethod::NoAuth);
+    let mut api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+
+    if let Some(headers) = headers {
+        let mut header_map = HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    Ok(api_client)
+}
+
+fn normalize_api_key(api_key: String) -> Option<String> {
+    let trimmed = api_key.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("notrequired") {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn should_lookup_api_key(key_name: &str, base_url: &Url) -> bool {
+    let trimmed = key_name.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("notrequired") {
+        return false;
+    }
+
+    std::env::var(trimmed).is_ok() || !is_local_host(base_url)
+}
+
+fn strip_known_api_suffix(base_url: &mut Url) {
+    let path = base_url.path().trim_end_matches('/').to_string();
+    for suffix in ["/v1", "/api"] {
+        if let Some(prefix) = path.strip_suffix(suffix) {
+            let normalized = if prefix.is_empty() { "/" } else { prefix };
+            base_url.set_path(normalized);
+            return;
+        }
+    }
+}
+
+fn is_local_host(base_url: &Url) -> bool {
+    matches!(
+        base_url.host_str(),
+        Some("localhost") | Some("127.0.0.1") | Some("::1")
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::base::ModelInfo;
+    use serial_test::serial;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_apply_ollama_options_uses_input_limit() {
@@ -571,5 +628,148 @@ mod tests {
             &ProviderError::NetworkError("connection refused".into()),
             &config
         ));
+    }
+
+    fn test_provider(base_url: String, api_key_env: &str) -> OllamaProvider {
+        let provider_config = DeclarativeProviderConfig {
+            name: "custom_ollama_cloud".to_string(),
+            engine: crate::config::declarative_providers::ProviderEngine::Ollama,
+            display_name: "Ollama Cloud".to_string(),
+            description: None,
+            api_key_env: api_key_env.to_string(),
+            base_url,
+            models: vec![ModelInfo::new("qwen3", 128_000)],
+            headers: None,
+            timeout_seconds: Some(5),
+            supports_streaming: Some(true),
+            requires_auth: true,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models: None,
+            skip_canonical_filtering: false,
+        };
+        OllamaProvider::from_custom_config(ModelConfig::new_or_fail("qwen3"), provider_config)
+            .expect("provider should build")
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn custom_config_uses_bearer_auth_for_remote_chat_requests() {
+        let server = MockServer::start().await;
+        let _guard = env_lock::lock_env([("TEST_OLLAMA_API_KEY", Some("ollama-cloud-key"))]);
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .and(header("authorization", "Bearer ollama-cloud-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&server)
+            .await;
+
+        let provider = test_provider(server.uri(), "TEST_OLLAMA_API_KEY");
+        let response = provider
+            .api_client
+            .response_post(
+                Some("test-session"),
+                "v1/chat/completions",
+                &json!({"model": "qwen3", "messages": []}),
+            )
+            .await;
+
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn from_env_uses_bearer_auth_for_remote_chat_requests() {
+        let server = MockServer::start().await;
+        let server_uri = server.uri();
+        let _guard = env_lock::lock_env([
+            ("OLLAMA_HOST", Some(server_uri.as_str())),
+            ("OLLAMA_API_KEY", Some("ollama-cloud-key")),
+        ]);
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .and(header("authorization", "Bearer ollama-cloud-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&server)
+            .await;
+
+        let provider = OllamaProvider::from_env(ModelConfig::new_or_fail("qwen3"))
+            .await
+            .expect("provider should build");
+        let response = provider
+            .api_client
+            .response_post(
+                Some("test-session"),
+                "v1/chat/completions",
+                &json!({"model": "qwen3", "messages": []}),
+            )
+            .await;
+
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn custom_config_uses_bearer_auth_for_model_listing() {
+        let server = MockServer::start().await;
+        let _guard = env_lock::lock_env([("TEST_OLLAMA_API_KEY", Some("ollama-cloud-key"))]);
+
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .and(header("authorization", "Bearer ollama-cloud-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": [{"name": "qwen3"}, {"name": "gpt-oss:120b"}]
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = test_provider(server.uri(), "TEST_OLLAMA_API_KEY");
+        let models = provider.fetch_supported_models().await.unwrap();
+
+        assert_eq!(
+            models,
+            vec!["gpt-oss:120b".to_string(), "qwen3".to_string()]
+        );
+    }
+
+    #[test]
+    fn normalizes_v1_and_api_suffixes_to_server_root() {
+        let v1_url = normalized_ollama_base_url("https://ollama.com/v1").unwrap();
+        let api_url = normalized_ollama_base_url("https://ollama.com/api").unwrap();
+
+        assert_eq!(v1_url.as_str(), "https://ollama.com/");
+        assert_eq!(api_url.as_str(), "https://ollama.com/");
+    }
+
+    #[test]
+    fn ignores_placeholder_api_key_names() {
+        let remote_url = normalized_ollama_base_url("https://ollama.com").unwrap();
+
+        assert!(!should_lookup_api_key("", &remote_url));
+        assert!(!should_lookup_api_key("   ", &remote_url));
+        assert!(!should_lookup_api_key("notrequired", &remote_url));
+        assert!(!should_lookup_api_key("NotRequired", &remote_url));
+        assert!(should_lookup_api_key("OLLAMA_API_KEY", &remote_url));
+    }
+
+    #[test]
+    #[serial]
+    fn skips_optional_api_key_lookup_for_local_hosts_without_env() {
+        let base_url = normalized_ollama_base_url("localhost").unwrap();
+        let _guard = env_lock::lock_env([("OLLAMA_API_KEY", None::<&str>)]);
+
+        assert!(!should_lookup_api_key("OLLAMA_API_KEY", &base_url));
+    }
+
+    #[test]
+    #[serial]
+    fn allows_optional_api_key_lookup_for_local_hosts_when_env_is_set() {
+        let base_url = normalized_ollama_base_url("localhost").unwrap();
+        let _guard = env_lock::lock_env([("OLLAMA_API_KEY", Some("ollama-cloud-key"))]);
+
+        assert!(should_lookup_api_key("OLLAMA_API_KEY", &base_url));
     }
 }

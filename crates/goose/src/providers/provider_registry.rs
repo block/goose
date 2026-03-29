@@ -112,20 +112,22 @@ impl ProviderRegistry {
             if !config.requires_auth {
                 config_keys.remove(api_key_index);
             } else if !config.api_key_env.is_empty() {
+                let original = &config_keys[api_key_index];
                 let api_key_required = provider_type == ProviderType::Declarative;
-                config_keys[api_key_index] = super::base::ConfigKey::new(
-                    &config.api_key_env,
-                    api_key_required,
-                    true,
-                    None,
-                    true,
-                );
+                config_keys[api_key_index] = super::base::ConfigKey {
+                    name: config.api_key_env.clone(),
+                    required: api_key_required,
+                    secret: true,
+                    default: None,
+                    oauth_flow: original.oauth_flow,
+                    device_code_flow: original.device_code_flow,
+                    primary: original.primary,
+                };
             }
         }
 
         if let Some(ref env_vars) = config.env_vars {
             for ev in env_vars {
-                // Default primary to `required` so required fields show prominently in the UI
                 let primary = ev.primary.unwrap_or(ev.required);
                 config_keys.push(super::base::ConfigKey::new(
                     &ev.name,
@@ -202,5 +204,53 @@ impl ProviderRegistry {
 
     pub fn remove_custom_providers(&mut self) {
         self.entries.retain(|name, _| !name.starts_with("custom_"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::declarative_providers::ProviderEngine;
+    use crate::providers::ollama::OllamaProvider;
+
+    #[test]
+    fn register_with_name_rewrites_optional_secret_keys_for_custom_ollama() {
+        let mut registry = ProviderRegistry::new();
+        let config = DeclarativeProviderConfig {
+            name: "custom_ollama_cloud".to_string(),
+            engine: ProviderEngine::Ollama,
+            display_name: "Ollama Cloud".to_string(),
+            description: None,
+            api_key_env: "CUSTOM_OLLAMA_CLOUD_API_KEY".to_string(),
+            base_url: "https://ollama.com".to_string(),
+            models: vec![ModelInfo::new("qwen3", 128_000)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: Some(true),
+            requires_auth: true,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models: None,
+            skip_canonical_filtering: false,
+        };
+
+        registry.register_with_name::<OllamaProvider, _>(&config, ProviderType::Custom, |_model| {
+            unreachable!("constructor is not used in metadata tests")
+        });
+
+        let entry = registry
+            .entries
+            .get("custom_ollama_cloud")
+            .expect("custom provider should be registered");
+        let api_key = entry
+            .metadata
+            .config_keys
+            .iter()
+            .find(|key| key.secret)
+            .expect("custom provider should expose a secret config key");
+
+        assert_eq!(api_key.name, "CUSTOM_OLLAMA_CLOUD_API_KEY");
+        assert!(!api_key.required);
     }
 }
