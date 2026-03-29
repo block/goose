@@ -349,6 +349,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
                         format!("stopped: {stop_reason}")
                     });
 
+                    // In --text (non-interactive) mode, exit after the first turn completes.
+                    if initial_prompt.is_some() {
+                        should_exit.set(true);
+                    }
+
                     // Drain the queue — send the next waiting message.
                     let next = queue.read().clone().pop_front();
                     if let Some(text) = next {
@@ -393,7 +398,11 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
 
         // Escape — dismiss dialogs / cancel turn only; never exits.
         if code == KeyCode::Esc {
-            if pending_elicit.read().is_some() {
+            if ext_visible.get() {
+                ext_visible.set(false);
+            } else if model_visible.get() {
+                model_visible.set(false);
+            } else if pending_elicit.read().is_some() {
                 if let Some(tx) = pending_elicit_reply.read().take() {
                     let _ = tx.send(String::new());
                 }

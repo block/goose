@@ -152,6 +152,11 @@ pub async fn run_agent_loop(
                 Ok(None) => { /* not an agent command — fall through to reply() */ }
                 Err(e) => {
                     let _ = event_tx.send(AgentMsg::Error(e.to_string())).await;
+                    let _ = event_tx
+                        .send(AgentMsg::Finished {
+                            stop_reason: "error".into(),
+                        })
+                        .await;
                     continue;
                 }
             }
@@ -169,6 +174,11 @@ pub async fn run_agent_loop(
             Ok(s) => s,
             Err(e) => {
                 let _ = event_tx.send(AgentMsg::Error(e.to_string())).await;
+                let _ = event_tx
+                    .send(AgentMsg::Finished {
+                        stop_reason: "error".into(),
+                    })
+                    .await;
                 continue;
             }
         };
@@ -396,10 +406,11 @@ const IMAGE_MIME: &[(&str, &str)] = &[
 /// the text and a note is appended so the model understands the intent.
 pub async fn build_user_message(text: &str) -> Message {
     let mut message = Message::user();
-    let mut remaining = String::new();
+    // Preserve the original text (including newlines); remove/annotate @path tokens.
+    let mut remaining = text.to_string();
 
-    for token in text.split_whitespace() {
-        if let Some(raw_path) = token.strip_prefix('@') {
+    for word in text.split_whitespace() {
+        if let Some(raw_path) = word.strip_prefix('@') {
             // Expand leading `~` to the home directory.
             let expanded = if raw_path.starts_with("~/") || raw_path == "~" {
                 let home = dirs::home_dir().unwrap_or_default();
@@ -410,21 +421,19 @@ pub async fn build_user_message(text: &str) -> Message {
 
             match attach_path(&expanded).await {
                 Ok(AttachResult::Image { data, mime }) => {
+                    remaining = remaining.replacen(word, "", 1);
                     message = message.with_image(data, mime);
                 }
                 Ok(AttachResult::Text { label, content }) => {
+                    remaining = remaining.replacen(word, "", 1);
                     message = message.with_text(format!("{label}\n```\n{content}\n```"));
                 }
                 Err(e) => {
-                    // Leave the token in the text and add an error note.
-                    remaining.push(' ');
-                    remaining.push_str(token);
-                    remaining.push_str(&format!(" (could not attach: {e})"));
+                    // Annotate the token in-place so the model understands the intent.
+                    let annotated = format!("{word} (could not attach: {e})");
+                    remaining = remaining.replacen(word, &annotated, 1);
                 }
             }
-        } else {
-            remaining.push(' ');
-            remaining.push_str(token);
         }
     }
 

@@ -6,6 +6,7 @@ mod markdown;
 mod types;
 
 use clap::Parser;
+use goose::builtin_extension::register_builtin_extensions;
 use iocraft::prelude::*;
 
 use app::App;
@@ -34,6 +35,8 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_writer(file)
         .init();
+
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
     let args = Args::parse();
 
