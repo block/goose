@@ -426,11 +426,31 @@ pub fn register_declarative_providers(
     let dir = custom_providers_dir();
     let custom_providers = load_custom_providers(&dir)?;
     let fixed_providers = load_fixed_providers()?;
+
+    let fixed_names: std::collections::HashSet<&str> =
+        fixed_providers.iter().map(|c| c.name.as_str()).collect();
+
+    let (shadows, true_custom): (Vec<_>, Vec<_>) = custom_providers
+        .into_iter()
+        .partition(|c| fixed_names.contains(c.name.as_str()));
+
+    let shadow_map: HashMap<String, DeclarativeProviderConfig> =
+        shadows.into_iter().map(|c| (c.name.clone(), c)).collect();
+
     for config in fixed_providers {
+        let config = if let Some(shadow) = shadow_map.get(&config.name) {
+            DeclarativeProviderConfig {
+                requires_auth: shadow.requires_auth,
+                api_key_env: shadow.api_key_env.clone(),
+                ..config
+            }
+        } else {
+            config
+        };
         register_declarative_provider(registry, config, ProviderType::Declarative);
     }
 
-    for config in custom_providers {
+    for config in true_custom {
         register_declarative_provider(registry, config, ProviderType::Custom);
     }
 
