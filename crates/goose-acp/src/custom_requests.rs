@@ -127,6 +127,68 @@ pub struct GetExtensionsResponse {
     pub warnings: Vec<String>,
 }
 
+/// Clear conversation history and reset token counts for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearSessionRequest {
+    pub session_id: String,
+}
+
+/// Get the plan prompt string for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPlanPromptRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct GetPlanPromptResponse {
+    pub prompt: String,
+}
+
+/// Get provider name, model, context limit, and token usage for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GetProviderInfoRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GetProviderInfoResponse {
+    pub provider_name: String,
+    pub model_name: String,
+    pub context_limit: usize,
+    pub total_tokens: Option<i32>,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+}
+
+/// Get details for a single prompt by name.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPromptInfoRequest {
+    pub session_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct GetPromptInfoResponse {
+    pub prompt: serde_json::Value,
+}
+
+/// List extension prompts for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListPromptsRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ListPromptsResponse {
+    pub prompts: serde_json::Value,
+}
+
 /// Empty success response for operations that return no data.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct EmptyResponse {}
