@@ -69,6 +69,7 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client-reqwest",
 ] }
 oauth2 = { version = "5.0", default-features = false }
+arboard = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
@@ -105,12 +106,7 @@ opentelemetry_sdk = { workspace = true, optional = true }
 opentelemetry-appender-tracing = { workspace = true, optional = true }
 opentelemetry-otlp = { workspace = true, optional = true }
 opentelemetry-stdout = { workspace = true, optional = true }
-keyring = { version = "3.6.2", features = [
-    "apple-native",
-    "windows-native",
-    "sync-secret-service",
-    "vendored",
-] }
+keyring = { version = "3.6.2", features = ["vendored"] }
 serde_yaml = { workspace = true }
 strum = { workspace = true }
 once_cell = { workspace = true }
@@ -194,12 +190,17 @@ sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8"],
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
+keyring = { version = "3.6.2", features = ["windows-native"] }
 
 # Platform-specific GPU acceleration for Whisper and local inference
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"], optional = true }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"], optional = true }
 llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"], optional = true }
+keyring = { version = "3.6.2", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.2", features = ["sync-secret-service"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
@@ -214,6 +215,8 @@ env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
 goose-test-support = { path = "../goose-test-support" }
+bytes.workspace = true
+http.workspace = true
 
 [[example]]
 name = "agent"

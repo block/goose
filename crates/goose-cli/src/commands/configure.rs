@@ -1106,9 +1106,13 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
 
     let timeout = prompt_extension_timeout()?;
 
-    let mut parts = command_str.split_whitespace();
-    let cmd = parts.next().unwrap_or("").to_string();
-    let args: Vec<String> = parts.map(String::from).collect();
+    let mut parts = crate::session::split_quoted(&command_str)?;
+    let cmd = if parts.is_empty() {
+        String::new()
+    } else {
+        parts.remove(0)
+    };
+    let args = parts;
 
     let description = prompt_extension_description()?;
     let (envs, env_keys) = collect_env_vars()?;
