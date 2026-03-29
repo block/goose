@@ -1382,9 +1382,27 @@ impl ExtensionManager {
             });
         }
 
+        // Build a list of available tool names to help the model self-correct
+        let available_tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+        let suggestion = if !available_tool_names.is_empty() {
+            format!(
+                " Available tools: [{}]. Please use one of these tools instead.",
+                available_tool_names.join(", ")
+            )
+        } else {
+            String::new()
+        };
+
+        tracing::warn!(
+            monotonic_counter.goose.unknown_tool_calls = 1,
+            tool_name = %tool_name,
+            "Model called unknown tool '{}' that is not in the available tools list",
+            tool_name,
+        );
+
         Err(ErrorData::new(
             ErrorCode::RESOURCE_NOT_FOUND,
-            format!("Tool '{}' not found", tool_name),
+            format!("Tool '{}' not found.{}", tool_name, suggestion),
             None,
         ))
     }
