@@ -11,9 +11,10 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::agents::{AgentEvent, SessionConfig};
+use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
+use goose::session::Session;
 use serde::{Deserialize, Serialize};
 use std::{
     convert::Infallible,
@@ -389,6 +390,22 @@ pub async fn session_reply(
             retry_config: None,
         };
 
+        if let Err(e) = ensure_agent_provider_for_session(&agent, &session).await {
+            tracing::error!(
+                "Failed to restore provider for session {} before reply: {}",
+                task_session_id,
+                e
+            );
+            publish(
+                Some(task_request_id.clone()),
+                MessageEvent::Error {
+                    error: format!("Failed to restore provider before reply: {}", e),
+                },
+            )
+            .await;
+            return;
+        }
+
         let mut all_messages = match override_conversation {
             Some(history) => {
                 let conv = Conversation::new_unvalidated(history);
@@ -575,6 +592,13 @@ pub async fn session_reply(
     Ok(Json(SessionReplyResponse { request_id }))
 }
 
+async fn ensure_agent_provider_for_session(agent: &Arc<Agent>, session: &Session) -> anyhow::Result<()> {
+    if agent.provider().await.is_err() {
+        agent.restore_provider_from_session(session).await?;
+    }
+    Ok(())
+}
+
 // ── POST /sessions/{id}/cancel ──────────────────────────────────────────
 
 #[utoipa::path(
@@ -612,4 +636,109 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/sessions/{id}/cancel", post(session_cancel))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod integration_tests {
+        use super::*;
+        use goose::config::GooseMode;
+        use goose::model::ModelConfig;
+        use goose::session::SessionType;
+        use serial_test::serial;
+        use tempfile::TempDir;
+
+        struct TestEnv {
+            _root: TempDir,
+            old_root: Option<String>,
+            old_disable_keyring: Option<String>,
+        }
+
+        impl TestEnv {
+            fn new() -> Self {
+                let root = tempfile::tempdir().unwrap();
+                let config_dir = root.path().join("config");
+                let data_dir = root.path().join("data");
+                let state_dir = root.path().join("state");
+                std::fs::create_dir_all(&config_dir).unwrap();
+                std::fs::create_dir_all(&data_dir).unwrap();
+                std::fs::create_dir_all(&state_dir).unwrap();
+
+                let old_root = std::env::var("GOOSE_PATH_ROOT").ok();
+                let old_disable_keyring = std::env::var("GOOSE_DISABLE_KEYRING").ok();
+
+                std::env::set_var("GOOSE_PATH_ROOT", root.path());
+                std::env::set_var("GOOSE_DISABLE_KEYRING", "true");
+
+                Self {
+                    _root: root,
+                    old_root,
+                    old_disable_keyring,
+                }
+            }
+        }
+
+        impl Drop for TestEnv {
+            fn drop(&mut self) {
+                if let Some(value) = &self.old_root {
+                    std::env::set_var("GOOSE_PATH_ROOT", value);
+                } else {
+                    std::env::remove_var("GOOSE_PATH_ROOT");
+                }
+
+                if let Some(value) = &self.old_disable_keyring {
+                    std::env::set_var("GOOSE_DISABLE_KEYRING", value);
+                } else {
+                    std::env::remove_var("GOOSE_DISABLE_KEYRING");
+                }
+            }
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[serial]
+        async fn ensure_agent_provider_restores_from_session_metadata() {
+            let _env = TestEnv::new();
+            let state = AppState::new(true).await.unwrap();
+            let session = state
+                .session_manager()
+                .create_session(
+                    std::env::temp_dir(),
+                    "New Chat".to_string(),
+                    SessionType::User,
+                    GooseMode::Auto,
+                )
+                .await
+                .unwrap();
+
+            let agent = state.get_agent(session.id.clone()).await.unwrap();
+            assert!(agent.provider().await.is_err());
+
+            let model_config = ModelConfig::new("llama3.1")
+                .unwrap()
+                .with_canonical_limits("ollama");
+
+            state
+                .session_manager()
+                .update(&session.id)
+                .provider_name("ollama")
+                .model_config(model_config)
+                .apply()
+                .await
+                .unwrap();
+
+            let updated_session = state
+                .session_manager()
+                .get_session(&session.id, false)
+                .await
+                .unwrap();
+
+            ensure_agent_provider_for_session(&agent, &updated_session)
+                .await
+                .unwrap();
+
+            assert!(agent.provider().await.is_ok());
+        }
+    }
 }

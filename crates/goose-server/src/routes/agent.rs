@@ -288,8 +288,20 @@ async fn start_agent(
             })?;
     }
 
+    let mut update = manager.update(&session.id);
+
+    if let Ok(provider) = config.get_goose_provider() {
+        update = update.provider_name(&provider);
+
+        if let Ok(model) = config.get_goose_model() {
+            if let Ok(model_config) = ModelConfig::new(&model) {
+                update = update.model_config(model_config.with_canonical_limits(&provider));
+            }
+        }
+    }
+
     if let Some(recipe) = original_recipe {
-        let mut update = manager.update(&session.id).recipe(Some(recipe.clone()));
+        update = update.recipe(Some(recipe.clone()));
 
         if let Some(ref settings) = recipe.settings {
             if let Some(ref provider) = settings.goose_provider {
@@ -302,15 +314,15 @@ async fn start_agent(
                 }
             }
         }
-
-        update.apply().await.map_err(|err| {
-            error!("Failed to update session with recipe: {}", err);
-            ErrorResponse {
-                message: format!("Failed to update session with recipe: {}", err),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            }
-        })?;
     }
+
+    update.apply().await.map_err(|err| {
+        error!("Failed to update session defaults: {}", err);
+        ErrorResponse {
+            message: format!("Failed to update session defaults: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    })?;
 
     // Refetch session to get all updates
     session = manager
@@ -399,7 +411,7 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        let provider_changed = agent
+        agent
             .restore_provider_from_session(&session)
             .await
             .map_err(|e| ErrorResponse {
@@ -407,18 +419,14 @@ async fn resume_agent(
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             })?;
 
-        let session = if provider_changed {
-            state
-                .session_manager()
-                .get_session(&payload.session_id, true)
-                .await
-                .map_err(|err| ErrorResponse {
-                    message: format!("Failed to re-fetch session: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })?
-        } else {
-            session
-        };
+        let session = state
+            .session_manager()
+            .get_session(&payload.session_id, true)
+            .await
+            .map_err(|err| ErrorResponse {
+                message: format!("Failed to re-fetch session: {}", err),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
 
         let extension_results =
             if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
@@ -1339,4 +1347,157 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/set_container", post(set_container))
         .route("/agent/stop", post(stop_agent))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod integration_tests {
+        use super::*;
+        use axum::{body::Body, http::Request};
+        use serial_test::serial;
+        use tower::ServiceExt;
+
+        struct TestEnv {
+            _root: std::path::PathBuf,
+            old_root: Option<String>,
+            old_provider: Option<String>,
+            old_model: Option<String>,
+            old_disable_keyring: Option<String>,
+        }
+
+        impl TestEnv {
+            fn new(provider: &str, model: &str) -> Self {
+                let root = tempfile::tempdir()
+                    .expect("failed to create temp Goose root")
+                    .keep();
+                let old_root = std::env::var("GOOSE_PATH_ROOT").ok();
+                let old_provider = std::env::var("GOOSE_PROVIDER").ok();
+                let old_model = std::env::var("GOOSE_MODEL").ok();
+                let old_disable_keyring = std::env::var("GOOSE_DISABLE_KEYRING").ok();
+
+                std::env::set_var("GOOSE_PATH_ROOT", &root);
+                std::env::set_var("GOOSE_PROVIDER", provider);
+                std::env::set_var("GOOSE_MODEL", model);
+                std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+
+                Self {
+                    _root: root,
+                    old_root,
+                    old_provider,
+                    old_model,
+                    old_disable_keyring,
+                }
+            }
+        }
+
+        impl Drop for TestEnv {
+            fn drop(&mut self) {
+                if let Some(value) = &self.old_root {
+                    std::env::set_var("GOOSE_PATH_ROOT", value);
+                } else {
+                    std::env::remove_var("GOOSE_PATH_ROOT");
+                }
+
+                if let Some(value) = &self.old_provider {
+                    std::env::set_var("GOOSE_PROVIDER", value);
+                } else {
+                    std::env::remove_var("GOOSE_PROVIDER");
+                }
+
+                if let Some(value) = &self.old_model {
+                    std::env::set_var("GOOSE_MODEL", value);
+                } else {
+                    std::env::remove_var("GOOSE_MODEL");
+                }
+
+                if let Some(value) = &self.old_disable_keyring {
+                    std::env::set_var("GOOSE_DISABLE_KEYRING", value);
+                } else {
+                    std::env::remove_var("GOOSE_DISABLE_KEYRING");
+                }
+            }
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[serial]
+        async fn start_agent_uses_global_provider_and_model() {
+            let _env = TestEnv::new("ollama", "llama3.1");
+            let state = AppState::new(true).await.unwrap();
+            let app = routes(state);
+
+            let working_dir = std::env::temp_dir().display().to_string();
+            let request = Request::builder()
+                .uri("/agent/start")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "working_dir": working_dir
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap();
+
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let session: Session = serde_json::from_slice(&body).unwrap();
+            assert_eq!(session.provider_name.as_deref(), Some("ollama"));
+            assert_eq!(
+                session
+                    .model_config
+                    .as_ref()
+                    .map(|config| config.model_name.as_str()),
+                Some("llama3.1")
+            );
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[serial]
+        async fn resume_agent_returns_restored_provider_and_model() {
+            let _env = TestEnv::new("ollama", "llama3.1");
+            let state = AppState::new(true).await.unwrap();
+            let app = routes(state.clone());
+            let session = state
+                .session_manager()
+                .create_session(
+                    std::env::temp_dir(),
+                    "New Chat".to_string(),
+                    SessionType::User,
+                    GooseMode::Auto,
+                )
+                .await
+                .unwrap();
+
+            let resume_request = Request::builder()
+                .uri("/agent/resume")
+                .method("POST")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "session_id": session.id,
+                        "load_model_and_extensions": true
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap();
+            let response = app.oneshot(resume_request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let resumed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(resumed["session"]["provider_name"].as_str(), Some("ollama"));
+            assert_eq!(
+                resumed["session"]["model_config"]["model_name"].as_str(),
+                Some("llama3.1")
+            );
+        }
+    }
 }
