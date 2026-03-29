@@ -413,56 +413,64 @@ mod tests {
         use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
         use crate::config::GooseMode;
         use crate::session::SessionManager;
+        use std::collections::HashSet;
         use std::sync::Arc;
 
         let tmp_dir = tempfile::tempdir().unwrap();
-        let _discovery_overrides =
-            crate::agents::platform_extensions::summon::ScopedDiscoveryOverrides::set(
-                crate::agents::platform_extensions::summon::TestDiscoveryOverrides {
-                    config_dir: Some(tmp_dir.path().join("config")),
-                    home_dir: Some(tmp_dir.path().join("home")),
-                    recipe_path: Some(None),
-                },
-            );
-        let session_manager = Arc::new(SessionManager::new(tmp_dir.path().to_path_buf()));
-        let session = session_manager
-            .create_session(
-                tmp_dir.path().to_path_buf(),
-                "test session".to_owned(),
-                crate::session::SessionType::Hidden,
-                GooseMode::default(),
-            )
-            .await
-            .unwrap();
-        let context = PlatformExtensionContext {
-            extension_manager: None,
-            session_manager,
-            session: Some(Arc::new(session)),
-        };
+        let config_dir = tmp_dir.path().join("config");
+        let home_dir = tmp_dir.path().join("home");
 
-        let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
-            .values()
-            .map(|def| {
-                let client = (def.client_factory)(context.clone());
-                let info = client.get_info();
-                let instructions = info
-                    .and_then(|i| i.instructions.clone())
-                    .unwrap_or_default();
-                let has_resources = info
-                    .and_then(|i| i.capabilities.resources.as_ref())
-                    .is_some();
-                ExtensionInfo::new(def.name, &instructions, has_resources)
-            })
-            .collect();
+        crate::agents::platform_extensions::summon::with_test_discovery_overrides(
+            crate::agents::platform_extensions::summon::TestDiscoveryOverrides {
+                reserved_slash_commands: Some(HashSet::new()),
+                config_dir: Some(config_dir),
+                home_dir: Some(home_dir),
+                recipe_path: Some(None),
+            },
+            async move {
+                let session_manager = Arc::new(SessionManager::new(tmp_dir.path().to_path_buf()));
+                let session = session_manager
+                    .create_session(
+                        tmp_dir.path().to_path_buf(),
+                        "test session".to_owned(),
+                        crate::session::SessionType::Hidden,
+                        GooseMode::default(),
+                    )
+                    .await
+                    .unwrap();
+                let context = PlatformExtensionContext {
+                    extension_manager: None,
+                    session_manager,
+                    session: Some(Arc::new(session)),
+                };
 
-        extensions.sort_by(|a, b| a.name.cmp(&b.name));
+                let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
+                    .values()
+                    .map(|def| {
+                        let client = (def.client_factory)(context.clone());
+                        let info = client.get_info();
+                        let instructions = info
+                            .and_then(|i| i.instructions.clone())
+                            .unwrap_or_default();
+                        let has_resources = info
+                            .and_then(|i| i.capabilities.resources.as_ref())
+                            .is_some();
+                        ExtensionInfo::new(def.name, &instructions, has_resources)
+                    })
+                    .collect();
 
-        let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
-        let system_prompt = manager
-            .builder()
-            .with_extensions(extensions.into_iter())
-            .build();
+                extensions.sort_by(|a, b| a.name.cmp(&b.name));
 
-        assert_snapshot!(system_prompt);
+                let manager =
+                    PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+                let system_prompt = manager
+                    .builder()
+                    .with_extensions(extensions.into_iter())
+                    .build();
+
+                assert_snapshot!(system_prompt);
+            },
+        )
+        .await;
     }
 }

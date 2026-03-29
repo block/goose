@@ -1579,6 +1579,16 @@
               "type": "string",
               "nullable": true
             }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Optional session identifier to gate session-specific slash commands",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
           }
         ],
         "responses": {

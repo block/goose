@@ -2842,6 +2842,10 @@ export type GetSlashCommandsData = {
          * Optional working directory to discover local skills from
          */
         working_dir?: string | null;
+        /**
+         * Optional session identifier to gate session-specific slash commands
+         */
+        session_id?: string | null;
     };
     url: '/config/slash_commands';
 };

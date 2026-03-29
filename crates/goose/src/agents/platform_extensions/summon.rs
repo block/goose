@@ -45,65 +45,55 @@ pub(crate) struct TestDiscoveryOverrides {
     pub config_dir: Option<PathBuf>,
     pub home_dir: Option<PathBuf>,
     pub recipe_path: Option<Option<String>>,
+    pub reserved_slash_commands: Option<HashSet<String>>,
 }
 
 #[cfg(test)]
-thread_local! {
-    static TEST_DISCOVERY_OVERRIDES: std::cell::RefCell<Option<TestDiscoveryOverrides>> =
-        const { std::cell::RefCell::new(None) };
+tokio::task_local! {
+    static TEST_DISCOVERY_OVERRIDES: TestDiscoveryOverrides;
 }
 
 #[cfg(test)]
-pub(crate) struct ScopedDiscoveryOverrides {
-    previous: Option<TestDiscoveryOverrides>,
-}
-
-#[cfg(test)]
-impl ScopedDiscoveryOverrides {
-    pub(crate) fn set(overrides: TestDiscoveryOverrides) -> Self {
-        let previous =
-            TEST_DISCOVERY_OVERRIDES.with(|stored| stored.borrow_mut().replace(overrides));
-        Self { previous }
-    }
-}
-
-#[cfg(test)]
-impl Drop for ScopedDiscoveryOverrides {
-    fn drop(&mut self) {
-        TEST_DISCOVERY_OVERRIDES.with(|stored| {
-            *stored.borrow_mut() = self.previous.take();
-        });
-    }
+pub(crate) async fn with_test_discovery_overrides<F>(
+    overrides: TestDiscoveryOverrides,
+    future: F,
+) -> F::Output
+where
+    F: std::future::Future,
+{
+    TEST_DISCOVERY_OVERRIDES.scope(overrides, future).await
 }
 
 #[cfg(test)]
 fn test_config_dir_override() -> Option<PathBuf> {
-    TEST_DISCOVERY_OVERRIDES.with(|stored| {
-        stored
-            .borrow()
-            .as_ref()
-            .and_then(|overrides| overrides.config_dir.clone())
-    })
+    TEST_DISCOVERY_OVERRIDES
+        .try_with(|overrides| overrides.config_dir.clone())
+        .ok()
+        .flatten()
 }
 
 #[cfg(test)]
 fn test_home_dir_override() -> Option<PathBuf> {
-    TEST_DISCOVERY_OVERRIDES.with(|stored| {
-        stored
-            .borrow()
-            .as_ref()
-            .and_then(|overrides| overrides.home_dir.clone())
-    })
+    TEST_DISCOVERY_OVERRIDES
+        .try_with(|overrides| overrides.home_dir.clone())
+        .ok()
+        .flatten()
 }
 
 #[cfg(test)]
 fn test_recipe_path_override() -> Option<Option<String>> {
-    TEST_DISCOVERY_OVERRIDES.with(|stored| {
-        stored
-            .borrow()
-            .as_ref()
-            .and_then(|overrides| overrides.recipe_path.clone())
-    })
+    TEST_DISCOVERY_OVERRIDES
+        .try_with(|overrides| overrides.recipe_path.clone())
+        .ok()
+        .flatten()
+}
+
+#[cfg(test)]
+fn test_reserved_slash_commands_override() -> Option<HashSet<String>> {
+    TEST_DISCOVERY_OVERRIDES
+        .try_with(|overrides| overrides.reserved_slash_commands.clone())
+        .ok()
+        .flatten()
 }
 
 #[derive(Debug, Clone)]
@@ -485,10 +475,17 @@ fn build_skill_instructions(skills: &[Source]) -> Option<String> {
         instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
     }
 
+    let reserved_slash_commands = reserved_slash_commands();
     let slash_skill_names: Vec<_> = skills
         .iter()
-        .filter(|skill| normalize_slash_skill_name(&skill.name).is_some())
-        .map(|skill| format!("/{}", skill.name))
+        .filter_map(|skill| {
+            let normalized = normalize_slash_skill_name(&skill.name)?;
+            if reserved_slash_commands.contains(&normalized) {
+                return None;
+            }
+
+            Some(format!("/{}", skill.name))
+        })
         .collect();
 
     if !slash_skill_names.is_empty() {
@@ -500,6 +497,24 @@ fn build_skill_instructions(skills: &[Source]) -> Option<String> {
     }
 
     Some(instructions)
+}
+
+fn reserved_slash_commands() -> HashSet<String> {
+    #[cfg(test)]
+    if let Some(commands) = test_reserved_slash_commands_override() {
+        return commands;
+    }
+
+    let mut reserved: HashSet<String> = crate::agents::execute_commands::list_commands()
+        .iter()
+        .map(|command| command.name.to_lowercase())
+        .collect();
+
+    for mapping in crate::slash_commands::list_commands() {
+        reserved.insert(mapping.command.to_lowercase());
+    }
+
+    reserved
 }
 
 /// Returns all discovered sources (skills, recipes, agents) from the given working directory.
@@ -2250,13 +2265,23 @@ You review code."#;
                 content: String::new(),
                 supporting_files: Vec::new(),
             },
+            Source {
+                name: "clear".to_string(),
+                kind: SourceKind::Skill,
+                description: "Reserved".to_string(),
+                path: PathBuf::new(),
+                content: String::new(),
+                supporting_files: Vec::new(),
+            },
         ])
         .unwrap();
 
         assert!(instructions.contains("• safe-skill - Safe"));
         assert!(instructions.contains("• unsafe skill - Unsafe"));
+        assert!(instructions.contains("• clear - Reserved"));
         assert!(instructions.contains("Slash-invokable skills: /safe-skill."));
         assert!(!instructions.contains("/unsafe skill"));
+        assert!(!instructions.contains("/clear"));
     }
 
     #[tokio::test]

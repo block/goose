@@ -64,6 +64,7 @@ interface MentionPopoverProps {
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   workingDir?: string;
+  sessionId?: string;
 }
 
 // Enhanced fuzzy matching algorithm
@@ -145,6 +146,7 @@ const MentionPopover = forwardRef<
       selectedIndex,
       onSelectedIndexChange,
       workingDir,
+      sessionId,
     },
     ref
   ) => {
@@ -482,7 +484,7 @@ const MentionPopover = forwardRef<
       const loadData = async () => {
         if (isSlashCommand) {
           const response = await getSlashCommands({
-            query: { working_dir: currentWorkingDir },
+            query: { working_dir: currentWorkingDir, session_id: sessionId },
             throwOnError: true,
           });
           const commandItems: DisplayItem[] = (response.data?.commands || []).map((cmd) => ({
@@ -500,7 +502,7 @@ const MentionPopover = forwardRef<
       if (isOpen) {
         loadData();
       }
-    }, [isOpen, isSlashCommand, scanFilesFromRoot, currentWorkingDir]);
+    }, [isOpen, isSlashCommand, scanFilesFromRoot, currentWorkingDir, sessionId]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {

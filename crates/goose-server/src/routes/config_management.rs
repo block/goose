@@ -3,7 +3,7 @@ use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::routing::put;
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     routing::{delete, get, post},
     Json, Router,
 };
@@ -20,6 +20,7 @@ use goose::providers::catalog::{
 };
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
+use goose::session::EnabledExtensionsState;
 use goose::{
     agents::execute_commands, agents::platform_extensions::summon, agents::ExtensionConfig,
     config::permission::PermissionLevel, slash_commands,
@@ -157,6 +158,8 @@ pub struct SlashCommandsResponse {
 pub struct SlashCommandsQuery {
     /// Optional working directory to discover local skills from
     pub working_dir: Option<String>,
+    /// Optional session identifier to gate session-specific slash commands
+    pub session_id: Option<String>,
 }
 
 fn skill_slash_commands(
@@ -190,6 +193,26 @@ fn skill_slash_commands(
             })
         })
         .collect()
+}
+
+fn summon_enabled_for_extensions(extensions: &[ExtensionConfig]) -> bool {
+    extensions
+        .iter()
+        .any(|extension| extension.name() == summon::EXTENSION_NAME)
+}
+
+async fn summon_enabled(
+    session_manager: &goose::session::SessionManager,
+    session_id: Option<&str>,
+    config: &Config,
+) -> bool {
+    let extensions = if let Some(session_id) = session_id {
+        EnabledExtensionsState::for_session(session_manager, session_id, config).await
+    } else {
+        EnabledExtensionsState::extensions_or_default(None, config)
+    };
+
+    summon_enabled_for_extensions(&extensions)
 }
 
 #[utoipa::path(
@@ -440,6 +463,7 @@ pub async fn get_provider_models(
     )
 )]
 pub async fn get_slash_commands(
+    State(state): State<Arc<AppState>>,
     Query(query): Query<SlashCommandsQuery>,
 ) -> Result<Json<SlashCommandsResponse>, ErrorResponse> {
     let mut commands: Vec<_> = slash_commands::list_commands()
@@ -464,8 +488,17 @@ pub async fn get_slash_commands(
         reserved_commands.insert(cmd_def.name.to_lowercase());
     }
 
-    let working_dir = query.working_dir.as_deref().map(FsPath::new);
-    commands.extend(skill_slash_commands(working_dir, &reserved_commands));
+    let summon_enabled = summon_enabled(
+        state.session_manager(),
+        query.session_id.as_deref(),
+        Config::global(),
+    )
+    .await;
+
+    if summon_enabled {
+        let working_dir = query.working_dir.as_deref().map(FsPath::new);
+        commands.extend(skill_slash_commands(working_dir, &reserved_commands));
+    }
 
     Ok(Json(SlashCommandsResponse { commands }))
 }
@@ -978,6 +1011,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::config::GooseMode;
+    use goose::session::{
+        EnabledExtensionsState, ExtensionData, ExtensionState, SessionManager, SessionType,
+    };
     use std::fs;
     use uuid::Uuid;
 
@@ -998,6 +1035,24 @@ mod tests {
         let path = std::env::temp_dir().join(format!("goose-skill-slash-{}", Uuid::new_v4()));
         fs::create_dir_all(&path).unwrap();
         path
+    }
+
+    fn platform_extension(name: &str) -> ExtensionConfig {
+        ExtensionConfig::Platform {
+            name: name.to_string(),
+            description: String::new(),
+            display_name: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        }
+    }
+
+    fn enabled_extensions(extensions: Vec<ExtensionConfig>) -> ExtensionData {
+        let mut extension_data = ExtensionData::new();
+        EnabledExtensionsState::new(extensions)
+            .to_extension_data(&mut extension_data)
+            .unwrap();
+        extension_data
     }
 
     #[test]
@@ -1033,5 +1088,51 @@ mod tests {
             .any(|command| command.command == "some-skill"));
 
         fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn summon_enabled_for_extensions_detects_session_gating() {
+        assert!(summon_enabled_for_extensions(&[platform_extension(
+            "summon"
+        )]));
+        assert!(!summon_enabled_for_extensions(&[platform_extension(
+            "developer"
+        )]));
+    }
+
+    #[tokio::test]
+    async fn summon_enabled_uses_session_extensions_when_present() {
+        let data_dir = temp_working_dir();
+        let working_dir = temp_working_dir();
+        let session_manager = SessionManager::new(data_dir.clone());
+        let session = session_manager
+            .create_session(
+                working_dir.clone(),
+                "skill-session".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        session_manager
+            .update(&session.id)
+            .extension_data(enabled_extensions(vec![platform_extension("developer")]))
+            .apply()
+            .await
+            .unwrap();
+        assert!(!summon_enabled(&session_manager, Some(&session.id), Config::global()).await);
+
+        session_manager
+            .update(&session.id)
+            .extension_data(enabled_extensions(vec![platform_extension("summon")]))
+            .apply()
+            .await
+            .unwrap();
+        assert!(summon_enabled(&session_manager, Some(&session.id), Config::global()).await);
+
+        drop(session_manager);
+        fs::remove_dir_all(data_dir).unwrap();
+        fs::remove_dir_all(working_dir).unwrap();
     }
 }
