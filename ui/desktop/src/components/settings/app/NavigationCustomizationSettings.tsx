@@ -5,8 +5,13 @@ import {
   useNavigationContext,
   DEFAULT_ITEM_ORDER,
   DEFAULT_ENABLED_ITEMS,
+  DEFAULT_MAX_RECENT_SESSIONS,
 } from '../../Layout/NavigationContext';
+import { Input } from '../../ui/input';
 import { cn } from '../../../utils';
+
+const MIN_RECENT_SESSIONS = 1;
+const MAX_RECENT_SESSIONS = 50;
 
 const i18n = defineMessages({
   dragInstructions: {
@@ -24,6 +29,14 @@ const i18n = defineMessages({
   showItem: {
     id: 'navigationCustomization.showItem',
     defaultMessage: 'Show item',
+  },
+  recentSessionsLabel: {
+    id: 'navigationCustomization.recentSessionsLabel',
+    defaultMessage: 'Recent sessions shown',
+  },
+  recentSessionsDescription: {
+    id: 'navigationCustomization.recentSessionsDescription',
+    defaultMessage: 'Number of recent sessions displayed in the sidebar',
   },
   itemHome: {
     id: 'navigationCustomization.itemHome',
@@ -76,6 +89,18 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const intl = useIntl();
+
+  const currentMaxSessions = preferences.maxRecentSessions ?? DEFAULT_MAX_RECENT_SESSIONS;
+
+  const handleMaxSessionsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = parseInt(e.target.value, 10);
+    if (isNaN(raw)) return;
+    const clamped = Math.min(MAX_RECENT_SESSIONS, Math.max(MIN_RECENT_SESSIONS, raw));
+    updatePreferences({
+      ...preferences,
+      maxRecentSessions: clamped,
+    });
+  };
 
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
     setDraggedItem(itemId);
@@ -131,6 +156,7 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
     updatePreferences({
       itemOrder: DEFAULT_ITEM_ORDER,
       enabledItems: DEFAULT_ENABLED_ITEMS,
+      maxRecentSessions: DEFAULT_MAX_RECENT_SESSIONS,
     });
   };
 
@@ -145,6 +171,27 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
   return (
     <div className={className}>
       <div className="space-y-3">
+        {/* Recent sessions count */}
+        <div className="flex items-center justify-between py-2 px-3 bg-background-secondary rounded-lg">
+          <div>
+            <h4 className="text-text-primary text-sm">
+              {intl.formatMessage(i18n.recentSessionsLabel)}
+            </h4>
+            <p className="text-xs text-text-secondary mt-[2px]">
+              {intl.formatMessage(i18n.recentSessionsDescription)}
+            </p>
+          </div>
+          <Input
+            type="number"
+            min={MIN_RECENT_SESSIONS}
+            max={MAX_RECENT_SESSIONS}
+            value={currentMaxSessions}
+            onChange={handleMaxSessionsChange}
+            className="w-20"
+          />
+        </div>
+
+        {/* Item ordering */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-text-secondary">
             {intl.formatMessage(i18n.dragInstructions)}

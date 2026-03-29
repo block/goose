@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from '../../i18n';
+import { DEFAULT_MAX_RECENT_SESSIONS, useNavigationContext } from '../Layout/NavigationContext';
 import { errorMessage } from '../../utils/conversionUtils';
 import { Card, CardContent, CardDescription } from '../ui/card';
 import { Greeting } from '../common/Greeting';
@@ -53,6 +54,8 @@ export function SessionInsights() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const navigate = useNavigate();
   const setView = useNavigation();
+  const { preferences } = useNavigationContext();
+  const maxRecentSessions = preferences.maxRecentSessions ?? DEFAULT_MAX_RECENT_SESSIONS;
 
   useEffect(() => {
     let loadingTimeout: ReturnType<typeof setTimeout>;
@@ -77,7 +80,8 @@ export function SessionInsights() {
     const loadRecentSessions = async () => {
       try {
         const response = await listSessions<true>({ throwOnError: true });
-        setRecentSessions(response.data.sessions.slice(0, 3));
+        // Home page shows half the sidebar session count, minimum 3
+        setRecentSessions(response.data.sessions.slice(0, Math.max(3, Math.floor(maxRecentSessions / 2))));
       } finally {
         setIsLoadingSessions(false);
       }
@@ -113,7 +117,7 @@ export function SessionInsights() {
         window.clearTimeout(loadingTimeout);
       }
     };
-  }, []);
+  }, [maxRecentSessions]);
 
   const handleSessionClick = async (session: Session) => {
     try {
