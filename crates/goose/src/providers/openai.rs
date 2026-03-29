@@ -64,7 +64,7 @@ struct ParsedBaseUrl {
     host: String,
     /// Query parameters to forward on every request.
     query_params: Vec<(String, String)>,
-    /// Whether the URL path ended with `/v1`.
+    /// Whether the URL should keep versioned default endpoint paths.
     has_v1: bool,
     /// `true` when the host was derived from `OPENAI_BASE_URL`.
     /// Controls whether `OPENAI_BASE_PATH` is read from env only
@@ -85,7 +85,7 @@ pub(crate) fn parse_openai_base_url(raw_url: &str) -> Result<OpenAiBaseUrlParts>
 
     let path = parsed.path().trim_end_matches('/');
     if path.is_empty() || path == "/" {
-        return Ok((authority, query_params, false));
+        return Ok((authority, query_params, true));
     }
 
     if path == "/v1" {
@@ -354,16 +354,15 @@ impl OpenAiProvider {
     /// Returns `(host, query_params, has_v1)`:
     ///   - `host`: scheme + authority + any path prefix before `/v1`
     ///   - `query_params`: any `?key=value` pairs to forward on every request
-    ///   - `has_v1`: whether the URL path ends with `/v1` (affects base_path)
+    ///   - `has_v1`: whether the URL should keep versioned default paths
     ///
-    /// When `has_v1` is true, the default `v1/chat/completions` base_path is
-    /// correct.  When false, the caller should use `chat/completions` (without
-    /// the version prefix) to match SDK behaviour.
+    /// Bare hosts and `/v1` roots keep `v1/chat/completions` as the default
+    /// base_path. Explicit non-`/v1` roots use `chat/completions`.
     ///
     /// Examples:
     ///   `https://api.openai.com/v1`              → (`https://api.openai.com`, [], true)
     ///   `https://gw.example.com/openai/v1`       → (`https://gw.example.com/openai`, [], true)
-    ///   `https://example.com`                    → (`https://example.com`, [], false)
+    ///   `https://example.com`                    → (`https://example.com`, [], true)
     ///   `https://example.com/custom/api`         → (`https://example.com/custom/api`, [], false)
     ///   `https://gw.example.com/v1?api-version=X`→ (`https://gw.example.com`, [("api-version","X")], true)
     fn parse_base_url(raw_url: &str) -> Result<ParsedBaseUrl> {
@@ -1015,7 +1014,7 @@ mod tests {
     fn parse_base_url_handles_no_path() {
         let r = OpenAiProvider::parse_base_url("https://api.openai.com").unwrap();
         assert_eq!(r.host, "https://api.openai.com");
-        assert!(!r.has_v1);
+        assert!(r.has_v1);
     }
 
     #[test]
