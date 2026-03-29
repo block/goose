@@ -1021,7 +1021,7 @@ mod tests {
         let temp_dir = temp_working_dir();
         write_skill(&temp_dir, "some-skill", "some-skill", "A custom skill");
 
-        let commands = skill_slash_commands(&temp_dir, &HashSet::new());
+        let commands = skill_slash_commands(Some(&temp_dir), &HashSet::new());
 
         assert!(commands.iter().any(|command| {
             command.command == "some-skill"
@@ -1040,7 +1040,7 @@ mod tests {
         write_skill(&temp_dir, "some-skill", "some-skill", "Allowed");
 
         let reserved = HashSet::from(["clear".to_string()]);
-        let commands = skill_slash_commands(&temp_dir, &reserved);
+        let commands = skill_slash_commands(Some(&temp_dir), &reserved);
 
         assert!(!commands.iter().any(|command| command.command == "bad name"));
         assert!(!commands.iter().any(|command| command.command == "clear"));
