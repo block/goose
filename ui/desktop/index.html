@@ -13,13 +13,18 @@
               const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
               const savedTheme = localStorage.getItem('theme');
-              const isDark = useSystemTheme ? systemPrefersDark : (savedTheme ? savedTheme === 'dark' : systemPrefersDark);
+              const isGlass = !useSystemTheme && savedTheme === 'glass';
+              const isDark = useSystemTheme ? systemPrefersDark : (savedTheme ? savedTheme === 'dark' || savedTheme === 'glass' : systemPrefersDark);
               
-              if (isDark) {
+              if (isGlass) {
+                document.documentElement.classList.add('dark', 'glass');
+                document.documentElement.style.colorScheme = 'dark';
+              } else if (isDark) {
                 document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('glass');
                 document.documentElement.style.colorScheme = 'dark';
               } else {
-                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.remove('dark', 'glass');
                 document.documentElement.style.colorScheme = 'light';
               }
             } else {
