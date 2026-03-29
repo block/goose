@@ -338,8 +338,7 @@ fn find_fixed_provider(id: &str) -> Option<DeclarativeProviderConfig> {
         if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
             return None;
         }
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(file.contents_utf8()?).ok()?;
+        let config: DeclarativeProviderConfig = serde_json::from_str(file.contents_utf8()?).ok()?;
         (config.name == id).then_some(config)
     })
 }
