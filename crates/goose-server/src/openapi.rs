@@ -14,7 +14,7 @@ use rmcp::model::{
     RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
     ResourceContents, Role, TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
-use utoipa::{OpenApi, ToSchema};
+use utoipa::{Modify, OpenApi, PartialSchema, ToSchema};
 
 use goose::config::declarative_providers::{
     DeclarativeProviderConfig, EnvVarConfig, LoadedProvider, ProviderEngine,
@@ -29,7 +29,7 @@ use crate::routes::recipe_utils::RecipeManifest;
 use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
-    SchemaFormat, SchemaType,
+    SchemaFormat, SchemaType, Type,
 };
 use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
 
@@ -37,34 +37,36 @@ macro_rules! derive_utoipa {
     ($inner_type:ident as $schema_name:ident) => {
         pub struct $schema_name {}
 
-        impl<'__s> ToSchema<'__s> for $schema_name {
-            fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+        impl utoipa::PartialSchema for $schema_name {
+            fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
                 let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
                 let generator = settings.into_generator();
                 let schema = generator.into_root_schema_for::<$inner_type>();
-                let schema = convert_schemars_to_utoipa(schema);
-                (stringify!($inner_type), schema)
+                convert_schemars_to_utoipa(schema)
             }
+        }
 
-            fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-                Vec::new()
+        impl ToSchema for $schema_name {
+            fn name() -> std::borrow::Cow<'static, str> {
+                std::borrow::Cow::Borrowed(stringify!($inner_type))
             }
         }
     };
     ($inner_type:ident as $schema_name:ident => $output_name:expr) => {
         pub struct $schema_name {}
 
-        impl<'__s> ToSchema<'__s> for $schema_name {
-            fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+        impl utoipa::PartialSchema for $schema_name {
+            fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
                 let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
                 let generator = settings.into_generator();
                 let schema = generator.into_root_schema_for::<$inner_type>();
-                let schema = convert_schemars_to_utoipa(schema);
-                ($output_name, schema)
+                convert_schemars_to_utoipa(schema)
             }
+        }
 
-            fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-                Vec::new()
+        impl ToSchema for $schema_name {
+            fn name() -> std::borrow::Cow<'static, str> {
+                std::borrow::Cow::Borrowed($output_name)
             }
         }
     };
@@ -248,7 +250,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Array(array_builder.build()))
         }
         "string" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::String);
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::String));
 
             if let Some(Value::Array(enum_values)) = obj.get("enum") {
                 let values: Vec<serde_json::Value> = enum_values
@@ -286,7 +289,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Object(object_builder.build()))
         }
         "number" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Number);
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Number));
 
             if let Some(Value::Number(minimum)) = obj.get("minimum") {
                 if let Some(min) = minimum.as_f64() {
@@ -317,7 +321,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Object(object_builder.build()))
         }
         "integer" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Integer);
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Integer));
 
             if let Some(Value::Number(minimum)) = obj.get("minimum") {
                 if let Some(min) = minimum.as_f64() {
@@ -349,11 +354,13 @@ fn convert_typed_schema(
         }
         "boolean" => RefOr::T(Schema::Object(
             ObjectBuilder::new()
-                .schema_type(SchemaType::Boolean)
+                .schema_type(SchemaType::Type(Type::Boolean))
                 .build(),
         )),
         "null" => RefOr::T(Schema::Object(
-            ObjectBuilder::new().schema_type(SchemaType::String).build(),
+            ObjectBuilder::new()
+                .schema_type(SchemaType::Type(Type::String))
+                .build(),
         )),
         _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
     }
@@ -379,8 +386,61 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
+struct OpenApiFixups;
+
+impl Modify for OpenApiFixups {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::schema::{Discriminator, Schema};
+        use utoipa::openapi::RefOr;
+
+        // Fix diagnostics endpoint: Vec<u8> renders as array<integer> but we need binary
+        if let Some(path) = openapi.paths.paths.get_mut("/diagnostics/{session_id}") {
+            if let Some(op) = &mut path.get {
+                if let Some(RefOr::T(resp)) = op.responses.responses.get_mut("200") {
+                    if let Some(content) = resp.content.get_mut("application/zip") {
+                        content.schema = Some(RefOr::T(Schema::Object(
+                            ObjectBuilder::new()
+                                .schema_type(SchemaType::new(Type::String))
+                                .format(Some(SchemaFormat::KnownFormat(
+                                    utoipa::openapi::schema::KnownFormat::Binary,
+                                )))
+                                .build(),
+                        )));
+                    }
+                }
+            }
+        }
+
+        if let Some(components) = &mut openapi.components {
+            // Proxy types used via value_type overwrite real schemas with self-refs.
+            // Re-insert the authoritative schemas from derive_utoipa! macros.
+            let real_schemas: Vec<(&str, RefOr<Schema>)> = vec![
+                ("TextContent", TextContentSchema::schema()),
+                ("ImageContent", ImageContentSchema::schema()),
+                ("Role", RoleSchema::schema()),
+                ("ContentBlock", ContentBlockSchema::schema()),
+            ];
+            for (name, schema) in real_schemas {
+                components.schemas.insert(name.to_string(), schema);
+            }
+
+            // Restore discriminators for tagged enums (utoipa 5 drops them)
+            for (name, property_name) in [
+                ("MessageContent", "type"),
+                ("ActionRequiredData", "actionType"),
+                ("ExtensionConfig", "type"),
+            ] {
+                if let Some(RefOr::T(Schema::OneOf(one_of))) = components.schemas.get_mut(name) {
+                    one_of.discriminator = Some(Discriminator::new(property_name));
+                }
+            }
+        }
+    }
+}
+
 #[derive(OpenApi)]
 #[openapi(
+    modifiers(&OpenApiFixups),
     paths(
         super::routes::status::status,
         super::routes::status::system_info,
