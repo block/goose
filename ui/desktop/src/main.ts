@@ -818,6 +818,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     sessions: '/sessions',
     schedules: '/schedules',
     recipes: '/recipes',
+    skills: '/skills',
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
     sharedSession: '/shared-session',
