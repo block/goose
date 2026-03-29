@@ -1469,7 +1469,12 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
         let _ = cliclack::log::info("Notice: GOOSE_DISABLE_KEYRING environment variable is set and will override the configuration here.");
     }
 
-    let currently_disabled = config.get_param::<String>("GOOSE_DISABLE_KEYRING").is_ok();
+    // "disabled" only when the stored value is the string "true"; an empty-string
+    // sentinel (written when re-enabling keyring) must not be treated as disabled.
+    let currently_disabled = config
+        .get_param::<String>("GOOSE_DISABLE_KEYRING")
+        .map(|v| v == "true")
+        .unwrap_or(false);
 
     let current_status = if currently_disabled {
         "Disabled (using file-based storage)"
@@ -1495,15 +1500,61 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
 
     match storage_option {
         "keyring" => {
-            // Set to empty string to enable keyring (absence or empty = enabled)
             config.set_param("GOOSE_DISABLE_KEYRING", Value::String("".to_string()))?;
+
+            // Offer to pull existing secrets from the file into the keyring.
+            if currently_disabled {
+                let migrate = cliclack::confirm(
+                    "Copy existing secrets from secrets.yaml into the keyring now?",
+                )
+                .interact()?;
+                if migrate {
+                    match config.import_secrets_from_file() {
+                        Ok(0) => {
+                            let _ = cliclack::log::info("No secrets found in secrets.yaml.");
+                        }
+                        Ok(n) => {
+                            let _ = cliclack::log::success(format!(
+                                "{n} secret(s) copied from secrets.yaml into the keyring."
+                            ));
+                        }
+                        Err(e) => {
+                            let _ = cliclack::log::error(format!("Migration failed: {e}"));
+                        }
+                    }
+                }
+            }
+
             cliclack::outro("Secret storage set to system keyring (secure)")?;
             let _ =
                 cliclack::log::info("You may need to restart goose for this change to take effect");
         }
         "file" => {
-            // Set the disable flag to use file storage
             config.set_param("GOOSE_DISABLE_KEYRING", Value::String("true".to_string()))?;
+
+            // Offer to pull existing secrets out of the keyring into the file.
+            if !currently_disabled {
+                let migrate = cliclack::confirm(
+                    "Copy existing secrets from the keyring into secrets.yaml now?",
+                )
+                .interact()?;
+                if migrate {
+                    match config.export_secrets_to_file() {
+                        Ok(0) => {
+                            let _ = cliclack::log::info("No secrets found in the keyring.");
+                        }
+                        Ok(n) => {
+                            let _ = cliclack::log::success(format!(
+                                "{n} secret(s) copied from the keyring into secrets.yaml."
+                            ));
+                        }
+                        Err(e) => {
+                            let _ = cliclack::log::error(format!("Migration failed: {e}"));
+                        }
+                    }
+                }
+            }
+
             cliclack::outro(
                 "Secret storage set to file (~/.config/goose/secrets.yaml). Keep this file secure!",
             )?;
