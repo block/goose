@@ -254,14 +254,14 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
         String::new()
     };
 
-    if editable {
+    let updated_config = if editable {
         let model_infos: Vec<ModelInfo> = params
             .models
             .into_iter()
             .map(|name| ModelInfo::new(name, 128000))
             .collect();
 
-        let updated_config = DeclarativeProviderConfig {
+        Some(DeclarativeProviderConfig {
             name: params.id.clone(),
             engine: match params.engine.as_str() {
                 "openai_compatible" => ProviderEngine::OpenAI,
@@ -287,12 +287,31 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             env_vars: existing_config.env_vars,
             dynamic_models: existing_config.dynamic_models,
             skip_canonical_filtering: existing_config.skip_canonical_filtering,
-        };
+        })
+    } else {
+        let custom_file = custom_providers_dir().join(format!("{}.json", params.id));
+        if params.requires_auth {
+            Some(DeclarativeProviderConfig {
+                requires_auth: true,
+                api_key_env,
+                ..existing_config
+            })
+        } else if custom_file.exists() {
+            std::fs::remove_file(custom_file)?;
+            None
+        } else {
+            None
+        }
+    };
 
-        let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));
-        let json_content = serde_json::to_string_pretty(&updated_config)?;
+    if let Some(config_to_write) = updated_config {
+        let custom_dir = custom_providers_dir();
+        std::fs::create_dir_all(&custom_dir)?;
+        let file_path = custom_dir.join(format!("{}.json", config_to_write.name));
+        let json_content = serde_json::to_string_pretty(&config_to_write)?;
         std::fs::write(file_path, json_content)?;
     }
+
     Ok(())
 }
 
