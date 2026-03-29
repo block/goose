@@ -50,6 +50,10 @@ export interface DisplayItemWithMatch extends DisplayItem {
   matchedText: string;
 }
 
+export const getDisplayItemInsertText = (item: DisplayItem): string => {
+  return ['Builtin', 'Recipe', 'Skill'].includes(item.itemType) ? `/${item.name}` : item.extra;
+};
+
 interface MentionPopoverProps {
   isOpen: boolean;
   onClose: () => void;
@@ -459,16 +463,6 @@ const MentionPopover = forwardRef<
         });
     }, [items, query, currentWorkingDir]);
 
-    const getSelectionText = (item: DisplayItem): string => {
-      if (item.itemType === 'Skill') {
-        return `Use the ${item.name} skill to `;
-      }
-      if (['Builtin', 'Recipe'].includes(item.itemType)) {
-        return '/' + item.name;
-      }
-      return item.extra;
-    };
-
     // Expose methods to parent component
     useImperativeHandle(
       ref,
@@ -476,7 +470,7 @@ const MentionPopover = forwardRef<
         getDisplayFiles: () => displayItems,
         selectFile: (index: number) => {
           if (displayItems[index]) {
-            onSelect(getSelectionText(displayItems[index]));
+            onSelect(getDisplayItemInsertText(displayItems[index]));
             onClose();
           }
         },
@@ -540,7 +534,8 @@ const MentionPopover = forwardRef<
     const handleItemClick = (index: number) => {
       if (index >= 0 && index < displayItems.length) {
         onSelectedIndexChange(index);
-        onSelect(getSelectionText(displayItems[index]));
+        const displayItem = displayItems[index];
+        onSelect(getDisplayItemInsertText(displayItem));
         onClose();
       }
     };
@@ -561,7 +556,9 @@ const MentionPopover = forwardRef<
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2"></div>
-              <span className="ml-2 text-sm text-text-secondary">{intl.formatMessage(i18n.scanningFiles)}</span>
+              <span className="ml-2 text-sm text-text-secondary">
+                {intl.formatMessage(i18n.scanningFiles)}
+              </span>
             </div>
           ) : (
             <>

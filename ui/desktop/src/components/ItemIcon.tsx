@@ -14,6 +14,7 @@ import {
   Terminal,
   Zap,
   BookOpen,
+  ScrollText,
   Wrench,
   Sparkles,
 } from 'lucide-react';
@@ -32,6 +33,8 @@ export const getItemIcon = (item: DisplayItem): IconInfo => {
   switch (item.itemType) {
     case 'Builtin':
       return { Icon: Zap, color: '#3b82f6' }; // Blue
+    case 'Skill':
+      return { Icon: ScrollText, color: '#f97316' }; // Orange
     case 'Recipe':
       return { Icon: BookOpen, color: '#10b981' }; // Green
     case 'Skill':

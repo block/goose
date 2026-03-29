@@ -564,11 +564,11 @@ impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let instructions = if let Some(session) = &context.session {
             let mut instructions = "".to_string();
-            let sources = discover_filesystem_sources(&session.working_dir);
-
-            let mut skills: Vec<&Source> = sources
-                .iter()
-                .filter(|s| s.kind == SourceKind::Skill || s.kind == SourceKind::BuiltinSkill)
+            let mut skills: Vec<_> = list_installed_sources(Some(&session.working_dir))
+                .into_iter()
+                .filter(|source| {
+                    matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+                })
                 .collect();
 
             skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
@@ -578,6 +578,9 @@ impl SummonClient {
                 for skill in &skills {
                     instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
                 }
+                instructions.push_str(
+                    "\nIf the user's message starts with /<skill-name> and matches one of these skills, treat that as an explicit request to use the matching skill. Any text after the skill name is the user's task.",
+                );
             }
             Some(instructions)
         } else {
