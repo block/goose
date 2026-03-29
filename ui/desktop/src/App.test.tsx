@@ -249,7 +249,7 @@ describe('App Component - Brand New State', () => {
     expect(screen.getByText(/^Select an AI model provider/)).toBeInTheDocument();
   });
 
-  it('should not redirect to /welcome when provider is configured', async () => {
+  it('should not redirect when provider is configured', async () => {
     // Mock provider configured
     mockElectron.getConfig.mockReturnValue({
       GOOSE_DEFAULT_PROVIDER: 'openai',
