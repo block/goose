@@ -454,7 +454,9 @@ pub fn App(props: &AppProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>>
             let _ = terminal::disable_raw_mode();
             let _ = execute!(stdout(), terminal::LeaveAlternateScreen, cursor::Show);
             // Suspend — blocks until SIGCONT (i.e. the user runs `fg`).
-            unsafe { libc::raise(libc::SIGTSTP); }
+            unsafe {
+                libc::raise(libc::SIGTSTP);
+            }
             // SIGCONT received: re-enter TUI mode and force a full repaint.
             let _ = execute!(stdout(), terminal::EnterAlternateScreen, cursor::Hide);
             let _ = terminal::enable_raw_mode();

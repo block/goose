@@ -73,8 +73,8 @@ pub async fn build_agent(session_id_hint: Option<String>) -> Result<AgentHandle>
     } else {
         let provider_name = config.get_goose_provider()?;
         let model_name = config.get_goose_model()?;
-        let mcfg = goose::model::ModelConfig::new(&model_name)?
-            .with_canonical_limits(&provider_name);
+        let mcfg =
+            goose::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
         let cwd = std::env::current_dir()?;
         let session = session_manager
             .create_session(
