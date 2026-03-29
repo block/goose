@@ -638,7 +638,7 @@ impl SummonClient {
 
         Tool::new(
             "load",
-            "Load knowledge into your current context or discover available sources.\n\n\
+            "Load a registered recipe, skill, or agent into your current context, or discover available sources.\n\n\
              Call with no arguments to list all available sources (subrecipes, recipes, skills, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
@@ -1250,12 +1250,13 @@ impl SummonClient {
 
                 let error_msg = if suggestions.is_empty() {
                     format!(
-                        "Source '{}' not found. Use load() to see available sources.",
+                        "'{}' is not a registered recipe, skill, or agent. \
+                         Use load() with no arguments to see available sources.",
                         name
                     )
                 } else {
                     format!(
-                        "Source '{}' not found. Did you mean: {}?",
+                        "'{}' is not a registered recipe, skill, or agent. Did you mean: {}?",
                         name,
                         suggestions.join(", ")
                     )
@@ -2893,5 +2894,32 @@ You review code."#;
             .lock()
             .await
             .contains_key("20260204_1"));
+    }
+
+    #[tokio::test]
+    async fn test_load_source_unregistered_name_error_shape() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        // Use a Windows-style file path that won't match any registered source
+        let name = r"c:\Users\test\file.cs";
+        let err = client
+            .handle_load_source("test", name, temp_dir.path())
+            .await
+            .unwrap_err();
+
+        // Error should name the unrecognised source
+        assert!(
+            err.contains(name),
+            "error should include the unrecognised source name: {}",
+            err
+        );
+        // Error should indicate it's not a registered source
+        assert!(
+            err.contains("not a registered recipe, skill, or agent"),
+            "error should clarify the source is not registered: {}",
+            err
+        );
     }
 }
