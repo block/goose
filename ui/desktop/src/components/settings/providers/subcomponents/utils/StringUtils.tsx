@@ -12,7 +12,8 @@ const i18n = defineMessages({
   },
   ollamaNotConfiguredSuffix: {
     id: 'stringUtils.ollamaNotConfiguredSuffix',
-    defaultMessage: 'must be installed on your machine and open, or you must enter a value for OLLAMA_HOST.',
+    defaultMessage:
+      'must be installed on your machine and open, or you must enter a value for OLLAMA_HOST. For direct access to ollama.com, also set OLLAMA_API_KEY.',
   },
   configuredProvider: {
     id: 'stringUtils.configuredProvider',

@@ -31,8 +31,9 @@
 //!
 
 use super::errors::ProviderError;
-use super::ollama::OLLAMA_DEFAULT_PORT;
-use super::ollama::OLLAMA_HOST;
+use super::ollama::{
+    normalized_ollama_base_url, optional_ollama_api_key, OLLAMA_API_KEY, OLLAMA_HOST,
+};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -66,6 +67,7 @@ pub trait ToolInterpreter {
 pub struct OllamaInterpreter {
     client: Client,
     base_url: String,
+    api_key: Option<String>,
 }
 
 impl OllamaInterpreter {
@@ -75,9 +77,17 @@ impl OllamaInterpreter {
             .build()
             .expect("Failed to create HTTP client");
 
+        let config = crate::config::Config::global();
         let base_url = Self::get_ollama_base_url()?;
+        let parsed_base_url = normalized_ollama_base_url(&base_url)
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let api_key = optional_ollama_api_key(config, OLLAMA_API_KEY, &parsed_base_url);
 
-        Ok(Self { client, base_url })
+        Ok(Self {
+            client,
+            base_url,
+            api_key,
+        })
     }
 
     /// Get the Ollama base URL from existing config or use default values
@@ -86,31 +96,9 @@ impl OllamaInterpreter {
         let host: String = config
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
-
-        // Format the URL correctly with http:// prefix if needed
-        let base = if host.starts_with("http://") || host.starts_with("https://") {
-            &host
-        } else {
-            &format!("http://{}", host)
-        };
-
-        let mut base_url = url::Url::parse(base)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
-        // Set the default port if missing
-        // Don't add default port if:
-        // 1. URL explicitly ends with standard ports (:80 or :443)
-        // 2. URL uses HTTPS (which implicitly uses port 443)
-        let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
-        let is_https = base_url.scheme() == "https";
-
-        if base_url.port().is_none() && !explicit_default_port && !is_https {
-            base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
-                ProviderError::RequestFailed("Failed to set default port".to_string())
-            })?;
-        }
-
-        Ok(base_url.to_string())
+        normalized_ollama_base_url(&host)
+            .map(|url| url.to_string())
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))
     }
 
     fn tool_structured_output_format_schema() -> Value {
@@ -174,7 +162,11 @@ impl OllamaInterpreter {
             serde_json::to_string_pretty(&payload).unwrap_or_default()
         );
 
-        let response = self.client.post(&url).json(&payload).send().await?;
+        let mut request = self.client.post(&url).json(&payload);
+        if let Some(api_key) = &self.api_key {
+            request = request.header("Authorization", format!("Bearer {}", api_key));
+        }
+        let response = request.send().await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -443,4 +435,46 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     }
 
     Ok(final_message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    #[serial]
+    async fn post_structured_uses_bearer_auth_when_api_key_is_set() {
+        let server = MockServer::start().await;
+        let server_uri = server.uri();
+        let _guard = env_lock::lock_env([
+            ("OLLAMA_HOST", Some(server_uri.as_str())),
+            ("OLLAMA_API_KEY", Some("ollama-cloud-key")),
+        ]);
+
+        Mock::given(method("POST"))
+            .and(path("/api/chat"))
+            .and(header("authorization", "Bearer ollama-cloud-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "message": {
+                    "content": "{\"tool_calls\":[]}"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let interpreter = OllamaInterpreter::new().unwrap();
+        let response = interpreter
+            .post_structured(
+                "system prompt",
+                "format me",
+                serde_json::json!({"type": "object"}),
+                "qwen3",
+            )
+            .await;
+
+        assert!(response.is_ok());
+    }
 }
