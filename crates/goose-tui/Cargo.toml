@@ -25,7 +25,6 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 serde_json = { workspace = true }
 clap = { workspace = true }
-uuid = { workspace = true }
 pulldown-cmark = "0.12"
 base64 = { workspace = true }
 dirs = { workspace = true }
