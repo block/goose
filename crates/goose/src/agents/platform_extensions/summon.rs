@@ -39,6 +39,73 @@ use tracing::{info, warn};
 
 pub static EXTENSION_NAME: &str = "summon";
 
+#[cfg(test)]
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TestDiscoveryOverrides {
+    pub config_dir: Option<PathBuf>,
+    pub home_dir: Option<PathBuf>,
+    pub recipe_path: Option<Option<String>>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_DISCOVERY_OVERRIDES: std::cell::RefCell<Option<TestDiscoveryOverrides>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) struct ScopedDiscoveryOverrides {
+    previous: Option<TestDiscoveryOverrides>,
+}
+
+#[cfg(test)]
+impl ScopedDiscoveryOverrides {
+    pub(crate) fn set(overrides: TestDiscoveryOverrides) -> Self {
+        let previous =
+            TEST_DISCOVERY_OVERRIDES.with(|stored| stored.borrow_mut().replace(overrides));
+        Self { previous }
+    }
+}
+
+#[cfg(test)]
+impl Drop for ScopedDiscoveryOverrides {
+    fn drop(&mut self) {
+        TEST_DISCOVERY_OVERRIDES.with(|stored| {
+            *stored.borrow_mut() = self.previous.take();
+        });
+    }
+}
+
+#[cfg(test)]
+fn test_config_dir_override() -> Option<PathBuf> {
+    TEST_DISCOVERY_OVERRIDES.with(|stored| {
+        stored
+            .borrow()
+            .as_ref()
+            .and_then(|overrides| overrides.config_dir.clone())
+    })
+}
+
+#[cfg(test)]
+fn test_home_dir_override() -> Option<PathBuf> {
+    TEST_DISCOVERY_OVERRIDES.with(|stored| {
+        stored
+            .borrow()
+            .as_ref()
+            .and_then(|overrides| overrides.home_dir.clone())
+    })
+}
+
+#[cfg(test)]
+fn test_recipe_path_override() -> Option<Option<String>> {
+    TEST_DISCOVERY_OVERRIDES.with(|stored| {
+        stored
+            .borrow()
+            .as_ref()
+            .and_then(|overrides| overrides.recipe_path.clone())
+    })
+}
+
 #[derive(Debug, Clone)]
 pub struct Source {
     pub name: String,
@@ -166,6 +233,22 @@ fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, 
 
     let body = parts[2..].join("---").trim().to_string();
     Some((metadata, body))
+}
+
+pub fn normalize_slash_skill_name(name: &str) -> Option<String> {
+    let trimmed = name.trim();
+    let mut chars = trimmed.chars();
+    let first = chars.next()?;
+
+    if !first.is_ascii_alphanumeric() {
+        return None;
+    }
+
+    if chars.any(|c| !c.is_ascii_alphanumeric() && c != '-' && c != '_') {
+        return None;
+    }
+
+    Some(trimmed.to_lowercase())
 }
 
 fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
@@ -390,6 +473,35 @@ fn scan_agents_from_dir(
     }
 }
 
+fn build_skill_instructions(skills: &[Source]) -> Option<String> {
+    if skills.is_empty() {
+        return None;
+    }
+
+    let mut instructions = String::from(
+        "\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:",
+    );
+    for skill in skills {
+        instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
+    }
+
+    let slash_skill_names: Vec<_> = skills
+        .iter()
+        .filter(|skill| normalize_slash_skill_name(&skill.name).is_some())
+        .map(|skill| format!("/{}", skill.name))
+        .collect();
+
+    if !slash_skill_names.is_empty() {
+        instructions.push_str("\nSlash-invokable skills: ");
+        instructions.push_str(&slash_skill_names.join(", "));
+        instructions.push_str(
+            ". If the user's message starts with one of these slash commands, treat that as an explicit request to use the matching skill. Any text after the skill name is the user's task.",
+        );
+    }
+
+    Some(instructions)
+}
+
 /// Returns all discovered sources (skills, recipes, agents) from the given working directory.
 /// If no directory is provided, falls back to `std::env::current_dir()`.
 /// This is useful for listing what's available without needing a full SummonClient instance.
@@ -404,16 +516,49 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     let mut sources: Vec<Source> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    let home = dirs::home_dir();
-    let config = Paths::config_dir();
+    let home = {
+        #[cfg(test)]
+        if let Some(home_dir) = test_home_dir_override() {
+            Some(home_dir)
+        } else {
+            dirs::home_dir()
+        }
+        #[cfg(not(test))]
+        {
+            dirs::home_dir()
+        }
+    };
+    let config = {
+        #[cfg(test)]
+        if let Some(config_dir) = test_config_dir_override() {
+            config_dir
+        } else {
+            Paths::config_dir()
+        }
+        #[cfg(not(test))]
+        {
+            Paths::config_dir()
+        }
+    };
+    let recipe_path = {
+        #[cfg(test)]
+        if let Some(recipe_path) = test_recipe_path_override() {
+            recipe_path
+        } else {
+            std::env::var("GOOSE_RECIPE_PATH").ok()
+        }
+        #[cfg(not(test))]
+        {
+            std::env::var("GOOSE_RECIPE_PATH").ok()
+        }
+    };
 
     let local_recipe_dirs: Vec<PathBuf> = vec![
         working_dir.to_path_buf(),
         working_dir.join(".goose/recipes"),
     ];
 
-    let global_recipe_dirs: Vec<PathBuf> = std::env::var("GOOSE_RECIPE_PATH")
-        .ok()
+    let global_recipe_dirs: Vec<PathBuf> = recipe_path
         .into_iter()
         .flat_map(|p| {
             let sep = if cfg!(windows) { ';' } else { ':' };
@@ -563,7 +708,6 @@ impl Drop for SummonClient {
 impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let instructions = if let Some(session) = &context.session {
-            let mut instructions = "".to_string();
             let mut skills: Vec<_> = list_installed_sources(Some(&session.working_dir))
                 .into_iter()
                 .filter(|source| {
@@ -573,16 +717,7 @@ impl SummonClient {
 
             skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
 
-            if !skills.is_empty() {
-                instructions.push_str("\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:");
-                for skill in &skills {
-                    instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
-                }
-                instructions.push_str(
-                    "\nIf the user's message starts with /<skill-name> and matches one of these skills, treat that as an explicit request to use the matching skill. Any text after the skill name is the user's task.",
-                );
-            }
-            Some(instructions)
+            build_skill_instructions(&skills)
         } else {
             None
         };
@@ -2080,6 +2215,48 @@ You review code."#;
 
         assert!(parse_skill_content("no frontmatter", PathBuf::new()).is_none());
         assert!(parse_skill_content("---\nunclosed", PathBuf::new()).is_none());
+    }
+
+    #[test]
+    fn test_normalize_slash_skill_name() {
+        assert_eq!(
+            normalize_slash_skill_name("safe-skill"),
+            Some("safe-skill".to_string())
+        );
+        assert_eq!(
+            normalize_slash_skill_name("Mixed_Case"),
+            Some("mixed_case".to_string())
+        );
+        assert_eq!(normalize_slash_skill_name("unsafe skill"), None);
+        assert_eq!(normalize_slash_skill_name("-unsafe"), None);
+    }
+
+    #[test]
+    fn test_build_skill_instructions_only_exposes_slash_safe_commands() {
+        let instructions = build_skill_instructions(&[
+            Source {
+                name: "safe-skill".to_string(),
+                kind: SourceKind::Skill,
+                description: "Safe".to_string(),
+                path: PathBuf::new(),
+                content: String::new(),
+                supporting_files: Vec::new(),
+            },
+            Source {
+                name: "unsafe skill".to_string(),
+                kind: SourceKind::Skill,
+                description: "Unsafe".to_string(),
+                path: PathBuf::new(),
+                content: String::new(),
+                supporting_files: Vec::new(),
+            },
+        ])
+        .unwrap();
+
+        assert!(instructions.contains("• safe-skill - Safe"));
+        assert!(instructions.contains("• unsafe skill - Unsafe"));
+        assert!(instructions.contains("Slash-invokable skills: /safe-skill."));
+        assert!(!instructions.contains("/unsafe skill"));
     }
 
     #[tokio::test]

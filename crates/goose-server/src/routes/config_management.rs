@@ -159,22 +159,6 @@ pub struct SlashCommandsQuery {
     pub working_dir: Option<String>,
 }
 
-fn normalize_slash_skill_name(name: &str) -> Option<String> {
-    let trimmed = name.trim();
-    let mut chars = trimmed.chars();
-    let first = chars.next()?;
-
-    if !first.is_ascii_alphanumeric() {
-        return None;
-    }
-
-    if chars.any(|c| !c.is_ascii_alphanumeric() && c != '-' && c != '_') {
-        return None;
-    }
-
-    Some(trimmed.to_lowercase())
-}
-
 fn skill_slash_commands(
     working_dir: Option<&FsPath>,
     reserved_commands: &HashSet<String>,
@@ -188,7 +172,7 @@ fn skill_slash_commands(
             )
         })
         .filter_map(|skill| {
-            let normalized_name = normalize_slash_skill_name(&skill.name)?;
+            let normalized_name = summon::normalize_slash_skill_name(&skill.name)?;
             if reserved_commands.contains(&normalized_name) {
                 return None;
             }

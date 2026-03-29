@@ -271,43 +271,8 @@ impl PromptManager {
 #[cfg(test)]
 mod tests {
     use insta::assert_snapshot;
-    use serial_test::serial;
 
     use super::*;
-
-    struct TempEnvVar {
-        key: String,
-        original: Option<String>,
-    }
-
-    impl TempEnvVar {
-        fn set(key: &str, value: &str) -> Self {
-            let original = std::env::var(key).ok();
-            std::env::set_var(key, value);
-            Self {
-                key: key.to_string(),
-                original,
-            }
-        }
-
-        fn remove(key: &str) -> Self {
-            let original = std::env::var(key).ok();
-            std::env::remove_var(key);
-            Self {
-                key: key.to_string(),
-                original,
-            }
-        }
-    }
-
-    impl Drop for TempEnvVar {
-        fn drop(&mut self) {
-            match &self.original {
-                Some(value) => std::env::set_var(&self.key, value),
-                None => std::env::remove_var(&self.key),
-            }
-        }
-    }
 
     #[test]
     fn test_build_system_prompt_sanitizes_override() {
@@ -444,7 +409,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_all_platform_extensions() {
         use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
         use crate::config::GooseMode;
@@ -452,10 +416,14 @@ mod tests {
         use std::sync::Arc;
 
         let tmp_dir = tempfile::tempdir().unwrap();
-        let _goose_path_root =
-            TempEnvVar::set("GOOSE_PATH_ROOT", tmp_dir.path().to_string_lossy().as_ref());
-        let _home = TempEnvVar::set("HOME", tmp_dir.path().to_string_lossy().as_ref());
-        let _goose_recipe_path = TempEnvVar::remove("GOOSE_RECIPE_PATH");
+        let _discovery_overrides =
+            crate::agents::platform_extensions::summon::ScopedDiscoveryOverrides::set(
+                crate::agents::platform_extensions::summon::TestDiscoveryOverrides {
+                    config_dir: Some(tmp_dir.path().join("config")),
+                    home_dir: Some(tmp_dir.path().join("home")),
+                    recipe_path: Some(None),
+                },
+            );
         let session_manager = Arc::new(SessionManager::new(tmp_dir.path().to_path_buf()));
         let session = session_manager
             .create_session(
