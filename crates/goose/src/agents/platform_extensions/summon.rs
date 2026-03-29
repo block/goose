@@ -579,8 +579,7 @@ impl SummonClient {
 
         Tool::new(
             "load",
-            "Load a registered recipe, skill, or agent into your current context, or discover available sources.\n\
-             To read arbitrary file contents, use read_file instead.\n\n\
+            "Load a registered recipe, skill, or agent into your current context, or discover available sources.\n\n\
              Call with no arguments to list all available sources (subrecipes, recipes, skills, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
