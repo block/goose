@@ -14,6 +14,7 @@ import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
+import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 
@@ -697,6 +698,7 @@ export default function App() {
             <AppInner />
           </HashRouter>
           <AnnouncementModal />
+          <TelemetryConsentPrompt />
         </ModelAndProviderProvider>
       </FeaturesProvider>
     </ThemeProvider>

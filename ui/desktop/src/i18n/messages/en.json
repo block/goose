@@ -4334,6 +4334,21 @@
   "switchModelModal.useOtherProvider": {
     "defaultMessage": "Use other provider"
   },
+  "telemetryConsentPrompt.heading": {
+    "defaultMessage": "Help improve goose"
+  },
+  "telemetryConsentPrompt.description": {
+    "defaultMessage": "Would you like to share anonymous usage data to help improve goose? We never collect your conversations, code, or personal data."
+  },
+  "telemetryConsentPrompt.learnMore": {
+    "defaultMessage": "Learn more"
+  },
+  "telemetryConsentPrompt.optIn": {
+    "defaultMessage": "Yes, share anonymous usage data"
+  },
+  "telemetryConsentPrompt.optOut": {
+    "defaultMessage": "No thanks"
+  },
   "telemetrySettings.configErrorTitle": {
     "defaultMessage": "Configuration Error"
   },
