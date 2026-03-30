@@ -200,8 +200,8 @@ describe('App Component - Brand New State', () => {
     window.location.hash = '';
     window.location.search = '';
     window.location.pathname = '/';
-    window.sessionStorage.clear();
-    window.localStorage.clear();
+    window.sessionStorage?.clear?.();
+    window.localStorage?.clear?.();
   });
 
   afterEach(() => {
@@ -246,7 +246,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/^Select an AI model provider/)).toBeInTheDocument();
+    expect(screen.getByText(/^Welcome to goose/)).toBeInTheDocument();
   });
 
   it('should not redirect when provider is configured', async () => {
