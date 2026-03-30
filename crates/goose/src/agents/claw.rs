@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -37,6 +36,7 @@ fn feather_nest() {
         "skills",
         "recipes",
         "OUTBOX",
+        "REPOS",
         ".scratch",
     ];
     for dir in &dirs {
@@ -66,11 +66,7 @@ pub async fn ensure_session(session_manager: &SessionManager) -> Result<Session>
         return Ok(session);
     }
 
-    let working_dir = PathBuf::from(
-        std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .unwrap_or_else(|_| ".".to_string()),
-    );
+    let working_dir = nest_dir();
 
     let config = Config::global();
     let current_mode = config.get_goose_mode().unwrap_or_default();

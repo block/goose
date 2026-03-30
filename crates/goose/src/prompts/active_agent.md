@@ -67,6 +67,7 @@ something non-trivial, make a guide. The nest gets more valuable over time.
 ### Workspace Directories
 
 These exist for working files — not curated knowledge:
+- **REPOS/** — cloned repositories. When you need to work on a repo, clone it here. Prefer `git clone --branch main --single-branch <url>` to save disk and bandwidth. Clone additional branches only when needed.
 - **.scratch/** — temporary files, experiments, intermediate work
 - **OUTBOX/** — documents meant to be shared externally
 
