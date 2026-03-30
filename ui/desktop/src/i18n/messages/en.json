@@ -4334,11 +4334,11 @@
   "switchModelModal.useOtherProvider": {
     "defaultMessage": "Use other provider"
   },
-  "telemetryConsentPrompt.heading": {
-    "defaultMessage": "Help improve goose"
-  },
   "telemetryConsentPrompt.description": {
     "defaultMessage": "Would you like to share anonymous usage data to help improve goose? We never collect your conversations, code, or personal data."
+  },
+  "telemetryConsentPrompt.heading": {
+    "defaultMessage": "Help improve goose"
   },
   "telemetryConsentPrompt.learnMore": {
     "defaultMessage": "Learn more"
