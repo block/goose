@@ -1096,6 +1096,58 @@ function findServerBinary(): string | null {
 
 let serverProcess: ReturnType<typeof spawn> | null = null;
 
+async function runTextMode(serverConnection: Stream | string, prompt: string) {
+  try {
+    const client = new GooseClient(
+      () => ({
+        sessionUpdate: async (params: SessionNotification) => {
+          const update = params.update;
+          if (update.sessionUpdate === "agent_message_chunk") {
+            if (update.content.type === "text") {
+              process.stdout.write(update.content.text);
+            }
+          }
+        },
+        requestPermission: async (
+          params: RequestPermissionRequest,
+        ): Promise<RequestPermissionResponse> => {
+          // Auto-reject in text mode
+          const rejectOption = params.options.find(o => o.kind === "reject_once");
+          if (rejectOption) {
+            return {
+              outcome: { outcome: "selected", optionId: rejectOption.optionId },
+            };
+          }
+          return { outcome: { outcome: "cancelled" } };
+        },
+      }),
+      serverConnection,
+    );
+
+    await client.initialize({
+      protocolVersion: 0,
+      clientInfo: { name: "goose-text", version: "0.1.0" },
+      clientCapabilities: {},
+    });
+
+    const session = await client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [],
+    });
+
+    await client.prompt({
+      sessionId: session.sessionId,
+      prompt: [{ type: "text", text: prompt }],
+    });
+
+    process.stdout.write("\n");
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error(`Error: ${errMsg}`);
+    process.exit(1);
+  }
+}
+
 async function main() {
   let serverConnection: Stream | string;
 
@@ -1125,6 +1177,14 @@ async function main() {
     serverConnection = ndJsonStream(output, input);
   }
 
+  // Text mode: bypass TUI and stream directly to stdout
+  if (cli.flags.text) {
+    await runTextMode(serverConnection, cli.flags.text);
+    cleanup();
+    return;
+  }
+
+  // Interactive TUI mode
   const { waitUntilExit } = render(
     <App serverConnection={serverConnection} initialPrompt={cli.flags.text} />,
   );
