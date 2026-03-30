@@ -124,9 +124,8 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     }
 
     static NPM_PUBLISH_RE: OnceLock<Regex> = OnceLock::new();
-    let npm_publish_re = NPM_PUBLISH_RE.get_or_init(|| {
-        Regex::new(r"(?:^|[;&|]\s*|\n)\s*npm\s+publish(?:\s|$)").unwrap()
-    });
+    let npm_publish_re = NPM_PUBLISH_RE
+        .get_or_init(|| Regex::new(r"(?:^|[;&|]\s*|\n)\s*npm\s+publish(?:\s|$)").unwrap());
     if npm_publish_re.is_match(command) {
         destinations.push(EgressDestination {
             kind: "package_publish".to_string(),
@@ -136,9 +135,8 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
     }
 
     static CARGO_PUBLISH_RE: OnceLock<Regex> = OnceLock::new();
-    let cargo_publish_re = CARGO_PUBLISH_RE.get_or_init(|| {
-        Regex::new(r"(?:^|[;&|]\s*|\n)\s*cargo\s+publish(?:\s|$)").unwrap()
-    });
+    let cargo_publish_re = CARGO_PUBLISH_RE
+        .get_or_init(|| Regex::new(r"(?:^|[;&|]\s*|\n)\s*cargo\s+publish(?:\s|$)").unwrap());
     if cargo_publish_re.is_match(command) {
         destinations.push(EgressDestination {
             kind: "package_publish".to_string(),
