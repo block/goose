@@ -1414,12 +1414,21 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
+/// Returns true for providers that run models locally at zero cost.
+fn is_zero_cost_provider(provider: &str) -> bool {
+    provider == "ollama"
+}
+
 fn estimate_cost_usd(
     provider: &str,
     model: &str,
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
+    if is_zero_cost_provider(provider) {
+        return Some(0.0);
+    }
+
     let canonical_model = maybe_get_canonical_model(provider, model)?;
 
     let input_cost_per_token = canonical_model.cost.input? / 1_000_000.0;
@@ -1601,5 +1610,18 @@ mod tests {
             json!({"top_up_url": "https://router.tetrate.ai/billing"}),
         );
         assert_eq!(get_credits_top_up_url(&message), None);
+    }
+
+    #[test]
+    fn test_ollama_provider_returns_zero_cost() {
+        let cost = estimate_cost_usd("ollama", "mistral-nemo", 4096, 11);
+        assert_eq!(cost, Some(0.0));
+    }
+
+    #[test]
+    fn test_non_ollama_provider_returns_nonzero_cost() {
+        let cost = estimate_cost_usd("openai", "gpt-4o", 1000, 500);
+        assert!(cost.is_some());
+        assert!(cost.unwrap() > 0.0);
     }
 }

@@ -467,6 +467,11 @@ pub struct ModelInfoQuery {
     pub model: String,
 }
 
+/// Returns true for providers that run models locally at zero cost.
+fn is_zero_cost_provider(provider: &str) -> bool {
+    provider == "ollama"
+}
+
 #[utoipa::path(
     post,
     path = "/config/canonical-model-info",
@@ -479,17 +484,33 @@ pub async fn get_canonical_model_info(
     Json(query): Json<ModelInfoQuery>,
 ) -> Json<ModelInfoResponse> {
     let canonical_model = maybe_get_canonical_model(&query.provider, &query.model);
+    let zero_cost = is_zero_cost_provider(&query.provider);
 
     let model_info = canonical_model.map(|canonical_model| ModelInfoData {
         provider: query.provider.clone(),
         model: query.model.clone(),
         context_limit: canonical_model.limit.context,
         max_output_tokens: canonical_model.limit.output,
-        // Costs are per million tokens - client handles division for display
-        input_token_cost: canonical_model.cost.input,
-        output_token_cost: canonical_model.cost.output,
-        cache_read_token_cost: canonical_model.cost.cache_read,
-        cache_write_token_cost: canonical_model.cost.cache_write,
+        input_token_cost: if zero_cost {
+            Some(0.0)
+        } else {
+            canonical_model.cost.input
+        },
+        output_token_cost: if zero_cost {
+            Some(0.0)
+        } else {
+            canonical_model.cost.output
+        },
+        cache_read_token_cost: if zero_cost {
+            Some(0.0)
+        } else {
+            canonical_model.cost.cache_read
+        },
+        cache_write_token_cost: if zero_cost {
+            Some(0.0)
+        } else {
+            canonical_model.cost.cache_write
+        },
         currency: "$".to_string(),
     });
 
