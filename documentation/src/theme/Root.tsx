@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import type { ReactNode } from 'react';
+import React, { useEffect } from "react";
+import type { ReactNode } from "react";
 
 interface Props {
   children: ReactNode;
@@ -10,8 +10,8 @@ const SHOW_BANNER = false;
 export default function Root({ children }: Props): JSX.Element {
   // Initialize gtag as no-op if not present (prevents errors in development)
   useEffect(() => {
-    if (typeof window !== 'undefined' && !window.gtag) {
-      (window as any).gtag = function() {};
+    if (typeof window !== "undefined" && !window.gtag) {
+      (window as any).gtag = function () {};
     }
   }, []);
 
@@ -20,26 +20,27 @@ export default function Root({ children }: Props): JSX.Element {
       {SHOW_BANNER && (
         <div
           style={{
-            backgroundColor: '#25c2a0',
-            color: '#000',
-            padding: '8px 16px',
-            textAlign: 'center',
-            fontSize: '14px',
-            fontWeight: '500',
-            position: 'relative',
+            backgroundColor: "#25c2a0",
+            color: "#000",
+            padding: "8px 16px",
+            textAlign: "center",
+            fontSize: "14px",
+            fontWeight: "500",
+            position: "relative",
             zIndex: 1000,
-            lineHeight: '1.3',
+            lineHeight: "1.3",
           }}
         >
-          ✨ NO KEYBOARDS ALLOWED HACKATHON✨ : build next-gen interfaces with goose and win prizes.{' '}
+          ✨ NO KEYBOARDS ALLOWED HACKATHON✨ : build next-gen interfaces with
+          goose and win prizes.{" "}
           <a
             href="https://nokeyboardsallowed.dev"
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              color: '#000',
-              textDecoration: 'underline',
-              fontWeight: '700',
+              color: "#000",
+              textDecoration: "underline",
+              fontWeight: "700",
             }}
           >
             Deadline Nov 14
