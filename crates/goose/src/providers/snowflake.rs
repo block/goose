@@ -123,6 +123,7 @@ impl SnowflakeProvider {
             .await?;
 
         let status = response.status();
+        let url = response.url().to_string();
         let payload_text: String = response.text().await.ok().unwrap_or_default();
 
         if status.is_success() {
@@ -292,7 +293,11 @@ impl SnowflakeProvider {
             Ok(answer_payload)
         } else {
             let error_json = serde_json::from_str::<Value>(&payload_text).ok();
-            Err(map_http_error_to_provider_error(status, error_json))
+            Err(map_http_error_to_provider_error(
+                status,
+                error_json,
+                Some(&url),
+            ))
         }
     }
 }

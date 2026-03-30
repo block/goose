@@ -410,10 +410,14 @@ impl Provider for DatabricksProvider {
                         .await?;
                     if !resp.status().is_success() {
                         let status = resp.status();
+                        let url = resp.url().to_string();
                         let error_text = resp.text().await.unwrap_or_default();
-
                         let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                        return Err(map_http_error_to_provider_error(status, json_payload));
+                        return Err(map_http_error_to_provider_error(
+                            status,
+                            json_payload,
+                            Some(&url),
+                        ));
                     }
                     Ok(resp)
                 })
@@ -429,9 +433,14 @@ impl Provider for DatabricksProvider {
                             .await?;
                         if !resp.status().is_success() {
                             let status = resp.status();
+                            let url = resp.url().to_string();
                             let error_text = resp.text().await.unwrap_or_default();
                             let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                            return Err(map_http_error_to_provider_error(status, json_payload));
+                            return Err(map_http_error_to_provider_error(
+                                status,
+                                json_payload,
+                                Some(&url),
+                            ));
                         }
                         Ok(resp)
                     })

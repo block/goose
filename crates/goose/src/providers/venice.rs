@@ -129,6 +129,7 @@ impl VeniceProvider {
         tracing::debug!("Venice response status: {}", status);
 
         if !status.is_success() {
+            let url = response.url().to_string();
             // Read response body for more details on error
             let error_body = response.text().await.unwrap_or_default();
 
@@ -180,7 +181,11 @@ impl VeniceProvider {
 
             // Use the common error mapping function
             let error_json = serde_json::from_str::<Value>(&error_body).ok();
-            return Err(map_http_error_to_provider_error(status, error_json));
+            return Err(map_http_error_to_provider_error(
+                status,
+                error_json,
+                Some(&url),
+            ));
         }
 
         let response_text = response.text().await?;

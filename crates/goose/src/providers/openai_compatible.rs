@@ -152,6 +152,7 @@ fn check_context_length_exceeded(text: &str) -> bool {
 pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
+    url: Option<&str>,
 ) -> ProviderError {
     let extract_message = || -> String {
         payload
@@ -174,7 +175,14 @@ pub fn map_http_error_to_provider_error(
             extract_message()
         )),
         StatusCode::NOT_FOUND => {
-            ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
+            let msg = extract_message();
+            match url {
+                Some(url) => ProviderError::RequestFailed(format!(
+                    "Resource not found (404): {} - URL: {}",
+                    msg, url
+                )),
+                None => ProviderError::RequestFailed(format!("Resource not found (404): {}", msg)),
+            }
         }
         StatusCode::PAYMENT_REQUIRED => ProviderError::CreditsExhausted {
             details: extract_message(),
@@ -218,9 +226,14 @@ pub fn map_http_error_to_provider_error(
 pub async fn handle_status_openai_compat(response: Response) -> Result<Response, ProviderError> {
     let status = response.status();
     if !status.is_success() {
+        let url = response.url().to_string();
         let body = response.text().await.unwrap_or_default();
         let payload = serde_json::from_str::<Value>(&body).ok();
-        return Err(map_http_error_to_provider_error(status, payload));
+        return Err(map_http_error_to_provider_error(
+            status,
+            payload,
+            Some(&url),
+        ));
     }
     Ok(response)
 }
@@ -262,6 +275,8 @@ mod tests {
     use super::*;
     use serde_json::json;
     use test_case::test_case;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test_case(
         StatusCode::PAYMENT_REQUIRED,
@@ -316,7 +331,7 @@ mod tests {
         payload: Option<Value>,
         expected_variant: &str,
     ) {
-        let err = map_http_error_to_provider_error(status, payload);
+        let err = map_http_error_to_provider_error(status, payload, None);
         let actual = err.telemetry_type();
         let expected_telemetry = match expected_variant {
             "CreditsExhausted" => "credits_exhausted",
@@ -330,6 +345,31 @@ mod tests {
         assert_eq!(
             actual, expected_telemetry,
             "Expected {expected_variant}, got error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_status_404_includes_url() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(404)
+                    .set_body_json(json!({"error": {"message": "Not found"}})),
+            )
+            .mount(&server)
+            .await;
+
+        let response = reqwest::get(server.uri()).await.unwrap();
+        let err = handle_status_openai_compat(response).await.unwrap_err();
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains(&server.uri()),
+            "404 error message should include the URL, got: {msg}"
+        );
+        assert!(
+            msg.contains("404") || msg.contains("not found") || msg.contains("Not found"),
+            "404 error message should describe the error, got: {msg}"
         );
     }
 }

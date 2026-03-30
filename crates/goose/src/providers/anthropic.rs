@@ -167,6 +167,7 @@ impl AnthropicProvider {
             return Err(map_http_error_to_provider_error(
                 response.status,
                 response.payload,
+                None,
             ));
         }
 

@@ -714,48 +714,79 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         .iter()
         .filter(|k| !k.primary && !k.oauth_flow)
         .collect();
-    if !non_primary_keys.is_empty()
-        && cliclack::confirm("Would you like to configure advanced settings?")
-            .initial_value(false)
-            .interact()?
-    {
-        for key in non_primary_keys {
-            if !configure_single_key(config, provider_name, &provider_meta.display_name, key)
-                .await?
+
+    let mut first_attempt = true;
+
+    let models: Vec<String> = loop {
+        if first_attempt {
+            first_attempt = false;
+            if !non_primary_keys.is_empty()
+                && cliclack::confirm("Would you like to configure advanced settings?")
+                    .initial_value(false)
+                    .interact()?
             {
-                return Ok(false);
+                for key in &non_primary_keys {
+                    if !configure_single_key(
+                        config,
+                        provider_name,
+                        &provider_meta.display_name,
+                        key,
+                    )
+                    .await?
+                    {
+                        return Ok(false);
+                    }
+                }
+            }
+        } else {
+            for key in &provider_meta.config_keys {
+                if !configure_single_key(config, provider_name, &provider_meta.display_name, key)
+                    .await?
+                {
+                    return Ok(false);
+                }
             }
         }
-    }
 
-    let spin = spinner();
-    spin.start("Attempting to fetch supported models...");
-    let models_res = {
-        let temp_model_config =
-            ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
-        let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
-        retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models().await
-        })
-        .await
+        let spin = spinner();
+        spin.start("Attempting to fetch supported models...");
+        let models_res = {
+            let temp_model_config = ModelConfig::new(&provider_meta.default_model)?
+                .with_canonical_limits(provider_name);
+            let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
+            retry_operation(&RetryConfig::default(), || async {
+                temp_provider.fetch_recommended_models().await
+            })
+            .await
+        };
+
+        match models_res {
+            Ok(models) => {
+                spin.stop(style("Model fetch complete").green());
+                break models;
+            }
+            Err(e) => {
+                spin.stop(style("Model fetch failed").red());
+                let _ = cliclack::log::error(format!("{}", e));
+                if !cliclack::confirm("Would you like to update your settings and try again?")
+                    .initial_value(true)
+                    .interact()?
+                {
+                    cliclack::outro(style("Configuration cancelled").dim())?;
+                    return Ok(false);
+                }
+            }
+        }
     };
-    spin.stop(style("Model fetch complete").green());
 
-    // Select a model: on fetch error show styled error and abort; if models available, show list; otherwise free-text input
-    let model: String = match models_res {
-        Err(e) => {
-            // Provider hook error
-            cliclack::outro(style(e.to_string()).on_red().white())?;
-            return Ok(false);
-        }
-        Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
-        Ok(_) => {
-            let default_model =
-                std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
-            cliclack::input("Enter a model from that provider:")
-                .default_input(&default_model)
-                .interact()?
-        }
+    let model: String = if !models.is_empty() {
+        select_model_from_list(&models, provider_meta)?
+    } else {
+        let default_model =
+            std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
+        cliclack::input("Enter a model from that provider:")
+            .default_input(&default_model)
+            .interact()?
     };
 
     if model.to_lowercase().starts_with("gemini-3") {

@@ -349,9 +349,14 @@ impl GcpVertexAIProvider {
                     "Authentication failed with status: {status}"
                 )));
             } else {
+                let url = response.url().to_string();
                 let response_text = response.text().await.unwrap_or_default();
                 let payload = serde_json::from_str::<Value>(&response_text).ok();
-                return Err(map_http_error_to_provider_error(status, payload));
+                return Err(map_http_error_to_provider_error(
+                    status,
+                    payload,
+                    Some(&url),
+                ));
             }
         }
     }
