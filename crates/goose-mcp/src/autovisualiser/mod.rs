@@ -989,11 +989,7 @@ Example multiple charts:
             true,
         )?;
 
-        let count = data
-            .get("data")
-            .and_then(|d| d.as_array())
-            .map(|a| a.len())
-            .unwrap_or(1);
+        let count = data.as_array().map(|a| a.len()).unwrap_or(1);
         let text_fallback = format!("donut/pie chart: {} chart(s)", count);
 
         let mut result = CallToolResult::structured(data);
@@ -1692,25 +1688,6 @@ mod donut_format_tests {
         assert!(
             result.is_ok(),
             "labeled values should parse: {:?}",
-            result.err()
-        );
-    }
-
-    #[test]
-    fn labeled_values_as_single_chart() {
-        // {"data": [{"values": [{"label": "A", "value": 10}, {"label": "B", "value": 20}]}]}
-        let input = json!({
-            "data": [{
-                "values": [
-                    {"label": "A", "value": 10},
-                    {"label": "B", "value": 20}
-                ]
-            }]
-        });
-        let result = round_trip(input);
-        assert!(
-            result.is_ok(),
-            "labeled values as single chart should parse: {:?}",
             result.err()
         );
     }
