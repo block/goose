@@ -3,7 +3,10 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { TELEMETRY_UI_ENABLED } from '../updates';
 import { useConfig } from './ConfigContext';
-import { trackTelemetryPreference, setTelemetryEnabled as setAnalyticsTelemetryEnabled } from '../utils/analytics';
+import {
+  trackTelemetryPreference,
+  setTelemetryEnabled as setAnalyticsTelemetryEnabled,
+} from '../utils/analytics';
 import PrivacyInfoModal from './onboarding/PrivacyInfoModal';
 import { defineMessages, useIntl } from '../i18n';
 
@@ -33,14 +36,6 @@ const i18n = defineMessages({
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
-/**
- * Prompts existing users who upgraded before telemetry was introduced
- * to make an explicit consent choice. Only shown when GOOSE_PROVIDER
- * is set (not a new user) but GOOSE_TELEMETRY_ENABLED has never been set.
- *
- * Dismissing the dialog without choosing will re-show the prompt on the
- * next app launch since no preference is persisted.
- */
 export default function TelemetryConsentPrompt() {
   const intl = useIntl();
   const { read, upsert } = useConfig();
@@ -70,8 +65,8 @@ export default function TelemetryConsentPrompt() {
     setIsSubmitting(true);
     try {
       await upsert(TELEMETRY_CONFIG_KEY, enabled, false);
-      setAnalyticsTelemetryEnabled(enabled);
       trackTelemetryPreference(enabled, 'modal');
+      setAnalyticsTelemetryEnabled(enabled);
     } catch (error) {
       console.error('Failed to save telemetry preference:', error);
     } finally {
@@ -84,12 +79,15 @@ export default function TelemetryConsentPrompt() {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => { if (!open) setShowPrompt(false); }}>
+      <Dialog
+        open
+        onOpenChange={(open) => {
+          if (!open) setShowPrompt(false);
+        }}
+      >
         <DialogContent className="w-[440px]">
           <DialogHeader>
-            <DialogTitle className="text-center">
-              {intl.formatMessage(i18n.heading)}
-            </DialogTitle>
+            <DialogTitle className="text-center">{intl.formatMessage(i18n.heading)}</DialogTitle>
           </DialogHeader>
           <p className="text-text-muted text-sm">
             {intl.formatMessage(i18n.description)}{' '}
@@ -102,6 +100,7 @@ export default function TelemetryConsentPrompt() {
           </p>
           <DialogFooter className="flex flex-col gap-2 sm:flex-col">
             <Button
+              autoFocus
               onClick={() => handleChoice(true)}
               disabled={isSubmitting}
               className="w-full"
