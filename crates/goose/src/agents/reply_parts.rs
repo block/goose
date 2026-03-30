@@ -367,7 +367,14 @@ impl Agent {
             })
             .collect();
 
-        // Create a filtered message with frontend tool requests removed
+        let has_tool_requests = !tool_requests.is_empty();
+
+        // Create a filtered message with frontend tool requests removed.
+        // When a response contains tool calls, keep reasoning in the original
+        // message for provider/state purposes but do not surface it again in
+        // the user-visible filtered message. Streaming providers may already
+        // have emitted the reasoning incrementally, and replaying the full
+        // accumulated thinking here creates duplicate thought chunks.
         let mut filtered_content = Vec::new();
         let mut tool_request_index = 0;
 
@@ -389,6 +396,8 @@ impl Agent {
                         }
                     }
                 }
+                MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                    if has_tool_requests => {}
                 _ => {
                     filtered_content.push(content.clone());
                 }
