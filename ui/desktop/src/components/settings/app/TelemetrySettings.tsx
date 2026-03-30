@@ -79,8 +79,8 @@ export default function TelemetrySettings() {
     try {
       await upsert(TELEMETRY_CONFIG_KEY, checked, false);
       setTelemetryEnabled(checked);
-      trackTelemetryPreference(checked, 'settings');
       setAnalyticsTelemetryEnabled(checked);
+      trackTelemetryPreference(checked, 'settings');
     } catch (error) {
       console.error('Failed to update telemetry status:', error);
       toastService.error({
