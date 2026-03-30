@@ -475,14 +475,19 @@ record-mcp-tests: build-test-tools
   git add crates/goose/tests/mcp_replays/
 
 e2e-setup:
-    @echo "Building goosed..."
-    cargo build --bin goosed
-    @just copy-goosed debug
-    @echo "Installing dependencies..."
+    #!/usr/bin/env bash
+    source bin/activate-hermit
+    echo "Building goosed..."
+    CARGO_TARGET_DIR=target/e2e cargo build --bin goosed
+    just copy-goosed e2e/debug
+    echo "Installing dependencies..."
     cd ui && pnpm install --frozen-lockfile
-    @echo "Generating API types..."
-    cd ui/desktop && pnpm run generate-api
+    echo "Generating API types..."
+    cd desktop && pnpm run generate-api
 
 e2e: e2e-setup
     @echo "Running E2E tests..."
     bash ui/desktop/tests/e2e-tests/scripts/e2e-run-all.sh --record
+
+e2e-explore goal:
+    bash workflow_recipes/explore_app/run.sh "{{goal}}"

@@ -1,0 +1,143 @@
+---
+name: debug-e2e
+description: Debug E2E test failures — collect artifacts, reproduce, diagnose root causes, classify, and propose fixes. Use when E2E tests fail in CI or locally.
+---
+
+# Debug E2E Test Failures
+
+## Test Infrastructure
+
+The E2E tests are in `ui/desktop/tests/e2e-tests/`:
+- `recordings/` — batch recording files (`{test-name}.batch.json`) defining the steps each test replays
+- `scenarios/` — scenario files with test configuration
+- `results/` — test artifacts:
+  - `test-results.json` — summary of the last run with failure details
+  - `logs/{test-name}.log` — replay output for each test
+  - `screenshots/{test-name}.png` — screenshot captured at the point of failure
+
+Each recording is an array of agent-browser commands (click, fill, wait, find, etc.) replayed against the app.
+
+## Steps
+
+Follow these steps in order. Print the phase header before starting each step.
+IMPORTANT: Maximize parallelism within each step — read files concurrently whenever possible.
+
+### Step 1 — Collect artifacts
+
+Print: `## Step 1: Collecting test artifacts...`
+
+Determine the results directory:
+- If `results_url` is provided, use gh to download and extract it:
+  ```bash
+  rm -rf ui/desktop/tests/e2e-tests/results-ci
+  gh run download {run_id} --repo block/goose --name e2e-test-results --dir ui/desktop/tests/e2e-tests/results-ci 2>&1
+  # example: result_url: https://github.com/block/goose/actions/runs/23487840554/artifacts/6079302235
+  # gh run download 23487840554 --repo block/goose --name e2e-test-results --dir ui/desktop/tests/e2e-tests/results-ci 2>&1
+  ```
+  Use `ui/desktop/tests/e2e-tests/results-ci` as the results directory.
+- Otherwise, use the local `ui/desktop/tests/e2e-tests/results/`.
+
+Read ALL of these at the same time:
+- `<results-dir>/test-results.json`
+- For EACH failure listed: its log file, screenshot, AND recording file — all in one batch
+To view failure screenshots: open the .png file with `open <path>`, then use the `see` command from computercontroller to capture and inspect what's on screen visually.
+
+If there are no failures, print `All tests passed!` and stop.
+
+After reading, print a summary table:
+```
+Found N failure(s):
+- test-a: failed at step 3/10 (wait --text "Success")
+- test-b: failed at step 1/5 (connect 9342)
+```
+
+### Step 2 — Reproduce
+
+Print: `## Step 2: Reproducing failures...`
+
+Re-run each failing test locally to check if the failure is persistent or flaky.
+IMPORTANT: Back up the original artifacts first, then restore them after re-running.
+
+```bash
+mv ui/desktop/tests/e2e-tests/results ui/desktop/tests/e2e-tests/results-original
+bash ui/desktop/tests/e2e-tests/scripts/e2e-run-all.sh --only <test-name>
+```
+
+Check if the re-run passed or failed, then restore the original artifacts:
+```bash
+rm -rf ui/desktop/tests/e2e-tests/results
+mv ui/desktop/tests/e2e-tests/results-original ui/desktop/tests/e2e-tests/results
+```
+
+Print the result for each test:
+```
+- test-name: persistent / flaky
+```
+
+### Step 3 — Diagnose
+
+Print: `## Step 3: Diagnosing failures...`
+
+First, group failures that share the same error or fail at a similar step — they likely have a common root cause.
+If all or most failures share the same pattern, note this and diagnose the group once rather than each test individually.
+
+For each failure (or group), determine from the Step 1 artifacts:
+- What step failed and the error message
+- What the screenshot shows (use `see` to view it)
+- What the test expected to happen (recording)
+
+Common pattern — **viewport scroll issue**: A `find ... click` step can appear to succeed even when the element is off-screen — the click registers at the wrong coordinates and hits a different element. Look for this when a click step passed but the assertion after it failed.
+IMPORTANT: A passing click step does NOT mean the element was actually visible. Always check the bounding rect when a post-click assertion fails.
+
+To confirm, start the app using the `e2e-app` skill, replay the recording up to the step before the failing click, then check:
+```bash
+pnpm exec agent-browser --session <name> eval "
+  const el = document.querySelector('<selector>');
+  const rect = el?.getBoundingClientRect();
+  JSON.stringify({ rect, viewport: { width: window.innerWidth, height: window.innerHeight } })
+"
+```
+If `rect.bottom > viewport.height` or `rect.top < 0`, the element is off-screen.
+Fix: add `["scrollintoview", "<selector>"]` before the click in the recording.
+
+Present a preliminary diagnosis:
+```
+### test-name (or group) — step N failed
+**What happened:** <one-line summary of the failure>
+**Likely cause:** <best guess from artifacts>
+**Confidence:** high / medium / low
+```
+
+If any failure has low confidence, do a deep investigation for those:
+- Print: `Investigating further: test-x, ...`
+- Read the scenario file, recent git changes (`git log --oneline -10 -- <relevant-files>`), and app source code
+
+### Step 4 — Classify
+
+Print: `## Step 4: Classifying failures...`
+
+Classify each failure:
+
+- **Bug** — the app behavior is wrong → fix the source code
+- **Expected change** — the UI or behavior has intentionally changed → fix the recording and/or scenario
+- **Flaky test** — timing, selectors, or race conditions → fix the test
+- **Viewport scroll** — element exists but off-screen (diagnosed in Step 3) → add `["scrollintoview", "<selector>"]` before the click
+
+Use the screenshot, log, reproduce results, and these checks to classify:
+- Screenshot shows the target area is cut off or click hit wrong element + click passed but assertion failed → likely **viewport scroll**
+- Screenshot shows the expected content is present but assertion still failed → likely **flaky test** (timing)
+- Check `git log --oneline -10 -- ui/desktop/src/` for recent changes → if element renamed/moved/removed → likely **expected change**
+- Snapshot shows error state or element does not exist → likely **bug**
+- Flaky in Step 2 (passed on re-run) → **flaky test**
+
+### Step 5 — Report
+
+Print: `## Step 5: Results`
+
+For each failure, present:
+1. **Test name** and which step failed
+2. **Category** (bug / expected change / flaky test)
+3. **Root cause** — what went wrong and why, with evidence
+4. **Proposed fix** — specific file changes to resolve the issue
+
+Then ask the user which fixes to apply.

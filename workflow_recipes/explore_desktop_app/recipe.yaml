@@ -1,0 +1,42 @@
+version: 1.0.0
+title: Exploratory Desktop App Testing
+description: Explore the running Goose desktop app and test based on a natural language goal
+
+instructions: |
+  You are doing exploratory testing on the Goose desktop app.
+  Follow the explore-desktop-app skill for connecting, exploring, reporting and diagnose if necessary.
+
+prompt: |
+  Explore the app and test: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: What to test and verify, in natural language
+
+extensions:
+  - type: platform
+    name: developer
+    description: Write and edit files, and execute shell commands
+    display_name: Developer
+    bundled: true
+  - type: platform
+    name: analyze
+    description: 'Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs'
+    display_name: Analyze
+    bundled: true
+    available_tools: []
+  - type: platform
+    name: computercontroller
+    display_name: Computer Controller
+    bundled: true
+  - type: platform
+    name: summon
+    description: Load knowledge and delegate tasks to subagents
+    display_name: Summon
+    bundled: true
+    available_tools: []
+
+settings:
+  temperature: 0
