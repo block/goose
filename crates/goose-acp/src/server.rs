@@ -1505,17 +1505,22 @@ impl GooseAcpAgent {
         // Phase 2: wait for every prompt loop to exit before clearing
         // state. Each on_prompt calls finished.notify_one() after its
         // loop ends, which stores a permit if we have not started
-        // waiting yet.  Use a timeout so a stalled provider stream
-        // cannot block the clear indefinitely.
-        let timeout = tokio::time::Duration::from_secs(10);
-        for notify in &pending {
-            if tokio::time::timeout(timeout, notify.notified())
-                .await
-                .is_err()
+        // waiting yet.  A single global timeout bounds total wait time
+        // regardless of how many prompts are active.
+        if !pending.is_empty() {
+            let all_done = futures::future::join_all(
+                pending.iter().map(|n| n.notified()),
+            );
+            if tokio::time::timeout(
+                tokio::time::Duration::from_secs(10),
+                all_done,
+            )
+            .await
+            .is_err()
             {
                 warn!(
                     session_id = %req.session_id,
-                    "timed out waiting for prompt loop to finish during session clear"
+                    "timed out waiting for prompt loops to finish during session clear"
                 );
             }
         }
