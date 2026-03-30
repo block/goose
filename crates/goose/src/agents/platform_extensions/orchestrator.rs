@@ -105,13 +105,12 @@ pub const NEST_PATHS: &[&str] = &[
     "SOUL.md",
     "OWNER.md",
     "TOP_OF_MIND.md",
-    "NEST.md",
     "CATALOG.md",
     "GUIDES/*",
     "RESEARCH/*",
     "PLANS/*",
     "WORK_LOGS/*",
-    "guides/*", // backward compat — original casing from Douwe's initial impl
+
     "skills/*",
     "recipes/*",
     "OUTBOX/*",

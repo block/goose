@@ -6,6 +6,7 @@ use serde::Serialize;
 
 use crate::agents::platform_extensions::PLATFORM_EXTENSIONS;
 use crate::agents::{Agent, ExtensionConfig};
+use crate::agents::platform_extensions::orchestrator::nest_dir;
 use crate::config::Config;
 use crate::session::{
     EnabledExtensionsState, ExtensionState, Session, SessionManager, SessionType,
@@ -24,11 +25,7 @@ fn platform_ext_config(name: &str) -> Option<ExtensionConfig> {
     })
 }
 
-/// Idempotently create the nest directory structure and seed files.
-/// Called on every agent setup — only creates what's missing.
 fn feather_nest() {
-    use crate::agents::platform_extensions::orchestrator::nest_dir;
-
     let nest = nest_dir();
 
     // Create directories
@@ -45,61 +42,6 @@ fn feather_nest() {
     for dir in &dirs {
         if let Err(e) = std::fs::create_dir_all(nest.join(dir)) {
             tracing::warn!("Failed to create nest directory {}: {}", dir, e);
-        }
-    }
-
-    // Seed TOP_OF_MIND.md if it doesn't exist
-    let tom = nest.join("TOP_OF_MIND.md");
-    if !tom.exists() {
-        if let Err(e) = std::fs::write(
-            &tom,
-            concat!(
-                "# Top of Mind\n",
-                "Last updated: (not yet)\n\n",
-                "## Current Focus\n",
-                "(not yet set)\n\n",
-                "## In Flight\n",
-                "(nothing yet)\n\n",
-                "## Recent Decisions\n",
-                "(none yet)\n\n",
-                "## Open Questions\n",
-                "(none yet)\n\n",
-                "## Parked\n",
-                "(nothing yet)\n",
-            ),
-        ) {
-            tracing::warn!("Failed to seed TOP_OF_MIND.md: {}", e);
-        }
-    }
-
-    // Seed NEST.md if it doesn't exist
-    let nest_md = nest.join("NEST.md");
-    if !nest_md.exists() {
-        if let Err(e) = std::fs::write(
-            &nest_md,
-            concat!(
-            "# Nest\n\n",
-            "Persistent knowledge directory. Knowledge written here persists across sessions.\n\n",
-            "## Directories\n\n",
-            "| Directory | Purpose |\n",
-            "|-----------|--------|\n",
-            "| GUIDES/ | Verified procedures — \"How do I do X?\" |\n",
-            "| RESEARCH/ | Findings and analysis |\n",
-            "| PLANS/ | Specs, proposals, designs |\n",
-            "| WORK_LOGS/ | What was tried, learned, decided, and why |\n",
-            "| skills/ | Teachable workflows (auto-available via summon) |\n",
-            "| recipes/ | Conversation starters with parameters |\n",
-            "| .scratch/ | Temporary working files |\n",
-            "| OUTBOX/ | Documents meant to be shared externally |\n\n",
-            "## Conventions\n\n",
-            "- Check CATALOG.md before researching from scratch\n",
-            "- Knowledge files use YAML frontmatter: title, tags, status, created\n",
-            "- Filenames: ALL_CAPS_WITH_UNDERSCORES.md\n",
-            "- WORK_LOGS: date-prefixed YYYYMMDD_HHMM_SLUG.md\n",
-            "- Update TOP_OF_MIND.md when focus shifts or decisions are made\n",
-        ),
-        ) {
-            tracing::warn!("Failed to seed NEST.md: {}", e);
         }
     }
 
@@ -166,6 +108,10 @@ struct SessionInfo {
     id: String,
     name: String,
     updated: String,
+    working_dir: String,
+    recipe: String,
+    provider: String,
+    tokens: String,
 }
 
 #[derive(Serialize)]
@@ -194,6 +140,7 @@ struct RecipeInfo {
 
 #[derive(Serialize)]
 struct ClawContext {
+    first_time: bool,
     sessions: Vec<SessionInfo>,
     recent_files: Vec<RecentFile>,
     nest: Vec<NestFile>,
@@ -210,10 +157,34 @@ async fn gather_recent_sessions(session_manager: &SessionManager) -> Vec<Session
     sessions
         .into_iter()
         .take(10)
-        .map(|s| SessionInfo {
-            id: s.id.clone(),
-            name: s.name.clone(),
-            updated: s.updated_at.format("%Y-%m-%d %H:%M").to_string(),
+        .map(|s| {
+            let recipe = s
+                .recipe
+                .as_ref()
+                .map(|r| r.title.clone())
+                .unwrap_or_default();
+            let provider = s.provider_name.clone().unwrap_or_default();
+            let tokens = s
+                .accumulated_total_tokens
+                .and_then(|t| {
+                    if t == 0 {
+                        None
+                    } else if t < 1000 {
+                        Some(format!("{}", t))
+                    } else {
+                        Some(format!("{}k", t / 1000))
+                    }
+                })
+                .unwrap_or_default();
+            SessionInfo {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                updated: s.updated_at.format("%Y-%m-%d %H:%M").to_string(),
+                working_dir: s.working_dir.to_string_lossy().to_string(),
+                recipe,
+                provider,
+                tokens,
+            }
         })
         .collect()
 }
@@ -422,6 +393,7 @@ pub async fn setup_agent(
     let recipes = gather_recipes();
 
     let context = ClawContext {
+        first_time: session.message_count == 0,
         sessions,
         recent_files,
         nest,
@@ -433,7 +405,8 @@ pub async fn setup_agent(
     };
 
     let prompt = crate::prompt_template::render_template("active_agent.md", &context)
-        .unwrap_or_else(|_| {
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to render active_agent.md template: {}", e);
             "You are an active agent. Proactively share relevant updates.".to_string()
         });
     agent.override_system_prompt(prompt).await;
