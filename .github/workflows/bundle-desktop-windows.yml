@@ -79,19 +79,19 @@ jobs:
           cargo build --release --target x86_64-pc-windows-msvc
 
           # Verify build succeeded
-          if [ ! -f "./target/x86_64-pc-windows-msvc/release/goosed.exe" ]; then
+          if [ ! -f "./target/x86_64-pc-windows-msvc/release/goose.exe" ]; then
             echo "❌ Windows binary not found."
             ls -la ./target/x86_64-pc-windows-msvc/release/ || echo "Release directory doesn't exist"
             exit 1
           fi
 
           echo "✅ Windows binary found!"
-          ls -la ./target/x86_64-pc-windows-msvc/release/goosed.exe
+          ls -la ./target/x86_64-pc-windows-msvc/release/goose.exe
 
       - name: Prepare Windows binary
         shell: bash
         run: |
-          if [ ! -f "./target/x86_64-pc-windows-msvc/release/goosed.exe" ]; then
+          if [ ! -f "./target/x86_64-pc-windows-msvc/release/goose.exe" ]; then
             echo "Windows binary not found."
             exit 1
           fi
@@ -101,12 +101,12 @@ jobs:
           mkdir -p ./ui/desktop/src/bin
 
           echo "Copying Windows binary..."
-          cp -f ./target/x86_64-pc-windows-msvc/release/goosed.exe ./ui/desktop/src/bin/
+          cp -f ./target/x86_64-pc-windows-msvc/release/goose.exe ./ui/desktop/src/bin/
 
           if [ -d "./ui/desktop/src/platform/windows/bin" ]; then
             echo "Copying Windows platform files..."
             for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do
-              if [ -f "$file" ] && [ "$(basename "$file")" != "goosed.exe" ]; then
+              if [ -f "$file" ] && [ "$(basename "$file")" != "goose.exe" ]; then
                 cp -f "$file" ./ui/desktop/src/bin/
               fi
             done
@@ -187,14 +187,14 @@ jobs:
           certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
           files: |
             ${{ github.workspace }}/dist-windows/Goose.exe
-            ${{ github.workspace }}/dist-windows/resources/bin/goosed.exe
+            ${{ github.workspace }}/dist-windows/resources/bin/goose.exe
 
       - name: Verify signed executables
         shell: pwsh
         run: |
           $files = @(
             "dist-windows/Goose.exe",
-            "dist-windows/resources/bin/goosed.exe"
+            "dist-windows/resources/bin/goose.exe"
           )
           foreach ($file in $files) {
             Write-Output "Verifying signature: $file"

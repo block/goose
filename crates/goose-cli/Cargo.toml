@@ -63,18 +63,19 @@ clap_complete = "4.5.62"
 comfy-table = "7.2.2"
 sha2 = { workspace = true }
 sigstore-verify = { version = "0.6", default-features = false }
+goose-server = { version = "1.29.0", path = "../goose-server", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
 
 [features]
 default = ["code-mode", "local-inference", "aws-providers", "telemetry", "otel", "rustls-tls"]
-code-mode = ["goose/code-mode", "goose-acp/code-mode"]
-local-inference = ["goose/local-inference"]
-aws-providers = ["goose/aws-providers"]
-cuda = ["goose/cuda", "local-inference"]
-telemetry = ["goose/telemetry"]
-otel = ["goose/otel"]
+code-mode = ["goose/code-mode", "goose-acp/code-mode", "goose-server/code-mode"]
+local-inference = ["goose/local-inference", "goose-server/local-inference"]
+aws-providers = ["goose/aws-providers", "goose-server/aws-providers"]
+cuda = ["goose/cuda", "goose-server/cuda", "local-inference"]
+telemetry = ["goose/telemetry", "goose-server/telemetry"]
+otel = ["goose/otel", "goose-server/otel"]
 # disables the update command
 disable-update = []
 rustls-tls = [
@@ -82,12 +83,14 @@ rustls-tls = [
     "sigstore-verify/rustls",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
+    "goose-server/rustls-tls",
 ]
 native-tls = [
     "reqwest/native-tls",
     "sigstore-verify/native-tls",
     "goose/native-tls",
     "goose-mcp/native-tls",
+    "goose-server/native-tls",
 ]
 
 [dev-dependencies]

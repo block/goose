@@ -1,11 +1,11 @@
+use crate::auth::check_token;
 use crate::configuration;
 use crate::state;
+#[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+use crate::tls::self_signed_config;
 use anyhow::Result;
 use axum::middleware;
 use axum_server::Handle;
-use goose_server::auth::check_token;
-#[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
-use goose_server::tls::self_signed_config;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 

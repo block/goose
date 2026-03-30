@@ -4512,6 +4512,7 @@ dependencies = [
  "goose",
  "goose-acp",
  "goose-mcp",
+ "goose-server",
  "indicatif",
  "open",
  "rand 0.8.5",

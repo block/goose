@@ -5,8 +5,10 @@ compile_error!("At least one of `rustls-tls` or `native-tls` features must be en
 compile_error!("Features `rustls-tls` and `native-tls` are mutually exclusive");
 
 pub mod auth;
+pub mod commands;
 pub mod configuration;
 pub mod error;
+pub mod logging;
 pub mod openapi;
 pub mod routes;
 pub mod session_event_bus;

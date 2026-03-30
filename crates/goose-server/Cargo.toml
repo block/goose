@@ -81,10 +81,6 @@ openssl = { version = "0.10", optional = true }
 winreg = { version = "0.55.0" }
 
 [[bin]]
-name = "goosed"
-path = "src/main.rs"
-
-[[bin]]
 name = "generate_schema"
 path = "src/bin/generate_schema.rs"
 

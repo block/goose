@@ -36,16 +36,16 @@ export interface FindBinaryOptions {
 }
 
 export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string => {
-  const pathFromEnv = process.env.GOOSED_BINARY;
+  const pathFromEnv = process.env.GOOSE_BINARY ?? process.env.GOOSED_BINARY;
   if (pathFromEnv) {
     if (fs.existsSync(pathFromEnv) && fs.statSync(pathFromEnv).isFile()) {
       return path.resolve(pathFromEnv);
     } else {
-      throw new Error(`Invalid GOOSED_BINARY path: ${pathFromEnv} (pwd is ${process.cwd()})`);
+      throw new Error(`Invalid GOOSE_BINARY path: ${pathFromEnv} (pwd is ${process.cwd()})`);
     }
   }
   const { isPackaged = false, resourcesPath } = options;
-  const binaryName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+  const binaryName = process.platform === 'win32' ? 'goose.exe' : 'goose';
 
   const possiblePaths: string[] = [];
 
@@ -247,7 +247,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   }
 
   const spawnCommand = goosedPath;
-  const spawnArgs = ['agent'];
+  const spawnArgs = ['server'];
 
   const isWindows = process.platform === 'win32';
   const spawnOptions = {

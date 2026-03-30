@@ -73,11 +73,11 @@ jobs:
           key: intel-macos-deployment-target-12
 
 
-      - name: Build goose-server for Intel macOS (x86_64)
+      - name: Build goose for Intel macOS (x86_64)
         run: |
           source ./bin/activate-hermit
           rustup target add x86_64-apple-darwin
-          cargo build --release -p goose-server --target x86_64-apple-darwin
+          cargo build --release -p goose-cli --target x86_64-apple-darwin
 
 
 
@@ -97,7 +97,7 @@ jobs:
 
       - name: Copy binaries into Electron folder
         run: |
-          cp target/x86_64-apple-darwin/release/goosed ui/desktop/src/bin/goosed
+          cp target/x86_64-apple-darwin/release/goose ui/desktop/src/bin/goose
 
       - name: Cache pnpm dependencies
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2

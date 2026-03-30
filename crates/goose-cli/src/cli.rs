@@ -875,6 +875,10 @@ enum Command {
         command: LocalModelsCommand,
     },
 
+    /// Run the agent server (backend for the desktop app)
+    #[command(about = "Run the goose agent server")]
+    Server {},
+
     /// Generate completions for various shells
     #[command(about = "Generate the autocompletion script for the specified shell")]
     Completion {
@@ -1020,6 +1024,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Term { .. }) => "term",
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { .. }) => "local-models",
+        Some(Command::Server { .. }) => "server",
         Some(Command::Completion { .. }) => "completion",
         Some(Command::ValidateExtensions { .. }) => "validate-extensions",
         None => "default_session",
@@ -1771,6 +1776,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
+        Some(Command::Server {}) => goose_server::commands::agent::run().await,
         Some(Command::ValidateExtensions { file }) => {
             use goose::agents::validate_extensions::validate_bundled_extensions;
             match validate_bundled_extensions(&file) {

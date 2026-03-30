@@ -67,7 +67,7 @@ jobs:
           path: download_cli.sh
 
   # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS only) - builds goosed and Electron app
+  # 4) Bundle Desktop App (macOS only) - builds goose and Electron app
   # ------------------------------------------------------------
   bundle-desktop:
     needs: [prepare-version]
@@ -80,7 +80,7 @@ jobs:
       signing: false
 
   # ------------------------------------------------------------
-  # 5) Bundle Desktop App (macOS Intel) - builds goosed and Electron app
+  # 5) Bundle Desktop App (macOS Intel) - builds goose and Electron app
   # ------------------------------------------------------------
   bundle-desktop-intel:
     needs: [prepare-version]
@@ -93,7 +93,7 @@ jobs:
       signing: false
 
   # ------------------------------------------------------------
-  # 6) Bundle Desktop App (Linux) - builds goosed and Electron app
+  # 6) Bundle Desktop App (Linux) - builds goose and Electron app
   # ------------------------------------------------------------
   bundle-desktop-linux:
     needs: [prepare-version]
@@ -102,7 +102,7 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
 
   # ------------------------------------------------------------
-  # 6) Bundle Desktop App (Windows) - builds goosed and Electron app
+  # 6) Bundle Desktop App (Windows) - builds goose and Electron app
   # ------------------------------------------------------------
   bundle-desktop-windows:
     needs: [prepare-version]

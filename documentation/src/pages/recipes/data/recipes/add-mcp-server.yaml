@@ -183,7 +183,7 @@ instructions: |
   - `command` (STDIO) OR `url` (HTTP)
   - `type`: "streamable-http" for HTTP, "local"/undefined for STDIO
   - `environmentVariables` OR `headers` (for HTTP)
-  - Supported commands for install link: npx, uvx, docker, jbang, cu, goosed
+  - Supported commands for install link: npx, uvx, docker, jbang, cu, goose
   - Unsupported commands: set `show_install_link: false`
   - servers.json is used from /src/pages/extensions and /documentation/src/components/server-card.tsx
   

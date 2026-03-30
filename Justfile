@@ -76,43 +76,29 @@ release-intel:
     @just copy-binary-intel
 
 copy-binary BUILD_MODE="release":
-    @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
-        echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
-        cp -p ./target/{{BUILD_MODE}}/goosed ./ui/desktop/src/bin/; \
-    else \
-        echo "Binary not found in target/{{BUILD_MODE}}"; \
-        exit 1; \
-    fi
     @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
-        echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
+        echo "Copying goose binary from target/{{BUILD_MODE}}..."; \
         cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
     else \
-        echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
+        echo "goose binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
 
 # Copy binary command for Intel build
 copy-binary-intel:
-    @if [ -f ./target/x86_64-apple-darwin/release/goosed ]; then \
-        echo "Copying Intel goosed binary to ui/desktop/src/bin with permissions preserved..."; \
-        cp -p ./target/x86_64-apple-darwin/release/goosed ./ui/desktop/src/bin/; \
-    else \
-        echo "Intel release binary not found."; \
-        exit 1; \
-    fi
     @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
-        echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
+        echo "Copying Intel goose binary to ui/desktop/src/bin with permissions preserved..."; \
         cp -p ./target/x86_64-apple-darwin/release/goose ./ui/desktop/src/bin/; \
     else \
-        echo "Intel goose CLI binary not found."; \
+        echo "Intel goose binary not found."; \
         exit 1; \
     fi
 
 # Copy Windows binary command
 copy-binary-windows:
-    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goosed.exe) { \
+    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goose.exe) { \
         Write-Host 'Copying Windows binary and DLLs to ui/desktop/src/bin...'; \
-        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goosed.exe' -Destination './ui/desktop/src/bin/' -Force; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goose.exe' -Destination './ui/desktop/src/bin/' -Force; \
         Copy-Item -Path './target/x86_64-pc-windows-gnu/release/*.dll' -Destination './ui/desktop/src/bin/' -Force; \
     } else { \
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
@@ -192,7 +178,7 @@ run-docs:
 # Run server
 run-server:
     @echo "Running server..."
-    cargo run -p goose-server --bin goosed agent
+    cargo run -p goose-cli --bin goose server
 
 # Check if OpenAPI schema is up-to-date
 check-openapi-schema: generate-openapi
@@ -230,12 +216,12 @@ make-ui-windows:
     @just release-windows
     #!/usr/bin/env sh
     set -e
-    if [ -f "./target/x86_64-pc-windows-gnu/release/goosed.exe" ]; then \
+    if [ -f "./target/x86_64-pc-windows-gnu/release/goose.exe" ]; then \
         echo "Cleaning destination directory..." && \
         rm -rf ./ui/desktop/src/bin && \
         mkdir -p ./ui/desktop/src/bin && \
         echo "Copying Windows binary and DLLs..." && \
-        cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
+        cp -f ./target/x86_64-pc-windows-gnu/release/goose.exe ./ui/desktop/src/bin/ && \
         cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
         echo "Starting Windows package build..." && \
         (cd ui/desktop && pnpm run bundle:windows) && \

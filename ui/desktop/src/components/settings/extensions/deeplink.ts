@@ -19,7 +19,7 @@ function getStdioConfig(
     'jbang',
     'npx',
     'uvx',
-    'goosed',
+    'goose',
     'npx.cmd',
     'i-ching-mcp-server',
   ];
