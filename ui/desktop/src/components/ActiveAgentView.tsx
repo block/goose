@@ -101,7 +101,7 @@ function ActiveAgentChat({
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background-secondary">
+    <div className="flex flex-col h-full min-h-0 bg-background-primary">
       <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
         <div className="px-4 py-4">
           {messages.length === 0 && chatState === ChatState.Idle ? (
@@ -209,7 +209,7 @@ export default function ActiveAgentView({
 
   if (state === 'loading') {
     return (
-      <div className="flex flex-col h-full items-center justify-center bg-background-secondary">
+      <div className="flex flex-col h-full items-center justify-center bg-background-primary">
         <LoadingGoose chatState={ChatState.LoadingConversation} />
         <p className="text-text-secondary mt-2 text-sm">Waking up the active agent...</p>
       </div>
@@ -218,7 +218,7 @@ export default function ActiveAgentView({
 
   if (state === 'error') {
     return (
-      <div className="flex flex-col h-full items-center justify-center bg-background-secondary">
+      <div className="flex flex-col h-full items-center justify-center bg-background-primary">
         <p className="text-text-secondary text-sm">Could not connect to the active agent.</p>
         {errorMsg && (
           <p className="text-text-tertiary text-xs mt-1 max-w-md text-center">{errorMsg}</p>
