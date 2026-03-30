@@ -205,6 +205,7 @@ jobs:
         with:
           node-version: '24.10.0'
           registry-url: 'https://registry.npmjs.org'
+          always-auth: true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4
@@ -297,6 +298,14 @@ jobs:
               echo "**Note:** Changesets will still run to verify functionality."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Configure npm authentication
+        if: inputs.dry-run != true && github.ref == 'refs/heads/main'
+        run: |
+          cd ui
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
 
       - name: Publish to npm
         if: inputs.dry-run != true && github.ref == 'refs/heads/main'

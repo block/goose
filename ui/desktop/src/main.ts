@@ -821,7 +821,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
     sharedSession: '/shared-session',
-    welcome: '/welcome',
   };
 
   if (viewType) {
