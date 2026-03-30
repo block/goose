@@ -1505,9 +1505,19 @@ impl GooseAcpAgent {
         // Phase 2: wait for every prompt loop to exit before clearing
         // state. Each on_prompt calls finished.notify_one() after its
         // loop ends, which stores a permit if we have not started
-        // waiting yet.
+        // waiting yet.  Use a timeout so a stalled provider stream
+        // cannot block the clear indefinitely.
+        let timeout = tokio::time::Duration::from_secs(10);
         for notify in &pending {
-            notify.notified().await;
+            if tokio::time::timeout(timeout, notify.notified())
+                .await
+                .is_err()
+            {
+                warn!(
+                    session_id = %req.session_id,
+                    "timed out waiting for prompt loop to finish during session clear"
+                );
+            }
         }
 
         // Phase 3: clear session state. All prompt loops have exited,
@@ -1598,18 +1608,31 @@ impl GooseAcpAgent {
             .await
             .map_err(|e| sacp::Error::internal_error().data(format!("{:?}", e)))?;
 
-        let prompt_def = all_prompts
-            .values()
-            .flatten()
-            .find(|p| p.name == req.name)
-            .ok_or_else(|| {
-                sacp::Error::resource_not_found(Some(req.name.clone()))
-                    .data(format!("Prompt '{}' not found", req.name))
-            })?;
+        let matches: Vec<_> = all_prompts
+            .iter()
+            .flat_map(|(ext, prompts)| {
+                prompts
+                    .iter()
+                    .filter(|p| p.name == req.name)
+                    .map(move |p| (ext.as_str(), p))
+            })
+            .collect();
 
-        Ok(GetPromptInfoResponse {
-            prompt: prompt_def.clone(),
-        })
+        match matches.len() {
+            0 => Err(sacp::Error::resource_not_found(Some(req.name.clone()))
+                .data(format!("Prompt '{}' not found", req.name))),
+            1 => Ok(GetPromptInfoResponse {
+                prompt: matches[0].1.clone(),
+            }),
+            _ => {
+                let extensions: Vec<&str> = matches.iter().map(|(ext, _)| *ext).collect();
+                Err(sacp::Error::invalid_params().data(format!(
+                    "Prompt '{}' is ambiguous; found in extensions: {}",
+                    req.name,
+                    extensions.join(", ")
+                )))
+            }
+        }
     }
 
     #[custom_method("_goose/config/prompts")]
