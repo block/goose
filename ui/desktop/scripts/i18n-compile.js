@@ -18,7 +18,7 @@ const files = fs.readdirSync(messagesDir).filter((f) => f.endsWith('.json'));
 
 for (const file of files) {
   const locale = path.basename(file, '.json');
-  const inFile = path.join(messagesDir, file);
+  const inFile = path.join(messagesDir, file).split(path.sep).join('/');
   const outFile = path.join(compiledDir, `${locale}.json`);
   execFileSync(process.execPath, [formatjs, 'compile', inFile, '--out-file', outFile], {
     stdio: 'inherit',
