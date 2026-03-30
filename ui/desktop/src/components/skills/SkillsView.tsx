@@ -148,7 +148,6 @@ export default function SkillsView() {
       }, 300);
       return () => clearTimeout(timer);
     }
-    return () => void 0;
   }, [loading, showSkeleton]);
 
   const renderContent = () => {
