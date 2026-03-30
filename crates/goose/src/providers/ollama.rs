@@ -242,7 +242,7 @@ impl Provider for OllamaProvider {
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        stream_ollama(response, log)
+        stream_ollama(response, log, self.api_client.timeout())
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -285,11 +285,15 @@ impl Provider for OllamaProvider {
 /// Ollama-specific streaming handler with XML tool call fallback.
 /// Uses the Ollama format module which buffers text when XML tool calls are detected,
 /// preventing duplicate content from being emitted to the UI.
-fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStream, ProviderError> {
+fn stream_ollama(
+    response: Response,
+    mut log: RequestLog,
+    provider_timeout: Duration,
+) -> Result<MessageStream, ProviderError> {
     let stream = response.bytes_stream().map_err(std::io::Error::other);
 
     Ok(Box::pin(try_stream! {
-        let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+        let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);

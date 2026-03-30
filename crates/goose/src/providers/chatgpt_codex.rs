@@ -29,6 +29,7 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 use tokio::pin;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -983,9 +984,10 @@ impl Provider for ChatGptCodexProvider {
             .await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
+        let provider_timeout = Duration::from_secs(600);
 
         Ok(Box::pin(try_stream! {
-            let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+            let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
 

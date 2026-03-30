@@ -250,9 +250,10 @@ impl Provider for AnthropicProvider {
             })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
+        let provider_timeout = self.api_client.timeout();
 
         Ok(Box::pin(try_stream! {
-            let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+            let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
             let stream_reader = StreamReader::new(stream);
             let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
 

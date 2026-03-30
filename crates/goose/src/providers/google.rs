@@ -193,9 +193,10 @@ impl Provider for GoogleProvider {
             })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
+        let provider_timeout = self.api_client.timeout();
 
         Ok(Box::pin(try_stream! {
-            let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+            let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new())
                 .map_err(anyhow::Error::from);

@@ -466,7 +466,7 @@ impl Provider for GithubCopilotProvider {
                     let _ = log.error(e);
                 })?;
 
-            stream_openai_compat(response, log)
+            stream_openai_compat(response, log, Duration::from_secs(600))
         } else {
             // Use non-streaming API and wrap result
             let session_id_opt = if session_id.is_empty() {

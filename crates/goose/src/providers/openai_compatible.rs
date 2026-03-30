@@ -3,6 +3,7 @@ use async_stream::try_stream;
 use futures::TryStreamExt;
 use reqwest::{Response, StatusCode};
 use serde_json::Value;
+use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -124,7 +125,7 @@ impl Provider for OpenAiCompatibleProvider {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat(response, log, self.api_client.timeout())
     }
 }
 
@@ -236,11 +237,12 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
 pub fn stream_openai_compat(
     response: Response,
     mut log: RequestLog,
+    provider_timeout: Duration,
 ) -> Result<MessageStream, ProviderError> {
     let stream = response.bytes_stream().map_err(std::io::Error::other);
 
     Ok(Box::pin(try_stream! {
-        let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+        let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);

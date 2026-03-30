@@ -189,7 +189,7 @@ impl Provider for TetrateProvider {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat(response, log, self.api_client.timeout())
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API

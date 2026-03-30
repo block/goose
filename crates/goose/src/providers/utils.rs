@@ -524,21 +524,18 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
     r
 }
 
-/// Default timeout for idle SSE streams: 5 minutes.
-/// If no new SSE line arrives from the server within this duration, the stream
-/// is considered stalled. Configurable via `GOOSE_STREAM_TIMEOUT` env var (in seconds).
-const DEFAULT_STREAM_IDLE_TIMEOUT_SECS: u64 = 300;
-
-/// Returns the stream idle timeout duration, checking the env var once.
-pub fn stream_idle_timeout() -> Duration {
-    static TIMEOUT: OnceLock<Duration> = OnceLock::new();
-    *TIMEOUT.get_or_init(|| {
-        let secs = std::env::var("GOOSE_STREAM_TIMEOUT")
-            .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(DEFAULT_STREAM_IDLE_TIMEOUT_SECS);
-        Duration::from_secs(secs)
-    })
+/// Returns the stream idle timeout duration.
+///
+/// If `GOOSE_STREAM_TIMEOUT` is set, that value (in seconds) is used.
+/// Otherwise, falls back to the provider's own request timeout so the
+/// stream idle timeout never silently undercuts the provider (e.g. Ollama's
+/// 600 s model-load window).
+pub fn stream_idle_timeout(provider_timeout: Duration) -> Duration {
+    std::env::var("GOOSE_STREAM_TIMEOUT")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(provider_timeout)
 }
 
 /// Wraps the raw response stream with a per-chunk idle timeout.

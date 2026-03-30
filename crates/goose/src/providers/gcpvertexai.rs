@@ -594,10 +594,11 @@ impl Provider for GcpVertexAIProvider {
             })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
+        let provider_timeout = Duration::from_secs(DEFAULT_TIMEOUT_SECS);
 
         let context_clone = context.clone();
         Ok(Box::pin(try_stream! {
-            let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+            let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
             let stream_reader = StreamReader::new(stream);
             let framed = tokio_util::codec::FramedRead::new(
                 stream_reader,

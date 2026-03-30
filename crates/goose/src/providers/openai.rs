@@ -453,9 +453,10 @@ impl Provider for OpenAiProvider {
 
             if self.supports_streaming {
                 let stream = response.bytes_stream().map_err(io::Error::other);
+                let provider_timeout = self.api_client.timeout();
 
                 Ok(Box::pin(try_stream! {
-                    let stream = with_stream_idle_timeout(stream, stream_idle_timeout());
+                    let stream = with_stream_idle_timeout(stream, stream_idle_timeout(provider_timeout));
                     let stream_reader = StreamReader::new(stream);
                     let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
 
@@ -518,7 +519,7 @@ impl Provider for OpenAiProvider {
                 })?;
 
             if self.supports_streaming {
-                stream_openai_compat(response, log)
+                stream_openai_compat(response, log, self.api_client.timeout())
             } else {
                 let json: serde_json::Value = response.json().await.map_err(|e| {
                     ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))

@@ -277,6 +277,10 @@ pub struct ApiRequestBuilder<'a> {
 }
 
 impl ApiClient {
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
     pub fn new(host: String, auth: AuthMethod) -> Result<Self> {
         Self::with_timeout(host, auth, Duration::from_secs(600))
     }
