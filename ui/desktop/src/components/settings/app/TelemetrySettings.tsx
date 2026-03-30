@@ -9,6 +9,42 @@ import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
   trackTelemetryPreference,
 } from '../../../utils/analytics';
+import { defineMessages, useIntl } from '../../../i18n';
+
+const i18n = defineMessages({
+  title: {
+    id: 'telemetrySettings.title',
+    defaultMessage: 'Privacy',
+  },
+  description: {
+    id: 'telemetrySettings.description',
+    defaultMessage: 'Control how your data is used',
+  },
+  toggleLabel: {
+    id: 'telemetrySettings.toggleLabel',
+    defaultMessage: 'Anonymous usage data',
+  },
+  toggleDescription: {
+    id: 'telemetrySettings.toggleDescription',
+    defaultMessage: 'Help improve goose by sharing anonymous usage statistics.',
+  },
+  learnMore: {
+    id: 'telemetrySettings.learnMore',
+    defaultMessage: 'Learn more',
+  },
+  configErrorTitle: {
+    id: 'telemetrySettings.configErrorTitle',
+    defaultMessage: 'Configuration Error',
+  },
+  loadError: {
+    id: 'telemetrySettings.loadError',
+    defaultMessage: 'Failed to load telemetry settings.',
+  },
+  updateError: {
+    id: 'telemetrySettings.updateError',
+    defaultMessage: 'Failed to update telemetry settings.',
+  },
+});
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -17,6 +53,7 @@ interface TelemetrySettingsProps {
 }
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
+  const intl = useIntl();
   const { read, upsert } = useConfig();
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,14 +66,14 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     } catch (error) {
       console.error('Failed to load telemetry status:', error);
       toastService.error({
-        title: 'Configuration Error',
-        msg: 'Failed to load telemetry settings.',
+        title: intl.formatMessage(i18n.configErrorTitle),
+        msg: intl.formatMessage(i18n.loadError),
         traceback: error instanceof Error ? error.stack || '' : '',
       });
     } finally {
       setIsLoading(false);
     }
-  }, [read]);
+  }, [read, intl]);
 
   useEffect(() => {
     loadTelemetryStatus();
@@ -51,8 +88,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     } catch (error) {
       console.error('Failed to update telemetry status:', error);
       toastService.error({
-        title: 'Configuration Error',
-        msg: 'Failed to update telemetry settings.',
+        title: intl.formatMessage(i18n.configErrorTitle),
+        msg: intl.formatMessage(i18n.updateError),
         traceback: error instanceof Error ? error.stack || '' : '',
       });
     }
@@ -67,17 +104,17 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     return null;
   }
 
-  const title = 'Privacy';
-  const description = 'Control how your data is used';
-  const toggleLabel = 'Anonymous usage data';
-  const toggleDescription = 'Help improve goose by sharing anonymous usage statistics.';
+  const title = intl.formatMessage(i18n.title);
+  const description = intl.formatMessage(i18n.description);
+  const toggleLabel = intl.formatMessage(i18n.toggleLabel);
+  const toggleDescription = intl.formatMessage(i18n.toggleDescription);
 
   const learnMoreLink = (
     <button
       onClick={() => setShowModal(true)}
       className="text-blue-600 dark:text-blue-400 hover:underline"
     >
-      Learn more
+      {intl.formatMessage(i18n.learnMore)}
     </button>
   );
 

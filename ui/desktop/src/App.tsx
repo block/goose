@@ -15,9 +15,7 @@ import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
-import ProviderGuard from './components/ProviderGuard';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
-import { USE_NEW_ONBOARDING } from './featureFlags';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -249,11 +247,7 @@ const ConfigureProvidersRoute = () => {
   );
 };
 
-interface WelcomeRouteProps {
-  onSelectProvider: () => void;
-}
-
-const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
+const WelcomeRoute = () => {
   const navigate = useNavigate();
 
   return (
@@ -265,7 +259,6 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
         isOnboarding={true}
         onProviderLaunched={(model?: string) => {
           trackOnboardingCompleted('other', model);
-          onSelectProvider();
           navigate('/', { replace: true });
         }}
       />
@@ -351,7 +344,6 @@ export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
-  const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -421,7 +413,6 @@ export function AppInner() {
   const { addExtension } = useConfig();
 
   useEffect(() => {
-    console.log('Sending reactReady signal to Electron');
     try {
       window.electron.reactReady();
     } catch (error) {
@@ -466,7 +457,6 @@ export function AppInner() {
   }, [navigate]);
 
   useEffect(() => {
-    console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
@@ -545,9 +535,6 @@ export function AppInner() {
     const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const newView = args[0] as View;
       const section = args[1] as string | undefined;
-      console.log(
-        `Received view change request to: ${newView}${section ? `, section: ${section}` : ''}`
-      );
 
       if (section && newView === 'settings') {
         navigate(`/settings?section=${section}`);
@@ -562,7 +549,6 @@ export function AppInner() {
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
-      console.log('Received new-chat event from keyboard shortcut');
       window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
     };
 
@@ -589,16 +575,9 @@ export function AppInner() {
   useEffect(() => {
     const handleSetInitialMessage = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const initialMessage = args[0] as string;
-      console.log(
-        '[App] Received set-initial-message event:',
-        initialMessage,
-        'isProcessing:',
-        isProcessingRef.current
-      );
 
       if (initialMessage && !isProcessingRef.current) {
         isProcessingRef.current = true;
-        console.log('[App] Processing initial message from launcher:', initialMessage);
         navigate('/pair', {
           state: {
             initialMessage: { msg: initialMessage, images: [] },
@@ -607,8 +586,6 @@ export function AppInner() {
         setTimeout(() => {
           isProcessingRef.current = false;
         }, 1000);
-      } else if (initialMessage) {
-        console.log('[App] Ignoring duplicate initial message (already processing)');
       }
     };
     window.electron.on('set-initial-message', handleSetInitialMessage);
@@ -650,28 +627,17 @@ export function AppInner() {
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
-            <Route
-              path="welcome"
-              element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
-            />
+            <Route path="welcome" element={<WelcomeRoute />} />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
               path="/"
               element={
-                USE_NEW_ONBOARDING ? (
-                  <OnboardingGuard>
-                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                      <AppLayout activeSessions={activeSessions} />
-                    </ChatProvider>
-                  </OnboardingGuard>
-                ) : (
-                  <ProviderGuard didSelectProvider={didSelectProvider}>
-                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                      <AppLayout activeSessions={activeSessions} />
-                    </ChatProvider>
-                  </ProviderGuard>
-                )
+                <OnboardingGuard>
+                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                    <AppLayout activeSessions={activeSessions} />
+                  </ChatProvider>
+                </OnboardingGuard>
               }
             >
               <Route index element={<HubRouteWrapper />} />

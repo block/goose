@@ -1025,39 +1025,6 @@
         }
       }
     },
-    "/config/detect-provider": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "detect_provider",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DetectProviderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Provider detected successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DetectProviderResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No matching provider found"
-          }
-        }
-      }
-    },
     "/config/extensions": {
       "get": {
         "tags": [
@@ -1658,6 +1625,18 @@
           "super::routes::config_management"
         ],
         "operationId": "get_slash_commands",
+        "parameters": [
+          {
+            "name": "working_dir",
+            "in": "query",
+            "description": "Optional working directory to discover local skills from",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Slash commands retrieved successfully",
@@ -4254,7 +4233,8 @@
         "type": "string",
         "enum": [
           "Builtin",
-          "Recipe"
+          "Recipe",
+          "Skill"
         ]
       },
       "ConfigKey": {
@@ -4272,13 +4252,17 @@
             "description": "Optional default value for the key",
             "nullable": true
           },
+          "device_code_flow": {
+            "type": "boolean",
+            "description": "Whether this OAuth flow uses the device code grant (RFC 8628)\nWhen true, the user must enter a verification code in the browser"
+          },
           "name": {
             "type": "string",
             "description": "The name of the configuration key (e.g., \"API_KEY\")"
           },
           "oauth_flow": {
             "type": "boolean",
-            "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
+            "description": "Whether this key should be configured using an OAuth flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
           "primary": {
             "type": "boolean",
@@ -4783,35 +4767,6 @@
           }
         }
       },
-      "DetectProviderRequest": {
-        "type": "object",
-        "required": [
-          "api_key"
-        ],
-        "properties": {
-          "api_key": {
-            "type": "string"
-          }
-        }
-      },
-      "DetectProviderResponse": {
-        "type": "object",
-        "required": [
-          "provider_name",
-          "models"
-        ],
-        "properties": {
-          "models": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "provider_name": {
-            "type": "string"
-          }
-        }
-      },
       "DictationProvider": {
         "type": "string",
         "enum": [
@@ -4997,6 +4952,11 @@
           },
           "name": {
             "type": "string"
+          },
+          "primary": {
+            "type": "boolean",
+            "description": "When true, the field is shown prominently in the UI (not collapsed).\nDefaults to the value of `required` if not specified.",
+            "nullable": true
           },
           "required": {
             "type": "boolean"
@@ -8049,6 +8009,7 @@
           "hidden",
           "terminal",
           "gateway",
+          "acp",
           "claw"
         ]
       },

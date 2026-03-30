@@ -154,6 +154,7 @@ impl Agent {
             .await;
         #[cfg(not(feature = "code-mode"))]
         let code_execution_active = false;
+        #[cfg(feature = "code-mode")]
         if code_execution_active {
             let disclosure_style =
                 crate::agents::platform_extensions::code_execution::get_tool_disclosure();

@@ -1,6 +1,5 @@
 pub mod anthropic;
 pub mod api_client;
-pub mod auto_detect;
 pub mod avian;
 pub mod azure;
 pub mod azureauth;
@@ -22,8 +21,8 @@ pub mod errors;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
-pub mod gemini_acp;
 pub mod gemini_cli;
+pub mod gemini_oauth;
 pub mod githubcopilot;
 pub mod google;
 mod init;

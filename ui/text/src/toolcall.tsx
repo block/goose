@@ -120,8 +120,6 @@ function summarizeContent(info: ToolCallInfo): string {
   return parts.join(" · ");
 }
 
-const MAX_PREVIEW_LINES = 8;
-
 export function findFeaturedToolCallId(
   toolCallOrder: string[],
   toolCalls: Map<string, ToolCallInfo>,
@@ -135,16 +133,21 @@ export function findFeaturedToolCallId(
   return toolCallOrder[toolCallOrder.length - 1];
 }
 
-export function buildToolCallCardLines(
-  info: ToolCallInfo,
-  indent: number,
-  totalWidth: number,
-  expanded: boolean,
-  keyPrefix: string = "card",
-): React.ReactNode[] {
-  const cardWidth = Math.min(totalWidth - indent - 2, 72);
-  const innerWidth = cardWidth - 2;
-  const contentWidth = innerWidth - 2;
+interface ToolCallProps {
+  info: ToolCallInfo;
+  width: number;
+  expanded: boolean;
+  showTabHint: boolean;
+  keyPrefix: string;
+}
+
+export function ToolCallCard({
+  info,
+  width,
+  expanded,
+  showTabHint,
+  keyPrefix,
+}: ToolCallProps): React.ReactNode[] {
   const kindIcon = KIND_ICONS[info.kind ?? "other"] ?? "⚙";
   const statusInfo = STATUS_INDICATORS[info.status] ?? STATUS_INDICATORS.pending!;
   const borderColor = info.status === "failed" ? CRANBERRY : CEDAR;
@@ -155,125 +158,89 @@ export function buildToolCallCardLines(
   const hasContent = info.content && info.content.length > 0;
   const hasLocations = info.locations && info.locations.length > 0;
 
-  const inputLines = hasInput ? formatJsonCompact(info.rawInput, contentWidth - 6) : [];
-  const outputLines = hasOutput ? formatJsonCompact(info.rawOutput, contentWidth - 6) : [];
-  const contentLines = hasContent ? extractTextFromContent(info.content!) : [];
+  const contentWidth = width - 4;
 
-  const shownInput = expanded ? inputLines : inputLines.slice(0, MAX_PREVIEW_LINES);
-  const shownOutput = expanded ? outputLines : outputLines.slice(0, MAX_PREVIEW_LINES);
-  const shownContent = expanded ? contentLines : contentLines.slice(0, MAX_PREVIEW_LINES);
+  const lines: React.ReactNode[] = [];
+  const content: React.ReactNode[] = [];
 
-  const hasTruncated =
-    inputLines.length > MAX_PREVIEW_LINES ||
-    outputLines.length > MAX_PREVIEW_LINES ||
-    contentLines.length > MAX_PREVIEW_LINES;
-
-  const bodyRows: Array<{ text: string; color?: string; italic?: boolean }> = [];
-
+  // Header
   const runningText = info.status === "in_progress" ? " running…" : "";
-  const tabHint = hasTruncated && !expanded ? "tab ↔" : "";
-  bodyRows.push({ text: "__HEADER__" });
-
-  if (hasLocations) {
-    for (const loc of info.locations!) {
-      bodyRows.push({ text: `  📁 ${loc.path}${loc.line ? `:${loc.line}` : ""}`, color: TEXT_DIM });
-    }
-  }
-
-  function addSection(label: string, lines: string[], totalCount: number) {
-    if (lines.length === 0) return;
-    bodyRows.push({ text: `  ▸ ${label}:`, color: TEXT_DIM });
-    for (const line of lines) {
-      bodyRows.push({ text: `    ${line}`, color: TEXT_DIM });
-    }
-    if (!expanded && totalCount > MAX_PREVIEW_LINES) {
-      const remaining = totalCount - MAX_PREVIEW_LINES;
-      bodyRows.push({ text: `    ▸ ${remaining} more lines (tab to expand)`, color: GOLD, italic: true });
-    }
-  }
-
-  addSection("input", shownInput, inputLines.length);
-  addSection("output", shownOutput, outputLines.length);
-  addSection("content", shownContent, contentLines.length);
-
-  const result: React.ReactNode[] = [];
-  const topBorder = "╭" + "─".repeat(innerWidth) + "╮";
-  const botBorder = "╰" + "─".repeat(innerWidth) + "╯";
-
-  result.push(
-    <Box key={`${keyPrefix}-top`} marginLeft={indent} height={1}>
-      <Text color={borderColor} dimColor={dimBorder}>{topBorder}</Text>
-    </Box>,
-  );
-
-  for (let i = 0; i < bodyRows.length; i++) {
-    const row = bodyRows[i]!;
-
-    if (row.text === "__HEADER__") {
-      result.push(
-        <Box key={`${keyPrefix}-row-${i}`} marginLeft={indent} width={cardWidth} height={1}>
-          <Text color={borderColor} dimColor={dimBorder}>│ </Text>
-          <Box flexGrow={1} justifyContent="space-between">
-            <Box>
-              <Text color={statusInfo.color}>{statusInfo.icon} </Text>
-              <Text>{kindIcon} </Text>
-              <Text color={TEXT_SECONDARY} bold>{info.title}</Text>
-              {runningText ? <Text color={TEXT_DIM} italic>{runningText}</Text> : null}
-            </Box>
-            {tabHint ? <Text color={TEXT_DIM} italic>{tabHint}</Text> : null}
-          </Box>
-          <Text color={borderColor} dimColor={dimBorder}> │</Text>
-        </Box>,
-      );
-      continue;
-    }
-
-    result.push(
-      <Box key={`${keyPrefix}-row-${i}`} marginLeft={indent} width={cardWidth} height={1}>
-        <Text color={borderColor} dimColor={dimBorder}>│</Text>
-        <Box flexGrow={1}>
-          <Text color={row.color} italic={row.italic}> {row.text}</Text>
-        </Box>
-        <Text color={borderColor} dimColor={dimBorder}>│</Text>
-      </Box>,
-    );
-  }
-
-  result.push(
-    <Box key={`${keyPrefix}-bot`} marginLeft={indent} height={1}>
-      <Text color={borderColor} dimColor={dimBorder}>{botBorder}</Text>
-    </Box>,
-  );
-
-  return result;
-}
-
-export function ToolCallCompact({
-  info,
-  indent,
-  width,
-}: {
-  info: ToolCallInfo;
-  indent: number;
-  width: number;
-}) {
-  const statusInfo = STATUS_INDICATORS[info.status] ?? STATUS_INDICATORS.pending!;
-  const kindIcon = KIND_ICONS[info.kind ?? "other"] ?? "⚙";
-  const summary = summarizeContent(info);
-  const maxSummaryWidth = width - indent - 12 - info.title.length;
-  const trimmedSummary =
-    summary.length > maxSummaryWidth && maxSummaryWidth > 3
-      ? summary.slice(0, maxSummaryWidth - 1) + "…"
-      : summary;
-
-  return (
-    <Box marginLeft={indent} height={1}>
-      <Text color={statusInfo.color}>{statusInfo.icon} </Text>
-      <Text>{kindIcon} </Text>
-      <Text color={TEXT_SECONDARY}>{info.title}</Text>
-      {trimmedSummary ? (
-        <Text color={TEXT_DIM}> — {trimmedSummary}</Text>
-      ) : null}
+  content.push(
+    <Box key="header" flexDirection="row">
+      <Text color={statusInfo.color}>{statusInfo.icon}</Text>
+      <Text> </Text>
+      <Text>{kindIcon}</Text>
+      <Text> </Text>
+      <Text color={TEXT_SECONDARY} bold>{info.title}</Text>
+      {runningText && <Text color={TEXT_DIM} italic>{runningText}</Text>}
+      <Box flexGrow={1} />
+      {showTabHint && !expanded && <Text color={TEXT_DIM} italic>tab ↔</Text>}
     </Box>
   );
+
+  // Compact view - show summary
+  if (!expanded) {
+    const summary = summarizeContent(info);
+    if (summary) {
+      content.push(
+        <Box key="summary">
+          <Text color={TEXT_DIM}>{summary}</Text>
+        </Box>
+      );
+    }
+  } else {
+    // Expanded view - show all details
+    const inputLines = hasInput ? formatJsonCompact(info.rawInput, contentWidth - 6) : [];
+    const outputLines = hasOutput ? formatJsonCompact(info.rawOutput, contentWidth - 6) : [];
+    const contentLines = hasContent ? extractTextFromContent(info.content!) : [];
+
+    if (hasLocations) {
+      for (let i = 0; i < info.locations!.length; i++) {
+        const loc = info.locations![i]!;
+        content.push(
+          <Box key={`loc-${i}`}>
+            <Text color={TEXT_DIM}>📁 {loc.path}{loc.line ? `:${loc.line}` : ""}</Text>
+          </Box>
+        );
+      }
+    }
+
+    const addSection = (label: string, sectionLines: string[]) => {
+      if (sectionLines.length === 0) return;
+      
+      content.push(
+        <Box key={`${label}-header`}>
+          <Text color={TEXT_DIM}>▸ {label}:</Text>
+        </Box>
+      );
+
+      for (let i = 0; i < sectionLines.length; i++) {
+        content.push(
+          <Box key={`${label}-${i}`} paddingLeft={2}>
+            <Text color={TEXT_DIM}>{sectionLines[i]}</Text>
+          </Box>
+        );
+      }
+    };
+
+    addSection("input", inputLines);
+    addSection("output", outputLines);
+    addSection("content", contentLines);
+  }
+
+  lines.push(
+    <Box
+      key={keyPrefix}
+      width={width}
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={borderColor}
+      borderDimColor={dimBorder}
+      paddingX={1}
+    >
+      {content}
+    </Box>
+  );
+
+  return lines;
 }
