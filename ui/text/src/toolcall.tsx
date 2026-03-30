@@ -40,51 +40,48 @@ const STATUS_INDICATORS: Record<string, { icon: string; color: string }> = {
   failed: { icon: "✗", color: CRANBERRY },
 };
 
-function formatJsonCompact(value: unknown, maxWidth: number): string[] {
-  if (value === undefined || value === null) return [];
-  let raw: string;
-  try {
-    raw = JSON.stringify(value, null, 2);
-  } catch {
-    raw = String(value);
-  }
-  const lines = raw.split("\n");
-  const result: string[] = [];
-  for (const line of lines) {
-    if (line.length <= maxWidth) {
-      result.push(line);
-    } else {
-      let remaining = line;
-      while (remaining.length > maxWidth) {
-        result.push(remaining.slice(0, maxWidth));
-        remaining = remaining.slice(maxWidth);
-      }
-      if (remaining) result.push(remaining);
-    }
-  }
-  return result;
+function truncateLine(line: string, maxWidth: number): string {
+  if (line.length <= maxWidth) return line;
+  return maxWidth > 1 ? line.slice(0, maxWidth - 1) + "…" : line.slice(0, maxWidth);
 }
 
-function extractTextFromContent(content: ToolCallContent[]): string[] {
+function formatJsonLines(value: unknown, maxWidth: number): string[] {
+  if (value === undefined || value === null) return [];
+  let raw: string;
+  if (typeof value === "string") {
+    raw = value;
+  } else {
+    try {
+      raw = JSON.stringify(value, null, 2);
+    } catch {
+      raw = String(value);
+    }
+  }
+  return raw.split("\n").map((line) => truncateLine(line, maxWidth));
+}
+
+function extractTextLines(content: ToolCallContent[], maxWidth: number): string[] {
   const lines: string[] = [];
   for (const item of content) {
     if (item.type === "content" && item.content) {
       const block = item.content as any;
       if (block.type === "text" && block.text) {
-        lines.push(...block.text.split("\n"));
+        for (const line of block.text.split("\n")) {
+          lines.push(truncateLine(line, maxWidth));
+        }
       }
     } else if (item.type === "diff") {
       const diff = item as any;
-      lines.push(`diff: ${diff.path || "unknown"}`);
+      lines.push(truncateLine(`diff: ${diff.path || "unknown"}`, maxWidth));
     } else if (item.type === "terminal") {
       const term = item as any;
-      lines.push(`terminal: ${term.terminalId || "unknown"}`);
+      lines.push(truncateLine(`terminal: ${term.terminalId || "unknown"}`, maxWidth));
     }
   }
   return lines;
 }
 
-function summarizeContent(info: ToolCallInfo): string {
+function summarizeContent(info: ToolCallInfo, maxWidth: number): string {
   const parts: string[] = [];
 
   if (info.locations && info.locations.length > 0) {
@@ -94,7 +91,7 @@ function summarizeContent(info: ToolCallInfo): string {
   }
 
   if (info.content && info.content.length > 0) {
-    const textLines = extractTextFromContent(info.content);
+    const textLines = extractTextLines(info.content, maxWidth);
     if (textLines.length > 0) {
       const first = textLines[0]!.trim();
       if (first.length > 60) {
@@ -117,129 +114,102 @@ function summarizeContent(info: ToolCallInfo): string {
     }
   }
 
-  return parts.join(" · ");
+  return truncateLine(parts.join(" · "), maxWidth);
 }
 
-export function findFeaturedToolCallId(
-  toolCallOrder: string[],
-  toolCalls: Map<string, ToolCallInfo>,
-): string | undefined {
-  for (let i = toolCallOrder.length - 1; i >= 0; i--) {
-    const tc = toolCalls.get(toolCallOrder[i]!);
-    if (tc && (tc.status === "pending" || tc.status === "in_progress")) {
-      return toolCallOrder[i]!;
-    }
-  }
-  return toolCallOrder[toolCallOrder.length - 1];
-}
-
-interface ToolCallProps {
-  info: ToolCallInfo;
-  width: number;
-  expanded: boolean;
-  showTabHint: boolean;
-  keyPrefix: string;
-}
-
-export function ToolCallCard({
-  info,
-  width,
-  expanded,
-  showTabHint,
-  keyPrefix,
-}: ToolCallProps): React.ReactNode[] {
+export function renderToolCallLines(
+  info: ToolCallInfo,
+  width: number,
+  expanded: boolean,
+  showTabHint: boolean,
+): React.ReactElement[] {
   const kindIcon = KIND_ICONS[info.kind ?? "other"] ?? "⚙";
   const statusInfo = STATUS_INDICATORS[info.status] ?? STATUS_INDICATORS.pending!;
   const borderColor = info.status === "failed" ? CRANBERRY : CEDAR;
   const dimBorder = info.status !== "failed";
 
-  const hasInput = info.rawInput !== undefined && info.rawInput !== null;
-  const hasOutput = info.rawOutput !== undefined && info.rawOutput !== null;
-  const hasContent = info.content && info.content.length > 0;
-  const hasLocations = info.locations && info.locations.length > 0;
+  const innerWidth = Math.max(width - 4, 10);
+  const indentedWidth = Math.max(innerWidth - 2, 8);
 
-  const contentWidth = width - 4;
+  const lines: React.ReactElement[] = [];
+  const k = info.toolCallId;
 
-  const lines: React.ReactNode[] = [];
-  const content: React.ReactNode[] = [];
-
-  // Header
-  const runningText = info.status === "in_progress" ? " running…" : "";
-  content.push(
-    <Box key="header" flexDirection="row">
-      <Text color={statusInfo.color}>{statusInfo.icon}</Text>
-      <Text> </Text>
-      <Text>{kindIcon}</Text>
-      <Text> </Text>
-      <Text color={TEXT_SECONDARY} bold>{info.title}</Text>
-      {runningText && <Text color={TEXT_DIM} italic>{runningText}</Text>}
-      <Box flexGrow={1} />
-      {showTabHint && !expanded && <Text color={TEXT_DIM} italic>tab ↔</Text>}
-    </Box>
+  const hRule = "─".repeat(Math.max(width - 2, 0));
+  lines.push(
+    <Box key={`${k}-t`} width={width} height={1}>
+      <Text color={borderColor} dimColor={dimBorder}>╭{hRule}╮</Text>
+    </Box>,
   );
 
-  // Compact view - show summary
-  if (!expanded) {
-    const summary = summarizeContent(info);
-    if (summary) {
-      content.push(
-        <Box key="summary">
-          <Text color={TEXT_DIM}>{summary}</Text>
+  const row = (key: string, content: React.ReactNode) => {
+    lines.push(
+      <Box key={key} width={width} height={1}>
+        <Text color={borderColor} dimColor={dimBorder}>│ </Text>
+        <Box width={innerWidth} height={1}>
+          {content}
         </Box>
-      );
+        <Text color={borderColor} dimColor={dimBorder}> │</Text>
+      </Box>,
+    );
+  };
+
+  const statusIcon = statusInfo.icon;
+  const runningText = info.status === "in_progress" ? " running…" : "";
+  const tabHintText = showTabHint && !expanded ? "tab ↔" : "";
+  const fixedLen = 4 + runningText.length + tabHintText.length; // icon+space+kind+space + suffix + hint
+  const titleMax = Math.max(innerWidth - fixedLen, 4);
+  const title = truncateLine(info.title, titleMax);
+
+  row(`${k}-h`, (
+    <>
+      <Text color={statusInfo.color}>{statusIcon}</Text>
+      <Text> {kindIcon} </Text>
+      <Text wrap="truncate-end" color={TEXT_SECONDARY} bold>{title}</Text>
+      {runningText ? <Text color={TEXT_DIM} italic>{runningText}</Text> : null}
+      <Box flexGrow={1} />
+      {tabHintText ? <Text color={TEXT_DIM} italic>{tabHintText}</Text> : null}
+    </>
+  ));
+
+  if (!expanded) {
+    const summary = summarizeContent(info, innerWidth);
+    if (summary) {
+      row(`${k}-s`, <Text wrap="truncate-end" color={TEXT_DIM}>{summary}</Text>);
     }
   } else {
-    // Expanded view - show all details
-    const inputLines = hasInput ? formatJsonCompact(info.rawInput, contentWidth - 6) : [];
-    const outputLines = hasOutput ? formatJsonCompact(info.rawOutput, contentWidth - 6) : [];
-    const contentLines = hasContent ? extractTextFromContent(info.content!) : [];
-
-    if (hasLocations) {
-      for (let i = 0; i < info.locations!.length; i++) {
-        const loc = info.locations![i]!;
-        content.push(
-          <Box key={`loc-${i}`}>
-            <Text color={TEXT_DIM}>📁 {loc.path}{loc.line ? `:${loc.line}` : ""}</Text>
-          </Box>
-        );
+    if (info.locations) {
+      for (let i = 0; i < info.locations.length; i++) {
+        const loc = info.locations[i]!;
+        const t = truncateLine(`📁 ${loc.path}${loc.line ? `:${loc.line}` : ""}`, innerWidth);
+        row(`${k}-l${i}`, <Text wrap="truncate-end" color={TEXT_DIM}>{t}</Text>);
       }
     }
 
-    const addSection = (label: string, sectionLines: string[]) => {
-      if (sectionLines.length === 0) return;
-      
-      content.push(
-        <Box key={`${label}-header`}>
-          <Text color={TEXT_DIM}>▸ {label}:</Text>
-        </Box>
-      );
-
-      for (let i = 0; i < sectionLines.length; i++) {
-        content.push(
-          <Box key={`${label}-${i}`} paddingLeft={2}>
-            <Text color={TEXT_DIM}>{sectionLines[i]}</Text>
-          </Box>
-        );
+    const section = (label: string, sLines: string[]) => {
+      if (sLines.length === 0) return;
+      row(`${k}-${label}H`, <Text color={TEXT_DIM}>▸ {label}:</Text>);
+      for (let i = 0; i < sLines.length; i++) {
+        row(`${k}-${label}${i}`, (
+          <Text wrap="truncate-end" color={TEXT_DIM}>{"  "}{sLines[i]}</Text>
+        ));
       }
     };
 
-    addSection("input", inputLines);
-    addSection("output", outputLines);
-    addSection("content", contentLines);
+    if (info.rawInput !== undefined && info.rawInput !== null) {
+      section("in", formatJsonLines(info.rawInput, indentedWidth));
+    }
+    if (info.rawOutput !== undefined && info.rawOutput !== null) {
+      section("out", formatJsonLines(info.rawOutput, indentedWidth));
+    }
+    if (info.content && info.content.length > 0) {
+      section("ct", extractTextLines(info.content, indentedWidth));
+    }
   }
 
   lines.push(
-    <Box
-      key={keyPrefix}
-      width={width}
-      flexDirection="column"
-      borderStyle="round"
-      borderColor={borderColor}
-      borderDimColor={dimBorder}
-      paddingX={1}
-    >
-      {content}
-    </Box>
+    <Box key={`${k}-b`} width={width} height={1}>
+      <Text color={borderColor} dimColor={dimBorder}>╰{hRule}╯</Text>
+    </Box>,
   );
 
   return lines;
