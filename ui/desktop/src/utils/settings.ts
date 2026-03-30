@@ -1,4 +1,4 @@
-export interface ExternalGoosedConfig {
+export interface ExternalGooseServerConfig {
   enabled: boolean;
   url: string;
   secret: string;
@@ -33,7 +33,7 @@ export interface Settings {
   showDockIcon: boolean;
   enableWakelock: boolean;
   spellcheckEnabled: boolean;
-  externalGoosed: ExternalGoosedConfig;
+  externalGoosed: ExternalGooseServerConfig;
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
 

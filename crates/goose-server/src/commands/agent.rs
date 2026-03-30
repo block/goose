@@ -35,7 +35,7 @@ pub async fn run() -> Result<()> {
     #[cfg(feature = "rustls-tls")]
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    crate::logging::setup_logging(Some("goosed"))?;
+    crate::logging::setup_logging(Some("server"))?;
 
     let settings = configuration::Settings::new()?;
 

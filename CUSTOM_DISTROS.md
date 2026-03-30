@@ -312,7 +312,7 @@ Use goose-server for HTTP-based integrations (web apps, simple clients):
 
 ```bash
 # Start the server
-./target/release/goosed
+./target/release/goose
 
 # API available at http://localhost:3000
 ```

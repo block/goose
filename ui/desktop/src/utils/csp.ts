@@ -1,4 +1,4 @@
-import type { ExternalGoosedConfig } from './settings';
+import type { ExternalGooseServerConfig } from './settings';
 
 const DEFAULT_CONNECT_SOURCES = [
   "'self'",
@@ -11,15 +11,15 @@ const DEFAULT_CONNECT_SOURCES = [
   'https://objects.githubusercontent.com',
 ];
 
-export function buildConnectSrc(externalGoosed?: ExternalGoosedConfig): string {
+export function buildConnectSrc(externalGooseServer?: ExternalGooseServerConfig): string {
   const sources = [...DEFAULT_CONNECT_SOURCES];
 
-  if (externalGoosed?.enabled && externalGoosed.url) {
+  if (externalGooseServer?.enabled && externalGooseServer.url) {
     try {
-      const externalUrl = new URL(externalGoosed.url);
+      const externalUrl = new URL(externalGooseServer.url);
       sources.push(externalUrl.origin);
     } catch {
-      console.warn('Invalid external goosed URL in settings, skipping CSP entry');
+      console.warn('Invalid external goose server URL in settings, skipping CSP entry');
     }
   }
 
@@ -37,22 +37,24 @@ export function buildConnectSrc(externalGoosed?: ExternalGoosedConfig): string {
  * Loopback addresses (127.0.0.1 / localhost) are exempt from the upgrade
  * per the CSP spec, which is why the built-in local backend is unaffected.
  */
-export function shouldUpgradeInsecureRequests(externalGoosed?: ExternalGoosedConfig): boolean {
-  if (!externalGoosed?.enabled || !externalGoosed.url) {
+export function shouldUpgradeInsecureRequests(
+  externalGooseServer?: ExternalGooseServerConfig
+): boolean {
+  if (!externalGooseServer?.enabled || !externalGooseServer.url) {
     return true;
   }
 
   try {
-    const parsed = new URL(externalGoosed.url);
+    const parsed = new URL(externalGooseServer.url);
     return parsed.protocol !== 'http:';
   } catch {
     return true;
   }
 }
 
-export function buildCSP(externalGoosed?: ExternalGoosedConfig): string {
-  const connectSrc = buildConnectSrc(externalGoosed);
-  const upgradeDirective = shouldUpgradeInsecureRequests(externalGoosed)
+export function buildCSP(externalGooseServer?: ExternalGooseServerConfig): string {
+  const connectSrc = buildConnectSrc(externalGooseServer);
+  const upgradeDirective = shouldUpgradeInsecureRequests(externalGooseServer)
     ? 'upgrade-insecure-requests;'
     : '';
 

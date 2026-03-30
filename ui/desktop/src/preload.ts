@@ -129,7 +129,7 @@ type ElectronAPI = {
   getSetting: <K extends SettingKey>(key: K) => Promise<Settings[K]>;
   setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => Promise<void>;
   getSecretKey: () => Promise<string>;
-  getGoosedHostPort: () => Promise<string | null>;
+  getGooseServerHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   setSpellcheck: (enable: boolean) => Promise<boolean>;
@@ -244,7 +244,7 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('set-setting', key, value);
   },
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
-  getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
+  getGooseServerHostPort: () => ipcRenderer.invoke('get-goose-server-host-port'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),

@@ -18,11 +18,11 @@ const App = lazy(() => import('./App'));
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 (async () => {
-  // Check if we're in the launcher view (doesn't need goosed connection)
+  // Check if we're in the launcher view (doesn't need goose server connection)
   const isLauncher = window.location.hash === '#/launcher';
 
   if (!isLauncher) {
-    const gooseApiHost = await window.electron.getGoosedHostPort();
+    const gooseApiHost = await window.electron.getGooseServerHostPort();
     if (gooseApiHost === null) {
       window.alert('failed to start goose backend process');
       return;

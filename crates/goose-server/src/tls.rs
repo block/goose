@@ -29,7 +29,7 @@ fn generate_self_signed_cert() -> Result<(rcgen::Certificate, KeyPair)> {
     let mut params = CertificateParams::default();
     params
         .distinguished_name
-        .push(DnType::CommonName, "goosed localhost");
+        .push(DnType::CommonName, "goose localhost");
     params.subject_alt_names = vec![
         SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
         SanType::DnsName("localhost".try_into()?),

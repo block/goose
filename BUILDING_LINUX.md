@@ -55,7 +55,7 @@ cd goose
 
 ### 2. Build the Rust Backend
 ```bash
-cargo build --release -p goose-server
+cargo build --release --bin goose
 ```
 
 ### 3. Prepare the Desktop Application
@@ -65,7 +65,7 @@ pnpm install
 
 # Copy the server binary to the expected location
 mkdir -p src/bin
-cp ../../target/release/goosed src/bin/
+cp ../../target/release/goose src/bin/
 ```
 
 ### 4. Build the Application
@@ -127,9 +127,9 @@ cd /path/to/goose/ui/desktop/out/goose-linux-x64
 ```
 
 #### Server Binary Not Found
-If you see "Could not find goosed binary", ensure you've:
+If you see "Could not find goose binary", ensure you've:
 1. Built the Rust backend: `cargo build --release -p goose-server`
-2. Copied it to the right location: `cp ../../target/release/goosed src/bin/`
+2. Copied it to the right location: `cp ../../target/release/goose src/bin/`
 3. Rebuilt the application: `pnpm run make`
 
 ### Distribution-Specific Notes

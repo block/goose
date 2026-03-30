@@ -1,12 +1,12 @@
 /**
- * Integration tests for the goosed binary using the TypeScript API client.
+ * Integration tests for the goose server binary using the TypeScript API client.
  *
- * These tests spawn a real goosed process and issue requests via the
+ * These tests spawn a real goose server process and issue requests via the
  * auto-generated API client to verify the server is working correctly.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupGoosed, type GoosedTestContext } from './setup';
+import { setupGooseServer, type GooseServerTestContext } from './setup';
 import {
   status,
   readConfig,
@@ -44,8 +44,8 @@ function getUserPath(): string[] {
   }
 }
 
-describe('goosed API integration tests', () => {
-  let ctx: GoosedTestContext;
+describe('goose server API integration tests', () => {
+  let ctx: GooseServerTestContext;
 
   beforeAll(async () => {
     const configYaml = `
@@ -61,7 +61,7 @@ extensions:
     available_tools: []
 `;
 
-    ctx = await setupGoosed({ pathOverride: '/usr/bin:/bin', configYaml });
+    ctx = await setupGooseServer({ pathOverride: '/usr/bin:/bin', configYaml });
   });
 
   afterAll(async () => {

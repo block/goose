@@ -13,7 +13,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use url::Url;
 
-/// Shared state for proxying tunnel requests to the local goosed server.
+/// Shared state for proxying tunnel requests to the local goose server.
 #[derive(Clone)]
 struct ProxyContext {
     port: u16,

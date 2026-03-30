@@ -13,8 +13,8 @@ export interface Logger {
 }
 
 export const defaultLogger: Logger = {
-  info: (...args) => console.log('[goosed]', ...args),
-  error: (...args) => console.error('[goosed]', ...args),
+  info: (...args) => console.log('[goose-server]', ...args),
+  error: (...args) => console.error('[goose-server]', ...args),
 };
 
 export const findAvailablePort = (): Promise<number> => {
@@ -35,7 +35,7 @@ export interface FindBinaryOptions {
   resourcesPath?: string;
 }
 
-export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string => {
+export const findGooseBinaryPath = (options: FindBinaryOptions = {}): string => {
   const pathFromEnv = process.env.GOOSE_BINARY ?? process.env.GOOSED_BINARY;
   if (pathFromEnv) {
     if (fs.existsSync(pathFromEnv) && fs.statSync(pathFromEnv).isFile()) {
@@ -73,7 +73,7 @@ export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string =>
   }
 
   throw new Error(
-    `Goosed binary not found in any of the possible paths: ${possiblePaths.join(', ')}`
+    `Goose binary not found in any of the possible paths: ${possiblePaths.join(', ')}`
   );
 };
 
@@ -103,7 +103,7 @@ export const isFatalError = (line: string): boolean => {
   return fatalPatterns.some((pattern) => pattern.test(line));
 };
 
-export const buildGoosedEnv = (
+export const buildServerEnv = (
   port: number,
   secretKey: string,
   binaryPath?: string
@@ -137,24 +137,24 @@ export const buildGoosedEnv = (
   return env;
 };
 
-// Configuration for external goosed server
-export interface ExternalGoosedConfig {
+// Configuration for external goose server
+export interface ExternalGooseServerConfig {
   enabled: boolean;
   url?: string;
   secret?: string;
 }
 
-export interface StartGoosedOptions {
+export interface StartGooseServerOptions {
   dir?: string;
   serverSecret: string;
   env?: Record<string, string | undefined>;
-  externalGoosed?: ExternalGoosedConfig;
+  externalGoosed?: ExternalGooseServerConfig;
   isPackaged?: boolean;
   resourcesPath?: string;
   logger?: Logger;
 }
 
-export interface GoosedResult {
+export interface GooseServerResult {
   baseUrl: string;
   workingDir: string;
   process: ChildProcess | null;
@@ -165,7 +165,7 @@ export interface GoosedResult {
   certFingerprint: string | null;
 }
 
-const goosedClientForUrlAndSecret = (url: string, secret: string): Client => {
+const gooseClientForUrlAndSecret = (url: string, secret: string): Client => {
   return createClient(
     createConfig({
       baseUrl: url,
@@ -177,7 +177,9 @@ const goosedClientForUrlAndSecret = (url: string, secret: string): Client => {
   );
 };
 
-export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedResult> => {
+export const startGooseServer = async (
+  options: StartGooseServerOptions
+): Promise<GooseServerResult> => {
   const {
     dir,
     isPackaged = false,
@@ -193,7 +195,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   if (externalGoosed?.enabled && externalGoosed.url) {
     const url = externalGoosed.url.replace(/\/$/, '');
-    logger.info(`Using external goosed backend at ${url}`);
+    logger.info(`Using external goose backend at ${url}`);
 
     return {
       baseUrl: url,
@@ -204,7 +206,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
-      client: goosedClientForUrlAndSecret(url, serverSecret),
+      client: gooseClientForUrlAndSecret(url, serverSecret),
       certFingerprint: null,
     };
   }
@@ -212,7 +214,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     const port = process.env.GOOSE_PORT || '3000';
     const url = `https://127.0.0.1:${port}`;
-    logger.info(`Using external goosed backend from env at ${url}`);
+    logger.info(`Using external goose backend from env at ${url}`);
 
     return {
       baseUrl: url,
@@ -223,21 +225,21 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
-      client: goosedClientForUrlAndSecret(url, serverSecret),
+      client: gooseClientForUrlAndSecret(url, serverSecret),
       certFingerprint: null,
     };
   }
 
-  const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
+  const goosePath = findGooseBinaryPath({ isPackaged, resourcesPath });
 
   const port = await findAvailablePort();
-  logger.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}`);
+  logger.info(`Starting goose server from: ${goosePath} on port ${port} in dir ${workingDir}`);
 
   const baseUrl = `https://127.0.0.1:${port}`;
 
   const spawnEnv: Record<string, string | undefined> = {
     ...process.env,
-    ...buildGoosedEnv(port, serverSecret, goosedPath),
+    ...buildServerEnv(port, serverSecret, goosePath),
   };
 
   for (const [key, value] of Object.entries(additionalEnv)) {
@@ -246,7 +248,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     }
   }
 
-  const spawnCommand = goosedPath;
+  const spawnCommand = goosePath;
   const spawnArgs = ['server'];
 
   const isWindows = process.platform === 'win32';
@@ -271,16 +273,16 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   };
   logger.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
-  const goosedProcess = spawn(spawnCommand, spawnArgs, spawnOptions);
+  const gooseProcess = spawn(spawnCommand, spawnArgs, spawnOptions);
 
   let certFingerprint: string | null = null;
   const fingerprintReady = new Promise<string | null>((resolve) => {
     const FINGERPRINT_PREFIX = 'GOOSED_CERT_FINGERPRINT=';
     let resolved = false;
 
-    goosedProcess.stdout?.on('data', (data: Buffer) => {
+    gooseProcess.stdout?.on('data', (data: Buffer) => {
       const text = data.toString();
-      logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${text}`);
+      logger.info(`goose server stdout for port ${port} and dir ${workingDir}: ${text}`);
 
       if (!resolved && text.includes(FINGERPRINT_PREFIX)) {
         for (const line of text.split('\n')) {
@@ -295,7 +297,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       }
     });
 
-    goosedProcess.on('exit', () => {
+    gooseProcess.on('exit', () => {
       if (!resolved) {
         resolved = true;
         resolve(null);
@@ -305,15 +307,15 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   // Once we have the fingerprint (or the process exits before emitting one),
   // remove the stdout listener. Leaving it attached for the lifetime of the
-  // long-running goosed process means every chunk of stdout data triggers
+  // long-running goose server process means every chunk of stdout data triggers
   // Node's internal EmitToJSStreamListener::OnStreamRead which converts raw
   // bytes into a JS string via v8::String::NewFromTwoByte. Over multi-hour
   // sessions this has been observed to hit a V8 assertion and crash the
   // Electron main process. Removing the listener and calling resume()
   // lets the pipe drain harmlessly without buffering into Node/V8.
   void fingerprintReady.then(() => {
-    goosedProcess.stdout?.removeAllListeners('data');
-    goosedProcess.stdout?.resume();
+    gooseProcess.stdout?.removeAllListeners('data');
+    gooseProcess.stdout?.resume();
   });
 
   const onStderrData = (data: Buffer) => {
@@ -322,69 +324,71 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       if (line.trim()) {
         errorLog.push(line);
         if (isFatalError(line)) {
-          logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
+          logger.error(`goose server stderr for port ${port} and dir ${workingDir}: ${line}`);
         }
       }
     }
   };
-  goosedProcess.stderr?.on('data', onStderrData);
+  gooseProcess.stderr?.on('data', onStderrData);
 
   const stopErrorLogCollection = () => {
-    goosedProcess.stderr?.off('data', onStderrData);
+    gooseProcess.stderr?.off('data', onStderrData);
   };
 
-  goosedProcess.on('exit', (code) => {
-    logger.info(`goosed process exited with code ${code} for port ${port} and dir ${workingDir}`);
+  gooseProcess.on('exit', (code) => {
+    logger.info(
+      `goose server process exited with code ${code} for port ${port} and dir ${workingDir}`
+    );
   });
 
-  goosedProcess.on('error', (err) => {
-    logger.error(`Failed to start goosed on port ${port} and dir ${workingDir}`, err);
+  gooseProcess.on('error', (err) => {
+    logger.error(`Failed to start goose server on port ${port} and dir ${workingDir}`, err);
     errorLog.push(err.message);
   });
 
   const cleanup = async (): Promise<void> => {
     return new Promise<void>((resolve) => {
-      if (!goosedProcess || goosedProcess.killed) {
+      if (!gooseProcess || gooseProcess.killed) {
         resolve();
         return;
       }
 
-      goosedProcess.on('close', () => {
+      gooseProcess.on('close', () => {
         resolve();
       });
 
-      logger.info('Terminating goosed server');
+      logger.info('Terminating goose server');
       try {
         if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', goosedProcess.pid!.toString(), '/f', '/t']);
+          spawn('taskkill', ['/pid', gooseProcess.pid!.toString(), '/f', '/t']);
         } else {
-          goosedProcess.kill('SIGTERM');
+          gooseProcess.kill('SIGTERM');
         }
       } catch (error) {
-        logger.error('Error while terminating goosed process:', error);
+        logger.error('Error while terminating goose server process:', error);
       }
 
       setTimeout(() => {
-        if (goosedProcess && !goosedProcess.killed && process.platform !== 'win32') {
-          goosedProcess.kill('SIGKILL');
+        if (gooseProcess && !gooseProcess.killed && process.platform !== 'win32') {
+          gooseProcess.kill('SIGKILL');
         }
         resolve();
       }, 5000);
     });
   };
 
-  logger.info(`Goosed server successfully started on port ${port}`);
+  logger.info(`Goose server successfully started on port ${port}`);
 
   await fingerprintReady;
 
   return {
     baseUrl,
     workingDir,
-    process: goosedProcess,
+    process: gooseProcess,
     errorLog,
     stopErrorLogCollection,
     cleanup,
-    client: goosedClientForUrlAndSecret(baseUrl, serverSecret),
+    client: gooseClientForUrlAndSecret(baseUrl, serverSecret),
     certFingerprint,
   };
 };

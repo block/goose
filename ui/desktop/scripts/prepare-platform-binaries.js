@@ -14,7 +14,6 @@ const windowsFiles = [
 ];
 
 const macosFiles = [
-    'goosed',
     'goose',
     'jbang',
     'npx',
@@ -52,17 +51,17 @@ function matchesPattern(filename, patterns) {
 // Helper function to clean directory of cross-platform files
 function cleanBinDirectory(targetPlatform) {
     console.log(`Cleaning bin directory for ${targetPlatform} build...`);
-    
+
     if (!fs.existsSync(srcBinDir)) {
         console.log('src/bin directory does not exist, skipping cleanup');
         return;
     }
 
     const files = fs.readdirSync(srcBinDir, { withFileTypes: true });
-    
+
     files.forEach(file => {
         const filePath = path.join(srcBinDir, file.name);
-        
+
         if (targetPlatform === 'darwin' || targetPlatform === 'linux') {
             // For macOS/Linux, remove Windows-specific files
             if (matchesPattern(file.name, windowsFiles)) {
@@ -98,7 +97,7 @@ function cleanBinDirectory(targetPlatform) {
 function copyPlatformFiles(targetPlatform) {
     if (targetPlatform === 'win32') {
         console.log('Copying Windows-specific files...');
-        
+
         if (!fs.existsSync(platformWinDir)) {
             console.warn('Windows platform directory does not exist');
             return;
@@ -118,7 +117,7 @@ function copyPlatformFiles(targetPlatform) {
 
             const srcPath = path.join(platformWinDir, file.name);
             const destPath = path.join(srcBinDir, file.name);
-            
+
             if (file.isDirectory()) {
                 fs.cpSync(srcPath, destPath, { recursive: true, force: true });
                 console.log(`Copied directory: ${file.name}`);
@@ -133,15 +132,15 @@ function copyPlatformFiles(targetPlatform) {
 // Main function
 function preparePlatformBinaries() {
     const targetPlatform = process.env.ELECTRON_PLATFORM || process.platform;
-    
+
     console.log(`Preparing binaries for platform: ${targetPlatform}`);
-    
+
     // First copy platform-specific files if needed
     copyPlatformFiles(targetPlatform);
-    
+
     // Then clean up cross-platform files
     cleanBinDirectory(targetPlatform);
-    
+
     console.log('Platform binary preparation complete');
 }
 

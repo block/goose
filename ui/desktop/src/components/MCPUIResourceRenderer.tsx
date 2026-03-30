@@ -142,12 +142,12 @@ export default function MCPUIResourceRenderer({
   useEffect(() => {
     const fetchProxyUrl = async () => {
       try {
-        const gooseApiHost = await window.electron.getGoosedHostPort();
+        const gooseApiHost = await window.electron.getGooseServerHostPort();
         const secretKey = await window.electron.getSecretKey();
         if (gooseApiHost && secretKey) {
           setProxyUrl(`${gooseApiHost}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
         } else {
-          console.error('Failed to get goosed host/port or secret key');
+          console.error('Failed to get goose server host/port or secret key');
         }
       } catch (error) {
         console.error('Error fetching MCP-UI Proxy URL:', error);
@@ -244,10 +244,7 @@ export default function MCPUIResourceRenderer({
 
         const result = await window.electron.showMessageBox({
           type: 'question',
-          buttons: [
-            intl.formatMessage(i18n.cancelButton),
-            intl.formatMessage(i18n.openButton),
-          ],
+          buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
           defaultId: 0,
           title: intl.formatMessage(i18n.openExternalLinkTitle),
           message: intl.formatMessage(i18n.openProtocolLink, { protocol }),

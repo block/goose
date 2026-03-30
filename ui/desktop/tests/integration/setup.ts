@@ -1,7 +1,7 @@
 /**
- * Integration test setup for testing the goosed binary via the TypeScript API client.
+ * Integration test setup for testing the goose server binary via the TypeScript API client.
  *
- * This test suite spawns a real goosed process and issues requests via the
+ * This test suite spawns a real goose server process and issues requests via the
  * auto-generated API client.
  */
 
@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Client } from '../../src/api/client';
-import { startGoosed as startGoosedBase, checkServerStatus, type Logger } from '../../src/goosed';
+import { startGooseServer, checkServerStatus, type Logger } from '../../src/goosed';
 import { expect } from 'vitest';
 
 function stringifyResponse(response: Response) {
@@ -39,7 +39,7 @@ expect.extend({
 
 const TEST_SECRET_KEY = 'test';
 
-export interface GoosedTestContext {
+export interface GooseServerTestContext {
   client: Client;
   baseUrl: string;
   secretKey: string;
@@ -47,13 +47,13 @@ export interface GoosedTestContext {
   cleanup: () => Promise<void>;
 }
 
-export async function setupGoosed({
+export async function setupGooseServer({
   pathOverride,
   configYaml,
 }: {
   pathOverride?: string;
   configYaml?: string;
-}): Promise<GoosedTestContext> {
+}): Promise<GooseServerTestContext> {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'goose-app-root-'));
 
   if (configYaml) {
@@ -64,13 +64,13 @@ export async function setupGoosed({
   const testLogger: Logger = {
     info: (...args) => {
       if (process.env.DEBUG) {
-        console.log('[goosed]', ...args);
+        console.log('[goose-server]', ...args);
       }
     },
-    error: (...args) => console.error('[goosed]', ...args),
+    error: (...args) => console.error('[goose-server]', ...args),
   };
 
-  // Accept self-signed TLS certs from the local goosed server.
+  // Accept self-signed TLS certs from the local goose server.
   // In Electron this is handled by setCertificateVerifyProc, but integration
   // tests run in plain Node.js where fetch rejects self-signed certs.
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -85,18 +85,18 @@ export async function setupGoosed({
 
   const {
     baseUrl,
-    process: goosedProcess,
+    process: serverProcess,
     client,
     cleanup: baseCleanup,
     errorLog,
-  } = await startGoosedBase({
+  } = await startGooseServer({
     serverSecret: TEST_SECRET_KEY,
     env: additionalEnv,
     logger: testLogger,
   });
 
-  if (!goosedProcess) {
-    throw new Error('Expected goosed process to be started, but got external backend');
+  if (!serverProcess) {
+    throw new Error('Expected goose server process to be started, but got external backend');
   }
 
   const cleanup = async (): Promise<void> => {
@@ -126,14 +126,14 @@ export async function setupGoosed({
   if (!serverReady) {
     await cleanup();
     console.error('Server stderr:', errorLog.join('\n'));
-    throw new Error('Failed to start goosed');
+    throw new Error('Failed to start goose server');
   }
 
   return {
     client,
     baseUrl,
     secretKey: TEST_SECRET_KEY,
-    process: goosedProcess,
+    process: serverProcess,
     cleanup,
   };
 }

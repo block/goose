@@ -175,11 +175,11 @@ function getContainerDimensions(
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
-    const baseUrl = await window.electron.getGoosedHostPort();
+    const baseUrl = await window.electron.getGooseServerHostPort();
     const secretKey = await window.electron.getSecretKey();
 
     if (!baseUrl || !secretKey) {
-      console.error('[McpAppRenderer] Failed to get goosed host/port or secret key');
+      console.error('[McpAppRenderer] Failed to get goose server host/port or secret key');
       return null;
     }
 
@@ -421,7 +421,7 @@ export default function McpAppRenderer({
   const [secretKey, setSecretKey] = useState<string | null>(null);
 
   useEffect(() => {
-    window.electron.getGoosedHostPort().then(setApiHost);
+    window.electron.getGooseServerHostPort().then(setApiHost);
     window.electron.getSecretKey().then(setSecretKey);
   }, []);
 
@@ -548,33 +548,36 @@ export default function McpAppRenderer({
     });
   }, [state.status, pendingCsp, intl]);
 
-  const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
-    if (isProtocolSafe(url)) {
+  const handleOpenLink = useCallback(
+    async ({ url }: { url: string }) => {
+      if (isProtocolSafe(url)) {
+        await window.electron.openExternal(url);
+        return { status: 'success' as const };
+      }
+
+      const protocol = getProtocol(url);
+      if (!protocol) {
+        return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
+      }
+
+      const result = await window.electron.showMessageBox({
+        type: 'question',
+        buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
+        defaultId: 0,
+        title: intl.formatMessage(i18n.openExternalLinkTitle),
+        message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
+        detail: intl.formatMessage(i18n.openLinkDetail, { url }),
+      });
+
+      if (result.response !== 1) {
+        return { status: 'error' as const, message: 'User cancelled' };
+      }
+
       await window.electron.openExternal(url);
       return { status: 'success' as const };
-    }
-
-    const protocol = getProtocol(url);
-    if (!protocol) {
-      return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
-    }
-
-    const result = await window.electron.showMessageBox({
-      type: 'question',
-      buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
-      defaultId: 0,
-      title: intl.formatMessage(i18n.openExternalLinkTitle),
-      message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
-      detail: intl.formatMessage(i18n.openLinkDetail, { url }),
-    });
-
-    if (result.response !== 1) {
-      return { status: 'error' as const, message: 'User cancelled' };
-    }
-
-    await window.electron.openExternal(url);
-    return { status: 'success' as const };
-  }, [intl]);
+    },
+    [intl]
+  );
 
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {

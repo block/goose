@@ -194,7 +194,7 @@ To debug the Goose server, run it from an IDE. The configuration will depend on 
 
 ```
 export GOOSE_SERVER__SECRET_KEY=test
-cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+cargo run --package goose --bin goosed -- agent   # or: `just run-server`
 ```
 
 The server listens on port `3000` by default; this can be changed by setting the

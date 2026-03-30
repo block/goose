@@ -53,7 +53,7 @@ export const test = base.extend<GooseTestFixtures>({
           GOOSE_ALLOWLIST_BYPASS: 'true',
           ENABLE_PLAYWRIGHT: 'true',
           PLAYWRIGHT_DEBUG_PORT: debugPort.toString(), // Unique port per test for parallel execution
-          RUST_LOG: 'info', // Enable info-level logging for goosed backend
+          RUST_LOG: 'info', // Enable info-level logging for goose server backend
         }
       });
 

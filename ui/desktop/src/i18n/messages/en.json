@@ -1146,7 +1146,7 @@
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "The secret key configured on the goose server (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Enter the server's secret key"

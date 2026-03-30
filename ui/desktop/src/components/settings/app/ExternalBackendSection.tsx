@@ -3,7 +3,7 @@ import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
-import { ExternalGoosedConfig, defaultSettings } from '../../../utils/settings';
+import { ExternalGooseServerConfig, defaultSettings } from '../../../utils/settings';
 import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -39,7 +39,7 @@ const i18n = defineMessages({
   },
   secretKeyHelp: {
     id: 'externalBackendSection.secretKeyHelp',
-    defaultMessage: 'The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)',
+    defaultMessage: 'The secret key configured on the goose server (GOOSE_SERVER__SECRET_KEY)',
   },
   restartNote: {
     id: 'externalBackendSection.restartNote',
@@ -58,7 +58,7 @@ const i18n = defineMessages({
 
 export default function ExternalBackendSection() {
   const intl = useIntl();
-  const [config, setConfig] = useState<ExternalGoosedConfig>(defaultSettings.externalGoosed);
+  const [config, setConfig] = useState<ExternalGooseServerConfig>(defaultSettings.externalGoosed);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
 
@@ -89,7 +89,7 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const saveConfig = async (newConfig: ExternalGoosedConfig): Promise<void> => {
+  const saveConfig = async (newConfig: ExternalGooseServerConfig): Promise<void> => {
     setIsSaving(true);
     try {
       await window.electron.setSetting('externalGoosed', newConfig);
@@ -100,9 +100,9 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const updateField = <K extends keyof ExternalGoosedConfig>(
+  const updateField = <K extends keyof ExternalGooseServerConfig>(
     field: K,
-    value: ExternalGoosedConfig[K]
+    value: ExternalGooseServerConfig[K]
   ) => {
     const newConfig = { ...config, [field]: value };
     setConfig(newConfig);
@@ -125,14 +125,14 @@ export default function ExternalBackendSection() {
       <Card className="pb-2">
         <CardHeader className="pb-0">
           <CardTitle>{intl.formatMessage(i18n.title)}</CardTitle>
-          <CardDescription>
-            {intl.formatMessage(i18n.description)}
-          </CardDescription>
+          <CardDescription>{intl.formatMessage(i18n.description)}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">{intl.formatMessage(i18n.useExternalServer)}</h3>
+              <h3 className="text-text-primary text-xs">
+                {intl.formatMessage(i18n.useExternalServer)}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 {intl.formatMessage(i18n.useExternalServerDescription)}
               </p>

@@ -26,7 +26,7 @@ import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
-import { startGoosed } from './goosed';
+import { startGooseServer } from './goosed';
 import { createClient, createConfig } from './api/client';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
@@ -116,9 +116,9 @@ async function configureProxy() {
 
 if (started) app.quit();
 
-// Accept self-signed certificates from the local goosed server.
+// Accept self-signed certificates from the local goose server.
 // Both certificate-error (renderer) and setCertificateVerifyProc (main-process
-// net.fetch) pin to the exact cert fingerprint emitted by goosed at startup.
+// net.fetch) pin to the exact cert fingerprint emitted by goose server at startup.
 // Before the fingerprint is available (during the health-check bootstrap
 // window) any localhost cert is accepted so the server can come up.
 let pinnedCertFingerprint: string | null = null;
@@ -139,7 +139,7 @@ function normalizeFingerprint(fp: string): string {
   return fp.toUpperCase();
 }
 
-// Renderer requests: pin to the exact cert goosed generated once known.
+// Renderer requests: pin to the exact cert goose server generated once known.
 // Before the fingerprint is available (during the health-check bootstrap
 // window) any localhost cert is accepted so the server can come up.
 app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
@@ -159,7 +159,7 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
   }
 });
 
-// Main-process net.fetch: pin to the exact cert goosed generated.
+// Main-process net.fetch: pin to the exact cert goose server generated.
 app.whenReady().then(() => {
   session.defaultSession.setCertificateVerifyProc((request, callback) => {
     if (!isLocalhost(request.hostname)) {
@@ -541,7 +541,7 @@ let appConfig = {
 };
 
 const windowMap = new Map<number, BrowserWindow>();
-const goosedClients = new Map<number, Client>();
+const serverClients = new Map<number, Client>();
 const appWindows = new Map<string, BrowserWindow>();
 
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
@@ -573,7 +573,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
-  const goosedResult = await startGoosed({
+  const serverResult = await startGooseServer({
     serverSecret,
     dir: dir || os.homedir(),
     env: {
@@ -586,23 +586,23 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   });
 
   // Pin the certificate fingerprint so the cert handlers above only accept
-  // the exact cert that *this* goosed instance generated.
-  if (goosedResult.certFingerprint) {
-    pinnedCertFingerprint = goosedResult.certFingerprint;
+  // the exact cert that *this* goose server instance generated.
+  if (serverResult.certFingerprint) {
+    pinnedCertFingerprint = serverResult.certFingerprint;
   }
 
   app.on('will-quit', async () => {
-    log.info('App quitting, terminating goosed server');
-    await goosedResult.cleanup();
+    log.info('App quitting, terminating goose server');
+    await serverResult.cleanup();
   });
 
   const {
     baseUrl,
     workingDir,
-    process: goosedProcess,
+    process: serverProcess,
     errorLog,
     stopErrorLogCollection,
-  } = goosedResult;
+  } = serverResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -658,7 +658,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   // Re-create the client with Electron's net.fetch so requests to the local
   // self-signed HTTPS server go through the session's certificate handling.
-  const goosedClient = createClient(
+  const serverClient = createClient(
     createConfig({
       baseUrl,
       fetch: net.fetch as unknown as typeof globalThis.fetch,
@@ -668,9 +668,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       },
     })
   );
-  goosedClients.set(mainWindow.id, goosedClient);
+  serverClients.set(mainWindow.id, serverClient);
 
-  const serverReady = await checkServerStatus(goosedClient, errorLog);
+  const serverReady = await checkServerStatus(serverClient, errorLog);
   if (!serverReady) {
     const isUsingExternalBackend = settings.externalGoosed?.enabled;
 
@@ -679,7 +679,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
         type: 'error',
         title: 'External Backend Unreachable',
         message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
-        detail: 'The external goosed server may not be running.',
+        detail: 'The external goose server may not be running.',
         buttons: ['Disable External Backend & Retry', 'Quit'],
         defaultId: 0,
         cancelId: 1,
@@ -907,8 +907,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       windowPowerSaveBlockers.delete(windowId);
     }
 
-    if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
-      goosedProcess.kill();
+    if (serverProcess && typeof serverProcess === 'object' && 'kill' in serverProcess) {
+      serverProcess.kill();
     }
   });
   return mainWindow;
@@ -1349,12 +1349,12 @@ ipcMain.handle('get-secret-key', () => {
   return getServerSecret(settings);
 });
 
-ipcMain.handle('get-goosed-host-port', async (event) => {
+ipcMain.handle('get-goose-server-host-port', async (event) => {
   const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
   if (!windowId) {
     return null;
   }
-  const client = goosedClients.get(windowId);
+  const client = serverClients.get(windowId);
   if (!client) {
     return null;
   }
@@ -2346,7 +2346,7 @@ async function appMain() {
       }
 
       const launchingWindowId = launchingWindow.id;
-      const launchingClient = goosedClients.get(launchingWindowId);
+      const launchingClient = serverClients.get(launchingWindowId);
       if (!launchingClient) {
         throw new Error('No client found for launching window');
       }
@@ -2366,11 +2366,11 @@ async function appMain() {
         },
       });
 
-      goosedClients.set(appWindow.id, launchingClient);
+      serverClients.set(appWindow.id, launchingClient);
       appWindows.set(gooseApp.name, appWindow);
 
       appWindow.on('close', () => {
-        goosedClients.delete(appWindow.id);
+        serverClients.delete(appWindow.id);
         appWindows.delete(gooseApp.name);
       });
 
