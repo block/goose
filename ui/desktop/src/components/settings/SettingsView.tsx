@@ -30,6 +30,42 @@ import MeshSection from './mesh/MeshSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
 import { trackSettingsTabViewed } from '../../utils/analytics';
 import { useFeatures } from '../../contexts/FeaturesContext';
+import { defineMessages, useIntl } from '../../i18n';
+
+const i18n = defineMessages({
+  title: {
+    id: 'settingsView.title',
+    defaultMessage: 'Settings',
+  },
+  tabModels: {
+    id: 'settingsView.tabModels',
+    defaultMessage: 'Models',
+  },
+  tabLocalInference: {
+    id: 'settingsView.tabLocalInference',
+    defaultMessage: 'Local Inference',
+  },
+  tabChat: {
+    id: 'settingsView.tabChat',
+    defaultMessage: 'Chat',
+  },
+  tabSession: {
+    id: 'settingsView.tabSession',
+    defaultMessage: 'Session',
+  },
+  tabPrompts: {
+    id: 'settingsView.tabPrompts',
+    defaultMessage: 'Prompts',
+  },
+  tabKeyboard: {
+    id: 'settingsView.tabKeyboard',
+    defaultMessage: 'Keyboard',
+  },
+  tabApp: {
+    id: 'settingsView.tabApp',
+    defaultMessage: 'App',
+  },
+});
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -51,6 +87,7 @@ export default function SettingsView({
   const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
   const { localInference } = useFeatures();
+  const intl = useIntl();
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -129,7 +166,7 @@ export default function SettingsView({
           <div className="bg-background-primary px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Settings</h1>
+                <h1 className="text-4xl font-light">{intl.formatMessage(i18n.title)}</h1>
               </div>
             </div>
           </div>
@@ -148,7 +185,7 @@ export default function SettingsView({
                     data-testid="settings-models-tab"
                   >
                     <Bot className="h-4 w-4" />
-                    Models
+                    {intl.formatMessage(i18n.tabModels)}
                   </TabsTrigger>
                   {localInference && (
                     <TabsTrigger
@@ -157,7 +194,7 @@ export default function SettingsView({
                       data-testid="settings-local-inference-tab"
                     >
                       <HardDrive className="h-4 w-4" />
-                      Local Inference
+                      {intl.formatMessage(i18n.tabLocalInference)}
                     </TabsTrigger>
                   )}
                   {!tunnelDisabled && (
@@ -172,7 +209,7 @@ export default function SettingsView({
                   )}
                   <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
                     <MessageSquare className="h-4 w-4" />
-                    Chat
+                    {intl.formatMessage(i18n.tabChat)}
                   </TabsTrigger>
                   <TabsTrigger
                     value="sharing"
@@ -180,7 +217,7 @@ export default function SettingsView({
                     data-testid="settings-sharing-tab"
                   >
                     <Share2 className="h-4 w-4" />
-                    Session
+                    {intl.formatMessage(i18n.tabSession)}
                   </TabsTrigger>
                   <TabsTrigger
                     value="prompts"
@@ -188,7 +225,7 @@ export default function SettingsView({
                     data-testid="settings-prompts-tab"
                   >
                     <FileText className="h-4 w-4" />
-                    Prompts
+                    {intl.formatMessage(i18n.tabPrompts)}
                   </TabsTrigger>
                   <TabsTrigger
                     value="keyboard"
@@ -196,11 +233,11 @@ export default function SettingsView({
                     data-testid="settings-keyboard-tab"
                   >
                     <Keyboard className="h-4 w-4" />
-                    Keyboard
+                    {intl.formatMessage(i18n.tabKeyboard)}
                   </TabsTrigger>
                   <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
                     <Monitor className="h-4 w-4" />
-                    App
+                    {intl.formatMessage(i18n.tabApp)}
                   </TabsTrigger>
                 </TabsList>
               </div>

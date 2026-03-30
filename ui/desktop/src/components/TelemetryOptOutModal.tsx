@@ -6,6 +6,68 @@ import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
 import { useConfig } from './ConfigContext';
 import { trackTelemetryPreference } from '../utils/analytics';
+import { defineMessages, useIntl } from '../i18n';
+
+const i18n = defineMessages({
+  configError: {
+    id: 'telemetryOptOutModal.configError',
+    defaultMessage: 'Configuration Error',
+  },
+  configErrorMessage: {
+    id: 'telemetryOptOutModal.configErrorMessage',
+    defaultMessage: 'Failed to check telemetry configuration.',
+  },
+  optIn: {
+    id: 'telemetryOptOutModal.optIn',
+    defaultMessage: 'Yes, share anonymous usage data',
+  },
+  optOut: {
+    id: 'telemetryOptOutModal.optOut',
+    defaultMessage: 'No thanks',
+  },
+  heading: {
+    id: 'telemetryOptOutModal.heading',
+    defaultMessage: 'Help improve goose',
+  },
+  description: {
+    id: 'telemetryOptOutModal.description',
+    defaultMessage:
+      'Would you like to help improve goose by sharing anonymous usage data? This helps us understand how goose is used and identify areas for improvement.',
+  },
+  whatWeCollect: {
+    id: 'telemetryOptOutModal.whatWeCollect',
+    defaultMessage: 'What we collect:',
+  },
+  collectOs: {
+    id: 'telemetryOptOutModal.collectOs',
+    defaultMessage: 'Operating system, version, and architecture',
+  },
+  collectVersion: {
+    id: 'telemetryOptOutModal.collectVersion',
+    defaultMessage: 'goose version and install method',
+  },
+  collectProvider: {
+    id: 'telemetryOptOutModal.collectProvider',
+    defaultMessage: 'Provider and model used',
+  },
+  collectExtensions: {
+    id: 'telemetryOptOutModal.collectExtensions',
+    defaultMessage: 'Extensions and tool usage counts (names only)',
+  },
+  collectSession: {
+    id: 'telemetryOptOutModal.collectSession',
+    defaultMessage: 'Session metrics (duration, interaction count, token usage)',
+  },
+  collectErrors: {
+    id: 'telemetryOptOutModal.collectErrors',
+    defaultMessage: 'Error types (e.g., "rate_limit", "auth" - no details)',
+  },
+  privacyNote: {
+    id: 'telemetryOptOutModal.privacyNote',
+    defaultMessage:
+      'We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings → App.',
+  },
+});
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -14,6 +76,7 @@ type TelemetryOptOutModalProps =
   | { controlled: true; isOpen: boolean; onClose: () => void };
 
 export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
+  const intl = useIntl();
   const { read, upsert } = useConfig();
   const isControlled = props.controlled;
   const controlledIsOpen = isControlled ? props.isOpen : undefined;
@@ -41,15 +104,15 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
       } catch (error) {
         console.error('Failed to check telemetry config:', error);
         toastService.error({
-          title: 'Configuration Error',
-          msg: 'Failed to check telemetry configuration.',
+          title: intl.formatMessage(i18n.configError),
+          msg: intl.formatMessage(i18n.configErrorMessage),
           traceback: error instanceof Error ? error.stack || '' : '',
         });
       }
     };
 
     checkTelemetryChoice();
-  }, [isControlled, read]);
+  }, [isControlled, read, intl]);
 
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);
@@ -88,7 +151,7 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
             disabled={isLoading}
             className="w-full h-[44px] rounded-lg"
           >
-            Yes, share anonymous usage data
+            {intl.formatMessage(i18n.optIn)}
           </Button>
           <Button
             variant="ghost"
@@ -96,7 +159,7 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
             disabled={isLoading}
             className="w-full h-[44px] rounded-lg text-text-secondary hover:text-text-primary"
           >
-            No thanks
+            {intl.formatMessage(i18n.optOut)}
           </Button>
         </div>
       }
@@ -106,25 +169,23 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
           <Goose className="size-10 text-text-primary" />
         </div>
         <h2 className="text-2xl font-regular dark:text-white text-gray-900 text-center mb-3">
-          Help improve goose
+          {intl.formatMessage(i18n.heading)}
         </h2>
         <p className="text-text-primary text-sm mb-3">
-          Would you like to help improve goose by sharing anonymous usage data? This helps us
-          understand how goose is used and identify areas for improvement.
+          {intl.formatMessage(i18n.description)}
         </p>
         <div className="text-text-secondary text-xs space-y-1">
-          <p className="font-medium text-text-primary">What we collect:</p>
+          <p className="font-medium text-text-primary">{intl.formatMessage(i18n.whatWeCollect)}</p>
           <ul className="list-disc list-inside space-y-0.5 ml-1">
-            <li>Operating system, version, and architecture</li>
-            <li>goose version and install method</li>
-            <li>Provider and model used</li>
-            <li>Extensions and tool usage counts (names only)</li>
-            <li>Session metrics (duration, interaction count, token usage)</li>
-            <li>Error types (e.g., "rate_limit", "auth" - no details)</li>
+            <li>{intl.formatMessage(i18n.collectOs)}</li>
+            <li>{intl.formatMessage(i18n.collectVersion)}</li>
+            <li>{intl.formatMessage(i18n.collectProvider)}</li>
+            <li>{intl.formatMessage(i18n.collectExtensions)}</li>
+            <li>{intl.formatMessage(i18n.collectSession)}</li>
+            <li>{intl.formatMessage(i18n.collectErrors)}</li>
           </ul>
           <p className="mt-3 text-text-secondary">
-            We never collect your conversations, code, tool arguments, error messages, or any
-            personal data. You can change this setting anytime in Settings → App.
+            {intl.formatMessage(i18n.privacyNote)}
           </p>
         </div>
       </div>
