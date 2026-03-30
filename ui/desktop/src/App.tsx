@@ -52,7 +52,7 @@ import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
-import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
+import { trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
 
@@ -242,25 +242,6 @@ const ConfigureProvidersRoute = () => {
       <ProviderSettings
         onClose={() => navigate('/settings', { state: { section: 'models' } })}
         isOnboarding={false}
-      />
-    </div>
-  );
-};
-
-const WelcomeRoute = () => {
-  const navigate = useNavigate();
-
-  return (
-    <div className="w-screen h-screen bg-background-primary">
-      <ProviderSettings
-        onClose={() => {
-          navigate('/', { replace: true });
-        }}
-        isOnboarding={true}
-        onProviderLaunched={(model?: string) => {
-          trackOnboardingCompleted('other', model);
-          navigate('/', { replace: true });
-        }}
       />
     </div>
   );
@@ -627,7 +608,6 @@ export function AppInner() {
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
-            <Route path="welcome" element={<WelcomeRoute />} />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route

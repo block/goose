@@ -750,7 +750,7 @@ where
                         let parsed = if arguments.is_empty() {
                             Ok(json!({}))
                         } else {
-                            serde_json::from_str::<Value>(arguments)
+                            safely_parse_json(arguments)
                         };
 
                         let metadata = if let Some(sig) = &last_signature {
