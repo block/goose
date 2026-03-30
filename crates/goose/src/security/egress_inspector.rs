@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
+use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use crate::config::GooseMode;
@@ -122,15 +123,27 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
         });
     }
 
-    if command.contains("npm publish") || command.contains("cargo publish") {
+    static NPM_PUBLISH_RE: OnceLock<Regex> = OnceLock::new();
+    let npm_publish_re = NPM_PUBLISH_RE.get_or_init(|| {
+        Regex::new(r"(?:^|[;&|]\s*|\n)\s*npm\s+publish(?:\s|$)").unwrap()
+    });
+    if npm_publish_re.is_match(command) {
         destinations.push(EgressDestination {
             kind: "package_publish".to_string(),
-            destination: command.to_string(),
-            domain: if command.contains("npm") {
-                "registry.npmjs.org".to_string()
-            } else {
-                "crates.io".to_string()
-            },
+            destination: "npm publish".to_string(),
+            domain: "registry.npmjs.org".to_string(),
+        });
+    }
+
+    static CARGO_PUBLISH_RE: OnceLock<Regex> = OnceLock::new();
+    let cargo_publish_re = CARGO_PUBLISH_RE.get_or_init(|| {
+        Regex::new(r"(?:^|[;&|]\s*|\n)\s*cargo\s+publish(?:\s|$)").unwrap()
+    });
+    if cargo_publish_re.is_match(command) {
+        destinations.push(EgressDestination {
+            kind: "package_publish".to_string(),
+            destination: "cargo publish".to_string(),
+            domain: "crates.io".to_string(),
         });
     }
 
@@ -159,23 +172,33 @@ fn extract_domain_from_url(url: &str) -> Option<String> {
 fn is_shell_tool(name: &str) -> bool {
     matches!(
         name,
-        "shell"
-            | "bash"
-            | "developer__shell"
-            | "developer__bash"
-            | "execute_command"
-            | "run_command"
-            | "terminal"
-    )
+        "shell" | "bash" | "execute_command" | "run_command" | "terminal"
+    ) || name.ends_with("__shell")
+        || name.ends_with("__bash")
+        || name.ends_with("__terminal")
 }
 
-fn extract_command(tool_call: &rmcp::model::CallToolRequestParams) -> Option<String> {
-    tool_call
-        .arguments
-        .as_ref()
-        .and_then(|args| args.get("command"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+fn is_web_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "web_fetch" | "fetch" | "browser_navigate" | "http_request"
+    ) || name.ends_with("__web_fetch")
+        || name.ends_with("__fetch")
+        || name.ends_with("__browser_navigate")
+}
+
+fn extract_text_for_inspection(
+    tool_call: &rmcp::model::CallToolRequestParams,
+    is_web: bool,
+) -> Option<String> {
+    let args = tool_call.arguments.as_ref()?;
+    let keys: &[&str] = if is_web {
+        &["url", "uri", "endpoint"]
+    } else {
+        &["command", "cmd", "script", "input"]
+    };
+    keys.iter()
+        .find_map(|k| args.get(*k).and_then(|v| v.as_str()).map(|s| s.to_string()))
 }
 
 #[async_trait]
@@ -196,6 +219,7 @@ impl ToolInspector for EgressInspector {
         _goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
+        let mut seen_destinations: HashSet<String> = HashSet::new();
 
         for tool_request in tool_requests {
             let tool_call = match &tool_request.tool_call {
@@ -203,29 +227,31 @@ impl ToolInspector for EgressInspector {
                 Err(_) => continue,
             };
 
-            if !is_shell_tool(tool_call.name.as_ref()) {
+            let name = tool_call.name.as_ref();
+            let is_web = is_web_tool(name);
+            if !is_shell_tool(name) && !is_web {
                 continue;
             }
 
-            let command = match extract_command(tool_call) {
-                Some(c) => c,
+            let text = match extract_text_for_inspection(tool_call, is_web) {
+                Some(t) => t,
                 None => continue,
             };
 
-            let destinations = extract_destinations(&command);
+            let destinations: Vec<_> = extract_destinations(&text)
+                .into_iter()
+                .filter(|d| seen_destinations.insert(d.destination.clone()))
+                .collect();
 
             if destinations.is_empty() {
                 continue;
             }
 
             for dest in &destinations {
-                eprintln!(
-                    "[EGRESS] {} | {} | {}",
-                    dest.kind, dest.domain, dest.destination
-                );
                 tracing::info!(
                     egress_kind = dest.kind.as_str(),
                     domain = dest.domain.as_str(),
+                    destination = dest.destination.as_str(),
                     "egress destination detected"
                 );
             }
@@ -237,7 +263,7 @@ impl ToolInspector for EgressInspector {
                     "Egress destinations detected: {}",
                     destinations
                         .iter()
-                        .map(|d| d.domain.as_str())
+                        .map(|d| d.destination.as_str())
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
@@ -270,6 +296,68 @@ mod tests {
         assert_eq!(dests[0].kind, "s3_bucket");
 
         assert_eq!(extract_destinations("ls -la /tmp").len(), 0);
+    }
+
+    #[test]
+    fn test_package_publish_detection() {
+        // Should detect
+        assert_eq!(extract_destinations("npm publish").len(), 1);
+        assert_eq!(extract_destinations("cd pkg && npm publish").len(), 1);
+        assert_eq!(extract_destinations("cargo publish").len(), 1);
+        assert_eq!(extract_destinations("cargo publish --dry-run").len(), 1);
+
+        // Should not detect (false positives)
+        assert_eq!(extract_destinations("echo 'npm publish'").len(), 0);
+        assert_eq!(extract_destinations("# npm publish").len(), 0);
+        assert_eq!(extract_destinations("cat npm_publish_guide.md").len(), 0);
+    }
+
+    #[test]
+    fn test_gcs_detection() {
+        let dests = extract_destinations("gsutil cp data.csv gs://my-bucket/path/data.csv");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "gcs_bucket");
+        assert_eq!(dests[0].destination, "gs://my-bucket/path/data.csv");
+        assert_eq!(dests[0].domain, "my-bucket.storage.googleapis.com");
+    }
+
+    #[test]
+    fn test_scp_detection() {
+        let dests = extract_destinations("scp file.txt user@remote.example.com:/tmp/file.txt");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "scp_target");
+        assert_eq!(dests[0].domain, "remote.example.com");
+
+        let dests = extract_destinations("rsync -av ./dist/ deploy@prod.example.com:/var/www/");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "scp_target");
+        assert_eq!(dests[0].domain, "prod.example.com");
+    }
+
+    #[test]
+    fn test_ssh_detection() {
+        let dests = extract_destinations("ssh user@bastion.example.com");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "ssh_target");
+        assert_eq!(dests[0].domain, "bastion.example.com");
+
+        let dests = extract_destinations("ssh -i key.pem ec2-user@10.0.0.1");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "ssh_target");
+        assert_eq!(dests[0].domain, "10.0.0.1");
+    }
+
+    #[test]
+    fn test_docker_detection() {
+        let dests = extract_destinations("docker push registry.example.com/myapp:latest");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "docker_registry");
+        assert_eq!(dests[0].domain, "registry.example.com");
+
+        let dests = extract_destinations("docker login ghcr.io");
+        assert_eq!(dests.len(), 1);
+        assert_eq!(dests[0].kind, "docker_registry");
+        assert_eq!(dests[0].domain, "ghcr.io");
     }
 
     #[test]
