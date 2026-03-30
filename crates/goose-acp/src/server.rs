@@ -1607,10 +1607,8 @@ impl GooseAcpAgent {
                     .data(format!("Prompt '{}' not found", req.name))
             })?;
 
-        let prompt_json = serde_json::to_value(prompt_def)
-            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
         Ok(GetPromptInfoResponse {
-            prompt: prompt_json,
+            prompt: prompt_def.clone(),
         })
     }
 
@@ -1625,11 +1623,7 @@ impl GooseAcpAgent {
             .list_prompts(&req.session_id, CancellationToken::default())
             .await
             .map_err(|e| sacp::Error::internal_error().data(format!("{:?}", e)))?;
-        let prompts_json = serde_json::to_value(&prompts)
-            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
-        Ok(ListPromptsResponse {
-            prompts: prompts_json,
-        })
+        Ok(ListPromptsResponse { prompts })
     }
 }
 

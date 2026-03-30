@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -174,7 +176,7 @@ pub struct GetPromptInfoRequest {
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct GetPromptInfoResponse {
-    pub prompt: serde_json::Value,
+    pub prompt: rmcp::model::Prompt,
 }
 
 /// List extension prompts for a session.
@@ -186,7 +188,7 @@ pub struct ListPromptsRequest {
 
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct ListPromptsResponse {
-    pub prompts: serde_json::Value,
+    pub prompts: HashMap<String, Vec<rmcp::model::Prompt>>,
 }
 
 /// Empty success response for operations that return no data.
