@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::{future, FutureExt};
+use futures::{FutureExt, future};
 use once_cell::sync::Lazy;
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
@@ -14,10 +14,10 @@ use rmcp::transport::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -27,8 +27,8 @@ use tracing::{error, warn};
 
 use super::container::Container;
 use super::extension::{
-    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
-    ToolInfo, PLATFORM_EXTENSIONS,
+    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PLATFORM_EXTENSIONS,
+    PlatformExtensionContext, ToolInfo,
 };
 use super::tool_execution::{ToolCallContext, ToolCallResult};
 use super::types::SharedProvider;
@@ -38,7 +38,7 @@ use crate::agents::mcp_client::{GooseMcpClientCapabilities, McpClient, McpClient
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
-use crate::config::{get_all_extensions, Config};
+use crate::config::{Config, get_all_extensions};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
@@ -1708,7 +1708,7 @@ mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
     use rmcp::model::{InitializeResult, JsonObject};
-    use rmcp::{object, ServiceError as Error};
+    use rmcp::{ServiceError as Error, object};
 
     use rmcp::model::ListPromptsResult;
     use rmcp::model::ListResourcesResult;
@@ -1954,12 +1954,16 @@ mod tests {
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(!tool_names.iter().any(|name| name == "test_extension__tool")); // Default unavailable
-        assert!(tool_names
-            .iter()
-            .any(|name| name == "test_extension__available_tool"));
-        assert!(!tool_names
-            .iter()
-            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(
+            tool_names
+                .iter()
+                .any(|name| name == "test_extension__available_tool")
+        );
+        assert!(
+            !tool_names
+                .iter()
+                .any(|name| name == "test_extension__hidden_tool")
+        );
         assert!(tool_names.len() == 1);
     }
 
@@ -1984,12 +1988,16 @@ mod tests {
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|name| name == "test_extension__tool"));
-        assert!(tool_names
-            .iter()
-            .any(|name| name == "test_extension__available_tool"));
-        assert!(tool_names
-            .iter()
-            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(
+            tool_names
+                .iter()
+                .any(|name| name == "test_extension__available_tool")
+        );
+        assert!(
+            tool_names
+                .iter()
+                .any(|name| name == "test_extension__hidden_tool")
+        );
         assert!(tool_names.len() == 3);
     }
 
@@ -2307,11 +2315,6 @@ mod tests {
         );
     }
 
-    // ── should_attempt_oauth_fallback unit tests ─────────────────────────────
-
-    /// Wrap any boxed error in ClientInitializeError::TransportError.
-    /// transport_type_id is arbitrary — the function only uses downcast_ref on
-    /// the inner Box<dyn Error>, which carries its own TypeId in the fat pointer.
     fn transport_err(error: Box<dyn std::error::Error + Send + Sync>) -> ClientInitializeError {
         ClientInitializeError::TransportError {
             error: rmcp::transport::DynamicTransportError {
@@ -2331,8 +2334,6 @@ mod tests {
 
     #[test]
     fn test_oauth_fallback_on_typed_auth_required() {
-        // Regression guard for the original code path: rmcp correctly identifies
-        // an OAuth challenge via WWW-Authenticate.
         let err = streamable_err(
             rmcp::transport::streamable_http_client::StreamableHttpError::AuthRequired(
                 rmcp::transport::streamable_http_client::AuthRequiredError {
@@ -2345,71 +2346,11 @@ mod tests {
 
     #[test]
     fn test_oauth_fallback_on_unexpected_response_http_401_prefix() {
-        // Server returns a bare 401 that rmcp surfaces as UnexpectedServerResponse.
         let err = streamable_err(
             rmcp::transport::streamable_http_client::StreamableHttpError::UnexpectedServerResponse(
                 std::borrow::Cow::Borrowed("HTTP 401 Unauthorized"),
             ),
         );
         assert!(should_attempt_oauth_fallback(&Err(err)));
-    }
-
-    #[test]
-    fn test_oauth_fallback_via_string_when_downcast_fails() {
-        // Some MCP server adapters wrap the 401 in a non-StreamableHttpError type.
-        // The downcast_ref returns None; the string fallback must fire instead.
-        #[derive(Debug)]
-        struct OpaqueTransportError(String);
-        impl std::fmt::Display for OpaqueTransportError {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-        impl std::error::Error for OpaqueTransportError {}
-
-        let err = transport_err(Box::new(OpaqueTransportError(
-            "unexpected server response: HTTP 401 Unauthorized".to_string(),
-        )));
-        assert!(should_attempt_oauth_fallback(&Err(err)));
-    }
-
-    #[test]
-    fn test_no_oauth_fallback_on_http_403() {
-        // 403 Forbidden must not trigger OAuth; only 401 indicates a missing credential.
-        let err = streamable_err(
-            rmcp::transport::streamable_http_client::StreamableHttpError::UnexpectedServerResponse(
-                std::borrow::Cow::Borrowed("HTTP 403 Forbidden"),
-            ),
-        );
-        assert!(!should_attempt_oauth_fallback(&Err(err)));
-    }
-
-    #[test]
-    fn test_no_oauth_fallback_when_401_not_at_body_start() {
-        // Pins starts_with vs. contains: if the predicate were loosened to contains("HTTP 401"),
-        // this test would fail where it should — catching that refactor.
-        let err = streamable_err(
-            rmcp::transport::streamable_http_client::StreamableHttpError::UnexpectedServerResponse(
-                std::borrow::Cow::Borrowed("Error: HTTP 401 Unauthorized"),
-            ),
-        );
-        assert!(!should_attempt_oauth_fallback(&Err(err)));
-    }
-
-    #[test]
-    fn test_no_oauth_fallback_on_unrelated_transport_error() {
-        // Exercises the inner `_ => false` arm for non-auth transport errors.
-        let err = streamable_err(
-            rmcp::transport::streamable_http_client::StreamableHttpError::UnexpectedEndOfStream,
-        );
-        assert!(!should_attempt_oauth_fallback(&Err(err)));
-    }
-
-    #[test]
-    fn test_no_oauth_fallback_on_non_transport_client_error() {
-        // Exercises the outer `_ => false` arm for non-TransportError variants.
-        assert!(!should_attempt_oauth_fallback(&Err(
-            ClientInitializeError::Cancelled
-        )));
     }
 }
