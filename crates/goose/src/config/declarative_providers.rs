@@ -7,7 +7,16 @@ use crate::providers::openai::OpenAiProvider;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Deserialize an optional string, treating empty/whitespace-only values as None.
+fn deserialize_non_empty_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    Ok(opt.filter(|s| !s.trim().is_empty()))
+}
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
@@ -66,7 +75,7 @@ pub struct DeclarativeProviderConfig {
     pub dynamic_models: Option<bool>,
     #[serde(default)]
     pub skip_canonical_filtering: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub fast_model: Option<String>,
 }
 
