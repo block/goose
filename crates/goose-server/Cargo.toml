@@ -57,7 +57,6 @@ http = { workspace = true }
 base64 = { workspace = true }
 config = { version = "0.15.13", features = ["toml"] }
 thiserror = { workspace = true }
-clap = { workspace = true }
 serde_yaml = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras", "chrono"] }
 reqwest = { workspace = true, features = ["json", "blocking", "multipart", "system-proxy"], default-features = false }
