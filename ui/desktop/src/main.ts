@@ -25,8 +25,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
 import http from 'node:http';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
@@ -56,6 +54,8 @@ import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+
+const execFileAsync = promisify(execFile);
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
