@@ -455,36 +455,38 @@ async fn create_streamable_http_client(
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
-            .await
-            .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
-        let mut auth_headers = HeaderMap::new();
-        auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
-        let auth_http_client = reqwest::Client::builder()
-            .default_headers(auth_headers)
-            .build()
-            .map_err(|_| {
-                ExtensionError::ConfigError("could not construct http client".to_string())
-            })?;
-        let auth_client = AuthClient::new(auth_http_client, auth_manager);
-        let transport = StreamableHttpClientTransport::with_client(
-            auth_client,
-            StreamableHttpClientTransportConfig {
-                uri: uri.into(),
-                ..Default::default()
-            },
-        );
-        Ok(Box::new(
-            McpClient::connect(
-                transport,
-                timeout_duration,
-                provider,
-                client_name,
-                capabilities,
-                roots_dir.to_path_buf(),
-            )
-            .await?,
-        ))
+        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+            Ok(auth_manager) => {
+                let mut auth_headers = HeaderMap::new();
+                auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+                let auth_http_client = reqwest::Client::builder()
+                    .default_headers(auth_headers)
+                    .build()
+                    .map_err(|_| {
+                        ExtensionError::ConfigError("could not construct http client".to_string())
+                    })?;
+                let auth_client = AuthClient::new(auth_http_client, auth_manager);
+                let transport = StreamableHttpClientTransport::with_client(
+                    auth_client,
+                    StreamableHttpClientTransportConfig {
+                        uri: uri.into(),
+                        ..Default::default()
+                    },
+                );
+                Ok(Box::new(
+                    McpClient::connect(
+                        transport,
+                        timeout_duration,
+                        provider,
+                        client_name,
+                        capabilities,
+                        roots_dir.to_path_buf(),
+                    )
+                    .await?,
+                ))
+            }
+            Err(_) => Ok(Box::new(client_res?)),
+        }
     } else {
         Ok(Box::new(client_res?))
     }
