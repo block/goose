@@ -61,7 +61,13 @@ export const MeshSettings = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeModel, setActiveModel] = useState<string | null>(null);
-  const [meshProviderId, setMeshProviderId] = useState<string>('mesh');
+  const [meshProviderId, setMeshProviderIdState] = useState<string>(
+    () => localStorage.getItem('mesh-provider-id') ?? 'mesh'
+  );
+  const setMeshProviderId = (id: string) => {
+    setMeshProviderIdState(id);
+    localStorage.setItem('mesh-provider-id', id);
+  };
   const [checking, setChecking] = useState(false);
 
   const checkStatus = useCallback(async () => {
