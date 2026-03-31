@@ -1168,6 +1168,7 @@ fn configure_streamable_http_extension() -> anyhow::Result<()> {
             envs: Envs::new(envs),
             env_keys,
             headers,
+            socket: None,
             description,
             timeout: Some(timeout),
             bundled: None,

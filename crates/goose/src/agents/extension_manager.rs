@@ -305,14 +305,20 @@ fn extract_auth_error(
             ClientInitializeError::TransportError {
                 error: DynamicTransportError { error, .. },
                 ..
-            } => error
-                .downcast_ref::<StreamableHttpError<reqwest::Error>>()
-                .and_then(|auth_error| match auth_error {
-                    StreamableHttpError::AuthRequired(auth_required_error) => {
-                        Some(auth_required_error)
-                    }
-                    _ => None,
-                }),
+            } => {
+                if let Some(StreamableHttpError::AuthRequired(e)) =
+                    error.downcast_ref::<StreamableHttpError<reqwest::Error>>()
+                {
+                    return Some(e);
+                }
+                #[cfg(unix)]
+                if let Some(StreamableHttpError::AuthRequired(e)) = error
+                    .downcast_ref::<StreamableHttpError<rmcp::transport::common::unix_socket::UnixSocketError>>()
+                {
+                    return Some(e);
+                }
+                None
+            }
             _ => None,
         },
     }
@@ -412,7 +418,31 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    socket: Option<&str>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
+    #[cfg(unix)]
+    if let Some(socket_path) = socket {
+        return create_unix_socket_http_client(
+            uri,
+            timeout,
+            headers,
+            name,
+            socket_path,
+            provider,
+            client_name,
+            capabilities,
+            roots_dir,
+        )
+        .await;
+    }
+
+    #[cfg(not(unix))]
+    if socket.is_some() {
+        return Err(ExtensionError::ConfigError(
+            "Unix domain socket transport is not supported on this platform".to_string(),
+        ));
+    }
+
     let mut default_headers = HeaderMap::new();
 
     default_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -434,10 +464,7 @@ async fn create_streamable_http_client(
 
     let transport = StreamableHttpClientTransport::with_client(
         http_client,
-        StreamableHttpClientTransportConfig {
-            uri: uri.into(),
-            ..Default::default()
-        },
+        StreamableHttpClientTransportConfig::with_uri(uri),
     );
 
     let timeout_duration =
@@ -468,10 +495,90 @@ async fn create_streamable_http_client(
         let auth_client = AuthClient::new(auth_http_client, auth_manager);
         let transport = StreamableHttpClientTransport::with_client(
             auth_client,
-            StreamableHttpClientTransportConfig {
-                uri: uri.into(),
-                ..Default::default()
-            },
+            StreamableHttpClientTransportConfig::with_uri(uri),
+        );
+        Ok(Box::new(
+            McpClient::connect(
+                transport,
+                timeout_duration,
+                provider,
+                client_name,
+                capabilities,
+                roots_dir.to_path_buf(),
+            )
+            .await?,
+        ))
+    } else {
+        Ok(Box::new(client_res?))
+    }
+}
+
+#[cfg(unix)]
+#[allow(clippy::too_many_arguments)]
+async fn create_unix_socket_http_client(
+    uri: &str,
+    timeout: Option<u64>,
+    headers: &HashMap<String, String>,
+    name: &str,
+    socket_path: &str,
+    provider: SharedProvider,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
+    roots_dir: &std::path::Path,
+) -> ExtensionResult<Box<dyn McpClientTrait>> {
+    use rmcp::transport::UnixSocketHttpClient;
+
+    let mut custom_headers = HashMap::new();
+    custom_headers.insert(
+        reqwest::header::USER_AGENT,
+        GOOSE_USER_AGENT
+            .to_str()
+            .unwrap_or("goose")
+            .parse()
+            .unwrap_or_else(|_| reqwest::header::HeaderValue::from_static("goose")),
+    );
+    for (key, value) in headers {
+        let header_name = HeaderName::try_from(key)
+            .map_err(|_| ExtensionError::ConfigError(format!("invalid header: {key}")))?;
+        let val: reqwest::header::HeaderValue = value
+            .parse()
+            .map_err(|_| ExtensionError::ConfigError(format!("invalid header value: {key}")))?;
+        custom_headers.insert(header_name, val);
+    }
+
+    let retry_headers = {
+        let mut h = custom_headers.clone();
+        h.remove(&reqwest::header::AUTHORIZATION);
+        h
+    };
+
+    let unix_client = UnixSocketHttpClient::new(socket_path, uri);
+    let transport = StreamableHttpClientTransport::with_client(
+        unix_client.clone(),
+        StreamableHttpClientTransportConfig::with_uri(uri).custom_headers(custom_headers),
+    );
+
+    let timeout_duration =
+        Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
+
+    let client_res = McpClient::connect(
+        transport,
+        timeout_duration,
+        provider.clone(),
+        client_name.clone(),
+        capabilities.clone(),
+        roots_dir.to_path_buf(),
+    )
+    .await;
+
+    if extract_auth_error(&client_res).is_some() {
+        let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
+            .await
+            .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
+        let auth_client = AuthClient::new(unix_client, auth_manager);
+        let transport = StreamableHttpClientTransport::with_client(
+            auth_client,
+            StreamableHttpClientTransportConfig::with_uri(uri).custom_headers(retry_headers),
         );
         Ok(Box::new(
             McpClient::connect(
@@ -585,6 +692,7 @@ impl ExtensionManager {
                 name,
                 envs,
                 env_keys,
+                socket,
                 ..
             } => {
                 let config = Config::global();
@@ -607,6 +715,10 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     capability,
                     &effective_working_dir,
+                    socket
+                        .as_ref()
+                        .map(|s| substitute_env_vars(s, &all_envs))
+                        .as_deref(),
                 )
                 .await?
             }
