@@ -115,18 +115,25 @@ export default function SettingsView({
       };
 
       const targetTab = sectionToTab[viewOptions.section];
-      if (targetTab && (targetTab !== 'local-inference' || localInference)) {
+      if (
+        targetTab &&
+        (targetTab !== 'local-inference' || localInference) &&
+        (targetTab !== 'mesh' || !tunnelDisabled)
+      ) {
         setActiveTab(targetTab);
       }
     }
-  }, [viewOptions.section, localInference]);
+  }, [viewOptions.section, localInference, tunnelDisabled]);
 
-  // Reset active tab if local-inference becomes unavailable
+  // Reset active tab if local-inference or mesh becomes unavailable
   useEffect(() => {
     if (!localInference && activeTab === 'local-inference') {
       setActiveTab('models');
     }
-  }, [localInference, activeTab]);
+    if (tunnelDisabled && activeTab === 'mesh') {
+      setActiveTab('models');
+    }
+  }, [localInference, tunnelDisabled, activeTab]);
 
   useEffect(() => {
     if (!hasTrackedInitialTab.current) {
