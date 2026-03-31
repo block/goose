@@ -138,6 +138,13 @@ jobs:
           fi
         working-directory: ui/desktop
 
+      - name: Ad-hoc sign x64 app bundle
+        run: |
+          codesign --sign - --force --deep out/Goose-darwin-x64/Goose.app
+          rm -f out/Goose-darwin-x64/Goose_intel_mac.zip
+          (cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip)
+        working-directory: ui/desktop
+
       - name: Configure AWS credentials
         if: ${{ inputs.signing }}
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
