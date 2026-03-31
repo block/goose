@@ -24,7 +24,6 @@ import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
-import { promisify } from 'node:util';
 import http from 'node:http';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
@@ -54,8 +53,6 @@ import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
-
-const execFileAsync = promisify(execFile);
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -1756,6 +1753,12 @@ ipcMain.handle('stop-mesh', async () => {
   }
 });
 
+function execFileP(cmd: string, args: string[], opts: { timeout: number }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, opts, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
 ipcMain.handle('download-mesh', async () => {
   if (process.platform !== 'darwin' || process.arch !== 'arm64') {
     return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
@@ -1769,12 +1772,8 @@ ipcMain.handle('download-mesh', async () => {
   const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
   try {
     // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
-    await execFileAsync('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], {
-      timeout: 120000,
-    });
-    await execFileAsync('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], {
-      timeout: 30000,
-    });
+    await execFileP('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], { timeout: 120000 });
+    await execFileP('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], { timeout: 30000 });
 
     const binary = path.join(installDir, 'mesh-llm');
     if (!fsSync.existsSync(binary)) {
@@ -1787,12 +1786,12 @@ ipcMain.handle('download-mesh', async () => {
         const bin = path.join(installDir, name);
         if (fsSync.existsSync(bin)) {
           try {
-            await execFileAsync('codesign', ['-s', '-', bin], { timeout: 10000 });
+            await execFileP('codesign', ['-s', '-', bin], { timeout: 10000 });
           } catch {
             // codesign may fail if already signed
           }
           try {
-            await execFileAsync('xattr', ['-cr', bin], { timeout: 10000 });
+            await execFileP('xattr', ['-cr', bin], { timeout: 10000 });
           } catch {
             // xattr may fail
           }
