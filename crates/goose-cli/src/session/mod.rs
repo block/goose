@@ -984,8 +984,20 @@ impl CliSession {
                                 let permission = if interactive {
                                     prompt_tool_confirmation(&security_prompt)?
                                 } else {
-                                    // Non-interactive/headless mode: auto-allow the tool call
-                                    // since there is no terminal to prompt the user for confirmation
+                                    // Non-interactive/headless mode: refuse to run in
+                                    // Approve/SmartApprove modes since auto-allowing would
+                                    // bypass the safety contract those modes are meant to enforce.
+                                    let config = Config::global();
+                                    let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+                                    if goose_mode == GooseMode::Approve || goose_mode == GooseMode::SmartApprove {
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        return Err(anyhow::anyhow!(
+                                            "Tool approval required in non-interactive mode with GooseMode::{goose_mode}. \
+                                             This is an invalid configuration — Approve/SmartApprove modes require an \
+                                             interactive terminal. Use GooseMode::Auto for headless sessions."
+                                        ));
+                                    }
                                     tracing::warn!(
                                         "Tool confirmation required in non-interactive mode, auto-allowing"
                                     );
