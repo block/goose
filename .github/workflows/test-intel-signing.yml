@@ -1,0 +1,12 @@
+name: Test Intel Signing
+on: workflow_dispatch
+jobs:
+  test:
+    uses: ./.github/workflows/bundle-desktop-intel.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      signing: true
+    secrets:
+      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
