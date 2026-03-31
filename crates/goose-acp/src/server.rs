@@ -1508,15 +1508,10 @@ impl GooseAcpAgent {
         // waiting yet.  A single global timeout bounds total wait time
         // regardless of how many prompts are active.
         if !pending.is_empty() {
-            let all_done = futures::future::join_all(
-                pending.iter().map(|n| n.notified()),
-            );
-            if tokio::time::timeout(
-                tokio::time::Duration::from_secs(10),
-                all_done,
-            )
-            .await
-            .is_err()
+            let all_done = futures::future::join_all(pending.iter().map(|n| n.notified()));
+            if tokio::time::timeout(tokio::time::Duration::from_secs(10), all_done)
+                .await
+                .is_err()
             {
                 warn!(
                     session_id = %req.session_id,
