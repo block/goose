@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   RefreshCw,
   ExternalLink,
@@ -69,6 +69,7 @@ export const MeshSettings = () => {
     localStorage.setItem('mesh-provider-id', id);
   };
   const [checking, setChecking] = useState(false);
+  const startTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkStatus = useCallback(async () => {
     setChecking(true);
@@ -194,7 +195,11 @@ export const MeshSettings = () => {
       }
       // Polling will pick up when it's ready. Timeout after 5 min so
       // the UI doesn't get stuck in "starting" if the daemon crashes.
-      setTimeout(() => {
+      if (startTimeoutRef.current) {
+        clearTimeout(startTimeoutRef.current);
+      }
+      startTimeoutRef.current = setTimeout(() => {
+        startTimeoutRef.current = null;
         setStatus((prev) => {
           if (prev === 'starting') {
             setError('mesh-llm did not become ready. Check ~/.mesh-llm/mesh-llm.log');
