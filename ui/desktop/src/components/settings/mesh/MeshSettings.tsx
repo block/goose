@@ -56,7 +56,7 @@ export const MeshSettings = () => {
   const [mode, setMode] = useState<MeshMode>('auto');
   const [selectedModel, setSelectedModel] = useState(MESH_DEFAULT_MODEL);
   const [joinToken, setJoinToken] = useState('');
-  const [contributeGpu, setContributeGpu] = useState(true);
+  const [contributeGpu, setContributeGpu] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
