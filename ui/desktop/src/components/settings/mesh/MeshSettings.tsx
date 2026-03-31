@@ -45,7 +45,7 @@ interface MeshStatusInfo {
 
 export const MeshSettings = () => {
   const { refreshCurrentModelAndProvider } = useModelAndProvider();
-  const isMac = window.electron.platform === 'darwin';
+  const canAutoDownload = window.electron.platform === 'darwin' && window.electron.arch === 'arm64';
   const [status, setStatus] = useState<MeshStatus>('unknown');
   const [statusInfo, setStatusInfo] = useState<MeshStatusInfo>({
     running: false,
@@ -354,7 +354,7 @@ export const MeshSettings = () => {
             Models are downloaded separately when you start a mesh.
           </p>
           <div className="flex items-center gap-2 mt-3">
-            {isMac && (
+            {canAutoDownload && (
               <Button size="sm" onClick={downloadMesh}>
                 <Download className="w-3 h-3 mr-1" />
                 Download mesh-llm
