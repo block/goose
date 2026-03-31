@@ -1279,7 +1279,7 @@ impl GooseAcpAgent {
 
 #[custom_methods]
 impl GooseAcpAgent {
-    #[custom_method("_goose/extensions/add")]
+    #[custom_method(AddExtensionRequest)]
     async fn on_add_extension(
         &self,
         req: AddExtensionRequest,
@@ -1294,7 +1294,7 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    #[custom_method("_goose/extensions/remove")]
+    #[custom_method(RemoveExtensionRequest)]
     async fn on_remove_extension(
         &self,
         req: RemoveExtensionRequest,
@@ -1307,7 +1307,7 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    #[custom_method("_goose/tools")]
+    #[custom_method(GetToolsRequest)]
     async fn on_get_tools(&self, req: GetToolsRequest) -> Result<GetToolsResponse, sacp::Error> {
         let agent = self.get_session_agent(&req.session_id, None).await?;
         let tools = agent.list_tools(&req.session_id, None).await;
@@ -1319,7 +1319,7 @@ impl GooseAcpAgent {
         Ok(GetToolsResponse { tools: tools_json })
     }
 
-    #[custom_method("_goose/resource/read")]
+    #[custom_method(ReadResourceRequest)]
     async fn on_read_resource(
         &self,
         req: ReadResourceRequest,
@@ -1338,7 +1338,7 @@ impl GooseAcpAgent {
         })
     }
 
-    #[custom_method("_goose/working_dir/update")]
+    #[custom_method(UpdateWorkingDirRequest)]
     async fn on_update_working_dir(
         &self,
         req: UpdateWorkingDirRequest,
@@ -1370,8 +1370,7 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    // TODO: use typed GetSessionRequest when agent-client-protocol-schema adds it (Discussion #60)
-    #[custom_method("session/get")]
+    #[custom_method(GetSessionRequest)]
     async fn on_get_session(
         &self,
         req: GetSessionRequest,
@@ -1388,8 +1387,7 @@ impl GooseAcpAgent {
         })
     }
 
-    // TODO: use typed DeleteSessionRequest when agent-client-protocol-schema adds it (RFD #395)
-    #[custom_method("session/delete")]
+    #[custom_method(DeleteSessionRequest)]
     async fn on_delete_session(
         &self,
         req: DeleteSessionRequest,
@@ -1402,7 +1400,7 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    #[custom_method("_goose/session/export")]
+    #[custom_method(ExportSessionRequest)]
     async fn on_export_session(
         &self,
         req: ExportSessionRequest,
@@ -1415,7 +1413,7 @@ impl GooseAcpAgent {
         Ok(ExportSessionResponse { data })
     }
 
-    #[custom_method("_goose/session/import")]
+    #[custom_method(ImportSessionRequest)]
     async fn on_import_session(
         &self,
         req: ImportSessionRequest,
@@ -1432,7 +1430,7 @@ impl GooseAcpAgent {
         })
     }
 
-    #[custom_method("_goose/config/extensions")]
+    #[custom_method(GetExtensionsRequest)]
     async fn on_get_extensions(&self) -> Result<GetExtensionsResponse, sacp::Error> {
         let extensions = goose::config::extensions::get_all_extensions();
         let warnings = goose::config::extensions::get_warnings();

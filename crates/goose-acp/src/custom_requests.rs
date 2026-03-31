@@ -1,3 +1,4 @@
+use sacp::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -20,16 +21,19 @@ pub struct CustomMethodSchema {
 }
 
 /// Add an extension to an active session.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/extensions/add", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct AddExtensionRequest {
     pub session_id: String,
     /// Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).
+    #[serde(default)]
     pub config: serde_json::Value,
 }
 
 /// Remove an extension from an active session.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/extensions/remove", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveExtensionRequest {
     pub session_id: String,
@@ -37,20 +41,23 @@ pub struct RemoveExtensionRequest {
 }
 
 /// List all tools available in a session.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/tools", response = GetToolsResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct GetToolsRequest {
     pub session_id: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+/// Tools response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetToolsResponse {
     /// Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
     pub tools: Vec<serde_json::Value>,
 }
 
 /// Read a resource from an extension.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/resource/read", response = ReadResourceResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadResourceRequest {
     pub session_id: String,
@@ -58,14 +65,17 @@ pub struct ReadResourceRequest {
     pub extension_name: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+/// Resource read response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct ReadResourceResponse {
     /// The resource result from the extension (MCP ReadResourceResult).
+    #[serde(default)]
     pub result: serde_json::Value,
 }
 
 /// Update the working directory for a session.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/working_dir/update", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateWorkingDirRequest {
     pub session_id: String,
@@ -73,7 +83,8 @@ pub struct UpdateWorkingDirRequest {
 }
 
 /// Get a session by ID.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "session/get", response = GetSessionResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSessionRequest {
     pub session_id: String,
@@ -82,45 +93,57 @@ pub struct GetSessionRequest {
 }
 
 /// Get a session response.
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetSessionResponse {
     /// The session object with id, name, working_dir, timestamps, tokens, etc.
+    #[serde(default)]
     pub session: serde_json::Value,
 }
 
 /// Delete a session.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "session/delete", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteSessionRequest {
     pub session_id: String,
 }
 
 /// Export a session as a JSON string.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/session/export", response = ExportSessionResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportSessionRequest {
     pub session_id: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+/// Export session response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct ExportSessionResponse {
     pub data: String,
 }
 
 /// Import a session from a JSON string.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/session/import", response = ImportSessionResponse)]
 pub struct ImportSessionRequest {
     pub data: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+/// Import session response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct ImportSessionResponse {
     /// The imported session object.
+    #[serde(default)]
     pub session: serde_json::Value,
 }
 
 /// List configured extensions and any warnings.
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/config/extensions", response = GetExtensionsResponse)]
+pub struct GetExtensionsRequest {}
+
+/// List configured extensions and any warnings.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetExtensionsResponse {
     /// Array of ExtensionEntry objects with `enabled` flag and config details.
     pub extensions: Vec<serde_json::Value>,
@@ -128,5 +151,5 @@ pub struct GetExtensionsResponse {
 }
 
 /// Empty success response for operations that return no data.
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct EmptyResponse {}
