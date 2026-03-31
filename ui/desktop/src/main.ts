@@ -1744,7 +1744,7 @@ ipcMain.handle('stop-mesh', async () => {
 });
 
 ipcMain.handle('download-mesh', async () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
     return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
   }
 
