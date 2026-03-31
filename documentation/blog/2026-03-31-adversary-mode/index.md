@@ -57,7 +57,6 @@ The two approaches are complementary. Use both. Use all the layers!
 
 ## What's Next
 
-<!-- TODO: mention CORS-model work, link to guardrails blog post, future plans -->
 
 We see adversary mode as one layer in a broader security story. For the deeper thinking behind it, check out our post on [applying the CORS model to agent security](/blog/2026/01/05/agentic-guardrails-and-controls).
 
