@@ -152,16 +152,17 @@ impl Default for Config {
             }
         });
 
-        let secrets =
-            if env::var("GOOSE_DISABLE_KEYRING").is_ok() || keyring_disabled_in_config(&config_path) {
-                SecretStorage::File {
-                    path: config_dir.join("secrets.yaml"),
-                }
-            } else {
-                SecretStorage::Keyring {
-                    service: KEYRING_SERVICE.to_string(),
-                }
-            };
+        let secrets = if env::var("GOOSE_DISABLE_KEYRING").is_ok()
+            || keyring_disabled_in_config(&config_path)
+        {
+            SecretStorage::File {
+                path: config_dir.join("secrets.yaml"),
+            }
+        } else {
+            SecretStorage::Keyring {
+                service: KEYRING_SERVICE.to_string(),
+            }
+        };
         Config {
             config_path,
             defaults_path,
@@ -262,8 +263,7 @@ fn keyring_disabled_in_config(config_path: &Path) -> bool {
         .and_then(|s| parse_yaml_content(&s).ok())
         .and_then(|m| {
             m.get("GOOSE_DISABLE_KEYRING")
-                .and_then(|v| v.as_str())
-                .map(|v| v == "true")
+                .map(|v| v.as_bool().unwrap_or(false) || v.as_str().is_some_and(|s| s == "true"))
         })
         .unwrap_or(false)
 }
