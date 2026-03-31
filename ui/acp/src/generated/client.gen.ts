@@ -12,6 +12,7 @@ import type {
   DeleteSessionRequest,
   ExportSessionRequest,
   ExportSessionResponse,
+  GetExtensionsRequest,
   GetExtensionsResponse,
   GetSessionRequest,
   GetSessionResponse,
@@ -83,8 +84,10 @@ export class GooseExtClient {
     return zImportSessionResponse.parse(raw) as ImportSessionResponse;
   }
 
-  async GooseConfigExtensions(): Promise<GetExtensionsResponse> {
-    const raw = await this.conn.extMethod("_goose/config/extensions", {});
+  async GooseConfigExtensions(
+    params: GetExtensionsRequest,
+  ): Promise<GetExtensionsResponse> {
+    const raw = await this.conn.extMethod("_goose/config/extensions", params);
     return zGetExtensionsResponse.parse(raw) as GetExtensionsResponse;
   }
 }

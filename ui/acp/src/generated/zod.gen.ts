@@ -7,7 +7,7 @@ import { z } from 'zod';
  */
 export const zAddExtensionRequest = z.object({
     sessionId: z.string(),
-    config: z.unknown()
+    config: z.unknown().optional().default(null)
 });
 
 /**
@@ -30,6 +30,9 @@ export const zGetToolsRequest = z.object({
     sessionId: z.string()
 });
 
+/**
+ * Tools response.
+ */
 export const zGetToolsResponse = z.object({
     tools: z.array(z.unknown())
 });
@@ -43,8 +46,11 @@ export const zReadResourceRequest = z.object({
     extensionName: z.string()
 });
 
+/**
+ * Resource read response.
+ */
 export const zReadResourceResponse = z.object({
-    result: z.unknown()
+    result: z.unknown().optional().default(null)
 });
 
 /**
@@ -67,7 +73,7 @@ export const zGetSessionRequest = z.object({
  * Get a session response.
  */
 export const zGetSessionResponse = z.object({
-    session: z.unknown()
+    session: z.unknown().optional().default(null)
 });
 
 /**
@@ -84,6 +90,9 @@ export const zExportSessionRequest = z.object({
     sessionId: z.string()
 });
 
+/**
+ * Export session response.
+ */
 export const zExportSessionResponse = z.object({
     data: z.string()
 });
@@ -95,9 +104,17 @@ export const zImportSessionRequest = z.object({
     data: z.string()
 });
 
+/**
+ * Import session response.
+ */
 export const zImportSessionResponse = z.object({
-    session: z.unknown()
+    session: z.unknown().optional().default(null)
 });
+
+/**
+ * List configured extensions and any warnings.
+ */
+export const zGetExtensionsRequest = z.record(z.unknown());
 
 /**
  * List configured extensions and any warnings.
@@ -120,7 +137,8 @@ export const zExtRequest = z.object({
             zGetSessionRequest,
             zDeleteSessionRequest,
             zExportSessionRequest,
-            zImportSessionRequest
+            zImportSessionRequest,
+            zGetExtensionsRequest
         ]),
         z.union([
             z.record(z.unknown()),

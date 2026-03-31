@@ -9,7 +9,7 @@ export type AddExtensionRequest = {
     /**
      * Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).
      */
-    config: unknown;
+    config?: unknown;
 };
 
 /**
@@ -34,6 +34,9 @@ export type GetToolsRequest = {
     sessionId: string;
 };
 
+/**
+ * Tools response.
+ */
 export type GetToolsResponse = {
     /**
      * Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
@@ -50,11 +53,14 @@ export type ReadResourceRequest = {
     extensionName: string;
 };
 
+/**
+ * Resource read response.
+ */
 export type ReadResourceResponse = {
     /**
      * The resource result from the extension (MCP ReadResourceResult).
      */
-    result: unknown;
+    result?: unknown;
 };
 
 /**
@@ -80,7 +86,7 @@ export type GetSessionResponse = {
     /**
      * The session object with id, name, working_dir, timestamps, tokens, etc.
      */
-    session: unknown;
+    session?: unknown;
 };
 
 /**
@@ -97,6 +103,9 @@ export type ExportSessionRequest = {
     sessionId: string;
 };
 
+/**
+ * Export session response.
+ */
 export type ExportSessionResponse = {
     data: string;
 };
@@ -108,11 +117,21 @@ export type ImportSessionRequest = {
     data: string;
 };
 
+/**
+ * Import session response.
+ */
 export type ImportSessionResponse = {
     /**
      * The imported session object.
      */
-    session: unknown;
+    session?: unknown;
+};
+
+/**
+ * List configured extensions and any warnings.
+ */
+export type GetExtensionsRequest = {
+    [key: string]: unknown;
 };
 
 /**
@@ -129,7 +148,7 @@ export type GetExtensionsResponse = {
 export type ExtRequest = {
     id: string;
     method: string;
-    params?: AddExtensionRequest | RemoveExtensionRequest | GetToolsRequest | ReadResourceRequest | UpdateWorkingDirRequest | GetSessionRequest | DeleteSessionRequest | ExportSessionRequest | ImportSessionRequest | {
+    params?: AddExtensionRequest | RemoveExtensionRequest | GetToolsRequest | ReadResourceRequest | UpdateWorkingDirRequest | GetSessionRequest | DeleteSessionRequest | ExportSessionRequest | ImportSessionRequest | GetExtensionsRequest | {
         [key: string]: unknown;
     } | null;
 };
