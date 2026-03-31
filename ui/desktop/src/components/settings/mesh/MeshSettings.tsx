@@ -13,13 +13,9 @@ import {
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { setConfigProvider, updateCustomProvider } from '../../../api';
+import { setConfigProvider, updateCustomProvider, createCustomProvider, getCustomProvider } from '../../../api';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
-
-// mesh-llm defaults
-const API_PORT = 9337;
-const CONSOLE_PORT = 3131;
-const DEFAULT_MODEL = 'Qwen3-30B-A3B-Q4_K_M';
+import { MESH_API_PORT, MESH_CONSOLE_PORT, MESH_DEFAULT_MODEL } from '../../../mesh-constants';
 
 // Popular models from mesh-llm catalog, grouped by size
 const MODEL_CATALOG = [
@@ -57,7 +53,7 @@ export const MeshSettings = () => {
     models: [],
   });
   const [mode, setMode] = useState<MeshMode>('auto');
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
+  const [selectedModel, setSelectedModel] = useState(MESH_DEFAULT_MODEL);
   const [joinToken, setJoinToken] = useState('');
   const [contributeGpu, setContributeGpu] = useState(true);
   const [copiedToken, setCopiedToken] = useState(false);
@@ -71,14 +67,12 @@ export const MeshSettings = () => {
     setChecking(true);
     try {
       const result = await window.electron.checkMesh();
-      if (!result.installed) {
-        setStatus((prev) => (prev === 'downloading' ? prev : 'not-installed'));
-        setStatusInfo({ running: false, installed: false, models: [] });
-        return;
-      }
       if (result.running) {
         setStatus('running');
         setStatusInfo(result);
+      } else if (!result.installed) {
+        setStatus((prev) => (prev === 'downloading' ? prev : 'not-installed'));
+        setStatusInfo({ running: false, installed: false, models: [] });
       } else {
         setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'stopped'));
         setStatusInfo({ ...result, models: [] });
@@ -96,34 +90,51 @@ export const MeshSettings = () => {
     return () => clearInterval(interval);
   }, [checkStatus, status]);
 
-  // Write mesh.json to custom_providers/ (ensuring ID is "mesh"),
-  // then call the update API to trigger a server-side registry refresh.
-  const ensureMeshProvider = async (models: string[]) => {
-    const modelList = models.length > 0 ? models : [DEFAULT_MODEL];
-    await window.electron.ensureMeshProvider(modelList, 'Inference Mesh');
-    // Trigger server-side provider registry refresh
-    await updateCustomProvider({
+  const meshProviderBody = (models: string[]) => ({
+    engine: 'openai_compatible' as const,
+    display_name: 'Inference Mesh',
+    api_url: `http://localhost:${MESH_API_PORT}`,
+    api_key: '',
+    models,
+    supports_streaming: true,
+    requires_auth: false,
+  });
+
+  // Create or update the mesh custom provider via the REST API,
+  // which handles file writes and registry refresh atomically.
+  // Returns the provider ID to use with setConfigProvider.
+  const ensureMeshProvider = async (models: string[]): Promise<string> => {
+    const modelList = models.length > 0 ? models : [MESH_DEFAULT_MODEL];
+    const body = meshProviderBody(modelList);
+
+    // Check if the provider already exists
+    const existing = await getCustomProvider({
       path: { id: 'mesh' },
-      body: {
-        engine: 'openai_compatible',
-        display_name: 'Inference Mesh',
-        api_url: `http://localhost:${API_PORT}`,
-        api_key: '',
-        models: modelList,
-        supports_streaming: true,
-        requires_auth: false,
-      },
-      throwOnError: true,
     });
+
+    if (existing.data) {
+      await updateCustomProvider({
+        path: { id: 'mesh' },
+        body,
+        throwOnError: true,
+      });
+      return 'mesh';
+    } else {
+      const result = await createCustomProvider({
+        body,
+        throwOnError: true,
+      });
+      return result.data?.provider_name ?? 'mesh';
+    }
   };
 
   const activateModel = async (modelId: string) => {
     setSaving(true);
     setError(null);
     try {
-      await ensureMeshProvider(statusInfo.models);
+      const providerId = await ensureMeshProvider(statusInfo.models);
       await setConfigProvider({
-        body: { provider: 'mesh', model: modelId },
+        body: { provider: providerId, model: modelId },
         throwOnError: true,
       });
       await refreshCurrentModelAndProvider();
@@ -186,9 +197,13 @@ export const MeshSettings = () => {
 
   const stopMesh = async () => {
     try {
-      await window.electron.stopMesh();
-      setStatus('stopped');
-      setStatusInfo((prev) => ({ ...prev, running: false, models: [], token: undefined }));
+      const result = await window.electron.stopMesh();
+      if (result.stopped) {
+        setStatus('stopped');
+        setStatusInfo((prev) => ({ ...prev, running: false, models: [], token: undefined }));
+      } else {
+        setError('Failed to stop mesh-llm');
+      }
     } catch {
       setError('Failed to stop mesh-llm');
     }
@@ -576,7 +591,7 @@ export const MeshSettings = () => {
               Stop Mesh
             </Button>
             <a
-              href={`http://localhost:${CONSOLE_PORT}`}
+              href={`http://localhost:${MESH_CONSOLE_PORT}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center text-xs text-text-muted hover:text-text-default transition-colors px-2 py-1"
@@ -612,11 +627,11 @@ export const MeshSettings = () => {
             )}
             <div>
               <label className="text-xs text-text-muted block">API endpoint</label>
-              <code className="text-xs text-text-default">http://localhost:{API_PORT}/v1</code>
+              <code className="text-xs text-text-default">http://localhost:{MESH_API_PORT}/v1</code>
             </div>
             <div>
               <label className="text-xs text-text-muted block">Console</label>
-              <code className="text-xs text-text-default">http://localhost:{CONSOLE_PORT}</code>
+              <code className="text-xs text-text-default">http://localhost:{MESH_CONSOLE_PORT}</code>
             </div>
           </div>
         )}

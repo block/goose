@@ -23,7 +23,8 @@ import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'child_process';
+import { execFileSync, execSync, spawn } from 'child_process';
+import http from 'node:http';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
 import { startGoosed } from './goosed';
@@ -1566,15 +1567,12 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
 
 // ── Mesh-LLM lifecycle ──────────────────────────────────────────────
 
+import { MESH_API_PORT, MESH_CONSOLE_PORT } from './mesh-constants';
+
 const MESH_DOWNLOAD_URL =
   'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
 
 async function findMeshBinary(): Promise<string | null> {
-  const { execSync } = await import('child_process');
-  const os = await import('os');
-  const path = await import('path');
-  const fsSync = await import('fs');
-
   // 1. PATH
   try {
     const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
@@ -1584,18 +1582,17 @@ async function findMeshBinary(): Promise<string | null> {
   }
 
   // 2. ~/.mesh-llm/ (our download location)
-  const meshDir = path.default.join(os.default.homedir(), '.mesh-llm', 'mesh-llm');
-  if (fsSync.default.existsSync(meshDir)) return meshDir;
+  const meshDir = path.join(os.homedir(), '.mesh-llm', 'mesh-llm');
+  if (fsSync.existsSync(meshDir)) return meshDir;
 
   // 3. ~/.local/bin/
-  const localBin = path.default.join(os.default.homedir(), '.local', 'bin', 'mesh-llm');
-  if (fsSync.default.existsSync(localBin)) return localBin;
+  const localBin = path.join(os.homedir(), '.local', 'bin', 'mesh-llm');
+  if (fsSync.existsSync(localBin)) return localBin;
 
   return null;
 }
 
 ipcMain.handle('check-mesh', async () => {
-  const http = await import('http');
   const result: {
     running: boolean;
     installed: boolean;
@@ -1618,7 +1615,7 @@ ipcMain.handle('check-mesh', async () => {
   // Probe the API
   try {
     const modelsData: { running: boolean; models: string[] } = await new Promise((resolve) => {
-      const req = http.default.get('http://localhost:9337/v1/models', { timeout: 3000 }, (res) => {
+      const req = http.get(`http://localhost:${MESH_API_PORT}/v1/models`, { timeout: 3000 }, (res) => {
         let body = '';
         res.on('data', (chunk: Buffer) => {
           body += chunk.toString();
@@ -1651,8 +1648,8 @@ ipcMain.handle('check-mesh', async () => {
     try {
       const statusData: { token?: string; peerCount?: number; nodeStatus?: string } =
         await new Promise((resolve) => {
-          const req = http.default.get(
-            'http://localhost:3131/api/status',
+          const req = http.get(
+            `http://localhost:${MESH_CONSOLE_PORT}/api/status`,
             { timeout: 3000 },
             (res) => {
               let body = '';
@@ -1691,10 +1688,6 @@ ipcMain.handle('check-mesh', async () => {
 });
 
 ipcMain.handle('start-mesh', async (_event, args: string[]) => {
-  const fs = await import('fs');
-  const path = await import('path');
-  const os = await import('os');
-
   const binary = await findMeshBinary();
   if (!binary) {
     return {
@@ -1704,68 +1697,50 @@ ipcMain.handle('start-mesh', async (_event, args: string[]) => {
   }
 
   // Log to ~/.mesh-llm/mesh-llm.log
-  const logDir = path.default.join(os.default.homedir(), '.mesh-llm');
-  if (!fs.default.existsSync(logDir)) {
-    fs.default.mkdirSync(logDir, { recursive: true });
+  const logDir = path.join(os.homedir(), '.mesh-llm');
+  if (!fsSync.existsSync(logDir)) {
+    fsSync.mkdirSync(logDir, { recursive: true });
   }
-  const logPath = path.default.join(logDir, 'mesh-llm.log');
-  const out = fs.default.openSync(logPath, 'a');
+  const logPath = path.join(logDir, 'mesh-llm.log');
+  const out = fsSync.openSync(logPath, 'a');
 
-  // Spawn detached — mesh-llm outlives Goose
+  // Spawn detached — mesh-llm outlives Goose.
+  // Wait briefly for early spawn errors (bad permissions, missing binary, etc.)
   const child = spawn(binary, args, {
     detached: true,
     stdio: ['ignore', out, out],
   });
-  child.unref();
 
-  return { started: true, pid: child.pid };
+  const result = await new Promise<{ started: boolean; error?: string; pid?: number }>(
+    (resolve) => {
+      const timeout = setTimeout(() => {
+        child.removeAllListeners('error');
+        child.unref();
+        resolve({ started: true, pid: child.pid });
+      }, 500);
+
+      child.once('error', (err) => {
+        clearTimeout(timeout);
+        resolve({ started: false, error: `Failed to spawn mesh-llm: ${err.message}` });
+      });
+    }
+  );
+
+  fsSync.closeSync(out);
+  return result;
 });
 
 ipcMain.handle('stop-mesh', async () => {
-  const { execSync } = await import('child_process');
   try {
     const binary = await findMeshBinary();
-    if (binary) {
-      execSync(`"${binary}" stop`, { timeout: 5000, encoding: 'utf8' });
+    if (!binary) {
+      return { stopped: false };
     }
+    execFileSync(binary, ['stop'], { timeout: 5000, encoding: 'utf8' });
     return { stopped: true };
   } catch {
     return { stopped: false };
   }
-});
-
-ipcMain.handle('ensure-mesh-provider', async (_event, models: string[], displayName: string) => {
-  const os = await import('os');
-  const path = await import('path');
-  const fsSync = await import('fs');
-
-  // Resolve the same config dir goose uses
-  const pathRoot = process.env.GOOSE_PATH_ROOT;
-  const configDir = pathRoot
-    ? path.default.join(pathRoot, 'config')
-    : path.default.join(os.default.homedir(), '.config', 'goose');
-  const customDir = path.default.join(configDir, 'custom_providers');
-
-  if (!fsSync.default.existsSync(customDir)) {
-    fsSync.default.mkdirSync(customDir, { recursive: true });
-  }
-
-  const providerJson = {
-    name: 'mesh',
-    engine: 'openai',
-    display_name: displayName,
-    description: 'Decentralized LLM inference via mesh-llm',
-    api_key_env: '',
-    base_url: 'http://localhost:9337',
-    models: models.map((m) => ({ name: m, context_limit: 128000 })),
-    timeout_seconds: 600,
-    supports_streaming: true,
-    requires_auth: false,
-  };
-
-  const filePath = path.default.join(customDir, 'mesh.json');
-  fsSync.default.writeFileSync(filePath, JSON.stringify(providerJson, null, 2));
-  return { success: true };
 });
 
 ipcMain.handle('download-mesh', async () => {
@@ -1773,14 +1748,9 @@ ipcMain.handle('download-mesh', async () => {
     return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
   }
 
-  const os = await import('os');
-  const path = await import('path');
-  const fsSync = await import('fs');
-  const { execSync } = await import('child_process');
-
-  const installDir = path.default.join(os.default.homedir(), '.mesh-llm');
-  if (!fsSync.default.existsSync(installDir)) {
-    fsSync.default.mkdirSync(installDir, { recursive: true });
+  const installDir = path.join(os.homedir(), '.mesh-llm');
+  if (!fsSync.existsSync(installDir)) {
+    fsSync.mkdirSync(installDir, { recursive: true });
   }
 
   try {
@@ -1790,16 +1760,16 @@ ipcMain.handle('download-mesh', async () => {
       encoding: 'utf8',
     });
 
-    const binary = path.default.join(installDir, 'mesh-llm');
-    if (!fsSync.default.existsSync(binary)) {
+    const binary = path.join(installDir, 'mesh-llm');
+    if (!fsSync.existsSync(binary)) {
       return { downloaded: false, error: 'Download succeeded but mesh-llm binary not found' };
     }
 
     // macOS: ad-hoc codesign + clear quarantine to avoid Gatekeeper prompts
     if (process.platform === 'darwin') {
       for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
-        const bin = path.default.join(installDir, name);
-        if (fsSync.default.existsSync(bin)) {
+        const bin = path.join(installDir, name);
+        if (fsSync.existsSync(bin)) {
           try {
             execSync(`codesign -s - '${bin}' 2>/dev/null`, { timeout: 10000 });
           } catch {
