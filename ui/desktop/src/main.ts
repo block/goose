@@ -23,7 +23,8 @@ import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'child_process';
+import { execFile, execFileSync, execSync, spawn } from 'child_process';
+import http from 'node:http';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
 import { startGoosed } from './goosed';
@@ -1562,6 +1563,248 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
     return result.filePaths[0];
   }
   return null;
+});
+
+// ── Mesh-LLM lifecycle ──────────────────────────────────────────────
+
+const MESH_API_PORT = 9337;
+const MESH_CONSOLE_PORT = 3131;
+const MESH_DOWNLOAD_URL =
+  'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
+
+async function findMeshBinary(): Promise<string | null> {
+  // 1. PATH
+  try {
+    const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+    if (binPath) return binPath;
+  } catch {
+    // ignore
+  }
+
+  // 2. ~/.mesh-llm/ (our download location)
+  const meshDir = path.join(os.homedir(), '.mesh-llm', 'mesh-llm');
+  if (fsSync.existsSync(meshDir)) return meshDir;
+
+  // 3. ~/.local/bin/
+  const localBin = path.join(os.homedir(), '.local', 'bin', 'mesh-llm');
+  if (fsSync.existsSync(localBin)) return localBin;
+
+  return null;
+}
+
+ipcMain.handle('check-mesh', async () => {
+  const result: {
+    running: boolean;
+    installed: boolean;
+    models: string[];
+    token?: string;
+    peerCount?: number;
+    nodeStatus?: string;
+    binaryPath?: string;
+  } = { running: false, installed: true, models: [] };
+
+  // Check if mesh-llm binary exists
+  const binary = await findMeshBinary();
+  if (binary) {
+    result.binaryPath = binary;
+  } else {
+    result.installed = false;
+    // Still probe the API — maybe it's running from somewhere unexpected
+  }
+
+  // Probe the API
+  try {
+    const modelsData: { running: boolean; models: string[] } = await new Promise((resolve) => {
+      const req = http.get(`http://localhost:${MESH_API_PORT}/v1/models`, { timeout: 3000 }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          try {
+            if (res.statusCode !== 200) {
+              resolve({ running: false, models: [] });
+              return;
+            }
+            const data = JSON.parse(body);
+            if (!Array.isArray(data.data)) {
+              resolve({ running: false, models: [] });
+              return;
+            }
+            const models = data.data
+              .filter((m: { id?: unknown }) => typeof m.id === 'string')
+              .map((m: { id: string }) => m.id);
+            resolve({ running: true, models });
+          } catch {
+            resolve({ running: false, models: [] });
+          }
+        });
+      });
+      req.on('error', () => resolve({ running: false, models: [] }));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ running: false, models: [] });
+      });
+    });
+
+    result.running = modelsData.running;
+    result.models = modelsData.models;
+  } catch {
+    // API not reachable
+  }
+
+  // If running, also grab console status for invite token + peer info
+  if (result.running) {
+    try {
+      const statusData: { token?: string; peerCount?: number; nodeStatus?: string } =
+        await new Promise((resolve) => {
+          const req = http.get(
+            `http://localhost:${MESH_CONSOLE_PORT}/api/status`,
+            { timeout: 3000 },
+            (res) => {
+              let body = '';
+              res.on('data', (chunk: Buffer) => {
+                body += chunk.toString();
+              });
+              res.on('end', () => {
+                try {
+                  const data = JSON.parse(body);
+                  resolve({
+                    token: data.token,
+                    peerCount: Array.isArray(data.peers) ? data.peers.length : undefined,
+                    nodeStatus: data.node_status,
+                  });
+                } catch {
+                  resolve({});
+                }
+              });
+            }
+          );
+          req.on('error', () => resolve({}));
+          req.on('timeout', () => {
+            req.destroy();
+            resolve({});
+          });
+        });
+      result.token = statusData.token;
+      result.peerCount = statusData.peerCount;
+      result.nodeStatus = statusData.nodeStatus;
+    } catch {
+      // console not available — that's fine
+    }
+  }
+
+  return result;
+});
+
+ipcMain.handle('start-mesh', async (_event, args: string[]) => {
+  const binary = await findMeshBinary();
+  if (!binary) {
+    return {
+      started: false,
+      error: 'mesh-llm not found. Download it first from the Mesh settings tab.',
+    };
+  }
+
+  // Log to ~/.mesh-llm/mesh-llm.log
+  const logDir = path.join(os.homedir(), '.mesh-llm');
+  if (!fsSync.existsSync(logDir)) {
+    fsSync.mkdirSync(logDir, { recursive: true });
+  }
+  const logPath = path.join(logDir, 'mesh-llm.log');
+  const out = fsSync.openSync(logPath, 'a');
+
+  // Spawn detached — mesh-llm outlives Goose.
+  // Wait briefly for early spawn errors (bad permissions, missing binary, etc.)
+  const child = spawn(binary, args, {
+    detached: true,
+    stdio: ['ignore', out, out],
+  });
+
+  const result = await new Promise<{ started: boolean; error?: string; pid?: number }>(
+    (resolve) => {
+      const timeout = setTimeout(() => {
+        child.removeAllListeners('error');
+        child.unref();
+        resolve({ started: true, pid: child.pid });
+      }, 500);
+
+      child.once('error', (err) => {
+        clearTimeout(timeout);
+        resolve({ started: false, error: `Failed to spawn mesh-llm: ${err.message}` });
+      });
+    }
+  );
+
+  fsSync.closeSync(out);
+  return result;
+});
+
+ipcMain.handle('stop-mesh', async () => {
+  try {
+    const binary = await findMeshBinary();
+    if (!binary) {
+      return { stopped: false };
+    }
+    execFileSync(binary, ['stop'], { timeout: 5000, encoding: 'utf8' });
+    return { stopped: true };
+  } catch {
+    return { stopped: false };
+  }
+});
+
+function execFileP(cmd: string, args: string[], opts: { timeout: number }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, opts, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+ipcMain.handle('download-mesh', async () => {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+    return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
+  }
+
+  const installDir = path.join(os.homedir(), '.mesh-llm');
+  if (!fsSync.existsSync(installDir)) {
+    fsSync.mkdirSync(installDir, { recursive: true });
+  }
+
+  const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
+  try {
+    // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
+    await execFileP('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], { timeout: 120000 });
+    await execFileP('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], { timeout: 30000 });
+
+    const binary = path.join(installDir, 'mesh-llm');
+    if (!fsSync.existsSync(binary)) {
+      return { downloaded: false, error: 'Download succeeded but mesh-llm binary not found' };
+    }
+
+    // macOS: ad-hoc codesign + clear quarantine to avoid Gatekeeper prompts
+    if (process.platform === 'darwin') {
+      for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
+        const bin = path.join(installDir, name);
+        if (fsSync.existsSync(bin)) {
+          try {
+            await execFileP('codesign', ['-s', '-', bin], { timeout: 10000 });
+          } catch {
+            // codesign may fail if already signed
+          }
+          try {
+            await execFileP('xattr', ['-cr', bin], { timeout: 10000 });
+          } catch {
+            // xattr may fail
+          }
+        }
+      }
+    }
+
+    return { downloaded: true, binaryPath: binary };
+  } catch (err) {
+    return { downloaded: false, error: `Download failed: ${err}` };
+  } finally {
+    try { fsSync.unlinkSync(tarball); } catch { /* ignore */ }
+  }
 });
 
 ipcMain.handle('check-ollama', async () => {
