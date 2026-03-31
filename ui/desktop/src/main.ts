@@ -1622,8 +1622,18 @@ ipcMain.handle('check-mesh', async () => {
         });
         res.on('end', () => {
           try {
+            if (res.statusCode !== 200) {
+              resolve({ running: false, models: [] });
+              return;
+            }
             const data = JSON.parse(body);
-            const models = (data.data || []).map((m: { id: string }) => m.id);
+            if (!Array.isArray(data.data)) {
+              resolve({ running: false, models: [] });
+              return;
+            }
+            const models = data.data
+              .filter((m: { id?: unknown }) => typeof m.id === 'string')
+              .map((m: { id: string }) => m.id);
             resolve({ running: true, models });
           } catch {
             resolve({ running: false, models: [] });
