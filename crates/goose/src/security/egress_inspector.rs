@@ -170,9 +170,12 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
 }
 
 fn extract_domain_from_url(url: &str) -> Option<String> {
-    let after_scheme = url.find("://").map(|i| &url[i + 3..]).unwrap_or(url);
+    let after_scheme = url
+        .find("://")
+        .and_then(|i| url.get(i + 3..))
+        .unwrap_or(url);
     let authority = after_scheme.split('/').next()?;
-    let host_port = authority.split('@').last()?;
+    let host_port = authority.split('@').next_back()?;
     let host = if host_port.contains('[') {
         host_port
             .split(']')
