@@ -138,111 +138,21 @@ jobs:
           fi
         working-directory: ui/desktop
 
-      - name: Configure AWS credentials
-        if: ${{ inputs.signing }}
-        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
-        with:
-          role-to-assume: "${{ secrets.OSX_CODESIGN_ROLE }}"
-          aws-region: us-west-2
-
-      - name: Codesigning and Notarization
-        if: ${{ inputs.signing }}
+      - name: Prepare unsigned zip with entitlements
         run: |
-          set -e
-
-          echo "⬆️ uploading unsigned app"
-          source_job_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          unsigned_url="s3://block-goose-artifacts-bucket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-intel.zip"
-
           zip -q -u -r out/Goose-darwin-x64/Goose_intel_mac.zip entitlements.plist
-
-          # upload unsigned goose to transfer bucket so it can be passed to lambda
-          aws s3 cp --quiet out/Goose-darwin-x64/Goose_intel_mac.zip "${unsigned_url}"
-
-          # begin signing
-          echo "🚀 launching signing process"
-          aws lambda invoke \
-            --function-name codesign_helper \
-            --cli-binary-format raw-in-base64-out \
-            --payload "{\"source_s3_url\": \"${unsigned_url}\", \"source_job_url\": \"${source_job_url}\"}" \
-            response.json > /dev/null
-
-          if [ "$(jq -r .statusCode response.json)" != "200" ]; then
-            echo "⚠️ lambda function did not return expected status code"
-            exit 1
-          fi
-
-          build_number="$(jq -r .body.build_number response.json)"
-
-          start_time=$(date +%s)
-
-          while sleep 30; do
-            aws lambda invoke \
-              --function-name codesign_helper \
-              --cli-binary-format raw-in-base64-out \
-              --payload "{\"source_s3_url\": \"${unsigned_url}\", \"build_number\": \"${build_number}\"}" \
-              response.json > /dev/null
-
-            if [ "$(jq -r .statusCode response.json)" != "200" ]; then
-              echo "⚠️ signing request returned unexpected response code $(jq -r .statusCode response.json):"
-              jq . response.json
-              exit 1
-            fi
-
-            state="$(jq -r .body.state response.json)"
-
-            if [ "${state}" == "completed" ]; then
-              echo "✅ signing complete ($(($(date +%s) - start_time))s)"
-              break
-            fi
-
-            if [ $(($(date +%s) - start_time)) -ge 3600 ]; then
-              echo "⚠️ timed out ($(($(date +%s) - start_time))s)"
-              exit 1
-            fi
-
-            echo "⏲️ waiting for signing to complete (${state}: $(($(date +%s) - start_time))s)"
-          done
-
-          # parse lambda response
-          signed_url=$(jq -r .body.destination_url response.json)
-
-          # download the signed app from S3
-          echo "⬇️ downloading signed app"
-          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-x64/Goose_intel_mac.zip
+          echo "Mach-O binaries in .app:"
+          find out/Goose-darwin-x64/Goose.app -type f -exec file {} \; | grep Mach-O | wc -l
+          echo "Symlinks in .app:"
+          find out/Goose-darwin-x64/Goose.app -type l | wc -l
+          echo "Zip contents:"
+          zipinfo out/Goose-darwin-x64/Goose_intel_mac.zip | tail -5
         working-directory: ui/desktop
 
-      - name: Final cleanup before artifact upload
-        run: |
-          echo "Performing final cleanup..."
-          # Remove build artifacts that are no longer needed
-          rm -rf target || true
-          # Check disk space after cleanup
-          df -h
-
-      - name: Upload Desktop artifact
+      - name: Upload unsigned zip with entitlements
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
-          name: Goose-darwin-x64
+          name: Goose-intel-unsigned-with-entitlements
           path: ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip
 
-      - name: Quick launch test (macOS)
-        if: ${{ inputs.quick_test }}
-        run: |
-          # Ensure no quarantine attributes (if needed)
-          xattr -cr "ui/desktop/out/Goose-darwin-x64/Goose.app"
-          echo "Opening Goose.app..."
-          open -g "ui/desktop/out/Goose-darwin-x64/Goose.app"
-
-          # Give the app a few seconds to start and write logs
-          sleep 5
-
-          # Check if it's running
-          if pgrep -f "Goose.app/Contents/MacOS/Goose" > /dev/null; then
-            echo "App appears to be running."
-          else
-            echo "App did not stay open. Possible crash or startup error."
-            exit 1
-          fi
-          # Kill the app to clean up
-          pkill -f "Goose.app/Contents/MacOS/Goose"
+      # Remaining steps (signing, cleanup, upload, quick test) commented out for debug build
