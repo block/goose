@@ -148,6 +148,7 @@ export default function SkillsView() {
       }, 300);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [loading, showSkeleton]);
 
   const renderContent = () => {
@@ -238,9 +239,7 @@ export default function SkillsView() {
             >
               <div
                 className={`h-full relative transition-all duration-300 ${
-                  showContent || showSkeleton
-                    ? 'opacity-100 animate-in fade-in'
-                    : 'opacity-0'
+                  showContent || showSkeleton ? 'opacity-100 animate-in fade-in' : 'opacity-0'
                 }`}
               >
                 {renderContent()}
