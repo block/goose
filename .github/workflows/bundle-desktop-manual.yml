@@ -9,13 +9,20 @@ on:
         type: string
 
 jobs:
+  bundle-desktop-unsigned:
+    uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      signing: false
+      ref: ${{ inputs.branch }}
+
   bundle-desktop-intel-unsigned:
     uses: ./.github/workflows/bundle-desktop-intel.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: true
+      signing: false
       ref: ${{ inputs.branch }}
-    secrets:
-      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
