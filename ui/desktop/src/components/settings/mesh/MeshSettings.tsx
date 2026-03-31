@@ -15,7 +15,9 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { setConfigProvider, updateCustomProvider, createCustomProvider, getCustomProvider } from '../../../api';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
-import { MESH_API_PORT, MESH_CONSOLE_PORT, MESH_DEFAULT_MODEL } from '../../../mesh-constants';
+const MESH_API_PORT = 9337;
+const MESH_CONSOLE_PORT = 3131;
+const MESH_DEFAULT_MODEL = 'Qwen3-30B-A3B-Q4_K_M';
 
 // Popular models from mesh-llm catalog, grouped by size
 const MODEL_CATALOG = [

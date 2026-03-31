@@ -1567,8 +1567,8 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
 
 // ── Mesh-LLM lifecycle ──────────────────────────────────────────────
 
-import { MESH_API_PORT, MESH_CONSOLE_PORT } from './mesh-constants';
-
+const MESH_API_PORT = 9337;
+const MESH_CONSOLE_PORT = 3131;
 const MESH_DOWNLOAD_URL =
   'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
 
