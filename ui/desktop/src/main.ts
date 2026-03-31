@@ -1567,10 +1567,19 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
 
 // ── Mesh-LLM lifecycle ──────────────────────────────────────────────
 
+function execFileP(cmd: string, args: string[], opts: { timeout: number }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, opts, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
 const MESH_API_PORT = 9337;
 const MESH_CONSOLE_PORT = 3131;
 const MESH_DOWNLOAD_URL =
   'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
+
+// Track the mesh child process so we can kill it when Goose exits.
+let meshChildProcess: ReturnType<typeof spawn> | null = null;
 
 async function findMeshBinary(): Promise<string | null> {
   // 1. PATH
@@ -1590,6 +1599,65 @@ async function findMeshBinary(): Promise<string | null> {
   if (fsSync.existsSync(localBin)) return localBin;
 
   return null;
+}
+
+async function downloadMeshBinary(): Promise<{ binary: string } | { error: string }> {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+    return { error: 'Auto-download is only available on macOS (Apple Silicon)' };
+  }
+
+  const installDir = path.join(os.homedir(), '.mesh-llm');
+  if (!fsSync.existsSync(installDir)) {
+    fsSync.mkdirSync(installDir, { recursive: true });
+  }
+
+  const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
+  try {
+    await execFileP('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], { timeout: 120000 });
+    await execFileP('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], { timeout: 30000 });
+
+    const binary = path.join(installDir, 'mesh-llm');
+    if (!fsSync.existsSync(binary)) {
+      return { error: 'Download succeeded but mesh-llm binary not found' };
+    }
+
+    for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
+      const bin = path.join(installDir, name);
+      if (fsSync.existsSync(bin)) {
+        try {
+          await execFileP('codesign', ['-s', '-', bin], { timeout: 10000 });
+        } catch { /* codesign may fail if already signed */ }
+        try {
+          await execFileP('xattr', ['-cr', bin], { timeout: 10000 });
+        } catch { /* xattr may fail */ }
+      }
+    }
+
+    return { binary };
+  } catch (err) {
+    return { error: `Download failed: ${err}` };
+  } finally {
+    try { fsSync.unlinkSync(tarball); } catch { /* ignore */ }
+  }
+}
+
+function stopMeshChild() {
+  if (!meshChildProcess) return;
+  try {
+    meshChildProcess.kill('SIGTERM');
+  } catch { /* already dead */ }
+  meshChildProcess = null;
+}
+
+function isMeshPort(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${MESH_API_PORT}/v1/models`, { timeout: 2000 }, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
 }
 
 ipcMain.handle('check-mesh', async () => {
@@ -1698,15 +1766,25 @@ ipcMain.handle('check-mesh', async () => {
 });
 
 ipcMain.handle('start-mesh', async (_event, args: string[]) => {
-  const binary = await findMeshBinary();
-  if (!binary) {
-    return {
-      started: false,
-      error: 'mesh-llm not found. Download it first from the Mesh settings tab.',
-    };
+  // If mesh is already responding on its port, nothing to do.
+  if (await isMeshPort()) {
+    return { started: true, alreadyRunning: true };
   }
 
-  // Log to ~/.mesh-llm/mesh-llm.log
+  // Always download the latest binary before starting (macOS only).
+  const dlResult = await downloadMeshBinary();
+  let binary: string;
+  if ('error' in dlResult) {
+    // Download failed or not on macOS — fall back to whatever is already installed.
+    const existing = await findMeshBinary();
+    if (!existing) {
+      return { started: false, error: dlResult.error };
+    }
+    binary = existing;
+  } else {
+    binary = dlResult.binary;
+  }
+
   const logDir = path.join(os.homedir(), '.mesh-llm');
   if (!fsSync.existsSync(logDir)) {
     fsSync.mkdirSync(logDir, { recursive: true });
@@ -1714,23 +1792,29 @@ ipcMain.handle('start-mesh', async (_event, args: string[]) => {
   const logPath = path.join(logDir, 'mesh-llm.log');
   const out = fsSync.openSync(logPath, 'a');
 
-  // Spawn detached — mesh-llm outlives Goose.
-  // Wait briefly for early spawn errors (bad permissions, missing binary, etc.)
+  // Spawn attached — mesh-llm lives and dies with this Goose process.
   const child = spawn(binary, args, {
-    detached: true,
     stdio: ['ignore', out, out],
+  });
+
+  meshChildProcess = child;
+
+  child.on('exit', () => {
+    if (meshChildProcess === child) {
+      meshChildProcess = null;
+    }
   });
 
   const result = await new Promise<{ started: boolean; error?: string; pid?: number }>(
     (resolve) => {
       const timeout = setTimeout(() => {
         child.removeAllListeners('error');
-        child.unref();
         resolve({ started: true, pid: child.pid });
       }, 500);
 
       child.once('error', (err) => {
         clearTimeout(timeout);
+        meshChildProcess = null;
         resolve({ started: false, error: `Failed to spawn mesh-llm: ${err.message}` });
       });
     }
@@ -1741,6 +1825,12 @@ ipcMain.handle('start-mesh', async (_event, args: string[]) => {
 });
 
 ipcMain.handle('stop-mesh', async () => {
+  // If we spawned it, just kill the child directly.
+  if (meshChildProcess) {
+    stopMeshChild();
+    return { stopped: true };
+  }
+  // Fallback: use the binary's stop command for externally-started instances.
   try {
     const binary = await findMeshBinary();
     if (!binary) {
@@ -1750,60 +1840,6 @@ ipcMain.handle('stop-mesh', async () => {
     return { stopped: true };
   } catch {
     return { stopped: false };
-  }
-});
-
-function execFileP(cmd: string, args: string[], opts: { timeout: number }): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execFile(cmd, args, opts, (err) => (err ? reject(err) : resolve()));
-  });
-}
-
-ipcMain.handle('download-mesh', async () => {
-  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
-    return { downloaded: false, error: 'Auto-download is only available on macOS (Apple Silicon)' };
-  }
-
-  const installDir = path.join(os.homedir(), '.mesh-llm');
-  if (!fsSync.existsSync(installDir)) {
-    fsSync.mkdirSync(installDir, { recursive: true });
-  }
-
-  const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
-  try {
-    // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
-    await execFileP('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], { timeout: 120000 });
-    await execFileP('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], { timeout: 30000 });
-
-    const binary = path.join(installDir, 'mesh-llm');
-    if (!fsSync.existsSync(binary)) {
-      return { downloaded: false, error: 'Download succeeded but mesh-llm binary not found' };
-    }
-
-    // macOS: ad-hoc codesign + clear quarantine to avoid Gatekeeper prompts
-    if (process.platform === 'darwin') {
-      for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
-        const bin = path.join(installDir, name);
-        if (fsSync.existsSync(bin)) {
-          try {
-            await execFileP('codesign', ['-s', '-', bin], { timeout: 10000 });
-          } catch {
-            // codesign may fail if already signed
-          }
-          try {
-            await execFileP('xattr', ['-cr', bin], { timeout: 10000 });
-          } catch {
-            // xattr may fail
-          }
-        }
-      }
-    }
-
-    return { downloaded: true, binaryPath: binary };
-  } catch (err) {
-    return { downloaded: false, error: `Download failed: ${err}` };
-  } finally {
-    try { fsSync.unlinkSync(tarball); } catch { /* ignore */ }
   }
 });
 
@@ -2716,6 +2752,9 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  // Stop the mesh child process if we spawned one.
+  stopMeshChild();
+
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
       powerSaveBlocker.stop(blockerId);
