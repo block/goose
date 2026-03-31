@@ -61,6 +61,7 @@ export const MeshSettings = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeModel, setActiveModel] = useState<string | null>(null);
+  const [meshProviderId, setMeshProviderId] = useState<string>('mesh');
   const [checking, setChecking] = useState(false);
 
   const checkStatus = useCallback(async () => {
@@ -107,25 +108,32 @@ export const MeshSettings = () => {
     const modelList = models.length > 0 ? models : [MESH_DEFAULT_MODEL];
     const body = meshProviderBody(modelList);
 
-    // Check if the provider already exists
-    const existing = await getCustomProvider({
-      path: { id: 'mesh' },
-    });
+    // Try the last-known provider ID first, then fall back to 'mesh'
+    const idsToTry = meshProviderId === 'mesh'
+      ? ['mesh']
+      : [meshProviderId, 'mesh'];
 
-    if (existing.data) {
-      await updateCustomProvider({
-        path: { id: 'mesh' },
-        body,
-        throwOnError: true,
-      });
-      return 'mesh';
-    } else {
-      const result = await createCustomProvider({
-        body,
-        throwOnError: true,
-      });
-      return result.data?.provider_name ?? 'mesh';
+    for (const id of idsToTry) {
+      const existing = await getCustomProvider({ path: { id } });
+      if (existing.data) {
+        await updateCustomProvider({
+          path: { id },
+          body,
+          throwOnError: true,
+        });
+        setMeshProviderId(id);
+        return id;
+      }
     }
+
+    // Provider doesn't exist yet — create it
+    const result = await createCustomProvider({
+      body,
+      throwOnError: true,
+    });
+    const newId = result.data?.provider_name ?? 'mesh';
+    setMeshProviderId(newId);
+    return newId;
   };
 
   const activateModel = async (modelId: string) => {

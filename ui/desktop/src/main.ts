@@ -1753,10 +1753,15 @@ ipcMain.handle('download-mesh', async () => {
     fsSync.mkdirSync(installDir, { recursive: true });
   }
 
+  const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
   try {
     // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
-    execSync(`curl -fsSL '${MESH_DOWNLOAD_URL}' | tar xz --strip-components=1 -C '${installDir}'`, {
+    execFileSync('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], {
       timeout: 120000,
+      encoding: 'utf8',
+    });
+    execFileSync('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], {
+      timeout: 30000,
       encoding: 'utf8',
     });
 
@@ -1771,12 +1776,12 @@ ipcMain.handle('download-mesh', async () => {
         const bin = path.join(installDir, name);
         if (fsSync.existsSync(bin)) {
           try {
-            execSync(`codesign -s - '${bin}' 2>/dev/null`, { timeout: 10000 });
+            execFileSync('codesign', ['-s', '-', bin], { timeout: 10000 });
           } catch {
             // codesign may fail if already signed
           }
           try {
-            execSync(`xattr -cr '${bin}' 2>/dev/null`, { timeout: 10000 });
+            execFileSync('xattr', ['-cr', bin], { timeout: 10000 });
           } catch {
             // xattr may fail
           }
@@ -1787,6 +1792,8 @@ ipcMain.handle('download-mesh', async () => {
     return { downloaded: true, binaryPath: binary };
   } catch (err) {
     return { downloaded: false, error: `Download failed: ${err}` };
+  } finally {
+    try { fsSync.unlinkSync(tarball); } catch { /* ignore */ }
   }
 });
 
