@@ -23,7 +23,10 @@ import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync, execSync, spawn } from 'child_process';
+import { execFile, execFileSync, execSync, spawn } from 'child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 import http from 'node:http';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
@@ -1766,13 +1769,11 @@ ipcMain.handle('download-mesh', async () => {
   const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
   try {
     // Download and extract — mesh-bundle.tar.gz contains mesh-bundle/{mesh-llm,rpc-server,llama-server}
-    execFileSync('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], {
+    await execFileAsync('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], {
       timeout: 120000,
-      encoding: 'utf8',
     });
-    execFileSync('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], {
+    await execFileAsync('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], {
       timeout: 30000,
-      encoding: 'utf8',
     });
 
     const binary = path.join(installDir, 'mesh-llm');
@@ -1786,12 +1787,12 @@ ipcMain.handle('download-mesh', async () => {
         const bin = path.join(installDir, name);
         if (fsSync.existsSync(bin)) {
           try {
-            execFileSync('codesign', ['-s', '-', bin], { timeout: 10000 });
+            await execFileAsync('codesign', ['-s', '-', bin], { timeout: 10000 });
           } catch {
             // codesign may fail if already signed
           }
           try {
-            execFileSync('xattr', ['-cr', bin], { timeout: 10000 });
+            await execFileAsync('xattr', ['-cr', bin], { timeout: 10000 });
           } catch {
             // xattr may fail
           }
