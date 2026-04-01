@@ -479,6 +479,10 @@ export const MeshSettings = () => {
             <Play className="w-3 h-3 mr-1" />
             Start Mesh
           </Button>
+
+          <p className="text-xs text-text-muted">
+            When you start the mesh, keep goose running to stay connected.
+          </p>
         </div>
       )}
 
@@ -579,6 +583,10 @@ export const MeshSettings = () => {
               Mesh is running but no models are available yet. A model may still be loading.
             </p>
           )}
+
+          <p className="text-xs text-text-muted">
+            Keep goose running to stay connected to the mesh.
+          </p>
 
           {/* Actions row */}
           <div className="flex items-center gap-2">

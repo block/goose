@@ -23,8 +23,7 @@ import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
-import { execFile, execFileSync, execSync, spawn } from 'child_process';
-import http from 'node:http';
+import { spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
 import { startGoosed } from './goosed';
@@ -50,6 +49,7 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
+import * as mesh from './mesh';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
@@ -711,6 +711,16 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   // Stop collecting stderr to avoid unbounded memory growth over long sessions.
   stopErrorLogCollection();
   errorLog.length = 0;
+
+  // Nudge the user if mesh is their provider but isn't running.
+  // Delay to let the renderer mount before sending the IPC event.
+  setTimeout(() => {
+    mesh.checkProviderRunning(goosedClient).then((ok) => {
+      if (!ok && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('mesh-not-running');
+      }
+    }).catch(() => {});
+  }, 5000);
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -1565,283 +1575,11 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
-// ── Mesh-LLM lifecycle ──────────────────────────────────────────────
+// ── Mesh-LLM lifecycle (see mesh.ts) ────────────────────────────────
 
-function execFileP(cmd: string, args: string[], opts: { timeout: number }): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execFile(cmd, args, opts, (err) => (err ? reject(err) : resolve()));
-  });
-}
-
-const MESH_API_PORT = 9337;
-const MESH_CONSOLE_PORT = 3131;
-const MESH_DOWNLOAD_URL =
-  'https://github.com/michaelneale/mesh-llm/releases/latest/download/mesh-bundle.tar.gz';
-
-// Track the mesh child process so we can kill it when Goose exits.
-let meshChildProcess: ReturnType<typeof spawn> | null = null;
-
-async function findMeshBinary(): Promise<string | null> {
-  // 1. PATH
-  try {
-    const binPath = execSync('which mesh-llm 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
-    if (binPath) return binPath;
-  } catch {
-    // ignore
-  }
-
-  // 2. ~/.mesh-llm/ (our download location)
-  const meshDir = path.join(os.homedir(), '.mesh-llm', 'mesh-llm');
-  if (fsSync.existsSync(meshDir)) return meshDir;
-
-  // 3. ~/.local/bin/
-  const localBin = path.join(os.homedir(), '.local', 'bin', 'mesh-llm');
-  if (fsSync.existsSync(localBin)) return localBin;
-
-  return null;
-}
-
-async function downloadMeshBinary(): Promise<{ binary: string } | { error: string }> {
-  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
-    return { error: 'Auto-download is only available on macOS (Apple Silicon)' };
-  }
-
-  const installDir = path.join(os.homedir(), '.mesh-llm');
-  if (!fsSync.existsSync(installDir)) {
-    fsSync.mkdirSync(installDir, { recursive: true });
-  }
-
-  const tarball = path.join(installDir, 'mesh-bundle.tar.gz');
-  try {
-    await execFileP('curl', ['-fsSL', '-o', tarball, MESH_DOWNLOAD_URL], { timeout: 120000 });
-    await execFileP('tar', ['xz', '--strip-components=1', '-C', installDir, '-f', tarball], { timeout: 30000 });
-
-    const binary = path.join(installDir, 'mesh-llm');
-    if (!fsSync.existsSync(binary)) {
-      return { error: 'Download succeeded but mesh-llm binary not found' };
-    }
-
-    for (const name of ['mesh-llm', 'rpc-server', 'llama-server']) {
-      const bin = path.join(installDir, name);
-      if (fsSync.existsSync(bin)) {
-        try {
-          await execFileP('codesign', ['-s', '-', bin], { timeout: 10000 });
-        } catch { /* codesign may fail if already signed */ }
-        try {
-          await execFileP('xattr', ['-cr', bin], { timeout: 10000 });
-        } catch { /* xattr may fail */ }
-      }
-    }
-
-    return { binary };
-  } catch (err) {
-    return { error: `Download failed: ${err}` };
-  } finally {
-    try { fsSync.unlinkSync(tarball); } catch { /* ignore */ }
-  }
-}
-
-function stopMeshChild() {
-  if (!meshChildProcess) return;
-  try {
-    meshChildProcess.kill('SIGTERM');
-  } catch { /* already dead */ }
-  meshChildProcess = null;
-}
-
-function isMeshPort(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${MESH_API_PORT}/v1/models`, { timeout: 2000 }, (res) => {
-      res.resume();
-      resolve(res.statusCode === 200);
-    });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => { req.destroy(); resolve(false); });
-  });
-}
-
-ipcMain.handle('check-mesh', async () => {
-  const result: {
-    running: boolean;
-    installed: boolean;
-    models: string[];
-    token?: string;
-    peerCount?: number;
-    nodeStatus?: string;
-    binaryPath?: string;
-  } = { running: false, installed: true, models: [] };
-
-  // Check if mesh-llm binary exists
-  const binary = await findMeshBinary();
-  if (binary) {
-    result.binaryPath = binary;
-  } else {
-    result.installed = false;
-    // Still probe the API — maybe it's running from somewhere unexpected
-  }
-
-  // Probe the API
-  try {
-    const modelsData: { running: boolean; models: string[] } = await new Promise((resolve) => {
-      const req = http.get(`http://localhost:${MESH_API_PORT}/v1/models`, { timeout: 3000 }, (res) => {
-        let body = '';
-        res.on('data', (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        res.on('end', () => {
-          try {
-            if (res.statusCode !== 200) {
-              resolve({ running: false, models: [] });
-              return;
-            }
-            const data = JSON.parse(body);
-            if (!Array.isArray(data.data)) {
-              resolve({ running: false, models: [] });
-              return;
-            }
-            const models = data.data
-              .filter((m: { id?: unknown }) => typeof m.id === 'string')
-              .map((m: { id: string }) => m.id);
-            resolve({ running: true, models });
-          } catch {
-            resolve({ running: false, models: [] });
-          }
-        });
-      });
-      req.on('error', () => resolve({ running: false, models: [] }));
-      req.on('timeout', () => {
-        req.destroy();
-        resolve({ running: false, models: [] });
-      });
-    });
-
-    result.running = modelsData.running;
-    result.models = modelsData.models;
-  } catch {
-    // API not reachable
-  }
-
-  // If running, also grab console status for invite token + peer info
-  if (result.running) {
-    try {
-      const statusData: { token?: string; peerCount?: number; nodeStatus?: string } =
-        await new Promise((resolve) => {
-          const req = http.get(
-            `http://localhost:${MESH_CONSOLE_PORT}/api/status`,
-            { timeout: 3000 },
-            (res) => {
-              let body = '';
-              res.on('data', (chunk: Buffer) => {
-                body += chunk.toString();
-              });
-              res.on('end', () => {
-                try {
-                  const data = JSON.parse(body);
-                  resolve({
-                    token: data.token,
-                    peerCount: Array.isArray(data.peers) ? data.peers.length : undefined,
-                    nodeStatus: data.node_status,
-                  });
-                } catch {
-                  resolve({});
-                }
-              });
-            }
-          );
-          req.on('error', () => resolve({}));
-          req.on('timeout', () => {
-            req.destroy();
-            resolve({});
-          });
-        });
-      result.token = statusData.token;
-      result.peerCount = statusData.peerCount;
-      result.nodeStatus = statusData.nodeStatus;
-    } catch {
-      // console not available — that's fine
-    }
-  }
-
-  return result;
-});
-
-ipcMain.handle('start-mesh', async (_event, args: string[]) => {
-  // If mesh is already responding on its port, nothing to do.
-  if (await isMeshPort()) {
-    return { started: true, alreadyRunning: true };
-  }
-
-  // Always download the latest binary before starting (macOS only).
-  const dlResult = await downloadMeshBinary();
-  let binary: string;
-  if ('error' in dlResult) {
-    // Download failed or not on macOS — fall back to whatever is already installed.
-    const existing = await findMeshBinary();
-    if (!existing) {
-      return { started: false, error: dlResult.error };
-    }
-    binary = existing;
-  } else {
-    binary = dlResult.binary;
-  }
-
-  const logDir = path.join(os.homedir(), '.mesh-llm');
-  if (!fsSync.existsSync(logDir)) {
-    fsSync.mkdirSync(logDir, { recursive: true });
-  }
-  const logPath = path.join(logDir, 'mesh-llm.log');
-  const out = fsSync.openSync(logPath, 'a');
-
-  // Spawn attached — mesh-llm lives and dies with this Goose process.
-  const child = spawn(binary, args, {
-    stdio: ['ignore', out, out],
-  });
-
-  meshChildProcess = child;
-
-  child.on('exit', () => {
-    if (meshChildProcess === child) {
-      meshChildProcess = null;
-    }
-  });
-
-  const result = await new Promise<{ started: boolean; error?: string; pid?: number }>(
-    (resolve) => {
-      const timeout = setTimeout(() => {
-        child.removeAllListeners('error');
-        resolve({ started: true, pid: child.pid });
-      }, 500);
-
-      child.once('error', (err) => {
-        clearTimeout(timeout);
-        meshChildProcess = null;
-        resolve({ started: false, error: `Failed to spawn mesh-llm: ${err.message}` });
-      });
-    }
-  );
-
-  fsSync.closeSync(out);
-  return result;
-});
-
-ipcMain.handle('stop-mesh', async () => {
-  // If we spawned it, just kill the child directly.
-  if (meshChildProcess) {
-    stopMeshChild();
-    return { stopped: true };
-  }
-  // Fallback: use the binary's stop command for externally-started instances.
-  try {
-    const binary = await findMeshBinary();
-    if (!binary) {
-      return { stopped: false };
-    }
-    execFileSync(binary, ['stop'], { timeout: 5000, encoding: 'utf8' });
-    return { stopped: true };
-  } catch {
-    return { stopped: false };
-  }
-});
+ipcMain.handle('check-mesh', () => mesh.check());
+ipcMain.handle('start-mesh', (_event, args: string[]) => mesh.start(args));
+ipcMain.handle('stop-mesh', () => mesh.stop());
 
 ipcMain.handle('check-ollama', async () => {
   try {
@@ -2753,7 +2491,7 @@ async function getAllowList(): Promise<string[]> {
 
 app.on('will-quit', async () => {
   // Stop the mesh child process if we spawned one.
-  stopMeshChild();
+  mesh.cleanup();
 
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
