@@ -335,12 +335,16 @@ impl Agent {
     /// - frontend_requests: Tool requests that should be handled by the frontend
     /// - other_requests: All other tool requests (including requests to enable extensions)
     /// - filtered_message: The original message with frontend tool requests removed
-    pub(crate) async fn categorize_tool_requests(
-        &self,
+    /// Coerce tool arguments and build the response message.
+    ///
+    /// Returns `(all_tool_requests, response_message_for_ui)`.
+    /// The response message includes all tool requests (including frontend tools)
+    /// with coerced arguments.
+    pub(crate) fn prepare_tool_requests(
         response: &Message,
         tools: &[Tool],
-    ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
-        // First collect all tool requests with coercion applied
+    ) -> (Vec<ToolRequest>, Message) {
+        // Collect all tool requests with coercion applied
         let tool_requests: Vec<ToolRequest> = response
             .content
             .iter()
@@ -367,8 +371,8 @@ impl Agent {
             })
             .collect();
 
-        // Create a filtered message with frontend tool requests removed
-        let mut filtered_content = Vec::new();
+        // Build response message with coerced tool requests
+        let mut coerced_content = Vec::new();
         let mut tool_request_index = 0;
 
         for content in &response.content {
@@ -377,51 +381,28 @@ impl Agent {
                     if tool_request_index < tool_requests.len() {
                         let coerced_req = &tool_requests[tool_request_index];
                         tool_request_index += 1;
-
-                        let should_include = if let Ok(tool_call) = &coerced_req.tool_call {
-                            !self.is_frontend_tool(&tool_call.name).await
-                        } else {
-                            true
-                        };
-
-                        if should_include {
-                            filtered_content.push(MessageContent::ToolRequest(coerced_req.clone()));
-                        }
+                        coerced_content
+                            .push(MessageContent::ToolRequest(coerced_req.clone()));
                     }
                 }
                 _ => {
-                    filtered_content.push(content.clone());
+                    coerced_content.push(content.clone());
                 }
             }
         }
 
-        let mut filtered_message =
-            Message::new(response.role.clone(), response.created, filtered_content);
+        let mut coerced_message =
+            Message::new(response.role.clone(), response.created, coerced_content);
 
         // Preserve the ID if it exists
         if let Some(id) = response.id.clone() {
-            filtered_message = filtered_message.with_id(id);
+            coerced_message = coerced_message.with_id(id);
         }
 
-        // Categorize tool requests
-        let mut frontend_requests = Vec::new();
-        let mut other_requests = Vec::new();
-
-        for request in tool_requests {
-            if let Ok(tool_call) = &request.tool_call {
-                if self.is_frontend_tool(&tool_call.name).await {
-                    frontend_requests.push(request);
-                } else {
-                    other_requests.push(request);
-                }
-            } else {
-                // If there's an error in the tool call, add it to other_requests
-                other_requests.push(request);
-            }
-        }
-
-        (frontend_requests, other_requests, filtered_message)
+        (tool_requests, coerced_message)
     }
+
+
 
     pub(crate) async fn update_session_metrics(
         &self,

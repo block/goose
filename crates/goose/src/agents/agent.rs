@@ -31,7 +31,6 @@ use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
-    ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -71,12 +70,6 @@ pub struct ReplyContext {
     pub goose_mode: GooseMode,
     pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
-}
-
-pub struct ToolCategorizeResult {
-    pub frontend_requests: Vec<ToolRequest>,
-    pub remaining_requests: Vec<ToolRequest>,
-    pub filtered_response: Message,
 }
 
 #[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
@@ -172,7 +165,11 @@ impl Default for Agent {
 }
 
 pub enum ToolStreamItem<T> {
-    Message(ServerNotification),
+    /// MCP notification from the tool's extension.
+    Notification(ServerNotification),
+    /// A message to surface to the UI (e.g. FrontendToolRequest for frontend tools).
+    AgentMessage(Message),
+    /// The final tool result.
     Result(T),
 }
 
@@ -195,7 +192,7 @@ where
         loop {
             tokio::select! {
                 Some(msg) = rx.next() => {
-                    yield ToolStreamItem::Message(msg);
+                    yield ToolStreamItem::Notification(msg);
                 }
                 r = &mut done => {
                     yield ToolStreamItem::Result(r);
@@ -203,6 +200,18 @@ where
                 }
             }
         }
+    })
+}
+
+/// Create a ToolStream for a frontend tool: yields the FrontendToolRequest message
+/// to the UI first, then awaits the tool result future.
+pub fn frontend_tool_stream<F>(frontend_msg: Message, done: F) -> ToolStream
+where
+    F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
+{
+    Box::pin(async_stream::stream! {
+        yield ToolStreamItem::AgentMessage(frontend_msg);
+        yield ToolStreamItem::Result(done.await);
     })
 }
 
@@ -397,22 +406,6 @@ impl Agent {
         })
     }
 
-    async fn categorize_tools(
-        &self,
-        response: &Message,
-        tools: &[rmcp::model::Tool],
-    ) -> ToolCategorizeResult {
-        // Categorize tool requests
-        let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response, tools).await;
-
-        ToolCategorizeResult {
-            frontend_requests,
-            remaining_requests,
-            filtered_response,
-        }
-    }
-
     async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
@@ -576,11 +569,27 @@ impl Agent {
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
         let result: ToolCallResult = if self.is_frontend_tool(&tool_call.name).await {
-            ToolCallResult::from(Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Frontend tool execution required".to_string(),
-                None,
-            )))
+            // Frontend tools: await the response on the shared channel.
+            // The caller is responsible for emitting the FrontendToolRequest message
+            // to the UI before polling this future.
+            let tool_result_rx = Arc::clone(&self.tool_result_rx);
+            let result_future: Pin<Box<dyn Future<Output = ToolResult<CallToolResult>> + Send>> =
+                Box::pin(async move {
+                    let mut rx = tool_result_rx.lock().await;
+                    if let Some((_id, result)) = rx.recv().await {
+                        result
+                    } else {
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Frontend tool result channel closed".to_string(),
+                            None,
+                        ))
+                    }
+                });
+            ToolCallResult {
+                result: Box::new(result_future),
+                notification_stream: None,
+            }
         } else {
             let result = self
                 .extension_manager
@@ -1203,18 +1212,15 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                let ToolCategorizeResult {
-                                    frontend_requests,
-                                    remaining_requests,
-                                    filtered_response,
-                                } = self.categorize_tools(&response, &tools).await;
+                                // Coerce tool arguments and prepare tool requests (unified, no frontend/backend split)
+                                let (all_requests, coerced_response) =
+                                    Self::prepare_tool_requests(&response, &tools);
 
-                                yield AgentEvent::Message(filtered_response.clone());
+                                yield AgentEvent::Message(coerced_response.clone());
                                 tokio::task::yield_now().await;
 
-                                let num_tool_requests = frontend_requests.len() + remaining_requests.len();
-                                if num_tool_requests == 0 {
-                                    let text = filtered_response.as_concat_text();
+                                if all_requests.is_empty() {
+                                    let text = coerced_response.as_concat_text();
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
@@ -1224,25 +1230,56 @@ impl Agent {
 
                                 let mut request_to_response_map = HashMap::new();
                                 let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
-                                for request in frontend_requests.iter().chain(remaining_requests.iter()) {
+                                for request in all_requests.iter() {
                                     request_to_response_map.insert(request.id.clone(), Message::user().with_generated_id());
                                     request_metadata.insert(request.id.clone(), request.metadata.clone());
                                 }
 
-                                for request in frontend_requests.iter() {
-                                    let response_msg = request_to_response_map.get_mut(&request.id)
-                                        .ok_or_else(|| anyhow::anyhow!("missing response entry for request {}", request.id))?;
-                                    let mut frontend_tool_stream = self.handle_frontend_tool_request(
-                                        request,
-                                        response_msg,
-                                    );
+                                // Partition into frontend and backend requests
+                                let mut frontend_requests = Vec::new();
+                                let mut backend_requests = Vec::new();
+                                for request in &all_requests {
+                                    if let Ok(tool_call) = &request.tool_call {
+                                        if self.is_frontend_tool(&tool_call.name).await {
+                                            frontend_requests.push(request.clone());
+                                            continue;
+                                        }
+                                    }
+                                    backend_requests.push(request.clone());
+                                }
 
-                                    while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                        yield AgentEvent::Message(msg);
+                                // Dispatch frontend tools through the unified dispatch path.
+                                // Run sequentially because they share a single result channel.
+                                let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
+                                for request in &frontend_requests {
+                                    if let Ok(tool_call) = request.tool_call.clone() {
+                                        let frontend_msg = Message::assistant().with_frontend_tool_request(
+                                            request.id.clone(),
+                                            Ok(tool_call.clone()),
+                                        );
+                                        let (req_id, tool_result) = self.dispatch_tool_call(
+                                            tool_call,
+                                            request.id.clone(),
+                                            cancel_token.clone(),
+                                            &session,
+                                        ).await;
+                                        tool_futures.push((req_id, match tool_result {
+                                            Ok(result) => frontend_tool_stream(
+                                                frontend_msg,
+                                                result.result,
+                                            ),
+                                            Err(e) => {
+                                                tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
+                                            }
+                                        }));
                                     }
                                 }
+
+                                // Track extension install requests (used after tool execution)
+                                let mut enable_extension_request_ids: Vec<String> = vec![];
+
                                 if goose_mode == GooseMode::Chat {
-                                    for request in remaining_requests.iter() {
+                                    for request in backend_requests.iter() {
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
                                             response.add_tool_response_with_metadata(
                                                 request.id.clone(),
@@ -1256,7 +1293,7 @@ impl Agent {
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
                                             &session_config.id,
-                                            &remaining_requests,
+                                            &backend_requests,
                                             conversation.messages(),
                                             goose_mode,
                                         )
@@ -1264,7 +1301,7 @@ impl Agent {
 
                                     let permission_check_result = self.tool_inspection_manager
                                         .process_inspection_results_with_permission_inspector(
-                                            &remaining_requests,
+                                            &backend_requests,
                                             &inspection_results,
                                         )
                                         .unwrap_or_else(|| {
@@ -1273,13 +1310,11 @@ impl Agent {
                                                 needs_approval: vec![],
                                                 denied: vec![],
                                             };
-                                            result.needs_approval.extend(remaining_requests.iter().cloned());
+                                            result.needs_approval.extend(backend_requests.iter().cloned());
                                             result
                                         });
 
-                                    // Track extension requests
-                                    let mut enable_extension_request_ids = vec![];
-                                    for request in &remaining_requests {
+                                    for request in &backend_requests {
                                         if let Ok(tool_call) = &request.tool_call {
                                             if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
                                                 enable_extension_request_ids.push(request.id.clone());
@@ -1287,12 +1322,13 @@ impl Agent {
                                         }
                                     }
 
-                                    let mut tool_futures = self.handle_approved_and_denied_tools(
+                                    let mut backend_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
                                         &mut request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
                                     ).await?;
+                                    tool_futures.append(&mut backend_futures);
 
                                     {
                                         let mut tool_approval_stream = self.handle_approval_tool_requests(
@@ -1308,7 +1344,10 @@ impl Agent {
                                             yield AgentEvent::Message(msg);
                                         }
                                     }
+                                }
 
+                                // Drain all tool streams (frontend + backend) through one unified loop
+                                {
                                     let with_id = tool_futures
                                         .into_iter()
                                         .map(|(request_id, stream)| {
@@ -1363,8 +1402,11 @@ impl Agent {
                                                                     response.add_tool_response_with_metadata(request_id, output, metadata);
                                                                 }
                                                             }
-                                                            ToolStreamItem::Message(msg) => {
+                                                            ToolStreamItem::Notification(msg) => {
                                                                 yield AgentEvent::McpNotification((request_id, msg));
+                                                            }
+                                                            ToolStreamItem::AgentMessage(msg) => {
+                                                                yield AgentEvent::Message(msg);
                                                             }
                                                         }
                                                     }
@@ -1413,7 +1455,7 @@ impl Agent {
                                     .cloned()
                                     .collect();
 
-                                for request in frontend_requests.iter().chain(remaining_requests.iter()) {
+                                for request in all_requests.iter() {
                                     if request.tool_call.is_ok() {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));

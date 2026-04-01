@@ -160,29 +160,4 @@ impl Agent {
     }.boxed()
     }
 
-    pub(crate) fn handle_frontend_tool_request<'a>(
-        &'a self,
-        tool_request: &'a ToolRequest,
-        message_tool_response: &'a mut Message,
-    ) -> BoxStream<'a, anyhow::Result<Message>> {
-        try_stream! {
-                if let Ok(tool_call) = tool_request.tool_call.clone() {
-                    if self.is_frontend_tool(&tool_call.name).await {
-                        yield Message::assistant().with_frontend_tool_request(
-                            tool_request.id.clone(),
-                            Ok(tool_call.clone())
-                        );
-
-                        if let Some((id, result)) = self.tool_result_rx.lock().await.recv().await {
-                            message_tool_response.add_tool_response_with_metadata(
-                                id,
-                                result,
-                                tool_request.metadata.as_ref(),
-                            );
-                        }
-                    }
-            }
-        }
-        .boxed()
-    }
 }
