@@ -383,7 +383,8 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
 | `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation. Can also be toggled during a session using the `/r` [slash command](/docs/guides/goose-cli-commands#slash-commands) | "1", "true" (case-insensitive) to enable | false |
-| `GOOSE_SEARCH_PATHS` | Additional directories to search for executables when running extensions | JSON array of paths (e.g., `["/usr/local/bin", "~/custom/bin"]`) | System PATH only | No |
+| `GOOSE_SEARCH_PATHS` | Prepends additional directories to PATH for extension commands | JSON array of paths (for example, `["/usr/local/bin", "~/custom/bin"]`) | System PATH only |
+| `GOOSE_SHELL` | Overrides the shell used for Developer extension shell commands | Shell executable path or name (for example, `/bin/zsh`, `pwsh`, `C:\cygwin64\bin\bash.exe`) | Unix: `/bin/bash` if present, otherwise `$SHELL`, otherwise `sh`. Windows: `cmd` |
 
 **Examples**
 
@@ -397,9 +398,15 @@ export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for too
 
 # Add custom tool directories for extensions
 export GOOSE_SEARCH_PATHS='["/usr/local/bin", "~/custom/tools", "/opt/homebrew/bin"]'
+
+# Use zsh for Developer extension shell commands
+export GOOSE_SHELL=/bin/zsh
 ```
 
-These paths are prepended to the system PATH when extensions execute commands, ensuring your custom tools are found without modifying your global PATH.
+```bat
+REM Windows: use a POSIX-like shell instead of cmd.exe
+set GOOSE_SHELL=C:\cygwin64\bin\bash.exe
+```
 
 ### Enhanced Code Editing
 
