@@ -1088,4 +1088,184 @@ mod tests {
             Ok(())
         }
     }
+
+    #[cfg(test)]
+    mod errored_tool_call_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::SessionConfig;
+        use goose::config::GooseMode;
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::model::ModelConfig;
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+            ProviderUsage, Usage,
+        };
+        use goose::providers::errors::ProviderError;
+        use goose::session::session_manager::SessionType;
+        use rmcp::model::{ErrorCode, ErrorData, Tool};
+        use std::borrow::Cow;
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct ErroredToolCallProvider {
+            call_count: AtomicUsize,
+        }
+
+        impl ErroredToolCallProvider {
+            fn new() -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl ProviderDef for ErroredToolCallProvider {
+            type Provider = Self;
+
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock-errored".to_string(),
+                    display_name: "Mock Errored Tool Provider".to_string(),
+                    description: "Mock provider that returns an errored tool call".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                }
+            }
+
+            fn from_env(
+                _model: ModelConfig,
+                _extensions: Vec<goose::config::ExtensionConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
+            }
+        }
+
+        #[async_trait]
+        impl Provider for ErroredToolCallProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(5), Some(15)),
+                );
+
+                match call {
+                    0 => {
+                        let message = Message::assistant().with_tool_request(
+                            "err_call_1",
+                            Err(ErrorData {
+                                code: ErrorCode::INVALID_REQUEST,
+                                message: Cow::from(
+                                    "The provided function name 'todo/todoWrite' had invalid characters",
+                                ),
+                                data: None,
+                            }),
+                        );
+                        Ok(stream_from_single_message(message, usage))
+                    }
+                    _ => {
+                        let message = Message::assistant().with_text("Self-corrected successfully");
+                        Ok(stream_from_single_message(message, usage))
+                    }
+                }
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-errored"
+            }
+        }
+
+        #[tokio::test]
+        async fn test_errored_tool_call_delivers_feedback_and_continues() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(ErroredToolCallProvider::new());
+
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "errored-tool-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            agent.update_provider(provider, &session.id).await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Call some tools"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut responses = Vec::new();
+            while let Some(result) = reply_stream.next().await {
+                match result {
+                    Ok(AgentEvent::Message(response)) => {
+                        if let Some(MessageContent::ActionRequired(action)) =
+                            response.content.first()
+                        {
+                            if let goose::conversation::message::ActionRequiredData::ToolConfirmation { id, .. } = &action.data {
+                                agent.handle_confirmation(
+                                    id.clone(),
+                                    goose::permission::PermissionConfirmation {
+                                        principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
+                                        permission: goose::permission::Permission::AllowOnce,
+                                    },
+                                ).await;
+                            }
+                        }
+                        responses.push(response);
+                    }
+                    Ok(AgentEvent::McpNotification(_)) => {}
+                    Ok(AgentEvent::HistoryReplaced(_)) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            let has_error_feedback = responses
+                .iter()
+                .any(|r| r.as_concat_text().contains("could not be processed"));
+            assert!(
+                has_error_feedback,
+                "Expected error feedback message containing 'could not be processed'"
+            );
+
+            let has_self_correction = responses
+                .iter()
+                .any(|r| r.as_concat_text().contains("Self-corrected successfully"));
+            assert!(
+                has_self_correction,
+                "Expected chat to continue after error feedback (second provider call should have fired)"
+            );
+
+            Ok(())
+        }
+    }
 }
