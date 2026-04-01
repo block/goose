@@ -66,6 +66,9 @@ pub struct ForkResponse {
 
 const MAX_NAME_LENGTH: usize = 200;
 
+/// List all sessions
+///
+/// Returns a list of all stored sessions with their metadata (id, name, creation time, last message preview). Sessions persist across server restarts.
 #[utoipa::path(
     get,
     path = "/sessions",
@@ -91,6 +94,9 @@ async fn list_sessions(
     Ok(Json(SessionListResponse { sessions }))
 }
 
+/// Get a session with its full conversation history
+///
+/// Returns a session and its complete message history. Use this to restore a previous conversation in the UI or to inspect what happened in a session.
 #[utoipa::path(
     get,
     path = "/sessions/{session_id}",
@@ -120,6 +126,9 @@ async fn get_session(
 
     Ok(Json(session))
 }
+/// Get aggregate usage statistics across sessions
+///
+/// Returns high-level statistics such as total sessions, total messages, and token usage across all sessions. Useful for displaying usage dashboards or summaries.
 #[utoipa::path(
     get,
     path = "/sessions/insights",
@@ -144,6 +153,9 @@ async fn get_session_insights(
     Ok(Json(insights))
 }
 
+/// Rename a session
+///
+/// Updates the display name of a session. Max 200 characters.
 #[utoipa::path(
     put,
     path = "/sessions/{session_id}/name",
@@ -187,6 +199,9 @@ async fn update_session_name(
     Ok(StatusCode::OK)
 }
 
+/// Set user-provided values for a recipe's parameters
+///
+/// When a session was started from a recipe that has user-fillable parameters (e.g., project name, language), this endpoint sets those values. The recipe's system prompt is regenerated with the new values and applied to the agent.
 #[utoipa::path(
     put,
     path = "/sessions/{session_id}/user_recipe_values",
@@ -263,6 +278,9 @@ async fn update_session_user_recipe_values(
     }
 }
 
+/// Delete a session
+///
+/// Permanently deletes a session and all its conversation history. This cannot be undone.
 #[utoipa::path(
     delete,
     path = "/sessions/{session_id}",
@@ -364,6 +382,9 @@ async fn import_session(
     Ok(Json(session))
 }
 
+/// Fork a session from a point in time
+///
+/// Creates a new session by copying conversation history from an existing session, optionally truncating at a specific timestamp. Useful for branching a conversation to try a different approach without losing the original.
 #[utoipa::path(
     post,
     path = "/sessions/{session_id}/fork",
@@ -460,6 +481,9 @@ pub struct SessionExtensionsResponse {
     extensions: Vec<ExtensionConfig>,
 }
 
+/// Get the extensions configured for a specific session
+///
+/// Returns the list of MCP extensions associated with a session. This may differ from GET /config/extensions because sessions can have extensions added or removed independently of the global config.
 #[utoipa::path(
     get,
     path = "/sessions/{session_id}/extensions",

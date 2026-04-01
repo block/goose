@@ -193,6 +193,9 @@ async fn stream_event(
     }
 }
 
+/// Send a message and stream the agent's response (legacy)
+///
+/// Sends a user message to the agent and returns a streaming SSE response. This is the legacy single-request endpoint — prefer POST /sessions/{id}/reply with GET /sessions/{id}/events for new integrations, as they decouple sending from streaming and support reconnection.
 #[allow(clippy::too_many_lines)]
 #[utoipa::path(
     post,

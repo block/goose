@@ -23,6 +23,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
+/// Run OpenRouter OAuth signup flow
+///
+/// Initiates the OpenRouter OAuth device code flow, waits for the user to authorize in their browser, and stores the resulting API key in config. Blocks until complete.
 #[utoipa::path(
     post,
     path = "/handle_openrouter",
@@ -57,6 +60,9 @@ async fn start_openrouter_setup() -> Result<Json<SetupResponse>, ErrorResponse> 
     }
 }
 
+/// Run Tetrate Agent Router signup flow
+///
+/// Initiates the Tetrate Agent Router Service OAuth flow, waits for the user to authorize, and stores the resulting API key in config. Blocks until complete.
 #[utoipa::path(
     post,
     path = "/handle_tetrate",
@@ -91,6 +97,9 @@ async fn start_tetrate_setup() -> Result<Json<SetupResponse>, ErrorResponse> {
     }
 }
 
+/// Run NanoGPT signup flow
+///
+/// Initiates the NanoGPT authentication flow, waits for the user to authorize, and stores the resulting API key in config. Blocks until complete.
 #[utoipa::path(
     post,
     path = "/handle_nanogpt",

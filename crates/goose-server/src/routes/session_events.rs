@@ -118,6 +118,9 @@ fn serialize_session_event(seq: u64, request_id: Option<&str>, event: &MessageEv
 
 // ── GET /sessions/{id}/events ───────────────────────────────────────────
 
+/// Subscribe to real-time session events via SSE
+///
+/// Opens a persistent Server-Sent Events stream for a session. All agent activity — messages, tool calls, tool results, errors — is pushed through this stream. Use this together with POST /sessions/{id}/reply: send a message via reply, then consume the response events here. Supports reconnection via the Last-Event-ID header.
 #[utoipa::path(
     get,
     path = "/sessions/{id}/events",
@@ -256,6 +259,9 @@ pub async fn session_events(
 
 // ── POST /sessions/{id}/reply ───────────────────────────────────────────
 
+/// Send a message to the agent
+///
+/// Submits a user message to the agent for processing. Returns immediately with a request_id. The agent's response streams asynchronously via the GET /sessions/{id}/events SSE endpoint. This is the recommended way to interact with the agent — it decouples sending from receiving and supports SSE reconnection.
 #[utoipa::path(
     post,
     path = "/sessions/{id}/reply",
@@ -577,6 +583,9 @@ pub async fn session_reply(
 
 // ── POST /sessions/{id}/cancel ──────────────────────────────────────────
 
+/// Cancel an in-progress agent response
+///
+/// Cancels the agent's current processing for a given request. The agent will stop generating and emit a final event on the SSE stream. Use the request_id returned by POST /sessions/{id}/reply.
 #[utoipa::path(
     post,
     path = "/sessions/{id}/cancel",

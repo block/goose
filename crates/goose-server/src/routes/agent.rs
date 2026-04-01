@@ -181,6 +181,9 @@ pub struct RestartAgentResponse {
     pub extension_results: Vec<ExtensionLoadResult>,
 }
 
+/// Start a new agent session
+///
+/// Initializes a new agent session with a working directory and optional recipe or extension overrides. Provider and model are resolved from global config or recipe settings. This must be called before sending any messages. Returns the created Session object with its session_id.
 #[utoipa::path(
     post,
     path = "/agent/start",
@@ -355,12 +358,15 @@ async fn start_agent(
     Ok(Json(session))
 }
 
+/// Resume an existing agent session
+///
+/// Resumes a previously created session by its session_id, restoring its conversation history and extensions. Use this to reconnect to a session after a server restart or when switching back to a previous conversation.
 #[utoipa::path(
     post,
     path = "/agent/resume",
     request_body = ResumeAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = ResumeAgentResponse),
+        (status = 200, description = "Agent resumed successfully", body = ResumeAgentResponse),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -444,12 +450,15 @@ async fn resume_agent(
     }))
 }
 
+/// Apply recipe system prompt to the running agent
+///
+/// Re-derives the system prompt from the session's recipe and applies it to the running agent. This is a narrow operation — it only updates the system prompt. It does not reload provider, model, or extensions — use POST /agent/restart for a full re-initialization.
 #[utoipa::path(
     post,
     path = "/agent/update_from_session",
     request_body = UpdateFromSessionRequest,
     responses(
-        (status = 200, description = "Update agent from session data successfully"),
+        (status = 200, description = "Agent updated from session data successfully"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 424, description = "Agent not initialized"),
     ),
@@ -502,6 +511,9 @@ async fn update_from_session(
     Ok(StatusCode::OK)
 }
 
+/// List available tools
+///
+/// Returns the list of tools available to the agent in a session. Tools come from loaded extensions (MCP servers). Optionally filter by extension name.
 #[utoipa::path(
     get,
     path = "/agent/tools",
@@ -561,6 +573,9 @@ async fn get_tools(
     Ok(Json(tools))
 }
 
+/// Hot-swap the LLM provider for a running session
+///
+/// Replaces the active LLM provider and model for a running agent session without restarting. The new provider takes effect on the next message. Use this for switching models mid-conversation (e.g., from claude-sonnet to gpt-4o).
 #[utoipa::path(
     post,
     path = "/agent/update_provider",
@@ -639,6 +654,9 @@ async fn update_agent_provider(
     Ok(())
 }
 
+/// Update session configuration
+///
+/// Updates a session's goose_mode (e.g. auto, smart_approve, approve). This modifies the running agent's mode and persists it to the session. Currently only supports goose_mode changes.
 #[utoipa::path(
     post,
     path = "/agent/update_session",
@@ -680,6 +698,9 @@ async fn update_session(
     Ok(())
 }
 
+/// Add an extension to a running agent session
+///
+/// Dynamically loads an MCP extension into a running agent session. The extension becomes available immediately for tool calls. This operates on the live agent — unlike POST /config/extensions which only updates the persisted config.
 #[utoipa::path(
     post,
     path = "/agent/add_extension",
@@ -712,6 +733,9 @@ async fn agent_add_extension(
     Ok(StatusCode::OK)
 }
 
+/// Remove an extension from a running agent session
+///
+/// Unloads an MCP extension from a running agent session. The extension's tools become unavailable immediately. This operates on the live agent — unlike DELETE /config/extensions/{name} which only updates the persisted config.
 #[utoipa::path(
     post,
     path = "/agent/remove_extension",
@@ -766,6 +790,9 @@ async fn set_container(
     Ok(StatusCode::OK)
 }
 
+/// Stop an agent session
+///
+/// Stops a running agent session and tears down the agent instance. The session's conversation history remains in the session store and can be resumed later with POST /agent/resume, which will fully re-initialize the agent.
 #[utoipa::path(
     post,
     path = "/agent/stop",
@@ -848,6 +875,9 @@ async fn restart_agent_internal(
     Ok(extension_results)
 }
 
+/// Restart an agent session
+///
+/// Stops and re-initializes the agent for a session, reloading extensions and configuration. The conversation history is preserved. Useful after changing provider, model, or extensions.
 #[utoipa::path(
     post,
     path = "/agent/restart",
@@ -882,6 +912,9 @@ async fn restart_agent(
     Ok(Json(RestartAgentResponse { extension_results }))
 }
 
+/// Change the agent's working directory
+///
+/// Updates the working directory for a session and restarts the agent. This changes where the agent executes file operations and shell commands. The agent is automatically restarted to pick up the new directory context.
 #[utoipa::path(
     post,
     path = "/agent/update_working_dir",
@@ -959,6 +992,9 @@ async fn ensure_extensions_loaded(state: &AppState, session_id: &str) {
     }
 }
 
+/// Read an MCP resource
+///
+/// Reads a resource exposed by an MCP extension (e.g., a file, database record, or API response). Resources are identified by URI and extension name. This bypasses the agent conversation — it reads the resource directly.
 #[utoipa::path(
     post,
     path = "/agent/read_resource",
@@ -1042,15 +1078,18 @@ async fn read_resource(
     }))
 }
 
+/// Invoke a tool directly
+///
+/// Calls a specific tool by name with the provided arguments, bypassing the normal agent conversation flow. Useful for UI-driven actions like reading a resource or executing a command without sending a chat message.
 #[utoipa::path(
     post,
     path = "/agent/call_tool",
     request_body = CallToolRequest,
     responses(
-        (status = 200, description = "Resource read successfully", body = CallToolResponse),
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 424, description = "Agent not initialized"),
-        (status = 404, description = "Resource not found"),
+        (status = 404, description = "Tool not found"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -1127,6 +1166,9 @@ pub struct ListAppsResponse {
     pub apps: Vec<GooseApp>,
 }
 
+/// List installed Goose Apps
+///
+/// Returns all Goose Apps (self-contained HTML+MCP tool bundles) that are cached locally. Apps are lightweight UI components that extensions can provide.
 #[utoipa::path(
     get,
     path = "/agent/list_apps",
@@ -1197,6 +1239,9 @@ async fn list_apps(
     Ok(Json(ListAppsResponse { apps }))
 }
 
+/// Export a Goose App as HTML
+///
+/// Returns the raw HTML content of a Goose App by name. The HTML is a self-contained single-page app that can be rendered in a webview or iframe.
 #[utoipa::path(
     get,
     path = "/agent/export_app/{name}",
@@ -1255,6 +1300,9 @@ pub struct ImportAppResponse {
     pub message: String,
 }
 
+/// Import a Goose App from HTML
+///
+/// Imports a self-contained HTML Goose App into the local cache. The HTML is parsed for app metadata (name, description, MCP resource info). Duplicate names are auto-suffixed.
 #[utoipa::path(
     post,
     path = "/agent/import_app",

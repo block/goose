@@ -253,6 +253,9 @@ pub async fn read_config(
     Ok(Json(response_value))
 }
 
+/// List configured extensions from config file
+///
+/// Returns all extensions defined in the user's config.yaml, including their enabled/disabled state. This reads the persisted config — not the live agent state. To manage extensions on a running agent, use POST /agent/add_extension and POST /agent/remove_extension.
 #[utoipa::path(
     get,
     path = "/config/extensions",
@@ -270,6 +273,9 @@ pub async fn get_extensions() -> Result<Json<ExtensionResponse>, ErrorResponse> 
     }))
 }
 
+/// Add or update an extension in the config file
+///
+/// Adds or updates an extension entry in config.yaml. This persists the extension config but does NOT load it into a running agent — use POST /agent/add_extension for that, or restart the agent to pick up config changes.
 #[utoipa::path(
     post,
     path = "/config/extensions",
@@ -301,6 +307,9 @@ pub async fn add_extension(
     }
 }
 
+/// Remove an extension from the config file
+///
+/// Removes an extension entry from config.yaml. This does NOT unload it from a running agent — use POST /agent/remove_extension for that, or restart the agent.
 #[utoipa::path(
     delete,
     path = "/config/extensions/{name}",
@@ -331,11 +340,14 @@ pub async fn read_all_config() -> Result<Json<ConfigResponse>, ErrorResponse> {
     Ok(Json(ConfigResponse { config: values }))
 }
 
+/// List all available LLM providers
+///
+/// Returns all known LLM providers (e.g., anthropic, openai, ollama) with their metadata and whether they are currently configured with valid credentials.
 #[utoipa::path(
     get,
     path = "/config/providers",
     responses(
-        (status = 200, description = "All configuration values retrieved successfully", body = [ProviderDetails])
+        (status = 200, description = "All providers retrieved successfully", body = [ProviderDetails])
     )
 )]
 pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, ErrorResponse> {
@@ -451,6 +463,9 @@ pub struct ModelInfoQuery {
     pub model: String,
 }
 
+/// Get known model metadata (limits, costs)
+///
+/// Looks up a model by provider and name in the built-in model catalog. Returns context limits, max output tokens, and per-token costs if the model is known. Returns null model_info if the model is not in the catalog.
 #[utoipa::path(
     post,
     path = "/config/canonical-model-info",
@@ -483,6 +498,9 @@ pub async fn get_canonical_model_info(
     })
 }
 
+/// Initialize config from workspace defaults
+///
+/// If no config.yaml exists yet, initializes it from an optional init-config.yaml file in the workspace. This is a one-time setup step — if config already exists, this is a no-op.
 #[utoipa::path(
     post,
     path = "/config/init",
@@ -510,6 +528,9 @@ pub async fn init_config() -> Result<Json<String>, ErrorResponse> {
     }
 }
 
+/// Set tool-level permission overrides
+///
+/// Updates per-tool permission levels (e.g., always allow, always deny, ask before). These control whether the agent can execute specific tools without user confirmation. Permissions are stored globally and apply across sessions.
 #[utoipa::path(
     post,
     path = "/config/permissions",
@@ -534,6 +555,9 @@ pub async fn upsert_permissions(
     Ok(Json("Permissions updated successfully".to_string()))
 }
 
+/// Auto-detect which provider an API key belongs to
+///
+/// Given an API key, attempts to identify which LLM provider it belongs to (e.g., an sk-ant- prefix means Anthropic). Returns the provider name and available models if detected.
 #[utoipa::path(
     post,
     path = "/config/detect-provider",
@@ -763,6 +787,9 @@ pub async fn update_custom_provider(
     Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
+/// Validate that a provider's credentials work
+///
+/// Attempts to create a provider instance with the currently configured credentials. Returns 200 if the provider can be initialized successfully, or 400 if credentials are missing or invalid. Does not persist any changes.
 #[utoipa::path(
     post,
     path = "/config/check_provider",
@@ -780,6 +807,9 @@ pub async fn check_provider(
     Ok(())
 }
 
+/// Set the default provider and model in config
+///
+/// Validates the provider credentials and then persists the provider and model as the default in config.yaml. This sets what future sessions will use by default — it does NOT change the provider on a running session (use POST /agent/update_provider for that).
 #[utoipa::path(
     post,
     path = "/config/set_provider",
@@ -807,6 +837,9 @@ pub async fn set_config_provider(
     Ok(())
 }
 
+/// Browse third-party provider templates
+///
+/// Returns a catalog of known third-party OpenAI-compatible providers (from models.dev) that can be configured as custom providers. Filter by API format (openai, anthropic, ollama). Use GET /config/provider-catalog/{id} to get setup details for a specific provider.
 #[utoipa::path(
     get,
     path = "/config/provider-catalog",
@@ -834,6 +867,9 @@ pub async fn get_provider_catalog(
     Ok(Json(providers))
 }
 
+/// Get setup template for a catalog provider
+///
+/// Returns the configuration template for a specific provider from the catalog, including its API URL, required auth fields, and available models. Use this to pre-fill a custom provider creation form.
 #[utoipa::path(
     get,
     path = "/config/provider-catalog/{id}",
@@ -855,6 +891,9 @@ pub async fn get_provider_catalog_template(
     Ok(Json(template))
 }
 
+/// Run OAuth device code flow for a provider
+///
+/// Initiates and completes an OAuth device code flow for providers that support it (e.g., GitHub Copilot). This typically opens a browser for the user to authorize, then stores the resulting credentials. Blocks until the flow completes or fails.
 #[utoipa::path(
     post,
     path = "/config/providers/{name}/oauth",

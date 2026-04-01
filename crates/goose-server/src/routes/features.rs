@@ -9,6 +9,9 @@ pub struct FeaturesResponse {
     pub features: HashMap<String, bool>,
 }
 
+/// Get compile-time feature flags
+///
+/// Returns which optional features were enabled when this goosed binary was compiled (e.g., local-inference, code-mode). Useful for the UI to show/hide features that require specific build configurations.
 #[utoipa::path(
     get,
     path = "/features",

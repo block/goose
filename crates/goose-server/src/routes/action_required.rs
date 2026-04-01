@@ -22,12 +22,15 @@ fn default_principal_type() -> PrincipalType {
     PrincipalType::Tool
 }
 
+/// Submit a tool execution decision (approve or deny)
+///
+/// Forwards the user's approve/deny decision for a tool that requires confirmation. When the agent wants to execute a tool that requires user approval, it emits an actionRequired event on the SSE stream. The UI should present the action to the user and send the user's decision back via this endpoint. Returns an empty JSON object as an acknowledgment — the actual tool execution result will appear on the SSE event stream.
 #[utoipa::path(
     post,
     path = "/action-required/tool-confirmation",
     request_body = ConfirmToolActionRequest,
     responses(
-        (status = 200, description = "Tool confirmation action is confirmed", body = Value),
+        (status = 200, description = "Decision forwarded to the agent", body = Value),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
     )

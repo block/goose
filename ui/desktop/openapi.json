@@ -18,6 +18,8 @@
         "tags": [
           "super::routes::action_required"
         ],
+        "summary": "Submit a tool execution decision (approve or deny)",
+        "description": "Forwards the user's approve/deny decision for a tool that requires confirmation. When the agent wants to execute a tool that requires user approval, it emits an actionRequired event on the SSE stream. The UI should present the action to the user and send the user's decision back via this endpoint. Returns an empty JSON object as an acknowledgment — the actual tool execution result will appear on the SSE event stream.",
         "operationId": "confirm_tool_action",
         "requestBody": {
           "content": {
@@ -31,7 +33,7 @@
         },
         "responses": {
           "200": {
-            "description": "Tool confirmation action is confirmed",
+            "description": "Decision forwarded to the agent",
             "content": {
               "application/json": {
                 "schema": {}
@@ -52,6 +54,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Add an extension to a running agent session",
+        "description": "Dynamically loads an MCP extension into a running agent session. The extension becomes available immediately for tool calls. This operates on the live agent — unlike POST /config/extensions which only updates the persisted config.",
         "operationId": "agent_add_extension",
         "requestBody": {
           "content": {
@@ -91,6 +95,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Invoke a tool directly",
+        "description": "Calls a specific tool by name with the provided arguments, bypassing the normal agent conversation flow. Useful for UI-driven actions like reading a resource or executing a command without sending a chat message.",
         "operationId": "call_tool",
         "requestBody": {
           "content": {
@@ -104,7 +110,7 @@
         },
         "responses": {
           "200": {
-            "description": "Resource read successfully",
+            "description": "Tool executed successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -117,7 +123,7 @@
             "description": "Unauthorized - invalid secret key"
           },
           "404": {
-            "description": "Resource not found"
+            "description": "Tool not found"
           },
           "424": {
             "description": "Agent not initialized"
@@ -133,6 +139,8 @@
         "tags": [
           "Agent"
         ],
+        "summary": "Export a Goose App as HTML",
+        "description": "Returns the raw HTML content of a Goose App by name. The HTML is a self-contained single-page app that can be rendered in a webview or iframe.",
         "operationId": "export_app",
         "parameters": [
           {
@@ -189,6 +197,8 @@
         "tags": [
           "Agent"
         ],
+        "summary": "Import a Goose App from HTML",
+        "description": "Imports a self-contained HTML Goose App into the local cache. The HTML is parsed for app metadata (name, description, MCP resource info). Duplicate names are auto-suffixed.",
         "operationId": "import_app",
         "requestBody": {
           "content": {
@@ -244,6 +254,8 @@
         "tags": [
           "Agent"
         ],
+        "summary": "List installed Goose Apps",
+        "description": "Returns all Goose Apps (self-contained HTML+MCP tool bundles) that are cached locally. Apps are lightweight UI components that extensions can provide.",
         "operationId": "list_apps",
         "parameters": [
           {
@@ -300,6 +312,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Read an MCP resource",
+        "description": "Reads a resource exposed by an MCP extension (e.g., a file, database record, or API response). Resources are identified by URI and extension name. This bypasses the agent conversation — it reads the resource directly.",
         "operationId": "read_resource",
         "requestBody": {
           "content": {
@@ -342,6 +356,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Remove an extension from a running agent session",
+        "description": "Unloads an MCP extension from a running agent session. The extension's tools become unavailable immediately. This operates on the live agent — unlike DELETE /config/extensions/{name} which only updates the persisted config.",
         "operationId": "agent_remove_extension",
         "requestBody": {
           "content": {
@@ -381,6 +397,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Restart an agent session",
+        "description": "Stops and re-initializes the agent for a session, reloading extensions and configuration. The conversation history is preserved. Useful after changing provider, model, or extensions.",
         "operationId": "restart_agent",
         "requestBody": {
           "content": {
@@ -420,6 +438,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Resume an existing agent session",
+        "description": "Resumes a previously created session by its session_id, restoring its conversation history and extensions. Use this to reconnect to a session after a server restart or when switching back to a previous conversation.",
         "operationId": "resume_agent",
         "requestBody": {
           "content": {
@@ -433,7 +453,7 @@
         },
         "responses": {
           "200": {
-            "description": "Agent started successfully",
+            "description": "Agent resumed successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -459,6 +479,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Start a new agent session",
+        "description": "Initializes a new agent session with a working directory and optional recipe or extension overrides. Provider and model are resolved from global config or recipe settings. This must be called before sending any messages. Returns the created Session object with its session_id.",
         "operationId": "start_agent",
         "requestBody": {
           "content": {
@@ -512,6 +534,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Stop an agent session",
+        "description": "Stops a running agent session and tears down the agent instance. The session's conversation history remains in the session store and can be resumed later with POST /agent/resume, which will fully re-initialize the agent.",
         "operationId": "stop_agent",
         "requestBody": {
           "content": {
@@ -551,6 +575,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "List available tools",
+        "description": "Returns the list of tools available to the agent in a session. Tools come from loaded extensions (MCP servers). Optionally filter by extension name.",
         "operationId": "get_tools",
         "parameters": [
           {
@@ -604,6 +630,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Apply recipe system prompt to the running agent",
+        "description": "Re-derives the system prompt from the session's recipe and applies it to the running agent. This is a narrow operation — it only updates the system prompt. It does not reload provider, model, or extensions — use POST /agent/restart for a full re-initialization.",
         "operationId": "update_from_session",
         "requestBody": {
           "content": {
@@ -617,7 +645,7 @@
         },
         "responses": {
           "200": {
-            "description": "Update agent from session data successfully"
+            "description": "Agent updated from session data successfully"
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
@@ -633,6 +661,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Hot-swap the LLM provider for a running session",
+        "description": "Replaces the active LLM provider and model for a running agent session without restarting. The new provider takes effect on the next message. Use this for switching models mid-conversation (e.g., from claude-sonnet to gpt-4o).",
         "operationId": "update_agent_provider",
         "requestBody": {
           "content": {
@@ -668,6 +698,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Update session configuration",
+        "description": "Updates a session's goose_mode (e.g. auto, smart_approve, approve). This modifies the running agent's mode and persists it to the session. Currently only supports goose_mode changes.",
         "operationId": "update_session",
         "requestBody": {
           "content": {
@@ -697,6 +729,8 @@
         "tags": [
           "super::routes::agent"
         ],
+        "summary": "Change the agent's working directory",
+        "description": "Updates the working directory for a session and restarts the agent. This changes where the agent executes file operations and shell commands. The agent is automatically restarted to pick up the new directory context.",
         "operationId": "update_working_dir",
         "requestBody": {
           "content": {
@@ -775,6 +809,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Get known model metadata (limits, costs)",
+        "description": "Looks up a model by provider and name in the built-in model catalog. Returns context limits, max output tokens, and per-token costs if the model is known. Returns null model_info if the model is not in the catalog.",
         "operationId": "get_canonical_model_info",
         "requestBody": {
           "content": {
@@ -805,6 +841,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Validate that a provider's credentials work",
+        "description": "Attempts to create a provider instance with the currently configured credentials. Returns 200 if the provider can be initialized successfully, or 400 if credentials are missing or invalid. Does not persist any changes.",
         "operationId": "check_provider",
         "requestBody": {
           "content": {
@@ -974,6 +1012,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Auto-detect which provider an API key belongs to",
+        "description": "Given an API key, attempts to identify which LLM provider it belongs to (e.g., an sk-ant- prefix means Anthropic). Returns the provider name and available models if detected.",
         "operationId": "detect_provider",
         "requestBody": {
           "content": {
@@ -1007,6 +1047,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "List configured extensions from config file",
+        "description": "Returns all extensions defined in the user's config.yaml, including their enabled/disabled state. This reads the persisted config — not the live agent state. To manage extensions on a running agent, use POST /agent/add_extension and POST /agent/remove_extension.",
         "operationId": "get_extensions",
         "responses": {
           "200": {
@@ -1028,6 +1070,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Add or update an extension in the config file",
+        "description": "Adds or updates an extension entry in config.yaml. This persists the extension config but does NOT load it into a running agent — use POST /agent/add_extension for that, or restart the agent to pick up config changes.",
         "operationId": "add_extension",
         "requestBody": {
           "content": {
@@ -1067,6 +1111,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Remove an extension from the config file",
+        "description": "Removes an extension entry from config.yaml. This does NOT unload it from a running agent — use POST /agent/remove_extension for that, or restart the agent.",
         "operationId": "remove_extension",
         "parameters": [
           {
@@ -1103,6 +1149,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Initialize config from workspace defaults",
+        "description": "If no config.yaml exists yet, initializes it from an optional init-config.yaml file in the workspace. This is a one-time setup step — if config already exists, this is a no-op.",
         "operationId": "init_config",
         "responses": {
           "200": {
@@ -1126,6 +1174,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Set tool-level permission overrides",
+        "description": "Updates per-tool permission levels (e.g., always allow, always deny, ask before). These control whether the agent can execute specific tools without user confirmation. Permissions are stored globally and apply across sessions.",
         "operationId": "upsert_permissions",
         "requestBody": {
           "content": {
@@ -1293,6 +1343,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Browse third-party provider templates",
+        "description": "Returns a catalog of known third-party OpenAI-compatible providers (from models.dev) that can be configured as custom providers. Filter by API format (openai, anthropic, ollama). Use GET /config/provider-catalog/{id} to get setup details for a specific provider.",
         "operationId": "get_provider_catalog",
         "parameters": [
           {
@@ -1331,6 +1383,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Get setup template for a catalog provider",
+        "description": "Returns the configuration template for a specific provider from the catalog, including its API URL, required auth fields, and available models. Use this to pre-fill a custom provider creation form.",
         "operationId": "get_provider_catalog_template",
         "parameters": [
           {
@@ -1365,10 +1419,12 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "List all available LLM providers",
+        "description": "Returns all known LLM providers (e.g., anthropic, openai, ollama) with their metadata and whether they are currently configured with valid credentials.",
         "operationId": "providers",
         "responses": {
           "200": {
-            "description": "All configuration values retrieved successfully",
+            "description": "All providers retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -1465,6 +1521,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Run OAuth device code flow for a provider",
+        "description": "Initiates and completes an OAuth device code flow for providers that support it (e.g., GitHub Copilot). This typically opens a browser for the user to authorize, then stores the resulting credentials. Blocks until the flow completes or fails.",
         "operationId": "configure_provider_oauth",
         "parameters": [
           {
@@ -1582,6 +1640,8 @@
         "tags": [
           "super::routes::config_management"
         ],
+        "summary": "Set the default provider and model in config",
+        "description": "Validates the provider credentials and then persists the provider and model as the default in config.yaml. This sets what future sessions will use by default — it does NOT change the provider on a running session (use POST /agent/update_provider for that).",
         "operationId": "set_config_provider",
         "requestBody": {
           "content": {
@@ -1711,6 +1771,8 @@
         "tags": [
           "super::routes::dictation"
         ],
+        "summary": "Get speech-to-text provider configurations",
+        "description": "Returns all available dictation (speech-to-text) providers with their configuration status — whether they are configured, what API key they need, and whether they share credentials with the main LLM provider.",
         "operationId": "get_dictation_config",
         "responses": {
           "200": {
@@ -1870,6 +1932,8 @@
         "tags": [
           "super::routes::dictation"
         ],
+        "summary": "Transcribe audio to text (speech-to-text)",
+        "description": "Converts base64-encoded audio into text using a speech-to-text provider (OpenAI Whisper, Groq, ElevenLabs, or local). Used for voice input in the UI. Audio must be in a supported format (webm, mp4, mp3, m4a, wav) and under 50MB.",
         "operationId": "transcribe_dictation",
         "requestBody": {
           "content": {
@@ -1927,6 +1991,8 @@
         "tags": [
           "super::routes::features"
         ],
+        "summary": "Get compile-time feature flags",
+        "description": "Returns which optional features were enabled when this goosed binary was compiled (e.g., local-inference, code-mode). Useful for the UI to show/hide features that require specific build configurations.",
         "operationId": "get_features",
         "responses": {
           "200": {
@@ -1947,6 +2013,8 @@
         "tags": [
           "super::routes::setup"
         ],
+        "summary": "Run NanoGPT signup flow",
+        "description": "Initiates the NanoGPT authentication flow, waits for the user to authorize, and stores the resulting API key in config. Blocks until complete.",
         "operationId": "start_nanogpt_setup",
         "responses": {
           "200": {
@@ -1967,6 +2035,8 @@
         "tags": [
           "super::routes::setup"
         ],
+        "summary": "Run OpenRouter OAuth signup flow",
+        "description": "Initiates the OpenRouter OAuth device code flow, waits for the user to authorize in their browser, and stores the resulting API key in config. Blocks until complete.",
         "operationId": "start_openrouter_setup",
         "responses": {
           "200": {
@@ -1987,6 +2057,8 @@
         "tags": [
           "super::routes::setup"
         ],
+        "summary": "Run Tetrate Agent Router signup flow",
+        "description": "Initiates the Tetrate Agent Router Service OAuth flow, waits for the user to authorize, and stores the resulting API key in config. Blocks until complete.",
         "operationId": "start_tetrate_setup",
         "responses": {
           "200": {
@@ -2336,6 +2408,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Generate a recipe from a conversation",
+        "description": "A 'recipe' is a reusable, shareable agent task template (title, description, instructions, extensions, parameters). This endpoint uses the agent to analyze a session's conversation and auto-generate a recipe from it.",
         "operationId": "create_recipe",
         "requestBody": {
           "content": {
@@ -2375,6 +2449,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Decode a recipe from a deeplink URL",
+        "description": "Decodes a recipe from a deeplink URL string (created by POST /recipes/encode). Validates the recipe structure before returning it.",
         "operationId": "decode_recipe",
         "requestBody": {
           "content": {
@@ -2440,6 +2516,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Encode a recipe into a shareable deeplink URL",
+        "description": "Compresses and encodes a recipe into a deeplink URL string that can be shared. Recipients can decode it back into a recipe with POST /recipes/decode.",
         "operationId": "encode_recipe",
         "requestBody": {
           "content": {
@@ -2499,6 +2577,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Parse and validate a recipe from YAML content",
+        "description": "Parses a YAML string into a Recipe object and validates its structure. Use this to validate user-authored recipe files before saving.",
         "operationId": "parse_recipe",
         "requestBody": {
           "content": {
@@ -2609,6 +2689,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Scan a recipe for security issues",
+        "description": "Checks a recipe for hidden characters or other security concerns (e.g., prompt injection via invisible Unicode). Returns whether any warnings were found.",
         "operationId": "scan_recipe",
         "requestBody": {
           "content": {
@@ -2639,6 +2721,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Set or remove a cron schedule for a recipe",
+        "description": "Assigns a cron schedule to a saved recipe so it runs automatically on a recurring basis. Pass null for cron_schedule to remove the schedule.",
         "operationId": "schedule_recipe",
         "requestBody": {
           "content": {
@@ -2668,6 +2752,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Assign or remove a slash command shortcut for a recipe",
+        "description": "Maps a slash command (e.g., /deploy) to a saved recipe so users can invoke it quickly from the chat input. Pass null for slash_command to remove the mapping.",
         "operationId": "set_recipe_slash_command",
         "requestBody": {
           "content": {
@@ -2697,6 +2783,8 @@
         "tags": [
           "Recipe Management"
         ],
+        "summary": "Convert a recipe object to YAML format",
+        "description": "Serializes a Recipe JSON object into a YAML string. Useful for exporting or displaying a recipe in a human-readable format.",
         "operationId": "recipe_to_yaml",
         "requestBody": {
           "content": {
@@ -2737,6 +2825,8 @@
         "tags": [
           "super::routes::reply"
         ],
+        "summary": "Send a message and stream the agent's response (legacy)",
+        "description": "Sends a user message to the agent and returns a streaming SSE response. This is the legacy single-request endpoint — prefer POST /sessions/{id}/reply with GET /sessions/{id}/events for new integrations, as they decouple sending from streaming and support reconnection.",
         "operationId": "reply",
         "requestBody": {
           "content": {
@@ -3121,6 +3211,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "List all sessions",
+        "description": "Returns a list of all stored sessions with their metadata (id, name, creation time, last message preview). Sessions persist across server restarts.",
         "operationId": "list_sessions",
         "responses": {
           "200": {
@@ -3196,6 +3288,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Get aggregate usage statistics across sessions",
+        "description": "Returns high-level statistics such as total sessions, total messages, and token usage across all sessions. Useful for displaying usage dashboards or summaries.",
         "operationId": "get_session_insights",
         "responses": {
           "200": {
@@ -3306,6 +3400,8 @@
         "tags": [
           "super::routes::session_events"
         ],
+        "summary": "Cancel an in-progress agent response",
+        "description": "Cancels the agent's current processing for a given request. The agent will stop generating and emit a final event on the SSE stream. Use the request_id returned by POST /sessions/{id}/reply.",
         "operationId": "session_cancel",
         "parameters": [
           {
@@ -3340,6 +3436,8 @@
         "tags": [
           "super::routes::session_events"
         ],
+        "summary": "Subscribe to real-time session events via SSE",
+        "description": "Opens a persistent Server-Sent Events stream for a session. All agent activity — messages, tool calls, tool results, errors — is pushed through this stream. Use this together with POST /sessions/{id}/reply: send a message via reply, then consume the response events here. Supports reconnection via the Last-Event-ID header.",
         "operationId": "session_events",
         "parameters": [
           {
@@ -3374,6 +3472,8 @@
         "tags": [
           "super::routes::session_events"
         ],
+        "summary": "Send a message to the agent",
+        "description": "Submits a user message to the agent for processing. Returns immediately with a request_id. The agent's response streams asynchronously via the GET /sessions/{id}/events SSE endpoint. This is the recommended way to interact with the agent — it decouples sending from receiving and supports SSE reconnection.",
         "operationId": "session_reply",
         "parameters": [
           {
@@ -3427,6 +3527,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Get a session with its full conversation history",
+        "description": "Returns a session and its complete message history. Use this to restore a previous conversation in the UI or to inspect what happened in a session.",
         "operationId": "get_session",
         "parameters": [
           {
@@ -3470,6 +3572,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Delete a session",
+        "description": "Permanently deletes a session and all its conversation history. This cannot be undone.",
         "operationId": "delete_session",
         "parameters": [
           {
@@ -3553,6 +3657,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Get the extensions configured for a specific session",
+        "description": "Returns the list of MCP extensions associated with a session. This may differ from GET /config/extensions because sessions can have extensions added or removed independently of the global config.",
         "operationId": "get_session_extensions",
         "parameters": [
           {
@@ -3598,6 +3704,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Fork a session from a point in time",
+        "description": "Creates a new session by copying conversation history from an existing session, optionally truncating at a specific timestamp. Useful for branching a conversation to try a different approach without losing the original.",
         "operationId": "fork_session",
         "parameters": [
           {
@@ -3656,6 +3764,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Rename a session",
+        "description": "Updates the display name of a session. Max 200 characters.",
         "operationId": "update_session_name",
         "parameters": [
           {
@@ -3707,6 +3817,8 @@
         "tags": [
           "Session Management"
         ],
+        "summary": "Set user-provided values for a recipe's parameters",
+        "description": "When a session was started from a recipe that has user-fillable parameters (e.g., project name, language), this endpoint sets those values. The recipe's system prompt is regenerated with the new values and applied to the agent.",
         "operationId": "update_session_user_recipe_values",
         "parameters": [
           {

@@ -148,6 +148,9 @@ pub struct RecipeToYamlResponse {
     yaml: String,
 }
 
+/// Generate a recipe from a conversation
+///
+/// A 'recipe' is a reusable, shareable agent task template (title, description, instructions, extensions, parameters). This endpoint uses the agent to analyze a session's conversation and auto-generate a recipe from it.
 #[utoipa::path(
     post,
     path = "/recipes/create",
@@ -223,6 +226,9 @@ async fn create_recipe(
     }
 }
 
+/// Encode a recipe into a shareable deeplink URL
+///
+/// Compresses and encodes a recipe into a deeplink URL string that can be shared. Recipients can decode it back into a recipe with POST /recipes/decode.
 #[utoipa::path(
     post,
     path = "/recipes/encode",
@@ -246,6 +252,9 @@ async fn encode_recipe(
     }
 }
 
+/// Decode a recipe from a deeplink URL
+///
+/// Decodes a recipe from a deeplink URL string (created by POST /recipes/encode). Validates the recipe structure before returning it.
 #[utoipa::path(
     post,
     path = "/recipes/decode",
@@ -272,6 +281,9 @@ async fn decode_recipe(
     }
 }
 
+/// Scan a recipe for security issues
+///
+/// Checks a recipe for hidden characters or other security concerns (e.g., prompt injection via invisible Unicode). Returns whether any warnings were found.
 #[utoipa::path(
     post,
     path = "/recipes/scan",
@@ -364,6 +376,9 @@ async fn delete_recipe(
     StatusCode::NO_CONTENT
 }
 
+/// Set or remove a cron schedule for a recipe
+///
+/// Assigns a cron schedule to a saved recipe so it runs automatically on a recurring basis. Pass null for cron_schedule to remove the schedule.
 #[utoipa::path(
     post,
     path = "/recipes/schedule",
@@ -398,6 +413,9 @@ async fn schedule_recipe(
     }
 }
 
+/// Assign or remove a slash command shortcut for a recipe
+///
+/// Maps a slash command (e.g., /deploy) to a saved recipe so users can invoke it quickly from the chat input. Pass null for slash_command to remove the mapping.
 #[utoipa::path(
     post,
     path = "/recipes/slash-command",
@@ -520,6 +538,9 @@ fn deserialize_save_recipe_request(value: Value) -> Result<SaveRecipeRequest, Er
     })
 }
 
+/// Parse and validate a recipe from YAML content
+///
+/// Parses a YAML string into a Recipe object and validates its structure. Use this to validate user-authored recipe files before saving.
 #[utoipa::path(
     post,
     path = "/recipes/parse",
@@ -544,6 +565,9 @@ async fn parse_recipe(
     Ok(Json(ParseRecipeResponse { recipe }))
 }
 
+/// Convert a recipe object to YAML format
+///
+/// Serializes a Recipe JSON object into a YAML string. Useful for exporting or displaying a recipe in a human-readable format.
 #[utoipa::path(
     post,
     path = "/recipes/to-yaml",

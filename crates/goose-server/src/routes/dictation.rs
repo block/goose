@@ -125,6 +125,9 @@ fn convert_error(e: anyhow::Error) -> ErrorResponse {
     }
 }
 
+/// Transcribe audio to text (speech-to-text)
+///
+/// Converts base64-encoded audio into text using a speech-to-text provider (OpenAI Whisper, Groq, ElevenLabs, or local). Used for voice input in the UI. Audio must be in a supported format (webm, mp4, mp3, m4a, wav) and under 50MB.
 #[utoipa::path(
     post,
     path = "/dictation/transcribe",
@@ -185,6 +188,9 @@ pub async fn transcribe_dictation(
     Ok(Json(TranscribeResponse { text }))
 }
 
+/// Get speech-to-text provider configurations
+///
+/// Returns all available dictation (speech-to-text) providers with their configuration status — whether they are configured, what API key they need, and whether they share credentials with the main LLM provider.
 #[utoipa::path(
     get,
     path = "/dictation/config",
