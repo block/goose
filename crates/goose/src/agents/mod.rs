@@ -1,4 +1,6 @@
 mod agent;
+mod agent_driver;
+pub mod agent_loop;
 pub(crate) mod builtin_skills;
 pub mod compaction_hook;
 pub mod container;

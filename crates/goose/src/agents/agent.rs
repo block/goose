@@ -6,39 +6,33 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
-use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
-use tracing_futures::Instrument;
-use uuid::Uuid;
+use futures::{stream, FutureExt, Stream, StreamExt};
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::hooks::AgentHook;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{ToolCallResult, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
 };
-use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
+use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
-};
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::{PermissionRouting, Provider};
-use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
@@ -48,18 +42,15 @@ use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
-use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    CallToolRequestParams, CallToolResult, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, warn};
-
-const DEFAULT_MAX_TURNS: u32 = 1000;
+use tracing::{debug, error, instrument, warn};
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -310,7 +301,7 @@ impl Agent {
         self.retry_manager.get_attempts().await
     }
 
-    async fn handle_retry_logic(
+    pub(super) async fn handle_retry_logic(
         &self,
         messages: &mut Conversation,
         session_config: &SessionConfig,
@@ -333,7 +324,7 @@ impl Agent {
             | RetryResult::SuccessChecksPassed => Ok(false),
         }
     }
-    async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
+    pub(super) async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
         let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
@@ -406,7 +397,7 @@ impl Agent {
         })
     }
 
-    async fn handle_approved_and_denied_tools(
+    pub(super) async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
         request_to_response_map: &mut HashMap<String, Message>,
@@ -448,7 +439,7 @@ impl Agent {
         Ok(tool_futures)
     }
 
-    fn handle_denied_tools(
+    pub(super) fn handle_denied_tools(
         permission_check_result: &PermissionCheckResult,
         request_to_response_map: &mut HashMap<String, Message>,
     ) {
@@ -1094,10 +1085,10 @@ impl Agent {
             .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
             .await?;
         let ReplyContext {
-            mut conversation,
-            mut tools,
-            mut toolshim_tools,
-            mut system_prompt,
+            conversation,
+            tools,
+            toolshim_tools,
+            system_prompt,
             tool_call_cut_off,
             goose_mode,
             initial_messages,
@@ -1119,590 +1110,24 @@ impl Agent {
             });
         }
 
-        // Count tool calls present before this reply — everything added during
-        // the reply loop is part of the current turn and should not be summarized.
-        let pre_turn_tool_count = conversation
-            .messages()
-            .iter()
-            .flat_map(|m| m.content.iter())
-            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-            .count();
+        let loop_config = super::agent_loop::LoopConfig {
+            session_config,
+            session,
+            cancel_token,
+            conversation,
+            tools,
+            toolshim_tools,
+            system_prompt,
+            goose_mode,
+            tool_call_cut_off,
+            initial_messages,
+        };
 
-        let working_dir = session.working_dir.clone();
-        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", session.id = %session_config.id);
-        let inner = Box::pin(async_stream::try_stream! {
-            let mut turns_taken = 0u32;
-            let max_turns = session_config.max_turns.unwrap_or_else(|| {
-                Config::global()
-                    .get_param::<u32>("GOOSE_MAX_TURNS")
-                    .unwrap_or(DEFAULT_MAX_TURNS)
-            });
-            let mut last_assistant_text = String::new();
-
-            loop {
-                if is_token_cancelled(&cancel_token) {
-                    break;
-                }
-
-                {
-                    let guard = self.final_output_tool.lock().await;
-                    if let Some(ref output) = guard.as_ref().and_then(|fot| fot.final_output.clone()) {
-                        yield AgentEvent::Message(Message::assistant().with_text(output));
-                        break;
-                    }
-                }
-
-                turns_taken += 1;
-                if turns_taken > max_turns {
-                    yield AgentEvent::Message(
-                        Message::assistant().with_text(
-                            "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                        )
-                    );
-                    break;
-                }
-
-                let conversation_with_moim = super::moim::inject_moim(
-                    &session_config.id,
-                    conversation.clone(),
-                    &self.extension_manager,
-                    &working_dir,
-                ).await;
-
-                let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
-                    &session_config.id,
-                    &system_prompt,
-                    conversation_with_moim.messages(),
-                    &tools,
-                    &toolshim_tools,
-                ).await?;
-
-                let current_turn_tool_count = conversation.messages().iter()
-                    .flat_map(|m| m.content.iter())
-                    .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-                    .count()
-                    .saturating_sub(pre_turn_tool_count);
-
-                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
-                    self.provider().await?,
-                    session_config.id.clone(),
-                    conversation.clone(),
-                    tool_call_cut_off,
-                    current_turn_tool_count,
-                );
-
-                let mut no_tools_called = true;
-                let mut messages_to_add = Conversation::default();
-                let mut tools_updated = false;
-                let mut did_recovery_compact_this_iteration = false;
-                let mut exit_chat = false;
-
-                while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) || exit_chat {
-                        break;
-                    }
-
-                    match next {
-                        Ok((response, usage)) => {
-                            self.compaction_hook.reset_recovery_attempts();
-
-                            if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
-                            }
-
-                            if let Some(response) = response {
-                                // Coerce tool arguments and prepare tool requests (unified, no frontend/backend split)
-                                let (all_requests, coerced_response) =
-                                    Self::prepare_tool_requests(&response, &tools);
-
-                                yield AgentEvent::Message(coerced_response.clone());
-                                tokio::task::yield_now().await;
-
-                                if all_requests.is_empty() {
-                                    let text = coerced_response.as_concat_text();
-                                    if !text.is_empty() {
-                                        last_assistant_text = text;
-                                    }
-                                    messages_to_add.push(response);
-                                    continue;
-                                }
-
-                                let mut request_to_response_map = HashMap::new();
-                                let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
-                                for request in all_requests.iter() {
-                                    request_to_response_map.insert(request.id.clone(), Message::user().with_generated_id());
-                                    request_metadata.insert(request.id.clone(), request.metadata.clone());
-                                }
-
-                                // Partition into frontend and backend requests
-                                let mut frontend_requests = Vec::new();
-                                let mut backend_requests = Vec::new();
-                                for request in &all_requests {
-                                    if let Ok(tool_call) = &request.tool_call {
-                                        if self.is_frontend_tool(&tool_call.name).await {
-                                            frontend_requests.push(request.clone());
-                                            continue;
-                                        }
-                                    }
-                                    backend_requests.push(request.clone());
-                                }
-
-                                // Dispatch frontend tools through the unified dispatch path.
-                                // Run sequentially because they share a single result channel.
-                                let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
-                                for request in &frontend_requests {
-                                    if let Ok(tool_call) = request.tool_call.clone() {
-                                        let frontend_msg = Message::assistant().with_frontend_tool_request(
-                                            request.id.clone(),
-                                            Ok(tool_call.clone()),
-                                        );
-                                        let (req_id, tool_result) = self.dispatch_tool_call(
-                                            tool_call,
-                                            request.id.clone(),
-                                            cancel_token.clone(),
-                                            &session,
-                                        ).await;
-                                        tool_futures.push((req_id, match tool_result {
-                                            Ok(result) => frontend_tool_stream(
-                                                frontend_msg,
-                                                result.result,
-                                            ),
-                                            Err(e) => {
-                                                tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
-                                            }
-                                        }));
-                                    }
-                                }
-
-                                // Track extension install requests (used after tool execution)
-                                let mut enable_extension_request_ids: Vec<String> = vec![];
-
-                                if goose_mode == GooseMode::Chat {
-                                    for request in backend_requests.iter() {
-                                        if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                                            response.add_tool_response_with_metadata(
-                                                request.id.clone(),
-                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
-                                                request.metadata.as_ref(),
-                                            );
-                                        }
-                                    }
-                                } else {
-                                    // Run all tool inspectors
-                                    let inspection_results = self.tool_inspection_manager
-                                        .inspect_tools(
-                                            &session_config.id,
-                                            &backend_requests,
-                                            conversation.messages(),
-                                            goose_mode,
-                                        )
-                                        .await?;
-
-                                    let permission_check_result = self.tool_inspection_manager
-                                        .process_inspection_results_with_permission_inspector(
-                                            &backend_requests,
-                                            &inspection_results,
-                                        )
-                                        .unwrap_or_else(|| {
-                                            let mut result = PermissionCheckResult {
-                                                approved: vec![],
-                                                needs_approval: vec![],
-                                                denied: vec![],
-                                            };
-                                            result.needs_approval.extend(backend_requests.iter().cloned());
-                                            result
-                                        });
-
-                                    for request in &backend_requests {
-                                        if let Ok(tool_call) = &request.tool_call {
-                                            if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
-                                                enable_extension_request_ids.push(request.id.clone());
-                                            }
-                                        }
-                                    }
-
-                                    let mut backend_futures = self.handle_approved_and_denied_tools(
-                                        &permission_check_result,
-                                        &mut request_to_response_map,
-                                        cancel_token.clone(),
-                                        &session,
-                                    ).await?;
-                                    tool_futures.append(&mut backend_futures);
-
-                                    {
-                                        let mut tool_approval_stream = self.handle_approval_tool_requests(
-                                            &permission_check_result.needs_approval,
-                                            &mut tool_futures,
-                                            &mut request_to_response_map,
-                                            cancel_token.clone(),
-                                            &session,
-                                            &inspection_results,
-                                        );
-
-                                        while let Some(msg) = tool_approval_stream.try_next().await? {
-                                            yield AgentEvent::Message(msg);
-                                        }
-                                    }
-                                }
-
-                                // Drain all tool streams (frontend + backend) through one unified loop
-                                {
-                                    let with_id = tool_futures
-                                        .into_iter()
-                                        .map(|(request_id, stream)| {
-                                            stream.map(move |item| (request_id.clone(), item))
-                                        })
-                                        .collect::<Vec<_>>();
-
-                                    let mut combined = stream::select_all(with_id);
-                                    let mut all_install_successful = true;
-
-                                    loop {
-                                        if is_token_cancelled(&cancel_token) {
-                                            break;
-                                        }
-
-                                        for msg in self.drain_elicitation_messages(&session_config.id).await {
-                                            yield AgentEvent::Message(msg);
-                                        }
-
-                                        tokio::select! {
-                                            biased;
-
-                                            tool_item = combined.next() => {
-                                                match tool_item {
-                                                    Some((request_id, item)) => {
-                                                        match item {
-                                                            ToolStreamItem::Result(output) => {
-                                                                if let Ok(ref call_result) = output {
-                                                                    if let Some(ref meta) = call_result.meta {
-                                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
-                                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
-                                                                                let params = notification_data.get("params").cloned();
-                                                                                let custom_notification = rmcp::model::CustomNotification::new(
-                                                                                    method.to_string(),
-                                                                                    params,
-                                                                                );
-
-                                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
-                                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-
-                                                                if enable_extension_request_ids.contains(&request_id)
-                                                                    && output.is_err()
-                                                                {
-                                                                    all_install_successful = false;
-                                                                }
-                                                                if let Some(response) = request_to_response_map.get_mut(&request_id) {
-                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
-                                                                    response.add_tool_response_with_metadata(request_id, output, metadata);
-                                                                }
-                                                            }
-                                                            ToolStreamItem::Notification(msg) => {
-                                                                yield AgentEvent::McpNotification((request_id, msg));
-                                                            }
-                                                            ToolStreamItem::AgentMessage(msg) => {
-                                                                yield AgentEvent::Message(msg);
-                                                            }
-                                                        }
-                                                    }
-                                                    None => break,
-                                                }
-                                            }
-
-                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                                                // Continue loop to drain elicitation messages
-                                            }
-                                        }
-                                    }
-
-                                    // check for remaining elicitation messages after all tools complete
-                                    for msg in self.drain_elicitation_messages(&session_config.id).await {
-                                        yield AgentEvent::Message(msg);
-                                    }
-
-                                    if all_install_successful && !enable_extension_request_ids.is_empty() {
-                                        if let Err(e) = self.save_extension_state(&session_config).await {
-                                            warn!("Failed to save extension state after runtime changes: {}", e);
-                                        }
-                                        tools_updated = true;
-                                    }
-                                }
-
-                                // Preserve thinking/reasoning content from the original response
-                                // Gemini (and other thinking models) require thinking to be echoed back
-                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages
-                                let thinking_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
-                                if !thinking_content.is_empty() {
-                                    let thinking_msg = Message::new(
-                                        response.role.clone(),
-                                        response.created,
-                                        thinking_content,
-                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
-                                }
-
-                                // Collect reasoning content to attach to tool request messages
-                                let reasoning_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
-
-                                for request in all_requests.iter() {
-                                    if request.tool_call.is_ok() {
-                                        let mut request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()));
-
-                                        // Providers like Kimi require reasoning_content on all assistant
-                                        // messages with tool_calls when thinking mode is enabled.
-                                        for rc in &reasoning_content {
-                                            request_msg = request_msg.with_content(rc.clone());
-                                        }
-
-                                        request_msg = request_msg
-                                            .with_tool_request_with_metadata(
-                                                request.id.clone(),
-                                                request.tool_call.clone(),
-                                                request.metadata.as_ref(),
-                                                request.tool_meta.clone(),
-                                            );
-                                        messages_to_add.push(request_msg);
-                                        let final_response = request_to_response_map
-                                            .remove(&request.id)
-                                            .unwrap_or_else(|| Message::user().with_generated_id());
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
-                                    } else {
-                                        error!(
-                                            "Tool call could not be parsed: {}",
-                                            request.tool_call.as_ref().unwrap_err(),
-                                        );
-                                        yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
-                                            )
-                                        );
-                                        exit_chat = true;
-                                        break;
-                                    }
-                                }
-
-                                no_tools_called = false;
-                            }
-                        }
-                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-
-                            // Delegate recovery compaction to the hook
-                            let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
-                            let mut hook_ctx = super::hooks::LoopContext {
-                                conversation: conversation.clone(),
-                                system_prompt: system_prompt.clone(),
-                                tools: tools.clone(),
-                                toolshim_tools: toolshim_tools.clone(),
-                                provider: self.provider().await?,
-                                session_id: session_config.id.clone(),
-                                schedule_id: session_config.schedule_id.clone(),
-                                session_manager: session_manager.clone(),
-                                event_tx: hook_event_tx,
-                            };
-
-                            let recovery = self.compaction_hook.on_error(provider_err, &mut hook_ctx).await?;
-
-                            // Drain hook events
-                            while let Ok(event) = hook_event_rx.try_recv() {
-                                match event {
-                                    super::hooks::LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
-                                    super::hooks::LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
-                                }
-                            }
-
-                            match recovery {
-                                super::hooks::ErrorRecovery::Retry => {
-                                    conversation = hook_ctx.conversation;
-                                    did_recovery_compact_this_iteration = true;
-                                    break; // break inner stream loop, outer loop retries
-                                }
-                                super::hooks::ErrorRecovery::Propagate => {
-                                    break; // unrecoverable
-                                }
-                            }
-                        }
-                        Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Error: {}", provider_err);
-
-                            let user_msg = if top_up_url.is_some() {
-                                "Please add credits to your account, then resend your message to continue.".to_string()
-                            } else {
-                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
-                            };
-
-                            let notification_data = serde_json::json!({
-                                "top_up_url": top_up_url,
-                            });
-
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification_with_data(
-                                    SystemNotificationType::CreditsExhausted,
-                                    user_msg,
-                                    notification_data,
-                                )
-                            );
-                            break;
-                        }
-                        Err(ref provider_err @ ProviderError::NetworkError(_)) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("{provider_err}\n\nPlease resend your message to try again.")
-                                )
-                            );
-                            break;
-                        }
-                        Err(ref provider_err) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                )
-                            );
-                            break;
-                        }
-                    }
-                }
-                if tools_updated {
-                    (tools, toolshim_tools, system_prompt) =
-                        self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
-                }
-
-                {
-                    let has_new_hints = self
-                        .prompt_manager
-                        .lock()
-                        .await
-                        .load_subdirectory_hints(&working_dir);
-                    if has_new_hints && !tools_updated {
-                        (tools, toolshim_tools, system_prompt) =
-                            self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
-                    }
-                }
-
-                if no_tools_called {
-                    // Lock, extract state, drop guard before branching — handle_retry_logic
-                    // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
-                    let final_output = {
-                        let guard = self.final_output_tool.lock().await;
-                        guard.as_ref().map(|fot| fot.final_output.clone())
-                    };
-
-                    match final_output {
-                        Some(None) => {
-                            warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message);
-                        }
-                        Some(Some(output)) => {
-                            let message = Message::assistant().with_text(output);
-                            messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message);
-                            exit_chat = true;
-                        }
-                        None if did_recovery_compact_this_iteration => {
-                            // continue from last user message after recovery compact
-                        }
-                        None => {
-                            match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
-                                Ok(should_retry) => {
-                                    if should_retry {
-                                        info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
-                                        yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    } else {
-                                        exit_chat = true;
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Retry logic failed: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Retry logic encountered an error: {}", e)
-                                        )
-                                    );
-                                    exit_chat = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if is_token_cancelled(&cancel_token) {
-                    tool_pair_summarization_task.abort();
-                }
-
-                if let Ok(summaries) = tool_pair_summarization_task.await {
-                    let mut updated_messages = conversation.messages().clone();
-
-                    for (summary_msg, tool_id) in summaries {
-                        let matching: Vec<&mut Message> = updated_messages
-                            .iter_mut()
-                            .filter(|msg| {
-                                msg.id.is_some() && msg.content.iter().any(|c| match c {
-                                    MessageContent::ToolRequest(req) => req.id == tool_id,
-                                    MessageContent::ToolResponse(resp) => resp.id == tool_id,
-                                    _ => false,
-                                })
-                            })
-                            .collect();
-
-                        if matching.len() == 2 {
-                            for msg in matching {
-                                let id = msg.id.as_ref().unwrap();
-                                msg.metadata = msg.metadata.with_agent_invisible();
-                                SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
-                                    metadata.with_agent_invisible()
-                                }).await?;
-                            }
-                            messages_to_add.push(summary_msg);
-                        } else {
-                            warn!("Expected a tool request/reply pair, but found {} matching messages",
-                                matching.len());
-                        }
-                    }
-                    conversation = Conversation::new_unvalidated(updated_messages);
-                }
-
-                for msg in &messages_to_add {
-                    session_manager.add_message(&session_config.id, msg).await?;
-                }
-                conversation.extend(messages_to_add);
-                if exit_chat {
-                    break;
-                }
-
-                tokio::task::yield_now().await;
-            }
-
-            if !last_assistant_text.is_empty() {
-                tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
-            }
-        }.instrument(reply_stream_span));
-        Ok(inner)
+        Ok(super::agent_loop::run_agent_loop(
+            self,
+            &self.compaction_hook,
+            loop_config,
+        ))
     }
 
     pub async fn extend_system_prompt(&self, key: String, instruction: String) {
