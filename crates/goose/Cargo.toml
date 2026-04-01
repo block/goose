@@ -187,6 +187,7 @@ pem = { version = "3", optional = true }
 pkcs1 = { version = "0.7", default-features = false, features = ["pkcs8"], optional = true }
 pkcs8 = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
 sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8"], optional = true }
+libc = "0.2.184"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
