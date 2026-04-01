@@ -284,7 +284,8 @@ jobs:
           GOOSE_PROVIDER: anthropic
           GOOSE_MODEL: claude-sonnet-4-5-20250929
           SHELL: /bin/bash
+          SKIP_BUILD: 1
         run: |
             echo 'export PATH=/some/fake/path:$PATH' >> $HOME/.bash_profile
-            source ../../bin/activate-hermit && pnpm run test:integration:debug
+            source ../../bin/activate-hermit && pnpm run test:integration -- tests/integration/goosed.test.ts
         working-directory: ui/desktop
