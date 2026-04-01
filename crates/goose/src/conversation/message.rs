@@ -794,6 +794,17 @@ impl Message {
             ));
     }
 
+    pub fn with_tool_response_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        self.with_content(MessageContent::tool_response_with_metadata(
+            id, result, metadata,
+        ))
+    }
+
     /// Add an action required message for tool confirmation
     pub fn with_action_required<S: Into<String>>(
         self,

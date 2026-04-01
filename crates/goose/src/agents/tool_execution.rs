@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+use std::future::Future;
+use std::sync::Arc;
+
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use rmcp::model::CallToolResult;
-use std::collections::HashMap;
-use std::future::Future;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use std::path::PathBuf;
 
 use crate::config::permission::PermissionLevel;
+use crate::hooks::Hooks;
 use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
@@ -74,14 +77,16 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
                                         If needed, adjust the explanation based on user preferences or questions.";
 
 impl Agent {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
-        tool_futures: &'a mut Vec<(String, ToolStream)>,
-        request_to_response_map: &'a mut HashMap<String, Message>,
+        tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
+        request_to_response_map: &'a HashMap<String, Arc<Mutex<Message>>>,
         cancellation_token: Option<CancellationToken>,
         session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
+        hooks: &'a Hooks,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
         for request in tool_requests.iter() {
@@ -122,9 +127,42 @@ impl Agent {
                 }
 
                 if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+                    let invocation = crate::hooks::HookInvocation::pre_tool_use(
+                        session.id.clone(),
+                        tool_call.name.to_string(),
+                        serde_json::to_value(&tool_call.arguments)
+                            .unwrap_or(serde_json::Value::Null),
+                        session.working_dir.to_string_lossy().to_string(),
+                    );
+                    let outcome = hooks
+                        .run(
+                            invocation,
+                            &self.extension_manager,
+                            &session.working_dir,
+                            cancellation_token.clone().unwrap_or_default(),
+                        )
+                        .await
+                        .unwrap_or_default();
+                    if outcome.blocked {
+                        if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                            let mut response = response_msg.lock().await;
+                            *response = response.clone().with_tool_response_with_metadata(
+                                request.id.clone(),
+                                Ok(rmcp::model::CallToolResult::error(vec![
+                                    rmcp::model::Content::text(
+                                        outcome.reason.as_deref().unwrap_or("Tool execution blocked by hook").to_string()
+                                    ),
+                                ])),
+                                request.metadata.as_ref(),
+                            );
+                        }
+                        continue;
+                    }
 
-                    tool_futures.push((req_id, match tool_result {
+                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+                    let mut futures = tool_futures.lock().await;
+
+                    futures.push((req_id, match tool_result {
                         Ok(result) => tool_stream(
                             result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
                             result.result,
@@ -141,10 +179,11 @@ impl Agent {
                             .await;
                     }
                 } else {
-                    if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                        response.add_tool_response_with_metadata(
+                    if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                        let mut response = response_msg.lock().await;
+                        *response = response.clone().with_tool_response_with_metadata(
                             request.id.clone(),
-                            Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                            Ok(rmcp::model::CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
                             request.metadata.as_ref(),
                         );
                     }
@@ -163,7 +202,7 @@ impl Agent {
     pub(crate) fn handle_frontend_tool_request<'a>(
         &'a self,
         tool_request: &'a ToolRequest,
-        message_tool_response: &'a mut Message,
+        message_tool_response: Arc<Mutex<Message>>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
                 if let Ok(tool_call) = tool_request.tool_call.clone() {
@@ -174,7 +213,8 @@ impl Agent {
                         );
 
                         if let Some((id, result)) = self.tool_result_rx.lock().await.recv().await {
-                            message_tool_response.add_tool_response_with_metadata(
+                            let mut response = message_tool_response.lock().await;
+                            *response = response.clone().with_tool_response_with_metadata(
                                 id,
                                 result,
                                 tool_request.metadata.as_ref(),

@@ -117,6 +117,11 @@ fn resolve_login_shell_path() -> Option<String> {
 #[cfg(not(windows))]
 static LOGIN_PATH: LazyLock<Option<String>> = LazyLock::new(resolve_login_shell_path);
 
+#[cfg(not(windows))]
+pub(crate) fn user_login_path() -> Option<&'static str> {
+    LOGIN_PATH.as_deref()
+}
+
 pub struct ShellTool {
     output_dir: tempfile::TempDir,
     call_index: AtomicUsize,
@@ -401,7 +406,7 @@ async fn run_command(
     })
 }
 
-fn build_shell_command(command_line: &str) -> tokio::process::Command {
+pub(crate) fn build_shell_command(command_line: &str) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
         let shell = std::env::var("GOOSE_SHELL").unwrap_or_else(|_| "cmd".to_string());
