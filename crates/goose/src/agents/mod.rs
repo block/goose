@@ -6,6 +6,7 @@ pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
 pub mod final_output_tool;
+pub mod hooks;
 mod large_response_handler;
 pub mod mcp_client;
 pub mod moim;
@@ -24,6 +25,7 @@ pub mod types;
 pub mod validate_extensions;
 
 pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult, GoosePlatform};
+pub use hooks::AgentHook;
 pub use container::Container;
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::{ExtensionConfig, ExtensionError};
