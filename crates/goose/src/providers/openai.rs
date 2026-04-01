@@ -33,8 +33,10 @@ use rmcp::model::Tool;
 
 const OPEN_AI_PROVIDER_NAME: &str = "openai";
 const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
+const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
 const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
+const OPEN_AI_DEFAULT_EMBEDDINGS_PATH: &str = "v1/embeddings";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -53,6 +55,48 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
+
+type OpenAiBaseUrlParts = (String, Vec<(String, String)>, bool);
+
+/// Components extracted from an `OPENAI_BASE_URL` value.
+struct ParsedBaseUrl {
+    /// The host (scheme + authority + any path prefix before `/v1`).
+    host: String,
+    /// Query parameters to forward on every request.
+    query_params: Vec<(String, String)>,
+    /// Whether the URL should keep versioned default endpoint paths.
+    has_v1: bool,
+    /// `true` when the host was derived from `OPENAI_BASE_URL`.
+    /// Controls whether `OPENAI_BASE_PATH` is read from env only
+    /// (to avoid persisted desktop defaults shadowing URL-derived paths)
+    /// or from config too (to honour Docker Model Runner setups).
+    from_base_url: bool,
+}
+
+pub(crate) fn parse_openai_base_url(raw_url: &str) -> Result<OpenAiBaseUrlParts> {
+    let parsed = url::Url::parse(raw_url)
+        .map_err(|e| anyhow::anyhow!("Invalid OPENAI_BASE_URL '{}': {}", raw_url, e))?;
+
+    let authority = parsed[..url::Position::BeforePath].to_string();
+    let query_params: Vec<(String, String)> = parsed
+        .query_pairs()
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+
+    let path = parsed.path().trim_end_matches('/');
+    if path.is_empty() || path == "/" {
+        return Ok((authority, query_params, true));
+    }
+
+    if path == "/v1" {
+        return Ok((authority, query_params, true));
+    }
+    if let Some(prefix) = path.strip_suffix("/v1") {
+        return Ok((format!("{}{}", authority, prefix), query_params, true));
+    }
+
+    Ok((format!("{}{}", authority, path), query_params, false))
+}
 
 #[derive(Debug, serde::Serialize)]
 pub struct OpenAiProvider {
@@ -74,9 +118,71 @@ impl OpenAiProvider {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OPENAI_HOST")
-            .unwrap_or_else(|_| "https://api.openai.com".to_string());
+
+        // Resolve host and base_path.
+        //
+        // Priority (highest first):
+        //   1. OPENAI_HOST env var — session override (deprecated but still
+        //      honoured so that `OPENAI_HOST=… goose` keeps working)
+        //   2. OPENAI_BASE_URL (env or config) — ecosystem-standard
+        //   3. OPENAI_HOST from config file — persisted by `goose configure`
+        //   4. Default "https://api.openai.com"
+        //
+        // OPENAI_BASE_URL is parsed into host + query params + a flag
+        // indicating whether the URL included a /v1 path segment.  When /v1
+        // is present the default base_path is "v1/chat/completions";
+        // otherwise "chat/completions" to match the OpenAI SDK convention.
+        //
+        // OPENAI_BASE_PATH always wins when set explicitly.
+        let parsed = if let Ok(h) = std::env::var("OPENAI_HOST") {
+            // OPENAI_HOST env var takes priority as a session override so
+            // that existing scripts like `OPENAI_HOST=… goose` still work
+            // even after OPENAI_BASE_URL is persisted in config.
+            ParsedBaseUrl {
+                host: h,
+                query_params: vec![],
+                has_v1: true,
+                from_base_url: false,
+            }
+        } else if let Some(raw_url) = config
+            .get_param::<String>("OPENAI_BASE_URL")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+        {
+            Self::parse_base_url(&raw_url)?
+        } else {
+            let h: String = config
+                .get_param("OPENAI_HOST")
+                .unwrap_or_else(|_| "https://api.openai.com".to_string());
+            ParsedBaseUrl {
+                host: h,
+                query_params: vec![],
+                has_v1: true,
+                from_base_url: false,
+            }
+        };
+
+        // When the host was derived from OPENAI_BASE_URL, read
+        // OPENAI_BASE_PATH from env only so that the desktop UI's persisted
+        // default ("v1/chat/completions") doesn't shadow the versionless
+        // path.  When the host came from OPENAI_HOST (env or config), read
+        // from config too — Docker Model Runner and similar setups persist a
+        // custom base_path that must be honoured.
+        let default_bp = || {
+            if parsed.has_v1 {
+                OPEN_AI_DEFAULT_BASE_PATH.to_string()
+            } else {
+                OPEN_AI_VERSIONLESS_BASE_PATH.to_string()
+            }
+        };
+        let base_path: String = if parsed.from_base_url {
+            std::env::var("OPENAI_BASE_PATH").unwrap_or_else(|_| default_bp())
+        } else {
+            config
+                .get_param("OPENAI_BASE_PATH")
+                .unwrap_or_else(|_| default_bp())
+        };
 
         let secrets = config
             .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
@@ -87,9 +193,6 @@ impl OpenAiProvider {
             .cloned()
             .map(parse_custom_headers);
 
-        let base_path: String = config
-            .get_param("OPENAI_BASE_PATH")
-            .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
@@ -98,8 +201,15 @@ impl OpenAiProvider {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
             _ => AuthMethod::NoAuth,
         };
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+        let mut api_client = ApiClient::with_timeout(
+            parsed.host,
+            auth,
+            std::time::Duration::from_secs(timeout_secs),
+        )?;
+
+        if !parsed.query_params.is_empty() {
+            api_client = api_client.with_query(parsed.query_params);
+        }
 
         if let Some(org) = &organization {
             api_client = api_client.with_header("OpenAI-Organization", org)?;
@@ -235,6 +345,36 @@ impl OpenAiProvider {
         })
     }
 
+    /// Parse an OPENAI_BASE_URL value into components for Goose's provider model.
+    ///
+    /// The OpenAI SDK convention is that `OPENAI_BASE_URL` contains the API root
+    /// (e.g. `https://api.openai.com/v1`) and endpoint paths like
+    /// `/chat/completions` are appended to it.
+    ///
+    /// Returns `(host, query_params, has_v1)`:
+    ///   - `host`: scheme + authority + any path prefix before `/v1`
+    ///   - `query_params`: any `?key=value` pairs to forward on every request
+    ///   - `has_v1`: whether the URL should keep versioned default paths
+    ///
+    /// Bare hosts and `/v1` roots keep `v1/chat/completions` as the default
+    /// base_path. Explicit non-`/v1` roots use `chat/completions`.
+    ///
+    /// Examples:
+    ///   `https://api.openai.com/v1`              → (`https://api.openai.com`, [], true)
+    ///   `https://gw.example.com/openai/v1`       → (`https://gw.example.com/openai`, [], true)
+    ///   `https://example.com`                    → (`https://example.com`, [], true)
+    ///   `https://example.com/custom/api`         → (`https://example.com/custom/api`, [], false)
+    ///   `https://gw.example.com/v1?api-version=X`→ (`https://gw.example.com`, [("api-version","X")], true)
+    fn parse_base_url(raw_url: &str) -> Result<ParsedBaseUrl> {
+        let (host, query_params, has_v1) = parse_openai_base_url(raw_url)?;
+        Ok(ParsedBaseUrl {
+            host,
+            query_params,
+            has_v1,
+            from_base_url: true,
+        })
+    }
+
     fn normalize_base_path(base_path: &str) -> String {
         if let Some(path) = base_path.strip_prefix('/') {
             format!("/{}", path.trim_end_matches('/'))
@@ -262,6 +402,11 @@ impl OpenAiProvider {
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
         let normalized_base_path = Self::normalize_base_path(base_path);
+        // Only the standard "v1/chat/completions" is treated as a default
+        // path that defers to model-based routing.  The versionless
+        // "chat/completions" (derived from an OPENAI_BASE_URL without /v1)
+        // is treated as custom because versionless gateways typically do not
+        // support the Responses API.
         let has_custom_base_path = normalized_base_path != OPEN_AI_DEFAULT_BASE_PATH;
 
         if has_custom_base_path {
@@ -377,6 +522,7 @@ impl ProviderDef for OpenAiProvider {
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", false, true, None, true),
+                ConfigKey::new("OPENAI_BASE_URL", false, false, None, false),
                 ConfigKey::new(
                     "OPENAI_HOST",
                     true,
@@ -625,8 +771,13 @@ impl EmbeddingCapable for OpenAiProvider {
                 };
                 let request_value = serde_json::to_value(request_clone)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+                let embeddings_path = Self::map_base_path(
+                    &self.base_path,
+                    "embeddings",
+                    OPEN_AI_DEFAULT_EMBEDDINGS_PATH,
+                );
                 self.api_client
-                    .api_post(Some(session_id), "v1/embeddings", &request_value)
+                    .api_post(Some(session_id), &embeddings_path, &request_value)
                     .await
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))
             })
@@ -842,5 +993,96 @@ mod tests {
     fn unknown_absolute_path_falls_back_to_absolute_models_path() {
         let models_path = OpenAiProvider::map_base_path("/custom/path", "models", "v1/models");
         assert_eq!(models_path, "/v1/models");
+    }
+
+    #[test]
+    fn parse_base_url_strips_v1_from_standard_openai_url() {
+        let r = OpenAiProvider::parse_base_url("https://api.openai.com/v1").unwrap();
+        assert_eq!(r.host, "https://api.openai.com");
+        assert!(r.query_params.is_empty());
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_preserves_prefix_before_v1() {
+        let r = OpenAiProvider::parse_base_url("https://gateway.example.com/openai/v1").unwrap();
+        assert_eq!(r.host, "https://gateway.example.com/openai");
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_handles_no_path() {
+        let r = OpenAiProvider::parse_base_url("https://api.openai.com").unwrap();
+        assert_eq!(r.host, "https://api.openai.com");
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_handles_trailing_slash() {
+        let r = OpenAiProvider::parse_base_url("https://api.openai.com/v1/").unwrap();
+        assert_eq!(r.host, "https://api.openai.com");
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_preserves_port() {
+        let r = OpenAiProvider::parse_base_url("https://localhost:8080/v1").unwrap();
+        assert_eq!(r.host, "https://localhost:8080");
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_preserves_non_v1_path() {
+        let r = OpenAiProvider::parse_base_url("https://example.com/custom/api").unwrap();
+        assert_eq!(r.host, "https://example.com/custom/api");
+        assert!(!r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_preserves_query_params() {
+        let r = OpenAiProvider::parse_base_url("https://gw.example.com/v1?api-version=2024-02-01")
+            .unwrap();
+        assert_eq!(r.host, "https://gw.example.com");
+        assert_eq!(
+            r.query_params,
+            vec![("api-version".to_string(), "2024-02-01".to_string())]
+        );
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_preserves_multiple_query_params() {
+        let r = OpenAiProvider::parse_base_url("https://example.com/v1?key=val&foo=bar").unwrap();
+        assert_eq!(r.query_params.len(), 2);
+        assert_eq!(r.query_params[0], ("key".to_string(), "val".to_string()));
+        assert_eq!(r.query_params[1], ("foo".to_string(), "bar".to_string()));
+    }
+
+    #[test]
+    fn parse_base_url_preserves_credentials() {
+        let r = OpenAiProvider::parse_base_url("https://user:pass@gateway.example.com/v1").unwrap();
+        assert_eq!(r.host, "https://user:pass@gateway.example.com");
+        assert!(r.has_v1);
+    }
+
+    #[test]
+    fn parse_base_url_rejects_empty_string() {
+        assert!(OpenAiProvider::parse_base_url("").is_err());
+    }
+
+    #[test]
+    fn parse_base_url_rejects_whitespace_only() {
+        assert!(OpenAiProvider::parse_base_url("  ").is_err());
+    }
+
+    #[test]
+    fn versionless_base_path_opts_out_of_responses_for_codex_models() {
+        // Versionless gateways (OPENAI_BASE_URL without /v1) typically don't
+        // support the Responses API, so "chat/completions" is treated as a
+        // custom path that opts out of model-based routing.
+        assert!(!OpenAiProvider::should_use_responses_api(
+            "gpt-5-codex",
+            "chat/completions"
+        ));
     }
 }
