@@ -44,11 +44,12 @@ async function runCodeExecTest(tc: TestCase): Promise<void> {
       GOOSE_MODEL: tc.model,
     });
 
-    // Matches: "execute | code_execution", "get_function_details | code_execution",
+    // Matches: "execute_typescript | code_execution", "get_function_details | code_execution",
     //           "tool call | execute", "tool calls | execute" (old format)
     //           "▸ execute N tool call" (new format with tool_graph)
+    //           "▸ execute_typescript" (plain tool name in output)
     const codeExecPattern =
-      /(execute \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)|(▸.*execute.*tool call)/;
+      /(execute_typescript \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)|(▸.*execute.*tool call)|(▸ execute_typescript)/;
 
     expect(
       codeExecPattern.test(output),
