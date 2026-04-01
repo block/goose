@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
+use super::hooks::AgentHook;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -28,9 +29,6 @@ use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
-};
 use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
     ToolRequest,
@@ -63,7 +61,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
-const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -153,6 +150,12 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
+
+    /// Composable hooks for the agent loop (will be used as more hooks are added).
+    #[allow(dead_code)]
+    pub(super) hooks: Vec<Box<dyn super::hooks::AgentHook>>,
+    /// Compaction hook (kept separately for reset_recovery_attempts access).
+    pub(super) compaction_hook: Arc<super::compaction_hook::CompactionHook>,
 }
 
 #[derive(Clone, Debug)]
@@ -228,6 +231,7 @@ impl Agent {
         };
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
+        let compaction_hook = Arc::new(super::compaction_hook::CompactionHook::new());
         Self {
             provider: provider.clone(),
             config,
@@ -251,6 +255,8 @@ impl Agent {
                 provider.clone(),
             ),
             container: Mutex::new(None),
+            hooks: Vec::new(),
+            compaction_hook,
         }
     }
 
@@ -1028,78 +1034,38 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact = check_if_compaction_needed(
-            self.provider().await?.as_ref(),
-            &conversation,
-            None,
-            &session,
-        )
-        .await?;
-
-        let conversation_to_compact = conversation.clone();
-
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact {
-                conversation
-            } else {
-                let config = Config::global();
-                let threshold = config
-                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                let threshold_percentage = (threshold * 100.0) as u32;
-
-                let inline_msg = format!(
-                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                    threshold_percentage
-                );
-
-                yield AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::InlineMessage,
-                        inline_msg,
-                    )
-                );
-
-                yield AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::ThinkingMessage,
-                        COMPACTION_THINKING_TEXT,
-                    )
-                );
-
-                match compact_messages(
-                    self.provider().await?.as_ref(),
-                    &session_config.id,
-                    &conversation_to_compact,
-                    false,
-                )
-                .await
-                {
-                    Ok((compacted_conversation, summarization_usage)) => {
-                        session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
-
-                        yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
-
-                        yield AgentEvent::Message(
-                            Message::assistant().with_system_notification(
-                                SystemNotificationType::InlineMessage,
-                                "Compaction complete",
-                            )
-                        );
-
-                        compacted_conversation
-                    }
-                    Err(e) => {
-                        yield AgentEvent::Message(
-                            Message::assistant().with_text(
-                                format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                            )
-                        );
-                        return;
-                    }
-                }
+            // Run pre-reply compaction via the hook
+            let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+            let mut hook_ctx = super::hooks::LoopContext {
+                conversation: conversation.clone(),
+                system_prompt: String::new(), // Not needed for compaction check
+                tools: Vec::new(),
+                toolshim_tools: Vec::new(),
+                provider: self.provider().await?,
+                session_id: session_config.id.clone(),
+                schedule_id: session_config.schedule_id.clone(),
+                session_manager: session_manager.clone(),
+                event_tx,
             };
+
+            let compaction_result = self.compaction_hook.pre_inference(&mut hook_ctx).await;
+
+            // Drain and yield any events emitted by the hook
+            while let Ok(event) = event_rx.try_recv() {
+                match event {
+                    super::hooks::LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
+                    super::hooks::LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
+                }
+            }
+
+            if let Err(_e) = compaction_result {
+                // Hook already emitted error message to event_tx
+                return;
+            }
+
+            // Use the (possibly compacted) conversation from the hook context
+            let final_conversation = hook_ctx.conversation;
 
             let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
             while let Some(event) = reply_stream.next().await {
@@ -1162,7 +1128,6 @@ impl Agent {
                     .get_param::<u32>("GOOSE_MAX_TURNS")
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
-            let mut compaction_attempts = 0;
             let mut last_assistant_text = String::new();
 
             loop {
@@ -1231,7 +1196,7 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
-                            compaction_attempts = 0;
+                            self.compaction_hook.reset_recovery_attempts();
 
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
@@ -1493,58 +1458,39 @@ impl Agent {
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            compaction_attempts += 1;
 
-                            if compaction_attempts >= 2 {
-                                error!("Context limit exceeded after compaction - prompt too large");
-                                yield AgentEvent::Message(
-                                    Message::assistant().with_system_notification(
-                                        SystemNotificationType::InlineMessage,
-                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
-                                    )
-                                );
-                                break;
+                            // Delegate recovery compaction to the hook
+                            let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
+                            let mut hook_ctx = super::hooks::LoopContext {
+                                conversation: conversation.clone(),
+                                system_prompt: system_prompt.clone(),
+                                tools: tools.clone(),
+                                toolshim_tools: toolshim_tools.clone(),
+                                provider: self.provider().await?,
+                                session_id: session_config.id.clone(),
+                                schedule_id: session_config.schedule_id.clone(),
+                                session_manager: session_manager.clone(),
+                                event_tx: hook_event_tx,
+                            };
+
+                            let recovery = self.compaction_hook.on_error(provider_err, &mut hook_ctx).await?;
+
+                            // Drain hook events
+                            while let Ok(event) = hook_event_rx.try_recv() {
+                                match event {
+                                    super::hooks::LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
+                                    super::hooks::LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
+                                }
                             }
 
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification(
-                                    SystemNotificationType::InlineMessage,
-                                    "Context limit reached. Compacting to continue conversation...",
-                                )
-                            );
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification(
-                                    SystemNotificationType::ThinkingMessage,
-                                    COMPACTION_THINKING_TEXT,
-                                )
-                            );
-
-                            match compact_messages(
-                                self.provider().await?.as_ref(),
-                                &session_config.id,
-                                &conversation,
-                                false,
-                            )
-                            .await
-                            {
-                                Ok((compacted_conversation, usage)) => {
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                            match recovery {
+                                super::hooks::ErrorRecovery::Retry => {
+                                    conversation = hook_ctx.conversation;
                                     did_recovery_compact_this_iteration = true;
-                                    yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    break;
+                                    break; // break inner stream loop, outer loop retries
                                 }
-                                Err(e) => {
-                                    #[cfg(feature = "telemetry")]
-                                    crate::posthog::emit_error("compaction_failed", &e.to_string());
-                                    error!("Compaction failed: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
-                                        )
-                                    );
-                                    break;
+                                super::hooks::ErrorRecovery::Propagate => {
+                                    break; // unrecoverable
                                 }
                             }
                         }

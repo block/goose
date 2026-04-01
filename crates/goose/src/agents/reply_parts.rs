@@ -430,49 +430,66 @@ impl Agent {
         usage: &ProviderUsage,
         is_compaction_usage: bool,
     ) -> Result<()> {
-        let manager = self.config.session_manager.clone();
-        let session = manager.get_session(session_id, false).await?;
-
-        let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
-            match (a, b) {
-                (Some(x), Some(y)) => Some(x + y),
-                _ => a.or(b),
-            }
-        };
-
-        let accumulated_total =
-            accumulate(session.accumulated_total_tokens, usage.usage.total_tokens);
-        let accumulated_input =
-            accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
-        let accumulated_output =
-            accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
-
-        let (current_total, current_input, current_output) = if is_compaction_usage {
-            // After compaction: summary output becomes new input context
-            let new_input = usage.usage.output_tokens;
-            (new_input, new_input, None)
-        } else {
-            (
-                usage.usage.total_tokens,
-                usage.usage.input_tokens,
-                usage.usage.output_tokens,
-            )
-        };
-
-        manager
-            .update(session_id)
-            .schedule_id(schedule_id)
-            .total_tokens(current_total)
-            .input_tokens(current_input)
-            .output_tokens(current_output)
-            .accumulated_total_tokens(accumulated_total)
-            .accumulated_input_tokens(accumulated_input)
-            .accumulated_output_tokens(accumulated_output)
-            .apply()
-            .await?;
-
-        Ok(())
+        update_session_metrics_standalone(
+            &self.config.session_manager,
+            session_id,
+            schedule_id,
+            usage,
+            is_compaction_usage,
+        )
+        .await
     }
+}
+
+/// Standalone version of session metrics update, usable outside of `Agent`.
+pub async fn update_session_metrics_standalone(
+    session_manager: &crate::session::SessionManager,
+    session_id: &str,
+    schedule_id: Option<String>,
+    usage: &ProviderUsage,
+    is_compaction_usage: bool,
+) -> Result<()> {
+    let session = session_manager.get_session(session_id, false).await?;
+
+    let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
+        match (a, b) {
+            (Some(x), Some(y)) => Some(x + y),
+            _ => a.or(b),
+        }
+    };
+
+    let accumulated_total =
+        accumulate(session.accumulated_total_tokens, usage.usage.total_tokens);
+    let accumulated_input =
+        accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
+    let accumulated_output =
+        accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
+
+    let (current_total, current_input, current_output) = if is_compaction_usage {
+        // After compaction: summary output becomes new input context
+        let new_input = usage.usage.output_tokens;
+        (new_input, new_input, None)
+    } else {
+        (
+            usage.usage.total_tokens,
+            usage.usage.input_tokens,
+            usage.usage.output_tokens,
+        )
+    };
+
+    session_manager
+        .update(session_id)
+        .schedule_id(schedule_id)
+        .total_tokens(current_total)
+        .input_tokens(current_input)
+        .output_tokens(current_output)
+        .accumulated_total_tokens(accumulated_total)
+        .accumulated_input_tokens(accumulated_input)
+        .accumulated_output_tokens(accumulated_output)
+        .apply()
+        .await?;
+
+    Ok(())
 }
 
 /// Check whether a tool should be callable by an app based on MCP Apps visibility metadata.

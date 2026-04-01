@@ -6,6 +6,7 @@ use crate::conversation::Conversation;
 use crate::mcp_utils::ToolResult;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
+use crate::session::SessionManager;
 use rmcp::model::{CallToolResult, Tool};
 use std::sync::Arc;
 
@@ -26,6 +27,23 @@ pub struct LoopContext {
     pub provider: Arc<dyn Provider>,
     /// Session identifier.
     pub session_id: String,
+    /// Schedule ID (if this session was triggered by a schedule).
+    pub schedule_id: Option<String>,
+    /// Session manager for persistence.
+    pub session_manager: Arc<SessionManager>,
+    /// Channel to emit events back to the caller (UI notifications, etc.).
+    pub event_tx: tokio::sync::mpsc::UnboundedSender<LoopEvent>,
+}
+
+/// Events that hooks can emit back to the caller.
+///
+/// These are collected by the loop and yielded as `AgentEvent`s.
+#[derive(Debug, Clone)]
+pub enum LoopEvent {
+    /// A message to show in the UI (e.g. "Compacting...").
+    Message(Message),
+    /// The conversation history was replaced (e.g. after compaction).
+    HistoryReplaced(Conversation),
 }
 
 /// What to do after a hook's `on_error` returns.

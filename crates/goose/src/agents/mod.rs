@@ -1,5 +1,6 @@
 mod agent;
 pub(crate) mod builtin_skills;
+pub mod compaction_hook;
 pub mod container;
 pub mod execute_commands;
 pub mod extension;
