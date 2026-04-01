@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+mod queued_input;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
@@ -44,15 +45,17 @@ use strum::VariantNames;
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
+use queued_input::QueuedInputCapture;
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio;
+use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
@@ -157,6 +160,7 @@ pub struct CliSession {
     messages: Conversation,
     session_id: String,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+    queued_input_lines: VecDeque<String>,
     debug: bool,
     run_mode: RunMode,
     scheduled_job_id: Option<String>,
@@ -286,6 +290,7 @@ impl CliSession {
             messages,
             session_id,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
+            queued_input_lines: VecDeque::new(),
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
@@ -510,22 +515,26 @@ impl CliSession {
         history_manager.load(&mut editor);
 
         loop {
-            self.display_context_usage().await?;
+            let input = if let Some(input) = self.take_queued_input(&mut editor)? {
+                input
+            } else {
+                self.display_context_usage().await?;
 
-            let conversation_strings: Vec<String> = self
-                .messages
-                .iter()
-                .map(|msg| {
-                    let role = match msg.role {
-                        rmcp::model::Role::User => "User",
-                        rmcp::model::Role::Assistant => "Assistant",
-                    };
-                    format!("## {}: {}", role, msg.as_concat_text())
-                })
-                .collect();
+                let conversation_strings: Vec<String> = self
+                    .messages
+                    .iter()
+                    .map(|msg| {
+                        let role = match msg.role {
+                            rmcp::model::Role::User => "User",
+                            rmcp::model::Role::Assistant => "Assistant",
+                        };
+                        format!("## {}: {}", role, msg.as_concat_text())
+                    })
+                    .collect();
 
-            output::run_status_hook("waiting");
-            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
+                output::run_status_hook("waiting");
+                input::get_input(&mut editor, Some(&conversation_strings))?
+            };
             if matches!(input, InputResult::Exit) {
                 break;
             }
@@ -635,6 +644,21 @@ impl CliSession {
             }
         }
         Ok(())
+    }
+
+    fn take_queued_input(
+        &mut self,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) -> Result<Option<InputResult>> {
+        let Some(line) = self.queued_input_lines.pop_front() else {
+            return Ok(None);
+        };
+
+        if !line.trim().is_empty() {
+            editor.add_history_entry(line.as_str())?;
+        }
+
+        Ok(Some(input::parse_input_line(&line)))
     }
 
     async fn handle_message_input(
@@ -1001,15 +1025,36 @@ impl CliSession {
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
         let mut prompted_credits_urls: HashSet<String> = HashSet::new();
         let mut thinking_header_shown = false;
+        let mut queued_input_capture = QueuedInputCapture::new(interactive);
+        let mut queued_input_interval = tokio::time::interval(Duration::from_millis(100));
+        queued_input_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         use futures::StreamExt;
         loop {
             tokio::select! {
+                _ = queued_input_interval.tick(), if queued_input_capture.is_enabled() => {
+                    match queued_input_capture.read_available_lines() {
+                        Ok(lines) => enqueue_captured_inputs(
+                            &mut self.queued_input_lines,
+                            lines,
+                            &mut markdown_buffer,
+                            &mut progress_bars,
+                            interactive && !is_json_mode && !is_stream_json_mode,
+                        ),
+                        Err(error) => {
+                            warn!("Failed to capture queued CLI input: {}", error);
+                            queued_input_capture.disable();
+                        }
+                    }
+                }
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
-                                let permission = prompt_tool_confirmation(&security_prompt)?;
+                                pause_queued_input_capture(&mut queued_input_capture);
+                                let permission = prompt_tool_confirmation(&security_prompt);
+                                resume_queued_input_capture(&mut queued_input_capture);
+                                let permission = permission?;
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
@@ -1038,8 +1083,12 @@ impl CliSession {
                             } else if let Some((elicitation_id, elicitation_message, schema)) = find_elicitation_request(&message) {
                                 output::hide_thinking();
                                 let _ = progress_bars.hide();
+                                pause_queued_input_capture(&mut queued_input_capture);
+                                let elicitation_input =
+                                    elicitation::collect_elicitation_input(&elicitation_message, &schema);
+                                resume_queued_input_capture(&mut queued_input_capture);
 
-                                match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
+                                match elicitation_input {
                                     Ok(Some(user_data)) => {
                                         let user_data_value = serde_json::to_value(user_data)
                                             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
@@ -1078,11 +1127,13 @@ impl CliSession {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
                                     output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
+                                    pause_queued_input_capture(&mut queued_input_capture);
                                     maybe_open_credits_top_up_url(
                                         &message,
                                         interactive,
                                         &mut prompted_credits_urls,
                                     );
+                                    resume_queued_input_capture(&mut queued_input_capture);
                                 }
                             }
                         }
@@ -1524,6 +1575,63 @@ fn emit_stream_event(event: &StreamEvent) {
     }
 }
 
+fn enqueue_captured_inputs(
+    queued_input_lines: &mut VecDeque<String>,
+    lines: Vec<String>,
+    markdown_buffer: &mut streaming_buffer::MarkdownBuffer,
+    progress_bars: &mut output::McpSpinners,
+    render_feedback: bool,
+) {
+    let mut queued_count = 0;
+
+    for line in lines {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        queued_input_lines.push_back(line);
+        queued_count += 1;
+    }
+
+    if queued_count == 0 || !render_feedback {
+        return;
+    }
+
+    output::flush_markdown_buffer_current_theme(markdown_buffer);
+    output::hide_thinking();
+    let _ = progress_bars.hide();
+    output::render_text(
+        &queued_input_status_text(queued_count),
+        Some(Color::Cyan),
+        true,
+    );
+}
+
+fn pause_queued_input_capture(capture: &mut QueuedInputCapture) {
+    if let Err(error) = capture.pause() {
+        warn!("Failed to pause queued CLI input capture: {}", error);
+        capture.disable();
+    }
+}
+
+fn resume_queued_input_capture(capture: &mut QueuedInputCapture) {
+    if let Err(error) = capture.resume() {
+        warn!("Failed to resume queued CLI input capture: {}", error);
+        capture.disable();
+    }
+}
+
+fn queued_input_status_text(count: usize) -> String {
+    if count == 1 {
+        "Message queued — Goose will respond after the current task.".to_string()
+    } else {
+        format!(
+            "{} messages queued — Goose will respond after the current task.",
+            count
+        )
+    }
+}
+
 /// Prompt user for tool call confirmation, returns the Permission selected
 fn prompt_tool_confirmation(security_prompt: &Option<String>) -> Result<Permission> {
     output::hide_thinking();
@@ -1947,6 +2055,18 @@ mod tests {
     use goose::config::ExtensionConfig;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn test_queued_input_status_text() {
+        assert_eq!(
+            queued_input_status_text(1),
+            "Message queued — Goose will respond after the current task."
+        );
+        assert_eq!(
+            queued_input_status_text(3),
+            "3 messages queued — Goose will respond after the current task."
+        );
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {

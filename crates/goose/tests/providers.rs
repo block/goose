@@ -712,12 +712,25 @@ async fn test_provider(config: ProviderTestConfig) -> Result<()> {
             TEST_REPORT.record_pass(name);
             Ok(())
         }
+        Err(e) if should_skip_provider_error(name, &e) => {
+            println!("Skipping {} tests - {}", name, e);
+            TEST_REPORT.record_skip(name);
+            Ok(())
+        }
         Err(e) => {
             println!("{} test failed: {}", name, e);
             TEST_REPORT.record_fail(name);
             Err(e)
         }
     }
+}
+
+fn should_skip_provider_error(provider: &str, error: &anyhow::Error) -> bool {
+    provider.eq_ignore_ascii_case("xai")
+        && error
+            .to_string()
+            .contains("Content violates usage guidelines")
+        && error.to_string().contains("SAFETY_CHECK_TYPE_BIO")
 }
 
 #[tokio::test]

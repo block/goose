@@ -64,6 +64,7 @@ comfy-table = "7.2.2"
 sha2 = { workspace = true }
 sigstore-verify = { version = "0.6", default-features = false }
 axum.workspace = true
+libc = "0.2.184"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }

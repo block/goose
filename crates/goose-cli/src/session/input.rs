@@ -28,6 +28,24 @@ pub enum InputResult {
     ToggleFullToolOutput,
 }
 
+pub fn parse_input_line(input: &str) -> InputResult {
+    let trimmed = input.trim();
+
+    if !trimmed.starts_with('/') {
+        if trimmed.is_empty() {
+            return InputResult::Retry;
+        }
+
+        if trimmed.eq_ignore_ascii_case("exit") || trimmed.eq_ignore_ascii_case("quit") {
+            return InputResult::Exit;
+        }
+
+        return InputResult::Message(trimmed.to_string());
+    }
+
+    handle_slash_command(trimmed).unwrap_or_else(|| InputResult::Message(trimmed.to_string()))
+}
+
 #[derive(Debug)]
 pub struct PromptCommandOptions {
     pub name: String,
@@ -140,28 +158,7 @@ pub fn get_input(
     if !input.trim().is_empty() {
         editor.add_history_entry(input.as_str())?;
     }
-
-    // Handle non-slash commands first
-    if !input.starts_with('/') {
-        let trimmed = input.trim();
-        if trimmed.is_empty()
-            || trimmed.eq_ignore_ascii_case("exit")
-            || trimmed.eq_ignore_ascii_case("quit")
-        {
-            return Ok(if trimmed.is_empty() {
-                InputResult::Retry
-            } else {
-                InputResult::Exit
-            });
-        }
-        return Ok(InputResult::Message(trimmed.to_string()));
-    }
-
-    // Handle slash commands
-    match handle_slash_command(&input) {
-        Some(result) => Ok(result),
-        None => Ok(InputResult::Message(input.trim().to_string())),
-    }
+    Ok(parse_input_line(&input))
 }
 
 fn get_regular_input(
@@ -201,28 +198,7 @@ fn get_regular_input(
     if !input.trim().is_empty() {
         editor.add_history_entry(input.as_str())?;
     }
-
-    // Handle non-slash commands first
-    if !input.starts_with('/') {
-        let trimmed = input.trim();
-        if trimmed.is_empty()
-            || trimmed.eq_ignore_ascii_case("exit")
-            || trimmed.eq_ignore_ascii_case("quit")
-        {
-            return Ok(if trimmed.is_empty() {
-                InputResult::Retry
-            } else {
-                InputResult::Exit
-            });
-        }
-        return Ok(InputResult::Message(trimmed.to_string()));
-    }
-
-    // Handle slash commands
-    match handle_slash_command(&input) {
-        Some(result) => Ok(result),
-        None => Ok(InputResult::Message(input.trim().to_string())),
-    }
+    Ok(parse_input_line(&input))
 }
 
 fn handle_slash_command(input: &str) -> Option<InputResult> {
