@@ -12,7 +12,7 @@ use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
-use super::tool_execution::{ToolCallResult, DECLINED_RESPONSE};
+use super::tool_execution::ToolCallResult;
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
@@ -29,7 +29,6 @@ use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
-use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::{PermissionRouting, Provider};
 use crate::recipe::{Author, Recipe, Response, Settings};
@@ -368,65 +367,6 @@ impl Agent {
             tool_call_cut_off,
             initial_messages,
         })
-    }
-
-    pub(super) async fn handle_approved_and_denied_tools(
-        &self,
-        permission_check_result: &PermissionCheckResult,
-        request_to_response_map: &mut HashMap<String, Message>,
-        cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: &Session,
-    ) -> Result<Vec<(String, ToolStream)>> {
-        let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
-
-        // Handle pre-approved and read-only tools
-        for request in &permission_check_result.approved {
-            if let Ok(tool_call) = request.tool_call.clone() {
-                let (req_id, tool_result) = self
-                    .dispatch_tool_call(
-                        tool_call,
-                        request.id.clone(),
-                        cancel_token.clone(),
-                        session,
-                    )
-                    .await;
-
-                tool_futures.push((
-                    req_id,
-                    match tool_result {
-                        Ok(result) => tool_stream(
-                            result
-                                .notification_stream
-                                .unwrap_or_else(|| Box::new(stream::empty())),
-                            result.result,
-                        ),
-                        Err(e) => {
-                            tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
-                        }
-                    },
-                ));
-            }
-        }
-
-        Self::handle_denied_tools(permission_check_result, request_to_response_map);
-        Ok(tool_futures)
-    }
-
-    pub(super) fn handle_denied_tools(
-        permission_check_result: &PermissionCheckResult,
-        request_to_response_map: &mut HashMap<String, Message>,
-    ) {
-        for request in &permission_check_result.denied {
-            if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                response.add_tool_response_with_metadata(
-                    request.id.clone(),
-                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
-                        DECLINED_RESPONSE,
-                    )])),
-                    request.metadata.as_ref(),
-                );
-            }
-        }
     }
 
     /// Get a reference count clone to the provider

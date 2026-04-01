@@ -56,7 +56,9 @@ impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
 
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
+use crate::config::GooseMode;
 use crate::conversation::message::{Message, ToolRequest};
+use crate::permission::permission_judge::PermissionCheckResult;
 use crate::session::Session;
 use crate::tool_inspection::get_security_finding_id_from_results;
 
@@ -74,90 +76,155 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
                                         If needed, adjust the explanation based on user preferences or questions.";
 
 impl Agent {
-    pub(crate) fn handle_approval_tool_requests<'a>(
+    /// Consolidated tool gate flow: inspect → permission-check → dispatch/deny/approve.
+    ///
+    /// Approved tools are dispatched immediately and added to `tool_futures`.
+    /// Denied tools get a DECLINED_RESPONSE in `request_to_response_map`.
+    /// Tools needing approval produce action-required messages in the returned stream;
+    /// once confirmed, they're dispatched and added to `tool_futures`.
+    pub(crate) fn gate_and_dispatch_tools<'a>(
         &'a self,
-        tool_requests: &'a [ToolRequest],
+        session_id: &'a str,
+        requests: &'a [ToolRequest],
+        messages: &'a [Message],
+        goose_mode: GooseMode,
         tool_futures: &'a mut Vec<(String, ToolStream)>,
         request_to_response_map: &'a mut HashMap<String, Message>,
-        cancellation_token: Option<CancellationToken>,
+        cancel_token: Option<CancellationToken>,
         session: &'a Session,
-        inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-        for request in tool_requests.iter() {
-            if let Ok(tool_call) = request.tool_call.clone() {
-                let security_message = inspection_results.iter()
-                    .find(|result| result.tool_request_id == request.id)
-                    .and_then(|result| {
-                        if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
-                            Some(message.clone())
-                        } else {
-                            None
-                        }
-                    });
+            let inspection_results = self
+                .tool_inspection_manager
+                .inspect_tools(session_id, requests, messages, goose_mode)
+                .await?;
 
-                let confirmation_rx = self.tool_confirmation_router.register(request.id.clone()).await;
+            let permission_check_result = self
+                .tool_inspection_manager
+                .process_inspection_results_with_permission_inspector(requests, &inspection_results)
+                .unwrap_or_else(|| {
+                    let mut result = PermissionCheckResult {
+                        approved: vec![],
+                        needs_approval: vec![],
+                        denied: vec![],
+                    };
+                    result.needs_approval.extend(requests.iter().cloned());
+                    result
+                });
 
-                let action_required_msg = Message::assistant()
-                    .with_action_required(
+            // Dispatch approved tools
+            for request in &permission_check_result.approved {
+                if let Ok(tool_call) = request.tool_call.clone() {
+                    let (req_id, tool_result) = self
+                        .dispatch_tool_call(
+                            tool_call,
+                            request.id.clone(),
+                            cancel_token.clone(),
+                            session,
+                        )
+                        .await;
+                    tool_futures.push((
+                        req_id,
+                        match tool_result {
+                            Ok(result) => tool_stream(
+                                result
+                                    .notification_stream
+                                    .unwrap_or_else(|| Box::new(stream::empty())),
+                                result.result,
+                            ),
+                            Err(e) => {
+                                tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
+                            }
+                        },
+                    ));
+                }
+            }
+
+            // Mark denied tools
+            for request in &permission_check_result.denied {
+                if let Some(response) = request_to_response_map.get_mut(&request.id) {
+                    response.add_tool_response_with_metadata(
                         request.id.clone(),
-                        tool_call.name.to_string().clone(),
-                        tool_call.arguments.clone().unwrap_or_default(),
-                        security_message,
-                    )
-                    .user_only();
-                yield action_required_msg;
-
-                let confirmation = confirmation_rx.await
-                    .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
-
-                if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
-                    tracing::info!(
-                        monotonic_counter.goose.prompt_injection_user_decisions = 1,
-                        decision = ?confirmation.permission,
-                        finding_id = %finding_id,
-                        tool_request_id = %request.id,
-                        "Prompt injection detection: user decision on command injection finding"
+                        Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                        request.metadata.as_ref(),
                     );
                 }
+            }
 
-                if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+            // Handle tools needing approval (yields action-required messages)
+            for request in permission_check_result.needs_approval.iter() {
+                if let Ok(tool_call) = request.tool_call.clone() {
+                    let security_message = inspection_results.iter()
+                        .find(|result| result.tool_request_id == request.id)
+                        .and_then(|result| {
+                            if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
+                                Some(message.clone())
+                            } else {
+                                None
+                            }
+                        });
 
-                    tool_futures.push((req_id, match tool_result {
-                        Ok(result) => tool_stream(
-                            result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
-                            result.result,
-                        ),
-                        Err(e) => tool_stream(
-                            Box::new(stream::empty()),
-                            futures::future::ready(Err(e)),
-                        ),
-                    }));
+                    let confirmation_rx = self.tool_confirmation_router.register(request.id.clone()).await;
 
-                    if confirmation.permission == Permission::AlwaysAllow {
-                        self.tool_inspection_manager
-                            .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
-                            .await;
-                    }
-                } else {
-                    if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                        response.add_tool_response_with_metadata(
+                    let action_required_msg = Message::assistant()
+                        .with_action_required(
                             request.id.clone(),
-                            Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
-                            request.metadata.as_ref(),
+                            tool_call.name.to_string().clone(),
+                            tool_call.arguments.clone().unwrap_or_default(),
+                            security_message,
+                        )
+                        .user_only();
+                    yield action_required_msg;
+
+                    let confirmation = confirmation_rx.await
+                        .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
+
+                    if let Some(finding_id) = get_security_finding_id_from_results(&request.id, &inspection_results) {
+                        tracing::info!(
+                            monotonic_counter.goose.prompt_injection_user_decisions = 1,
+                            decision = ?confirmation.permission,
+                            finding_id = %finding_id,
+                            tool_request_id = %request.id,
+                            "Prompt injection detection: user decision on command injection finding"
                         );
                     }
 
-                    if confirmation.permission == Permission::AlwaysDeny {
-                        self.tool_inspection_manager
-                            .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
-                            .await;
+                    if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
+                        let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancel_token.clone(), session).await;
+
+                        tool_futures.push((req_id, match tool_result {
+                            Ok(result) => tool_stream(
+                                result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                                result.result,
+                            ),
+                            Err(e) => tool_stream(
+                                Box::new(stream::empty()),
+                                futures::future::ready(Err(e)),
+                            ),
+                        }));
+
+                        if confirmation.permission == Permission::AlwaysAllow {
+                            self.tool_inspection_manager
+                                .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                                .await;
+                        }
+                    } else {
+                        if let Some(response) = request_to_response_map.get_mut(&request.id) {
+                            response.add_tool_response_with_metadata(
+                                request.id.clone(),
+                                Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                                request.metadata.as_ref(),
+                            );
+                        }
+
+                        if confirmation.permission == Permission::AlwaysDeny {
+                            self.tool_inspection_manager
+                                .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
+                                .await;
+                        }
                     }
                 }
             }
-        }
-    }.boxed()
+        }.boxed()
     }
-
 }

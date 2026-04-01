@@ -32,11 +32,9 @@ use crate::conversation::message::{
     Message, MessageContent, ProviderMetadata, SystemNotificationType,
 };
 use crate::conversation::Conversation;
-use crate::permission::permission_judge::PermissionCheckResult;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::session::{Session, SessionManager};
-use crate::tool_inspection::InspectionResult;
 use crate::utils::is_token_cancelled;
 use rmcp::model::ErrorData;
 use tokio_util::sync::CancellationToken;
@@ -68,41 +66,27 @@ pub trait LoopDriver: Send + Sync {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>);
 
-    /// Run tool inspectors on a batch of requests.
-    async fn inspect_tools(
-        &self,
-        session_id: &str,
-        requests: &[crate::conversation::message::ToolRequest],
-        messages: &[Message],
-        goose_mode: GooseMode,
-    ) -> Result<Vec<InspectionResult>>;
-
-    /// Process inspection results through the permission inspector.
-    fn process_permissions(
-        &self,
-        requests: &[crate::conversation::message::ToolRequest],
-        inspection_results: &[InspectionResult],
-    ) -> Option<PermissionCheckResult>;
-
-    /// Handle approved and denied tools (dispatch approved, mark denied).
-    async fn handle_approved_and_denied_tools(
-        &self,
-        permission_check_result: &PermissionCheckResult,
-        request_to_response_map: &mut HashMap<String, Message>,
-        cancel_token: Option<CancellationToken>,
-        session: &Session,
-    ) -> Result<Vec<(String, ToolStream)>>;
-
-    /// Handle tools that need user approval (interactive).
-    /// Returns a stream of messages (action-required prompts) and populates tool_futures.
-    fn handle_approval_tool_requests<'a>(
+    /// Inspect, permission-check, and dispatch backend tool requests.
+    ///
+    /// This consolidates the full tool gate flow:
+    /// 1. Runs tool inspectors (adversary detection, permission checks, repetition)
+    /// 2. Partitions into approved / needs_approval / denied
+    /// 3. Dispatches approved tools → adds to `tool_futures`
+    /// 4. Marks denied tools with DECLINED_RESPONSE in `request_to_response_map`
+    /// 5. Streams action-required messages for tools needing user approval;
+    ///    dispatches on confirmation → adds to `tool_futures`
+    ///
+    /// Returns a stream of action-required messages to yield to the UI.
+    fn gate_and_dispatch_tools<'a>(
         &'a self,
-        tool_requests: &'a [crate::conversation::message::ToolRequest],
+        session_id: &'a str,
+        requests: &'a [crate::conversation::message::ToolRequest],
+        messages: &'a [Message],
+        goose_mode: GooseMode,
         tool_futures: &'a mut Vec<(String, ToolStream)>,
         request_to_response_map: &'a mut HashMap<String, Message>,
         cancel_token: Option<CancellationToken>,
         session: &'a Session,
-        inspection_results: &'a [InspectionResult],
     ) -> BoxStream<'a, Result<Message>>;
 
     /// Drain pending elicitation messages for a session.
@@ -393,6 +377,15 @@ pub fn run_agent_loop<'a>(
                                 // Track extension install requests
                                 let mut enable_extension_request_ids: Vec<String> = vec![];
 
+                                // Track extension install requests
+                                for request in &backend_requests {
+                                    if let Ok(tool_call) = &request.tool_call {
+                                        if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
+                                            enable_extension_request_ids.push(request.id.clone());
+                                        }
+                                    }
+                                }
+
                                 if goose_mode == GooseMode::Chat {
                                     for request in backend_requests.iter() {
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
@@ -404,55 +397,18 @@ pub fn run_agent_loop<'a>(
                                         }
                                     }
                                 } else {
-                                    let inspection_results = driver.inspect_tools(
+                                    let mut approval_stream = driver.gate_and_dispatch_tools(
                                         &session_config.id,
                                         &backend_requests,
                                         conversation.messages(),
                                         goose_mode,
-                                    ).await?;
-
-                                    let permission_check_result = driver.process_permissions(
-                                        &backend_requests,
-                                        &inspection_results,
-                                    ).unwrap_or_else(|| {
-                                        let mut result = PermissionCheckResult {
-                                            approved: vec![],
-                                            needs_approval: vec![],
-                                            denied: vec![],
-                                        };
-                                        result.needs_approval.extend(backend_requests.iter().cloned());
-                                        result
-                                    });
-
-                                    for request in &backend_requests {
-                                        if let Ok(tool_call) = &request.tool_call {
-                                            if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
-                                                enable_extension_request_ids.push(request.id.clone());
-                                            }
-                                        }
-                                    }
-
-                                    let mut backend_futures = driver.handle_approved_and_denied_tools(
-                                        &permission_check_result,
+                                        &mut tool_futures,
                                         &mut request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
-                                    ).await?;
-                                    tool_futures.append(&mut backend_futures);
-
-                                    {
-                                        let mut tool_approval_stream = driver.handle_approval_tool_requests(
-                                            &permission_check_result.needs_approval,
-                                            &mut tool_futures,
-                                            &mut request_to_response_map,
-                                            cancel_token.clone(),
-                                            &session,
-                                            &inspection_results,
-                                        );
-
-                                        while let Some(msg) = tool_approval_stream.try_next().await? {
-                                            yield AgentEvent::Message(msg);
-                                        }
+                                    );
+                                    while let Some(msg) = approval_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
                                     }
                                 }
 
