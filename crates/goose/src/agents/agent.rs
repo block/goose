@@ -21,7 +21,7 @@ use crate::agents::extension_manager::{
 use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::retry::{RetryManager, RetryResult};
+use crate::agents::retry::RetryManager;
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -297,29 +297,6 @@ impl Agent {
         self.retry_manager.get_attempts().await
     }
 
-    pub(super) async fn handle_retry_logic(
-        &self,
-        messages: &mut Conversation,
-        session_config: &SessionConfig,
-        initial_messages: &[Message],
-    ) -> Result<bool> {
-        let result = self
-            .retry_manager
-            .handle_retry_logic(
-                messages,
-                session_config,
-                initial_messages,
-                &self.final_output_tool,
-            )
-            .await?;
-
-        match result {
-            RetryResult::Retried => Ok(true),
-            RetryResult::Skipped
-            | RetryResult::MaxAttemptsReached
-            | RetryResult::SuccessChecksPassed => Ok(false),
-        }
-    }
     pub(super) async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
@@ -1058,7 +1035,6 @@ impl Agent {
             goose_mode,
             initial_messages,
         } = context;
-        self.reset_retry_attempts().await;
 
         let provider = self.provider().await?;
         let session_manager = self.config.session_manager.clone();
@@ -1075,6 +1051,20 @@ impl Agent {
             });
         }
 
+        // Collect all hooks for this reply.
+        // Order matters: compaction first, then final output, then retry.
+        let all_hooks: Vec<Box<dyn super::hooks::AgentHook>> = vec![
+            Box::new(super::compaction_hook::CompactionHook::new()),
+            Box::new(super::final_output_hook::FinalOutputHook::new(
+                self.final_output_tool.clone(),
+            )),
+            Box::new(super::retry_hook::RetryHook::new(
+                session_config.clone(),
+                initial_messages.clone(),
+                self.final_output_tool.clone(),
+            )),
+        ];
+
         let loop_config = super::agent_loop::LoopConfig {
             session_config,
             session,
@@ -1085,13 +1075,7 @@ impl Agent {
             system_prompt,
             goose_mode,
             tool_call_cut_off,
-            initial_messages,
         };
-
-        // Collect all hooks: compaction hook + any registered hooks.
-        let mut all_hooks: Vec<Box<dyn super::hooks::AgentHook>> = Vec::new();
-        all_hooks.push(Box::new(super::compaction_hook::CompactionHook::new()));
-        // TODO: add self.hooks here once Agent stores pre-built hook instances
 
         Ok(super::agent_loop::run_agent_loop(
             self,

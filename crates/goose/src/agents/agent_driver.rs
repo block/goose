@@ -139,25 +139,6 @@ impl LoopDriver for Agent {
             .await
     }
 
-    async fn check_final_output(&self) -> Option<Option<String>> {
-        let guard = self.final_output_tool.lock().await;
-        guard.as_ref().map(|fot| fot.final_output.clone())
-    }
-
-    async fn handle_retry_logic(
-        &self,
-        conversation: &mut Conversation,
-        session_config: &SessionConfig,
-        initial_messages: &[Message],
-    ) -> Result<bool> {
-        self.handle_retry_logic(conversation, session_config, initial_messages)
-            .await
-    }
-
-    async fn reset_retry_attempts(&self) {
-        self.reset_retry_attempts().await;
-    }
-
     async fn stream_response(
         &self,
         session_id: &str,

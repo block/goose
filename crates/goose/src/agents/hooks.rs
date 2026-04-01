@@ -33,6 +33,40 @@ pub struct LoopContext {
     pub session_manager: Arc<SessionManager>,
     /// Channel to emit events back to the caller (UI notifications, etc.).
     pub event_tx: tokio::sync::mpsc::UnboundedSender<LoopEvent>,
+    /// Set by hooks to signal that the loop should exit after the current lifecycle phase.
+    pub should_exit: bool,
+}
+
+impl LoopContext {
+    /// Create a new LoopContext with a fresh event channel.
+    /// Returns the context and the receiving end of the event channel.
+    pub fn new(
+        conversation: Conversation,
+        system_prompt: String,
+        tools: Vec<Tool>,
+        toolshim_tools: Vec<Tool>,
+        provider: Arc<dyn Provider>,
+        session_id: String,
+        schedule_id: Option<String>,
+        session_manager: Arc<SessionManager>,
+    ) -> (Self, tokio::sync::mpsc::UnboundedReceiver<LoopEvent>) {
+        let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
+        (
+            Self {
+                conversation,
+                system_prompt,
+                tools,
+                toolshim_tools,
+                provider,
+                session_id,
+                schedule_id,
+                session_manager,
+                event_tx,
+                should_exit: false,
+            },
+            event_rx,
+        )
+    }
 }
 
 /// Events that hooks can emit back to the caller.
@@ -62,6 +96,8 @@ pub enum ExitAction {
     Exit,
     /// Continue the loop (e.g. retry logic restarted the conversation).
     Continue,
+    /// This hook has no opinion. Let subsequent hooks decide (defaults to Exit if all defer).
+    Defer,
 }
 
 /// Decision from `pre_tool_call`.
@@ -172,6 +208,6 @@ pub trait AgentHook: Send + Sync {
         _reason: &ExitReason,
         _ctx: &mut LoopContext,
     ) -> Result<ExitAction> {
-        Ok(ExitAction::Exit)
+        Ok(ExitAction::Defer)
     }
 }

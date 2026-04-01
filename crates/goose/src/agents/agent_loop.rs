@@ -17,15 +17,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::stream::{self, BoxStream, StreamExt, TryStreamExt};
 use rmcp::model::{CallToolResult, Content, Tool};
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 use tracing_futures::Instrument;
 use uuid::Uuid;
 
 use super::agent::{frontend_tool_stream, tool_stream, AgentEvent, ToolStream, ToolStreamItem};
-use super::hooks::{AgentHook, ErrorRecovery, LoopContext, LoopEvent};
+use super::hooks::{AgentHook, ErrorRecovery, ExitAction, ExitReason, LoopContext, LoopEvent};
 use super::reply_parts::update_session_metrics_standalone;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE};
-use crate::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::types::SessionConfig;
 use crate::config::{Config, GooseMode};
@@ -127,21 +126,6 @@ pub trait LoopDriver: Send + Sync {
         working_dir: &std::path::Path,
     ) -> Conversation;
 
-    /// Check if the final output tool has produced output.
-    async fn check_final_output(&self) -> Option<Option<String>>;
-
-    /// Handle retry logic when no tools were called.
-    /// Returns true if the loop should retry.
-    async fn handle_retry_logic(
-        &self,
-        conversation: &mut Conversation,
-        session_config: &SessionConfig,
-        initial_messages: &[Message],
-    ) -> Result<bool>;
-
-    /// Reset retry attempt counter at the start of a reply.
-    async fn reset_retry_attempts(&self);
-
     /// Stream a response from the provider.
     async fn stream_response(
         &self,
@@ -173,8 +157,6 @@ pub struct LoopConfig {
     pub goose_mode: GooseMode,
     /// Tool call cutoff for summarization.
     pub tool_call_cut_off: usize,
-    /// Initial messages (for retry logic).
-    pub initial_messages: Vec<Message>,
 }
 
 /// Run the main agent loop.
@@ -200,7 +182,6 @@ pub fn run_agent_loop<'a>(
         mut system_prompt,
         goose_mode,
         tool_call_cut_off,
-        initial_messages,
     } = config;
 
     let session_manager = driver.session_manager();
@@ -235,14 +216,6 @@ pub fn run_agent_loop<'a>(
                     break;
                 }
 
-                // Check for final output
-                if let Some(ref output) = driver.check_final_output().await {
-                    if let Some(text) = output {
-                        yield AgentEvent::Message(Message::assistant().with_text(text));
-                    }
-                    break;
-                }
-
                 turns_taken += 1;
                 if turns_taken > max_turns {
                     yield AgentEvent::Message(
@@ -254,25 +227,20 @@ pub fn run_agent_loop<'a>(
                 }
 
                 // --- pre_inference hooks ---
+                // Runs compaction, final output check, etc.
                 {
-                    let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
-                    let mut hook_ctx = LoopContext {
-                        conversation,
-                        system_prompt,
-                        tools,
-                        toolshim_tools,
-                        provider: driver.provider(),
-                        session_id: session_config.id.clone(),
-                        schedule_id: session_config.schedule_id.clone(),
-                        session_manager: session_manager.clone(),
-                        event_tx: hook_event_tx,
-                    };
+                    let (mut hook_ctx, mut hook_event_rx) = LoopContext::new(
+                        conversation, system_prompt, tools, toolshim_tools,
+                        driver.provider(), session_config.id.clone(),
+                        session_config.schedule_id.clone(), session_manager.clone(),
+                    );
 
                     for hook in &hooks {
                         hook.pre_inference(&mut hook_ctx).await?;
+                        if hook_ctx.should_exit { break; }
                     }
 
-                    // Move state back (hooks may have modified conversation, prompt, tools)
+                    let should_exit = hook_ctx.should_exit;
                     conversation = hook_ctx.conversation;
                     system_prompt = hook_ctx.system_prompt;
                     tools = hook_ctx.tools;
@@ -284,6 +252,8 @@ pub fn run_agent_loop<'a>(
                             LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
                         }
                     }
+
+                    if should_exit { break; }
                 }
 
                 let conversation_with_moim = driver.inject_moim(
@@ -331,18 +301,12 @@ pub fn run_agent_loop<'a>(
                             // Run after successful LLM response, before tool execution.
                             // Currently used by CompactionHook to reset recovery counters.
                             if let Some(ref resp) = response {
-                                let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
-                                let mut hook_ctx = LoopContext {
-                                    conversation: conversation.clone(),
-                                    system_prompt: system_prompt.clone(),
-                                    tools: tools.clone(),
-                                    toolshim_tools: toolshim_tools.clone(),
-                                    provider: driver.provider(),
-                                    session_id: session_config.id.clone(),
-                                    schedule_id: session_config.schedule_id.clone(),
-                                    session_manager: session_manager.clone(),
-                                    event_tx: hook_event_tx,
-                                };
+                                let (mut hook_ctx, mut hook_event_rx) = LoopContext::new(
+                                    conversation.clone(), system_prompt.clone(),
+                                    tools.clone(), toolshim_tools.clone(),
+                                    driver.provider(), session_config.id.clone(),
+                                    session_config.schedule_id.clone(), session_manager.clone(),
+                                );
                                 for hook in &hooks {
                                     hook.post_inference(resp, &mut hook_ctx).await?;
                                 }
@@ -643,18 +607,12 @@ pub fn run_agent_loop<'a>(
 
                             // --- on_error hooks ---
                             // Give hooks a chance to handle the error (e.g. compaction on ContextLengthExceeded).
-                            let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
-                            let mut hook_ctx = LoopContext {
-                                conversation: conversation.clone(),
-                                system_prompt: system_prompt.clone(),
-                                tools: tools.clone(),
-                                toolshim_tools: toolshim_tools.clone(),
-                                provider: driver.provider(),
-                                session_id: session_config.id.clone(),
-                                schedule_id: session_config.schedule_id.clone(),
-                                session_manager: session_manager.clone(),
-                                event_tx: hook_event_tx,
-                            };
+                            let (mut hook_ctx, mut hook_event_rx) = LoopContext::new(
+                                conversation.clone(), system_prompt.clone(),
+                                tools.clone(), toolshim_tools.clone(),
+                                driver.provider(), session_config.id.clone(),
+                                session_config.schedule_id.clone(), session_manager.clone(),
+                            );
 
                             let mut recovery = ErrorRecovery::Propagate;
                             for hook in &hooks {
@@ -734,47 +692,55 @@ pub fn run_agent_loop<'a>(
                     }
                 }
 
-                if no_tools_called {
-                    let final_output = driver.check_final_output().await;
+                // --- on_loop_exit hooks ---
+                // When no tools were called and we didn't just recover from compaction,
+                // run on_loop_exit hooks (final output check, retry logic, etc.).
+                if no_tools_called && !did_recovery_compact_this_iteration {
+                    let (mut hook_ctx, mut hook_event_rx) = LoopContext::new(
+                        conversation, system_prompt, tools, toolshim_tools,
+                        driver.provider(), session_config.id.clone(),
+                        session_config.schedule_id.clone(), session_manager.clone(),
+                    );
 
-                    match final_output {
-                        Some(None) => {
-                            warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message);
-                        }
-                        Some(Some(output)) => {
-                            let message = Message::assistant().with_text(output);
-                            messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message);
-                            exit_chat = true;
-                        }
-                        None if did_recovery_compact_this_iteration => {
-                            // continue from last user message after recovery compact
-                        }
-                        None => {
-                            match driver.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
-                                Ok(should_retry) => {
-                                    if should_retry {
-                                        info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
-                                        yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    } else {
-                                        exit_chat = true;
-                                    }
+                    let mut action = ExitAction::Defer;
+                    for hook in &hooks {
+                        action = hook.on_loop_exit(&ExitReason::NoToolCalls, &mut hook_ctx).await?;
+                        // Drain events — persist messages, yield to UI
+                        let mut history_replaced = false;
+                        while let Ok(event) = hook_event_rx.try_recv() {
+                            match event {
+                                LoopEvent::Message(msg) => {
+                                    messages_to_add.push(msg.clone());
+                                    yield AgentEvent::Message(msg);
                                 }
-                                Err(e) => {
-                                    error!("Retry logic failed: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Retry logic encountered an error: {}", e)
-                                        )
-                                    );
-                                    exit_chat = true;
+                                LoopEvent::HistoryReplaced(conv) => {
+                                    history_replaced = true;
+                                    yield AgentEvent::HistoryReplaced(conv);
                                 }
                             }
+                        }
+                        if history_replaced {
+                            // Conversation was replaced (e.g. retry) — clear accumulated messages
+                            messages_to_add = Conversation::default();
+                        }
+                        match action {
+                            ExitAction::Continue | ExitAction::Exit => break,
+                            ExitAction::Defer => continue,
+                        }
+                    }
+
+                    // Move state back from hook context
+                    conversation = hook_ctx.conversation;
+                    system_prompt = hook_ctx.system_prompt;
+                    tools = hook_ctx.tools;
+                    toolshim_tools = hook_ctx.toolshim_tools;
+
+                    match action {
+                        ExitAction::Exit | ExitAction::Defer => {
+                            exit_chat = true;
+                        }
+                        ExitAction::Continue => {
+                            // A hook wants to keep going (retry, final output nudge)
                         }
                     }
                 }
