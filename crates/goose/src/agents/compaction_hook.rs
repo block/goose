@@ -95,6 +95,16 @@ impl CompactionHook {
 
 #[async_trait]
 impl AgentHook for CompactionHook {
+    async fn post_inference(
+        &self,
+        _response: &Message,
+        _ctx: &mut LoopContext,
+    ) -> Result<()> {
+        // A successful LLM response means context is fine — reset the recovery counter.
+        self.reset_recovery_attempts();
+        Ok(())
+    }
+
     async fn pre_inference(&self, ctx: &mut LoopContext) -> Result<()> {
         // Check if we've crossed the auto-compaction threshold
         let session = ctx

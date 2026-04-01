@@ -10,7 +10,6 @@ use futures::{stream, FutureExt, Stream, StreamExt};
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
-use super::hooks::AgentHook;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, DECLINED_RESPONSE};
@@ -135,11 +134,10 @@ pub struct Agent {
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
 
-    /// Composable hooks for the agent loop (will be used as more hooks are added).
+    /// Composable hooks for the agent loop. CompactionHook is always included;
+    /// additional hooks can be registered here.
     #[allow(dead_code)]
     pub(super) hooks: Vec<Box<dyn super::hooks::AgentHook>>,
-    /// Compaction hook (kept separately for reset_recovery_attempts access).
-    pub(super) compaction_hook: Arc<super::compaction_hook::CompactionHook>,
 }
 
 #[derive(Clone, Debug)]
@@ -231,7 +229,6 @@ impl Agent {
         };
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let compaction_hook = Arc::new(super::compaction_hook::CompactionHook::new());
         Self {
             provider: provider.clone(),
             config,
@@ -256,7 +253,6 @@ impl Agent {
             ),
             container: Mutex::new(None),
             hooks: Vec::new(),
-            compaction_hook,
         }
     }
 
@@ -1034,40 +1030,9 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
+        // Pre-inference hooks (compaction, etc.) now run inside the loop — no separate pre-reply step needed.
         Ok(Box::pin(async_stream::try_stream! {
-            // Run pre-reply compaction via the hook
-            let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
-            let mut hook_ctx = super::hooks::LoopContext {
-                conversation: conversation.clone(),
-                system_prompt: String::new(), // Not needed for compaction check
-                tools: Vec::new(),
-                toolshim_tools: Vec::new(),
-                provider: self.provider().await?,
-                session_id: session_config.id.clone(),
-                schedule_id: session_config.schedule_id.clone(),
-                session_manager: session_manager.clone(),
-                event_tx,
-            };
-
-            let compaction_result = self.compaction_hook.pre_inference(&mut hook_ctx).await;
-
-            // Drain and yield any events emitted by the hook
-            while let Ok(event) = event_rx.try_recv() {
-                match event {
-                    super::hooks::LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
-                    super::hooks::LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
-                }
-            }
-
-            if let Err(_e) = compaction_result {
-                // Hook already emitted error message to event_tx
-                return;
-            }
-
-            // Use the (possibly compacted) conversation from the hook context
-            let final_conversation = hook_ctx.conversation;
-
-            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            let mut reply_stream = self.reply_internal(conversation, session_config, session, cancel_token).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
@@ -1123,9 +1088,14 @@ impl Agent {
             initial_messages,
         };
 
+        // Collect all hooks: compaction hook + any registered hooks.
+        let mut all_hooks: Vec<Box<dyn super::hooks::AgentHook>> = Vec::new();
+        all_hooks.push(Box::new(super::compaction_hook::CompactionHook::new()));
+        // TODO: add self.hooks here once Agent stores pre-built hook instances
+
         Ok(super::agent_loop::run_agent_loop(
             self,
-            &self.compaction_hook,
+            all_hooks,
             loop_config,
         ))
     }

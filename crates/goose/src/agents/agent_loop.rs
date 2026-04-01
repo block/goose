@@ -22,7 +22,6 @@ use tracing_futures::Instrument;
 use uuid::Uuid;
 
 use super::agent::{frontend_tool_stream, tool_stream, AgentEvent, ToolStream, ToolStreamItem};
-use super::compaction_hook::CompactionHook;
 use super::hooks::{AgentHook, ErrorRecovery, LoopContext, LoopEvent};
 use super::reply_parts::update_session_metrics_standalone;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE};
@@ -182,13 +181,13 @@ pub struct LoopConfig {
 ///
 /// This is the core inference–tool-execution loop, parameterized by:
 /// - `driver`: provides tool dispatch, permissions, and Agent-specific capabilities
-/// - `compaction_hook`: handles context compaction (pre-inference and error recovery)
+/// - `hooks`: composable lifecycle hooks (compaction, MOIM injection, etc.)
 /// - `config`: loop configuration (conversation, tools, session, etc.)
 ///
 /// Returns a stream of `AgentEvent`s.
 pub fn run_agent_loop<'a>(
     driver: &'a (dyn LoopDriver + 'a),
-    compaction_hook: &'a CompactionHook,
+    hooks: Vec<Box<dyn AgentHook>>,
     config: LoopConfig,
 ) -> BoxStream<'a, Result<AgentEvent>> {
     let LoopConfig {
@@ -254,6 +253,39 @@ pub fn run_agent_loop<'a>(
                     break;
                 }
 
+                // --- pre_inference hooks ---
+                {
+                    let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
+                    let mut hook_ctx = LoopContext {
+                        conversation,
+                        system_prompt,
+                        tools,
+                        toolshim_tools,
+                        provider: driver.provider(),
+                        session_id: session_config.id.clone(),
+                        schedule_id: session_config.schedule_id.clone(),
+                        session_manager: session_manager.clone(),
+                        event_tx: hook_event_tx,
+                    };
+
+                    for hook in &hooks {
+                        hook.pre_inference(&mut hook_ctx).await?;
+                    }
+
+                    // Move state back (hooks may have modified conversation, prompt, tools)
+                    conversation = hook_ctx.conversation;
+                    system_prompt = hook_ctx.system_prompt;
+                    tools = hook_ctx.tools;
+                    toolshim_tools = hook_ctx.toolshim_tools;
+
+                    while let Ok(event) = hook_event_rx.try_recv() {
+                        match event {
+                            LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
+                            LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
+                        }
+                    }
+                }
+
                 let conversation_with_moim = driver.inject_moim(
                     &session_config.id,
                     conversation.clone(),
@@ -295,7 +327,32 @@ pub fn run_agent_loop<'a>(
 
                     match next {
                         Ok((response, usage)) => {
-                            compaction_hook.reset_recovery_attempts();
+                            // --- post_inference hooks ---
+                            // Run after successful LLM response, before tool execution.
+                            // Currently used by CompactionHook to reset recovery counters.
+                            if let Some(ref resp) = response {
+                                let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
+                                let mut hook_ctx = LoopContext {
+                                    conversation: conversation.clone(),
+                                    system_prompt: system_prompt.clone(),
+                                    tools: tools.clone(),
+                                    toolshim_tools: toolshim_tools.clone(),
+                                    provider: driver.provider(),
+                                    session_id: session_config.id.clone(),
+                                    schedule_id: session_config.schedule_id.clone(),
+                                    session_manager: session_manager.clone(),
+                                    event_tx: hook_event_tx,
+                                };
+                                for hook in &hooks {
+                                    hook.post_inference(resp, &mut hook_ctx).await?;
+                                }
+                                while let Ok(event) = hook_event_rx.try_recv() {
+                                    match event {
+                                        LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
+                                        LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
+                                    }
+                                }
+                            }
 
                             if let Some(ref usage) = usage {
                                 update_session_metrics_standalone(
@@ -580,10 +637,12 @@ pub fn run_agent_loop<'a>(
                                 no_tools_called = false;
                             }
                         }
-                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                        Err(ref provider_err) => {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
 
+                            // --- on_error hooks ---
+                            // Give hooks a chance to handle the error (e.g. compaction on ContextLengthExceeded).
                             let (hook_event_tx, mut hook_event_rx) = tokio::sync::mpsc::unbounded_channel();
                             let mut hook_ctx = LoopContext {
                                 conversation: conversation.clone(),
@@ -597,12 +656,19 @@ pub fn run_agent_loop<'a>(
                                 event_tx: hook_event_tx,
                             };
 
-                            let recovery = compaction_hook.on_error(provider_err, &mut hook_ctx).await?;
-
-                            while let Ok(event) = hook_event_rx.try_recv() {
-                                match event {
-                                    LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
-                                    LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
+                            let mut recovery = ErrorRecovery::Propagate;
+                            for hook in &hooks {
+                                let result = hook.on_error(provider_err, &mut hook_ctx).await?;
+                                // Drain events emitted by this hook
+                                while let Ok(event) = hook_event_rx.try_recv() {
+                                    match event {
+                                        LoopEvent::Message(msg) => yield AgentEvent::Message(msg),
+                                        LoopEvent::HistoryReplaced(conv) => yield AgentEvent::HistoryReplaced(conv),
+                                    }
+                                }
+                                if matches!(result, ErrorRecovery::Retry) {
+                                    recovery = ErrorRecovery::Retry;
+                                    break;
                                 }
                             }
 
@@ -613,55 +679,44 @@ pub fn run_agent_loop<'a>(
                                     break;
                                 }
                                 ErrorRecovery::Propagate => {
+                                    // No hook handled the error — display to user
+                                    error!("Error: {}", provider_err);
+                                    match provider_err {
+                                        ProviderError::CreditsExhausted { top_up_url, .. } => {
+                                            let user_msg = if top_up_url.is_some() {
+                                                "Please add credits to your account, then resend your message to continue.".to_string()
+                                            } else {
+                                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
+                                            };
+                                            let notification_data = serde_json::json!({
+                                                "top_up_url": top_up_url,
+                                            });
+                                            yield AgentEvent::Message(
+                                                Message::assistant().with_system_notification_with_data(
+                                                    SystemNotificationType::CreditsExhausted,
+                                                    user_msg,
+                                                    notification_data,
+                                                )
+                                            );
+                                        }
+                                        ProviderError::NetworkError(_) => {
+                                            yield AgentEvent::Message(
+                                                Message::assistant().with_text(
+                                                    format!("{provider_err}\n\nPlease resend your message to try again.")
+                                                )
+                                            );
+                                        }
+                                        _ => {
+                                            yield AgentEvent::Message(
+                                                Message::assistant().with_text(
+                                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                                )
+                                            );
+                                        }
+                                    }
                                     break;
                                 }
                             }
-                        }
-                        Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Error: {}", provider_err);
-
-                            let user_msg = if top_up_url.is_some() {
-                                "Please add credits to your account, then resend your message to continue.".to_string()
-                            } else {
-                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
-                            };
-
-                            let notification_data = serde_json::json!({
-                                "top_up_url": top_up_url,
-                            });
-
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification_with_data(
-                                    SystemNotificationType::CreditsExhausted,
-                                    user_msg,
-                                    notification_data,
-                                )
-                            );
-                            break;
-                        }
-                        Err(ref provider_err @ ProviderError::NetworkError(_)) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("{provider_err}\n\nPlease resend your message to try again.")
-                                )
-                            );
-                            break;
-                        }
-                        Err(ref provider_err) => {
-                            #[cfg(feature = "telemetry")]
-                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                )
-                            );
-                            break;
                         }
                     }
                 }
