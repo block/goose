@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::{FutureExt, future};
+use futures::{future, FutureExt};
 use once_cell::sync::Lazy;
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
@@ -14,10 +14,10 @@ use rmcp::transport::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
-use tempfile::{TempDir, tempdir};
+use tempfile::{tempdir, TempDir};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -27,8 +27,8 @@ use tracing::{error, warn};
 
 use super::container::Container;
 use super::extension::{
-    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PLATFORM_EXTENSIONS,
-    PlatformExtensionContext, ToolInfo,
+    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
+    ToolInfo, PLATFORM_EXTENSIONS,
 };
 use super::tool_execution::{ToolCallContext, ToolCallResult};
 use super::types::SharedProvider;
@@ -38,7 +38,7 @@ use crate::agents::mcp_client::{GooseMcpClientCapabilities, McpClient, McpClient
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
-use crate::config::{Config, get_all_extensions};
+use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
@@ -1710,7 +1710,7 @@ mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
     use rmcp::model::{InitializeResult, JsonObject};
-    use rmcp::{ServiceError as Error, object};
+    use rmcp::{object, ServiceError as Error};
 
     use rmcp::model::ListPromptsResult;
     use rmcp::model::ListResourcesResult;
@@ -1956,16 +1956,12 @@ mod tests {
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(!tool_names.iter().any(|name| name == "test_extension__tool")); // Default unavailable
-        assert!(
-            tool_names
-                .iter()
-                .any(|name| name == "test_extension__available_tool")
-        );
-        assert!(
-            !tool_names
-                .iter()
-                .any(|name| name == "test_extension__hidden_tool")
-        );
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__available_tool"));
+        assert!(!tool_names
+            .iter()
+            .any(|name| name == "test_extension__hidden_tool"));
         assert!(tool_names.len() == 1);
     }
 
@@ -1990,16 +1986,12 @@ mod tests {
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|name| name == "test_extension__tool"));
-        assert!(
-            tool_names
-                .iter()
-                .any(|name| name == "test_extension__available_tool")
-        );
-        assert!(
-            tool_names
-                .iter()
-                .any(|name| name == "test_extension__hidden_tool")
-        );
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__available_tool"));
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__hidden_tool"));
         assert!(tool_names.len() == 3);
     }
 
