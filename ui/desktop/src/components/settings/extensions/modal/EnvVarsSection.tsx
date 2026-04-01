@@ -3,6 +3,39 @@ import { Button } from '../../../ui/button';
 import { Plus, X, Edit } from 'lucide-react';
 import { Input } from '../../../ui/input';
 import { cn } from '../../../../utils';
+import { defineMessages, useIntl } from '../../../../i18n';
+
+const i18n = defineMessages({
+  environmentVariables: {
+    id: 'envVarsSection.environmentVariables',
+    defaultMessage: 'Environment Variables',
+  },
+  envVarsDescription: {
+    id: 'envVarsSection.envVarsDescription',
+    defaultMessage:
+      'Add key-value pairs for environment variables. Click the "+" button to add after filling both fields. For existing secret values, click the edit button to modify.',
+  },
+  variableName: {
+    id: 'envVarsSection.variableName',
+    defaultMessage: 'Variable name',
+  },
+  value: {
+    id: 'envVarsSection.value',
+    defaultMessage: 'Value',
+  },
+  bothRequired: {
+    id: 'envVarsSection.bothRequired',
+    defaultMessage: 'Both variable name and value must be entered',
+  },
+  noSpaces: {
+    id: 'envVarsSection.noSpaces',
+    defaultMessage: 'Variable name cannot contain spaces',
+  },
+  add: {
+    id: 'envVarsSection.add',
+    defaultMessage: 'Add',
+  },
+});
 
 interface EnvVarsSectionProps {
   envVars: { key: string; value: string; isEdited?: boolean }[];
@@ -21,6 +54,7 @@ export default function EnvVarsSection({
   submitAttempted,
   onPendingInputChange,
 }: EnvVarsSectionProps) {
+  const intl = useIntl();
   const [newKey, setNewKey] = React.useState('');
   const [newValue, setNewValue] = React.useState('');
   const [validationError, setValidationError] = React.useState<string | null>(null);
@@ -45,7 +79,7 @@ export default function EnvVarsSection({
         key: keyEmpty,
         value: valueEmpty,
       });
-      setValidationError('Both variable name and value must be entered');
+      setValidationError(intl.formatMessage(i18n.bothRequired));
       return;
     }
 
@@ -54,7 +88,7 @@ export default function EnvVarsSection({
         key: true,
         value: false,
       });
-      setValidationError('Variable name cannot contain spaces');
+      setValidationError(intl.formatMessage(i18n.noSpaces));
       return;
     }
 
@@ -95,11 +129,10 @@ export default function EnvVarsSection({
     <div>
       <div className="relative mb-2">
         <label className="text-sm font-medium text-text-primary mb-2 block">
-          Environment Variables
+          {intl.formatMessage(i18n.environmentVariables)}
         </label>
         <p className="text-xs text-text-secondary mb-4">
-          Add key-value pairs for environment variables. Click the "+" button to add after filling
-          both fields. For existing secret values, click the edit button to modify.
+          {intl.formatMessage(i18n.envVarsDescription)}
         </p>
       </div>
       <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
@@ -111,7 +144,7 @@ export default function EnvVarsSection({
                 data-testid={`env-var-key-${index}`}
                 value={envVar.key}
                 onChange={(e) => onChange(index, 'key', e.target.value)}
-                placeholder="Variable name"
+                placeholder={intl.formatMessage(i18n.variableName)}
                 className={cn(
                   'w-full text-text-primary border-border-primary hover:border-border-primary',
                   isFieldInvalid(index, 'key') && 'border-red-500 focus:border-red-500'
@@ -129,7 +162,7 @@ export default function EnvVarsSection({
                     envVar.value === '••••••••' && !envVar.isEdited ? '' : e.target.value;
                   onChange(index, 'value', newValue);
                 }}
-                placeholder="Value"
+                placeholder={intl.formatMessage(i18n.value)}
                 className={cn(
                   'w-full border-border-primary',
                   envVar.value === '••••••••' && !envVar.isEdited
@@ -168,7 +201,7 @@ export default function EnvVarsSection({
             setNewKey(e.target.value);
             clearValidation();
           }}
-          placeholder="Variable name"
+          placeholder={intl.formatMessage(i18n.variableName)}
           className={cn(
             'w-full text-text-primary border-border-primary hover:border-border-primary',
             invalidFields.key && 'border-red-500 focus:border-red-500'
@@ -180,7 +213,7 @@ export default function EnvVarsSection({
             setNewValue(e.target.value);
             clearValidation();
           }}
-          placeholder="Value"
+          placeholder={intl.formatMessage(i18n.value)}
           className={cn(
             'w-full text-text-primary border-border-primary hover:border-border-primary',
             invalidFields.value && 'border-red-500 focus:border-red-500'
@@ -192,7 +225,7 @@ export default function EnvVarsSection({
             variant="ghost"
             className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-text-primary bg-background-primary border border-border-primary hover:border-border-primary transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
           >
-            <Plus /> Add
+            <Plus /> {intl.formatMessage(i18n.add)}
           </Button>
         </div>
       </div>

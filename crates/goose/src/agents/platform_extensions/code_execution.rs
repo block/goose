@@ -478,15 +478,21 @@ impl McpClientTrait for CodeExecutionClient {
 
         let disclosure_style_moim = match self.disclosure {
             ToolDisclosure::Catalog => {
-                let available_fns: Vec<_> = code_mode
-                    .list_functions()
-                    .functions
+                let functions = code_mode.list_functions().functions;
+                let sandbox_only: Vec<_> = functions
                     .iter()
+                    .filter(|f| !crate::agents::extension_manager::is_first_class_extension(&f.namespace))
                     .map(|f| format!("{}.{}", &f.namespace, &f.name))
                     .collect();
-                format!("Available functions: {}
-
-                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.", available_fns.join(", "))
+                let mut msg = String::new();
+                if !sandbox_only.is_empty() {
+                    msg.push_str(&format!(
+                        "Additional functions available ONLY via execute_typescript (do NOT call these as direct tool calls): {}",
+                        sandbox_only.join(", ")
+                    ));
+                }
+                msg.push_str("\n\n                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.");
+                msg
             }
             ToolDisclosure::Filesystem => {
                 let available_filepaths: Vec<_> = code_mode

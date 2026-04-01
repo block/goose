@@ -10,6 +10,62 @@ import {
 } from '../../../api';
 import { toastError } from '../../../toasts';
 import { errorMessage } from '../../../utils/conversionUtils';
+import { defineMessages, useIntl } from '../../../i18n';
+
+const i18n = defineMessages({
+  searchHuggingFace: {
+    id: 'huggingFaceModelSearch.searchHuggingFace',
+    defaultMessage: 'Search HuggingFace',
+  },
+  searchPlaceholder: {
+    id: 'huggingFaceModelSearch.searchPlaceholder',
+    defaultMessage: 'Search for GGUF models...',
+  },
+  loadingVariants: {
+    id: 'huggingFaceModelSearch.loadingVariants',
+    defaultMessage: 'Loading variants...',
+  },
+  recommended: {
+    id: 'huggingFaceModelSearch.recommended',
+    defaultMessage: 'Recommended',
+  },
+  download: {
+    id: 'huggingFaceModelSearch.download',
+    defaultMessage: 'Download',
+  },
+  directDownload: {
+    id: 'huggingFaceModelSearch.directDownload',
+    defaultMessage: 'Direct Download',
+  },
+  directDownloadDescription: {
+    id: 'huggingFaceModelSearch.directDownloadDescription',
+    defaultMessage: 'Specify a model directly: {format}',
+  },
+  directDownloadFailed: {
+    id: 'huggingFaceModelSearch.directDownloadFailed',
+    defaultMessage: 'Direct download failed',
+  },
+  directDownloadErrorMsg: {
+    id: 'huggingFaceModelSearch.directDownloadErrorMsg',
+    defaultMessage: 'Failed to start the download. Check the spec: {error}',
+  },
+  noGgufModels: {
+    id: 'huggingFaceModelSearch.noGgufModels',
+    defaultMessage: 'No GGUF models found for this query.',
+  },
+  searchError: {
+    id: 'huggingFaceModelSearch.searchError',
+    defaultMessage: 'Search error: {details}',
+  },
+  searchNoData: {
+    id: 'huggingFaceModelSearch.searchNoData',
+    defaultMessage: 'Search returned no data.',
+  },
+  searchFailed: {
+    id: 'huggingFaceModelSearch.searchFailed',
+    defaultMessage: 'Search failed. Please try again.',
+  },
+});
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return 'unknown';
@@ -35,6 +91,7 @@ interface Props {
 }
 
 export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
+  const intl = useIntl();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HfModelInfo[]>([]);
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
@@ -46,69 +103,72 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults([]);
-      setError(null);
-      return;
-    }
-    setSearching(true);
-    setError(null);
-    try {
-      const response = await searchHfModels({
-        query: { q, limit: 20 },
-      });
-      if (response.data) {
-        // Pre-fetch variants for all results and filter out repos with no suitable quantizations
-        const modelsWithVariants = await Promise.all(
-          response.data.map(async (model) => {
-            try {
-              const [author, repo] = model.repo_id.split('/');
-              const filesResponse = await getRepoFiles({ path: { author, repo } });
-              if (filesResponse.data && filesResponse.data.variants.length > 0) {
-                return { model, data: filesResponse.data };
-              }
-            } catch {
-              // Skip repos we can't fetch
-            }
-            return null;
-          })
-        );
-
-        const validResults = modelsWithVariants.filter(Boolean) as {
-          model: HfModelInfo;
-          data: { variants: HfQuantVariant[]; recommended_index?: number | null };
-        }[];
-
-        setResults(validResults.map((r) => r.model));
-        setRepoData((prev) => {
-          const next = { ...prev };
-          for (const r of validResults) {
-            next[r.model.repo_id] = {
-              variants: r.data.variants,
-              recommendedIndex: r.data.recommended_index ?? null,
-            };
-          }
-          return next;
-        });
-
-        if (validResults.length === 0) {
-          setError('No GGUF models found for this query.');
-        }
-      } else {
-        console.error('Search response:', response);
-        const errMsg = response.error
-          ? `Search error: ${JSON.stringify(response.error)}`
-          : 'Search returned no data.';
-        setError(errMsg);
+  const doSearch = useCallback(
+    async (q: string) => {
+      if (!q.trim()) {
+        setResults([]);
+        setError(null);
+        return;
       }
-    } catch (e) {
-      console.error('Search failed:', e);
-      setError('Search failed. Please try again.');
-    } finally {
-      setSearching(false);
-    }
-  }, []);
+      setSearching(true);
+      setError(null);
+      try {
+        const response = await searchHfModels({
+          query: { q, limit: 20 },
+        });
+        if (response.data) {
+          // Pre-fetch variants for all results and filter out repos with no suitable quantizations
+          const modelsWithVariants = await Promise.all(
+            response.data.map(async (model) => {
+              try {
+                const [author, repo] = model.repo_id.split('/');
+                const filesResponse = await getRepoFiles({ path: { author, repo } });
+                if (filesResponse.data && filesResponse.data.variants.length > 0) {
+                  return { model, data: filesResponse.data };
+                }
+              } catch {
+                // Skip repos we can't fetch
+              }
+              return null;
+            })
+          );
+
+          const validResults = modelsWithVariants.filter(Boolean) as {
+            model: HfModelInfo;
+            data: { variants: HfQuantVariant[]; recommended_index?: number | null };
+          }[];
+
+          setResults(validResults.map((r) => r.model));
+          setRepoData((prev) => {
+            const next = { ...prev };
+            for (const r of validResults) {
+              next[r.model.repo_id] = {
+                variants: r.data.variants,
+                recommendedIndex: r.data.recommended_index ?? null,
+              };
+            }
+            return next;
+          });
+
+          if (validResults.length === 0) {
+            setError(intl.formatMessage(i18n.noGgufModels));
+          }
+        } else {
+          console.error('Search response:', response);
+          const errMsg = response.error
+            ? intl.formatMessage(i18n.searchError, { details: JSON.stringify(response.error) })
+            : intl.formatMessage(i18n.searchNoData);
+          setError(errMsg);
+        }
+      } catch (e) {
+        console.error('Search failed:', e);
+        setError(intl.formatMessage(i18n.searchFailed));
+      } finally {
+        setSearching(false);
+      }
+    },
+    [intl]
+  );
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
@@ -189,8 +249,8 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       }
     } catch (e) {
       toastError({
-        title: 'Direct download failed',
-        msg: 'Failed to start the download. Check the spec: ' + errorMessage(e),
+        title: intl.formatMessage(i18n.directDownloadFailed),
+        msg: intl.formatMessage(i18n.directDownloadErrorMsg, { error: errorMessage(e) }),
       });
     } finally {
       setDownloading((prev) => {
@@ -204,14 +264,16 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">Search HuggingFace</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">
+          {intl.formatMessage(i18n.searchHuggingFace)}
+        </h4>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Search for GGUF models..."
+            placeholder={intl.formatMessage(i18n.searchPlaceholder)}
             className="w-full pl-9 pr-4 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
           />
           {searching && (
@@ -260,7 +322,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                     {loadingFiles.has(model.repo_id) && (
                       <div className="flex items-center gap-2 py-2 text-xs text-text-muted">
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        Loading variants...
+                        {intl.formatMessage(i18n.loadingVariants)}
                       </div>
                     )}
                     {variants.map((variant, idx) => {
@@ -288,7 +350,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                               {isRecommended && (
                                 <span className="inline-flex items-center gap-1 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">
                                   <Star className="w-3 h-3" />
-                                  Recommended
+                                  {intl.formatMessage(i18n.recommended)}
                                 </span>
                               )}
                             </div>
@@ -307,7 +369,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                             ) : (
                               <>
                                 <Download className="w-3 h-3 mr-1" />
-                                Download
+                                {intl.formatMessage(i18n.download)}
                               </>
                             )}
                           </Button>
@@ -323,10 +385,13 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       )}
 
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">Direct Download</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">
+          {intl.formatMessage(i18n.directDownload)}
+        </h4>
         <p className="text-xs text-text-muted mb-2">
-          Specify a model directly:{' '}
-          <code className="bg-background-subtle px-1 rounded">user/repo:quantization</code>
+          {intl.formatMessage(i18n.directDownloadDescription, {
+            format: 'user/repo:quantization',
+          })}
         </p>
         <div className="flex gap-2">
           <input
@@ -350,7 +415,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
             ) : (
               <>
                 <Download className="w-4 h-4 mr-1" />
-                Download
+                {intl.formatMessage(i18n.download)}
               </>
             )}
           </Button>

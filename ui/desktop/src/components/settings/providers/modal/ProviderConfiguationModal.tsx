@@ -25,6 +25,96 @@ import {
 } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
+import { defineMessages, useIntl } from '../../../../i18n';
+
+const i18n = defineMessages({
+  deleteConfigHeader: {
+    id: 'providerConfigurationModal.deleteConfigHeader',
+    defaultMessage: 'Delete configuration for {providerName}',
+  },
+  configureHeader: {
+    id: 'providerConfigurationModal.configureHeader',
+    defaultMessage: 'Configure {providerName}',
+  },
+  cannotDeleteActive: {
+    id: 'providerConfigurationModal.cannotDeleteActive',
+    defaultMessage:
+      "You cannot delete this provider while it's currently in use. Please switch to a different model first.",
+  },
+  deleteConfirmation: {
+    id: 'providerConfigurationModal.deleteConfirmation',
+    defaultMessage: 'This will permanently delete the current provider configuration.',
+  },
+  oauthSignInDescription: {
+    id: 'providerConfigurationModal.oauthSignInDescription',
+    defaultMessage: 'Sign in with your {providerName} account to use this provider',
+  },
+  addApiKeyDescription: {
+    id: 'providerConfigurationModal.addApiKeyDescription',
+    defaultMessage: 'Add your API key(s) for this provider to integrate into goose',
+  },
+  oauthLoginFailed: {
+    id: 'providerConfigurationModal.oauthLoginFailed',
+    defaultMessage: 'OAuth login failed: {error}',
+  },
+  parameterRequired: {
+    id: 'providerConfigurationModal.parameterRequired',
+    defaultMessage: '{paramName} is required',
+  },
+  errorTitle: {
+    id: 'providerConfigurationModal.errorTitle',
+    defaultMessage: 'Error',
+  },
+  errorCheckingConfig: {
+    id: 'providerConfigurationModal.errorCheckingConfig',
+    defaultMessage: 'There was an error checking this provider configuration.',
+  },
+  checkConfigAgain: {
+    id: 'providerConfigurationModal.checkConfigAgain',
+    defaultMessage: 'Check your configuration again to use this provider.',
+  },
+  goBack: {
+    id: 'providerConfigurationModal.goBack',
+    defaultMessage: 'Go Back',
+  },
+  signingIn: {
+    id: 'providerConfigurationModal.signingIn',
+    defaultMessage: 'Signing in...',
+  },
+  signInWith: {
+    id: 'providerConfigurationModal.signInWith',
+    defaultMessage: 'Sign in with {providerName}',
+  },
+  browserWindowHint: {
+    id: 'providerConfigurationModal.browserWindowHint',
+    defaultMessage: 'A browser window will open for you to complete the login.',
+  },
+  deviceCodeFlowHint: {
+    id: 'providerConfigurationModal.deviceCodeFlowHint',
+    defaultMessage:
+      'A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in.',
+  },
+  externalSetupIntro: {
+    id: 'providerConfigurationModal.externalSetupIntro',
+    defaultMessage: 'This provider is configured outside of goose. Follow these steps:',
+  },
+  seeDocumentation: {
+    id: 'providerConfigurationModal.seeDocumentation',
+    defaultMessage: 'See the <link>documentation</link> for more details.',
+  },
+  cancel: {
+    id: 'providerConfigurationModal.cancel',
+    defaultMessage: 'Cancel',
+  },
+  removeConfiguration: {
+    id: 'providerConfigurationModal.removeConfiguration',
+    defaultMessage: 'Remove Configuration',
+  },
+  close: {
+    id: 'providerConfigurationModal.close',
+    defaultMessage: 'Close',
+  },
+});
 
 /** Render a setup step string, turning `backtick` spans into <code> and newlines into <br/>. */
 function renderSetupStep(text: string) {
@@ -67,6 +157,7 @@ export default function ProviderConfigurationModal({
   onClose,
   onConfigured,
 }: ProviderConfigurationModalProps) {
+  const intl = useIntl();
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { upsert, remove } = useConfig();
   const { getCurrentModelAndProvider } = useModelAndProvider();
@@ -86,8 +177,8 @@ export default function ProviderConfigurationModal({
 
   const isConfigured = provider.is_configured;
   const headerText = showDeleteConfirmation
-    ? `Delete configuration for ${provider.metadata.display_name}`
-    : `Configure ${provider.metadata.display_name}`;
+    ? intl.formatMessage(i18n.deleteConfigHeader, { providerName: provider.metadata.display_name })
+    : intl.formatMessage(i18n.configureHeader, { providerName: provider.metadata.display_name });
 
   const isExternalSetup =
     provider.metadata.config_keys.length === 0 &&
@@ -96,13 +187,15 @@ export default function ProviderConfigurationModal({
 
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
-      ? `You cannot delete this provider while it's currently in use. Please switch to a different model first.`
-      : 'This will permanently delete the current provider configuration.'
+      ? intl.formatMessage(i18n.cannotDeleteActive)
+      : intl.formatMessage(i18n.deleteConfirmation)
     : isOAuthProvider
-      ? `Sign in with your ${provider.metadata.display_name} account to use this provider`
+      ? intl.formatMessage(i18n.oauthSignInDescription, {
+          providerName: provider.metadata.display_name,
+        })
       : isExternalSetup
         ? provider.metadata.description
-        : `Add your API key(s) for this provider to integrate into goose`;
+        : intl.formatMessage(i18n.addApiKeyDescription);
 
   const handleOAuthLogin = async () => {
     setIsOAuthLoading(true);
@@ -117,7 +210,7 @@ export default function ProviderConfigurationModal({
         onClose();
       }
     } catch (err) {
-      setError(`OAuth login failed: ${errorMessage(err)}`);
+      setError(intl.formatMessage(i18n.oauthLoginFailed, { error: errorMessage(err) }));
     } finally {
       setIsOAuthLoading(false);
     }
@@ -137,7 +230,9 @@ export default function ProviderConfigurationModal({
         !configValues[parameter.name]?.value &&
         !configValues[parameter.name]?.serverValue
       ) {
-        errors[parameter.name] = `${parameter.name} is required`;
+        errors[parameter.name] = intl.formatMessage(i18n.parameterRequired, {
+          paramName: parameter.name,
+        });
       }
     });
 
@@ -240,15 +335,17 @@ export default function ProviderConfigurationModal({
     <>
       <Dialog open={!!error} onOpenChange={(open) => !open && setError(null)}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogTitle className="flex items-center gap-2">Error</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {intl.formatMessage(i18n.errorTitle)}
+          </DialogTitle>
           <DialogDescription className="text-inherit text-base">
-            There was an error checking this provider configuration.
+            {intl.formatMessage(i18n.errorCheckingConfig)}
           </DialogDescription>
           <pre className="ml-2">{error}</pre>
-          <div>Check your configuration again to use this provider.</div>
+          <div>{intl.formatMessage(i18n.checkConfigAgain)}</div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setError(null)}>
-              Go Back
+              {intl.formatMessage(i18n.goBack)}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -277,11 +374,15 @@ export default function ProviderConfigurationModal({
                   >
                     <LogIn size={20} />
                     {isOAuthLoading
-                      ? 'Signing in...'
-                      : `Sign in with ${provider.metadata.display_name}`}
+                      ? intl.formatMessage(i18n.signingIn)
+                      : intl.formatMessage(i18n.signInWith, {
+                          providerName: provider.metadata.display_name,
+                        })}
                   </Button>
                   <p className="text-sm text-text-secondary text-center">
-                    A browser window will open for you to complete the login.
+                    {provider.metadata.config_keys.some((key) => key.device_code_flow)
+                      ? intl.formatMessage(i18n.deviceCodeFlowHint)
+                      : intl.formatMessage(i18n.browserWindowHint)}
                   </p>
                 </div>
               ) : provider.metadata.config_keys.length === 0 &&
@@ -289,7 +390,7 @@ export default function ProviderConfigurationModal({
                 provider.metadata.setup_steps.length > 0 ? (
                 <div className="space-y-3">
                   <p className="text-sm text-text-secondary">
-                    This provider is configured outside of goose. Follow these steps:
+                    {intl.formatMessage(i18n.externalSetupIntro)}
                   </p>
                   <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
                     {provider.metadata.setup_steps.map((step, i) => (
@@ -298,18 +399,20 @@ export default function ProviderConfigurationModal({
                   </ol>
                   {provider.metadata.model_doc_link && (
                     <p className="text-sm text-text-secondary mt-4">
-                      See the{' '}
-                      <a
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          window.electron.openExternal(provider.metadata.model_doc_link);
-                        }}
-                        className="underline hover:text-text-primary"
-                      >
-                        documentation
-                      </a>{' '}
-                      for more details.
+                      {intl.formatMessage(i18n.seeDocumentation, {
+                        link: (chunks: React.ReactNode) => (
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              window.electron.openExternal(provider.metadata.model_doc_link);
+                            }}
+                            className="underline hover:text-text-primary"
+                          >
+                            {chunks}
+                          </a>
+                        ),
+                      })}
                     </p>
                   )}
                 </div>
@@ -335,11 +438,11 @@ export default function ProviderConfigurationModal({
             {isOAuthProvider && !showDeleteConfirmation ? (
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleCancel}>
-                  Cancel
+                  {intl.formatMessage(i18n.cancel)}
                 </Button>
                 {isConfigured && (
                   <Button variant="destructive" onClick={handleDelete}>
-                    Remove Configuration
+                    {intl.formatMessage(i18n.removeConfiguration)}
                   </Button>
                 )}
               </div>
@@ -354,7 +457,7 @@ export default function ProviderConfigurationModal({
                   onClick={handleCancel}
                   className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
                 >
-                  Close
+                  {intl.formatMessage(i18n.close)}
                 </Button>
               </div>
             ) : (
