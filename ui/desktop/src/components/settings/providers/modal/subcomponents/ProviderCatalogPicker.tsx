@@ -148,7 +148,9 @@ export default function ProviderCatalogPicker({
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold text-textStandard mb-2">{intl.formatMessage(i18n.chooseProvider)}</h3>
+        <h3 className="text-lg font-semibold text-textStandard mb-2">
+          {intl.formatMessage(i18n.chooseProvider)}
+        </h3>
         <p className="text-sm text-textSubtle">
           {intl.formatMessage(i18n.selectFormatDescription)}
         </p>
@@ -156,7 +158,9 @@ export default function ProviderCatalogPicker({
 
       {/* Format Selection */}
       <div>
-        <label className="text-sm font-medium text-textStandard mb-2 block">{intl.formatMessage(i18n.apiFormat)}</label>
+        <label className="text-sm font-medium text-textStandard mb-2 block">
+          {intl.formatMessage(i18n.apiFormat)}
+        </label>
         <Select
           options={formatOptions}
           value={formatOptions.find((opt) => opt.value === selectedFormat)}
@@ -183,8 +187,16 @@ export default function ProviderCatalogPicker({
       </div>
 
       {/* Loading/Error */}
-      {loading && <div className="text-center py-8 text-textSubtle">{intl.formatMessage(i18n.loadingProviders)}</div>}
-      {error && <div className="text-center py-8 text-red-500">{intl.formatMessage(i18n.errorPrefix, { error })}</div>}
+      {loading && (
+        <div className="text-center py-8 text-textSubtle">
+          {intl.formatMessage(i18n.loadingProviders)}
+        </div>
+      )}
+      {error && (
+        <div className="text-center py-8 text-red-500">
+          {intl.formatMessage(i18n.errorPrefix, { error })}
+        </div>
+      )}
 
       {/* Provider List */}
       {!loading && !error && (
@@ -221,7 +233,8 @@ export default function ProviderCatalogPicker({
                     <div className="text-sm text-textSubtle mt-1 break-all">{provider.api_url}</div>
                     <div className="text-xs text-textSubtle mt-2">
                       {intl.formatMessage(i18n.modelsAvailable, { count: provider.model_count })}
-                      {provider.env_var && intl.formatMessage(i18n.requiresEnvVar, { envVar: provider.env_var })}
+                      {provider.env_var &&
+                        intl.formatMessage(i18n.requiresEnvVar, { envVar: provider.env_var })}
                     </div>
                   </div>
                   <Check className="w-5 h-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />

@@ -228,7 +228,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-border-primary focus:ring-border-secondary'
                       }`}
-                      placeholder={param.default || intl.formatMessage(i18n.enterValue, { key: param.key })}
+                      placeholder={
+                        param.default || intl.formatMessage(i18n.enterValue, { key: param.key })
+                      }
+                      data-testid={`parameter-value-${param.key}`}
                     />
                   )}
 
@@ -256,6 +259,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                 variant="default"
                 size="default"
                 className="rounded-full"
+                data-testid="start-recipe-button"
               >
                 {intl.formatMessage(i18n.startRecipe)}
               </Button>

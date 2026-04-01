@@ -68,7 +68,6 @@ export const useCostTracking = ({
             },
           }));
         }
-
       }
 
       prevModelRef.current = currentModel || undefined;

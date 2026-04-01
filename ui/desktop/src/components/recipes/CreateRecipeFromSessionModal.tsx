@@ -279,10 +279,7 @@ export default function CreateRecipeFromSessionModal({
       console.error('Failed to create recipe:', error);
       toastError({
         title: intl.formatMessage(i18n.failedToCreateTitle),
-        msg: errorMessage(
-          error,
-          intl.formatMessage(i18n.failedToCreateDefaultMsg)
-        ),
+        msg: errorMessage(error, intl.formatMessage(i18n.failedToCreateDefaultMsg)),
       });
     } finally {
       setIsCreating(false);
@@ -307,10 +304,10 @@ export default function CreateRecipeFromSessionModal({
               <Geese className="w-6 h-6 text-iconProminent" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-text-primary">{intl.formatMessage(i18n.title)}</h1>
-              <p className="text-text-secondary text-sm">
-                {intl.formatMessage(i18n.subtitle)}
-              </p>
+              <h1 className="text-xl font-medium text-text-primary">
+                {intl.formatMessage(i18n.title)}
+              </h1>
+              <p className="text-text-secondary text-sm">{intl.formatMessage(i18n.subtitle)}</p>
             </div>
           </div>
           <Button
@@ -388,7 +385,9 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="create-recipe-button"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {isCreating ? intl.formatMessage(i18n.creating) : intl.formatMessage(i18n.createRecipe)}
+                  {isCreating
+                    ? intl.formatMessage(i18n.creating)
+                    : intl.formatMessage(i18n.createRecipe)}
                 </Button>
                 <Button
                   onClick={() => {
@@ -399,7 +398,9 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="create-and-run-recipe-button"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  {isCreating ? intl.formatMessage(i18n.creating) : intl.formatMessage(i18n.createAndRunRecipe)}
+                  {isCreating
+                    ? intl.formatMessage(i18n.creating)
+                    : intl.formatMessage(i18n.createAndRunRecipe)}
                 </Button>
               </>
             )}

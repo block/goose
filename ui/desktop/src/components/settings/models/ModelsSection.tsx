@@ -2,10 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { View } from '../../../utils/navigationUtils';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
-import {
-  modelAndProviderMessages,
-  useModelAndProvider,
-} from '../../ModelAndProviderContext';
+import { modelAndProviderMessages, useModelAndProvider } from '../../ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -117,9 +114,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">{intl.formatMessage(i18n.resetTitle)}</CardTitle>
-          <CardDescription>
-            {intl.formatMessage(i18n.resetDescription)}
-          </CardDescription>
+          <CardDescription>{intl.formatMessage(i18n.resetDescription)}</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ResetProviderSection setView={setView} />

@@ -12,7 +12,8 @@ const i18n = defineMessages({
   },
   headersDescription: {
     id: 'headersSection.headersDescription',
-    defaultMessage: 'Add custom HTTP headers to include in requests to the MCP server. Click the "+" button to add after filling both fields.',
+    defaultMessage:
+      'Add custom HTTP headers to include in requests to the MCP server. Click the "+" button to add after filling both fields.',
   },
   headerName: {
     id: 'headersSection.headerName',
@@ -132,7 +133,9 @@ export default function HeadersSection({
   return (
     <div>
       <div className="relative mb-2">
-        <label className="text-sm font-medium text-text-primary mb-2 block">{intl.formatMessage(i18n.requestHeaders)}</label>
+        <label className="text-sm font-medium text-text-primary mb-2 block">
+          {intl.formatMessage(i18n.requestHeaders)}
+        </label>
         <p className="text-xs text-text-secondary mb-4">
           {intl.formatMessage(i18n.headersDescription)}
         </p>

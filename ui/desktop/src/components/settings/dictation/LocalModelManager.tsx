@@ -189,9 +189,7 @@ export const LocalModelManager = () => {
   return (
     <div className="space-y-3">
       <div className="text-xs text-text-secondary mb-2">
-        <p>
-          {intl.formatMessage(i18n.gpuAcceleration)}
-        </p>
+        <p>{intl.formatMessage(i18n.gpuAcceleration)}</p>
       </div>
 
       <div className="space-y-2">
@@ -319,14 +317,18 @@ export const LocalModelManager = () => {
           ) : (
             <>
               <ChevronDown className="w-4 h-4 mr-1" />
-              {intl.formatMessage(i18n.showAllModels, { count: models.length - displayedModels.length })}
+              {intl.formatMessage(i18n.showAllModels, {
+                count: models.length - displayedModels.length,
+              })}
             </>
           )}
         </Button>
       )}
 
       {models.length === 0 && (
-        <div className="text-center py-6 text-text-secondary text-sm">{intl.formatMessage(i18n.noModels)}</div>
+        <div className="text-center py-6 text-text-secondary text-sm">
+          {intl.formatMessage(i18n.noModels)}
+        </div>
       )}
     </div>
   );

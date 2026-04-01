@@ -262,7 +262,9 @@ export const LocalInferenceSettings = () => {
       {/* Active Downloads */}
       {downloads.size > 0 && (
         <div ref={downloadSectionRef}>
-          <h4 className="text-sm font-medium text-text-default mb-2">{intl.formatMessage(i18n.downloading)}</h4>
+          <h4 className="text-sm font-medium text-text-default mb-2">
+            {intl.formatMessage(i18n.downloading)}
+          </h4>
           <div className="space-y-2">
             {Array.from(downloads.entries()).map(([modelId, progress]) => {
               if (progress.status === 'completed') return null;
@@ -335,7 +337,9 @@ export const LocalInferenceSettings = () => {
       {/* Downloaded Models */}
       {downloadedModels.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-text-default mb-2">{intl.formatMessage(i18n.downloadedModels)}</h4>
+          <h4 className="text-sm font-medium text-text-default mb-2">
+            {intl.formatMessage(i18n.downloadedModels)}
+          </h4>
           <div className="space-y-2">
             {downloadedModels.map((model) => {
               const isSelected = selectedModelId === model.id;
@@ -395,7 +399,9 @@ export const LocalInferenceSettings = () => {
       {/* Featured Models (not yet downloaded) */}
       {displayedFeatured.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-text-default mb-2">{intl.formatMessage(i18n.featuredModels)}</h4>
+          <h4 className="text-sm font-medium text-text-default mb-2">
+            {intl.formatMessage(i18n.featuredModels)}
+          </h4>
           <div className="space-y-2">
             {displayedFeatured.map((model) => (
               <div
@@ -460,7 +466,9 @@ export const LocalInferenceSettings = () => {
       </div>
 
       {models.length === 0 && (
-        <div className="text-center py-6 text-text-muted text-sm">{intl.formatMessage(i18n.noModels)}</div>
+        <div className="text-center py-6 text-text-muted text-sm">
+          {intl.formatMessage(i18n.noModels)}
+        </div>
       )}
 
       <Dialog

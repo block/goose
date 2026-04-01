@@ -127,7 +127,9 @@ export default function JsonSchemaEditor({
     >
       <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-text-primary">{intl.formatMessage(i18n.title)}</h3>
+          <h3 className="text-lg font-medium text-text-primary">
+            {intl.formatMessage(i18n.title)}
+          </h3>
           <button
             type="button"
             onClick={handleCancel}

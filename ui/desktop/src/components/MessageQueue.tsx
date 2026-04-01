@@ -287,12 +287,16 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-medium text-foreground">
-              {isPaused ? intl.formatMessage(i18n.queuePaused) : intl.formatMessage(i18n.messageQueue)}
+              {isPaused
+                ? intl.formatMessage(i18n.queuePaused)
+                : intl.formatMessage(i18n.messageQueue)}
             </span>
             <span className="text-xs text-muted-foreground">
               {intl.formatMessage(i18n.messageCount, {
                 count: queuedMessages.length,
-                status: isPaused ? intl.formatMessage(i18n.waiting) : intl.formatMessage(i18n.queued),
+                status: isPaused
+                  ? intl.formatMessage(i18n.waiting)
+                  : intl.formatMessage(i18n.queued),
               })}
             </span>
           </div>
@@ -328,9 +332,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
         <div className="px-4 py-2 bg-amber-50/80 dark:bg-amber-900/20 border-b border-amber-200/50 dark:border-amber-800/50">
           <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
             <Zap className="w-4 h-4" />
-            <span>
-              {intl.formatMessage(i18n.queuePausedExpanded)}
-            </span>
+            <span>{intl.formatMessage(i18n.queuePausedExpanded)}</span>
           </div>
         </div>
       )}

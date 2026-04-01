@@ -107,7 +107,9 @@ Use {{parameter_name}} syntax for any user-provided values.`;
     >
       <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[900px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-text-primary">{intl.formatMessage(i18n.title)}</h3>
+          <h3 className="text-lg font-medium text-text-primary">
+            {intl.formatMessage(i18n.title)}
+          </h3>
           <button
             type="button"
             onClick={handleCancel}
@@ -120,7 +122,9 @@ Use {{parameter_name}} syntax for any user-provided values.`;
         <div className="flex-1 flex flex-col min-h-0">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-text-primary">{intl.formatMessage(i18n.label)}</label>
+              <label className="block text-sm font-medium text-text-primary">
+                {intl.formatMessage(i18n.label)}
+              </label>
               <Button
                 type="button"
                 onClick={insertExample}

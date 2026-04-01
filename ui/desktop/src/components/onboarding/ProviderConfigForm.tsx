@@ -101,7 +101,9 @@ function OAuthForm({
         size="lg"
       >
         <LogIn size={20} />
-        {isLoading ? intl.formatMessage(i18n.signingIn) : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
+        {isLoading
+          ? intl.formatMessage(i18n.signingIn)
+          : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
       </Button>
       <p className="text-xs text-text-muted text-center">
         {isDeviceCodeFlow

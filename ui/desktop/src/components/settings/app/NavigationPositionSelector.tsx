@@ -34,10 +34,26 @@ export const NavigationPositionSelector: React.FC<NavigationPositionSelectorProp
   const intl = useIntl();
 
   const positions: { value: NavigationPosition; label: string; icon: React.ReactNode }[] = [
-    { value: 'top', label: intl.formatMessage(i18n.topLabel), icon: <ArrowUp className="w-5 h-5" /> },
-    { value: 'bottom', label: intl.formatMessage(i18n.bottomLabel), icon: <ArrowDown className="w-5 h-5" /> },
-    { value: 'left', label: intl.formatMessage(i18n.leftLabel), icon: <ArrowLeft className="w-5 h-5" /> },
-    { value: 'right', label: intl.formatMessage(i18n.rightLabel), icon: <ArrowRight className="w-5 h-5" /> },
+    {
+      value: 'top',
+      label: intl.formatMessage(i18n.topLabel),
+      icon: <ArrowUp className="w-5 h-5" />,
+    },
+    {
+      value: 'bottom',
+      label: intl.formatMessage(i18n.bottomLabel),
+      icon: <ArrowDown className="w-5 h-5" />,
+    },
+    {
+      value: 'left',
+      label: intl.formatMessage(i18n.leftLabel),
+      icon: <ArrowLeft className="w-5 h-5" />,
+    },
+    {
+      value: 'right',
+      label: intl.formatMessage(i18n.rightLabel),
+      icon: <ArrowRight className="w-5 h-5" />,
+    },
   ];
 
   return (

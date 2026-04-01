@@ -127,9 +127,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
               <DialogTitle className="text-3xl font-medium text-text-primary">
                 {intl.formatMessage(i18n.title)}
               </DialogTitle>
-              <p className="text-text-secondary">
-                {intl.formatMessage(i18n.description)}
-              </p>
+              <p className="text-text-secondary">{intl.formatMessage(i18n.description)}</p>
             </div>
           </div>
         </DialogHeader>

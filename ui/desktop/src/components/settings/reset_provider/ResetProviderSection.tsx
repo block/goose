@@ -11,7 +11,8 @@ const i18n = defineMessages({
   },
   resetDescription: {
     id: 'resetProviderSection.resetDescription',
-    defaultMessage: "This will clear your selected model and provider settings. If no defaults are available, you'll be taken to the welcome screen to set them up again.",
+    defaultMessage:
+      "This will clear your selected model and provider settings. If no defaults are available, you'll be taken to the welcome screen to set them up again.",
   },
 });
 

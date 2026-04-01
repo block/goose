@@ -190,7 +190,9 @@ export default function ProviderConfigurationModal({
       ? intl.formatMessage(i18n.cannotDeleteActive)
       : intl.formatMessage(i18n.deleteConfirmation)
     : isOAuthProvider
-      ? intl.formatMessage(i18n.oauthSignInDescription, { providerName: provider.metadata.display_name })
+      ? intl.formatMessage(i18n.oauthSignInDescription, {
+          providerName: provider.metadata.display_name,
+        })
       : isExternalSetup
         ? provider.metadata.description
         : intl.formatMessage(i18n.addApiKeyDescription);
@@ -228,7 +230,9 @@ export default function ProviderConfigurationModal({
         !configValues[parameter.name]?.value &&
         !configValues[parameter.name]?.serverValue
       ) {
-        errors[parameter.name] = intl.formatMessage(i18n.parameterRequired, { paramName: parameter.name });
+        errors[parameter.name] = intl.formatMessage(i18n.parameterRequired, {
+          paramName: parameter.name,
+        });
       }
     });
 
@@ -331,7 +335,9 @@ export default function ProviderConfigurationModal({
     <>
       <Dialog open={!!error} onOpenChange={(open) => !open && setError(null)}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogTitle className="flex items-center gap-2">{intl.formatMessage(i18n.errorTitle)}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {intl.formatMessage(i18n.errorTitle)}
+          </DialogTitle>
           <DialogDescription className="text-inherit text-base">
             {intl.formatMessage(i18n.errorCheckingConfig)}
           </DialogDescription>
@@ -369,7 +375,9 @@ export default function ProviderConfigurationModal({
                     <LogIn size={20} />
                     {isOAuthLoading
                       ? intl.formatMessage(i18n.signingIn)
-                      : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
+                      : intl.formatMessage(i18n.signInWith, {
+                          providerName: provider.metadata.display_name,
+                        })}
                   </Button>
                   <p className="text-sm text-text-secondary text-center">
                     {provider.metadata.config_keys.some((key) => key.device_code_flow)

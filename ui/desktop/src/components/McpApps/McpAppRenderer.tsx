@@ -548,33 +548,36 @@ export default function McpAppRenderer({
     });
   }, [state.status, pendingCsp, intl]);
 
-  const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
-    if (isProtocolSafe(url)) {
+  const handleOpenLink = useCallback(
+    async ({ url }: { url: string }) => {
+      if (isProtocolSafe(url)) {
+        await window.electron.openExternal(url);
+        return { status: 'success' as const };
+      }
+
+      const protocol = getProtocol(url);
+      if (!protocol) {
+        return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
+      }
+
+      const result = await window.electron.showMessageBox({
+        type: 'question',
+        buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
+        defaultId: 0,
+        title: intl.formatMessage(i18n.openExternalLinkTitle),
+        message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
+        detail: intl.formatMessage(i18n.openLinkDetail, { url }),
+      });
+
+      if (result.response !== 1) {
+        return { status: 'error' as const, message: 'User cancelled' };
+      }
+
       await window.electron.openExternal(url);
       return { status: 'success' as const };
-    }
-
-    const protocol = getProtocol(url);
-    if (!protocol) {
-      return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
-    }
-
-    const result = await window.electron.showMessageBox({
-      type: 'question',
-      buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
-      defaultId: 0,
-      title: intl.formatMessage(i18n.openExternalLinkTitle),
-      message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
-      detail: intl.formatMessage(i18n.openLinkDetail, { url }),
-    });
-
-    if (result.response !== 1) {
-      return { status: 'error' as const, message: 'User cancelled' };
-    }
-
-    await window.electron.openExternal(url);
-    return { status: 'success' as const };
-  }, [intl]);
+    },
+    [intl]
+  );
 
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {

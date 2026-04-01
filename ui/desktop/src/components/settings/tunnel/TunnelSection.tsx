@@ -97,7 +97,8 @@ const i18n = defineMessages({
   },
   qrCodeInstructions: {
     id: 'tunnelSection.qrCodeInstructions',
-    defaultMessage: 'Scan this QR code with the goose mobile app. Do not share this code with anyone else as it is for your personal access.',
+    defaultMessage:
+      'Scan this QR code with the goose mobile app. Do not share this code with anyone else as it is for your personal access.',
   },
   connectionDetails: {
     id: 'tunnelSection.connectionDetails',
@@ -121,7 +122,8 @@ const i18n = defineMessages({
   },
   appStoreQrInstructions: {
     id: 'tunnelSection.appStoreQrInstructions',
-    defaultMessage: 'Scan this QR code with your iPhone camera to install the goose mobile app from the App Store',
+    defaultMessage:
+      'Scan this QR code with your iPhone camera to install the goose mobile app from the App Store',
   },
   openInAppStore: {
     id: 'tunnelSection.openInAppStore',
@@ -257,7 +259,8 @@ export default function TunnelSection() {
             <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
               <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="text-xs text-blue-800 dark:text-blue-200">
-                <strong>{intl.formatMessage(i18n.previewFeature)}</strong> {intl.formatMessage(i18n.previewDescription)}{' '}
+                <strong>{intl.formatMessage(i18n.previewFeature)}</strong>{' '}
+                {intl.formatMessage(i18n.previewDescription)}{' '}
                 <a
                   href={IOS_APP_STORE_URL}
                   target="_blank"
@@ -266,8 +269,8 @@ export default function TunnelSection() {
                 >
                   {intl.formatMessage(i18n.getIosApp)}
                   <ExternalLink className="h-3 w-3" />
-                </a>
-                {' '}{intl.formatMessage(i18n.or)}{' '}
+                </a>{' '}
+                {intl.formatMessage(i18n.or)}{' '}
                 <button
                   onClick={() => setShowAppStoreQRModal(true)}
                   className="inline-flex items-center gap-1 underline hover:no-underline"
@@ -310,7 +313,9 @@ export default function TunnelSection() {
                 </>
               ) : (
                 <Button onClick={handleToggleTunnel} variant="default" size="sm">
-                  {tunnelInfo.state === 'error' ? intl.formatMessage(i18n.retry) : intl.formatMessage(i18n.startTunnel)}
+                  {tunnelInfo.state === 'error'
+                    ? intl.formatMessage(i18n.retry)
+                    : intl.formatMessage(i18n.startTunnel)}
                 </Button>
               )}
             </div>
@@ -360,7 +365,9 @@ export default function TunnelSection() {
                 {showDetails && (
                   <div className="mt-3 space-y-3">
                     <div>
-                      <h3 className="text-xs font-medium mb-1 text-text-secondary">{intl.formatMessage(i18n.tunnelUrl)}</h3>
+                      <h3 className="text-xs font-medium mb-1 text-text-secondary">
+                        {intl.formatMessage(i18n.tunnelUrl)}
+                      </h3>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
                           {tunnelInfo.url}
@@ -377,7 +384,9 @@ export default function TunnelSection() {
                     </div>
 
                     <div>
-                      <h3 className="text-xs font-medium mb-1 text-text-secondary">{intl.formatMessage(i18n.secretKey)}</h3>
+                      <h3 className="text-xs font-medium mb-1 text-text-secondary">
+                        {intl.formatMessage(i18n.secretKey)}
+                      </h3>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
                           {tunnelInfo.secret}

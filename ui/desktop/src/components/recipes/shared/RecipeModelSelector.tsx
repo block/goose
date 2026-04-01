@@ -186,9 +186,7 @@ export const RecipeModelSelector = ({
         <label className="block text-sm font-medium text-textStandard mb-2">
           {intl.formatMessage(i18n.providerLabel)}
         </label>
-        <p className="text-xs text-textSubtle mb-2">
-          {intl.formatMessage(i18n.providerHint)}
-        </p>
+        <p className="text-xs text-textSubtle mb-2">{intl.formatMessage(i18n.providerHint)}</p>
         <Select
           options={providerOptions}
           value={
@@ -204,7 +202,9 @@ export const RecipeModelSelector = ({
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-textStandard">{intl.formatMessage(i18n.modelLabel)}</label>
+          <label className="block text-sm font-medium text-textStandard">
+            {intl.formatMessage(i18n.modelLabel)}
+          </label>
           {isCustomModel && (
             <button
               onClick={() => {
@@ -218,9 +218,7 @@ export const RecipeModelSelector = ({
             </button>
           )}
         </div>
-        <p className="text-xs text-textSubtle mb-2">
-          {intl.formatMessage(i18n.modelHint)}
-        </p>
+        <p className="text-xs text-textSubtle mb-2">{intl.formatMessage(i18n.modelHint)}</p>
         {isCustomModel ? (
           <Input
             type="text"

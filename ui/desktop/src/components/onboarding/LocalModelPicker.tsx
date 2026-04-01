@@ -65,7 +65,8 @@ const i18n = defineMessages({
   },
   localModelsNote: {
     id: 'localModelPicker.localModelsNote',
-    defaultMessage: 'Local models keep everything on your machine for full privacy. Performance and context window size may vary compared to cloud providers depending on your hardware and model size.',
+    defaultMessage:
+      'Local models keep everything on your machine for full privacy. Performance and context window size may vary compared to cloud providers depending on your hardware and model size.',
   },
   failedToLoad: {
     id: 'localModelPicker.failedToLoad',
@@ -312,7 +313,9 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
                   onClick={() => setShowAllModels(!showAllModels)}
                   className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
                 >
-                  {showAllModels ? intl.formatMessage(i18n.hideOtherSizes) : intl.formatMessage(i18n.showOtherSizes, { count: otherModels.length })}
+                  {showAllModels
+                    ? intl.formatMessage(i18n.hideOtherSizes)
+                    : intl.formatMessage(i18n.showOtherSizes, { count: otherModels.length })}
                   <svg
                     className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
                     fill="none"
@@ -378,7 +381,10 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
               {selectedModel?.status.state === 'Downloaded'
                 ? intl.formatMessage(i18n.useModel, { modelId: selectedModel.id })
                 : selectedModel
-                  ? intl.formatMessage(i18n.downloadModel, { modelId: selectedModel.id, size: formatSize(selectedModel.size_bytes) })
+                  ? intl.formatMessage(i18n.downloadModel, {
+                      modelId: selectedModel.id,
+                      size: formatSize(selectedModel.size_bytes),
+                    })
                   : intl.formatMessage(i18n.selectModel)}
             </button>
 
@@ -437,7 +443,9 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
               ) : (
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-text-muted"></div>
-                  <span className="text-sm text-text-muted">{intl.formatMessage(i18n.startingDownload)}</span>
+                  <span className="text-sm text-text-muted">
+                    {intl.formatMessage(i18n.startingDownload)}
+                  </span>
                 </div>
               )}
             </div>

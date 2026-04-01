@@ -27,9 +27,7 @@ const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({ className = '' }) =
     return null;
   }
 
-  const tooltipText = isAlpha
-    ? intl.formatMessage(i18n.alpha)
-    : intl.formatMessage(i18n.dev);
+  const tooltipText = isAlpha ? intl.formatMessage(i18n.alpha) : intl.formatMessage(i18n.dev);
   const bgColor = isAlpha ? 'bg-purple-600' : 'bg-orange-400';
 
   return (

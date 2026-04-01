@@ -32,7 +32,7 @@ const i18n = defineMessages({
   noActiveSessionDescription: {
     id: 'permissionModal.noActiveSessionDescription',
     defaultMessage:
-      'Start a chat session first to configure tool permissions for this extension. Tool permissions are loaded from the active session\'s extensions.',
+      "Start a chat session first to configure tool permissions for this extension. Tool permissions are loaded from the active session's extensions.",
   },
   failedToLoadTools: {
     id: 'permissionModal.failedToLoadTools',
@@ -209,7 +209,9 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
           ) : loadError === 'no_session' ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <AlertCircle className="h-12 w-12 text-text-secondary mb-4" />
-              <p className="text-text-primary font-medium mb-2">{intl.formatMessage(i18n.noActiveSession)}</p>
+              <p className="text-text-primary font-medium mb-2">
+                {intl.formatMessage(i18n.noActiveSession)}
+              </p>
               <p className="text-sm text-text-secondary max-w-sm">
                 {intl.formatMessage(i18n.noActiveSessionDescription)}
               </p>
@@ -217,7 +219,9 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
           ) : loadError === 'fetch_failed' ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <AlertCircle className="h-12 w-12 text-text-secondary mb-4" />
-              <p className="text-text-primary font-medium mb-2">{intl.formatMessage(i18n.failedToLoadTools)}</p>
+              <p className="text-text-primary font-medium mb-2">
+                {intl.formatMessage(i18n.failedToLoadTools)}
+              </p>
               <p className="text-sm text-text-secondary max-w-sm">
                 {intl.formatMessage(i18n.failedToLoadToolsDescription)}
               </p>

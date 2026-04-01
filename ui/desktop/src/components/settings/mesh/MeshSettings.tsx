@@ -13,7 +13,12 @@ import {
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { setConfigProvider, updateCustomProvider, createCustomProvider, getCustomProvider } from '../../../api';
+import {
+  setConfigProvider,
+  updateCustomProvider,
+  createCustomProvider,
+  getCustomProvider,
+} from '../../../api';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 const MESH_API_PORT = 9337;
 const MESH_CONSOLE_PORT = 3131;
@@ -118,9 +123,7 @@ export const MeshSettings = () => {
     const body = meshProviderBody(modelList);
 
     // Try the last-known provider ID first, then fall back to 'mesh'
-    const idsToTry = meshProviderId === 'mesh'
-      ? ['mesh']
-      : [meshProviderId, 'mesh'];
+    const idsToTry = meshProviderId === 'mesh' ? ['mesh'] : [meshProviderId, 'mesh'];
 
     for (const id of idsToTry) {
       const existing = await getCustomProvider({ path: { id } });
@@ -652,7 +655,9 @@ export const MeshSettings = () => {
             </div>
             <div>
               <label className="text-xs text-text-muted block">Console</label>
-              <code className="text-xs text-text-default">http://localhost:{MESH_CONSOLE_PORT}</code>
+              <code className="text-xs text-text-default">
+                http://localhost:{MESH_CONSOLE_PORT}
+              </code>
             </div>
           </div>
         )}

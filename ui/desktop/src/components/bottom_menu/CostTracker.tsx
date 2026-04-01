@@ -12,7 +12,8 @@ const i18n = defineMessages({
   },
   costUnavailable: {
     id: 'costTracker.costUnavailable',
-    defaultMessage: 'Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)',
+    defaultMessage:
+      'Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)',
   },
   sessionCostBreakdown: {
     id: 'costTracker.sessionCostBreakdown',
@@ -24,7 +25,8 @@ const i18n = defineMessages({
   },
   inputOutputTooltip: {
     id: 'costTracker.inputOutputTooltip',
-    defaultMessage: 'Input: {inputTokens} tokens ({inputCost}) | Output: {outputTokens} tokens ({outputCost})',
+    defaultMessage:
+      'Input: {inputTokens} tokens ({inputCost}) | Output: {outputTokens} tokens ({outputCost})',
   },
 });
 
@@ -202,7 +204,9 @@ export function CostTracker({
           <TooltipTrigger asChild>
             <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
               <CoinIcon className="mr-1" size={16} />
-              <span className="text-xs font-mono">0.0000</span>
+              <span className="text-xs font-mono" data-testid="cost-tracker-value">
+                0.0000
+              </span>
             </div>
           </TooltipTrigger>
           <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
@@ -218,7 +222,9 @@ export function CostTracker({
   const getTooltipContent = (): string => {
     // Handle error states first
     if (pricingFailed) {
-      return intl.formatMessage(i18n.pricingUnavailable, { model: `${currentProvider}/${currentModel}` });
+      return intl.formatMessage(i18n.pricingUnavailable, {
+        model: `${currentProvider}/${currentModel}`,
+      });
     }
 
     // Handle session costs
@@ -242,7 +248,11 @@ export function CostTracker({
         }
       }
 
-      tooltip += '\n' + intl.formatMessage(i18n.totalSessionCost, { cost: `${costInfo?.currency || '$'}${totalCost.toFixed(6)}` });
+      tooltip +=
+        '\n' +
+        intl.formatMessage(i18n.totalSessionCost, {
+          cost: `${costInfo?.currency || '$'}${totalCost.toFixed(6)}`,
+        });
       return tooltip;
     }
 
@@ -264,7 +274,9 @@ export function CostTracker({
         <TooltipTrigger asChild>
           <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
             <CoinIcon className="mr-1" size={16} />
-            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+            <span className="text-xs font-mono" data-testid="cost-tracker-value">
+              {formatCost(totalCost)}
+            </span>
           </div>
         </TooltipTrigger>
         <TooltipContent>{getTooltipContent()}</TooltipContent>

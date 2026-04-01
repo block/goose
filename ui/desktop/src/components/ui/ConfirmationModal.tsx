@@ -77,7 +77,9 @@ export function ConfirmationModal({
             disabled={isSubmitting}
             className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
           >
-            {isSubmitting ? intl.formatMessage(i18n.processing) : (confirmLabel || intl.formatMessage(i18n.defaultConfirm))}
+            {isSubmitting
+              ? intl.formatMessage(i18n.processing)
+              : confirmLabel || intl.formatMessage(i18n.defaultConfirm)}
           </Button>
         </DialogFooter>
       </DialogContent>

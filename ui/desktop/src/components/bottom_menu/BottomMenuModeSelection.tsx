@@ -81,7 +81,12 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
   }
 
   return (
-    <div title={intl.formatMessage(i18n.currentModeTitle, { label: getValueByKey(gooseMode), description: getModeDescription(gooseMode) })}>
+    <div
+      title={intl.formatMessage(i18n.currentModeTitle, {
+        label: getValueByKey(gooseMode),
+        description: getModeDescription(gooseMode),
+      })}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <span className="flex items-center cursor-pointer [&_svg]:size-4 text-text-primary/70 hover:text-text-primary hover:scale-100 hover:bg-transparent text-xs">

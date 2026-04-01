@@ -101,7 +101,8 @@ const i18n = defineMessages({
   },
   localModelsDescription: {
     id: 'switchModelModal.localModelsDescription',
-    defaultMessage: 'To use local inference, you need to download a model to your computer first. Go to Settings → Models to manage local models.',
+    defaultMessage:
+      'To use local inference, you need to download a model to your computer first. Go to Settings → Models to manage local models.',
   },
   goToSettings: {
     id: 'switchModelModal.goToSettings',
@@ -648,7 +649,9 @@ export const SwitchModelModal = ({
   const claudeThinkingControls = showClaudeThinking && (
     <div className="mt-2 flex flex-col gap-3">
       <div>
-        <label className="text-sm text-textSubtle mb-1 block">{intl.formatMessage(i18n.extendedThinking)}</label>
+        <label className="text-sm text-textSubtle mb-1 block">
+          {intl.formatMessage(i18n.extendedThinking)}
+        </label>
         <Select
           options={claudeThinkingTypeOptions}
           value={claudeThinkingTypeOptions.find((o) => o.value === claudeThinkingType)}
@@ -661,7 +664,9 @@ export const SwitchModelModal = ({
       </div>
       {claudeThinkingType === 'adaptive' && (
         <div>
-          <label className="text-sm text-textSubtle mb-1 block">{intl.formatMessage(i18n.thinkingEffort)}</label>
+          <label className="text-sm text-textSubtle mb-1 block">
+            {intl.formatMessage(i18n.thinkingEffort)}
+          </label>
           <Select
             options={CLAUDE_THINKING_EFFORT_OPTIONS}
             value={CLAUDE_THINKING_EFFORT_OPTIONS.find((o) => o.value === claudeThinkingEffort)}
@@ -675,7 +680,9 @@ export const SwitchModelModal = ({
       )}
       {claudeThinkingType === 'enabled' && (
         <div>
-          <label className="text-sm text-textSubtle mb-1 block">{intl.formatMessage(i18n.thinkingBudget)}</label>
+          <label className="text-sm text-textSubtle mb-1 block">
+            {intl.formatMessage(i18n.thinkingBudget)}
+          </label>
           <Input
             className="border-2 px-4 py-2"
             type="number"
@@ -696,16 +703,16 @@ export const SwitchModelModal = ({
             <Bot size={24} className="text-text-primary" />
             {titleOverride || intl.formatMessage(i18n.title)}
           </DialogTitle>
-          <DialogDescription>
-            {intl.formatMessage(i18n.description)}
-          </DialogDescription>
+          <DialogDescription>{intl.formatMessage(i18n.description)}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-text-primary">{intl.formatMessage(i18n.chooseModel)}</label>
+                <label className="text-sm font-medium text-text-primary">
+                  {intl.formatMessage(i18n.chooseModel)}
+                </label>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -766,7 +773,9 @@ export const SwitchModelModal = ({
                 <div className="mt-2">
                   <label className="text-sm text-textSubtle mb-1 block">
                     {intl.formatMessage(i18n.thinkingLevel)}
-                    <span className="text-xs text-textMuted ml-2">{intl.formatMessage(i18n.geminiOnly)}</span>
+                    <span className="text-xs text-textMuted ml-2">
+                      {intl.formatMessage(i18n.geminiOnly)}
+                    </span>
                   </label>
                   <Select
                     options={THINKING_LEVEL_OPTIONS}
@@ -871,7 +880,11 @@ export const SwitchModelModal = ({
                         onInputChange={handleInputChange}
                         value={
                           loadingModels
-                            ? { value: '', label: intl.formatMessage(i18n.loadingModels), isDisabled: true }
+                            ? {
+                                value: '',
+                                label: intl.formatMessage(i18n.loadingModels),
+                                isDisabled: true,
+                              }
                             : model
                               ? { value: model, label: model }
                               : null
@@ -895,7 +908,9 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-text-secondary">{intl.formatMessage(i18n.customModelName)}</label>
+                        <label className="text-sm text-text-secondary">
+                          {intl.formatMessage(i18n.customModelName)}
+                        </label>
                         <button
                           onClick={() => setIsCustomModel(false)}
                           className="text-sm text-text-secondary"

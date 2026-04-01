@@ -39,8 +39,7 @@ const i18n = defineMessages({
   },
   invalidUrl: {
     id: 'sessionSharingSection.invalidUrl',
-    defaultMessage:
-      'Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).',
+    defaultMessage: 'Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).',
   },
   testingConnection: {
     id: 'sessionSharingSection.testingConnection',
@@ -52,8 +51,7 @@ const i18n = defineMessages({
   },
   serverError: {
     id: 'sessionSharingSection.serverError',
-    defaultMessage:
-      'Server error: HTTP {status}. The server may not be configured correctly.',
+    defaultMessage: 'Server error: HTTP {status}. The server may not be configured correctly.',
   },
   connectionFailed: {
     id: 'sessionSharingSection.connectionFailed',
@@ -61,8 +59,7 @@ const i18n = defineMessages({
   },
   unreachableServer: {
     id: 'sessionSharingSection.unreachableServer',
-    defaultMessage:
-      'Unable to reach the server. Please check the URL and your network connection.',
+    defaultMessage: 'Unable to reach the server. Please check the URL and your network connection.',
   },
   connectionTimedOut: {
     id: 'sessionSharingSection.connectionTimedOut',

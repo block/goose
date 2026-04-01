@@ -24,7 +24,8 @@ const i18n = defineMessages({
   },
   privacyDescription: {
     id: 'onboardingSuccess.privacyDescription',
-    defaultMessage: 'Anonymous usage data helps improve goose. We never collect your conversations, code, or personal data.',
+    defaultMessage:
+      'Anonymous usage data helps improve goose. We never collect your conversations, code, or personal data.',
   },
   learnMore: {
     id: 'onboardingSuccess.learnMore',
@@ -80,7 +81,9 @@ export default function OnboardingSuccess({ providerName, onFinish }: Onboarding
             </div>
 
             <div className="w-full p-4 bg-transparent border rounded-xl text-left mb-6">
-              <h3 className="font-medium text-text-default text-sm mb-1">{intl.formatMessage(i18n.privacyTitle)}</h3>
+              <h3 className="font-medium text-text-default text-sm mb-1">
+                {intl.formatMessage(i18n.privacyTitle)}
+              </h3>
               <p className="text-text-muted text-sm">
                 {intl.formatMessage(i18n.privacyDescription)}{' '}
                 <button
@@ -97,7 +100,9 @@ export default function OnboardingSuccess({ providerName, onFinish }: Onboarding
                   onChange={(e) => setTelemetryOptIn(e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-text-muted text-sm">{intl.formatMessage(i18n.shareUsageData)}</span>
+                <span className="text-text-muted text-sm">
+                  {intl.formatMessage(i18n.shareUsageData)}
+                </span>
               </label>
             </div>
 

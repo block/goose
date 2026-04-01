@@ -1,11 +1,5 @@
 import { AppEvents } from '../constants/events';
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
@@ -375,7 +369,9 @@ export default function BaseChat({
             <div className="flex-1 bg-background-primary rounded-b-2xl flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
-                  <h3 className="font-semibold mb-2">{intl.formatMessage(i18n.failedToLoadSession)}</h3>
+                  <h3 className="font-semibold mb-2">
+                    {intl.formatMessage(i18n.failedToLoadSession)}
+                  </h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
                 <button

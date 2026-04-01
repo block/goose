@@ -26,11 +26,13 @@ const i18n = defineMessages({
   },
   createSubtitle: {
     id: 'createEditRecipe.createSubtitle',
-    defaultMessage: 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.',
+    defaultMessage:
+      'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.',
   },
   editSubtitle: {
     id: 'createEditRecipe.editSubtitle',
-    defaultMessage: "You can edit the recipe below to change the agent's behavior in a new session.",
+    defaultMessage:
+      "You can edit the recipe below to change the agent's behavior in a new session.",
   },
   learnMore: {
     id: 'createEditRecipe.learnMore',
@@ -433,7 +435,9 @@ export default function CreateEditRecipeModal({
 
       toastError({
         title: intl.formatMessage(i18n.saveFailed),
-        msg: intl.formatMessage(i18n.saveFailedMsg, { error: errorMessage(error, 'Unknown error') }),
+        msg: intl.formatMessage(i18n.saveFailedMsg, {
+          error: errorMessage(error, 'Unknown error'),
+        }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -469,7 +473,9 @@ export default function CreateEditRecipeModal({
 
       toastError({
         title: intl.formatMessage(i18n.saveAndRunFailed),
-        msg: intl.formatMessage(i18n.saveAndRunFailedMsg, { error: errorMessage(error, 'Unknown error') }),
+        msg: intl.formatMessage(i18n.saveAndRunFailedMsg, {
+          error: errorMessage(error, 'Unknown error'),
+        }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -490,7 +496,9 @@ export default function CreateEditRecipeModal({
             </div>
             <div>
               <h1 className="text-xl font-medium text-text-primary">
-                {isCreateMode ? intl.formatMessage(i18n.createRecipeTitle) : intl.formatMessage(i18n.viewEditRecipeTitle)}
+                {isCreateMode
+                  ? intl.formatMessage(i18n.createRecipeTitle)
+                  : intl.formatMessage(i18n.viewEditRecipeTitle)}
               </h1>
               <p className="text-text-secondary text-sm">
                 {isCreateMode
@@ -589,7 +597,9 @@ export default function CreateEditRecipeModal({
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Play className="w-4 h-4" />
-              {isSaving ? intl.formatMessage(i18n.saving) : intl.formatMessage(i18n.saveAndRunRecipe)}
+              {isSaving
+                ? intl.formatMessage(i18n.saving)
+                : intl.formatMessage(i18n.saveAndRunRecipe)}
             </Button>
           </div>
         </div>

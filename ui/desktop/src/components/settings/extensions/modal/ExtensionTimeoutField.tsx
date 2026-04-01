@@ -39,7 +39,9 @@ export default function ExtensionTimeoutField({
       {/* Row with Timeout and timeout input side by side */}
       <div className="flex flex-col">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block text-text-primary">{intl.formatMessage(i18n.timeoutLabel)}</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">
+            {intl.formatMessage(i18n.timeoutLabel)}
+          </label>
         </div>
 
         <Input

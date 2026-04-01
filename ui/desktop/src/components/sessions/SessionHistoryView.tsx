@@ -70,7 +70,8 @@ const i18n = defineMessages({
   },
   shareTooltip: {
     id: 'sessionHistory.shareTooltip',
-    defaultMessage: 'To enable session sharing, go to <b>Settings</b> > <b>Session</b> > <b>Session Sharing</b>.',
+    defaultMessage:
+      'To enable session sharing, go to <b>Settings</b> > <b>Session</b> > <b>Session Sharing</b>.',
   },
   resume: {
     id: 'sessionHistory.resume',
@@ -254,7 +255,9 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       setIsShareModalOpen(true);
     } catch (error) {
       console.error('Error sharing session:', error);
-      toast.error(intl.formatMessage(i18n.failedToShare, { error: errorMessage(error, 'Unknown error') }));
+      toast.error(
+        intl.formatMessage(i18n.failedToShare, { error: errorMessage(error, 'Unknown error') })
+      );
     } finally {
       setIsSharing(false);
     }

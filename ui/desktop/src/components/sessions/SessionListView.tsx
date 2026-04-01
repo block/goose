@@ -47,31 +47,65 @@ import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
-  editSessionPlaceholder: { id: 'sessions.edit.placeholder', defaultMessage: 'Enter session description' },
+  editSessionPlaceholder: {
+    id: 'sessions.edit.placeholder',
+    defaultMessage: 'Enter session description',
+  },
   cancel: { id: 'sessions.cancel', defaultMessage: 'Cancel' },
   save: { id: 'sessions.save', defaultMessage: 'Save' },
   saving: { id: 'sessions.saving', defaultMessage: 'Saving...' },
-  sessionUpdated: { id: 'sessions.toast.updated', defaultMessage: 'Session description updated successfully' },
-  sessionUpdateFailed: { id: 'sessions.toast.updateFailed', defaultMessage: 'Failed to update session description: {error}' },
+  sessionUpdated: {
+    id: 'sessions.toast.updated',
+    defaultMessage: 'Session description updated successfully',
+  },
+  sessionUpdateFailed: {
+    id: 'sessions.toast.updateFailed',
+    defaultMessage: 'Failed to update session description: {error}',
+  },
   chatHistory: { id: 'sessions.chatHistory', defaultMessage: 'Chat history' },
   importSession: { id: 'sessions.import', defaultMessage: 'Import Session' },
-  chatHistoryDesc: { id: 'sessions.chatHistoryDesc', defaultMessage: 'View and search your past conversations with Goose. {shortcut} to search.' },
+  chatHistoryDesc: {
+    id: 'sessions.chatHistoryDesc',
+    defaultMessage: 'View and search your past conversations with Goose. {shortcut} to search.',
+  },
   searchPlaceholder: { id: 'sessions.searchPlaceholder', defaultMessage: 'Search history...' },
   errorLoading: { id: 'sessions.error.loading', defaultMessage: 'Error Loading Sessions' },
   tryAgain: { id: 'sessions.error.tryAgain', defaultMessage: 'Try Again' },
   noSessions: { id: 'sessions.empty.title', defaultMessage: 'No chat sessions found' },
-  noSessionsDesc: { id: 'sessions.empty.description', defaultMessage: 'Your chat history will appear here' },
+  noSessionsDesc: {
+    id: 'sessions.empty.description',
+    defaultMessage: 'Your chat history will appear here',
+  },
   noMatching: { id: 'sessions.search.noResults', defaultMessage: 'No matching sessions found' },
-  noMatchingDesc: { id: 'sessions.search.noResultsDesc', defaultMessage: 'Try adjusting your search terms' },
+  noMatchingDesc: {
+    id: 'sessions.search.noResultsDesc',
+    defaultMessage: 'Try adjusting your search terms',
+  },
   loadingMore: { id: 'sessions.loadingMore', defaultMessage: 'Loading more sessions...' },
   deleteTitle: { id: 'sessions.delete.title', defaultMessage: 'Delete Session' },
-  deleteMessage: { id: 'sessions.delete.message', defaultMessage: 'Are you sure you want to delete the session "{name}"? This action cannot be undone.' },
-  duplicateSuccess: { id: 'sessions.toast.duplicated', defaultMessage: 'Session "{name}" duplicated successfully' },
-  duplicateFailed: { id: 'sessions.toast.duplicateFailed', defaultMessage: 'Failed to duplicate session: {error}' },
+  deleteMessage: {
+    id: 'sessions.delete.message',
+    defaultMessage:
+      'Are you sure you want to delete the session "{name}"? This action cannot be undone.',
+  },
+  duplicateSuccess: {
+    id: 'sessions.toast.duplicated',
+    defaultMessage: 'Session "{name}" duplicated successfully',
+  },
+  duplicateFailed: {
+    id: 'sessions.toast.duplicateFailed',
+    defaultMessage: 'Failed to duplicate session: {error}',
+  },
   deleteSuccess: { id: 'sessions.toast.deleted', defaultMessage: 'Session deleted successfully' },
-  deleteFailed: { id: 'sessions.toast.deleteFailed', defaultMessage: 'Failed to delete session "{name}": {error}' },
+  deleteFailed: {
+    id: 'sessions.toast.deleteFailed',
+    defaultMessage: 'Failed to delete session "{name}": {error}',
+  },
   importSuccess: { id: 'sessions.toast.imported', defaultMessage: 'Session imported successfully' },
-  importFailed: { id: 'sessions.toast.importFailed', defaultMessage: 'Failed to import session: {error}' },
+  importFailed: {
+    id: 'sessions.toast.importFailed',
+    defaultMessage: 'Failed to import session: {error}',
+  },
   exportSuccess: { id: 'sessions.toast.exported', defaultMessage: 'Session exported successfully' },
   openInNewWindow: { id: 'sessions.action.openNewWindow', defaultMessage: 'Open in new window' },
   editSessionName: { id: 'sessions.action.editName', defaultMessage: 'Edit session name' },
@@ -174,7 +208,9 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
         <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-primary mb-4">{intl.formatMessage(i18n.editSessionTitle)}</h3>
+          <h3 className="text-lg font-medium text-text-primary mb-4">
+            {intl.formatMessage(i18n.editSessionTitle)}
+          </h3>
 
           <div className="space-y-4">
             <div>
@@ -486,7 +522,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           await loadSessions();
         } catch (error) {
           console.error('Error duplicating session:', error);
-          toast.error(intl.formatMessage(i18n.duplicateFailed, { error: errorMessage(error, 'Unknown error') }));
+          toast.error(
+            intl.formatMessage(i18n.duplicateFailed, {
+              error: errorMessage(error, 'Unknown error'),
+            })
+          );
         }
       },
       [loadSessions, intl]
@@ -511,7 +551,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       } catch (error) {
         console.error('Error deleting session:', error);
-        toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));
+        toast.error(
+          intl.formatMessage(i18n.deleteFailed, {
+            name: sessionName,
+            error: errorMessage(error, 'Unknown error'),
+          })
+        );
       }
       await loadSessions();
     }, [sessionToDelete, loadSessions, intl]);
@@ -521,26 +566,29 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
     }, []);
 
-    const handleExportSession = useCallback(async (session: Session, e: React.MouseEvent) => {
-      e.stopPropagation();
+    const handleExportSession = useCallback(
+      async (session: Session, e: React.MouseEvent) => {
+        e.stopPropagation();
 
-      const response = await exportSession({
-        path: { session_id: session.id },
-        throwOnError: true,
-      });
+        const response = await exportSession({
+          path: { session_id: session.id },
+          throwOnError: true,
+        });
 
-      const json = response.data;
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${session.name}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(intl.formatMessage(i18n.exportSuccess));
-    }, [intl]);
+        const json = response.data;
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${session.name}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(intl.formatMessage(i18n.exportSuccess));
+      },
+      [intl]
+    );
 
     const handleImportClick = useCallback(() => {
       fileInputRef.current?.click();
@@ -650,6 +698,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           onClick={handleCardClick}
           className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
           ref={(el) => setSessionRefs(session.id, el)}
+          data-testid="session-card"
         >
           <div>
             <h3 className="text-base break-words line-clamp-2 w-full mb-1">{displayName}</h3>
@@ -687,7 +736,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
                       <div className="text-xs">
-                        <div className="font-medium mb-1">{intl.formatMessage(i18n.extensions)}</div>
+                        <div className="font-medium mb-1">
+                          {intl.formatMessage(i18n.extensions)}
+                        </div>
                         <ul className="list-disc list-inside">
                           {extensionNames.map((name) => (
                             <li key={name}>{name}</li>

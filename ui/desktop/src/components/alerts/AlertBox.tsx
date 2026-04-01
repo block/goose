@@ -107,7 +107,11 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       }
     } catch (error) {
       console.error('Error saving threshold:', error);
-      window.alert(intl.formatMessage(i18n.failedToSaveThreshold, { error: errorMessage(error, 'Unknown error') }));
+      window.alert(
+        intl.formatMessage(i18n.failedToSaveThreshold, {
+          error: errorMessage(error, 'Unknown error'),
+        })
+      );
     } finally {
       setIsSaving(false);
     }
@@ -131,7 +135,9 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <div className="flex items-center justify-center gap-1 min-h-[20px]">
             {isEditingThreshold ? (
               <>
-                <span className="text-[10px] opacity-70">{intl.formatMessage(i18n.autoCompactAt)}</span>
+                <span className="text-[10px] opacity-70">
+                  {intl.formatMessage(i18n.autoCompactAt)}
+                </span>
                 <input
                   type="number"
                   min="1"
@@ -268,7 +274,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           </div>
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
-              <span className={'dark:text-black/60 text-white/60'}>
+              <span className={'dark:text-black/60 text-white/60'} data-testid="token-count">
                 {formatTokenCount(alert.progress!.current)}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>

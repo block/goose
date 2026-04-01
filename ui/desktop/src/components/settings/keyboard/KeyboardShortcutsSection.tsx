@@ -179,8 +179,7 @@ const i18n = defineMessages({
   },
   shortcutConflictToggleMessage: {
     id: 'keyboardShortcuts.shortcutConflictToggleMessage',
-    defaultMessage:
-      'The shortcut {shortcut} is already assigned to "{conflictLabel}".',
+    defaultMessage: 'The shortcut {shortcut} is already assigned to "{conflictLabel}".',
   },
   shortcutConflictToggleDetail: {
     id: 'keyboardShortcuts.shortcutConflictToggleDetail',
@@ -371,10 +370,7 @@ export default function KeyboardShortcutsSection() {
             conflictLabel: getShortcutLabel(conflictingKey, intl.formatMessage),
             targetLabel: getShortcutLabel(key, intl.formatMessage),
           }),
-          buttons: [
-            intl.formatMessage(i18n.reassignShortcut),
-            intl.formatMessage(i18n.cancel),
-          ],
+          buttons: [intl.formatMessage(i18n.reassignShortcut), intl.formatMessage(i18n.cancel)],
           defaultId: 1,
         });
 
@@ -421,10 +417,7 @@ export default function KeyboardShortcutsSection() {
           conflictLabel: getShortcutLabel(conflictingKey, intl.formatMessage),
           targetLabel: getShortcutLabel(editingKey, intl.formatMessage),
         }),
-        buttons: [
-          intl.formatMessage(i18n.reassignShortcut),
-          intl.formatMessage(i18n.cancel),
-        ],
+        buttons: [intl.formatMessage(i18n.reassignShortcut), intl.formatMessage(i18n.cancel)],
         defaultId: 1,
       });
 
@@ -459,10 +452,7 @@ export default function KeyboardShortcutsSection() {
       title: intl.formatMessage(i18n.resetShortcutsTitle),
       message: intl.formatMessage(i18n.resetShortcutsMessage),
       detail: intl.formatMessage(i18n.resetShortcutsDetail),
-      buttons: [
-        intl.formatMessage(i18n.resetToDefaultsHeading),
-        intl.formatMessage(i18n.cancel),
-      ],
+      buttons: [intl.formatMessage(i18n.resetToDefaultsHeading), intl.formatMessage(i18n.cancel)],
       defaultId: 1,
     });
 

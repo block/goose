@@ -71,7 +71,8 @@ const i18n = defineMessages({
   },
   mlEndpointDescription: {
     id: 'securityToggle.mlEndpointDescription',
-    defaultMessage: 'Enter the full URL for your ML classification service (including model identifier)',
+    defaultMessage:
+      'Enter the full URL for your ML classification service (including model identifier)',
   },
   mlTokenDescription: {
     id: 'securityToggle.mlTokenDescription',

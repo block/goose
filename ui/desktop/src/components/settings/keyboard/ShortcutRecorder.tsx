@@ -189,9 +189,7 @@ export function ShortcutRecorder({
               {formatShortcut(capturedShortcut)}
             </span>
           ) : (
-            <span className="text-text-secondary">
-              {intl.formatMessage(i18n.clickToRecord)}
-            </span>
+            <span className="text-text-secondary">{intl.formatMessage(i18n.clickToRecord)}</span>
           )}
         </div>
         <Button

@@ -11,7 +11,8 @@ const i18n = defineMessages({
   },
   description: {
     id: 'configureApproveMode.description',
-    defaultMessage: 'Approve requests can either be given to all tool requests or determine which actions may need integration',
+    defaultMessage:
+      'Approve requests can either be given to all tool requests or determine which actions may need integration',
   },
   manualApproval: {
     id: 'configureApproveMode.manualApproval',
@@ -95,7 +96,9 @@ export function ConfigureApproveMode({
         <div className="px-4 pb-0 space-y-6">
           {/* Header */}
           <div className="flex">
-            <h2 className="text-2xl font-regular text-text-primary">{intl.formatMessage(i18n.title)}</h2>
+            <h2 className="text-2xl font-regular text-text-primary">
+              {intl.formatMessage(i18n.title)}
+            </h2>
           </div>
 
           <div className="mt-[24px]">

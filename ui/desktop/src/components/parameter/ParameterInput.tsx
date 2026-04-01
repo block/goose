@@ -112,7 +112,10 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
   };
 
   return (
-    <div className="parameter-input my-4 border rounded-lg bg-background-secondary shadow-sm relative">
+    <div
+      className="parameter-input my-4 border rounded-lg bg-background-secondary shadow-sm relative"
+      data-testid={`parameter-${parameter.key}`}
+    >
       {/* Collapsed header - always visible */}
       <div
         className={`flex items-center justify-between p-4 ${onToggleExpanded ? 'cursor-pointer hover:bg-background-primary/50' : ''} transition-colors`}
@@ -144,9 +147,12 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
               <div
                 className="flex items-center gap-1"
                 title={intl.formatMessage(i18n.unusedWarningTitle)}
+                data-testid={`parameter-unused-${parameter.key}`}
               >
                 <AlertTriangle className="w-4 h-4 text-orange-500" />
-                <span className="text-xs text-orange-500 font-normal">{intl.formatMessage(i18n.unused)}</span>
+                <span className="text-xs text-orange-500 font-normal">
+                  {intl.formatMessage(i18n.unused)}
+                </span>
               </div>
             )}
           </div>

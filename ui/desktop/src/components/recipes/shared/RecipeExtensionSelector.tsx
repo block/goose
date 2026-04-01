@@ -13,7 +13,8 @@ const i18n = defineMessages({
   },
   description: {
     id: 'recipeExtensionSelector.description',
-    defaultMessage: 'Select which extensions should be available when running this recipe. Leave empty to use default extensions.',
+    defaultMessage:
+      'Select which extensions should be available when running this recipe. Leave empty to use default extensions.',
   },
   searchPlaceholder: {
     id: 'recipeExtensionSelector.searchPlaceholder',
@@ -96,9 +97,7 @@ export const RecipeExtensionSelector = ({
         <label className="block text-md text-textProminent mb-2 font-bold">
           {intl.formatMessage(i18n.label)}
         </label>
-        <p className="text-textSubtle text-sm mb-4">
-          {intl.formatMessage(i18n.description)}
-        </p>
+        <p className="text-textSubtle text-sm mb-4">{intl.formatMessage(i18n.description)}</p>
 
         <Input
           type="text"
@@ -116,7 +115,9 @@ export const RecipeExtensionSelector = ({
       <div className="max-h-[300px] overflow-y-auto border border-borderSubtle rounded-lg">
         {sortedExtensions.length === 0 ? (
           <div className="px-4 py-6 text-center text-sm text-textSubtle">
-            {searchQuery ? intl.formatMessage(i18n.noExtensionsFound) : intl.formatMessage(i18n.noExtensionsAvailable)}
+            {searchQuery
+              ? intl.formatMessage(i18n.noExtensionsFound)
+              : intl.formatMessage(i18n.noExtensionsAvailable)}
           </div>
         ) : (
           sortedExtensions.map((ext) => {

@@ -24,8 +24,7 @@ const i18n = defineMessages({
   },
   organizePhotos: {
     id: 'popularChatTopics.organizePhotos',
-    defaultMessage:
-      'Organize the photos on my desktop into neat little folders by subject matter',
+    defaultMessage: 'Organize the photos on my desktop into neat little folders by subject matter',
   },
   governmentForms: {
     id: 'popularChatTopics.governmentForms',
@@ -69,9 +68,7 @@ export default function PopularChatTopics({ append }: PopularChatTopicsProps) {
 
   return (
     <div className="absolute bottom-0 left-0 p-6 max-w-md">
-      <h3 className="text-text-secondary text-sm mb-1">
-        {intl.formatMessage(i18n.heading)}
-      </h3>
+      <h3 className="text-text-secondary text-sm mb-1">{intl.formatMessage(i18n.heading)}</h3>
       <div className="space-y-1">
         {POPULAR_TOPICS.map((topic) => (
           <div

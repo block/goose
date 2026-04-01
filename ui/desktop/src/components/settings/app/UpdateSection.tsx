@@ -142,7 +142,6 @@ export default function UpdateSection() {
 
     // Listen for updater events
     window.electron.onUpdaterEvent((event) => {
-
       switch (event.event) {
         case 'checking-for-update':
           setUpdateStatus('checking');
@@ -294,10 +293,15 @@ export default function UpdateSection() {
           <div className="text-text-primary text-2xl font-mono">
             {updateInfo.currentVersion || intl.formatMessage(i18n.loading)}
           </div>
-          <div className="text-xs text-text-secondary">{intl.formatMessage(i18n.currentVersion)}</div>
+          <div className="text-xs text-text-secondary">
+            {intl.formatMessage(i18n.currentVersion)}
+          </div>
         </div>
         {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
-          <span className="text-text-secondary"> {intl.formatMessage(i18n.versionAvailable, { version: updateInfo.latestVersion })}</span>
+          <span className="text-text-secondary">
+            {' '}
+            {intl.formatMessage(i18n.versionAvailable, { version: updateInfo.latestVersion })}
+          </span>
         )}
         {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
           <span className="text-text-primary"> {intl.formatMessage(i18n.upToDate)}</span>
@@ -349,13 +353,9 @@ export default function UpdateSection() {
           <div className="text-xs text-text-secondary mt-4 space-y-1">
             <p>{intl.formatMessage(i18n.autoDownload)}</p>
             {isUsingGitHubFallback ? (
-              <p className="text-xs text-amber-600">
-                {intl.formatMessage(i18n.manualInstallNote)}
-              </p>
+              <p className="text-xs text-amber-600">{intl.formatMessage(i18n.manualInstallNote)}</p>
             ) : (
-              <p className="text-xs text-green-600">
-                {intl.formatMessage(i18n.autoInstallNote)}
-              </p>
+              <p className="text-xs text-green-600">{intl.formatMessage(i18n.autoInstallNote)}</p>
             )}
           </div>
         )}

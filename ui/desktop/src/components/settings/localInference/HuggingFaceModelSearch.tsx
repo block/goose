@@ -103,69 +103,72 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults([]);
-      setError(null);
-      return;
-    }
-    setSearching(true);
-    setError(null);
-    try {
-      const response = await searchHfModels({
-        query: { q, limit: 20 },
-      });
-      if (response.data) {
-        // Pre-fetch variants for all results and filter out repos with no suitable quantizations
-        const modelsWithVariants = await Promise.all(
-          response.data.map(async (model) => {
-            try {
-              const [author, repo] = model.repo_id.split('/');
-              const filesResponse = await getRepoFiles({ path: { author, repo } });
-              if (filesResponse.data && filesResponse.data.variants.length > 0) {
-                return { model, data: filesResponse.data };
-              }
-            } catch {
-              // Skip repos we can't fetch
-            }
-            return null;
-          })
-        );
-
-        const validResults = modelsWithVariants.filter(Boolean) as {
-          model: HfModelInfo;
-          data: { variants: HfQuantVariant[]; recommended_index?: number | null };
-        }[];
-
-        setResults(validResults.map((r) => r.model));
-        setRepoData((prev) => {
-          const next = { ...prev };
-          for (const r of validResults) {
-            next[r.model.repo_id] = {
-              variants: r.data.variants,
-              recommendedIndex: r.data.recommended_index ?? null,
-            };
-          }
-          return next;
-        });
-
-        if (validResults.length === 0) {
-          setError(intl.formatMessage(i18n.noGgufModels));
-        }
-      } else {
-        console.error('Search response:', response);
-        const errMsg = response.error
-          ? intl.formatMessage(i18n.searchError, { details: JSON.stringify(response.error) })
-          : intl.formatMessage(i18n.searchNoData);
-        setError(errMsg);
+  const doSearch = useCallback(
+    async (q: string) => {
+      if (!q.trim()) {
+        setResults([]);
+        setError(null);
+        return;
       }
-    } catch (e) {
-      console.error('Search failed:', e);
-      setError(intl.formatMessage(i18n.searchFailed));
-    } finally {
-      setSearching(false);
-    }
-  }, [intl]);
+      setSearching(true);
+      setError(null);
+      try {
+        const response = await searchHfModels({
+          query: { q, limit: 20 },
+        });
+        if (response.data) {
+          // Pre-fetch variants for all results and filter out repos with no suitable quantizations
+          const modelsWithVariants = await Promise.all(
+            response.data.map(async (model) => {
+              try {
+                const [author, repo] = model.repo_id.split('/');
+                const filesResponse = await getRepoFiles({ path: { author, repo } });
+                if (filesResponse.data && filesResponse.data.variants.length > 0) {
+                  return { model, data: filesResponse.data };
+                }
+              } catch {
+                // Skip repos we can't fetch
+              }
+              return null;
+            })
+          );
+
+          const validResults = modelsWithVariants.filter(Boolean) as {
+            model: HfModelInfo;
+            data: { variants: HfQuantVariant[]; recommended_index?: number | null };
+          }[];
+
+          setResults(validResults.map((r) => r.model));
+          setRepoData((prev) => {
+            const next = { ...prev };
+            for (const r of validResults) {
+              next[r.model.repo_id] = {
+                variants: r.data.variants,
+                recommendedIndex: r.data.recommended_index ?? null,
+              };
+            }
+            return next;
+          });
+
+          if (validResults.length === 0) {
+            setError(intl.formatMessage(i18n.noGgufModels));
+          }
+        } else {
+          console.error('Search response:', response);
+          const errMsg = response.error
+            ? intl.formatMessage(i18n.searchError, { details: JSON.stringify(response.error) })
+            : intl.formatMessage(i18n.searchNoData);
+          setError(errMsg);
+        }
+      } catch (e) {
+        console.error('Search failed:', e);
+        setError(intl.formatMessage(i18n.searchFailed));
+      } finally {
+        setSearching(false);
+      }
+    },
+    [intl]
+  );
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
@@ -261,7 +264,9 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">{intl.formatMessage(i18n.searchHuggingFace)}</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">
+          {intl.formatMessage(i18n.searchHuggingFace)}
+        </h4>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
@@ -380,7 +385,9 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       )}
 
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">{intl.formatMessage(i18n.directDownload)}</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">
+          {intl.formatMessage(i18n.directDownload)}
+        </h4>
         <p className="text-xs text-text-muted mb-2">
           {intl.formatMessage(i18n.directDownloadDescription, {
             format: 'user/repo:quantization',

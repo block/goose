@@ -9,7 +9,8 @@ const i18n = defineMessages({
   },
   activitiesDescription: {
     id: 'recipeActivityEditor.activitiesDescription',
-    defaultMessage: 'The top-line prompts and activity buttons that will display in the recipe chat window.',
+    defaultMessage:
+      'The top-line prompts and activity buttons that will display in the recipe chat window.',
   },
   messageLabel: {
     id: 'recipeActivityEditor.messageLabel',
@@ -17,11 +18,13 @@ const i18n = defineMessages({
   },
   messageDescription: {
     id: 'recipeActivityEditor.messageDescription',
-    defaultMessage: 'A formatted message that will appear at the top of the recipe. Supports markdown formatting.',
+    defaultMessage:
+      'A formatted message that will appear at the top of the recipe. Supports markdown formatting.',
   },
   messagePlaceholder: {
     id: 'recipeActivityEditor.messagePlaceholder',
-    defaultMessage: 'Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)',
+    defaultMessage:
+      'Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)',
   },
   activityButtonsLabel: {
     id: 'recipeActivityEditor.activityButtonsLabel',
@@ -29,7 +32,8 @@ const i18n = defineMessages({
   },
   activityButtonsDescription: {
     id: 'recipeActivityEditor.activityButtonsDescription',
-    defaultMessage: 'Clickable buttons that will appear below the message to help users interact with your recipe.',
+    defaultMessage:
+      'Clickable buttons that will appear below the message to help users interact with your recipe.',
   },
   addNewActivityPlaceholder: {
     id: 'recipeActivityEditor.addNewActivityPlaceholder',
@@ -172,12 +176,14 @@ export default function RecipeActivityEditor({
             onBlur={onBlur}
             className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder={intl.formatMessage(i18n.addNewActivityPlaceholder)}
+            data-testid="add-activity-input"
           />
           <button
             type="button"
             onClick={handleAddActivity}
             disabled={!newActivity.trim()}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            data-testid="add-activity-button"
           >
             {intl.formatMessage(i18n.addActivity)}
           </button>

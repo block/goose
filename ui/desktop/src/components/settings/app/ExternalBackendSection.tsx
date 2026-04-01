@@ -125,14 +125,14 @@ export default function ExternalBackendSection() {
       <Card className="pb-2">
         <CardHeader className="pb-0">
           <CardTitle>{intl.formatMessage(i18n.title)}</CardTitle>
-          <CardDescription>
-            {intl.formatMessage(i18n.description)}
-          </CardDescription>
+          <CardDescription>{intl.formatMessage(i18n.description)}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">{intl.formatMessage(i18n.useExternalServer)}</h3>
+              <h3 className="text-text-primary text-xs">
+                {intl.formatMessage(i18n.useExternalServer)}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 {intl.formatMessage(i18n.useExternalServerDescription)}
               </p>

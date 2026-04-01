@@ -167,7 +167,9 @@ export function SessionInsights() {
             <CardContent className="flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <Skeleton className="h-10 w-16 mb-1" />
-                <span className="text-xs text-text-secondary">{intl.formatMessage(i18n.totalSessions)}</span>
+                <span className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.totalSessions)}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -177,7 +179,9 @@ export function SessionInsights() {
             <CardContent className="flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <Skeleton className="h-10 w-24 mb-1" />
-                <span className="text-xs text-text-secondary">{intl.formatMessage(i18n.totalTokens)}</span>
+                <span className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.totalTokens)}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -189,7 +193,9 @@ export function SessionInsights() {
             <CardContent className="p-0">
               <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
-                  <span className="text-lg text-text-primary">{intl.formatMessage(i18n.recentChats)}</span>
+                  <span className="text-lg text-text-primary">
+                    {intl.formatMessage(i18n.recentChats)}
+                  </span>
                 </CardDescription>
                 <Button
                   variant="ghost"
@@ -271,10 +277,15 @@ export function SessionInsights() {
           <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
-                <p className="text-4xl font-mono font-light flex items-end">
+                <p
+                  className="text-4xl font-mono font-light flex items-end"
+                  data-testid="total-sessions-count"
+                >
                   {Math.max(insights?.totalSessions ?? 0, 0)}
                 </p>
-                <span className="text-xs text-text-secondary">{intl.formatMessage(i18n.totalSessions)}</span>
+                <span className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.totalSessions)}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -300,7 +311,9 @@ export function SessionInsights() {
                 <p className="text-4xl font-mono font-light flex items-end">
                   {formatTokens(insights?.totalTokens)}
                 </p>
-                <span className="text-xs text-text-secondary">{intl.formatMessage(i18n.totalTokens)}</span>
+                <span className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.totalTokens)}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -313,7 +326,9 @@ export function SessionInsights() {
             <CardContent className="page-transition p-0">
               <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
-                  <span className="text-lg text-text-primary">{intl.formatMessage(i18n.recentChats)}</span>
+                  <span className="text-lg text-text-primary">
+                    {intl.formatMessage(i18n.recentChats)}
+                  </span>
                 </CardDescription>
                 <Button
                   variant="ghost"
@@ -357,6 +372,7 @@ export function SessionInsights() {
                       onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}
+                      data-testid="recent-session-item"
                       style={{ animationDelay: `${index * 0.1}s` }}
                       onKeyDown={async (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {

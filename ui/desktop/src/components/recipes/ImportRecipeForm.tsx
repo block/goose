@@ -47,7 +47,8 @@ const i18n = defineMessages({
   },
   reviewWarning: {
     id: 'importRecipeForm.reviewWarning',
-    defaultMessage: 'Ensure you review contents of recipe files before adding them to your goose interface.',
+    defaultMessage:
+      'Ensure you review contents of recipe files before adding them to your goose interface.',
   },
   cancel: {
     id: 'importRecipeForm.cancel',
@@ -67,7 +68,8 @@ const i18n = defineMessages({
   },
   schemaDescription: {
     id: 'importRecipeForm.schemaDescription',
-    defaultMessage: 'Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt.',
+    defaultMessage:
+      'Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt.',
   },
 });
 
@@ -208,7 +210,9 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     <>
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
         <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-primary mb-4">{intl.formatMessage(i18n.importRecipeTitle)}</h3>
+          <h3 className="text-lg font-medium text-text-primary mb-4">
+            {intl.formatMessage(i18n.importRecipeTitle)}
+          </h3>
 
           <form
             onSubmit={(e) => {
@@ -354,7 +358,9 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                     disabled={!canSubmit || importing || isSubmitting}
                     variant="default"
                   >
-                    {importing || isSubmitting ? intl.formatMessage(i18n.importing) : intl.formatMessage(i18n.importRecipeButton)}
+                    {importing || isSubmitting
+                      ? intl.formatMessage(i18n.importing)
+                      : intl.formatMessage(i18n.importRecipeButton)}
                   </Button>
                 )}
               </importRecipeForm.Subscribe>
@@ -368,7 +374,9 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
           <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-text-primary">{intl.formatMessage(i18n.expectedRecipeStructure)}</h3>
+              <h3 className="text-lg font-medium text-text-primary">
+                {intl.formatMessage(i18n.expectedRecipeStructure)}
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowSchemaModal(false)}

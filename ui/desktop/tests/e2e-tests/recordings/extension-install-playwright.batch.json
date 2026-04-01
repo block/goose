@@ -1,0 +1,17 @@
+[
+  ["wait", "[data-testid='chat-input']", "--timeout", "60000"],
+  ["eval", "window.electron.emit('add-extension', {}, 'goose://extension?cmd=npx&arg=%40playwright%2Fmcp%40latest&id=playwright&name=Playwright&description=Interact%20with%20web%20pages%20through%20structured%20accessibility%20snapshots%20using%20Playwright')"],
+  ["wait", "--text", "Confirm Extension Installation"],
+  ["find", "role", "button", "click", "--name", "Yes"],
+  ["wait", "--text", "Playwright"],
+  ["wait", "--text", "Default Extensions (8)"],
+  ["find", "role", "button", "click", "--name", "Chat"],
+  ["wait", "[data-testid='nav-new-chat-btn']"],
+  ["find", "testid", "nav-new-chat-btn", "click"],
+  ["wait", "[data-testid='chat-input']"],
+  ["find", "testid", "chat-input", "fill", "Use the Playwright browser to navigate to google.com and search for cats. Use the browser_navigate tool to go to https://www.google.com and then use browser_type and browser_click to search for cats."],
+  ["find", "testid", "send-button", "click"],
+  ["wait", "--text", "browser_navigate", "--timeout", "20000"],
+  ["wait", "--fn", "document.body.innerText.includes('google.com') || document.body.innerText.includes('google')", "--timeout", "20000"],
+  ["wait", "--fn", "document.body.innerText.toLowerCase().includes('cats')", "--timeout", "20000"]
+]

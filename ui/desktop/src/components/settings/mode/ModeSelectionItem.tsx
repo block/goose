@@ -97,7 +97,9 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
             <div>
               <h3 className="text-text-primary">{intl.formatMessage(mode.labelDescriptor)}</h3>
               {showDescription && (
-                <p className="text-text-secondary mt-[2px]">{intl.formatMessage(mode.descriptionDescriptor)}</p>
+                <p className="text-text-secondary mt-[2px]">
+                  {intl.formatMessage(mode.descriptionDescriptor)}
+                </p>
               )}
             </div>
           </div>

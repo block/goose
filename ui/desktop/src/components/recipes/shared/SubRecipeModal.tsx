@@ -179,11 +179,11 @@ export default function SubRecipeModal({
         <div className="flex items-center justify-between p-6 border-b border-borderSubtle">
           <div>
             <h2 className="text-xl font-medium text-textProminent">
-              {subRecipe ? intl.formatMessage(i18n.configureTitle) : intl.formatMessage(i18n.addTitle)}
+              {subRecipe
+                ? intl.formatMessage(i18n.configureTitle)
+                : intl.formatMessage(i18n.addTitle)}
             </h2>
-            <p className="text-textSubtle text-sm">
-              {intl.formatMessage(i18n.subtitle)}
-            </p>
+            <p className="text-textSubtle text-sm">{intl.formatMessage(i18n.subtitle)}</p>
           </div>
           <Button
             onClick={onClose}
@@ -214,9 +214,7 @@ export default function SubRecipeModal({
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder={intl.formatMessage(i18n.namePlaceholder)}
             />
-            <p className="text-xs text-text-muted mt-1">
-              {intl.formatMessage(i18n.nameHint)}
-            </p>
+            <p className="text-xs text-text-muted mt-1">{intl.formatMessage(i18n.nameHint)}</p>
           </div>
 
           {/* Path Field */}
@@ -246,9 +244,7 @@ export default function SubRecipeModal({
                 {intl.formatMessage(i18n.browse)}
               </Button>
             </div>
-            <p className="text-xs text-text-muted mt-1">
-              {intl.formatMessage(i18n.pathHint)}
-            </p>
+            <p className="text-xs text-text-muted mt-1">{intl.formatMessage(i18n.pathHint)}</p>
           </div>
 
           {/* Description Field */}

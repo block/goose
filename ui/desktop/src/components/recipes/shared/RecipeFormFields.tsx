@@ -35,7 +35,8 @@ const i18n = defineMessages({
   },
   templateVarHint: {
     id: 'recipeFormFields.templateVarHint',
-    defaultMessage: "Use '{{parameter_name}}' to define parameters that can be filled in when running the recipe.",
+    defaultMessage:
+      "Use '{{parameter_name}}' to define parameters that can be filled in when running the recipe.",
   },
   initialPrompt: {
     id: 'recipeFormFields.initialPrompt',
@@ -63,7 +64,8 @@ const i18n = defineMessages({
   },
   parametersDescription: {
     id: 'recipeFormFields.parametersDescription',
-    defaultMessage: "Parameters will be automatically detected from '{{parameter_name}}' syntax in instructions/prompt/activities or you can manually add them below.",
+    defaultMessage:
+      "Parameters will be automatically detected from '{{parameter_name}}' syntax in instructions/prompt/activities or you can manually add them below.",
   },
   parameterNamePlaceholder: {
     id: 'recipeFormFields.parameterNamePlaceholder',
@@ -411,13 +413,18 @@ export function RecipeFormFields({
 
       {/* Advanced Section - Collapsible */}
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-6">
-        <CollapsibleTrigger className="flex items-baseline gap-2 w-full py-3 px-4 bg-background-secondary hover:bg-background-secondary/80 rounded-lg transition-colors border border-border-primary">
+        <CollapsibleTrigger
+          className="flex items-baseline gap-2 w-full py-3 px-4 bg-background-secondary hover:bg-background-secondary/80 rounded-lg transition-colors border border-border-primary"
+          data-testid="advanced-options-trigger"
+        >
           <ChevronDown
             className={`w-4 h-4 text-text-secondary transition-transform duration-200 flex-shrink-0 relative top-0.5 ${
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
-          <span className="text-sm font-medium text-textStandard">{intl.formatMessage(i18n.advancedOptions)}</span>
+          <span className="text-sm font-medium text-textStandard">
+            {intl.formatMessage(i18n.advancedOptions)}
+          </span>
           <span className="text-xs text-textSubtle">
             {intl.formatMessage(i18n.advancedOptionsHint)}
           </span>
@@ -444,7 +451,9 @@ export function RecipeFormFields({
                 if (newParameterName.trim()) {
                   const newParam: Parameter = {
                     key: newParameterName.trim(),
-                    description: intl.formatMessage(i18n.enterValueFor, { key: newParameterName.trim() }),
+                    description: intl.formatMessage(i18n.enterValueFor, {
+                      key: newParameterName.trim(),
+                    }),
                     input_type: 'string',
                     requirement: 'required',
                   };
@@ -509,12 +518,14 @@ export function RecipeFormFields({
                       onKeyDown={handleKeyDown}
                       placeholder={intl.formatMessage(i18n.parameterNamePlaceholder)}
                       className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      data-testid="add-parameter-name-input"
                     />
                     <button
                       type="button"
                       onClick={handleAddParameter}
                       disabled={!newParameterName.trim()}
                       className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      data-testid="add-parameter-button"
                     >
                       {intl.formatMessage(i18n.addParameter)}
                     </button>

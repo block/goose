@@ -1,0 +1,10 @@
+recipe:
+  title: test recipe again
+  description: testing recipe again
+  instructions: The value of test_param is {{test_param}}
+  prompt: What is the value of test_param?
+  parameters:
+    - key: test_param
+      input_type: string
+      requirement: required
+      description: Enter value for test_param

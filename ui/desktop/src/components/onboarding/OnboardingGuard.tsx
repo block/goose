@@ -130,7 +130,9 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
               <div className="mb-4">
                 <Goose className="size-8" />
               </div>
-              <h1 className="text-2xl sm:text-4xl font-light mb-3">{intl.formatMessage(i18n.welcomeTitle)}</h1>
+              <h1 className="text-2xl sm:text-4xl font-light mb-3">
+                {intl.formatMessage(i18n.welcomeTitle)}
+              </h1>
               <p className="text-text-muted text-base sm:text-lg">
                 {intl.formatMessage(i18n.welcomeDescription)}
               </p>

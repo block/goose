@@ -168,7 +168,9 @@ export default function ProviderSelector({
           <span className="font-medium text-text-default text-base block">
             {intl.formatMessage(i18n.connectProvider)}
           </span>
-          <p className="text-text-muted text-sm mt-1">{intl.formatMessage(i18n.connectProviderDescription)}</p>
+          <p className="text-text-muted text-sm mt-1">
+            {intl.formatMessage(i18n.connectProviderDescription)}
+          </p>
         </div>
       </div>
 

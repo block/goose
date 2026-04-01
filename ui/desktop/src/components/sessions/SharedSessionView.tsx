@@ -54,7 +54,9 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
           </div>
         </div>
 
-        <SessionHeader title={session ? session.description : intl.formatMessage(i18n.sharedSession)}>
+        <SessionHeader
+          title={session ? session.description : intl.formatMessage(i18n.sharedSession)}
+        >
           <div className="flex flex-col">
             {!isLoading && session && session.messages.length > 0 ? (
               <>

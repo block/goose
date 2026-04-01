@@ -12,7 +12,8 @@ const i18n = defineMessages({
   },
   envVarsDescription: {
     id: 'envVarsSection.envVarsDescription',
-    defaultMessage: 'Add key-value pairs for environment variables. Click the "+" button to add after filling both fields. For existing secret values, click the edit button to modify.',
+    defaultMessage:
+      'Add key-value pairs for environment variables. Click the "+" button to add after filling both fields. For existing secret values, click the edit button to modify.',
   },
   variableName: {
     id: 'envVarsSection.variableName',
@@ -140,6 +141,7 @@ export default function EnvVarsSection({
           <React.Fragment key={index}>
             <div className="relative">
               <Input
+                data-testid={`env-var-key-${index}`}
                 value={envVar.key}
                 onChange={(e) => onChange(index, 'key', e.target.value)}
                 placeholder={intl.formatMessage(i18n.variableName)}
@@ -151,6 +153,7 @@ export default function EnvVarsSection({
             </div>
             <div className="relative">
               <Input
+                data-testid={`env-var-value-${index}`}
                 value={envVar.value}
                 readOnly={envVar.value === '••••••••' && !envVar.isEdited}
                 onChange={(e) => {

@@ -39,7 +39,9 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 
   return (
     <div className={`${!horizontal ? 'px-1 py-2 space-y-2' : ''} ${className}`}>
-      {!hideTitle && <div className="text-xs text-text-primary px-3">{intl.formatMessage(i18n.theme)}</div>}
+      {!hideTitle && (
+        <div className="text-xs text-text-primary px-3">{intl.formatMessage(i18n.theme)}</div>
+      )}
       <div
         className={`${horizontal ? 'flex' : 'grid grid-cols-3'} gap-1 ${!horizontal ? 'px-3' : ''}`}
       >

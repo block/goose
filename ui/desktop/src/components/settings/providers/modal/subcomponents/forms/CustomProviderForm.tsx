@@ -92,7 +92,8 @@ const i18n = defineMessages({
   },
   apiBasePathHint: {
     id: 'customProviderForm.apiBasePathHint',
-    defaultMessage: "Override the default API path. Leave blank to use the provider's default path.",
+    defaultMessage:
+      "Override the default API path. Leave blank to use the provider's default path.",
   },
   authentication: {
     id: 'customProviderForm.authentication',
@@ -411,7 +412,8 @@ export default function CustomProviderForm({
     if (!displayName) errors.displayName = intl.formatMessage(i18n.displayNameRequired);
     if (!apiUrl) errors.apiUrl = intl.formatMessage(i18n.apiUrlRequired);
     const existingHadAuth = initialData && (initialData.requires_auth ?? true);
-    if (requiresAuth && !apiKey && !existingHadAuth) errors.apiKey = intl.formatMessage(i18n.apiKeyRequired);
+    if (requiresAuth && !apiKey && !existingHadAuth)
+      errors.apiKey = intl.formatMessage(i18n.apiKeyRequired);
     if (!models) errors.models = intl.formatMessage(i18n.modelsRequired);
 
     if (Object.keys(errors).length > 0) {
@@ -491,7 +493,9 @@ export default function CustomProviderForm({
           <div className="flex items-center gap-3">
             <Search className="w-5 h-5 text-primary flex-shrink-0" />
             <div>
-              <div className="font-medium text-textStandard">{intl.formatMessage(i18n.startFromTemplate)}</div>
+              <div className="font-medium text-textStandard">
+                {intl.formatMessage(i18n.startFromTemplate)}
+              </div>
               <div className="text-sm text-textSubtle mt-0.5">
                 {intl.formatMessage(i18n.startFromTemplateDesc)}
               </div>
@@ -506,7 +510,9 @@ export default function CustomProviderForm({
           <div className="flex items-center gap-3">
             <Settings className="w-5 h-5 text-textSubtle flex-shrink-0" />
             <div>
-              <div className="font-medium text-textStandard">{intl.formatMessage(i18n.configureManually)}</div>
+              <div className="font-medium text-textStandard">
+                {intl.formatMessage(i18n.configureManually)}
+              </div>
               <div className="text-sm text-textSubtle mt-0.5">
                 {intl.formatMessage(i18n.configureManuallyDesc)}
               </div>
@@ -600,7 +606,10 @@ export default function CustomProviderForm({
             aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
             options={[
               { value: 'openai_compatible', label: intl.formatMessage(i18n.openaiCompatible) },
-              { value: 'anthropic_compatible', label: intl.formatMessage(i18n.anthropicCompatible) },
+              {
+                value: 'anthropic_compatible',
+                label: intl.formatMessage(i18n.anthropicCompatible),
+              },
               { value: 'ollama_compatible', label: intl.formatMessage(i18n.ollamaCompatible) },
             ]}
             value={{
@@ -695,18 +704,16 @@ export default function CustomProviderForm({
             onChange={(e) => setBasePath(e.target.value)}
             placeholder={intl.formatMessage(i18n.apiBasePathPlaceholder)}
           />
-          <p className="text-xs text-textSubtle mt-1">
-            {intl.formatMessage(i18n.apiBasePathHint)}
-          </p>
+          <p className="text-xs text-textSubtle mt-1">{intl.formatMessage(i18n.apiBasePathHint)}</p>
         </div>
       )}
 
       {/* Authentication */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{intl.formatMessage(i18n.authentication)}</label>
-        <p className="text-sm text-text-secondary mb-3">
-          {intl.formatMessage(i18n.authHint)}
-        </p>
+        <label className="block text-sm font-medium text-text-primary mb-2">
+          {intl.formatMessage(i18n.authentication)}
+        </label>
+        <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.authHint)}</p>
         <div className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -739,7 +746,11 @@ export default function CustomProviderForm({
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={initialData ? intl.formatMessage(i18n.apiKeyPlaceholderExisting) : intl.formatMessage(i18n.apiKeyPlaceholderNew)}
+              placeholder={
+                initialData
+                  ? intl.formatMessage(i18n.apiKeyPlaceholderExisting)
+                  : intl.formatMessage(i18n.apiKeyPlaceholderNew)
+              }
               aria-invalid={!!validationErrors.apiKey}
               aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
               className={validationErrors.apiKey ? 'border-red-500' : ''}
@@ -819,7 +830,9 @@ export default function CustomProviderForm({
       {/* Custom headers */}
       {isEditable && (
         <div>
-          <label className="text-sm font-medium text-textStandard mb-2 block">{intl.formatMessage(i18n.customHeaders)}</label>
+          <label className="text-sm font-medium text-textStandard mb-2 block">
+            {intl.formatMessage(i18n.customHeaders)}
+          </label>
           <p className="text-xs text-textSubtle mb-4">
             {intl.formatMessage(i18n.customHeadersHint)}
           </p>
@@ -900,16 +913,12 @@ export default function CustomProviderForm({
             <div className="px-4 py-3 bg-yellow-600/20 border border-yellow-500/30 rounded">
               <p className="text-yellow-500 text-sm flex items-start">
                 <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                <span>
-                  {intl.formatMessage(i18n.cannotDeleteActive)}
-                </span>
+                <span>{intl.formatMessage(i18n.cannotDeleteActive)}</span>
               </p>
             </div>
           ) : (
             <div className="px-4 py-3 bg-red-900/20 border border-red-500/30 rounded">
-              <p className="text-red-400 text-sm">
-                {intl.formatMessage(i18n.deleteConfirmation)}
-              </p>
+              <p className="text-red-400 text-sm">{intl.formatMessage(i18n.deleteConfirmation)}</p>
             </div>
           )}
           <div className="flex justify-end space-x-2">
@@ -944,7 +953,11 @@ export default function CustomProviderForm({
           <Button type="button" variant="outline" onClick={onCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
-          <Button type="submit">{initialData ? intl.formatMessage(i18n.updateProvider) : intl.formatMessage(i18n.createProvider)}</Button>
+          <Button type="submit">
+            {initialData
+              ? intl.formatMessage(i18n.updateProvider)
+              : intl.formatMessage(i18n.createProvider)}
+          </Button>
         </div>
       )}
     </form>

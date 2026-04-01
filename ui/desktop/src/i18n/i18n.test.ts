@@ -72,9 +72,7 @@ describe('loadMessages', () => {
     const { loadMessages } = await import('./index');
     const messages = await loadMessages('xx');
     expect(messages).toEqual({});
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('No message catalog found')
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('No message catalog found'));
     warnSpy.mockRestore();
   });
 });

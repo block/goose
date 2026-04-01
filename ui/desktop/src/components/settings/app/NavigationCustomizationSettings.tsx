@@ -146,9 +146,7 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
     <div className={className}>
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-text-secondary">
-            {intl.formatMessage(i18n.dragInstructions)}
-          </p>
+          <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.dragInstructions)}</p>
           <button
             onClick={resetToDefaults}
             className="text-xs text-text-secondary hover:text-text-primary transition-colors"
@@ -185,7 +183,9 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
               <button
                 onClick={() => toggleItemEnabled(itemId)}
                 className="p-1 rounded hover:bg-background-tertiary transition-colors flex-shrink-0"
-                title={isEnabled ? intl.formatMessage(i18n.hideItem) : intl.formatMessage(i18n.showItem)}
+                title={
+                  isEnabled ? intl.formatMessage(i18n.hideItem) : intl.formatMessage(i18n.showItem)
+                }
               >
                 {isEnabled ? (
                   <Eye className="w-4 h-4 text-text-primary" />

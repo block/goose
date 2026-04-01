@@ -309,7 +309,9 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             autoFocus
           />
           <p className="text-xs text-text-primary/60 mt-1.5">
-            {intl.formatMessage(isHubView ? i18n.extensionsForNewChats : i18n.extensionsForThisSession)}
+            {intl.formatMessage(
+              isHubView ? i18n.extensionsForNewChats : i18n.extensionsForThisSession
+            )}
           </p>
         </div>
         <div
@@ -319,7 +321,9 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         >
           {sortedExtensions.length === 0 ? (
             <div className="px-2 py-4 text-center text-sm text-text-primary/70">
-              {intl.formatMessage(searchQuery ? i18n.noExtensionsFound : i18n.noExtensionsAvailable)}
+              {intl.formatMessage(
+                searchQuery ? i18n.noExtensionsFound : i18n.noExtensionsAvailable
+              )}
             </div>
           ) : (
             sortedExtensions.map((ext) => {

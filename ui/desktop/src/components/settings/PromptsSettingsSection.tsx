@@ -24,7 +24,8 @@ const i18n = defineMessages({
   },
   confirmResetAll: {
     id: 'promptsSettings.confirmResetAll',
-    defaultMessage: 'Are you sure you want to reset all prompts to their defaults? This cannot be undone.',
+    defaultMessage:
+      'Are you sure you want to reset all prompts to their defaults? This cannot be undone.',
   },
   allPromptsReset: {
     id: 'promptsSettings.allPromptsReset',
@@ -44,7 +45,8 @@ const i18n = defineMessages({
   },
   confirmResetOne: {
     id: 'promptsSettings.confirmResetOne',
-    defaultMessage: 'Are you sure you want to reset this prompt to its default? This cannot be undone.',
+    defaultMessage:
+      'Are you sure you want to reset this prompt to its default? This cannot be undone.',
   },
   promptResetToDefault: {
     id: 'promptsSettings.promptResetToDefault',
@@ -84,7 +86,8 @@ const i18n = defineMessages({
   },
   templateTip: {
     id: 'promptsSettings.templateTip',
-    defaultMessage: 'Template variables like {extensionsExample} or {forExample} are replaced with actual values at runtime. Be careful not to remove required variables.',
+    defaultMessage:
+      'Template variables like {extensionsExample} or {forExample} are replaced with actual values at runtime. Be careful not to remove required variables.',
   },
   editingLabel: {
     id: 'promptsSettings.editingLabel',
@@ -108,7 +111,8 @@ const i18n = defineMessages({
   },
   promptEditingDescription: {
     id: 'promptsSettings.promptEditingDescription',
-    defaultMessage: "Customize the prompts that define goose's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality. Please share any improvements with the community.",
+    defaultMessage:
+      "Customize the prompts that define goose's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality. Please share any improvements with the community.",
   },
   resetAll: {
     id: 'promptsSettings.resetAll',
@@ -169,11 +173,7 @@ export default function PromptsSettingsSection() {
   }, [content, promptData]);
 
   const handleResetAll = async () => {
-    if (
-      !window.confirm(
-        intl.formatMessage(i18n.confirmResetAll)
-      )
-    ) {
+    if (!window.confirm(intl.formatMessage(i18n.confirmResetAll))) {
       return;
     }
 
@@ -208,11 +208,7 @@ export default function PromptsSettingsSection() {
 
   const handleReset = async () => {
     if (!selectedPrompt) return;
-    if (
-      !window.confirm(
-        intl.formatMessage(i18n.confirmResetOne)
-      )
-    ) {
+    if (!window.confirm(intl.formatMessage(i18n.confirmResetOne))) {
       return;
     }
 
@@ -287,7 +283,9 @@ export default function PromptsSettingsSection() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <CardTitle>{intl.formatMessage(i18n.editPromptTitle, { name: selectedPrompt })}</CardTitle>
+              <CardTitle>
+                {intl.formatMessage(i18n.editPromptTitle, { name: selectedPrompt })}
+              </CardTitle>
               {promptData?.is_customized && (
                 <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
                   {intl.formatMessage(i18n.customized)}
@@ -307,7 +305,9 @@ export default function PromptsSettingsSection() {
 
             <div className="space-y-2 flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">{intl.formatMessage(i18n.editingLabel, { name: selectedPrompt })}</label>
+                <label className="text-sm font-medium">
+                  {intl.formatMessage(i18n.editingLabel, { name: selectedPrompt })}
+                </label>
                 {promptData?.is_customized && content !== promptData.default_content && (
                   <Button
                     variant="ghost"
@@ -346,7 +346,9 @@ export default function PromptsSettingsSection() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-1" />
             <div className="flex-1">
-              <CardTitle className="text-yellow-600 dark:text-yellow-400">{intl.formatMessage(i18n.promptEditingTitle)}</CardTitle>
+              <CardTitle className="text-yellow-600 dark:text-yellow-400">
+                {intl.formatMessage(i18n.promptEditingTitle)}
+              </CardTitle>
               <p className="text-sm text-text-secondary mt-2">
                 {intl.formatMessage(i18n.promptEditingDescription)}
               </p>

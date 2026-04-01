@@ -60,7 +60,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
         className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
       >
         <Plus className="w-4 h-4 flex-shrink-0" />
-        <span>{intl.formatMessage(i18n.newChat)}</span>
+        <span data-testid="nav-start-new-chat">{intl.formatMessage(i18n.newChat)}</span>
       </DropdownMenuItem>
 
       {sessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
@@ -109,7 +109,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-secondary"
           >
             <History className="w-4 h-4 flex-shrink-0" />
-            <span>{intl.formatMessage(i18n.showAll)}</span>
+            <span data-testid="nav-show-all-sessions">{intl.formatMessage(i18n.showAll)}</span>
           </DropdownMenuItem>
         </>
       )}

@@ -244,10 +244,7 @@ export default function MCPUIResourceRenderer({
 
         const result = await window.electron.showMessageBox({
           type: 'question',
-          buttons: [
-            intl.formatMessage(i18n.cancelButton),
-            intl.formatMessage(i18n.openButton),
-          ],
+          buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
           defaultId: 0,
           title: intl.formatMessage(i18n.openExternalLinkTitle),
           message: intl.formatMessage(i18n.openProtocolLink, { protocol }),

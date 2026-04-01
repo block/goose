@@ -140,7 +140,8 @@ export default function DefaultProviderSetupForm({
 
     const name = parameter.name.toLowerCase();
     if (name.includes('api_key')) return intl.formatMessage(i18n.apiKeyPlaceholder);
-    if (name.includes('api_url') || name.includes('host')) return intl.formatMessage(i18n.apiHostPlaceholder);
+    if (name.includes('api_url') || name.includes('host'))
+      return intl.formatMessage(i18n.apiHostPlaceholder);
     if (name.includes('models')) return intl.formatMessage(i18n.modelsPlaceholder);
 
     return parameter.name
@@ -152,7 +153,8 @@ export default function DefaultProviderSetupForm({
   const getFieldLabel = (parameter: ConfigKey) => {
     const name = parameter.name.toLowerCase();
     if (name.includes('api_key')) return intl.formatMessage(i18n.apiKeyLabel);
-    if (name.includes('api_url') || name.includes('host')) return intl.formatMessage(i18n.apiHostLabel);
+    if (name.includes('api_url') || name.includes('host'))
+      return intl.formatMessage(i18n.apiHostLabel);
     if (name.includes('models')) return intl.formatMessage(i18n.modelsLabel);
 
     let parameter_name = parameter.name.toUpperCase();

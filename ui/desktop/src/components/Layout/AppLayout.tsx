@@ -212,7 +212,11 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           className="no-drag hover:!bg-background-tertiary"
           variant="ghost"
           size="xs"
-          title={isNavExpanded ? intl.formatMessage(i18n.closeNavigation) : intl.formatMessage(i18n.openNavigation)}
+          title={
+            isNavExpanded
+              ? intl.formatMessage(i18n.closeNavigation)
+              : intl.formatMessage(i18n.openNavigation)
+          }
         >
           <Menu className="w-5 h-5" />
         </Button>

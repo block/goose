@@ -70,9 +70,7 @@ export const currentMessageLocale = resolvedLocale.messageLocale;
  * Load compiled messages for a given locale.
  * Returns an empty object for English (react-intl uses defaultMessage as fallback).
  */
-export async function loadMessages(
-  locale: string
-): Promise<Record<string, string>> {
+export async function loadMessages(locale: string): Promise<Record<string, string>> {
   if (locale === 'en') {
     // English strings live in source code as defaultMessage — no catalog needed.
     return {};
@@ -83,7 +81,9 @@ export async function loadMessages(
     const mod = await import(`./compiled/${locale}.json`);
     return mod.default ?? mod;
   } catch {
-    console.warn(`[i18n] No message catalog found for locale "${locale}", falling back to English.`);
+    console.warn(
+      `[i18n] No message catalog found for locale "${locale}", falling back to English.`
+    );
     return {};
   }
 }

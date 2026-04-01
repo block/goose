@@ -70,9 +70,7 @@ export function RecipeNameField({
         placeholder={RECIPE_NAME_PLACEHOLDER}
         data-testid="recipe-name-input"
       />
-      <p className="text-xs text-text-secondary mt-1">
-        {intl.formatMessage(i18n.formatHint)}
-      </p>
+      <p className="text-xs text-text-secondary mt-1">{intl.formatMessage(i18n.formatHint)}</p>
       {errors.length > 0 && <p className="text-red-500 text-sm mt-1">{errors[0]}</p>}
     </div>
   );

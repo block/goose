@@ -225,10 +225,26 @@ export default function GatewaySettingsSection() {
           )
         }
         onRestart={() =>
-          doPost('/gateway/restart', { gateway_type: 'telegram' }, intl.formatMessage(i18n.failedToStart))
+          doPost(
+            '/gateway/restart',
+            { gateway_type: 'telegram' },
+            intl.formatMessage(i18n.failedToStart)
+          )
         }
-        onStop={() => doPost('/gateway/stop', { gateway_type: 'telegram' }, intl.formatMessage(i18n.failedToStop))}
-        onRemove={() => doPost('/gateway/remove', { gateway_type: 'telegram' }, intl.formatMessage(i18n.failedToRemove))}
+        onStop={() =>
+          doPost(
+            '/gateway/stop',
+            { gateway_type: 'telegram' },
+            intl.formatMessage(i18n.failedToStop)
+          )
+        }
+        onRemove={() =>
+          doPost(
+            '/gateway/remove',
+            { gateway_type: 'telegram' },
+            intl.formatMessage(i18n.failedToRemove)
+          )
+        }
         onGenerateCode={async () => {
           setError(null);
           try {
@@ -244,7 +260,11 @@ export default function GatewaySettingsSection() {
             setPairingCode(data);
             setPairingGatewayType('telegram');
           } catch (err) {
-            setError(err instanceof Error ? err.message : intl.formatMessage(i18n.failedToGeneratePairingCode));
+            setError(
+              err instanceof Error
+                ? err.message
+                : intl.formatMessage(i18n.failedToGeneratePairingCode)
+            );
           }
         }}
         onUnpairUser={handleUnpairUser}
@@ -277,7 +297,9 @@ function PairedUsersList({
 
   return (
     <div className="space-y-1 mt-2">
-      <h4 className="text-xs text-text-muted font-medium">{intl.formatMessage(i18n.pairedUsers)}</h4>
+      <h4 className="text-xs text-text-muted font-medium">
+        {intl.formatMessage(i18n.pairedUsers)}
+      </h4>
       {users.map((user) => (
         <div
           key={`${user.platform}-${user.user_id}`}
@@ -371,7 +393,11 @@ function TelegramGatewayCard({
             {!running && configured && (
               <>
                 <Button size="sm" disabled={busy} onClick={wrap(onRestart)}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : intl.formatMessage(i18n.start)}
+                  {busy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    intl.formatMessage(i18n.start)
+                  )}
                 </Button>
                 <Button
                   variant="outline"
@@ -392,9 +418,7 @@ function TelegramGatewayCard({
         {!running && !configured && (
           <>
             <div className="text-xs text-text-muted space-y-1.5 mb-2">
-              <p>
-                {intl.formatMessage(i18n.botFatherInstructions)}
-              </p>
+              <p>{intl.formatMessage(i18n.botFatherInstructions)}</p>
             </div>
             <div className="flex items-center gap-2">
               <Input
@@ -406,7 +430,11 @@ function TelegramGatewayCard({
                 className="text-sm"
               />
               <Button size="sm" onClick={handleFirstStart} disabled={busy || !botToken.trim()}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : intl.formatMessage(i18n.start)}
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  intl.formatMessage(i18n.start)
+                )}
               </Button>
             </div>
           </>

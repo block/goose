@@ -27,7 +27,8 @@ const SessionItem: React.FC<SessionItemProps> = ({ session, extraActions }) => {
       <div>
         <div className="font-medium">{displayName}</div>
         <div className="text-sm text-muted-foreground">
-          {formatDate(session.updated_at)} • {intl.formatMessage(i18n.messageCount, { count: session.message_count })}
+          {formatDate(session.updated_at)} •{' '}
+          {intl.formatMessage(i18n.messageCount, { count: session.message_count })}
         </div>
         <div className="text-sm text-muted-foreground">{session.working_dir}</div>
       </div>

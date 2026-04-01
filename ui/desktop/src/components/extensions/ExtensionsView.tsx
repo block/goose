@@ -27,7 +27,7 @@ const i18n = defineMessages({
   description: {
     id: 'extensionsView.description',
     defaultMessage:
-      'These extensions use the Model Context Protocol (MCP). They can expand Goose\'s capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search.',
+      "These extensions use the Model Context Protocol (MCP). They can expand Goose's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search.",
   },
   defaultNote: {
     id: 'extensionsView.defaultNote',
@@ -145,6 +145,7 @@ export default function ExtensionsView({
             {/* Action Buttons */}
             <div className="flex gap-4 mb-8">
               <Button
+                data-testid="add-custom-extension-btn"
                 className="flex items-center gap-2 justify-center"
                 variant="default"
                 onClick={() => setIsAddModalOpen(true)}
@@ -167,7 +168,10 @@ export default function ExtensionsView({
         </div>
 
         <div className="px-8 pb-16">
-          <SearchView onSearch={(term) => setSearchTerm(term)} placeholder={intl.formatMessage(i18n.searchPlaceholder)}>
+          <SearchView
+            onSearch={(term) => setSearchTerm(term)}
+            placeholder={intl.formatMessage(i18n.searchPlaceholder)}
+          >
             <ExtensionsSection
               key={refreshKey}
               deepLinkConfig={viewOptions.deepLinkConfig}

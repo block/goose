@@ -24,7 +24,8 @@ const i18n = defineMessages({
   },
   editInPlaceDescription: {
     id: 'userMessage.editInPlaceDescription',
-    defaultMessage: '<b>Edit in Place</b> updates this session • <b>Fork Session</b> creates a new session',
+    defaultMessage:
+      '<b>Edit in Place</b> updates this session • <b>Fork Session</b> creates a new session',
   },
   cancel: {
     id: 'userMessage.cancel',
@@ -234,7 +235,11 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 })}
               </div>
               <div className="flex gap-3">
-                <Button onClick={handleCancel} variant="ghost" aria-label={intl.formatMessage(i18n.cancelAriaLabel)}>
+                <Button
+                  onClick={handleCancel}
+                  variant="ghost"
+                  aria-label={intl.formatMessage(i18n.cancelAriaLabel)}
+                >
                   {intl.formatMessage(i18n.cancel)}
                 </Button>
                 <Button
@@ -293,7 +298,9 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                         }
                       }}
                       className="flex items-center gap-1 text-xs text-text-secondary hover:cursor-pointer hover:text-text-primary transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
-                      aria-label={intl.formatMessage(i18n.editMessageAriaLabel, { preview: `${textContent.substring(0, 50)}${textContent.length > 50 ? '...' : ''}` })}
+                      aria-label={intl.formatMessage(i18n.editMessageAriaLabel, {
+                        preview: `${textContent.substring(0, 50)}${textContent.length > 50 ? '...' : ''}`,
+                      })}
                       aria-expanded={isEditing}
                       title={intl.formatMessage(i18n.editMessageTitle)}
                     >

@@ -139,7 +139,9 @@ export default function StandaloneAppView() {
           padding: '24px',
         }}
       >
-        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>{intl.formatMessage(i18n.failedToLoad)}</h2>
+        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>
+          {intl.formatMessage(i18n.failedToLoad)}
+        </h2>
         <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>{error}</p>
       </div>
     );
@@ -156,7 +158,9 @@ export default function StandaloneAppView() {
           justifyContent: 'center',
         }}
       >
-        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>{intl.formatMessage(i18n.initializing)}</p>
+        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+          {intl.formatMessage(i18n.initializing)}
+        </p>
       </div>
     );
   }

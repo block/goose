@@ -51,16 +51,21 @@ export default function ExtensionConfigFields({
     return (
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium mb-2 block text-text-primary">{intl.formatMessage(i18n.commandLabel)}</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">
+            {intl.formatMessage(i18n.commandLabel)}
+          </label>
           <div className="relative">
             <Input
+              data-testid="ext-command-input"
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder={intl.formatMessage(i18n.commandPlaceholder)}
               className={`w-full ${!submitAttempted || isValid ? 'border-border-primary' : 'border-red-500'} text-text-primary`}
             />
             {submitAttempted && !isValid && (
-              <div className="absolute text-xs text-red-500 mt-1">{intl.formatMessage(i18n.commandRequired)}</div>
+              <div className="absolute text-xs text-red-500 mt-1">
+                {intl.formatMessage(i18n.commandRequired)}
+              </div>
             )}
           </div>
         </div>
@@ -69,7 +74,9 @@ export default function ExtensionConfigFields({
   } else {
     return (
       <div>
-        <label className="text-sm font-medium mb-2 block text-text-primary">{intl.formatMessage(i18n.endpointLabel)}</label>
+        <label className="text-sm font-medium mb-2 block text-text-primary">
+          {intl.formatMessage(i18n.endpointLabel)}
+        </label>
         <div className="relative">
           <Input
             value={endpoint}
@@ -78,7 +85,9 @@ export default function ExtensionConfigFields({
             className={`w-full ${!submitAttempted || isValid ? 'border-border-primary' : 'border-red-500'} text-text-primary`}
           />
           {submitAttempted && !isValid && (
-            <div className="absolute text-xs text-red-500 mt-1">{intl.formatMessage(i18n.endpointRequired)}</div>
+            <div className="absolute text-xs text-red-500 mt-1">
+              {intl.formatMessage(i18n.endpointRequired)}
+            </div>
           )}
         </div>
       </div>

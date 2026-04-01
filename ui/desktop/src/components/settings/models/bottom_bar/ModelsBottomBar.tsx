@@ -71,7 +71,9 @@ export default function ModelsBottomBar({
   const intl = useIntl();
   const { getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
-  const [displayModelName, setDisplayModelName] = useState<string>(intl.formatMessage(i18n.selectModel));
+  const [displayModelName, setDisplayModelName] = useState<string>(
+    intl.formatMessage(i18n.selectModel)
+  );
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
@@ -131,7 +133,9 @@ export default function ModelsBottomBar({
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
-          <h6 className="text-xs text-text-primary mt-2 ml-2">{intl.formatMessage(i18n.currentModel)}</h6>
+          <h6 className="text-xs text-text-primary mt-2 ml-2">
+            {intl.formatMessage(i18n.currentModel)}
+          </h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
             {displayModelName}
             {displayProvider && ` — ${displayProvider}`}
@@ -165,7 +169,9 @@ export default function ModelsBottomBar({
           <div className="bg-background-default rounded-lg shadow-lg w-[480px] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
               <h3 className="text-sm font-medium text-text-default">
-                {intl.formatMessage(i18n.localModelSettingsTitle, { modelName: getModelDisplayName(currentModel) })}
+                {intl.formatMessage(i18n.localModelSettingsTitle, {
+                  modelName: getModelDisplayName(currentModel),
+                })}
               </h3>
               <button
                 onClick={() => setIsLocalModelSettingsOpen(false)}

@@ -83,7 +83,8 @@ const i18n = defineMessages({
   },
   tooManyTools: {
     id: 'chatInput.tooManyTools',
-    defaultMessage: 'Too many tools can degrade performance.\nTool count: {toolCount} (recommend: {recommended})',
+    defaultMessage:
+      'Too many tools can degrade performance.\nTool count: {toolCount} (recommend: {recommended})',
   },
   viewExtensions: {
     id: 'chatInput.viewExtensions',
@@ -563,7 +564,10 @@ export default function ChatInput({
     if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
       addAlert({
         type: AlertType.Warning,
-        message: intl.formatMessage(i18n.tooManyTools, { toolCount, recommended: TOOLS_MAX_SUGGESTED }),
+        message: intl.formatMessage(i18n.tooManyTools, {
+          toolCount,
+          recommended: TOOLS_MAX_SUGGESTED,
+        }),
         action: {
           text: intl.formatMessage(i18n.viewExtensions),
           onClick: () => setView('extensions'),
@@ -1439,6 +1443,7 @@ export default function ChatInput({
                       size="sm"
                       shape="round"
                       variant="outline"
+                      data-testid="send-button"
                       disabled={isSubmitButtonDisabled}
                       className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                         isSubmitButtonDisabled
@@ -1558,7 +1563,9 @@ export default function ChatInput({
                     <p className="text-sm text-text-primary truncate" title={file.name}>
                       {file.name}
                     </p>
-                    <p className="text-xs text-text-secondary">{file.type || intl.formatMessage(i18n.unknownType)}</p>
+                    <p className="text-xs text-text-secondary">
+                      {file.type || intl.formatMessage(i18n.unknownType)}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1665,12 +1672,15 @@ export default function ChatInput({
                       variant="ghost"
                       size="sm"
                       className="flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs cursor-pointer"
+                      data-testid="recipe-action-button"
                     >
                       <ChefHat size={16} />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {recipe ? intl.formatMessage(i18n.viewEditRecipe) : intl.formatMessage(i18n.createRecipeFromSession)}
+                    {recipe
+                      ? intl.formatMessage(i18n.viewEditRecipe)
+                      : intl.formatMessage(i18n.createRecipeFromSession)}
                   </TooltipContent>
                 </Tooltip>
               </div>

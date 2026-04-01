@@ -1080,9 +1080,10 @@ function ToolLogsView({
   // down on the possibility of unwanted runs
 
   const subagentLogCount = logs.filter((l) => l.startsWith('[subagent:')).length;
-  const labelText = subagentLogCount > 0
-    ? intl.formatMessage(i18n.activityCount, { count: subagentLogCount })
-    : intl.formatMessage(i18n.logs);
+  const labelText =
+    subagentLogCount > 0
+      ? intl.formatMessage(i18n.activityCount, { count: subagentLogCount })
+      : intl.formatMessage(i18n.logs);
 
   return (
     <ToolCallExpandable

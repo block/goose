@@ -211,7 +211,9 @@ export const MicrophoneSelector = ({
                 value={selectedDeviceId ?? 'system_default'}
                 onValueChange={(v) => onDeviceChange(v === 'system_default' ? null : v)}
               >
-                <DropdownMenuRadioItem value="system_default">{intl.formatMessage(i18n.systemDefault)}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="system_default">
+                  {intl.formatMessage(i18n.systemDefault)}
+                </DropdownMenuRadioItem>
                 {devices.map((device, i) => (
                   <DropdownMenuRadioItem key={device.deviceId} value={device.deviceId}>
                     <span className="truncate">{getDeviceLabel(device, i)}</span>
