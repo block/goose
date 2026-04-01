@@ -12,11 +12,8 @@ use super::{
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     chatgpt_codex::ChatGptCodexProvider,
-    claude_acp::ClaudeAcpProvider,
     claude_code::ClaudeCodeProvider,
     codex::CodexProvider,
-    codex_acp::CodexAcpProvider,
-    copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
@@ -39,7 +36,9 @@ use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
 use crate::{
-    config::declarative_providers::register_declarative_providers,
+    config::declarative_providers::{
+        register_declarative_acp_providers, register_declarative_providers,
+    },
     providers::provider_registry::ProviderEntry,
 };
 use anyhow::Result;
@@ -57,10 +56,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
         registry.register::<ChatGptCodexProvider>(true);
-        registry.register::<ClaudeAcpProvider>(false);
         registry.register::<ClaudeCodeProvider>(true);
-        registry.register::<CodexAcpProvider>(false);
-        registry.register::<CopilotAcpProvider>(false);
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);
@@ -98,7 +94,8 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
 }
 
 fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) -> Result<()> {
-    register_declarative_providers(registry)
+    register_declarative_providers(registry)?;
+    register_declarative_acp_providers(registry)
 }
 
 async fn get_registry() -> &'static RwLock<ProviderRegistry> {

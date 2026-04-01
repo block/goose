@@ -1,19 +1,27 @@
+use crate::acp::{
+    extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, PermissionMapping,
+    ACP_CURRENT_MODEL,
+};
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::search_path::SearchPaths;
+use crate::config::{Config, GooseMode};
 use crate::providers::anthropic::AnthropicProvider;
-use crate::providers::base::{ModelInfo, ProviderType};
+use crate::providers::base::{ModelInfo, ProviderMetadata, ProviderType};
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
+use crate::providers::provider_registry::ProviderEntry;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use utoipa::ToSchema;
 
 static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/providers/declarative");
+static FIXED_ACP_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/providers/declarative_acp");
 
 pub fn custom_providers_dir() -> std::path::PathBuf {
     Paths::config_dir().join("custom_providers")
@@ -484,9 +492,124 @@ pub fn register_declarative_provider(
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeclarativeAcpConfig {
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub doc_url: String,
+    pub binary: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env_remove: Vec<String>,
+    pub modes: HashMap<String, String>,
+    #[serde(default)]
+    pub allow_option_id: Option<String>,
+    #[serde(default)]
+    pub reject_option_id: Option<String>,
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
+}
+
+pub fn register_declarative_acp_providers(
+    registry: &mut crate::providers::provider_registry::ProviderRegistry,
+) -> Result<()> {
+    for file in FIXED_ACP_PROVIDERS.files() {
+        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        let content = file
+            .contents_utf8()
+            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
+        match serde_json::from_str::<DeclarativeAcpConfig>(content) {
+            Ok(config) => register_declarative_acp_provider(registry, config),
+            Err(e) => {
+                tracing::warn!(
+                    "Skipping invalid declarative ACP provider {:?}: {}",
+                    file.path(),
+                    e
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn register_declarative_acp_provider(
+    registry: &mut crate::providers::provider_registry::ProviderRegistry,
+    config: DeclarativeAcpConfig,
+) {
+    let metadata = ProviderMetadata::new(
+        &config.name,
+        &config.display_name,
+        &config.description,
+        ACP_CURRENT_MODEL,
+        vec![],
+        &config.doc_url,
+        vec![],
+    )
+    .with_setup_steps(config.setup_steps.iter().map(|s| s.as_str()).collect());
+
+    let name = config.name.clone();
+    registry.entries.insert(
+        name,
+        ProviderEntry::new(
+            metadata,
+            Arc::new(move |model, extensions| {
+                let config = config.clone();
+                Box::pin(async move {
+                    let resolved_command =
+                        SearchPaths::builder().with_npm().resolve(&config.binary)?;
+
+                    let goose_mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
+
+                    let mode_mapping: HashMap<GooseMode, String> = config
+                        .modes
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            GooseMode::from_str(k).ok().map(|mode| (mode, v.clone()))
+                        })
+                        .collect();
+
+                    let permission_mapping = PermissionMapping {
+                        allow_option_id: config.allow_option_id.clone(),
+                        reject_option_id: config.reject_option_id.clone(),
+                        rejected_tool_status: sacp::schema::ToolCallStatus::Failed,
+                    };
+
+                    let provider_config = AcpProviderConfig {
+                        command: resolved_command,
+                        args: config.args.clone(),
+                        env: vec![],
+                        env_remove: config.env_remove.clone(),
+                        work_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                        mcp_servers: extension_configs_to_mcp_servers(&extensions),
+                        session_mode_id: mode_mapping.get(&goose_mode).cloned(),
+                        mode_mapping,
+                        permission_mapping,
+                        notification_callback: None,
+                    };
+
+                    let provider = AcpProvider::connect(
+                        config.name.clone(),
+                        model,
+                        goose_mode,
+                        provider_config,
+                    )
+                    .await?;
+                    Ok(Arc::new(provider) as Arc<dyn crate::providers::base::Provider>)
+                })
+            }),
+            ProviderType::Builtin,
+        ),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
 
     #[test]
     fn test_tanzu_json_deserializes() {
@@ -619,5 +742,39 @@ mod tests {
 
         let result = expand_env_vars("${TEST_EXPAND_OVERRIDE}/path", &env_vars).unwrap();
         assert_eq!(result, "https://from-env.com/path");
+    }
+
+    #[test_case(
+        include_str!("../providers/declarative_acp/copilot_acp.json"),
+        "copilot-acp", "copilot", &["--acp"], &[], None, None;
+        "copilot_acp"
+    )]
+    #[test_case(
+        include_str!("../providers/declarative_acp/claude_acp.json"),
+        "claude-acp", "claude-agent-acp", &[], &["CLAUDECODE"], Some("allow"), Some("reject");
+        "claude_acp"
+    )]
+    #[test_case(
+        include_str!("../providers/declarative_acp/codex_acp.json"),
+        "codex-acp", "codex-acp", &["-c", "sandbox_workspace_write.network_access=true"], &[], Some("approved"), Some("abort");
+        "codex_acp"
+    )]
+    fn test_acp_json_deserializes(
+        json: &str,
+        name: &str,
+        binary: &str,
+        args: &[&str],
+        env_remove: &[&str],
+        allow_id: Option<&str>,
+        reject_id: Option<&str>,
+    ) {
+        let config: DeclarativeAcpConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.name, name);
+        assert_eq!(config.binary, binary);
+        assert_eq!(config.args, args);
+        assert_eq!(config.env_remove, env_remove);
+        assert_eq!(config.allow_option_id.as_deref(), allow_id);
+        assert_eq!(config.reject_option_id.as_deref(), reject_id);
+        assert_eq!(config.modes.len(), 4);
     }
 }

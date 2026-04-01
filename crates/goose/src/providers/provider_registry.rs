@@ -23,6 +23,19 @@ pub struct ProviderEntry {
 }
 
 impl ProviderEntry {
+    pub(crate) fn new(
+        metadata: ProviderMetadata,
+        constructor: ProviderConstructor,
+        provider_type: ProviderType,
+    ) -> Self {
+        Self {
+            metadata,
+            constructor,
+            cleanup: None,
+            provider_type,
+        }
+    }
+
     pub async fn create_with_default_model(
         &self,
         extensions: Vec<ExtensionConfig>,
