@@ -429,6 +429,7 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     ];
 
     let global_skill_dirs: Vec<PathBuf> = [
+        home.as_ref().map(|h| h.join(".agents/skills")),
         Some(config.join("skills")),
         home.as_ref().map(|h| h.join(".claude/skills")),
         home.as_ref().map(|h| h.join(".config/agents/skills")),
@@ -443,6 +444,7 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
     ];
 
     let global_agent_dirs: Vec<PathBuf> = [
+        home.as_ref().map(|h| h.join(".agents/agents")),
         Some(config.join("agents")),
         home.as_ref().map(|h| h.join(".claude/agents")),
     ]
@@ -1108,8 +1110,8 @@ impl SummonClient {
                 "No sources available for load/delegate.\n\n\
                  Sources are discovered from:\n\
                  • Current recipe's sub_recipes\n\
-                 • .goose/recipes/, .goose/skills/, .goose/agents/\n\
-                 • ~/.config/goose/recipes/, skills/, agents/\n\
+                 • .agents/skills/, .agents/recipes/, .agents/agents/\n\
+                 • ~/.agents/skills/, recipes/, agents/\n\
                  • GOOSE_RECIPE_PATH directories\n\
                  • Builtin skills",
             )]);
