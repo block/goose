@@ -10,14 +10,7 @@ import { test, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  buildGoose,
-  discoverTestCases,
-  runGoose,
-  isAgenticProvider,
-  isAllowedFailure,
-  type TestCase,
-} from './test_providers_lib';
+import { buildGoose, discoverTestCases, runGoose, type TestCase } from './test_providers_lib';
 
 const BUILTINS = 'developer';
 const TEST_CONTENT = 'test-content-abc123';
@@ -35,8 +28,8 @@ beforeAll(() => {
 });
 
 const allCases = discoverTestCases();
-const available = allCases.filter((tc) => tc.available && !isAllowedFailure(tc.provider, tc.model));
-const flaky = allCases.filter((tc) => tc.available && isAllowedFailure(tc.provider, tc.model));
+const available = allCases.filter((tc) => tc.available && !tc.flaky);
+const flaky = allCases.filter((tc) => tc.available && tc.flaky);
 const skipped = allCases.filter((tc) => !tc.available);
 
 async function runNormalTest(tc: TestCase): Promise<void> {
@@ -47,7 +40,7 @@ async function runNormalTest(tc: TestCase): Promise<void> {
     let tokenA: string | undefined;
     let tokenB: string | undefined;
 
-    if (isAgenticProvider(tc.provider)) {
+    if (tc.agentic) {
       fs.copyFileSync(testFile, path.join(testdir, 'test-content.txt'));
       prompt = 'read ./test-content.txt and output its contents exactly';
     } else {
@@ -64,7 +57,7 @@ async function runNormalTest(tc: TestCase): Promise<void> {
       GOOSE_MODEL: tc.model,
     });
 
-    if (isAgenticProvider(tc.provider)) {
+    if (tc.agentic) {
       expect(
         output.toLowerCase(),
         `Expected model output to contain "${TEST_CONTENT}"\n\nFull output:\n${output}`

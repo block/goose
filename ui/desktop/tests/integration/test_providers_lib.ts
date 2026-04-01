@@ -14,39 +14,169 @@ import path from 'node:path';
 // Provider configuration
 // ---------------------------------------------------------------------------
 
-const PROVIDER_CONFIG_RAW = `
-openrouter -> google/gemini-2.5-pro|anthropic/claude-sonnet-4.5|qwen/qwen3-coder:exacto|z-ai/glm-4.6:exacto|nvidia/nemotron-3-nano-30b-a3b
-xai -> grok-3
-openai -> gpt-4o|gpt-4o-mini|gpt-3.5-turbo|gpt-5
-anthropic -> claude-sonnet-4-5-20250929|claude-opus-4-5-20251101
-google -> gemini-2.5-pro|gemini-2.5-flash|gemini-3-pro-preview|gemini-3-flash-preview
-tetrate -> claude-sonnet-4-20250514
-databricks -> databricks-claude-sonnet-4|gemini-2-5-flash|gpt-4o
-azure_openai -> \${AZURE_OPENAI_DEPLOYMENT_NAME}
-aws_bedrock -> us.anthropic.claude-sonnet-4-5-20250929-v1:0
-gcp_vertex_ai -> gemini-2.5-pro
-snowflake -> claude-sonnet-4-5
-venice -> llama-3.3-70b
-litellm -> gpt-4o-mini
-sagemaker_tgi -> sagemaker-tgi-endpoint
-github_copilot -> gpt-4.1
-chatgpt_codex -> gpt-5.1-codex
-claude-code -> default
-codex -> gpt-5.2-codex
-gemini-cli -> gemini-2.5-pro
-cursor-agent -> auto
-ollama -> qwen3
-`;
+type ModelEntry = string | { name: string; flaky: true };
 
-const ALLOWED_FAILURES = new Set([
-  'google:gemini-2.5-flash',
-  'google:gemini-3-pro-preview',
-  'openrouter:nvidia/nemotron-3-nano-30b-a3b',
-  'openrouter:qwen/qwen3-coder:exacto',
-  'openai:gpt-3.5-turbo',
-]);
+interface ProviderConfig {
+  provider: string;
+  models: ModelEntry[];
+  agentic?: boolean;
+  available: () => boolean;
+}
 
-const AGENTIC_PROVIDERS = new Set(['claude-code', 'codex', 'gemini-cli', 'cursor-agent']);
+function modelName(entry: ModelEntry): string {
+  return typeof entry === 'string' ? entry : entry.name;
+}
+
+function modelFlaky(entry: ModelEntry): boolean {
+  return typeof entry !== 'string' && entry.flaky;
+}
+
+function hasEnv(name: string): boolean {
+  return !!process.env[name];
+}
+
+function hasCmd(name: string): boolean {
+  try {
+    execSync(`command -v ${name}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasFile(p: string): boolean {
+  return fs.existsSync(p);
+}
+
+function getProviders(): ProviderConfig[] {
+  return [
+    {
+      provider: 'openrouter',
+      models: [
+        'google/gemini-2.5-pro',
+        'anthropic/claude-sonnet-4.5',
+        { name: 'qwen/qwen3-coder:exacto', flaky: true },
+        'z-ai/glm-4.6:exacto',
+        { name: 'nvidia/nemotron-3-nano-30b-a3b', flaky: true },
+      ],
+      available: () => hasEnv('OPENROUTER_API_KEY'),
+    },
+    {
+      provider: 'xai',
+      models: ['grok-3'],
+      available: () => hasEnv('XAI_API_KEY'),
+    },
+    {
+      provider: 'openai',
+      models: ['gpt-4o', 'gpt-4o-mini', { name: 'gpt-3.5-turbo', flaky: true }, 'gpt-5'],
+      available: () => hasEnv('OPENAI_API_KEY'),
+    },
+    {
+      provider: 'anthropic',
+      models: ['claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101'],
+      available: () => hasEnv('ANTHROPIC_API_KEY'),
+    },
+    {
+      provider: 'google',
+      models: [
+        'gemini-2.5-pro',
+        { name: 'gemini-2.5-flash', flaky: true },
+        { name: 'gemini-3-pro-preview', flaky: true },
+        'gemini-3-flash-preview',
+      ],
+      available: () => hasEnv('GOOGLE_API_KEY'),
+    },
+    {
+      provider: 'tetrate',
+      models: ['claude-sonnet-4-20250514'],
+      available: () => hasEnv('TETRATE_API_KEY'),
+    },
+    {
+      provider: 'databricks',
+      models: ['databricks-claude-sonnet-4', 'gemini-2-5-flash', 'gpt-4o'],
+      available: () => hasEnv('DATABRICKS_HOST') && hasEnv('DATABRICKS_TOKEN'),
+    },
+    {
+      provider: 'azure_openai',
+      models: [process.env.AZURE_OPENAI_DEPLOYMENT_NAME ?? ''],
+      available: () => hasEnv('AZURE_OPENAI_ENDPOINT') && hasEnv('AZURE_OPENAI_DEPLOYMENT_NAME'),
+    },
+    {
+      provider: 'aws_bedrock',
+      models: ['us.anthropic.claude-sonnet-4-5-20250929-v1:0'],
+      available: () =>
+        hasEnv('AWS_REGION') && (hasEnv('AWS_PROFILE') || hasEnv('AWS_ACCESS_KEY_ID')),
+    },
+    {
+      provider: 'gcp_vertex_ai',
+      models: ['gemini-2.5-pro'],
+      available: () => hasEnv('GCP_PROJECT_ID'),
+    },
+    {
+      provider: 'snowflake',
+      models: ['claude-sonnet-4-5'],
+      available: () => hasEnv('SNOWFLAKE_HOST') && hasEnv('SNOWFLAKE_TOKEN'),
+    },
+    {
+      provider: 'venice',
+      models: ['llama-3.3-70b'],
+      available: () => hasEnv('VENICE_API_KEY'),
+    },
+    {
+      provider: 'litellm',
+      models: ['gpt-4o-mini'],
+      available: () => hasEnv('LITELLM_API_KEY'),
+    },
+    {
+      provider: 'sagemaker_tgi',
+      models: ['sagemaker-tgi-endpoint'],
+      available: () => hasEnv('SAGEMAKER_ENDPOINT_NAME') && hasEnv('AWS_REGION'),
+    },
+    {
+      provider: 'github_copilot',
+      models: ['gpt-4.1'],
+      available: () =>
+        hasEnv('GITHUB_COPILOT_TOKEN') ||
+        hasFile(path.join(os.homedir(), '.config/goose/github_copilot_token.json')),
+    },
+    {
+      provider: 'chatgpt_codex',
+      models: ['gpt-5.1-codex'],
+      available: () =>
+        hasEnv('CHATGPT_CODEX_TOKEN') ||
+        hasFile(path.join(os.homedir(), '.config/goose/chatgpt_codex_token.json')),
+    },
+    {
+      provider: 'claude-code',
+      models: ['default'],
+      agentic: true,
+      available: () => hasCmd('claude'),
+    },
+    {
+      provider: 'codex',
+      models: ['gpt-5.2-codex'],
+      agentic: true,
+      available: () => hasCmd('codex'),
+    },
+    {
+      provider: 'gemini-cli',
+      models: ['gemini-2.5-pro'],
+      agentic: true,
+      available: () => hasCmd('gemini'),
+    },
+    {
+      provider: 'cursor-agent',
+      models: ['auto'],
+      agentic: true,
+      available: () => hasCmd('cursor-agent'),
+    },
+    {
+      provider: 'ollama',
+      models: ['qwen3'],
+      available: () => hasEnv('OLLAMA_HOST') || hasCmd('ollama'),
+    },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,86 +199,6 @@ function loadDotenv(): void {
   }
 }
 
-function hasEnv(name: string): boolean {
-  return !!process.env[name];
-}
-
-function hasCmd(name: string): boolean {
-  try {
-    execSync(`command -v ${name}`, { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function hasFile(p: string): boolean {
-  return fs.existsSync(p);
-}
-
-export function isAgenticProvider(provider: string): boolean {
-  return AGENTIC_PROVIDERS.has(provider);
-}
-
-function isProviderAvailable(provider: string): boolean {
-  switch (provider) {
-    case 'openrouter':
-      return hasEnv('OPENROUTER_API_KEY');
-    case 'xai':
-      return hasEnv('XAI_API_KEY');
-    case 'openai':
-      return hasEnv('OPENAI_API_KEY');
-    case 'anthropic':
-      return hasEnv('ANTHROPIC_API_KEY');
-    case 'google':
-      return hasEnv('GOOGLE_API_KEY');
-    case 'tetrate':
-      return hasEnv('TETRATE_API_KEY');
-    case 'databricks':
-      return hasEnv('DATABRICKS_HOST') && hasEnv('DATABRICKS_TOKEN');
-    case 'azure_openai':
-      return hasEnv('AZURE_OPENAI_ENDPOINT') && hasEnv('AZURE_OPENAI_DEPLOYMENT_NAME');
-    case 'aws_bedrock':
-      return hasEnv('AWS_REGION') && (hasEnv('AWS_PROFILE') || hasEnv('AWS_ACCESS_KEY_ID'));
-    case 'gcp_vertex_ai':
-      return hasEnv('GCP_PROJECT_ID');
-    case 'snowflake':
-      return hasEnv('SNOWFLAKE_HOST') && hasEnv('SNOWFLAKE_TOKEN');
-    case 'venice':
-      return hasEnv('VENICE_API_KEY');
-    case 'litellm':
-      return hasEnv('LITELLM_API_KEY');
-    case 'sagemaker_tgi':
-      return hasEnv('SAGEMAKER_ENDPOINT_NAME') && hasEnv('AWS_REGION');
-    case 'github_copilot':
-      return (
-        hasEnv('GITHUB_COPILOT_TOKEN') ||
-        hasFile(path.join(os.homedir(), '.config/goose/github_copilot_token.json'))
-      );
-    case 'chatgpt_codex':
-      return (
-        hasEnv('CHATGPT_CODEX_TOKEN') ||
-        hasFile(path.join(os.homedir(), '.config/goose/chatgpt_codex_token.json'))
-      );
-    case 'ollama':
-      return hasEnv('OLLAMA_HOST') || hasCmd('ollama');
-    case 'claude-code':
-      return hasCmd('claude');
-    case 'codex':
-      return hasCmd('codex');
-    case 'gemini-cli':
-      return hasCmd('gemini');
-    case 'cursor-agent':
-      return hasCmd('cursor-agent');
-    default:
-      return true;
-  }
-}
-
-export function isAllowedFailure(provider: string, model: string): boolean {
-  return ALLOWED_FAILURES.has(`${provider}:${model}`);
-}
-
 function shouldSkipProvider(provider: string): boolean {
   const skip = process.env.SKIP_PROVIDERS;
   if (!skip) return false;
@@ -156,30 +206,6 @@ function shouldSkipProvider(provider: string): boolean {
     .split(',')
     .map((s) => s.trim())
     .includes(provider);
-}
-
-// ---------------------------------------------------------------------------
-// Parse provider config
-// ---------------------------------------------------------------------------
-
-interface ProviderLine {
-  provider: string;
-  modelsStr: string;
-}
-
-function parseProviderConfig(): ProviderLine[] {
-  const lines: ProviderLine[] = [];
-  for (const raw of PROVIDER_CONFIG_RAW.split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const arrowIdx = line.indexOf(' -> ');
-    if (arrowIdx === -1) continue;
-    const provider = line.slice(0, arrowIdx).trim();
-    let modelsStr = line.slice(arrowIdx + 4).trim();
-    modelsStr = modelsStr.replace(/\$\{(\w+)\}/g, (_, name) => process.env[name] ?? '');
-    lines.push({ provider, modelsStr });
-  }
-  return lines;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,44 +232,61 @@ export interface TestCase {
   provider: string;
   model: string;
   available: boolean;
+  flaky: boolean;
+  agentic: boolean;
   skippedReason?: string;
 }
 
 export function discoverTestCases(options?: { skipAgentic?: boolean }): TestCase[] {
   loadDotenv();
   const skipAgentic = options?.skipAgentic ?? false;
-  const providerLines = parseProviderConfig();
+  const providers = getProviders();
 
   const testCases: TestCase[] = [];
 
-  for (const { provider, modelsStr } of providerLines) {
-    const available = isProviderAvailable(provider);
-    const models = modelsStr.split('|');
+  for (const pc of providers) {
+    const providerAvailable = pc.available();
+    const agentic = pc.agentic ?? false;
 
-    for (const model of models) {
-      if (!available) {
+    for (const entry of pc.models) {
+      const model = modelName(entry);
+      const flaky = modelFlaky(entry);
+
+      if (!providerAvailable) {
         testCases.push({
-          provider,
+          provider: pc.provider,
           model,
           available: false,
+          flaky,
+          agentic,
           skippedReason: 'prerequisites not met',
         });
-      } else if (shouldSkipProvider(provider)) {
+      } else if (shouldSkipProvider(pc.provider)) {
         testCases.push({
-          provider,
+          provider: pc.provider,
           model,
           available: false,
+          flaky,
+          agentic,
           skippedReason: 'SKIP_PROVIDERS',
         });
-      } else if (skipAgentic && isAgenticProvider(provider)) {
+      } else if (skipAgentic && agentic) {
         testCases.push({
-          provider,
+          provider: pc.provider,
           model,
           available: false,
+          flaky,
+          agentic,
           skippedReason: 'agentic provider skipped in this mode',
         });
       } else {
-        testCases.push({ provider, model, available: true });
+        testCases.push({
+          provider: pc.provider,
+          model,
+          available: true,
+          flaky,
+          agentic,
+        });
       }
     }
   }

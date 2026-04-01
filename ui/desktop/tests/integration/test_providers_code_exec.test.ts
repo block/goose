@@ -11,13 +11,7 @@ import { test, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  buildGoose,
-  discoverTestCases,
-  runGoose,
-  isAllowedFailure,
-  type TestCase,
-} from './test_providers_lib';
+import { buildGoose, discoverTestCases, runGoose, type TestCase } from './test_providers_lib';
 
 const BUILTINS = 'memory,code_execution';
 
@@ -28,8 +22,8 @@ beforeAll(() => {
 });
 
 const allCases = discoverTestCases({ skipAgentic: true });
-const available = allCases.filter((tc) => tc.available && !isAllowedFailure(tc.provider, tc.model));
-const flaky = allCases.filter((tc) => tc.available && isAllowedFailure(tc.provider, tc.model));
+const available = allCases.filter((tc) => tc.available && !tc.flaky);
+const flaky = allCases.filter((tc) => tc.available && tc.flaky);
 const skipped = allCases.filter((tc) => !tc.available);
 
 async function runCodeExecTest(tc: TestCase): Promise<void> {
