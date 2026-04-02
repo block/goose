@@ -40,8 +40,6 @@ jobs:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
     environment: ${{ inputs.environment || '' }}
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:
       id-token: write
       contents: read
@@ -106,16 +104,14 @@ jobs:
           # Update version in Cargo.toml
           sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
           rm -f Cargo.toml.bak
-          
+
           source ./bin/activate-hermit
-          # Update version in package.json 
+          # Update version in package.json
           cd ui/desktop
           npm pkg set "version=${VERSION}"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          key: macos-deployment-target-12
 
       # Build the project
       - name: Build goosed
