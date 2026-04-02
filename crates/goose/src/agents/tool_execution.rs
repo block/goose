@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use tokio_util::sync::CancellationToken;
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::config::permission::PermissionLevel;
@@ -18,6 +19,9 @@ pub struct ToolCallContext {
     pub session_id: String,
     pub working_dir: Option<PathBuf>,
     pub tool_call_request_id: Option<String>,
+    /// When `Some`, file operations are confined to these base paths.
+    /// When `None`, all paths are allowed (no confinement).
+    pub allowed_paths: Option<HashSet<PathBuf>>,
 }
 
 impl ToolCallContext {
@@ -26,11 +30,30 @@ impl ToolCallContext {
         working_dir: Option<PathBuf>,
         tool_call_request_id: Option<String>,
     ) -> Self {
+        let allowed_paths = Self::build_allowed_paths(&working_dir);
         Self {
             session_id,
             working_dir,
             tool_call_request_id,
+            allowed_paths,
         }
+    }
+
+    /// Build the allowed paths set based on the confinement config.
+    /// Returns `None` (no confinement) when the config key is absent or false.
+    /// Returns `Some({working_dir})` when confinement is enabled.
+    fn build_allowed_paths(working_dir: &Option<PathBuf>) -> Option<HashSet<PathBuf>> {
+        let confinement_enabled = crate::config::Config::global()
+            .get_param::<bool>("GOOSE_CONFINEMENT")
+            .unwrap_or(false);
+        if !confinement_enabled {
+            return None;
+        }
+        // Only confine when we have a working directory to confine to.
+        // Without one (e.g. server tool-callback contexts) confinement
+        // is not meaningful, so allow all paths.
+        let dir = working_dir.as_ref()?;
+        Some(HashSet::from([dir.clone()]))
     }
 
     pub fn working_dir_str(&self) -> Option<&str> {
