@@ -4459,6 +4459,7 @@ dependencies = [
  "goose",
  "goose-acp-macros",
  "goose-mcp",
+ "goose-sdk",
  "goose-test-support",
  "http-body-util",
  "regex",
@@ -4568,6 +4569,19 @@ dependencies = [
  "tracing-subscriber",
  "umya-spreadsheet",
  "url",
+]
+
+[[package]]
+name = "goose-sdk"
+version = "1.29.0"
+dependencies = [
+ "agent-client-protocol-schema",
+ "sacp",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

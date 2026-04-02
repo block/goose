@@ -10,16 +10,16 @@
 //! # Usage
 //!
 //! ```bash
-//! cargo run -p goose-acp --example acp_client -- "What is 2 + 2?"
+//! cargo run -p goose-sdk --example acp_client -- "What is 2 + 2?"
 //! ```
 //!
 //! Or with a custom goose binary path:
 //!
 //! ```bash
-//! cargo run -p goose-acp --example acp_client -- --goose-bin ./target/debug/goose "Explain Rust's ownership model in one sentence"
+//! cargo run -p goose-sdk --example acp_client -- --goose-bin ./target/debug/goose "Explain Rust's ownership model in one sentence"
 //! ```
 
-use goose_acp::custom_requests::GetExtensionsRequest;
+use goose_sdk::custom_requests::GetExtensionsRequest;
 use sacp::schema::{
     ContentBlock, InitializeRequest, ProtocolVersion, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
