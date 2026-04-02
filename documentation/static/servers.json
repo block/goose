@@ -36,7 +36,7 @@
   {
     "id": "apify",
     "name": "Apify",
-    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store \u26a1",
     "command": "npx -y @apify/actors-mcp-server",
     "link": "https://github.com/apify/apify-mcp-server",
     "installation_notes": "Install using npx. Requires an Apify API token.",
@@ -782,6 +782,18 @@
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/tutorial",
     "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
     "is_builtin": true,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "veed",
+    "name": "VEED AI Video Generator",
+    "description": "Generate AI talking-head videos with custom characters and voices using VEED's Fabric platform.",
+    "type": "streamable-http",
+    "url": "https://www.veed.io/api/v1/mcp",
+    "link": "https://veedstudio.github.io/veed-fabric-mcp/",
+    "installation_notes": "Connect to VEED's remote MCP server. No local installation required.",
+    "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
   },
