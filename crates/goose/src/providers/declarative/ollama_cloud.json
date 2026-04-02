@@ -1,0 +1,38 @@
+{
+  "name": "custom_ollama_cloud",
+  "engine": "openai",
+  "display_name": "Ollama Cloud",
+  "description": "Access hosted models on ollama.com via OpenAI-compatible API",
+  "api_key_env": "OLLAMA_CLOUD_API_KEY",
+  "base_url": "https://ollama.com/v1/chat/completions",
+  "models": [
+    {
+      "name": "qwen3",
+      "context_limit": 128000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "qwen3-coder:480b-cloud",
+      "context_limit": 128000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "qwen3-vl",
+      "context_limit": 128000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    }
+  ],
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true,
+  "dynamic_models": true
+}
