@@ -9,7 +9,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Download,
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -47,7 +46,7 @@ interface MeshStatusInfo {
 
 export const MeshSettings = () => {
   const { refreshCurrentModelAndProvider } = useModelAndProvider();
-  const canAutoDownload = window.electron.platform === 'darwin' && window.electron.arch === 'arm64';
+  const isMacOS = window.electron.platform === 'darwin' && window.electron.arch === 'arm64';
   const [status, setStatus] = useState<MeshStatus>('unknown');
   const [statusInfo, setStatusInfo] = useState<MeshStatusInfo>({
     running: false,
@@ -57,7 +56,7 @@ export const MeshSettings = () => {
   const [mode, setMode] = useState<MeshMode>('auto');
   const [selectedModel, setSelectedModel] = useState(MESH_DEFAULT_MODEL);
   const [joinToken, setJoinToken] = useState('');
-  const [contributeGpu, setContributeGpu] = useState(true);
+  const [contributeGpu, setContributeGpu] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -80,10 +79,12 @@ export const MeshSettings = () => {
       if (result.running) {
         setStatus('running');
         setStatusInfo(result);
-      } else if (!result.installed) {
+      } else if (!result.installed && !isMacOS) {
+        // On non-macOS, binary must be manually installed.
         setStatus((prev) => (prev === 'downloading' ? prev : 'not-installed'));
         setStatusInfo({ running: false, installed: false, models: [] });
       } else {
+        // On macOS, start-mesh handles downloading, so treat not-installed as stopped.
         setStatus((prev) => (prev === 'starting' || prev === 'downloading' ? prev : 'stopped'));
         setStatusInfo({ ...result, models: [] });
       }
@@ -92,7 +93,7 @@ export const MeshSettings = () => {
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [isMacOS]);
 
   useEffect(() => {
     checkStatus();
@@ -165,7 +166,8 @@ export const MeshSettings = () => {
 
   const startMesh = async () => {
     setError(null);
-    setStatus('starting');
+    // On macOS, start-mesh downloads the latest binary first.
+    setStatus(isMacOS ? 'downloading' : 'starting');
     try {
       const args: string[] = [];
 
@@ -195,6 +197,7 @@ export const MeshSettings = () => {
         setStatus('stopped');
         return;
       }
+      setStatus('starting');
       // Polling will pick up when it's ready. Timeout after 5 min so
       // the UI doesn't get stuck in "starting" if the daemon crashes.
       if (startTimeoutRef.current) {
@@ -227,28 +230,6 @@ export const MeshSettings = () => {
       }
     } catch {
       setError('Failed to stop mesh-llm');
-    }
-  };
-
-  const downloadMesh = async () => {
-    setError(null);
-    setStatus('downloading');
-    try {
-      const result = await window.electron.downloadMesh();
-      if (result.downloaded) {
-        setStatusInfo((prev) => ({
-          ...prev,
-          installed: true,
-          binaryPath: result.binaryPath,
-        }));
-        setStatus('stopped');
-      } else {
-        setError(result.error || 'Download failed');
-        setStatus('not-installed');
-      }
-    } catch (err) {
-      setError(`Download failed: ${err}`);
-      setStatus('not-installed');
     }
   };
 
@@ -286,7 +267,7 @@ export const MeshSettings = () => {
         return (
           <span className="flex items-center gap-1.5 text-xs text-yellow-500">
             <RefreshCw className="w-3 h-3 animate-spin" />
-            Downloading mesh-llm (~19 MB)...
+            Downloading latest mesh-llm (~19 MB)...
           </span>
         );
       case 'not-installed':
@@ -352,21 +333,15 @@ export const MeshSettings = () => {
         {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
       </div>
 
-      {/* Not installed — offer download or install link */}
+      {/* Not installed — non-macOS only; on macOS start-mesh handles the download */}
       {status === 'not-installed' && (
         <div className="border border-border-subtle rounded-xl p-4 bg-background-default">
           <p className="text-sm font-medium text-text-default">Get started</p>
           <p className="text-xs text-text-muted mt-1">
-            mesh-llm is a small download (~19 MB) that manages local inference and mesh networking.
-            Models are downloaded separately when you start a mesh.
+            mesh-llm is not installed. Follow the install guide to set it up, or connect to
+            a mesh already running on this machine.
           </p>
           <div className="flex items-center gap-2 mt-3">
-            {canAutoDownload && (
-              <Button size="sm" onClick={downloadMesh}>
-                <Download className="w-3 h-3 mr-1" />
-                Download mesh-llm
-              </Button>
-            )}
             <a href="https://docs.anarchai.org/" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="sm">
                 <ExternalLink className="w-3 h-3 mr-1" />
@@ -384,9 +359,9 @@ export const MeshSettings = () => {
       {/* Downloading */}
       {status === 'downloading' && (
         <div className="border border-yellow-500/30 rounded-xl p-4 bg-yellow-500/5">
-          <p className="text-sm font-medium text-text-default">Downloading mesh-llm...</p>
+          <p className="text-sm font-medium text-text-default">Downloading latest mesh-llm...</p>
           <p className="text-xs text-text-muted mt-1">
-            Downloading and installing to ~/.mesh-llm/. This should only take a moment.
+            Fetching the latest version to ~/.mesh-llm/. This should only take a moment.
           </p>
         </div>
       )}
@@ -504,6 +479,10 @@ export const MeshSettings = () => {
             <Play className="w-3 h-3 mr-1" />
             Start Mesh
           </Button>
+
+          <p className="text-xs text-text-muted">
+            When you start the mesh, keep goose running to stay connected.
+          </p>
         </div>
       )}
 
@@ -604,6 +583,10 @@ export const MeshSettings = () => {
               Mesh is running but no models are available yet. A model may still be loading.
             </p>
           )}
+
+          <p className="text-xs text-text-muted">
+            Keep goose running to stay connected to the mesh.
+          </p>
 
           {/* Actions row */}
           <div className="flex items-center gap-2">

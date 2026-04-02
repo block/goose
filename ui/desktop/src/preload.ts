@@ -126,7 +126,6 @@ type ElectronAPI = {
   }>;
   startMesh: (args: string[]) => Promise<{ started: boolean; error?: string; pid?: number }>;
   stopMesh: () => Promise<{ stopped: boolean }>;
-  downloadMesh: () => Promise<{ downloaded: boolean; error?: string; binaryPath?: string }>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
@@ -218,7 +217,7 @@ const electronAPI: ElectronAPI = {
   checkMesh: () => ipcRenderer.invoke('check-mesh'),
   startMesh: (args: string[]) => ipcRenderer.invoke('start-mesh', args),
   stopMesh: () => ipcRenderer.invoke('stop-mesh'),
-  downloadMesh: () => ipcRenderer.invoke('download-mesh'),
+
   selectFileOrDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke('select-file-or-directory', defaultPath),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
