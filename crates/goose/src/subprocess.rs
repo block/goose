@@ -14,9 +14,7 @@ fn configure_parent_death_signal(command: &mut Command) {
             }
 
             if libc::getppid() != parent_pid {
-                return Err(std::io::Error::other(
-                    "parent process exited before subprocess exec",
-                ));
+                return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
             }
 
             Ok(())
