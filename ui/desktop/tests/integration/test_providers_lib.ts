@@ -182,8 +182,17 @@ function getProviders(): ProviderConfig[] {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function stripQuotes(s: string): string {
+  if (s.length >= 2 && ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))) {
+    return s.slice(1, -1);
+  }
+  return s;
+}
+
 function loadDotenv(): void {
-  const envPath = path.resolve(process.cwd(), '.env');
+  // Resolve .env from the repository root (two levels up from ui/desktop).
+  const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
+  const envPath = path.join(repoRoot, '.env');
   if (!fs.existsSync(envPath)) return;
   const lines = fs.readFileSync(envPath, 'utf-8').split('\n');
   for (const line of lines) {
@@ -192,7 +201,7 @@ function loadDotenv(): void {
     const eqIdx = trimmed.indexOf('=');
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx);
-    const value = trimmed.slice(eqIdx + 1);
+    const value = stripQuotes(trimmed.slice(eqIdx + 1));
     if (!(key in process.env)) {
       process.env[key] = value;
     }

@@ -95,7 +95,7 @@ if (flaky.length > 0) {
     } catch (err) {
       console.warn(`Flaky test ${tc.provider}/${tc.model} failed (allowed): ${err}`);
     }
-  });
+  }, 120_000);
 }
 
 if (skipped.length > 0) {
