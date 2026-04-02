@@ -1,0 +1,45 @@
+{
+  "name": "eurouter",
+  "engine": "openai",
+  "display_name": "EUrouter",
+  "description": "AI Gateway to European AI - EU-hosted, GDPR-friendly models via OpenAI-compatible API",
+  "api_key_env": "EUROUTER_API_KEY",
+  "base_url": "https://api.eurouter.ai/api/v1",
+  "models": [
+    {
+      "name": "deepseek-r1",
+      "context_limit": 65000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "kimi-k2.5",
+      "context_limit": 131000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "mistral-large-latest",
+      "context_limit": 131000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "minimax-m2.5",
+      "context_limit": 1048000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    }
+  ],
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true
+}
