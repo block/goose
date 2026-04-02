@@ -8,6 +8,43 @@ const EXTENSIONS_CONFIG_KEY: &str = "extensions";
 pub fn run_migrations(config: &mut Mapping) -> bool {
     let mut changed = false;
     changed |= migrate_platform_extensions(config);
+    changed |= migrate_retry_defaults(config);
+    changed
+}
+
+fn migrate_retry_defaults(config: &mut Mapping) -> bool {
+    use crate::providers::{
+        DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS, DEFAULT_MAX_RETRIES,
+        DEFAULT_MAX_RETRY_INTERVAL_MS,
+    };
+
+    let defaults: &[(&str, serde_yaml::Value)] = &[
+        (
+            "GOOSE_MAX_RETRIES",
+            serde_yaml::Value::Number(serde_yaml::Number::from(DEFAULT_MAX_RETRIES as u64)),
+        ),
+        (
+            "GOOSE_INITIAL_RETRY_INTERVAL_MS",
+            serde_yaml::Value::Number(serde_yaml::Number::from(DEFAULT_INITIAL_RETRY_INTERVAL_MS)),
+        ),
+        (
+            "GOOSE_BACKOFF_MULTIPLIER",
+            serde_yaml::Value::Number(serde_yaml::Number::from(DEFAULT_BACKOFF_MULTIPLIER)),
+        ),
+        (
+            "GOOSE_MAX_RETRY_INTERVAL_MS",
+            serde_yaml::Value::Number(serde_yaml::Number::from(DEFAULT_MAX_RETRY_INTERVAL_MS)),
+        ),
+    ];
+
+    let mut changed = false;
+    for (key, default_value) in defaults {
+        let yaml_key = serde_yaml::Value::String(key.to_string());
+        if !config.contains_key(&yaml_key) {
+            config.insert(yaml_key, default_value.clone());
+            changed = true;
+        }
+    }
     changed
 }
 

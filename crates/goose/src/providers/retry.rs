@@ -27,11 +27,29 @@ pub struct RetryConfig {
 
 impl Default for RetryConfig {
     fn default() -> Self {
+        let config = crate::config::Config::global();
+
+        let max_retries = config
+            .get_param::<usize>("GOOSE_MAX_RETRIES")
+            .unwrap_or(DEFAULT_MAX_RETRIES);
+
+        let initial_interval_ms = config
+            .get_param::<u64>("GOOSE_INITIAL_RETRY_INTERVAL_MS")
+            .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
+
+        let backoff_multiplier = config
+            .get_param::<f64>("GOOSE_BACKOFF_MULTIPLIER")
+            .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
+
+        let max_interval_ms = config
+            .get_param::<u64>("GOOSE_MAX_RETRY_INTERVAL_MS")
+            .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
+
         Self {
-            max_retries: DEFAULT_MAX_RETRIES,
-            initial_interval_ms: DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-            backoff_multiplier: DEFAULT_BACKOFF_MULTIPLIER,
-            max_interval_ms: DEFAULT_MAX_RETRY_INTERVAL_MS,
+            max_retries,
+            initial_interval_ms,
+            backoff_multiplier,
+            max_interval_ms,
             transient_only: false,
         }
     }

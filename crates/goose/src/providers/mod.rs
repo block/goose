@@ -54,4 +54,7 @@ pub use init::{
     cleanup_provider, create, create_with_default_model, create_with_named_model,
     get_from_registry, providers, refresh_custom_providers,
 };
-pub use retry::{retry_operation, RetryConfig};
+pub use retry::{
+    retry_operation, RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
+    DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
+};
