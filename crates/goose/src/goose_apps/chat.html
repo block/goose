@@ -16,9 +16,15 @@
   </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    body { display: flex; flex-direction: column; background: #fff; }
-    
+    html, body {
+      height: 100%;
+      font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, sans-serif);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
+    }
+
+    body { display: flex; flex-direction: column; }
+
     .messages {
       flex: 1;
       overflow-y: auto;
@@ -27,66 +33,58 @@
       flex-direction: column;
       gap: 12px;
     }
-    
+
     .message {
       max-width: 80%;
       padding: 10px 14px;
-      border-radius: 16px;
+      border-radius: var(--border-radius-lg, 16px);
       line-height: 1.4;
       font-size: 14px;
       word-wrap: break-word;
     }
-    
+
     .message.user {
       align-self: flex-end;
-      background: #000;
-      color: #fff;
+      background: var(--color-background-inverse);
+      color: var(--color-text-inverse);
     }
-    
     .message.assistant {
       align-self: flex-start;
-      background: #f0f0f0;
-      color: #000;
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
     }
-    
-    .message.loading {
-      font-style: italic;
-      color: #666;
-    }
-    
+    .message.loading { font-style: italic; opacity: 0.6; }
+
     .input-area {
       display: flex;
       gap: 8px;
       padding: 12px;
-      border-top: 1px solid #e0e0e0;
-      background: #fafafa;
+      border-top: 1px solid var(--color-border-primary);
+      background: var(--color-background-secondary);
     }
-    
+
     #messageInput {
       flex: 1;
       padding: 10px 14px;
-      border: 1px solid #ddd;
       border-radius: 20px;
       font-size: 14px;
       outline: none;
+      border: 1px solid var(--color-border-primary);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
     }
-    
-    #messageInput:focus { border-color: #999; }
-    
+    #messageInput:focus { border-color: var(--color-text-info); }
+
     #sendBtn {
       padding: 10px 20px;
-      background: #000;
-      color: #fff;
       border: none;
       border-radius: 20px;
       font-size: 14px;
       cursor: pointer;
+      background: var(--color-background-inverse);
+      color: var(--color-text-inverse);
     }
-    
-    #sendBtn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
+    #sendBtn:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -101,8 +99,6 @@
     const inputEl = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     const conversationHistory = [];
-    const pendingRequests = new Map();
-    let requestId = 0;
 
     function addMessage(role, text, isLoading = false) {
       const div = document.createElement('div');
@@ -112,33 +108,6 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
       return div;
     }
-
-    function request(method, params) {
-      return new Promise((resolve, reject) => {
-        const id = ++requestId;
-        pendingRequests.set(id, { resolve, reject });
-        window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
-      });
-    }
-
-    window.addEventListener('message', (event) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-      
-      if ('id' in data && pendingRequests.has(data.id)) {
-        const { resolve, reject } = pendingRequests.get(data.id);
-        pendingRequests.delete(data.id);
-        if (data.error) {
-          reject(new Error(data.error.message || 'Unknown error'));
-        } else {
-          resolve(data.result);
-        }
-      }
-    });
-
-    request('ui/initialize', {}).then(() => {
-      window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
-    });
 
     async function sendMessage() {
       const text = inputEl.value.trim();
@@ -153,15 +122,14 @@
       const loadingEl = addMessage('assistant', 'Thinking...', true);
 
       try {
-        const response = await request('sampling/createMessage', {
-          messages: conversationHistory,
+        const response = await goose.chat(conversationHistory, {
           systemPrompt: 'You are a helpful assistant. Keep responses concise.',
-          maxTokens: 1000
+          maxTokens: 1000,
         });
 
         const responseText = response.content.text;
         conversationHistory.push({ role: 'assistant', content: { type: 'text', text: responseText } });
-        
+
         loadingEl.textContent = responseText;
         loadingEl.classList.remove('loading');
       } catch (err) {
@@ -178,7 +146,7 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    inputEl.focus();
+    goose.onReady = () => inputEl.focus();
   </script>
 </body>
 </html>
