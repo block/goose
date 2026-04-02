@@ -328,169 +328,67 @@ pub fn run_agent_loop<'a>(
                                     continue;
                                 }
 
-                                let mut request_to_response_map = HashMap::new();
-                                let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
-                                for request in all_requests.iter() {
-                                    request_to_response_map.insert(request.id.clone(), Message::user().with_generated_id());
-                                    request_metadata.insert(request.id.clone(), request.metadata.clone());
-                                }
+                                // --- Tool execution ---
+                                let (mut response_map, metadata_map) = prepare_tool_maps(&all_requests);
+                                let (frontend_requests, backend_requests) =
+                                    partition_requests(driver, &all_requests).await;
 
-                                // Partition into frontend and backend requests
-                                let mut frontend_requests = Vec::new();
-                                let mut backend_requests = Vec::new();
-                                for request in &all_requests {
-                                    if let Ok(tool_call) = &request.tool_call {
-                                        if driver.is_frontend_tool(&tool_call.name).await {
-                                            frontend_requests.push(request.clone());
-                                            continue;
-                                        }
-                                    }
-                                    backend_requests.push(request.clone());
-                                }
+                                let mut tool_futures =
+                                    dispatch_frontend_tools(driver, &frontend_requests, cancel_token.clone(), &session).await;
 
-                                // Dispatch frontend tools through unified dispatch path
-                                let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
-                                for request in &frontend_requests {
-                                    if let Ok(tool_call) = request.tool_call.clone() {
-                                        let frontend_msg = Message::assistant().with_frontend_tool_request(
-                                            request.id.clone(),
-                                            Ok(tool_call.clone()),
-                                        );
-                                        let (req_id, tool_result) = driver.dispatch_tool_call(
-                                            tool_call,
-                                            request.id.clone(),
-                                            cancel_token.clone(),
-                                            &session,
-                                        ).await;
-                                        tool_futures.push((req_id, match tool_result {
-                                            Ok(result) => frontend_tool_stream(
-                                                frontend_msg,
-                                                result.result,
-                                            ),
-                                            Err(e) => {
-                                                tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
-                                            }
-                                        }));
-                                    }
-                                }
-
-                                // Track extension install requests
-                                let mut enable_extension_request_ids: Vec<String> = vec![];
-
-                                // Track extension install requests
-                                for request in &backend_requests {
-                                    if let Ok(tool_call) = &request.tool_call {
-                                        if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
-                                            enable_extension_request_ids.push(request.id.clone());
-                                        }
-                                    }
-                                }
+                                let extension_install_ids = find_extension_install_ids(&backend_requests);
 
                                 if goose_mode == GooseMode::Chat {
-                                    for request in backend_requests.iter() {
-                                        if let Some(response) = request_to_response_map.get_mut(&request.id) {
-                                            response.add_tool_response_with_metadata(
-                                                request.id.clone(),
-                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
-                                                request.metadata.as_ref(),
-                                            );
-                                        }
-                                    }
+                                    skip_backend_tools_chat_mode(&backend_requests, &mut response_map);
                                 } else {
                                     let mut approval_stream = driver.gate_and_dispatch_tools(
-                                        &session_config.id,
-                                        &backend_requests,
-                                        conversation.messages(),
-                                        goose_mode,
-                                        &mut tool_futures,
-                                        &mut request_to_response_map,
-                                        cancel_token.clone(),
-                                        &session,
+                                        &session_config.id, &backend_requests,
+                                        conversation.messages(), goose_mode,
+                                        &mut tool_futures, &mut response_map,
+                                        cancel_token.clone(), &session,
                                     );
                                     while let Some(msg) = approval_stream.try_next().await? {
                                         yield AgentEvent::Message(msg);
                                     }
                                 }
 
-                                // Drain all tool streams through one unified loop
+                                // --- Drain tool streams ---
                                 {
-                                    let with_id = tool_futures
-                                        .into_iter()
-                                        .map(|(request_id, stream)| {
-                                            stream.map(move |item| (request_id.clone(), item))
-                                        })
+                                    let with_id = tool_futures.into_iter()
+                                        .map(|(id, s)| s.map(move |item| (id.clone(), item)))
                                         .collect::<Vec<_>>();
-
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
                                     loop {
-                                        if is_token_cancelled(&cancel_token) {
-                                            break;
-                                        }
-
+                                        if is_token_cancelled(&cancel_token) { break; }
                                         for msg in driver.drain_elicitation_messages(&session_config.id).await {
                                             yield AgentEvent::Message(msg);
                                         }
-
                                         tokio::select! {
                                             biased;
-
                                             tool_item = combined.next() => {
                                                 match tool_item {
                                                     Some((request_id, item)) => {
-                                                        match item {
-                                                            ToolStreamItem::Result(output) => {
-                                                                if let Ok(ref call_result) = output {
-                                                                    if let Some(ref meta) = call_result.meta {
-                                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
-                                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
-                                                                                let params = notification_data.get("params").cloned();
-                                                                                let custom_notification = rmcp::model::CustomNotification::new(
-                                                                                    method.to_string(),
-                                                                                    params,
-                                                                                );
-
-                                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
-                                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-
-                                                                if enable_extension_request_ids.contains(&request_id)
-                                                                    && output.is_err()
-                                                                {
-                                                                    all_install_successful = false;
-                                                                }
-                                                                if let Some(response) = request_to_response_map.get_mut(&request_id) {
-                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
-                                                                    response.add_tool_response_with_metadata(request_id, output, metadata);
-                                                                }
-                                                            }
-                                                            ToolStreamItem::Notification(msg) => {
-                                                                yield AgentEvent::McpNotification((request_id, msg));
-                                                            }
-                                                            ToolStreamItem::AgentMessage(msg) => {
-                                                                yield AgentEvent::Message(msg);
-                                                            }
+                                                        for event in handle_tool_stream_item(
+                                                            request_id, item,
+                                                            &mut response_map, &metadata_map,
+                                                            &extension_install_ids, &mut all_install_successful,
+                                                        ) {
+                                                            yield event;
                                                         }
                                                     }
                                                     None => break,
                                                 }
                                             }
-
-                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                                                // Continue loop to drain elicitation messages
-                                            }
+                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
                                         }
                                     }
 
                                     for msg in driver.drain_elicitation_messages(&session_config.id).await {
                                         yield AgentEvent::Message(msg);
                                     }
-
-                                    if all_install_successful && !enable_extension_request_ids.is_empty() {
+                                    if all_install_successful && !extension_install_ids.is_empty() {
                                         if let Err(e) = driver.save_extension_state(&session_config).await {
                                             warn!("Failed to save extension state after runtime changes: {}", e);
                                         }
@@ -498,60 +396,19 @@ pub fn run_agent_loop<'a>(
                                     }
                                 }
 
-                                // Preserve thinking/reasoning content
-                                let thinking_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
-                                if !thinking_content.is_empty() {
-                                    let thinking_msg = Message::new(
-                                        response.role.clone(),
-                                        response.created,
-                                        thinking_content,
-                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
+                                // --- Build conversation messages from results ---
+                                let pair_result = build_tool_pair_messages(
+                                    &response, &all_requests, &mut response_map,
+                                );
+                                for msg in &pair_result.messages {
+                                    messages_to_add.push(msg.clone());
                                 }
-
-                                let reasoning_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
-
-                                for request in all_requests.iter() {
-                                    if request.tool_call.is_ok() {
-                                        let mut request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()));
-
-                                        for rc in &reasoning_content {
-                                            request_msg = request_msg.with_content(rc.clone());
-                                        }
-
-                                        request_msg = request_msg
-                                            .with_tool_request_with_metadata(
-                                                request.id.clone(),
-                                                request.tool_call.clone(),
-                                                request.metadata.as_ref(),
-                                                request.tool_meta.clone(),
-                                            );
-                                        messages_to_add.push(request_msg);
-                                        let final_response = request_to_response_map
-                                            .remove(&request.id)
-                                            .unwrap_or_else(|| Message::user().with_generated_id());
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
-                                    } else {
-                                        error!(
-                                            "Tool call could not be parsed: {}",
-                                            request.tool_call.as_ref().unwrap_err(),
-                                        );
-                                        yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
-                                            )
-                                        );
-                                        exit_chat = true;
-                                        break;
-                                    }
+                                for event in pair_result.events {
+                                    yield event;
+                                }
+                                if pair_result.exit_chat {
+                                    exit_chat = true;
+                                    break;
                                 }
 
                                 no_tools_called = false;
@@ -755,4 +612,249 @@ pub fn run_agent_loop<'a>(
         .instrument(reply_stream_span),
     );
     inner
+}
+
+// ---------------------------------------------------------------------------
+// Helper functions — extracted from the tool execution block to reduce nesting
+// ---------------------------------------------------------------------------
+
+use crate::conversation::message::ToolRequest;
+use crate::mcp_utils::ToolResult;
+
+/// Build the request→response and request→metadata maps for a batch of tool requests.
+fn prepare_tool_maps(
+    requests: &[ToolRequest],
+) -> (
+    HashMap<String, Message>,
+    HashMap<String, Option<ProviderMetadata>>,
+) {
+    let mut response_map = HashMap::new();
+    let mut metadata_map = HashMap::new();
+    for request in requests {
+        response_map.insert(request.id.clone(), Message::user().with_generated_id());
+        metadata_map.insert(request.id.clone(), request.metadata.clone());
+    }
+    (response_map, metadata_map)
+}
+
+/// Partition tool requests into (frontend, backend) based on `driver.is_frontend_tool`.
+async fn partition_requests(
+    driver: &(dyn LoopDriver + '_),
+    requests: &[ToolRequest],
+) -> (Vec<ToolRequest>, Vec<ToolRequest>) {
+    let mut frontend = Vec::new();
+    let mut backend = Vec::new();
+    for request in requests {
+        if let Ok(tool_call) = &request.tool_call {
+            if driver.is_frontend_tool(&tool_call.name).await {
+                frontend.push(request.clone());
+                continue;
+            }
+        }
+        backend.push(request.clone());
+    }
+    (frontend, backend)
+}
+
+/// Dispatch frontend tool calls, returning their streams.
+async fn dispatch_frontend_tools(
+    driver: &(dyn LoopDriver + '_),
+    requests: &[ToolRequest],
+    cancel_token: Option<CancellationToken>,
+    session: &Session,
+) -> Vec<(String, ToolStream)> {
+    let mut futures = Vec::new();
+    for request in requests {
+        if let Ok(tool_call) = request.tool_call.clone() {
+            let frontend_msg = Message::assistant().with_frontend_tool_request(
+                request.id.clone(),
+                Ok(tool_call.clone()),
+            );
+            let (req_id, tool_result) = driver
+                .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone(), session)
+                .await;
+            futures.push((
+                req_id,
+                match tool_result {
+                    Ok(result) => frontend_tool_stream(frontend_msg, result.result),
+                    Err(e) => {
+                        tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
+                    }
+                },
+            ));
+        }
+    }
+    futures
+}
+
+/// Find request IDs for extension-install tool calls.
+fn find_extension_install_ids(requests: &[ToolRequest]) -> Vec<String> {
+    requests
+        .iter()
+        .filter_map(|r| {
+            r.tool_call
+                .as_ref()
+                .ok()
+                .filter(|tc| tc.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE)
+                .map(|_| r.id.clone())
+        })
+        .collect()
+}
+
+/// In chat mode, fill all backend tool responses with a "skipped" message.
+fn skip_backend_tools_chat_mode(
+    requests: &[ToolRequest],
+    response_map: &mut HashMap<String, Message>,
+) {
+    for request in requests {
+        if let Some(response) = response_map.get_mut(&request.id) {
+            response.add_tool_response_with_metadata(
+                request.id.clone(),
+                Ok(CallToolResult::success(vec![Content::text(
+                    CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                )])),
+                request.metadata.as_ref(),
+            );
+        }
+    }
+}
+
+/// Extract a platform notification from a tool call result, if present.
+fn extract_platform_notification(
+    request_id: &str,
+    call_result: &CallToolResult,
+) -> Option<AgentEvent> {
+    let meta = call_result.meta.as_ref()?;
+    let notification_data = meta.0.get("platform_notification")?;
+    let method = notification_data.get("method")?.as_str()?;
+    let params = notification_data.get("params").cloned();
+    let notification = rmcp::model::CustomNotification::new(method.to_string(), params);
+    Some(AgentEvent::McpNotification((
+        request_id.to_string(),
+        rmcp::model::ServerNotification::CustomNotification(notification),
+    )))
+}
+
+/// Handle a single item from the tool stream drain loop.
+///
+/// Updates `response_map` and `all_install_successful` as side effects.
+/// Returns events to yield to the UI (0, 1, or 2 — e.g. a platform notification + result).
+fn handle_tool_stream_item(
+    request_id: String,
+    item: ToolStreamItem<ToolResult<CallToolResult>>,
+    response_map: &mut HashMap<String, Message>,
+    metadata_map: &HashMap<String, Option<ProviderMetadata>>,
+    extension_install_ids: &[String],
+    all_install_successful: &mut bool,
+) -> Vec<AgentEvent> {
+    match item {
+        ToolStreamItem::Result(output) => {
+            let mut events = Vec::new();
+            // Extract platform notification before consuming the output
+            if let Ok(ref call_result) = output {
+                if let Some(event) = extract_platform_notification(&request_id, call_result) {
+                    events.push(event);
+                }
+            }
+            // Track extension install failure
+            if extension_install_ids.contains(&request_id) && output.is_err() {
+                *all_install_successful = false;
+            }
+            // Record result in response map
+            if let Some(response) = response_map.get_mut(&request_id) {
+                let metadata = metadata_map.get(&request_id).and_then(|m| m.as_ref());
+                response.add_tool_response_with_metadata(request_id, output, metadata);
+            }
+            events
+        }
+        ToolStreamItem::Notification(msg) => {
+            vec![AgentEvent::McpNotification((request_id, msg))]
+        }
+        ToolStreamItem::AgentMessage(msg) => vec![AgentEvent::Message(msg)],
+    }
+}
+
+/// Result of assembling tool-pair messages from a completed tool execution round.
+struct ToolPairMessages {
+    /// Messages to add to the conversation (thinking + request/response pairs).
+    messages: Vec<Message>,
+    /// Events to yield to the UI (tool response messages + error messages).
+    events: Vec<AgentEvent>,
+    /// Whether the loop should exit due to an unparseable tool call.
+    exit_chat: bool,
+}
+
+/// Build conversation messages from tool execution results.
+///
+/// Preserves thinking/reasoning content, pairs each tool request with its response,
+/// and handles unparseable tool calls.
+fn build_tool_pair_messages(
+    response: &Message,
+    all_requests: &[ToolRequest],
+    response_map: &mut HashMap<String, Message>,
+) -> ToolPairMessages {
+    let mut messages = Vec::new();
+    let mut events = Vec::new();
+    let mut exit_chat = false;
+
+    // Preserve thinking content as a separate message
+    let thinking_content: Vec<MessageContent> = response
+        .content
+        .iter()
+        .filter(|c| matches!(c, MessageContent::Thinking(_)))
+        .cloned()
+        .collect();
+    if !thinking_content.is_empty() {
+        let thinking_msg = Message::new(response.role.clone(), response.created, thinking_content)
+            .with_id(format!("msg_{}", Uuid::new_v4()));
+        messages.push(thinking_msg);
+    }
+
+    // Reasoning content attached to each tool request message
+    let reasoning_content: Vec<MessageContent> = response
+        .content
+        .iter()
+        .filter(|c| matches!(c, MessageContent::Thinking(_)))
+        .cloned()
+        .collect();
+
+    for request in all_requests {
+        if request.tool_call.is_ok() {
+            let mut request_msg = Message::assistant().with_id(format!("msg_{}", Uuid::new_v4()));
+            for rc in &reasoning_content {
+                request_msg = request_msg.with_content(rc.clone());
+            }
+            request_msg = request_msg.with_tool_request_with_metadata(
+                request.id.clone(),
+                request.tool_call.clone(),
+                request.metadata.as_ref(),
+                request.tool_meta.clone(),
+            );
+            messages.push(request_msg);
+
+            let final_response = response_map
+                .remove(&request.id)
+                .unwrap_or_else(|| Message::user().with_generated_id());
+            events.push(AgentEvent::Message(final_response.clone()));
+            messages.push(final_response);
+        } else {
+            error!(
+                "Tool call could not be parsed: {}",
+                request.tool_call.as_ref().unwrap_err(),
+            );
+            events.push(AgentEvent::Message(
+                Message::assistant().with_text(
+                    "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
+                ),
+            ));
+            exit_chat = true;
+            break;
+        }
+    }
+
+    ToolPairMessages {
+        messages,
+        events,
+        exit_chat,
+    }
 }
