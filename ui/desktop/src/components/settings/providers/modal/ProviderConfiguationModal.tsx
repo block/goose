@@ -172,8 +172,10 @@ export default function ProviderConfigurationModal({
     primaryParameters = provider.metadata.config_keys;
   }
 
-  // Check if this provider uses OAuth for configuration
-  const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
+  const configKeys = provider.metadata.config_keys.filter((key) => !key.oauth_flow);
+  const hasOAuth = provider.metadata.config_keys.some((key) => key.oauth_flow);
+  const hasConfig = configKeys.length > 0;
+  const hasDeviceCodeFlow = provider.metadata.config_keys.some((key) => key.device_code_flow);
 
   const isConfigured = provider.is_configured;
   const headerText = showDeleteConfirmation
@@ -189,8 +191,10 @@ export default function ProviderConfigurationModal({
     ? isActiveProvider
       ? intl.formatMessage(i18n.cannotDeleteActive)
       : intl.formatMessage(i18n.deleteConfirmation)
-    : isOAuthProvider
-      ? intl.formatMessage(i18n.oauthSignInDescription, { providerName: provider.metadata.display_name })
+    : hasOAuth
+      ? intl.formatMessage(i18n.oauthSignInDescription, {
+          providerName: provider.metadata.display_name,
+        })
       : isExternalSetup
         ? provider.metadata.description
         : intl.formatMessage(i18n.addApiKeyDescription);
@@ -199,6 +203,16 @@ export default function ProviderConfigurationModal({
     setIsOAuthLoading(true);
     setError(null);
     try {
+      if (hasConfig) {
+        for (const key of configKeys) {
+          const entry = configValues[key.name];
+          const value =
+            entry?.value ?? (typeof entry?.serverValue === 'string' ? entry.serverValue : null);
+          if (value) {
+            await upsert(key.name, value, key.secret);
+          }
+        }
+      }
       await configureProviderOauth({
         path: { name: provider.name },
       });
@@ -228,7 +242,9 @@ export default function ProviderConfigurationModal({
         !configValues[parameter.name]?.value &&
         !configValues[parameter.name]?.serverValue
       ) {
-        errors[parameter.name] = intl.formatMessage(i18n.parameterRequired, { paramName: parameter.name });
+        errors[parameter.name] = intl.formatMessage(i18n.parameterRequired, {
+          paramName: parameter.name,
+        });
       }
     });
 
@@ -331,7 +347,9 @@ export default function ProviderConfigurationModal({
     <>
       <Dialog open={!!error} onOpenChange={(open) => !open && setError(null)}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogTitle className="flex items-center gap-2">{intl.formatMessage(i18n.errorTitle)}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {intl.formatMessage(i18n.errorTitle)}
+          </DialogTitle>
           <DialogDescription className="text-inherit text-base">
             {intl.formatMessage(i18n.errorCheckingConfig)}
           </DialogDescription>
@@ -357,78 +375,97 @@ export default function ProviderConfigurationModal({
           <div className="py-4">
             {/* Contains information used to set up each provider */}
             {/* Only show the form when NOT in delete confirmation mode */}
-            {!showDeleteConfirmation ? (
-              isOAuthProvider ? (
-                <div className="flex flex-col items-center gap-4 py-6">
-                  <Button
-                    onClick={handleOAuthLogin}
-                    disabled={isOAuthLoading}
-                    className="flex items-center gap-2 px-6 py-3"
-                    size="lg"
-                  >
-                    <LogIn size={20} />
-                    {isOAuthLoading
-                      ? intl.formatMessage(i18n.signingIn)
-                      : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
-                  </Button>
-                  <p className="text-sm text-text-secondary text-center">
-                    {provider.metadata.config_keys.some((key) => key.device_code_flow)
-                      ? intl.formatMessage(i18n.deviceCodeFlowHint)
-                      : intl.formatMessage(i18n.browserWindowHint)}
-                  </p>
-                </div>
-              ) : provider.metadata.config_keys.length === 0 &&
-                provider.metadata.setup_steps &&
-                provider.metadata.setup_steps.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-text-secondary">
-                    {intl.formatMessage(i18n.externalSetupIntro)}
-                  </p>
-                  <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
-                    {provider.metadata.setup_steps.map((step, i) => (
-                      <li key={i}>{renderSetupStep(step)}</li>
-                    ))}
-                  </ol>
-                  {provider.metadata.model_doc_link && (
-                    <p className="text-sm text-text-secondary mt-4">
-                      {intl.formatMessage(i18n.seeDocumentation, {
-                        link: (chunks: React.ReactNode) => (
-                          <a
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              window.electron.openExternal(provider.metadata.model_doc_link);
-                            }}
-                            className="underline hover:text-text-primary"
-                          >
-                            {chunks}
-                          </a>
-                        ),
-                      })}
+            {!showDeleteConfirmation && (
+              <>
+                {hasOAuth && (
+                  <div className="flex flex-col items-center gap-4 py-6">
+                    <Button
+                      onClick={handleOAuthLogin}
+                      disabled={isOAuthLoading}
+                      className="flex items-center gap-2 px-6 py-3"
+                      size="lg"
+                    >
+                      <LogIn size={20} />
+                      {isOAuthLoading
+                        ? intl.formatMessage(i18n.signingIn)
+                        : intl.formatMessage(i18n.signInWith, {
+                            providerName: provider.metadata.display_name,
+                          })}
+                    </Button>
+                    <p className="text-sm text-text-secondary text-center">
+                      {hasDeviceCodeFlow
+                        ? intl.formatMessage(i18n.deviceCodeFlowHint)
+                        : intl.formatMessage(i18n.browserWindowHint)}
                     </p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Contains information used to set up each provider */}
+                  </div>
+                )}
+
+                {hasOAuth && hasConfig && (
                   <DefaultProviderSetupForm
                     configValues={configValues}
                     setConfigValues={setConfigValues}
-                    provider={provider}
+                    provider={{
+                      ...provider,
+                      metadata: {
+                        ...provider.metadata,
+                        config_keys: configKeys,
+                      },
+                    }}
                     validationErrors={validationErrors}
                   />
+                )}
 
-                  {primaryParameters.length > 0 &&
-                    provider.metadata.config_keys &&
-                    provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
-                </>
-              )
-            ) : null}
+                {isExternalSetup && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-text-secondary">
+                      {intl.formatMessage(i18n.externalSetupIntro)}
+                    </p>
+                    <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
+                      {provider.metadata.setup_steps?.map((step, i) => (
+                        <li key={i}>{renderSetupStep(step)}</li>
+                      ))}
+                    </ol>
+                    {provider.metadata.model_doc_link && (
+                      <p className="text-sm text-text-secondary mt-4">
+                        {intl.formatMessage(i18n.seeDocumentation, {
+                          link: (chunks: React.ReactNode) => (
+                            <a
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                window.electron.openExternal(provider.metadata.model_doc_link);
+                              }}
+                              className="underline hover:text-text-primary"
+                            >
+                              {chunks}
+                            </a>
+                          ),
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {!hasOAuth && !isExternalSetup && (
+                  <>
+                    <DefaultProviderSetupForm
+                      configValues={configValues}
+                      setConfigValues={setConfigValues}
+                      provider={provider}
+                      validationErrors={validationErrors}
+                    />
+                    {primaryParameters.length > 0 && provider.metadata.config_keys.length > 0 && (
+                      <SecureStorageNotice />
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           <DialogFooter>
-            {isOAuthProvider && !showDeleteConfirmation ? (
-              <div className="flex gap-2">
+            {hasOAuth && !showDeleteConfirmation ? (
+              <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={handleCancel}>
                   {intl.formatMessage(i18n.cancel)}
                 </Button>
@@ -438,10 +475,7 @@ export default function ProviderConfigurationModal({
                   </Button>
                 )}
               </div>
-            ) : provider.metadata.config_keys.length === 0 &&
-              provider.metadata.setup_steps &&
-              provider.metadata.setup_steps.length > 0 &&
-              !showDeleteConfirmation ? (
+            ) : isExternalSetup && !showDeleteConfirmation ? (
               <div className="w-full">
                 <Button
                   type="button"
