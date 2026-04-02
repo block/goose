@@ -15,6 +15,12 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
+    // Ensure the parent directory exists (e.g. on a clean Windows profile where
+    // the goose config directory has not been created yet).
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -90,7 +96,8 @@ impl From<keyring::Error> for ConfigError {
 ///
 /// Secrets are loaded with the following precedence:
 /// 1. Environment variables (exact key match)
-/// 2. System keyring (which can be disabled with GOOSE_DISABLE_KEYRING)
+/// 2. System keyring (disabled on Windows due to Credential Manager size limits;
+///    can also be disabled with GOOSE_DISABLE_KEYRING)
 /// 3. If the keyring is disabled, secrets are stored in a secrets file
 ///    (~/.config/goose/secrets.yaml by default)
 ///
@@ -152,13 +159,22 @@ impl Default for Config {
             }
         });
 
-        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
-            Ok(_) => SecretStorage::File {
+        let secrets = if cfg!(target_os = "windows") {
+            // Windows Credential Manager limits entries to 2560 bytes (~1280 UTF-16
+            // chars). MCP OAuth tokens and multiple API keys exceed this quickly,
+            // causing silent "auth_error" failures. Always use file storage on Windows.
+            SecretStorage::File {
                 path: config_dir.join("secrets.yaml"),
-            },
-            Err(_) => SecretStorage::Keyring {
-                service: KEYRING_SERVICE.to_string(),
-            },
+            }
+        } else {
+            match env::var("GOOSE_DISABLE_KEYRING") {
+                Ok(_) => SecretStorage::File {
+                    path: config_dir.join("secrets.yaml"),
+                },
+                Err(_) => SecretStorage::Keyring {
+                    service: KEYRING_SERVICE.to_string(),
+                },
+            }
         };
         Config {
             config_path,
@@ -263,12 +279,20 @@ impl Config {
     /// This is primarily useful for testing or for applications that need
     /// to manage multiple configuration files.
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
+        let secrets = if cfg!(target_os = "windows") {
+            let config_dir = config_path.as_ref().parent().unwrap_or(Path::new("."));
+            SecretStorage::File {
+                path: config_dir.join("secrets.yaml"),
+            }
+        } else {
+            SecretStorage::Keyring {
+                service: service.to_string(),
+            }
+        };
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
             defaults_path: None,
-            secrets: SecretStorage::Keyring {
-                service: service.to_string(),
-            },
+            secrets,
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
         })
@@ -624,7 +648,17 @@ impl Config {
                         Err(e) => return Err(e),
                     }
                 }
-                SecretStorage::File { path } => self.read_secrets_from_file(path)?,
+                SecretStorage::File { path } => {
+                    let file_secrets = self.read_secrets_from_file(path)?;
+                    if cfg!(target_os = "windows")
+                        && file_secrets.is_empty()
+                        && Self::is_default_secrets_path(path)
+                    {
+                        self.try_migrate_from_keyring(path).unwrap_or(file_secrets)
+                    } else {
+                        file_secrets
+                    }
+                }
             };
 
             *cache = Some(loaded.clone());
@@ -961,6 +995,46 @@ impl Config {
         Ok(())
     }
 
+    fn is_default_secrets_path(path: &Path) -> bool {
+        path == Paths::config_dir().join("secrets.yaml")
+    }
+
+    /// One-time migration for Windows users upgrading from keyring-backed storage.
+    /// Only runs for the global default secrets.yaml path, never for custom paths
+    /// created via new_with_file_secrets to preserve isolation.
+    fn try_migrate_from_keyring(
+        &self,
+        file_path: &Path,
+    ) -> Result<HashMap<String, Value>, ConfigError> {
+        let entry = Self::get_keyring_entry(KEYRING_SERVICE)
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
+
+        let content = entry
+            .get_password()
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
+
+        let secrets: HashMap<String, Value> = serde_json::from_str(&content)?;
+        if secrets.is_empty() {
+            return Ok(secrets);
+        }
+
+        let yaml_value = serde_yaml::to_string(&secrets)?;
+        write_secrets_file(file_path, &yaml_value)?;
+
+        // Best-effort cleanup: delete the keyring entry so it's never read again.
+        if let Err(e) = entry.delete_credential() {
+            tracing::warn!("Failed to remove migrated keyring entry: {}", e);
+        }
+
+        tracing::info!(
+            "Migrated {} secret(s) from Windows Credential Manager to {:?}",
+            secrets.len(),
+            file_path
+        );
+
+        Ok(secrets)
+    }
+
     pub fn invalidate_secrets_cache(&self) {
         let mut cache = self.secrets_cache.lock().unwrap();
         *cache = None;
@@ -974,6 +1048,11 @@ impl Config {
             || lower.contains("org.freedesktop.secrets")
             || lower.contains("platform secure storage")
             || lower.contains("no secret service")
+            // Windows Credential Manager errors
+            || lower.contains("windows vault")
+            || lower.contains("credential manager")
+            || lower.contains("wincred")
+            || lower.contains("the data area passed to a system call is too small")
     }
 
     /// Get a keyring entry for the specified service
@@ -1887,7 +1966,7 @@ mod tests {
         let (config, _defaults) =
             new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true\nsome_key: default_val");
 
-        // Key only in defaults → returns defaults value
+        // Key only in defaults -> returns defaults value
         let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
         assert!(value);
 
@@ -1902,7 +1981,7 @@ mod tests {
     fn test_full_precedence_env_over_config_over_defaults() -> Result<(), ConfigError> {
         let (config, _defaults) = new_test_config_with_defaults("my_key: from_defaults");
 
-        // Only defaults → returns defaults
+        // Only defaults -> returns defaults
         let value: String = config.get_param("my_key")?;
         assert_eq!(value, "from_defaults");
 
@@ -1977,6 +2056,58 @@ mod tests {
 
         let mode = std::fs::metadata(&secrets_path)?.permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_windows_keyring_error_patterns_detected() {
+        let config = new_test_config();
+        assert!(config
+            .is_keyring_availability_error("The data area passed to a system call is too small"));
+        assert!(config.is_keyring_availability_error("wincred error"));
+        assert!(config.is_keyring_availability_error("Windows Vault failure"));
+        assert!(config.is_keyring_availability_error("credential manager unavailable"));
+        assert!(!config.is_keyring_availability_error("some other error"));
+    }
+
+    #[test]
+    fn test_default_config_uses_file_storage_on_windows() {
+        if cfg!(target_os = "windows") {
+            let config = Config::default();
+            assert!(
+                matches!(config.secrets, SecretStorage::File { .. }),
+                "Windows should always use file-based secret storage"
+            );
+        }
+    }
+
+    #[test]
+    fn test_new_config_uses_file_storage_on_windows() {
+        if cfg!(target_os = "windows") {
+            let config_file = NamedTempFile::new().unwrap();
+            let config = Config::new(config_file.path(), "goose").unwrap();
+            assert!(
+                matches!(config.secrets, SecretStorage::File { .. }),
+                "Config::new on Windows should use file-based secret storage"
+            );
+        }
+    }
+
+    #[test]
+    fn test_set_secret_creates_parent_directory() -> Result<(), ConfigError> {
+        let dir = TempDir::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        // Point secrets to a path whose parent does not exist yet.
+        let secrets_path = dir.path().join("nonexistent_subdir").join("secrets.yaml");
+        assert!(!secrets_path.parent().unwrap().exists());
+
+        let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
+        config.set_secret("api_key", &"secret_value")?;
+
+        assert!(secrets_path.exists());
+        let value: String = config.get_secret("api_key")?;
+        assert_eq!(value, "secret_value");
 
         Ok(())
     }
