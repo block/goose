@@ -1,0 +1,654 @@
+# Remove Tool Selection Strategy Feature - Implementation Plan
+
+## Overview
+Complete removal of the "Tool Selection Strategy" feature (also known as "LLM Tool Router" or "Smart Tool Routing"). This experimental feature used a secondary LLM call to dynamically select which tools to present to the main LLM based on the user's query.
+
+## Current State Analysis
+The feature is controlled by `GOOSE_ENABLE_ROUTER` config parameter (default: false). It consists of:
+- Core implementation files (4 Rust modules + 1 prompt template)
+- Integration points in agent, prompt manager, and server routes
+- UI settings section in desktop app
+- CLI configuration dialog
+- Documentation pages
+
+### Key Discoveries:
+- Feature is disabled by default and marked as "experimental/preview"
+- Only tested with Claude models
+- Has telemetry tracking in posthog
+- Snapshot tests in `prompt_manager.rs` use `.with_router_enabled(true)` and will need updating
+- `agent.rs` test references `tool_route_manager` but only for context setup, not testing router functionality
+
+## Desired End State
+- All Tool Selection Strategy code removed from codebase
+- No `GOOSE_ENABLE_ROUTER` config handling (ignored if present in user config)
+- No `router__llm_search` tool
+- No `/agent/update_router_tool_selector` API endpoint
+- No UI settings for tool selection strategy
+- No CLI configuration for router strategy
+- Documentation removed/updated
+- All tests pass, linting passes
+
+## What We're NOT Doing
+- Cleaning up existing `GOOSE_ENABLE_ROUTER` entries from user config files (will be ignored)
+- Adding deprecation warnings
+- Keeping any stub code
+
+## Implementation Approach
+Remove in dependency order: core files first, then integration points, then UI/CLI, then documentation. This minimizes compilation errors during the process.
+
+---
+
+## Phase 1: Remove Core Implementation Files
+
+### Overview
+Delete the core Rust modules that implement the router functionality.
+
+### Changes Required:
+
+#### 1. Delete core router files
+**Files to delete:**
+- `crates/goose/src/agents/router_tool_selector.rs`
+- `crates/goose/src/agents/router_tools.rs`
+- `crates/goose/src/agents/tool_route_manager.rs`
+- `crates/goose/src/agents/tool_router_index_manager.rs`
+- `crates/goose/src/prompts/router_tool_selector.md`
+
+#### 2. Update module declarations
+**File**: `crates/goose/src/agents/mod.rs`
+**Changes**: Remove module declarations for deleted files
+
+```rust
+// REMOVE these lines:
+mod router_tool_selector;
+mod router_tools;
+mod tool_route_manager;
+mod tool_router_index_manager;
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] Files deleted
+- [x] `cargo build -p goose` compiles (will fail until Phase 2 completes)
+
+**Implementation Note**: Phase 1 will cause compilation errors. Proceed immediately to Phase 2.
+
+---
+
+## Phase 2: Update Agent Integration
+
+### Overview
+Remove all router-related code from `agent.rs` and related files.
+
+### Changes Required:
+
+#### 1. Update agent.rs
+**File**: `crates/goose/src/agents/agent.rs`
+**Changes**:
+
+Remove imports:
+```rust
+// REMOVE:
+use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
+use crate::agents::tool_route_manager::ToolRouteManager;
+use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
+```
+
+Remove from Agent struct:
+```rust
+// REMOVE field:
+pub tool_route_manager: Arc<ToolRouteManager>,
+```
+
+Remove from Agent::new():
+```rust
+// REMOVE:
+tool_route_manager: Arc::new(ToolRouteManager::new()),
+```
+
+Remove method `disable_router_for_recipe`:
+```rust
+// REMOVE entire method:
+pub async fn disable_router_for_recipe(&self) {
+    self.tool_route_manager.disable_router_for_recipe().await;
+}
+```
+
+Remove from `dispatch_tool_call` - the `ROUTER_LLM_SEARCH_TOOL_NAME` branch:
+```rust
+// REMOVE this else-if branch:
+} else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
+    match self
+        .tool_route_manager
+        .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
+        .await
+    {
+        Ok(tool_result) => tool_result,
+        Err(e) => return (request_id, Err(e)),
+    }
+}
+```
+
+Remove from `add_extension` - the router indexing logic:
+```rust
+// REMOVE this block:
+// If LLM tool selection is functional, index the tools
+if self.tool_route_manager.is_router_functional().await {
+    let selector = self.tool_route_manager.get_router_tool_selector().await;
+    if let Some(selector) = selector {
+        let selector = Arc::new(selector);
+        if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+            &selector,
+            &self.extension_manager,
+            &extension.name(),
+            "add",
+        )
+        .await
+        {
+            return Err(ExtensionError::SetupError(format!(
+                "Failed to index tools for extension {}: {}",
+                extension.name(),
+                e
+            )));
+        }
+    }
+}
+```
+
+Remove `list_tools_for_router` method:
+```rust
+// REMOVE entire method:
+pub async fn list_tools_for_router(&self) -> Vec<Tool> {
+    ...
+}
+```
+
+Remove from `remove_extension` - the router de-indexing logic:
+```rust
+// REMOVE this block:
+// If LLM tool selection is functional, remove tools from the index
+if self.tool_route_manager.is_router_functional().await {
+    let selector = self.tool_route_manager.get_router_tool_selector().await;
+    if let Some(selector) = selector {
+        ToolRouterIndexManager::update_extension_tools(
+            &selector,
+            &self.extension_manager,
+            name,
+            "remove",
+        )
+        .await?;
+    }
+}
+```
+
+Remove `update_router_tool_selector` method:
+```rust
+// REMOVE entire method:
+pub async fn update_router_tool_selector(
+    &self,
+    provider: Option<Arc<dyn Provider>>,
+    reindex_all: Option<bool>,
+) -> Result<()> {
+    ...
+}
+```
+
+Remove from `reply_internal` stream - the `record_tool_requests` call:
+```rust
+// REMOVE:
+self.tool_route_manager
+    .record_tool_requests(&requests_to_record)
+    .await;
+```
+
+#### 2. Update extension.rs (PlatformExtensionContext)
+**File**: `crates/goose/src/agents/extension.rs`
+**Changes**: Remove `tool_route_manager` field from `PlatformExtensionContext` if present
+
+Search for any references to `tool_route_manager` in this file and remove them.
+
+#### 3. Update extension_manager_extension.rs
+**File**: `crates/goose/src/agents/extension_manager_extension.rs`
+**Changes**: Remove any references to `tool_route_manager`
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cargo build -p goose` compiles (may still fail until Phase 3)
+
+---
+
+## Phase 3: Update Prompt Manager
+
+### Overview
+Remove router-related prompt building logic.
+
+### Changes Required:
+
+#### 1. Update prompt_manager.rs
+**File**: `crates/goose/src/agents/prompt_manager.rs`
+**Changes**:
+
+Remove import:
+```rust
+// REMOVE:
+use crate::agents::router_tools::llm_search_tool_prompt;
+```
+
+Remove from `SystemPromptContext`:
+```rust
+// REMOVE field:
+#[serde(skip_serializing_if = "Option::is_none")]
+tool_selection_strategy: Option<String>,
+```
+
+Remove from `SystemPromptBuilder`:
+```rust
+// REMOVE field:
+router_enabled: bool,
+```
+
+Remove `with_router_enabled` method:
+```rust
+// REMOVE entire method:
+pub fn with_router_enabled(mut self, enabled: bool) -> Self {
+    self.router_enabled = enabled;
+    self
+}
+```
+
+Update `build` method - remove router_enabled from context:
+```rust
+// REMOVE from SystemPromptContext construction:
+tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
+```
+
+Update builder initialization:
+```rust
+// REMOVE from SystemPromptBuilder initialization:
+router_enabled: false,
+```
+
+#### 2. Update system.md template
+**File**: `crates/goose/src/prompts/system.md`
+**Changes**: Remove the `{{tool_selection_strategy}}` placeholder line
+
+```markdown
+<!-- REMOVE this line: -->
+{{tool_selection_strategy}}
+```
+
+#### 3. Update snapshot tests
+**File**: `crates/goose/src/agents/prompt_manager.rs` (tests section)
+**Changes**: Remove `.with_router_enabled(true)` from tests
+
+In `test_one_extension`:
+```rust
+// REMOVE:
+.with_router_enabled(true)
+```
+
+In `test_typical_setup`:
+```rust
+// REMOVE:
+.with_router_enabled(true)
+```
+
+#### 4. Update/regenerate snapshots
+**Files to update:**
+- `crates/goose/src/agents/snapshots/goose__agents__prompt_manager__tests__one_extension.snap`
+- `crates/goose/src/agents/snapshots/goose__agents__prompt_manager__tests__typical_setup.snap`
+
+Run `cargo test -p goose prompt_manager` with `INSTA_UPDATE=1` to regenerate snapshots, or manually remove the "LLM Tool Selection Instructions" section from each snapshot.
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cargo build -p goose` compiles
+- [x] `cargo test -p goose` passes (after snapshot updates)
+
+---
+
+## Phase 4: Update Server Routes
+
+### Overview
+Remove the `/agent/update_router_tool_selector` endpoint.
+
+### Changes Required:
+
+#### 1. Update agent.rs routes
+**File**: `crates/goose-server/src/routes/agent.rs`
+**Changes**:
+
+Remove request struct:
+```rust
+// REMOVE:
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateRouterToolSelectorRequest {
+    session_id: String,
+}
+```
+
+Remove handler function:
+```rust
+// REMOVE entire function:
+#[utoipa::path(
+    post,
+    path = "/agent/update_router_tool_selector",
+    ...
+)]
+async fn update_router_tool_selector(
+    ...
+) -> Result<Json<String>, StatusCode> {
+    ...
+}
+```
+
+Remove route from router:
+```rust
+// REMOVE from routes() function:
+.route(
+    "/agent/update_router_tool_selector",
+    post(update_router_tool_selector),
+)
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cargo build -p goose-server` compiles
+- [x] `cargo test -p goose-server` passes
+
+---
+
+## Phase 5: Update CLI Configuration
+
+### Overview
+Remove the router configuration dialog from CLI.
+
+### Changes Required:
+
+#### 1. Update configure.rs
+**File**: `crates/goose-cli/src/commands/configure.rs`
+**Changes**:
+
+Remove the router strategy menu item from `configure_settings_dialog`:
+```rust
+// REMOVE this item:
+.item(
+    "goose_router_strategy",
+    "Router Tool Selection Strategy",
+    "Experimental: configure a strategy for auto selecting tools to use",
+)
+```
+
+Remove the match arm:
+```rust
+// REMOVE:
+"goose_router_strategy" => {
+    configure_goose_router_strategy_dialog()?;
+}
+```
+
+Remove the entire `configure_goose_router_strategy_dialog` function:
+```rust
+// REMOVE entire function:
+pub fn configure_goose_router_strategy_dialog() -> anyhow::Result<()> {
+    ...
+}
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cargo build -p goose-cli` compiles
+- [x] `cargo test -p goose-cli` passes
+
+---
+
+## Phase 6: Update Telemetry ✅ COMPLETE
+
+### Overview
+Remove router-related telemetry.
+
+### Changes Required:
+
+#### 1. Update posthog.rs
+**File**: `crates/goose/src/posthog.rs`
+**Changes**:
+
+Remove the router telemetry:
+```rust
+// REMOVE this block:
+if let Ok(router_enabled) = config.get_param::<bool>("GOOSE_ENABLE_ROUTER") {
+    event
+        .insert_prop("setting_router_enabled", router_enabled)
+        .ok();
+}
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cargo build -p goose` compiles
+
+---
+
+## Phase 7: Update Desktop UI ✅ COMPLETE
+
+### Overview
+Remove the Tool Selection Strategy settings section from the desktop app.
+
+### Changes Required:
+
+#### 1. Delete UI component directory
+**Directory to delete**: `ui/desktop/src/components/settings/tool_selection_strategy/`
+
+#### 2. Update ChatSettingsSection.tsx
+**File**: `ui/desktop/src/components/settings/chat/ChatSettingsSection.tsx`
+**Changes**:
+
+Remove import:
+```typescript
+// REMOVE:
+import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
+```
+
+Remove the Card containing ToolSelectionStrategySection:
+```tsx
+{/* REMOVE entire Card: */}
+<Card className="pb-2 rounded-lg">
+  <CardHeader className="pb-0">
+    <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>
+    <CardDescription>
+      Experimental: configure how Goose selects tools for your requests, useful when there are
+      many tools. Only tested with Claude models currently.
+    </CardDescription>
+  </CardHeader>
+  <CardContent className="px-2">
+    <ToolSelectionStrategySection />
+  </CardContent>
+</Card>
+```
+
+#### 3. Regenerate OpenAPI types
+Run: `just generate-openapi`
+
+This will update `ui/desktop/openapi.json` and `ui/desktop/src/api/types.gen.ts` to remove the `UpdateRouterToolSelectorRequest` type.
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cd ui/desktop && npm run lint` passes
+- [x] `cd ui/desktop && npm run typecheck` passes
+- [x] OpenAPI types regenerated
+
+#### Manual Verification:
+- [ ] Desktop app Settings > Chat page loads without errors
+- [ ] No "Tool Selection Strategy" section visible
+
+---
+
+## Phase 8: Update Documentation ✅ COMPLETE
+
+### Overview
+Remove documentation for the removed feature.
+
+### Changes Required:
+
+#### 1. Delete tool-router.md
+**File to delete**: `documentation/docs/guides/managing-tools/tool-router.md`
+
+#### 2. Update managing-tools index
+**File**: `documentation/docs/guides/managing-tools/index.md`
+**Changes**:
+
+Remove the Tool Selection Strategy card:
+```tsx
+{/* REMOVE: */}
+<Card 
+  title="Tool Selection Strategy"
+  description="Optimize tool selection with dynamic routing that loads only the tools you need, reducing context overhead and improving performance."
+  link="/docs/guides/managing-tools/tool-router"
+/>
+```
+
+#### 3. Update environment-variables.md
+**File**: `documentation/docs/guides/environment-variables.md`
+**Changes**:
+
+Remove the `GOOSE_ENABLE_ROUTER` row from the table:
+```markdown
+<!-- REMOVE this row: -->
+| `GOOSE_ENABLE_ROUTER` | Enables [intelligent tool selection strategy](/docs/guides/managing-tools/tool-router) | "true", "false" | "false" |
+```
+
+Remove from the example section:
+```bash
+# REMOVE:
+# Enable intelligent tool selection
+export GOOSE_ENABLE_ROUTER=true
+```
+
+#### 4. Check for other documentation references
+Search for any other references to "tool selection", "router", or "GOOSE_ENABLE_ROUTER" in documentation and remove them.
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] No remaining references to GOOSE_ENABLE_ROUTER in documentation
+
+#### Manual Verification:
+- [ ] No references to Tool Selection Strategy in docs
+
+---
+
+## Phase 9: Update Tests ✅ COMPLETE (merged into earlier phases)
+
+### Overview
+Update any remaining tests that reference the removed functionality.
+
+### Changes Required:
+
+#### 1. Update agent.rs tests
+**File**: `crates/goose/tests/agent.rs`
+**Changes**:
+
+In `extension_manager_tests::setup_agent_with_extension_manager`, remove the `tool_route_manager` from context setup:
+```rust
+// REMOVE from PlatformExtensionContext:
+tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+```
+
+#### 2. Update PlatformExtensionContext references
+Search for any other test files that set up `PlatformExtensionContext` with `tool_route_manager` and remove that field.
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] `cargo test` passes for all crates
+- [x] `./scripts/clippy-lint.sh` passes
+
+---
+
+## Phase 10: Final Cleanup and Verification ✅ COMPLETE
+
+### Overview
+Final verification that all changes are complete and correct.
+
+### Changes Required:
+
+#### 1. Search for any remaining references
+Run these searches to ensure nothing was missed:
+```bash
+rg "tool_route" --type rust
+rg "router_tool" --type rust
+rg "RouterToolSelector" --type rust
+rg "ROUTER_LLM_SEARCH" --type rust
+rg "llm_search_tool" --type rust
+rg "GOOSE_ENABLE_ROUTER" --type rust
+rg "tool_selection_strategy" --type rust
+rg "ToolSelectionStrategy" --type ts --type tsx
+```
+
+#### 2. Run full test suite
+```bash
+cargo fmt
+cargo build
+cargo test
+./scripts/clippy-lint.sh
+```
+
+#### 3. Run UI checks
+```bash
+cd ui/desktop
+npm run lint
+npm run build
+npm test
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [x] All searches return no results (except in thoughts/research)
+- [x] `cargo fmt` - no changes
+- [x] `cargo build` - succeeds
+- [x] `cargo test` - all tests pass
+- [x] `./scripts/clippy-lint.sh` - passes
+- [x] UI lint/typecheck - passes
+
+#### Manual Verification:
+- [ ] Start goose CLI - works normally
+- [ ] Start goose desktop - works normally
+- [ ] Settings page loads without errors
+- [ ] No console errors related to removed feature
+
+---
+
+## Testing Strategy
+
+### Unit Tests:
+- Snapshot tests in `prompt_manager.rs` need regeneration (Phase 3)
+- Agent tests need `tool_route_manager` references removed (Phase 9)
+
+### Integration Tests:
+- Full `cargo test` after all phases
+- Desktop app manual testing after Phase 7
+
+### Regression Testing:
+- Ensure normal tool calling still works
+- Ensure extension add/remove still works
+- Ensure all goose modes (auto, approve, smart_approve, chat) still work
+
+---
+
+## Rollback Plan
+If issues are discovered:
+1. Git revert the changes
+2. The feature was disabled by default, so no user impact from keeping it
+
+---
+
+## Notes
+- The research document at `thoughts/research/2025-12-22-llm-tool-selection-strategy.md` should be kept for historical reference
+- Users with `GOOSE_ENABLE_ROUTER=true` in their config will simply have the setting ignored

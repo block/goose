@@ -1,0 +1,113 @@
+<h1 className={styles.pageTitle}>Recipes</h1>
+<p className={styles.pageDescription}>
+  Recipes are reusable workflows that package extensions, prompts, and settings together. Share proven workflows with your team and reproduce successful results consistently.
+</p>
+
+ <div className="video-container margin-bottom--lg">
+  <iframe 
+    width="100%"
+    height="400"
+    src="https://www.youtube.com/embed/8rTliYrQ6Iw"
+    title="Create Reusable AI Agents with Recipes"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Shareable Recipes"
+      description="Share a goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click."
+      link="/docs/guides/recipes/session-recipes"
+    />
+    <Card 
+      title="Recipe Reference Guide"
+      description="Complete technical reference for creating and customizing recipes in goose via the CLI."
+      link="/docs/guides/recipes/recipe-reference"
+    />
+    <Card 
+      title="Custom Slash Commands"
+      description="Create custom shortcuts to quickly run recipes in any chat session with simple slash commands."
+      link="/docs/guides/context-engineering/slash-commands"
+    />
+    <Card 
+      title="goose Recipes Tutorial"
+      description="Learn how to create and use goose recipes with prompts, parameters, MCP servers, and more."
+      link="/docs/tutorials/recipes-tutorial"
+    />
+    <Card 
+      title="Subrecipes"
+      description="Learn how a recipe can use subrecipes to do specific tasks."
+      link="/docs/guides/recipes/subrecipes"
+    />
+    <Card 
+      title="Saving Recipes"
+      description="Learn how to save, organize, and find your goose recipes for easy access and reuse."
+      link="/docs/guides/recipes/storing-recipes"
+    />
+    <Card 
+      title="Subrecipes In Parallel Tutorial"
+      description="Learn how to run multiple subrecipes instances concurrently."
+      link="/docs/tutorials/subrecipes-in-parallel"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🛠️ Tools & Generators</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Recipe Generator"
+      description="Interactive tool that creates a shareable goose recipe URL that others can use to launch a session with your predefined settings."
+      link="/recipe-generator"
+    />
+    <Card 
+      title="Recipe Cookbook"
+      description="Browse our collection of ready-to-use recipes. Find and adapt recipes for common development scenarios."
+      link="/recipes"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Championship Driven Development"
+      description="Recipes to accelerate your developer team's workflow."
+      link="/blog/2025/05/09/developers-ai-playbook-for-team-efficiency"
+    />
+    <Card
+      title="A Recipe for Success"
+      description="The value of scaling agentic workflows with recipes."
+      link="/blog/2025/05/06/recipe-for-success"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/1szmJSKInnU',
+      title: 'Advanced Tips for Recipes/Subrecipes in goose',
+      description: 'Advanced tips for using recipes and subrecipes in goose',
+      duration: '10:07'
+    },
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/gvg7DomaJuA',
+      title: 'Headless goose, Scheduling a Parallel-Subagent Recipe',
+      description: 'Schedule a recipe to run two subagents in parallel',
+      duration: '5:50'
+    }
+  ]}
+/>
+</div>

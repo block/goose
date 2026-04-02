@@ -1,0 +1,1 @@
+<Redirect to="/docs/experimental/remote-access/mobile-access" />
