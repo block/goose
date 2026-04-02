@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import clsx from "clsx";
 import Heading from "@theme/Heading";
 import styles from "./styles.module.css";
@@ -60,13 +61,7 @@ const FeatureList: FeatureItem[] = [
 ];
 
 const FeatureQuotes: FeatureQuote[] = [
-  {
-    name: "Prem Pillai",
-    github: "https://github.com/cloud-on-prem",
-    role: "Software Engineer",
-    testimonial:
-      "With Goose, I feel like I am Maverick. Thanks a ton for creating this. 🙏 I have been having way too much fun with it today.",
-  },
+
   {
     name: "Jarrod Sibbison",
     github: "https://github.com/jsibbison-square",
@@ -89,34 +84,12 @@ const FeatureQuotes: FeatureQuote[] = [
       "If anyone was looking for another reason to check it out: I just asked Goose to break a string-array into individual string resources across eleven localizations, and it performed amazingly well and saved me a bunch of time doing it manually or figuring out some way to semi-automate it.",
   },
   {
-    name: "Kang Huang",
-    github: "https://github.com/kang-square",
-    role: "Software Engineer",
-    testimonial:
-      "Hi team, thank you for much for making Goose, it's so amazing. Our team is working on migrating Dashboard components to React components. I am working with Goose to help the migration.",
-  },
-  {
     name: "Lily Delalande",
     github: "https://github.com/lily-de",
     role: "Software Engineer",
     testimonial:
       "Wanted to document what I had Goose do -- took about 30 minutes end to end! I created a custom CLI command in the gh CLI library to download in-line comments on PRs about code changes (currently they aren't directly viewable). I don't know Go that well and I definitely didn't know where to start looking in the code base or how to even test the new command was working and Goose did it all for me 😁",
-  },
-  {
-    name: "Rizel Scarlett",
-    github: "blackgirlbytes",
-    role: "Developer Advocate",
-    testimonial:
-      "My sister had been asking me for months to help her build a Google Docs extension but I kept putting it off. Today, we hopped on FaceTime and built one in just 30 minutes with Goose!",
   }
-  //Can't find Kristen's github
-  // {
-  //   name: "Kristen Anderson",
-  //   github: "https://github.com/",
-  //   role: "Product Lead",
-  //   testimonial:
-  //     "I know Goose is made for engineers, but I’ve been pretty excited about this launch. In the last 20 minutes playing with Goose, I drafted a product requirements document for a small change that I'd been putting off, pressure tested a few product ideas and how they might stack up to competitive offerings, and had it run analysis on an experiment from a feature rollout!",
-  // },
 ];
 
 function Feature({ title, Svg, description }: FeatureItem) {
@@ -164,24 +137,45 @@ function Quote({ name, github, role, testimonial }: FeatureQuote) {
 }
 
 export default function HomepageFeatures(): ReactNode {
+  const [showAllTestimonials, setShowAllTestimonials] = useState(false);
+  const testimonialsToShow = showAllTestimonials ? FeatureQuotes : FeatureQuotes.slice(0, 4);
+
   return (
     <section className={styles.features}>
       <div className="container">
         <div className="row">
-
-
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />
           ))}
 
           {/* Testimonials Section */}
-          <div style={{ display: "flex", flexDirection: "column", marginTop: "60px" }}>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: "60px", width: "100%" }}>
             <h3 style={{ textAlign: "center", marginBottom: "40px" }}>Loved by engineers</h3>
             <div style={{ display: "flex", flexWrap: "wrap" }}>
-              {FeatureQuotes.map((props, idx) => (
+              {testimonialsToShow.map((props, idx) => (
                 <Quote key={idx} {...props} />
               ))}
             </div>
+            {!showAllTestimonials && FeatureQuotes.length > 4 && (
+              <div style={{ textAlign: "center", marginTop: "2rem" }}>
+                <button
+                  onClick={() => setShowAllTestimonials(true)}
+                  className="button button--secondary button--lg"
+                >
+                  Show {FeatureQuotes.length - 4} More Testimonials
+                </button>
+              </div>
+            )}
+            {showAllTestimonials && (
+              <div style={{ textAlign: "center", marginTop: "2rem" }}>
+                <button
+                  onClick={() => setShowAllTestimonials(false)}
+                  className="button button--secondary button--lg"
+                >
+                  Show Less
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

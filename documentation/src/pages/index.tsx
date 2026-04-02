@@ -1,35 +1,30 @@
 import type { ReactNode } from "react";
-import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import Layout from "@theme/Layout";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
 
 import styles from "./index.module.css";
 import { GooseLogo } from "../components/GooseLogo";
+import HeroInstall from "../components/HeroInstall";
+import ResourcesSection from "../components/ResourcesSection";
 
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext();
   return (
     <header className={styles.header}>
-      <div className={styles.wrapper}>
-        <div className={styles.textColumn}>
-          <div className="hero--logo">
-            <GooseLogo />
+      <div className={styles.heroContainer}>
+        <div className={styles.heroContent}>
+          <div className={styles.logoWrapper}>
+            <GooseLogo className={styles.logo} />
           </div>
-          <p className={styles.subtitle}>{siteConfig.tagline}</p>
-          <Link className="button button--primary button--lg" to="docs/getting-started/installation">
-            install goose
-          </Link>
-        </div>
+          <h1 className={styles.title}>
+            Your open source AI agent, automating engineering tasks seamlessly
+          </h1>
+          <p className={styles.subtitle}>
+            Free to use with any models of your choice
+          </p>
 
-        <div className={styles.videoColumn}>
-          <iframe
-            src="https://www.youtube.com/embed/D-DpDunrbpo"
-            className="aspect-ratio"
-            title="vibe coding with goose"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+          <HeroInstall />
         </div>
       </div>
     </header>
@@ -42,6 +37,7 @@ export default function Home(): ReactNode {
     <Layout description="your open source AI agent, automating engineering tasks seamlessly">
       <HomepageHeader />
       <main>
+        <ResourcesSection />
         <HomepageFeatures />
       </main>
     </Layout>
