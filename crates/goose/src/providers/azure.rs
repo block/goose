@@ -12,7 +12,6 @@ const AZURE_PROVIDER_NAME: &str = "azure_openai";
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =
     "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models";
-pub const AZURE_DEFAULT_API_VERSION: &str = "2024-10-21";
 pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4o-mini", "gpt-4"];
 
 pub struct AzureProvider;
@@ -77,9 +76,9 @@ impl ProviderDef for AzureProvider {
             let config = crate::config::Config::global();
             let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
             let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
-            let api_version: String = config
-                .get_param("AZURE_OPENAI_API_VERSION")
-                .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
+            // Only include api-version if explicitly set; some Azure OpenAI deployments
+            // (e.g. using the /v1 path) do not allow this query parameter.
+            let api_version: Option<String> = config.get_param("AZURE_OPENAI_API_VERSION").ok();
 
             let api_key = config
                 .get_secret("AZURE_OPENAI_API_KEY")
@@ -92,8 +91,11 @@ impl ProviderDef for AzureProvider {
 
             let auth_provider = AzureAuthProvider { auth };
             let host = format!("{}/openai", endpoint.trim_end_matches('/'));
-            let api_client = ApiClient::new(host, AuthMethod::Custom(Box::new(auth_provider)))?
-                .with_query(vec![("api-version".to_string(), api_version)]);
+            let mut api_client =
+                ApiClient::new(host, AuthMethod::Custom(Box::new(auth_provider)))?;
+            if let Some(version) = api_version {
+                api_client = api_client.with_query(vec![("api-version".to_string(), version)]);
+            }
 
             Ok(OpenAiCompatibleProvider::new(
                 AZURE_PROVIDER_NAME.to_string(),
