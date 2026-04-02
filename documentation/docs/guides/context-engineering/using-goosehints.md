@@ -76,7 +76,7 @@ The `.goosehints` file can include any instructions or contextual details releva
 
 The `.goosehints` file supports natural language. Write clear, specific instructions using direct language that goose can easily understand and follow. Include relevant context about your project and workflow preferences, and prioritize your most important guidelines first.
 
-goosehints are loaded at the start of your session and become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
+goose loads hints when your session starts and can load additional nested hint files later as it accesses deeper directories in your project. These hints become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
 
 ### Example Global `.goosehints` File
 
@@ -111,7 +111,11 @@ These examples show two ways to reference other files:
 
 ### Nested `.goosehints` Files
 
-goose supports hierarchical local hints in  git repositories. All `.goosehints` files from your current directory up to the root directory are automatically loaded and combined. If you're not working in a git repository, goose only loads the `.goosehints` file from the current directory.
+goose supports hierarchical local hints in git repositories. When your session starts, goose loads the configured context files from your working directory up to the repository root. As goose reads or modifies files in nested subdirectories, it can also discover and load additional hint files from those directories automatically.
+
+This is especially useful in monorepos or large projects where different parts of the codebase have different conventions.
+
+By default, goose looks for both `AGENTS.md` and `.goosehints` at each level. If you're using [custom context files](#custom-context-files), goose applies the same nested loading behavior to those filenames too.
 
 As a best practice, `.goosehints` at each level should only include hints relevant to that scope:
 - **Root level**: Include project-wide standards, build processes, and general guidelines
@@ -134,7 +138,7 @@ my-project/
         └── routes.py
 ```
 
-When working in `frontend/components/` in this example project, goose loads hints from directories higher up the hierarchy in the following order:
+If you start goose in `my-project/`, the root-level hints are loaded immediately. Later, when goose accesses files under `frontend/components/`, it loads the nested hints for that path and combines them in the following order:
 1. <details>
      <summary>`my-project/.goosehints` (project root)</summary>
         ```
@@ -147,6 +151,8 @@ When working in `frontend/components/` in this example project, goose loads hint
         Use conventional commits for all changes.
         ```
    </details>
+
+After nested hints are loaded for a directory, they remain active for the rest of the session. If you update a hint file and want goose to pick up the new content reliably, restart the session.
 2. <details>
      <summary>`frontend/.goosehints`</summary>
         ```
@@ -221,8 +227,10 @@ goose looks for `AGENTS.md` then `.goosehints` files by default, but you can con
 - **Project conventions**: Use context files from your project's established toolchain (`.cursorrules`)
 
 Here's how it works:
-1. goose looks for each configured filename in both global (~/.config/goose/) and local (current directory) locations
-2. All found files are loaded and combined into the context
+1. goose looks for each configured filename in both global (`~/.config/goose/`) and local project locations
+2. At session start, goose loads matching files from your working directory hierarchy
+3. During the session, goose can load additional matching files when it accesses nested subdirectories
+4. All found files are loaded and combined into the context
 
 ### Configuration
 
