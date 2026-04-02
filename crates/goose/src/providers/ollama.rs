@@ -97,6 +97,27 @@ fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
 impl OllamaProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
+
+        // Wire the worker/fast model if configured. Unlike cloud providers that have
+        // a hardcoded default fast model, Ollama relies on the user's config since
+        // models are locally managed. This enables tool-pair summarization and
+        // compaction to use a smaller, faster model instead of the main model.
+        let model = match config.get_param::<String>("GOOSE_WORKER_MODEL") {
+            Ok(worker_model) if worker_model != model.model_name => {
+                let fallback = model.clone();
+                model
+                    .with_fast(&worker_model, OLLAMA_PROVIDER_NAME)
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            "Failed to configure worker model '{}': {}. Using main model for fast operations.",
+                            worker_model, e
+                        );
+                        fallback
+                    })
+            }
+            _ => model,
+        };
+
         let host: String = config
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());

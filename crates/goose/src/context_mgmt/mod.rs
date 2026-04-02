@@ -516,6 +516,14 @@ pub async fn summarize_tool_call(
         .complete_fast(session_id, system_prompt, &summarization_request, &[])
         .await?;
 
+    // Strip thinking/reasoning content from summaries. When the fast model is a
+    // thinking model (e.g. Nemotron, Qwen3), its reasoning tokens leak into the
+    // summary and get injected as user-role thinking — polluting the conversation
+    // context and confusing the main model.
+    response.content.retain(|c| {
+        matches!(c, MessageContent::Text(_))
+    });
+
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
     response.metadata = MessageMetadata::agent_only();

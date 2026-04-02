@@ -4,6 +4,8 @@
 - Include user requests, your responses, all technical content, and as much of the original context as possible
 - This will be used to let the user continue the working session
 - Use framing and tone knowing the content will be read an agent (you) on a next exchange to allow for continuation of the session
+- Do NOT include any thinking or reasoning blocks (e.g. `<think>`, `reasoning_content`) — only include the actionable content and decisions
+- Preserve the current working state: current directory path, current git branch, list of files created or modified during the session
 
 **Conversation History:**
 {{ messages }}
