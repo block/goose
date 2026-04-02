@@ -3,7 +3,7 @@ import { Switch } from '../../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { useConfig } from '../../ConfigContext';
 import { TELEMETRY_UI_ENABLED } from '../../../updates';
-import TelemetryOptOutModal from '../../TelemetryOptOutModal';
+import PrivacyInfoModal from '../../onboarding/PrivacyInfoModal';
 import { toastService } from '../../../toasts';
 import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
@@ -48,11 +48,7 @@ const i18n = defineMessages({
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
-interface TelemetrySettingsProps {
-  isWelcome: boolean;
-}
-
-export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
+export default function TelemetrySettings() {
   const intl = useIntl();
   const { read, upsert } = useConfig();
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
@@ -84,7 +80,7 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
       await upsert(TELEMETRY_CONFIG_KEY, checked, false);
       setTelemetryEnabled(checked);
       setAnalyticsTelemetryEnabled(checked);
-      trackTelemetryPreference(checked, isWelcome ? 'onboarding' : 'settings');
+      trackTelemetryPreference(checked, 'settings');
     } catch (error) {
       console.error('Failed to update telemetry status:', error);
       toastService.error({
@@ -127,34 +123,19 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     />
   );
 
-  const modal = <TelemetryOptOutModal controlled isOpen={showModal} onClose={handleModalClose} />;
+  const modal = <PrivacyInfoModal isOpen={showModal} onClose={handleModalClose} />;
 
   const toggleRow = (
     <div className="flex items-center justify-between">
       <div>
-        <h4 className={isWelcome ? 'text-text-primary text-sm' : 'text-text-primary text-xs'}>
-          {toggleLabel}
-        </h4>
-        <p className={`${isWelcome ? 'text-sm' : 'text-xs'} text-text-secondary max-w-md mt-[2px]`}>
+        <h4 className="text-text-primary text-xs">{toggleLabel}</h4>
+        <p className="text-xs text-text-secondary max-w-md mt-[2px]">
           {toggleDescription} {learnMoreLink}
         </p>
       </div>
       <div className="flex items-center">{toggle}</div>
     </div>
   );
-
-  if (isWelcome) {
-    return (
-      <>
-        <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
-          <h3 className="font-medium text-text-primary text-sm sm:text-base mb-1">{title}</h3>
-          <p className="text-text-secondary text-sm sm:text-base mb-4">{description}</p>
-          {toggleRow}
-        </div>
-        {modal}
-      </>
-    );
-  }
 
   return (
     <>

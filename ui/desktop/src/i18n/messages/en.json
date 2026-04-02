@@ -4334,47 +4334,20 @@
   "switchModelModal.useOtherProvider": {
     "defaultMessage": "Use other provider"
   },
-  "telemetryOptOutModal.collectErrors": {
-    "defaultMessage": "Error types (e.g., \"rate_limit\", \"auth\" - no details)"
+  "telemetryConsentPrompt.description": {
+    "defaultMessage": "Would you like to share anonymous usage data to help improve goose? We never collect your conversations, code, or personal data."
   },
-  "telemetryOptOutModal.collectExtensions": {
-    "defaultMessage": "Extensions and tool usage counts (names only)"
-  },
-  "telemetryOptOutModal.collectOs": {
-    "defaultMessage": "Operating system, version, and architecture"
-  },
-  "telemetryOptOutModal.collectProvider": {
-    "defaultMessage": "Provider and model used"
-  },
-  "telemetryOptOutModal.collectSession": {
-    "defaultMessage": "Session metrics (duration, interaction count, token usage)"
-  },
-  "telemetryOptOutModal.collectVersion": {
-    "defaultMessage": "goose version and install method"
-  },
-  "telemetryOptOutModal.configError": {
-    "defaultMessage": "Configuration Error"
-  },
-  "telemetryOptOutModal.configErrorMessage": {
-    "defaultMessage": "Failed to check telemetry configuration."
-  },
-  "telemetryOptOutModal.description": {
-    "defaultMessage": "Would you like to help improve goose by sharing anonymous usage data? This helps us understand how goose is used and identify areas for improvement."
-  },
-  "telemetryOptOutModal.heading": {
+  "telemetryConsentPrompt.heading": {
     "defaultMessage": "Help improve goose"
   },
-  "telemetryOptOutModal.optIn": {
+  "telemetryConsentPrompt.learnMore": {
+    "defaultMessage": "Learn more"
+  },
+  "telemetryConsentPrompt.optIn": {
     "defaultMessage": "Yes, share anonymous usage data"
   },
-  "telemetryOptOutModal.optOut": {
+  "telemetryConsentPrompt.optOut": {
     "defaultMessage": "No thanks"
-  },
-  "telemetryOptOutModal.privacyNote": {
-    "defaultMessage": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings → App."
-  },
-  "telemetryOptOutModal.whatWeCollect": {
-    "defaultMessage": "What we collect:"
   },
   "telemetrySettings.configErrorTitle": {
     "defaultMessage": "Configuration Error"
