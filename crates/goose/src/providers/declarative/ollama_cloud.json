@@ -1,5 +1,5 @@
 {
-  "name": "custom_ollama_cloud",
+  "name": "ollama_cloud",
   "engine": "openai",
   "display_name": "Ollama Cloud",
   "description": "Access hosted models on ollama.com via OpenAI-compatible API",

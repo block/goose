@@ -217,7 +217,7 @@ mod tests {
     fn register_with_name_rewrites_secret_key_for_declarative_provider() {
         let mut registry = ProviderRegistry::new();
         let config = DeclarativeProviderConfig {
-            name: "custom_ollama_cloud".to_string(),
+            name: "ollama_cloud".to_string(),
             engine: ProviderEngine::OpenAI,
             display_name: "Ollama Cloud".to_string(),
             description: None,
@@ -244,7 +244,7 @@ mod tests {
 
         let entry = registry
             .entries
-            .get("custom_ollama_cloud")
+            .get("ollama_cloud")
             .expect("declarative provider should be registered");
         let api_key = entry
             .metadata
