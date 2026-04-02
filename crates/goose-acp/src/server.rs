@@ -479,12 +479,10 @@ impl GooseAcpAgent {
         let skip_developer = acp_developer.is_some();
         let sid_str = session_id.map(|s| s.0.to_string());
 
-        // Filter out the developer extension (handled separately via ACP client)
         if skip_developer {
             extensions.retain(|ext| ext.name() != "developer");
         }
 
-        // Load all extensions in parallel
         let ext_manager = &agent.extension_manager;
         let extension_futures = extensions
             .into_iter()
@@ -947,7 +945,6 @@ impl GooseAcpAgent {
         mcp_servers: Vec<McpServer>,
         session_id: &str,
     ) -> Result<(), sacp::Error> {
-        // Phase 1: Convert all configs sequentially (fast, pure computation, fail-fast)
         let mut configs = Vec::with_capacity(mcp_servers.len());
         for mcp_server in mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
@@ -963,8 +960,10 @@ impl GooseAcpAgent {
             return Ok(());
         }
 
-        // Phase 2: Load all extensions in parallel, persist state once
-        let results = agent.add_extensions_bulk(configs, session_id).await;
+        let results = agent
+            .add_extensions_bulk(configs, session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
         for result in &results {
             if !result.success {
                 let error_msg = result.error.as_deref().unwrap_or("unknown error");

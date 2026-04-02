@@ -767,9 +767,7 @@ impl Agent {
         self: &Arc<Self>,
         extensions: Vec<ExtensionConfig>,
         session_id: &str,
-    ) -> Vec<ExtensionLoadResult> {
-        // Resolve session working_dir and container once, before spawning futures,
-        // so each future doesn't re-acquire the container lock.
+    ) -> anyhow::Result<Vec<ExtensionLoadResult>> {
         let working_dir = match self
             .config
             .session_manager
@@ -819,14 +817,11 @@ impl Agent {
 
         let results = futures::future::join_all(extension_futures).await;
 
-        // Persist once after all extensions are loaded
         if results.iter().any(|r| r.success) {
-            if let Err(e) = self.persist_extension_state(session_id).await {
-                warn!("Failed to persist extension state after bulk load: {}", e);
-            }
+            self.persist_extension_state(session_id).await?;
         }
 
-        results
+        Ok(results)
     }
 
     async fn add_extension_inner(
