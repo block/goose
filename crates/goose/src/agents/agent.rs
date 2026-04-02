@@ -45,6 +45,7 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
+use crate::security::egress_inspector::EgressInspector;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager};
@@ -262,6 +263,7 @@ impl Agent {
 
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+        tool_inspection_manager.add_inspector(Box::new(EgressInspector::new()));
 
         // Add adversary inspector (LLM-based review, enabled by ~/.config/goose/adversary.md)
         tool_inspection_manager.add_inspector(Box::new(AdversaryInspector::new(provider.clone())));
@@ -583,6 +585,7 @@ impl Agent {
                 )
                 .await;
             result.unwrap_or_else(|e| {
+                #[cfg(feature = "telemetry")]
                 crate::posthog::emit_error(
                     "tool_execution_failed",
                     &format!("{}: {}", tool_call.name, e),
@@ -1013,6 +1016,7 @@ impl Agent {
             let command = message_text.split_whitespace().next();
             if let Some(cmd) = command {
                 if crate::slash_commands::get_recipe_for_command(cmd).is_some() {
+                    #[cfg(feature = "telemetry")]
                     crate::posthog::emit_custom_slash_command_used();
                 }
             }
@@ -1557,6 +1561,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             compaction_attempts += 1;
 
@@ -1601,6 +1606,7 @@ impl Agent {
                                     break;
                                 }
                                 Err(e) => {
+                                    #[cfg(feature = "telemetry")]
                                     crate::posthog::emit_error("compaction_failed", &e.to_string());
                                     error!("Compaction failed: {}", e);
                                     yield AgentEvent::Message(
@@ -1613,6 +1619,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
@@ -1636,6 +1643,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
@@ -1646,6 +1654,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err) => {
+                            #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(

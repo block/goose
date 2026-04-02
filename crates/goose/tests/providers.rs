@@ -10,6 +10,7 @@ use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
+#[cfg(feature = "aws-providers")]
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
@@ -19,6 +20,7 @@ use goose::providers::errors::ProviderError;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
+#[cfg(feature = "aws-providers")]
 use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
@@ -119,6 +121,7 @@ struct ProviderTestConfig {
     test_permissions: bool,
     test_smart_approve: bool,
     test_mode_update: bool,
+    test_mcp_tools: bool,
     test_context_length_exceeded: bool,
     expect_context_length_exceeded: bool,
     context_length_exceeded: usize,
@@ -142,6 +145,7 @@ impl ProviderTestConfig {
             test_permissions: true,
             test_smart_approve: true,
             test_mode_update: true,
+            test_mcp_tools: true,
             test_context_length_exceeded: true,
             expect_context_length_exceeded: true,
             context_length_exceeded: 600_000,
@@ -170,6 +174,11 @@ impl ProviderTestConfig {
 
     fn test_smart_approve(mut self, v: bool) -> Self {
         self.test_smart_approve = v;
+        self
+    }
+
+    fn test_mcp_tools(mut self, v: bool) -> Self {
+        self.test_mcp_tools = v;
         self
     }
 
@@ -655,11 +664,13 @@ async fn test_provider(config: ProviderTestConfig) -> Result<()> {
             .await?
             .test_basic_response()
             .await?;
-        run_test(GooseMode::Auto).await?.test_tool_usage().await?;
-        run_test(GooseMode::Auto)
-            .await?
-            .test_image_content_support()
-            .await?;
+        if config.test_mcp_tools {
+            run_test(GooseMode::Auto).await?.test_tool_usage().await?;
+            run_test(GooseMode::Auto)
+                .await?
+                .test_image_content_support()
+                .await?;
+        }
         if config.model_switch_name.is_some() {
             run_test(GooseMode::Auto).await?.test_model_switch().await?;
         }
@@ -731,6 +742,7 @@ async fn test_azure_provider() -> Result<()> {
     .await
 }
 
+#[cfg(feature = "aws-providers")]
 #[tokio::test]
 async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
     ProviderTestConfig::with_llm_provider(
@@ -742,6 +754,7 @@ async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
     .await
 }
 
+#[cfg(feature = "aws-providers")]
 #[tokio::test]
 async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
     ProviderTestConfig::with_llm_provider("aws_bedrock", BEDROCK_DEFAULT_MODEL, &["AWS_PROFILE"])
@@ -750,6 +763,7 @@ async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
         .await
 }
 
+#[cfg(feature = "aws-providers")]
 #[tokio::test]
 async fn test_bedrock_provider_bearer_token() -> Result<()> {
     ProviderTestConfig::with_llm_provider(
@@ -827,6 +841,7 @@ async fn test_snowflake_provider() -> Result<()> {
     .await
 }
 
+#[cfg(feature = "aws-providers")]
 #[tokio::test]
 async fn test_sagemaker_tgi_provider() -> Result<()> {
     ProviderTestConfig::with_llm_provider(
@@ -886,14 +901,14 @@ async fn test_codex_acp_provider() -> Result<()> {
         .await
 }
 
-// Requires: npm install -g @google/gemini-cli
+// Requires: npm install -g @github/copilot
 #[tokio::test]
-async fn test_gemini_acp_provider() -> Result<()> {
-    // Don't run tests with ACP_CURRENT_MODEL, as gemini sets "auto-gemini-3" even when the user
-    // has no access to the Preview Release Channel, resulting in "Requested entity was not found."
-    // See https://github.com/google-gemini/gemini-cli/issues/22803
-    ProviderTestConfig::with_agentic_provider("gemini-acp", "auto-gemini-2.5", "gemini")
-        .model_switch_name("gemini-2.5-flash")
+async fn test_copilot_acp_provider() -> Result<()> {
+    ProviderTestConfig::with_agentic_provider("copilot-acp", ACP_CURRENT_MODEL, "copilot")
+        .model_switch_name("gpt-4.1")
+        // Copilot ignores mcpServers passed via session/new
+        // https://github.com/github/copilot-cli/issues/1040
+        .test_mcp_tools(false)
         .run()
         .await
 }

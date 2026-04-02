@@ -1,10 +1,10 @@
 pub mod anthropic;
 pub mod api_client;
-pub mod auto_detect;
 pub mod avian;
 pub mod azure;
 pub mod azureauth;
 pub mod base;
+#[cfg(feature = "aws-providers")]
 pub mod bedrock;
 pub mod canonical;
 pub mod catalog;
@@ -14,6 +14,7 @@ pub mod claude_code;
 pub(crate) mod cli_common;
 pub mod codex;
 pub mod codex_acp;
+pub mod copilot_acp;
 pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
@@ -21,8 +22,8 @@ pub mod errors;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
-pub mod gemini_acp;
 pub mod gemini_cli;
+pub mod gemini_oauth;
 pub mod githubcopilot;
 pub mod google;
 mod init;
@@ -38,6 +39,7 @@ pub mod openrouter;
 pub mod provider_registry;
 pub mod provider_test;
 mod retry;
+#[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
 pub mod snowflake;
 pub mod testprovider;

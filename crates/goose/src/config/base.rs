@@ -14,6 +14,26 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
+fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+
+        file.write_all(content.as_bytes())
+    }
+
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, content)
+    }
+}
+
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
 pub const CONFIG_YAML_NAME: &str = "config.yaml";
@@ -856,7 +876,7 @@ impl Config {
             }
             SecretStorage::File { path } => {
                 let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
+                write_secrets_file(path, &yaml_value)?;
             }
         };
 
@@ -897,7 +917,7 @@ impl Config {
             }
             SecretStorage::File { path } => {
                 let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
+                write_secrets_file(path, &yaml_value)?;
             }
         };
 
@@ -937,7 +957,7 @@ impl Config {
         std::fs::create_dir_all(Paths::config_dir())?;
         let path = Self::secrets_file_path();
         let yaml_value = serde_yaml::to_string(values)?;
-        std::fs::write(path, yaml_value)?;
+        write_secrets_file(&path, &yaml_value)?;
         Ok(())
     }
 
@@ -1939,6 +1959,24 @@ mod tests {
         // But reading via get_param should still return the default
         let value: String = config.get_param("default_key")?;
         assert_eq!(value, "default_value");
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_secrets_file_created_with_restricted_permissions() -> Result<(), ConfigError> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_path = dir.path().join("secrets.yaml");
+
+        let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
+        config.set_secret("key", &"value")?;
+
+        let mode = std::fs::metadata(&secrets_path)?.permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
 
         Ok(())
     }

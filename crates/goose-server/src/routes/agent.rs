@@ -197,6 +197,7 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    #[cfg(feature = "telemetry")]
     goose::posthog::set_session_context("desktop", false);
 
     let StartAgentRequest {
@@ -212,6 +213,7 @@ async fn start_agent(
             Ok(recipe) => Some(recipe),
             Err(err) => {
                 error!("Failed to decode recipe deeplink: {}", err);
+                #[cfg(feature = "telemetry")]
                 goose::posthog::emit_error("recipe_deeplink_decode_failed", &err.to_string());
                 return Err(ErrorResponse {
                     message: err.to_string(),
@@ -253,6 +255,7 @@ async fn start_agent(
         .await
         .map_err(|err| {
             error!("Failed to create session: {}", err);
+            #[cfg(feature = "telemetry")]
             goose::posthog::emit_error("session_create_failed", &err.to_string());
             ErrorResponse {
                 message: format!("Failed to create session: {}", err),
@@ -370,6 +373,7 @@ async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<ResumeAgentResponse>, ErrorResponse> {
+    #[cfg(feature = "telemetry")]
     goose::posthog::set_session_context("desktop", true);
 
     let session = state
@@ -378,6 +382,7 @@ async fn resume_agent(
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
+            #[cfg(feature = "telemetry")]
             goose::posthog::emit_error("session_resume_failed", &err.to_string());
             ErrorResponse {
                 message: format!("Failed to resume session: {}", err),
@@ -702,6 +707,7 @@ async fn agent_add_extension(
         .add_extension(request.config, &request.session_id)
         .await
         .map_err(|e| {
+            #[cfg(feature = "telemetry")]
             goose::posthog::emit_error(
                 "extension_add_failed",
                 &format!("{}: {}", extension_name, e),

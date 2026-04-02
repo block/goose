@@ -1,23 +1,27 @@
 use std::sync::{Arc, RwLock};
 
+#[cfg(feature = "aws-providers")]
+use super::bedrock::BedrockProvider;
 #[cfg(feature = "local-inference")]
 use super::local_inference::LocalInferenceProvider;
+#[cfg(feature = "aws-providers")]
+use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
     anthropic::AnthropicProvider,
     avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
-    bedrock::BedrockProvider,
     chatgpt_codex::ChatGptCodexProvider,
     claude_acp::ClaudeAcpProvider,
     claude_code::ClaudeCodeProvider,
     codex::CodexProvider,
     codex_acp::CodexAcpProvider,
+    copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
-    gemini_acp::GeminiAcpProvider,
     gemini_cli::GeminiCliProvider,
+    gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     litellm::LiteLLMProvider,
@@ -26,7 +30,6 @@ use super::{
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
     provider_registry::ProviderRegistry,
-    sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
     tetrate::TetrateProvider,
     venice::VeniceProvider,
@@ -49,19 +52,21 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<AnthropicProvider>(true);
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
+        #[cfg(feature = "aws-providers")]
         registry.register::<BedrockProvider>(false);
         #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
         registry.register::<ChatGptCodexProvider>(true);
         registry.register::<ClaudeAcpProvider>(false);
-        registry.register::<GeminiAcpProvider>(false);
         registry.register::<ClaudeCodeProvider>(true);
         registry.register::<CodexAcpProvider>(false);
+        registry.register::<CopilotAcpProvider>(false);
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
+        registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
         registry.register::<LiteLLMProvider>(false);
@@ -69,6 +74,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<OllamaProvider>(true);
         registry.register::<OpenAiProvider>(true);
         registry.register::<OpenRouterProvider>(true);
+        #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
         registry.register::<SnowflakeProvider>(false);
         registry.register::<TetrateProvider>(true);
@@ -187,7 +193,7 @@ mod tests {
         // Should be a Declarative (fixed) provider
         assert_eq!(*provider_type, ProviderType::Declarative);
 
-        assert_eq!(meta.display_name, "Tanzu AI Services");
+        assert_eq!(meta.display_name, "VMware Tanzu Platform");
         assert_eq!(meta.default_model, "openai/gpt-oss-120b");
 
         // First config key should be TANZU_AI_API_KEY (secret, required)

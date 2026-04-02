@@ -859,7 +859,7 @@ impl GooseAcpAgent {
             .create_session(
                 args.cwd.clone(),
                 "ACP Session".to_string(),
-                SessionType::User,
+                SessionType::Acp,
                 self.goose_mode,
             )
             .await
@@ -1271,7 +1271,7 @@ impl GooseAcpAgent {
     async fn on_list_sessions(&self) -> Result<ListSessionsResponse, sacp::Error> {
         let sessions = self
             .session_manager
-            .list_sessions()
+            .list_sessions_by_types(&[SessionType::Acp])
             .await
             .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
         let session_infos: Vec<SessionInfo> = sessions
@@ -1447,7 +1447,7 @@ impl GooseAcpAgent {
     ) -> Result<ImportSessionResponse, sacp::Error> {
         let session = self
             .session_manager
-            .import_session(&req.data)
+            .import_session(&req.data, Some(SessionType::Acp))
             .await
             .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
         let session_json = serde_json::to_value(&session)
