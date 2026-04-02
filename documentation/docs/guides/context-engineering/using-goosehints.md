@@ -139,6 +139,7 @@ my-project/
 ```
 
 If you start goose in `my-project/`, the root-level hints are loaded immediately. Later, when goose accesses files under `frontend/components/`, it loads the nested hints for that path and combines them in the following order:
+
 1. <details>
      <summary>`my-project/.goosehints` (project root)</summary>
         ```
@@ -151,8 +152,6 @@ If you start goose in `my-project/`, the root-level hints are loaded immediately
         Use conventional commits for all changes.
         ```
    </details>
-
-After nested hints are loaded for a directory, they remain active for the rest of the session. If you update a hint file and want goose to pick up the new content reliably, restart the session.
 2. <details>
      <summary>`frontend/.goosehints`</summary>
         ```
@@ -194,6 +193,10 @@ After nested hints are loaded for a directory, they remain active for the rest o
         - Follow naming convention: PascalCase
         ```
    </details>
+
+:::note
+After nested hints are loaded for a directory, they remain active for the rest of the session. If you update a hint file and want goose to pick up the new content reliably, restart the session.
+:::
 
 ## Common Use Cases
 Here are some ways people have used hints to provide additional context to goose:
