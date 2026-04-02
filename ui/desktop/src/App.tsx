@@ -12,7 +12,7 @@ import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
-import { ToastContainer } from 'react-toastify';
+import { toast, ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
@@ -453,6 +453,18 @@ export function AppInner() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
+  }, []);
+
+  // Show a toast if mesh is the configured provider but isn't running.
+  useEffect(() => {
+    const handler = () => {
+      toast.warn('Inference Mesh is set as your provider but isn\'t running. Open Settings → Mesh to start it. Keep goose running to stay connected.', {
+        autoClose: false,
+        toastId: 'mesh-not-running',
+      });
+    };
+    window.electron.on('mesh-not-running', handler);
+    return () => { window.electron.off('mesh-not-running', handler); };
   }, []);
 
   // Prevent default drag and drop behavior globally to avoid opening files in new windows

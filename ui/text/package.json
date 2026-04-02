@@ -1,6 +1,6 @@
 {
   "name": "@aaif/goose",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Goose - an open-source AI agent",
   "license": "Apache-2.0",
   "repository": {
@@ -47,7 +47,7 @@
     "@aaif/goose-binary-win32-x64": "workspace:*"
   },
   "overrides": {
-    "react": "19.2.4"
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@types/marked-terminal": "^6.1.1",
