@@ -213,7 +213,10 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
 
 /// Scan a directory for skill subdirectories containing SKILL.md files.
 /// Returns discovered skills, skipping any whose names are already in `seen`.
-fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>) -> Vec<Source> {
+pub fn scan_skills_from_dir(
+    dir: &Path,
+    seen: &mut std::collections::HashSet<String>,
+) -> Vec<Source> {
     let mut sources = Vec::new();
     let mut visited_dirs = HashSet::new();
     for skill_file in collect_skill_files(dir, &mut visited_dirs) {
@@ -301,7 +304,7 @@ fn walk_files_recursively<F, G>(
     }
 }
 
-fn scan_recipes_from_dir(
+pub fn scan_recipes_from_dir(
     dir: &Path,
     kind: SourceKind,
     sources: &mut Vec<Source>,
@@ -413,6 +416,7 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
         working_dir.join(".agents/recipes"),
     ];
 
+    let nest_dir = crate::agents::platform_extensions::orchestrator::nest_dir();
     let global_recipe_dirs: Vec<PathBuf> = std::env::var("GOOSE_RECIPE_PATH")
         .ok()
         .into_iter()
@@ -423,6 +427,7 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
         .chain(
             [
                 Some(config.join("recipes")),
+                Some(nest_dir.join("recipes")),
                 home.as_ref().map(|h| h.join(".agents/recipes")),
             ]
             .into_iter()
@@ -436,9 +441,11 @@ fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
         working_dir.join(".agents/skills"),
     ];
 
+    let nest_skills = nest_dir.join("skills");
     let global_skill_dirs: Vec<PathBuf> = [
         home.as_ref().map(|h| h.join(".agents/skills")),
         Some(config.join("skills")),
+        Some(nest_skills),
         home.as_ref().map(|h| h.join(".claude/skills")),
         home.as_ref().map(|h| h.join(".config/agents/skills")),
     ]

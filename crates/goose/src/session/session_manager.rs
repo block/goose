@@ -47,6 +47,7 @@ pub enum SessionType {
     Terminal,
     Gateway,
     Acp,
+    Claw,
 }
 
 static SESSION_STORAGE: LazyLock<Arc<SessionStorage>> =

@@ -25,9 +25,10 @@ export interface ImageData {
 export interface UserInput {
   msg: string;
   images: ImageData[];
+  metadata?: { userVisible: boolean; agentVisible: boolean };
 }
 
-export function createUserMessage(text: string, images?: ImageData[]): Message {
+export function createUserMessage(text: string, images?: ImageData[], metadata?: { userVisible: boolean; agentVisible: boolean }): Message {
   const content: Message['content'] = [];
 
   if (text.trim()) {
@@ -49,7 +50,7 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content,
-    metadata: { userVisible: true, agentVisible: true },
+    metadata: metadata ?? { userVisible: true, agentVisible: true },
   };
 }
 

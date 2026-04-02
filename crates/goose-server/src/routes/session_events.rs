@@ -601,6 +601,88 @@ pub async fn session_cancel(
     axum::http::StatusCode::OK
 }
 
+// ── Claw (Active Agent) ─────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ClawSessionResponse {
+    pub session_id: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/claw/session",
+    responses(
+        (status = 200, description = "Claw session ID",
+         body = ClawSessionResponse),
+        (status = 500, description = "Internal server error"),
+    )
+)]
+pub async fn claw_session(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ClawSessionResponse>, ErrorResponse> {
+    let session = goose::agents::claw::ensure_session(state.session_manager())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(ClawSessionResponse {
+        session_id: session.id,
+    }))
+}
+
+#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct ClawReplyRequest {
+    pub request_id: String,
+    pub user_message: Message,
+}
+
+#[utoipa::path(
+    post,
+    path = "/claw/reply",
+    request_body = ClawReplyRequest,
+    responses(
+        (status = 200, description = "Request accepted",
+         body = SessionReplyResponse),
+        (status = 500, description = "Internal server error"),
+    )
+)]
+pub async fn claw_reply(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ClawReplyRequest>,
+) -> Result<Json<SessionReplyResponse>, ErrorResponse> {
+    if uuid::Uuid::parse_str(&request.request_id).is_err() {
+        return Err(ErrorResponse::bad_request(
+            "request_id must be a valid UUID",
+        ));
+    }
+
+    let session = goose::agents::claw::ensure_session(state.session_manager())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    let session_id = session.id.clone();
+
+    let agent = state
+        .get_agent(session_id.clone())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    goose::agents::claw::setup_agent(&agent, &session, state.session_manager())
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    session_reply(
+        State(state),
+        Path(session_id),
+        Json(SessionReplyRequest {
+            request_id: request.request_id,
+            user_message: request.user_message,
+            override_conversation: None,
+            recipe_name: None,
+            recipe_version: None,
+        }),
+    )
+    .await
+}
+
 // ── Route registration ──────────────────────────────────────────────────
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -611,5 +693,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(session_reply).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
         )
         .route("/sessions/{id}/cancel", post(session_cancel))
+        .route("/claw/session", post(claw_session))
+        .route(
+            "/claw/reply",
+            post(claw_reply).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        )
         .with_state(state)
 }

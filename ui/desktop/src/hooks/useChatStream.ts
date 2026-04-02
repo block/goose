@@ -31,10 +31,24 @@ import { useSessionEvents, type SessionEvent } from './useSessionEvents';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+/**
+ * Optional custom reply function. When provided, submitToSession calls this
+ * instead of the default sessionReply endpoint. The function receives the
+ * same arguments and must return a promise that resolves when the POST
+ * completes (the SSE listener is already registered before this is called).
+ */
+export type CustomReplyFn = (opts: {
+  requestId: string;
+  userMessage: Message;
+  overrideConversation?: Message[];
+  signal: InstanceType<typeof AbortController>['signal'];
+}) => Promise<void>;
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
   onSessionLoaded?: () => void;
+  replyFn?: CustomReplyFn;
 }
 
 interface UseChatStreamReturn {
@@ -347,6 +361,7 @@ export function useChatStream({
   sessionId,
   onStreamFinish,
   onSessionLoaded,
+  replyFn,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
@@ -618,18 +633,27 @@ export function useChatStream({
       activeUnsubscribeRef.current = unsubscribe;
 
       try {
-        await sessionReply({
-          path: { id: targetSessionId },
-          body: {
-            request_id: requestId,
-            user_message: userMessage,
-            override_conversation: overrideConversation,
-            recipe_name: recipeName,
-            recipe_version: recipeVersion,
-          },
-          signal: abortController.signal,
-          throwOnError: true,
-        });
+        if (replyFn) {
+          await replyFn({
+            requestId,
+            userMessage,
+            overrideConversation,
+            signal: abortController.signal,
+          });
+        } else {
+          await sessionReply({
+            path: { id: targetSessionId },
+            body: {
+              request_id: requestId,
+              user_message: userMessage,
+              override_conversation: overrideConversation,
+              recipe_name: recipeName,
+              recipe_version: recipeVersion,
+            },
+            signal: abortController.signal,
+            throwOnError: true,
+          });
+        }
       } catch (error) {
         // Abort is expected when stopStreaming races with the POST
         if (abortController.signal.aborted) return;
@@ -646,7 +670,7 @@ export function useChatStream({
         onFinish('Submit error: ' + errorMessage(error));
       }
     },
-    [addListener, onFinish, reloadConversation]
+    [addListener, onFinish, reloadConversation, replyFn]
   );
 
   // Load session on mount or sessionId change
@@ -780,7 +804,7 @@ export function useChatStream({
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
-      const { msg: userMessage, images } = input;
+      const { msg: userMessage, images, metadata } = input;
       const currentState = stateRef.current;
 
       if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
@@ -844,7 +868,7 @@ export function useChatStream({
       }
 
       const newMessage = hasNewMessage
-        ? createUserMessage(userMessage, images)
+        ? createUserMessage(userMessage, images, metadata)
         : currentState.messages[currentState.messages.length - 1];
       const currentMessages = hasNewMessage
         ? [...currentState.messages, newMessage]
