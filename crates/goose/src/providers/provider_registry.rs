@@ -233,6 +233,7 @@ mod tests {
             env_vars: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
+            fast_model: None,
         };
 
         registry.register_with_name::<OpenAiProvider, _>(
