@@ -1,3 +1,4 @@
+use crate::config::search_path::SearchPaths;
 use agent_client_protocol_schema::AGENT_METHOD_NAMES;
 use anyhow::{Context, Result};
 use async_stream::try_stream;
@@ -27,10 +28,12 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use crate::acp::{map_permission_response, PermissionDecision, PermissionMapping};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
+use crate::providers::cli_common::generate_simple_session_description;
 use crate::providers::errors::ProviderError;
 use crate::subprocess::configure_subprocess;
 
@@ -38,7 +41,7 @@ use crate::subprocess::configure_subprocess;
 pub const ACP_CURRENT_MODEL: &str = "current";
 
 pub struct AcpProviderConfig {
-    pub command: PathBuf,
+    pub command: String,
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
     pub env_remove: Vec<String>,
@@ -121,7 +124,7 @@ enum AcpUpdate {
 
 pub struct AcpProvider {
     name: String,
-    model: ModelConfig,
+    model: Mutex<ModelConfig>,
     goose_mode: Arc<Mutex<GooseMode>>,
     tx: Option<mpsc::Sender<ClientRequest>>,
     loop_thread: Option<JoinHandle<()>>,
@@ -136,7 +139,11 @@ pub struct AcpProvider {
     session_model: Arc<TokioMutex<HashMap<String, String>>>,
     auth_methods: Vec<AuthMethod>,
     supports_close: bool,
+    supports_list: bool,
+    // Cached NewSessionResponse for model list and config resolution.
+    // Populated from whichever comes first: ensure_session or get_init_session.
     init_session: OnceCell<NewSessionResponse>,
+    session_titles: Arc<TokioMutex<HashMap<String, String>>>,
 }
 
 impl std::fmt::Debug for AcpProvider {
@@ -214,6 +221,8 @@ impl AcpProvider {
         let permission_mapping = config.permission_mapping.clone();
         let rejected_tool_calls = Arc::new(TokioMutex::new(HashSet::new()));
         let goose_mode = Arc::new(Mutex::new(goose_mode));
+        let session_titles = Arc::new(TokioMutex::new(HashMap::new()));
+        let acp_to_goose_id = Arc::new(TokioMutex::new(HashMap::new()));
         let client_loop = AcpClientLoop::new(config, goose_mode.clone());
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -221,12 +230,10 @@ impl AcpProvider {
             .await
             .context("ACP client initialization cancelled")??;
 
-        let supports_close = init_response
-            .agent_capabilities
-            .session_capabilities
-            .close
-            .is_some();
-        let mut provider = Self::new_with_runtime(
+        let session_caps = &init_response.agent_capabilities.session_capabilities;
+        let supports_close = session_caps.close.is_some();
+        let supports_list = session_caps.list.is_some();
+        let provider = Self::new_with_runtime(
             name,
             model,
             goose_mode,
@@ -237,13 +244,10 @@ impl AcpProvider {
             rejected_tool_calls,
             init_response.auth_methods,
             supports_close,
+            supports_list,
+            session_titles,
+            acp_to_goose_id,
         );
-        if provider.model.model_name == ACP_CURRENT_MODEL {
-            let response = provider.get_init_session().await?;
-            let (current_model, _) = resolve_model_info(&provider.name, response)?;
-            tracing::info!(from = ACP_CURRENT_MODEL, to = %current_model, "resolved ACP model");
-            provider.model.model_name = current_model;
-        }
         Ok(provider)
     }
 
@@ -259,10 +263,13 @@ impl AcpProvider {
         rejected_tool_calls: Arc<TokioMutex<HashSet<String>>>,
         auth_methods: Vec<AuthMethod>,
         supports_close: bool,
+        supports_list: bool,
+        session_titles: Arc<TokioMutex<HashMap<String, String>>>,
+        acp_to_goose_id: Arc<TokioMutex<HashMap<String, String>>>,
     ) -> Self {
         Self {
             name,
-            model,
+            model: Mutex::new(model),
             goose_mode,
             tx: Some(tx),
             loop_thread: Some(loop_thread),
@@ -271,11 +278,13 @@ impl AcpProvider {
             rejected_tool_calls,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             goose_to_acp_id: Arc::new(TokioMutex::new(HashMap::new())),
-            acp_to_goose_id: Arc::new(TokioMutex::new(HashMap::new())),
+            acp_to_goose_id,
             session_model: Arc::new(TokioMutex::new(HashMap::new())),
             auth_methods,
             supports_close,
+            supports_list,
             init_session: OnceCell::new(),
+            session_titles,
         }
     }
 
@@ -472,7 +481,10 @@ impl AcpProvider {
                 .lock()
                 .await
                 .entry(session_id.to_string())
-                .or_insert(current_model);
+                .or_insert(current_model.clone());
+
+            self.cache_session_metadata(response.clone(), current_model)
+                .await;
         }
 
         Ok(response)
@@ -497,6 +509,14 @@ impl AcpProvider {
         Ok(response_rx)
     }
 
+    async fn cache_session_metadata(&self, response: NewSessionResponse, model: String) {
+        self.init_session.get_or_init(|| async { response }).await;
+        let mut m = self.model.lock().unwrap();
+        if m.model_name == ACP_CURRENT_MODEL {
+            m.model_name = model;
+        }
+    }
+
     async fn get_init_session(&self) -> Result<&NewSessionResponse> {
         self.init_session
             .get_or_try_init(|| async {
@@ -504,6 +524,12 @@ impl AcpProvider {
                 if self.supports_close {
                     self.close_session_by_acp_id(response.session_id.clone())
                         .await?;
+                }
+                let (model, _) =
+                    resolve_model_info(&self.name, &response).map_err(anyhow::Error::from)?;
+                let mut m = self.model.lock().unwrap();
+                if m.model_name == ACP_CURRENT_MODEL {
+                    m.model_name = model;
                 }
                 Ok(response)
             })
@@ -532,7 +558,45 @@ impl Provider for AcpProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
+        self.model.lock().unwrap().clone()
+    }
+
+    async fn generate_session_name(
+        &self,
+        session_id: &str,
+        messages: &Conversation,
+    ) -> Result<String, ProviderError> {
+        // No downstream session yet; nothing to name.
+        if self.goose_to_acp_id.lock().await.is_empty() {
+            return Ok(String::new());
+        }
+
+        if self.supports_list {
+            if let Some(title) = self.session_titles.lock().await.get(session_id) {
+                return Ok(title.clone());
+            }
+
+            // Fall back to session/list (returns goose-remapped IDs).
+            // TODO: replace with session/get when available
+            // https://github.com/agentclientprotocol/agent-client-protocol/discussions/60
+            if let Ok(list) = self.list_sessions().await {
+                let mut titles = self.session_titles.lock().await;
+                if let Some(title) = resolve_title_from_list(&list, &mut titles, session_id) {
+                    return Ok(title);
+                }
+            }
+
+            // No title yet. system_generated_name skips empty, maybe_update_name retries.
+            return Ok(String::new());
+        }
+
+        // No list capability: use first user message as title.
+        // https://github.com/google-gemini/gemini-cli/issues/22919
+        let (msg, _) = generate_simple_session_description(
+            &self.model.lock().unwrap().model_name,
+            messages.messages(),
+        )?;
+        Ok(msg.as_concat_text())
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
@@ -570,6 +634,11 @@ impl Provider for AcpProvider {
         Ok(())
     }
 
+    // Agentic providers own their own metadata.
+    fn skip_moim(&self) -> bool {
+        true
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }
@@ -592,11 +661,11 @@ impl Provider for AcpProvider {
     ) -> Result<MessageStream, ProviderError> {
         let response = self.ensure_session(Some(session_id)).await?;
 
-        // Provider trait has no update_model — stream() is the only place to forward model changes.
+        // Forward model changes to the agent. Skip "current" (resolved lazily by ensure_session).
         {
             let new_model = &model_config.model_name;
             let tracked = self.session_model.lock().await.get(session_id).cloned();
-            if tracked.as_deref() != Some(new_model) {
+            if new_model != ACP_CURRENT_MODEL && tracked.as_deref() != Some(new_model) {
                 if self
                     .session_has_config_option(session_id, SessionConfigOptionCategory::Model)
                     .await
@@ -807,6 +876,7 @@ impl AcpClientLoop {
                 {
                     let prompt_response_tx = prompt_response_tx.clone();
                     let reverse_modes = reverse_modes.clone();
+                    let goose_mode = goose_mode.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -915,7 +985,7 @@ impl AcpClientLoop {
                 sacp::on_receive_request!(),
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
-                handle_requests(config, cx, rx, prompt_response_tx, init_tx).await
+                handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
             })
             .await?;
 
@@ -924,7 +994,9 @@ impl AcpClientLoop {
 }
 
 async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
-    let mut cmd = Command::new(&config.command);
+    // with_npm() includes npm global bin dir (desktop app PATH may not)
+    let resolved = SearchPaths::builder().with_npm().resolve(&config.command)?;
+    let mut cmd = Command::new(&resolved);
     cmd.args(&config.args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -952,6 +1024,7 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
 
 async fn handle_requests(
     config: AcpProviderConfig,
+    goose_mode: Arc<Mutex<GooseMode>>,
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
@@ -997,13 +1070,18 @@ async fn handle_requests(
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
-                        apply_session_mode(&config, &cx, session).await
+                        let mode_id = goose_mode
+                            .lock()
+                            .ok()
+                            .and_then(|m| config.mode_mapping.get(&*m).cloned());
+                        match mode_id {
+                            Some(id) => apply_session_mode(id, &cx, session).await,
+                            None => Err(anyhow::anyhow!("mode_mapping lookup failed")),
+                        }
                     }
-                    Err(err) => Err(anyhow::anyhow!(
-                        "ACP {} failed: {err}",
-                        AGENT_METHOD_NAMES.session_new
-                    )),
-                };
+                    Err(err) => Err(anyhow::anyhow!("{err}")),
+                }
+                .map_err(|e| anyhow::anyhow!("ACP {} failed: {e}", AGENT_METHOD_NAMES.session_new));
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
             }
             ClientRequest::ListSessions { response_tx } => {
@@ -1143,29 +1221,29 @@ async fn handle_requests(
 }
 
 async fn apply_session_mode(
-    config: &AcpProviderConfig,
+    desired_mode_id: String,
     cx: &ConnectionTo<Agent>,
     session: NewSessionResponse,
 ) -> Result<NewSessionResponse> {
-    if let (Some(mode_id), Some(modes)) = (config.session_mode_id.clone(), session.modes.as_ref()) {
-        if modes.current_mode_id.0.as_ref() != mode_id.as_str() {
+    if let Some(modes) = session.modes.as_ref() {
+        if modes.current_mode_id.0.as_ref() != desired_mode_id.as_str() {
             let available: Vec<String> = modes
                 .available_modes
                 .iter()
                 .map(|mode| mode.id.0.to_string())
                 .collect();
 
-            if !available.iter().any(|id| id == &mode_id) {
+            if !available.iter().any(|id| id == &desired_mode_id) {
                 return Err(anyhow::anyhow!(
                     "Requested mode '{}' not offered by agent. Available modes: {}",
-                    mode_id,
+                    desired_mode_id,
                     available.join(", ")
                 ));
             }
             let _: SetSessionModeResponse = cx
                 .send_request(SetSessionModeRequest::new(
                     session.session_id.clone(),
-                    mode_id,
+                    desired_mode_id,
                 ))
                 .block_task()
                 .await
@@ -1398,6 +1476,22 @@ fn resolve_mode(
     }
 }
 
+// Caches titles from session/list and returns the title for session_id if found.
+fn resolve_title_from_list(
+    response: &ListSessionsResponse,
+    titles: &mut HashMap<String, String>,
+    session_id: &str,
+) -> Option<String> {
+    for info in &response.sessions {
+        if let Some(ref title) = info.title {
+            titles
+                .entry(info.session_id.0.to_string())
+                .or_insert_with(|| title.clone());
+        }
+    }
+    titles.get(session_id).cloned()
+}
+
 fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDecision> {
     match goose_mode {
         GooseMode::Auto => Some(PermissionDecision::AllowOnce),
@@ -1406,8 +1500,8 @@ fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDeci
     }
 }
 
-// TODO: ID mapping is in-memory only — sessions from prior runs or other clients are dropped.
-// Persisting requires a schema change to map goose↔ACP IDs in the session DB.
+// TODO: ID mapping is in-memory only. Sessions from prior runs or other clients are dropped.
+// Persistence is a non-goal as we want to change to honoring agent-supplied IDs.
 fn map_sessions_to_goose_ids(
     response: ListSessionsResponse,
     acp_to_goose: &HashMap<String, String>,
@@ -1428,7 +1522,10 @@ fn map_sessions_to_goose_ids(
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use sacp::schema::{SessionConfigOption, SessionConfigSelectOption, SessionInfo};
+    use sacp::schema::{
+        AgentCapabilities, SessionCapabilities, SessionConfigOption, SessionConfigSelectOption,
+        SessionInfo, SessionListCapabilities,
+    };
     use test_case::test_case;
 
     #[test_case(
@@ -1742,5 +1839,130 @@ mod tests {
         } else {
             assert_eq!(result, expected);
         }
+    }
+
+    #[test_case(
+        vec![SessionInfo::new(SessionId::new("s1"), "/tmp").title("Hello")],
+        HashMap::new(),
+        "s1",
+        Some("Hello".to_string())
+        ; "returns matching title"
+    )]
+    #[test_case(
+        vec![SessionInfo::new(SessionId::new("s1"), "/tmp").title("Hello")],
+        HashMap::new(),
+        "s2",
+        None
+        ; "returns none for missing session"
+    )]
+    #[test_case(
+        vec![SessionInfo::new(SessionId::new("s1"), "/tmp")],
+        HashMap::new(),
+        "s1",
+        None
+        ; "returns none when session has no title"
+    )]
+    #[test_case(
+        vec![SessionInfo::new(SessionId::new("s1"), "/tmp").title("From list")],
+        HashMap::from([("s1".to_string(), "From notification".to_string())]),
+        "s1",
+        Some("From notification".to_string())
+        ; "existing title not overwritten by list"
+    )]
+    fn test_resolve_title_from_list(
+        sessions: Vec<SessionInfo>,
+        mut existing: HashMap<String, String>,
+        session_id: &str,
+        expected: Option<String>,
+    ) {
+        let result = resolve_title_from_list(
+            &ListSessionsResponse::new(sessions),
+            &mut existing,
+            session_id,
+        );
+        assert_eq!(result, expected);
+    }
+
+    #[test_case(
+        HashMap::new(),
+        SessionCapabilities::new().list(SessionListCapabilities::new()),
+        HashMap::new(),
+        "s1", Conversation::new_unvalidated(vec![Message::user().with_text("hello")]),
+        Ok("".to_string())
+        ; "no downstream session returns empty"
+    )]
+    #[test_case(
+        HashMap::from([("s1".to_string(), NewSessionResponse::new(SessionId::new("acp-1")))]),
+        SessionCapabilities::new().list(SessionListCapabilities::new()),
+        HashMap::from([("s1".to_string(), "cached title".to_string())]),
+        "s1", Conversation::new_unvalidated(vec![]),
+        Ok("cached title".to_string())
+        ; "returns cached session title"
+    )]
+    #[test_case(
+        HashMap::from([("s1".to_string(), NewSessionResponse::new(SessionId::new("acp-1")))]),
+        SessionCapabilities::new(),
+        HashMap::new(),
+        "s1", Conversation::new_unvalidated(vec![Message::user().with_text("say hello")]),
+        Ok("say hello".to_string())
+        ; "no list uses first user message"
+    )]
+    #[test_case(
+        HashMap::from([("s1".to_string(), NewSessionResponse::new(SessionId::new("acp-1")))]),
+        SessionCapabilities::new(),
+        HashMap::new(),
+        "s1", Conversation::new_unvalidated(vec![]),
+        Ok("Simple task".to_string())
+        ; "no list no messages returns simple task"
+    )]
+    #[test_case(
+        HashMap::from([("s1".to_string(), NewSessionResponse::new(SessionId::new("acp-1")))]),
+        SessionCapabilities::new(),
+        HashMap::new(),
+        "s1", Conversation::new_unvalidated(vec![Message::user().with_text("one two three four five six")]),
+        Ok("one two three four".to_string())
+        ; "no list truncates to 4 words"
+    )]
+    #[tokio::test]
+    async fn test_generate_session_name(
+        goose_to_acp: HashMap<String, NewSessionResponse>,
+        session_caps: SessionCapabilities,
+        session_titles: HashMap<String, String>,
+        session_id: &str,
+        conv: Conversation,
+        expected: Result<String, ProviderError>,
+    ) {
+        let init_response = InitializeResponse::new(ProtocolVersion::LATEST)
+            .agent_capabilities(AgentCapabilities::new().session_capabilities(session_caps));
+        let provider = AcpProvider::start(
+            "test".into(),
+            ModelConfig::new("test-model").unwrap(),
+            GooseMode::Auto,
+            AcpProviderConfig {
+                command: "true".to_string(),
+                args: vec![],
+                env: vec![],
+                env_remove: vec![],
+                work_dir: PathBuf::from("."),
+                mcp_servers: vec![],
+                session_mode_id: None,
+                mode_mapping: HashMap::new(),
+                permission_mapping: PermissionMapping::default(),
+                notification_callback: None,
+            },
+            Box::new(move |_cl, _rx, init_tx| {
+                Box::pin(async move {
+                    let _ = init_tx.send(Ok(init_response));
+                })
+            }),
+        )
+        .await
+        .unwrap();
+        *provider.goose_to_acp_id.lock().await = goose_to_acp;
+        *provider.session_titles.lock().await = session_titles;
+        assert_eq!(
+            provider.generate_session_name(session_id, &conv).await,
+            expected
+        );
     }
 }

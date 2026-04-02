@@ -730,6 +730,10 @@ impl Provider for CodexProvider {
         ))
     }
 
+    fn skip_moim(&self) -> bool {
+        true
+    }
+
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
         self.mode_by_session
             .write()

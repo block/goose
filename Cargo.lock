@@ -3225,6 +3225,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
+name = "downcast-rs"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "117240f60069e65410b3ae1bb213295bd828f707b5bec6596a1afc8793ce0cbc"
+
+[[package]]
 name = "dprint-swc-ext"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4352,6 +4358,7 @@ dependencies = [
  "dashmap 6.1.0",
  "dirs 5.0.1",
  "dotenvy",
+ "downcast-rs",
  "encoding_rs",
  "env-lock",
  "etcetera 0.11.0",
@@ -4573,7 +4580,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "1.29.0"
+version = "1.30.0"
 dependencies = [
  "agent-client-protocol-schema",
  "sacp",

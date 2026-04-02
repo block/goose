@@ -7,7 +7,6 @@ use crate::acp::{
     extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, PermissionMapping,
     ACP_CURRENT_MODEL,
 };
-use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderDef, ProviderMetadata};
@@ -48,10 +47,6 @@ impl ProviderDef for CopilotAcpProvider {
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
-            // with_npm() includes npm global bin dir (desktop app PATH may not)
-            let resolved_command = SearchPaths::builder()
-                .with_npm()
-                .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
             // Copilot uses standard ACP permission option IDs (allow_once,
@@ -74,7 +69,7 @@ impl ProviderDef for CopilotAcpProvider {
             ]);
 
             let provider_config = AcpProviderConfig {
-                command: resolved_command,
+                command: COPILOT_ACP_BINARY.to_string(),
                 args,
                 env: vec![],
                 env_remove: vec![],

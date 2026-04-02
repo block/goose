@@ -3,7 +3,7 @@ use crate::fs::AcpTools;
 use crate::tools::AcpAwareToolMeta;
 use anyhow::Result;
 use fs_err as fs;
-use goose::acp::PermissionDecision;
+use goose::acp::{AcpProvider, PermissionDecision};
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::mcp_client::McpClientTrait;
 use goose::agents::platform_extensions::developer::DeveloperClient;
@@ -67,6 +67,7 @@ struct GooseAcpSession {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     provider_factory: ProviderConstructor,
+    provider: Mutex<Option<Arc<dyn Provider>>>,
     builtins: Vec<String>,
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
@@ -400,6 +401,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             provider_factory,
+            provider: Mutex::new(None),
             builtins,
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
@@ -882,6 +884,16 @@ impl GooseAcpAgent {
 
         Self::add_mcp_extensions(&agent, args.mcp_servers, &goose_session.id).await?;
 
+        // Pre-populate the downstream session so build_model_state
+        // reads cached model info instead of creating a throwaway session.
+        if let Ok(acp) = provider.clone().downcast_arc::<AcpProvider>() {
+            acp.ensure_session(Some(&goose_session.id))
+                .await
+                .map_err(|e| {
+                    sacp::Error::internal_error().data(format!("Failed to ensure session: {}", e))
+                })?;
+        }
+
         let session = GooseAcpSession {
             agent,
             messages: Conversation::new_unvalidated(Vec::new()),
@@ -909,6 +921,11 @@ impl GooseAcpAgent {
     }
 
     async fn init_provider(&self, agent: &Agent, session: &Session) -> Result<Arc<dyn Provider>> {
+        let mut cached = self.provider.lock().await;
+        if let Some(provider) = cached.as_ref() {
+            agent.update_provider(provider.clone(), &session.id).await?;
+            return Ok(provider.clone());
+        }
         let model_config = match &session.model_config {
             Some(config) => config.clone(),
             None => {
@@ -921,6 +938,7 @@ impl GooseAcpAgent {
         };
         let provider = (self.provider_factory)(model_config, Vec::new()).await?;
         agent.update_provider(provider.clone(), &session.id).await?;
+        *cached = Some(provider.clone());
         Ok(provider)
     }
 
@@ -1215,6 +1233,8 @@ impl GooseAcpAgent {
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
             })?;
+
+        *self.provider.lock().await = Some(provider.clone());
 
         let agent = self.get_session_agent(session_id, None).await?;
         agent

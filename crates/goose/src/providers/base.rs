@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use downcast_rs::{impl_downcast, DowncastSync};
 use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -502,7 +503,7 @@ pub enum PermissionRouting {
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
-pub trait Provider: Send + Sync {
+pub trait Provider: DowncastSync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
@@ -585,6 +586,10 @@ pub trait Provider: Send + Sync {
     }
 
     fn skip_canonical_filtering(&self) -> bool {
+        false
+    }
+
+    fn skip_moim(&self) -> bool {
         false
     }
 
@@ -783,6 +788,7 @@ pub trait Provider: Send + Sync {
         false
     }
 }
+impl_downcast!(sync Provider);
 
 /// A message stream yields partial text content but complete tool calls, all within the Message object
 /// So a message with text will contain potentially just a word of a longer response, but tool calls

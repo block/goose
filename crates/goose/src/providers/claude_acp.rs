@@ -7,7 +7,6 @@ use crate::acp::{
     extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, PermissionMapping,
     ACP_CURRENT_MODEL,
 };
-use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderDef, ProviderMetadata};
@@ -45,10 +44,6 @@ impl ProviderDef for ClaudeAcpProvider {
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
-            // with_npm() includes npm global bin dir (desktop app PATH may not)
-            let resolved_command = SearchPaths::builder()
-                .with_npm()
-                .resolve(CLAUDE_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
             // claude-agent-acp permission option_ids
@@ -70,7 +65,7 @@ impl ProviderDef for ClaudeAcpProvider {
             ]);
 
             let provider_config = AcpProviderConfig {
-                command: resolved_command,
+                command: CLAUDE_ACP_BINARY.to_string(),
                 args: vec![],
                 env: vec![],
                 // Prevent nested-session detection in claude-agent-acp (wraps Claude Code)
