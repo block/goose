@@ -93,6 +93,20 @@ const OUTPUT_PREVIEW_LINES: usize = 50;
 
 const OUTPUT_SLOTS: usize = 8;
 
+/// Result of truncating command output.
+struct TruncateResult {
+    /// The (possibly truncated) text to display.
+    text: String,
+    /// When output was truncated, the path where the full output was saved
+    /// and a human-readable reason for the truncation.
+    truncation: Option<TruncationInfo>,
+}
+
+struct TruncationInfo {
+    path: PathBuf,
+    reason: String,
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ShellParams {
     pub command: String,
@@ -248,37 +262,56 @@ impl ShellTool {
 
         let output_dir = self.output_dir.path();
         let slot = self.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
-        let truncated_stdout = if raw_stdout.is_empty() {
-            String::new()
+        let stdout_result = if raw_stdout.is_empty() {
+            TruncateResult {
+                text: String::new(),
+                truncation: None,
+            }
         } else {
             match truncate_output(&raw_stdout, &format!("stdout-{slot}"), output_dir) {
-                Ok(t) => t,
+                Ok(r) => r,
                 Err(error) => return Self::error_result(&error, None),
             }
         };
-        let truncated_stderr = if raw_stderr.is_empty() {
-            String::new()
+        let stderr_result = if raw_stderr.is_empty() {
+            TruncateResult {
+                text: String::new(),
+                truncation: None,
+            }
         } else {
             match truncate_output(&raw_stderr, &format!("stderr-{slot}"), output_dir) {
-                Ok(t) => t,
+                Ok(r) => r,
                 Err(error) => return Self::error_result(&error, None),
             }
         };
 
         let shell_output = ShellOutput {
-            stdout: truncated_stdout,
-            stderr: truncated_stderr,
+            stdout: stdout_result.text,
+            stderr: stderr_result.text,
             exit_code: execution.exit_code,
             timed_out: execution.timed_out,
             output_truncated: execution.output_truncated,
             output_collection_error: execution.output_collection_error.clone(),
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
-        let mut rendered = match render_output(&interleaved, &format!("output-{slot}"), output_dir)
+        let render_result = match render_output(&interleaved, &format!("output-{slot}"), output_dir)
         {
-            Ok(rendered) => rendered,
+            Ok(r) => r,
             Err(error) => return Self::error_result(&error, None),
         };
+        let mut rendered = render_result.text;
+
+        // Collect truncation notices from stdout, stderr, and interleaved output.
+        // These are delivered as a separate Content block so the model sees them as
+        // instructions rather than part of the command's data output.
+        let truncation_notices: Vec<String> = [
+            &stdout_result.truncation,
+            &stderr_result.truncation,
+            &render_result.truncation,
+        ]
+        .iter()
+        .filter_map(|t| t.as_ref().map(truncation_notice))
+        .collect();
 
         let is_error = if execution.timed_out {
             if let Some(timeout_secs) = params.timeout_secs {
@@ -311,13 +344,20 @@ impl ShellTool {
             if let Some(code) = execution.exit_code.filter(|c| *c != 0) {
                 rendered.push_str(&format!("\n\nCommand exited with code {code}"));
             }
-            let mut result =
-                CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
+            let mut error_blocks = vec![Content::text(rendered).with_priority(0.0)];
+            if !truncation_notices.is_empty() {
+                error_blocks.push(Content::text(truncation_notices.join("\n")).with_priority(0.0));
+            }
+            let mut result = CallToolResult::error(error_blocks);
             result.structured_content = structured_content;
             return result;
         }
 
-        let mut result = CallToolResult::success(vec![Content::text(rendered).with_priority(0.0)]);
+        let mut content_blocks = vec![Content::text(rendered).with_priority(0.0)];
+        if !truncation_notices.is_empty() {
+            content_blocks.push(Content::text(truncation_notices.join("\n")).with_priority(0.0));
+        }
+        let mut result = CallToolResult::success(content_blocks);
         result.structured_content = structured_content;
         result
     }
@@ -551,13 +591,33 @@ async fn collect_tagged_lines(
     Ok(())
 }
 
+/// Build a human-readable truncation notice with platform-appropriate commands.
+fn truncation_notice(info: &TruncationInfo) -> String {
+    let path = info.path.display();
+    let commands = if cfg!(windows) {
+        "PowerShell commands like `Get-Content -TotalCount 200`, `Select-String`, or \
+         `Get-Content | Select-Object -Skip 100 -First 100`"
+    } else {
+        "shell commands like `head`, `tail`, or `sed -n '100,200p'`"
+    };
+    format!(
+        "[{reason} Full output saved to {path}. \
+         Read it with {commands} up to {limit} lines at a time.]",
+        reason = info.reason,
+        limit = OUTPUT_LIMIT_LINES,
+    )
+}
+
 fn render_output(
     full_output: &str,
     label: &str,
     output_dir: &std::path::Path,
-) -> Result<String, String> {
+) -> Result<TruncateResult, String> {
     if full_output.is_empty() {
-        return Ok("(no output)".to_string());
+        return Ok(TruncateResult {
+            text: "(no output)".to_string(),
+            truncation: None,
+        });
     }
     truncate_output(full_output, label, output_dir)
 }
@@ -566,7 +626,7 @@ fn truncate_output(
     full_output: &str,
     label: &str,
     output_dir: &std::path::Path,
-) -> Result<String, String> {
+) -> Result<TruncateResult, String> {
     let lines: Vec<&str> = full_output.split('\n').collect();
     let total_lines = lines.len();
     let total_bytes = full_output.len();
@@ -575,7 +635,10 @@ fn truncate_output(
     let exceeded_bytes = total_bytes > OUTPUT_LIMIT_BYTES;
 
     if !exceeded_lines && !exceeded_bytes {
-        return Ok(full_output.to_string());
+        return Ok(TruncateResult {
+            text: full_output.to_string(),
+            truncation: None,
+        });
     }
 
     let output_path = save_full_output(full_output, label, output_dir)?;
@@ -592,12 +655,13 @@ fn truncate_output(
         )
     };
 
-    Ok(format!(
-        "{preview}\n\n[{reason} Full output saved to {path}. \
-         Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` \
-         up to 2000 lines at a time.]",
-        path = output_path.display(),
-    ))
+    Ok(TruncateResult {
+        text: preview,
+        truncation: Some(TruncationInfo {
+            path: output_path,
+            reason,
+        }),
+    })
 }
 
 fn save_full_output(
@@ -688,15 +752,17 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let rendered = render_output(&input, "test", dir.path()).unwrap();
-        assert_eq!(rendered, input);
+        let result = render_output(&input, "test", dir.path()).unwrap();
+        assert_eq!(result.text, input);
+        assert!(result.truncation.is_none());
     }
 
     #[test]
     fn render_output_shows_empty_message() {
         let dir = tempfile::tempdir().unwrap();
-        let rendered = render_output("", "test", dir.path()).unwrap();
-        assert_eq!(rendered, "(no output)");
+        let result = render_output("", "test", dir.path()).unwrap();
+        assert_eq!(result.text, "(no output)");
+        assert!(result.truncation.is_none());
     }
 
     #[test]
@@ -707,17 +773,22 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let rendered = render_output(&input, "test_lines", dir.path()).unwrap();
-        let (preview, metadata) = rendered.split_once("\n\n[").unwrap();
+        let result = render_output(&input, "test_lines", dir.path()).unwrap();
+        let preview = &result.text;
 
         assert_eq!(preview.lines().count(), OUTPUT_PREVIEW_LINES);
         assert!(preview.starts_with("line 2450"));
         assert!(preview.contains("line 2499"));
-        assert!(metadata.contains("2000 line limit"));
-        assert!(metadata.contains("2500 lines total"));
-        assert!(metadata.contains("Full output saved to"));
-        assert!(metadata.contains("head"));
-        assert!(metadata.contains("sed -n"));
+
+        let info = result
+            .truncation
+            .as_ref()
+            .expect("expected truncation info");
+        assert!(info.reason.contains("2000 line limit"));
+        assert!(info.reason.contains("2500 lines total"));
+
+        let notice = truncation_notice(info);
+        assert!(notice.contains("Full output saved to"));
     }
 
     #[test]
@@ -731,12 +802,16 @@ mod tests {
         assert!(input.len() > OUTPUT_LIMIT_BYTES);
         assert!(input.lines().count() <= OUTPUT_LIMIT_LINES);
 
-        let rendered = render_output(&input, "test_bytes", dir.path()).unwrap();
-        let (_preview, metadata) = rendered.split_once("\n\n[").unwrap();
+        let result = render_output(&input, "test_bytes", dir.path()).unwrap();
+        let info = result
+            .truncation
+            .as_ref()
+            .expect("expected truncation info");
+        assert!(info.reason.contains("byte limit"));
+        assert!(info.reason.contains("bytes total"));
 
-        assert!(metadata.contains("byte limit"));
-        assert!(metadata.contains("bytes total"));
-        assert!(metadata.contains("Full output saved to"));
+        let notice = truncation_notice(info);
+        assert!(notice.contains("Full output saved to"));
     }
 
     #[test]

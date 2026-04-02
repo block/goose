@@ -16,11 +16,12 @@ use super::{
     claude_code::ClaudeCodeProvider,
     codex::CodexProvider,
     codex_acp::CodexAcpProvider,
+    copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
-    gemini_acp::GeminiAcpProvider,
     gemini_cli::GeminiCliProvider,
+    gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     litellm::LiteLLMProvider,
@@ -57,14 +58,15 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<LocalInferenceProvider>(false);
         registry.register::<ChatGptCodexProvider>(true);
         registry.register::<ClaudeAcpProvider>(false);
-        registry.register::<GeminiAcpProvider>(false);
         registry.register::<ClaudeCodeProvider>(true);
         registry.register::<CodexAcpProvider>(false);
+        registry.register::<CopilotAcpProvider>(false);
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
+        registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
         registry.register::<LiteLLMProvider>(false);
@@ -191,7 +193,7 @@ mod tests {
         // Should be a Declarative (fixed) provider
         assert_eq!(*provider_type, ProviderType::Declarative);
 
-        assert_eq!(meta.display_name, "Tanzu AI Services");
+        assert_eq!(meta.display_name, "VMware Tanzu Platform");
         assert_eq!(meta.default_model, "openai/gpt-oss-120b");
 
         // First config key should be TANZU_AI_API_KEY (secret, required)
