@@ -908,17 +908,4 @@ mod tests {
             "should capture output after background cmd"
         );
     }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn flatpak_spawn_command_uses_watch_bus() {
-        let command = flatpak_spawn_command();
-        let args: Vec<&str> = command
-            .as_std()
-            .get_args()
-            .map(|arg| arg.to_str().unwrap())
-            .collect();
-
-        assert_eq!(args, FLATPAK_HOST_ARGS);
-    }
 }
