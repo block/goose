@@ -57,11 +57,18 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
+/// Tracks a single in-flight prompt task so that cancel and clear
+/// operations can address every concurrent prompt, not just the latest.
+struct ActivePrompt {
+    cancel_token: CancellationToken,
+    finished: Arc<tokio::sync::Notify>,
+}
+
 struct GooseAcpSession {
     agent: Arc<Agent>,
     messages: Conversation,
     tool_requests: HashMap<String, goose::conversation::message::ToolRequest>,
-    cancel_token: Option<CancellationToken>,
+    active_prompts: Vec<ActivePrompt>,
 }
 
 pub struct GooseAcpAgent {
@@ -886,7 +893,7 @@ impl GooseAcpAgent {
             agent,
             messages: Conversation::new_unvalidated(Vec::new()),
             tool_requests: HashMap::new(),
-            cancel_token: None,
+            active_prompts: Vec::new(),
         };
 
         let mut sessions = self.sessions.lock().await;
@@ -924,19 +931,12 @@ impl GooseAcpAgent {
         Ok(provider)
     }
 
-    async fn get_session_agent(
-        &self,
-        session_id: &str,
-        cancel_token: Option<CancellationToken>,
-    ) -> Result<Arc<Agent>, sacp::Error> {
-        let mut sessions = self.sessions.lock().await;
-        let session = sessions.get_mut(session_id).ok_or_else(|| {
+    async fn get_session_agent(&self, session_id: &str) -> Result<Arc<Agent>, sacp::Error> {
+        let sessions = self.sessions.lock().await;
+        let session = sessions.get(session_id).ok_or_else(|| {
             sacp::Error::resource_not_found(Some(session_id.to_string()))
                 .data(format!("Session not found: {}", session_id))
         })?;
-        if let Some(token) = cancel_token {
-            session.cancel_token = Some(token);
-        }
         Ok(session.agent.clone())
     }
 
@@ -1032,7 +1032,7 @@ impl GooseAcpAgent {
             agent,
             messages: conversation.clone(),
             tool_requests: HashMap::new(),
-            cancel_token: None,
+            active_prompts: Vec::new(),
         };
 
         for message in conversation.messages() {
@@ -1109,82 +1109,113 @@ impl GooseAcpAgent {
     ) -> Result<PromptResponse, sacp::Error> {
         let session_id = args.session_id.0.to_string();
         let cancel_token = CancellationToken::new();
+        let finished = Arc::new(tokio::sync::Notify::new());
 
-        let agent = self
-            .get_session_agent(&session_id, Some(cancel_token.clone()))
-            .await?;
-
-        let user_message = self.convert_acp_prompt_to_message(args.prompt);
-
-        let session_config = SessionConfig {
-            id: session_id.clone(),
-            schedule_id: None,
-            max_turns: None,
-            retry_config: None,
+        // Register this prompt and grab the agent in a single lock.
+        let agent = {
+            let mut sessions = self.sessions.lock().await;
+            let session = sessions.get_mut(&session_id).ok_or_else(|| {
+                sacp::Error::resource_not_found(Some(session_id.clone()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+            session.active_prompts.push(ActivePrompt {
+                cancel_token: cancel_token.clone(),
+                finished: finished.clone(),
+            });
+            session.agent.clone()
         };
 
-        let mut stream = agent
-            .reply(user_message, session_config, Some(cancel_token.clone()))
-            .await
-            .map_err(|e| {
-                sacp::Error::internal_error().data(format!("Error getting agent reply: {}", e))
-            })?;
+        let result = async {
+            let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
-        use futures::StreamExt;
+            let session_config = SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: None,
+                retry_config: None,
+            };
 
-        let mut was_cancelled = false;
+            let mut stream = agent
+                .reply(user_message, session_config, Some(cancel_token.clone()))
+                .await
+                .map_err(|e| {
+                    sacp::Error::internal_error().data(format!("Error getting agent reply: {}", e))
+                })?;
 
-        while let Some(event) = stream.next().await {
-            if cancel_token.is_cancelled() {
-                was_cancelled = true;
-                break;
-            }
+            use futures::StreamExt;
 
-            match event {
-                Ok(goose::agents::AgentEvent::Message(message)) => {
-                    let mut sessions = self.sessions.lock().await;
-                    let session = sessions.get_mut(&session_id).ok_or_else(|| {
-                        sacp::Error::invalid_params()
-                            .data(format!("Session not found: {}", session_id))
-                    })?;
+            let mut was_cancelled = false;
 
-                    session.messages.push(message.clone());
+            while let Some(event) = stream.next().await {
+                if cancel_token.is_cancelled() {
+                    was_cancelled = true;
+                    break;
+                }
 
-                    for content_item in &message.content {
-                        self.handle_message_content(content_item, &args.session_id, session, cx)
+                match event {
+                    Ok(goose::agents::AgentEvent::Message(message)) => {
+                        let mut sessions = self.sessions.lock().await;
+                        let session = sessions.get_mut(&session_id).ok_or_else(|| {
+                            sacp::Error::invalid_params()
+                                .data(format!("Session not found: {}", session_id))
+                        })?;
+
+                        session.messages.push(message.clone());
+
+                        for content_item in &message.content {
+                            self.handle_message_content(
+                                content_item,
+                                &args.session_id,
+                                session,
+                                cx,
+                            )
                             .await?;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        return Err(sacp::Error::internal_error()
+                            .data(format!("Error in agent response stream: {}", e)));
                     }
                 }
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(sacp::Error::internal_error()
-                        .data(format!("Error in agent response stream: {}", e)));
-                }
+            }
+
+            Ok(PromptResponse::new(if was_cancelled {
+                StopReason::Cancelled
+            } else {
+                StopReason::EndTurn
+            }))
+        }
+        .await;
+
+        // Remove this prompt from the active list and signal completion.
+        // notify_one stores a permit even if nobody is waiting yet, so
+        // ordering with session/clear is safe.
+        {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(&session_id) {
+                session
+                    .active_prompts
+                    .retain(|p| !Arc::ptr_eq(&p.finished, &finished));
             }
         }
+        finished.notify_one();
 
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&session_id) {
-            session.cancel_token = None;
-        }
-
-        Ok(PromptResponse::new(if was_cancelled {
-            StopReason::Cancelled
-        } else {
-            StopReason::EndTurn
-        }))
+        result
     }
 
     async fn on_cancel(&self, args: CancelNotification) -> Result<(), sacp::Error> {
         debug!(?args, "cancel request");
 
         let session_id = args.session_id.0.to_string();
-        let mut sessions = self.sessions.lock().await;
+        let sessions = self.sessions.lock().await;
 
-        if let Some(session) = sessions.get_mut(&session_id) {
-            if let Some(ref token) = session.cancel_token {
+        if let Some(session) = sessions.get(&session_id) {
+            if !session.active_prompts.is_empty() {
                 info!(session_id = %session_id, "prompt cancelled");
-                token.cancel();
+            }
+            for prompt in &session.active_prompts {
+                prompt.cancel_token.cancel();
             }
         } else {
             warn!(session_id = %session_id, "cancel request for unknown session");
@@ -1216,7 +1247,7 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
             })?;
 
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         agent
             .update_provider(provider, session_id)
             .await
@@ -1232,7 +1263,7 @@ impl GooseAcpAgent {
         &self,
         session_id: &SessionId,
     ) -> Result<(SessionNotification, Vec<SessionConfigOption>), sacp::Error> {
-        let agent = self.get_session_agent(&session_id.0, None).await?;
+        let agent = self.get_session_agent(&session_id.0).await?;
         let provider = agent.provider().await.map_err(|e| {
             sacp::Error::internal_error().data(format!("Failed to get provider: {}", e))
         })?;
@@ -1256,7 +1287,7 @@ impl GooseAcpAgent {
             sacp::Error::invalid_params().data(format!("Invalid mode: {}", mode_id))
         })?;
 
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         agent
             .update_goose_mode(mode, session_id)
             .await
@@ -1289,10 +1320,9 @@ impl GooseAcpAgent {
         session_id: &str,
     ) -> Result<CloseSessionResponse, sacp::Error> {
         let mut sessions = self.sessions.lock().await;
-        // Cancel before removing so on_prompt sees cancellation before session disappears.
         if let Some(session) = sessions.get(session_id) {
-            if let Some(ref token) = session.cancel_token {
-                token.cancel();
+            for prompt in &session.active_prompts {
+                prompt.cancel_token.cancel();
             }
         }
         sessions.remove(session_id);
@@ -1310,7 +1340,7 @@ impl GooseAcpAgent {
     ) -> Result<EmptyResponse, sacp::Error> {
         let config: ExtensionConfig = serde_json::from_value(req.config)
             .map_err(|e| sacp::Error::invalid_params().data(format!("bad config: {e}")))?;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .add_extension(config, &req.session_id)
             .await
@@ -1323,7 +1353,7 @@ impl GooseAcpAgent {
         &self,
         req: RemoveExtensionRequest,
     ) -> Result<EmptyResponse, sacp::Error> {
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .remove_extension(&req.name, &req.session_id)
             .await
@@ -1333,7 +1363,7 @@ impl GooseAcpAgent {
 
     #[custom_method("_goose/tools")]
     async fn on_get_tools(&self, req: GetToolsRequest) -> Result<GetToolsResponse, sacp::Error> {
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         let tools = agent.list_tools(&req.session_id, None).await;
         let tools_json = tools
             .into_iter()
@@ -1348,7 +1378,7 @@ impl GooseAcpAgent {
         &self,
         req: ReadResourceRequest,
     ) -> Result<ReadResourceResponse, sacp::Error> {
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         let cancel_token = CancellationToken::new();
         let result = agent
             .extension_manager
@@ -1469,6 +1499,178 @@ impl GooseAcpAgent {
             extensions: extensions_json,
             warnings,
         })
+    }
+
+    #[custom_method("_goose/session/clear")]
+    async fn on_clear_session(
+        &self,
+        req: ClearSessionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        // Phase 1: cancel every in-flight prompt and collect their
+        // finish signals so we can wait for all of them.
+        let pending: Vec<Arc<tokio::sync::Notify>> = {
+            let sessions = self.sessions.lock().await;
+            let session = sessions.get(&req.session_id).ok_or_else(|| {
+                sacp::Error::resource_not_found(Some(req.session_id.clone()))
+                    .data(format!("Session not found: {}", req.session_id))
+            })?;
+
+            session
+                .active_prompts
+                .iter()
+                .map(|p| {
+                    p.cancel_token.cancel();
+                    p.finished.clone()
+                })
+                .collect()
+        };
+        // Lock is dropped so on_prompt can finish its current iteration.
+
+        // Phase 2: wait for every prompt loop to exit before clearing
+        // state. Each on_prompt calls finished.notify_one() after its
+        // loop ends, which stores a permit if we have not started
+        // waiting yet.  A single global timeout bounds total wait time
+        // regardless of how many prompts are active.
+        if !pending.is_empty() {
+            let all_done = futures::future::join_all(pending.iter().map(|n| n.notified()));
+            if tokio::time::timeout(tokio::time::Duration::from_secs(10), all_done)
+                .await
+                .is_err()
+            {
+                warn!(
+                    session_id = %req.session_id,
+                    "timed out waiting for prompt loops to finish during session clear"
+                );
+            }
+        }
+
+        // Phase 3: clear session state. All prompt loops have exited,
+        // so no more events will be appended.
+        {
+            let mut sessions = self.sessions.lock().await;
+            let session = sessions.get_mut(&req.session_id).ok_or_else(|| {
+                sacp::Error::resource_not_found(Some(req.session_id.clone()))
+                    .data(format!("Session not found: {}", req.session_id))
+            })?;
+            session.active_prompts.clear();
+            session.messages.clear();
+            session.tool_requests.clear();
+        }
+
+        let empty_conversation = Conversation::empty();
+        self.session_manager
+            .replace_conversation(&req.session_id, &empty_conversation)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        self.session_manager
+            .update(&req.session_id)
+            .total_tokens(Some(0))
+            .input_tokens(Some(0))
+            .output_tokens(Some(0))
+            .apply()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        info!(session_id = %req.session_id, "session cleared");
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("_goose/agent/plan_prompt")]
+    async fn on_get_plan_prompt(
+        &self,
+        req: GetPlanPromptRequest,
+    ) -> Result<GetPlanPromptResponse, sacp::Error> {
+        let agent = self.get_session_agent(&req.session_id).await?;
+        let prompt = agent
+            .get_plan_prompt(&req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetPlanPromptResponse { prompt })
+    }
+
+    #[custom_method("_goose/agent/provider_info")]
+    async fn on_get_provider_info(
+        &self,
+        req: GetProviderInfoRequest,
+    ) -> Result<GetProviderInfoResponse, sacp::Error> {
+        let agent = self.get_session_agent(&req.session_id).await?;
+        let provider = agent.provider().await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to get provider: {}", e))
+        })?;
+
+        let provider_name = provider.get_name().to_string();
+        let model_config = provider.get_model_config();
+        let model_name = model_config.model_name.clone();
+        let context_limit = model_config.context_limit();
+
+        let session = self
+            .session_manager
+            .get_session(&req.session_id, false)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        Ok(GetProviderInfoResponse {
+            provider_name,
+            model_name,
+            context_limit,
+            total_tokens: session.total_tokens,
+            input_tokens: session.input_tokens,
+            output_tokens: session.output_tokens,
+        })
+    }
+
+    #[custom_method("_goose/config/prompt_info")]
+    async fn on_get_prompt_info(
+        &self,
+        req: GetPromptInfoRequest,
+    ) -> Result<GetPromptInfoResponse, sacp::Error> {
+        let agent = self.get_session_agent(&req.session_id).await?;
+        let all_prompts = agent
+            .extension_manager
+            .list_prompts(&req.session_id, CancellationToken::default())
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(format!("{:?}", e)))?;
+
+        let matches: Vec<_> = all_prompts
+            .iter()
+            .flat_map(|(ext, prompts)| {
+                prompts
+                    .iter()
+                    .filter(|p| p.name == req.name)
+                    .map(move |p| (ext.as_str(), p))
+            })
+            .collect();
+
+        match matches.len() {
+            0 => Err(sacp::Error::resource_not_found(Some(req.name.clone()))
+                .data(format!("Prompt '{}' not found", req.name))),
+            1 => Ok(GetPromptInfoResponse {
+                prompt: matches[0].1.clone(),
+            }),
+            _ => {
+                let extensions: Vec<&str> = matches.iter().map(|(ext, _)| *ext).collect();
+                Err(sacp::Error::invalid_params().data(format!(
+                    "Prompt '{}' is ambiguous; found in extensions: {}",
+                    req.name,
+                    extensions.join(", ")
+                )))
+            }
+        }
+    }
+
+    #[custom_method("_goose/config/prompts")]
+    async fn on_list_prompts(
+        &self,
+        req: ListPromptsRequest,
+    ) -> Result<ListPromptsResponse, sacp::Error> {
+        let agent = self.get_session_agent(&req.session_id).await?;
+        let prompts = agent
+            .extension_manager
+            .list_prompts(&req.session_id, CancellationToken::default())
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(format!("{:?}", e)))?;
+        Ok(ListPromptsResponse { prompts })
     }
 }
 
