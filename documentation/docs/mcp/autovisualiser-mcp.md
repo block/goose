@@ -13,7 +13,7 @@ import ImageCarousel from '@site/src/components/ImageCarousel';
 
 The Auto Visualiser extension enables goose to automatically generate interactive data visualizations directly in your conversation. This built-in extension uses MCP Apps to render charts, graphs, maps, and diagrams inline in goose Desktop.
 
-This guide covers enabling and using the Auto Visualiser extension.
+This guide will cover enabling and using the Auto Visualiser MCP Server.
 
 ## Configuration
 
