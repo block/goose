@@ -34,7 +34,10 @@ function HomepageHeader() {
 
 export default function Home(): ReactNode {
   return (
-    <Layout description="your open source AI agent, automating engineering tasks seamlessly">
+    <Layout 
+      title="goose - open source AI agent"
+      description="your open source AI agent, automating engineering tasks seamlessly">
+      
       <HomepageHeader />
       <main>
         <ResourcesSection />

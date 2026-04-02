@@ -12,9 +12,9 @@ const inkeepIntegrationId = process.env.INKEEP_INTEGRATION_ID;
 const inkeepOrgId = process.env.INKEEP_ORG_ID;
 
 const config: Config = {
-  title: "goose",
+  title: "goose - open source AI agent",
   tagline:
-    "your local AI agent, automating engineering tasks seamlessly",
+    "your open source AI agent that automates engineering tasks, generates code, fixes bugs, and manages developer workflows",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -89,6 +89,12 @@ const config: Config = {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
         } : false,
+        sitemap: {
+          changefreq: 'weekly',
+          priority: 0.5,
+          ignorePatterns: ['/tags/**'],
+          filename: 'sitemap.xml',
+        },
       } satisfies Preset.Options,
     ],
   ],
