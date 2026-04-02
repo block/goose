@@ -474,34 +474,10 @@ impl ProviderDef for GithubCopilotProvider {
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
             vec![
-                ConfigKey::new_oauth_device_code(
-                    "GITHUB_COPILOT_TOKEN",
-                    true,
-                    true,
-                    None,
-                    false,
-                ),
-                ConfigKey::new(
-                    "GITHUB_COPILOT_HOST",
-                    false,
-                    false,
-                    None,
-                    false,
-                ),
-                ConfigKey::new(
-                    "GITHUB_COPILOT_CLIENT_ID",
-                    false,
-                    false,
-                    None,
-                    false,
-                ),
-                ConfigKey::new(
-                    "GITHUB_COPILOT_TOKEN_URL",
-                    false,
-                    false,
-                    None,
-                    false,
-                ),
+                ConfigKey::new_oauth_device_code("GITHUB_COPILOT_TOKEN", true, true, None, false),
+                ConfigKey::new("GITHUB_COPILOT_HOST", false, false, None, false),
+                ConfigKey::new("GITHUB_COPILOT_CLIENT_ID", false, false, None, false),
+                ConfigKey::new("GITHUB_COPILOT_TOKEN_URL", false, false, None, false),
             ],
         )
     }
@@ -717,7 +693,7 @@ fn promote_tool_choice(response: Value) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_host, GithubCopilotUrls, promote_tool_choice};
+    use super::{normalize_host, promote_tool_choice, GithubCopilotUrls};
     use serde_json::json;
 
     #[test]
