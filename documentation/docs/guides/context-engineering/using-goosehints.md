@@ -76,7 +76,7 @@ The `.goosehints` file can include any instructions or contextual details releva
 
 The `.goosehints` file supports natural language. Write clear, specific instructions using direct language that goose can easily understand and follow. Include relevant context about your project and workflow preferences, and prioritize your most important guidelines first.
 
-goose loads hints when your session starts and can load additional nested hint files later as it accesses deeper directories in your project. These hints become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
+goose loads hints at the start of your session and may discover more as it works in nested directories. goose adds hints to the system prompt for every request. Because `.goosehints` content uses tokens, keeping it concise can reduce cost and improve performance.
 
 ### Example Global `.goosehints` File
 
