@@ -39,6 +39,7 @@
       "supports_cache_control": null
     }
   ],
+  "dynamic_models": true,
   "headers": null,
   "timeout_seconds": null,
   "supports_streaming": true
