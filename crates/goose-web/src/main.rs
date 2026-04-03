@@ -192,13 +192,16 @@ async fn proxy_to_goosed(state: AppState, req: Request<Body>) -> impl IntoRespon
             let status = StatusCode::from_u16(resp.status().as_u16())
                 .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
             let resp_headers = resp.headers().clone();
-            let body = resp.bytes().await.unwrap_or_default();
+
+            // Stream the response body instead of buffering — required for SSE
+            let body_stream = resp.bytes_stream();
+            let body = Body::from_stream(body_stream);
 
             let mut builder = Response::builder().status(status);
             for (key, value) in resp_headers.iter() {
                 builder = builder.header(key, value);
             }
-            builder.body(Body::from(body)).unwrap().into_response()
+            builder.body(body).unwrap().into_response()
         }
         Err(e) => {
             tracing::error!("Proxy error: {}", e);

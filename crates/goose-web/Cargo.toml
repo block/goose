@@ -18,7 +18,7 @@ hex = "0.4"
 include_dir = { workspace = true }
 mime_guess = "2"
 rand = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls", "stream"], default-features = false }
 tokio = { workspace = true }
 tower-http = { workspace = true, features = ["cors"] }
 tracing = { workspace = true }
