@@ -314,14 +314,20 @@ fn builtin_to_extension_config(name: &str) -> ExtensionConfig {
     }
 }
 
-async fn build_model_state(provider: &dyn Provider) -> Result<SessionModelState, sacp::Error> {
+/// Returns available models and current model for a session response.
+/// `model_override` is for loaded sessions that had a prior set_model.
+async fn session_model_state(
+    provider: &dyn Provider,
+    model_override: Option<&str>,
+) -> Result<SessionModelState, sacp::Error> {
+    let default_model = provider.get_model_config().model_name;
+    let current_model = model_override.unwrap_or(&default_model);
     let models = provider
         .fetch_recommended_models()
         .await
         .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
-    let current_model = &provider.get_model_config().model_name;
     Ok(SessionModelState::new(
-        ModelId::new(current_model.as_str()),
+        ModelId::new(current_model),
         models
             .iter()
             .map(|name| ModelInfo::new(ModelId::new(&**name), &**name))
@@ -884,8 +890,8 @@ impl GooseAcpAgent {
 
         Self::add_mcp_extensions(&agent, args.mcp_servers, &goose_session.id).await?;
 
-        // Pre-populate the downstream session so build_model_state
-        // reads cached model info instead of creating a throwaway session.
+        // ensure_session creates the downstream ACP session now, so
+        // session_model_state's fetch_recommended_models hits the cache.
         if let Ok(acp) = provider.clone().downcast_arc::<AcpProvider>() {
             acp.ensure_session(Some(&goose_session.id))
                 .await
@@ -911,7 +917,7 @@ impl GooseAcpAgent {
             "Session started"
         );
 
-        let model_state = build_model_state(&*provider).await?;
+        let model_state = session_model_state(&*provider, None).await?;
         let mode_state = build_mode_state(self.goose_mode)?;
 
         Ok(NewSessionResponse::new(SessionId::new(goose_session.id))
@@ -1111,7 +1117,11 @@ impl GooseAcpAgent {
             "Session loaded"
         );
 
-        let model_state = build_model_state(&*provider).await?;
+        let model_override = goose_session
+            .model_config
+            .as_ref()
+            .map(|c| c.model_name.as_str());
+        let model_state = session_model_state(&*provider, model_override).await?;
         let mode_state = build_mode_state(goose_mode)?;
 
         Ok(LoadSessionResponse::new()
@@ -1234,8 +1244,6 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
             })?;
 
-        *self.provider.lock().await = Some(provider.clone());
-
         let agent = self.get_session_agent(session_id, None).await?;
         agent
             .update_provider(provider, session_id)
@@ -1257,7 +1265,7 @@ impl GooseAcpAgent {
             sacp::Error::internal_error().data(format!("Failed to get provider: {}", e))
         })?;
         let goose_mode = agent.goose_mode().await;
-        let model_state = build_model_state(&*provider).await?;
+        let model_state = session_model_state(&*provider, None).await?;
         let mode_state = build_mode_state(goose_mode)?;
         let config_options = build_config_options(&mode_state, &model_state);
         let notification = SessionNotification::new(
@@ -1905,30 +1913,40 @@ print(\"hello, world\")
     }
 
     #[test_case(
-        Ok(vec!["model-a".into(), "model-b".into()])
+        Ok(vec!["model-a".into(), "model-b".into()]), None
         => Ok(SessionModelState::new(
             ModelId::new("unused"),
             vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
                  ModelInfo::new(ModelId::new("model-b"), "model-b")],
         ))
-        ; "returns current and available models"
+        ; "defaults to provider model"
     )]
     #[test_case(
-        Ok(vec![])
+        Ok(vec!["model-a".into(), "model-b".into()]), Some("model-b")
+        => Ok(SessionModelState::new(
+            ModelId::new("model-b"),
+            vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
+                 ModelInfo::new(ModelId::new("model-b"), "model-b")],
+        ))
+        ; "override replaces provider model"
+    )]
+    #[test_case(
+        Ok(vec![]), None
         => Ok(SessionModelState::new(ModelId::new("unused"), vec![]))
         ; "empty model list"
     )]
     #[test_case(
-        Err(ProviderError::ExecutionError("fail".into()))
+        Err(ProviderError::ExecutionError("fail".into())), None
         => Err(sacp::Error::internal_error().data("Execution error: fail".to_string()))
         ; "fetch error propagates"
     )]
     #[tokio::test]
-    async fn test_build_model_state(
+    async fn test_session_model_state(
         models: Result<Vec<String>, ProviderError>,
+        model_override: Option<&str>,
     ) -> Result<SessionModelState, sacp::Error> {
         let provider = MockModelProvider { models };
-        build_model_state(&provider).await
+        session_model_state(&provider, model_override).await
     }
 
     fn json_object(pairs: Vec<(&str, serde_json::Value)>) -> rmcp::model::JsonObject {

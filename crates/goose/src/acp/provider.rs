@@ -126,6 +126,7 @@ pub struct AcpProvider {
     name: String,
     model: Mutex<ModelConfig>,
     goose_mode: Arc<Mutex<GooseMode>>,
+    session_goose_modes: Arc<TokioMutex<HashMap<String, GooseMode>>>,
     tx: Option<mpsc::Sender<ClientRequest>>,
     loop_thread: Option<JoinHandle<()>>,
     mode_mapping: HashMap<GooseMode, String>,
@@ -221,9 +222,15 @@ impl AcpProvider {
         let permission_mapping = config.permission_mapping.clone();
         let rejected_tool_calls = Arc::new(TokioMutex::new(HashSet::new()));
         let goose_mode = Arc::new(Mutex::new(goose_mode));
+        let session_goose_modes = Arc::new(TokioMutex::new(HashMap::new()));
         let session_titles = Arc::new(TokioMutex::new(HashMap::new()));
         let acp_to_goose_id = Arc::new(TokioMutex::new(HashMap::new()));
-        let client_loop = AcpClientLoop::new(config, goose_mode.clone());
+        let client_loop = AcpClientLoop::new(
+            config,
+            goose_mode.clone(),
+            session_goose_modes.clone(),
+            acp_to_goose_id.clone(),
+        );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
         let init_response = init_rx
@@ -237,6 +244,7 @@ impl AcpProvider {
             name,
             model,
             goose_mode,
+            session_goose_modes,
             tx,
             loop_thread,
             mode_mapping,
@@ -256,6 +264,7 @@ impl AcpProvider {
         name: String,
         model: ModelConfig,
         goose_mode: Arc<Mutex<GooseMode>>,
+        session_goose_modes: Arc<TokioMutex<HashMap<String, GooseMode>>>,
         tx: mpsc::Sender<ClientRequest>,
         loop_thread: JoinHandle<()>,
         mode_mapping: HashMap<GooseMode, String>,
@@ -271,6 +280,7 @@ impl AcpProvider {
             name,
             model: Mutex::new(model),
             goose_mode,
+            session_goose_modes,
             tx: Some(tx),
             loop_thread: Some(loop_thread),
             mode_mapping,
@@ -602,9 +612,12 @@ impl Provider for AcpProvider {
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
         let map = self.goose_to_acp_id.lock().await;
         if map.is_empty() {
-            // Pre-initialization: no ACP session yet, just store the mode.
-            // The shared Arc<Mutex<GooseMode>> is read at session creation time.
+            // No ACP session yet. Update goose_mode so apply_session_mode
+            // negotiates the right mode when the session is created.
             drop(map);
+            if let Ok(mut m) = self.goose_mode.lock() {
+                *m = mode;
+            }
         } else {
             drop(map);
             let mode_str = self.mode_mapping[&mode].clone();
@@ -626,11 +639,10 @@ impl Provider for AcpProvider {
             }
         }
 
-        let mut current = self
-            .goose_mode
+        self.session_goose_modes
             .lock()
-            .map_err(|_| ProviderError::RequestFailed("Failed to update mode".into()))?;
-        *current = mode;
+            .await
+            .insert(session_id.to_string(), mode);
         Ok(())
     }
 
@@ -698,10 +710,18 @@ impl Provider for AcpProvider {
         let pending_confirmations = self.pending_confirmations.clone();
         let rejected_tool_calls = self.rejected_tool_calls.clone();
         let permission_mapping = self.permission_mapping.clone();
-        let goose_mode = *self
-            .goose_mode
+        let goose_mode = self
+            .session_goose_modes
             .lock()
-            .map_err(|_| ProviderError::RequestFailed("goose_mode lock poisoned".into()))?;
+            .await
+            .get(session_id)
+            .copied()
+            .unwrap_or_else(|| {
+                self.goose_mode
+                    .lock()
+                    .map(|g| *g)
+                    .unwrap_or(GooseMode::Auto)
+            });
 
         let reject_all_tools = goose_mode == GooseMode::Chat;
 
@@ -812,14 +832,23 @@ impl Drop for AcpProvider {
 struct AcpClientLoop {
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
+    session_goose_modes: Arc<TokioMutex<HashMap<String, GooseMode>>>,
+    acp_to_goose_id: Arc<TokioMutex<HashMap<String, String>>>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
 }
 
 impl AcpClientLoop {
-    fn new(config: AcpProviderConfig, goose_mode: Arc<Mutex<GooseMode>>) -> Self {
+    fn new(
+        config: AcpProviderConfig,
+        goose_mode: Arc<Mutex<GooseMode>>,
+        session_goose_modes: Arc<TokioMutex<HashMap<String, GooseMode>>>,
+        acp_to_goose_id: Arc<TokioMutex<HashMap<String, String>>>,
+    ) -> Self {
         Self {
             config,
             goose_mode,
+            session_goose_modes,
+            acp_to_goose_id,
             prompt_response_tx: Arc::new(Mutex::new(None)),
         }
     }
@@ -865,6 +894,8 @@ impl AcpClientLoop {
         let AcpClientLoop {
             config,
             goose_mode,
+            session_goose_modes,
+            acp_to_goose_id,
             prompt_response_tx,
         } = self;
         let notification_callback = config.notification_callback.clone();
@@ -877,42 +908,42 @@ impl AcpClientLoop {
                     let prompt_response_tx = prompt_response_tx.clone();
                     let reverse_modes = reverse_modes.clone();
                     let goose_mode = goose_mode.clone();
+                    let session_goose_modes = session_goose_modes.clone();
+                    let acp_to_goose_id = acp_to_goose_id.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
                         }
-                        // stream() reads goose_mode at call time, so it must
-                        // reflect any prior set_mode before the next prompt.
-                        match &notification.update {
-                            SessionUpdate::CurrentModeUpdate(update) => {
-                                if let Some(mode) = resolve_mode(
-                                    &reverse_modes,
-                                    update.current_mode_id.0.as_ref(),
-                                    &goose_mode,
-                                ) {
-                                    if let Ok(mut guard) = goose_mode.lock() {
-                                        *guard = mode;
-                                    }
-                                }
-                            }
+                        let resolved_mode = match &notification.update {
+                            SessionUpdate::CurrentModeUpdate(update) => resolve_mode(
+                                &reverse_modes,
+                                update.current_mode_id.0.as_ref(),
+                                &goose_mode,
+                            ),
                             SessionUpdate::ConfigOptionUpdate(update) => {
-                                for opt in &update.config_options {
-                                    if opt.category == Some(SessionConfigOptionCategory::Mode) {
-                                        if let SessionConfigKind::Select(sel) = &opt.kind {
-                                            if let Some(mode) = resolve_mode(
-                                                &reverse_modes,
-                                                sel.current_value.0.as_ref(),
-                                                &goose_mode,
-                                            ) {
-                                                if let Ok(mut guard) = goose_mode.lock() {
-                                                    *guard = mode;
-                                                }
-                                            }
-                                        }
+                                update.config_options.iter().find_map(|opt| {
+                                    if opt.category != Some(SessionConfigOptionCategory::Mode) {
+                                        return None;
                                     }
-                                }
+                                    if let SessionConfigKind::Select(sel) = &opt.kind {
+                                        resolve_mode(
+                                            &reverse_modes,
+                                            sel.current_value.0.as_ref(),
+                                            &goose_mode,
+                                        )
+                                    } else {
+                                        None
+                                    }
+                                })
                             }
-                            _ => {}
+                            _ => None,
+                        };
+                        if let Some(mode) = resolved_mode {
+                            let acp_sid = notification.session_id.0.as_ref();
+                            let goose_sid = acp_to_goose_id.lock().await.get(acp_sid).cloned();
+                            if let Some(gid) = goose_sid {
+                                session_goose_modes.lock().await.insert(gid, mode);
+                            }
                         }
                         if let Some(tx) = prompt_response_tx
                             .lock()
