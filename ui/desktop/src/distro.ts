@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { app } from 'electron';
+
+let app: Electron.App | undefined;
+try {
+  app = require('electron').app;
+} catch {
+  // Not running inside Electron (e.g. tests importing goosed.ts)
+}
 
 interface DistroConfig {
   env?: Record<string, string>;
@@ -11,14 +17,24 @@ let distroDir: string | null = null;
 let distroConfig: DistroConfig = {};
 
 function findDistroDir(): string | null {
-  const externalPath = path.join(app.getPath('userData'), 'distro');
-  if (fs.existsSync(path.join(externalPath, 'distro.json'))) {
-    return externalPath;
+  if (!app) return null;
+
+  try {
+    const externalPath = path.join(app.getPath('userData'), 'distro');
+    if (fs.existsSync(path.join(externalPath, 'distro.json'))) {
+      return externalPath;
+    }
+  } catch {
+    // app.getPath may throw outside a fully initialized Electron context
   }
 
-  const bundlePath = path.join(process.resourcesPath, 'distro');
-  if (fs.existsSync(path.join(bundlePath, 'distro.json'))) {
-    return bundlePath;
+  try {
+    const bundlePath = path.join(process.resourcesPath, 'distro');
+    if (fs.existsSync(path.join(bundlePath, 'distro.json'))) {
+      return bundlePath;
+    }
+  } catch {
+    // process.resourcesPath may be undefined outside Electron
   }
 
   return null;
