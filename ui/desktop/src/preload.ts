@@ -183,7 +183,6 @@ type ElectronAPI = {
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
-  // Distro overlay functions
   getDistroBundledExtensions: () => Promise<unknown[] | null>;
   getDistroAnnouncements: () => Promise<unknown[] | null>;
 };

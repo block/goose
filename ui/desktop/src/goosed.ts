@@ -257,7 +257,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     }
   }
 
-  // Pass distro init-config path to goosed if available
   const initConfigPath = getDistroFilePath('init-config.yaml');
   if (initConfigPath) {
     spawnEnv.GOOSE_INIT_CONFIG = initConfigPath;

@@ -1086,7 +1086,6 @@ fn find_workspace_or_exe_root() -> Option<PathBuf> {
 }
 
 pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {
-    // Check for distro-provided init config first
     if let Ok(init_config_path) = std::env::var("GOOSE_INIT_CONFIG") {
         let path = PathBuf::from(&init_config_path);
         if path.exists() {
@@ -1095,7 +1094,6 @@ pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {
         }
     }
 
-    // Fall through to existing workspace root logic
     let root = find_workspace_or_exe_root().ok_or_else(|| {
         ConfigError::FileError(std::io::Error::new(
             std::io::ErrorKind::NotFound,

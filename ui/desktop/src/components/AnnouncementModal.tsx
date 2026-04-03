@@ -57,7 +57,6 @@ export default function AnnouncementModal() {
       }
 
       try {
-        // Try distro announcements first, then fall back to bundled
         let announcements: AnnouncementMeta[];
         try {
           const distroAnnouncements = await window.electron.getDistroAnnouncements();

@@ -32,7 +32,7 @@ async function loadBundledExtensions(): Promise<BundledExtension[]> {
       return distroExtensions;
     }
   } catch {
-    // Fall through to default
+    // use default
   }
   return defaultBundledExtensionsData as BundledExtension[];
 }
@@ -75,7 +75,6 @@ export async function syncBundledExtensions(
   addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
 ): Promise<void> {
   try {
-    // Load bundled extensions (may be overridden by distro overlay)
     const bundledExtensions = await loadBundledExtensions();
 
     // Process each bundled extension

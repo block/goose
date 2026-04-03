@@ -11,13 +11,11 @@ let distroDir: string | null = null;
 let distroConfig: DistroConfig = {};
 
 function findDistroDir(): string | null {
-  // 1. Check external path (no re-signing needed)
   const externalPath = path.join(app.getPath('userData'), 'distro');
   if (fs.existsSync(path.join(externalPath, 'distro.json'))) {
     return externalPath;
   }
 
-  // 2. Check in-bundle path
   const bundlePath = path.join(process.resourcesPath, 'distro');
   if (fs.existsSync(path.join(bundlePath, 'distro.json'))) {
     return bundlePath;
@@ -32,7 +30,6 @@ if (distroDir) {
   const configPath = path.join(distroDir, 'distro.json');
   distroConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-  // Apply env var overrides immediately
   if (distroConfig.env) {
     for (const [key, value] of Object.entries(distroConfig.env)) {
       process.env[key] = value;
