@@ -2,8 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { applyThemeTokens, buildMcpHostStyles } from '../theme/theme-tokens';
 import type { McpUiHostStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
 
-type ThemePreference = 'light' | 'dark' | 'system';
-type ResolvedTheme = 'light' | 'dark';
+type ThemePreference = 'light' | 'dark' | 'glass' | 'system';
+type ResolvedTheme = 'light' | 'dark' | 'glass';
 
 interface ThemeContextValue {
   userThemePreference: ThemePreference;
@@ -25,11 +25,19 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
   return preference;
 }
 
+function getThemeClass(theme: ResolvedTheme): string {
+  // Glass uses dark-mode text/UI conventions
+  return theme === 'glass' ? 'dark' : theme;
+}
+
 function applyThemeToDocument(theme: ResolvedTheme): void {
-  const toRemove = theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.classList.add(theme);
+  const themeClass = getThemeClass(theme);
+  const toRemove = themeClass === 'dark' ? 'light' : 'dark';
+  document.documentElement.classList.add(themeClass);
   document.documentElement.classList.remove(toRemove);
-  document.documentElement.style.colorScheme = theme;
+  // Toggle glass class for backdrop-filter styles
+  document.documentElement.classList.toggle('glass', theme === 'glass');
+  document.documentElement.style.colorScheme = themeClass;
 }
 
 // Built once — light-dark() values are theme-independent
@@ -55,8 +63,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         let preference: ThemePreference;
         if (useSystemTheme) {
           preference = 'system';
-        } else {
+        } else if (savedTheme === 'glass' || savedTheme === 'dark' || savedTheme === 'light') {
           preference = savedTheme;
+        } else {
+          preference = 'light';
         }
 
         setUserThemePreferenceState(preference);
@@ -117,9 +127,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const themeData = args[0] as { useSystemTheme: boolean; theme: string };
       const newPreference: ThemePreference = themeData.useSystemTheme
         ? 'system'
-        : themeData.theme === 'dark'
-          ? 'dark'
-          : 'light';
+        : themeData.theme === 'glass'
+          ? 'glass'
+          : themeData.theme === 'dark'
+            ? 'dark'
+            : 'light';
 
       setUserThemePreferenceState(newPreference);
       setResolvedTheme(resolveTheme(newPreference));

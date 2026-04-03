@@ -200,11 +200,69 @@ const darkColorTokens: ColorTokens = {
   '--shadow-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2)',
 };
 
+
+// ---------------------------------------------------------------------------
+// Glass theme — semi-transparent colors for native vibrancy blur-through
+// ---------------------------------------------------------------------------
+const glassColorTokens: ColorTokens = {
+  // Backgrounds — semi-transparent to let native vibrancy show through
+  '--color-background-primary': 'rgba(30, 30, 30, 0.55)',
+  '--color-background-secondary': 'rgba(50, 50, 50, 0.45)',
+  '--color-background-tertiary': 'rgba(70, 70, 70, 0.35)',
+  '--color-background-inverse': 'rgba(205, 209, 214, 0.9)',
+  '--color-background-ghost': 'transparent',
+  '--color-background-info': '#7cacff',
+  '--color-background-danger': '#ff6b6b',
+  '--color-background-success': '#a3d795',
+  '--color-background-warning': '#ffd966',
+  '--color-background-disabled': 'rgba(71, 78, 87, 0.4)',
+
+  // Text — fully opaque for readability against translucent backgrounds
+  '--color-text-primary': '#ffffff',
+  '--color-text-secondary': '#a0a0a0',
+  '--color-text-tertiary': '#707a86',
+  '--color-text-inverse': '#000000',
+  '--color-text-ghost': '#a0a0a0',
+  '--color-text-info': '#7cacff',
+  '--color-text-danger': '#ff6b6b',
+  '--color-text-success': '#a3d795',
+  '--color-text-warning': '#ffd966',
+  '--color-text-disabled': '#525b68',
+
+  // Borders — subtle, semi-transparent
+  '--color-border-primary': 'rgba(255, 255, 255, 0.1)',
+  '--color-border-secondary': 'rgba(255, 255, 255, 0.15)',
+  '--color-border-tertiary': 'rgba(255, 255, 255, 0.08)',
+  '--color-border-inverse': '#ffffff',
+  '--color-border-ghost': 'transparent',
+  '--color-border-info': '#7cacff',
+  '--color-border-danger': '#ff6b6b',
+  '--color-border-success': '#a3d795',
+  '--color-border-warning': '#ffd966',
+  '--color-border-disabled': 'rgba(255, 255, 255, 0.05)',
+
+  // Rings — semi-transparent
+  '--color-ring-primary': 'rgba(255, 255, 255, 0.15)',
+  '--color-ring-secondary': 'rgba(255, 255, 255, 0.1)',
+  '--color-ring-inverse': '#000000',
+  '--color-ring-info': '#7cacff',
+  '--color-ring-danger': '#ff6b6b',
+  '--color-ring-success': '#a3d795',
+  '--color-ring-warning': '#ffd966',
+
+  // Shadows — softer, with slight glow
+  '--shadow-hairline': '0 0 0 1px rgba(255, 255, 255, 0.05)',
+  '--shadow-sm': '0 1px 2px 0 rgba(0, 0, 0, 0.15)',
+  '--shadow-md': '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.15)',
+  '--shadow-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.25), 0 4px 6px -4px rgba(0, 0, 0, 0.15)',
+};
+
 // ---------------------------------------------------------------------------
 // Merged token maps — used by applyThemeTokens() and buildMcpHostStyles()
 // ---------------------------------------------------------------------------
 export const lightTokens: ThemeTokens = { ...baseTokens, ...lightColorTokens };
 export const darkTokens: ThemeTokens = { ...baseTokens, ...darkColorTokens };
+export const glassTokens: ThemeTokens = { ...baseTokens, ...glassColorTokens };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -266,21 +324,23 @@ export function buildMcpHostStyles(): McpUiHostStyles {
 /**
  * Resolve the current theme from localStorage / system preference.
  */
-export function getResolvedTheme(): 'light' | 'dark' {
+export function getResolvedTheme(): 'light' | 'dark' | 'glass' {
   const useSystem = localStorage.getItem('use_system_theme') !== 'false';
   if (useSystem) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+  const saved = localStorage.getItem('theme');
+  if (saved === 'glass') return 'glass';
+  return saved === 'dark' ? 'dark' : 'light';
 }
 
 /**
  * Apply theme tokens to the document root as CSS custom properties.
  * When called without an argument, resolves the theme from localStorage.
  */
-export function applyThemeTokens(theme?: 'light' | 'dark'): void {
+export function applyThemeTokens(theme?: 'light' | 'dark' | 'glass'): void {
   const resolved = theme ?? getResolvedTheme();
-  const tokens = resolved === 'dark' ? darkTokens : lightTokens;
+  const tokens = resolved === 'glass' ? glassTokens : resolved === 'dark' ? darkTokens : lightTokens;
   const root = document.documentElement;
   for (const [key, value] of Object.entries(tokens)) {
     root.style.setProperty(key, value);

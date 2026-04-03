@@ -927,3 +927,58 @@ p > code.bg-inline-code {
 .mcp-app-container.mcp-enter-inline {
   animation: mcp-enter-inline 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLASS THEME — backdrop-filter for native vibrancy blur-through
+   Applied when html.glass is set by ThemeContext.
+   On macOS, Electron's vibrancy: 'window' provides the native blur layer;
+   these styles make the CSS backgrounds transparent enough to reveal it.
+   On other platforms, backdrop-filter provides a CSS-only approximation.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.glass body {
+  background-color: transparent;
+}
+
+html.glass #root {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.glass {
+  /* Legacy aliases */
+  --text-inverse: var(--color-black);
+  --text-danger: var(--color-red-100);
+
+  /* Search highlighting */
+  --highlight-color: rgba(255, 213, 0, 0.4);
+  --highlight-current: rgba(252, 213, 3, 0.5);
+
+  /* Sidebar aliases — semi-transparent for glass effect */
+  --sidebar: var(--color-background-secondary);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-background-inverse);
+  --sidebar-primary-foreground: var(--color-text-inverse);
+  --sidebar-accent: var(--color-background-secondary);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-primary);
+  --sidebar-ring: var(--color-border-primary);
+
+  /* Custom shadow — softer for glass */
+  --shadow-default:
+    0px 12px 32px 0px rgba(0, 0, 0, 0.15), 0px 8px 16px 0px rgba(0, 0, 0, 0.1),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08), 0px 0px 1px 0px rgba(255, 255, 255, 0.1);
+}
+
+/* Glass scrollbar — more transparent */
+.glass * {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.glass ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.glass ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
