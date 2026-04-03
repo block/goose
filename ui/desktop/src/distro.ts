@@ -1,12 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-
-let app: Electron.App | undefined;
-try {
-  app = require('electron').app;
-} catch {
-  // Not running inside Electron (e.g. tests importing goosed.ts)
-}
+import { app } from 'electron';
 
 interface DistroConfig {
   env?: Record<string, string>;
