@@ -26,7 +26,9 @@ async function loadBundledExtensions(): Promise<BundledExtension[]> {
   if (bundledExtensionsOverride !== null) return bundledExtensionsOverride;
 
   try {
-    const distroExtensions = await window.electron.getDistroBundledExtensions();
+    const distroExtensions = (await window.electron.getDistroBundledExtensions()) as
+      | BundledExtension[]
+      | null;
     if (distroExtensions) {
       bundledExtensionsOverride = distroExtensions;
       return distroExtensions;
