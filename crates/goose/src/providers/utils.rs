@@ -533,8 +533,13 @@ fn repair_truncated_json(s: &str) -> Option<String> {
         return None;
     }
 
-    // Close an unclosed string
+    // Close an unclosed string. If the last character was a backslash
+    // (escape_next is still true), the appended quote would be escaped
+    // and produce invalid JSON. Drop the dangling backslash first.
     if in_string {
+        if escape_next {
+            repaired.pop(); // remove trailing backslash
+        }
         repaired.push('"');
     }
 
@@ -874,6 +879,17 @@ mod tests {
         // Truncated in array
         let repaired = repair_truncated_json(r#"{"items": [1, 2"#).unwrap();
         assert_eq!(repaired, r#"{"items": [1, 2]}"#);
+
+        // Dangling escape: truncation right after a backslash
+        // In JSON, backslash-n is a valid escape. Simulate truncation mid-escape.
+        let repaired = repair_truncated_json(r#"{"key": "value\n more\"#).unwrap();
+        // The trailing backslash is dropped, then the string is closed
+        let parsed: serde_json::Value = serde_json::from_str(&repaired).unwrap();
+        assert!(parsed["key"].as_str().unwrap().contains("value"));
+
+        // Dangling escape via safely_parse_json (full pipeline handles \U etc.)
+        let result = safely_parse_json(r#"{"path": "C:\\Users\\"#);
+        assert!(result.is_ok());
 
         // Already valid JSON returns None (nothing to repair)
         assert!(repair_truncated_json(r#"{"key": "value"}"#).is_none());
