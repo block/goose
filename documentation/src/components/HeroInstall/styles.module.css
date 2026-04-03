@@ -1,0 +1,220 @@
+.heroInstall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.primaryButton,
+.secondaryButton {
+  flex: 1;
+  padding: 0.875rem 1.75rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.primaryButton {
+  background: var(--ifm-color-primary);
+  color: white;
+}
+
+.primaryButton:hover {
+  background: var(--ifm-color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.secondaryButton {
+  background: transparent;
+  color: var(--ifm-color-primary);
+  border: 2px solid var(--ifm-color-primary);
+}
+
+.secondaryButton:hover {
+  background: var(--ifm-color-primary-lightest);
+}
+
+.buttonActive {
+  box-shadow: 0 0 0 3px var(--ifm-color-primary-lightest);
+}
+
+/* Expanded Content */
+.expandedContent {
+  width: 100%;
+  background: var(--ifm-card-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Download Options */
+.downloadOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.downloadLink {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+}
+
+.downloadLink:hover {
+  background: var(--ifm-color-primary-lightest);
+  border-color: var(--ifm-color-primary);
+  transform: translateX(4px);
+  text-decoration: none;
+}
+
+.downloadIcon {
+  color: var(--ifm-color-primary);
+  flex-shrink: 0;
+}
+
+.downloadInfo {
+  flex: 1;
+}
+
+.downloadName {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--ifm-font-color-base);
+  margin-bottom: 0.25rem;
+}
+
+.downloadDesc {
+  font-size: 0.85rem;
+  color: var(--ifm-color-emphasis-600);
+}
+
+/* Code Block */
+.codeBlock {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--ifm-code-background);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.codeBlock code {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--ifm-code-color);
+  font-family: var(--ifm-font-family-monospace);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.copyButton {
+  padding: 0.5rem;
+  background: var(--ifm-color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.copyButton:hover {
+  background: var(--ifm-color-primary-dark);
+}
+
+/* Install Link */
+.installLink {
+  font-size: 0.9rem;
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+  display: inline-block;
+  font-weight: 500;
+}
+
+.installLink:hover {
+  text-decoration: underline;
+}
+
+/* Stats */
+.stats {
+  font-size: 0.875rem;
+  color: var(--ifm-color-emphasis-500);
+  margin: 0;
+  text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .buttonGroup {
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+
+  .codeBlock {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .codeBlock code {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .copyButton {
+    width: 100%;
+    padding: 0.5rem 1rem;
+  }
+
+  .downloadLink {
+    gap: 0.75rem;
+  }
+}

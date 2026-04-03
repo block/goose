@@ -1,98 +1,87 @@
-/**
-* CSS files with the .module.css suffix will be treated as CSS modules
-* and scoped locally.
-*/
-
 .header {
   padding: 4rem 2rem;
-}
-
-
-.wrapper {
-  max-width: 1200px;
-  margin: 0 auto;
+  min-height: 600px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 3rem;
-  justify-content: center;
   align-items: center;
-  min-height: 400px;
+  justify-content: center;
 }
 
-.textColumn {
-  flex: 1 1 300px;
-  max-width: 500px;
-  text-align: center;
+.heroContainer {
+  max-width: 1400px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.heroContent {
+  max-width: 800px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: -40px;
+  text-align: center;
+  gap: 1rem;
+}
+
+.logoWrapper {
+  width: 200px;
+  margin-bottom: 1rem;
 }
 
 .logo {
-  display: flex;
-  align-items: center;
+  width: 100%;
+  height: auto;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--ifm-font-color-base);
+  max-width: 700px;
 }
 
 .subtitle {
-  font-size: 1.25rem;
-  margin-bottom: 1.5rem;
-  max-width: 30ch;
+  font-size: 1.1rem;
+  color: var(--ifm-color-emphasis-700);
+  margin: 0 0 1.5rem;
 }
 
-.videoColumn {
-  flex: 1 1 400px;
-  aspect-ratio: 16 / 9;
-  width: 100%;
-  max-width: 640px;
-}
-
-.aspect-ratio{
-  aspect-ratio: 16 / 9;
-  width: 100%;
-}
-
- 
-
-@media screen and (max-width: 996px) {
-  .heroBanner {
-    padding: 2rem;
-  }
-}
-
-@media screen and (max-width: 768px) {
+@media (max-width: 996px) {
   .header {
-    padding: 1rem 1rem;
+    padding: 3rem 2rem;
+    min-height: 500px;
   }
 
-  .wrapper {
-    flex-direction: column;
-    text-align: center;
-    gap: 1rem;
-    padding: 1rem 1rem;
-  }
-
-  .textColumn {
-    text-align: center;
-    max-width: 100%;
-    flex: 1 1 400px;
-    margin-top: 0;
+  .title {
+    font-size: 2rem;
   }
 
   .subtitle {
-    font-size: 1.1rem;
-    line-height: 1.5;
-    margin: 0 auto 1.5rem;
-  }
-
-  .ctaButton {
     font-size: 1rem;
-    width: auto;
   }
 
-  .videoColumn {
-    flex: 1 1 180px;
-    aspect-ratio: 16 / 9;
-    width: 100%;
+  .logoWrapper {
+    width: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 2rem 1rem;
+    min-height: auto;
+  }
+
+  .title {
+    font-size: 1.75rem;
+  }
+
+  .subtitle {
+    font-size: 0.95rem;
+  }
+
+  .logoWrapper {
+    width: 160px;
   }
 }
