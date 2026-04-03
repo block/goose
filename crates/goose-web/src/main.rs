@@ -98,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors)
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
+    let addr = SocketAddr::from(([127, 0, 0, 1], cli.port));
     tracing::info!("Goose Web UI listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
