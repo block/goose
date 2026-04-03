@@ -57,9 +57,19 @@ export default function AnnouncementModal() {
       }
 
       try {
-        // Load the announcements index
-        const indexModule = await import('../../announcements/index.json');
-        const announcements = indexModule.default as AnnouncementMeta[];
+        let announcements: AnnouncementMeta[];
+        try {
+          const distroAnnouncements = await window.electron.getDistroAnnouncements();
+          if (distroAnnouncements) {
+            announcements = distroAnnouncements as AnnouncementMeta[];
+          } else {
+            const indexModule = await import('../../announcements/index.json');
+            announcements = indexModule.default as AnnouncementMeta[];
+          }
+        } catch {
+          const indexModule = await import('../../announcements/index.json');
+          announcements = indexModule.default as AnnouncementMeta[];
+        }
 
         // Get current app version
         const currentVersion = packageJson.version;
@@ -82,7 +92,10 @@ export default function AnnouncementModal() {
         if (unseenAnnouncementsList.length > 0) {
           // Load content for all unseen announcements
           const contentPromises = unseenAnnouncementsList.map(async (announcement) => {
-            const content = getAnnouncementContent(announcement.file);
+            // Distro announcements may have content inlined; fall back to bundled loader
+            const content =
+              (announcement as AnnouncementMeta & { content?: string }).content ||
+              getAnnouncementContent(announcement.file);
             return { announcement, content };
           });
 

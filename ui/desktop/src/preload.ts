@@ -183,6 +183,8 @@ type ElectronAPI = {
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
+  getDistroBundledExtensions: () => Promise<unknown[] | null>;
+  getDistroAnnouncements: () => Promise<unknown[] | null>;
 };
 
 type AppConfigAPI = {
@@ -336,6 +338,8 @@ const electronAPI: ElectronAPI = {
   refreshApp: (app: GooseApp) => ipcRenderer.invoke('refresh-app', app),
   closeApp: (appName: string) => ipcRenderer.invoke('close-app', appName),
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
+  getDistroBundledExtensions: () => ipcRenderer.invoke('get-distro-bundled-extensions'),
+  getDistroAnnouncements: () => ipcRenderer.invoke('get-distro-announcements'),
 };
 
 const appConfigAPI: AppConfigAPI = {
