@@ -1,0 +1,13 @@
+{
+  "name": "eurouter",
+  "engine": "openai",
+  "display_name": "EUrouter",
+  "description": "AI Gateway to European AI - EU-hosted, GDPR-friendly models via OpenAI-compatible API",
+  "api_key_env": "EUROUTER_API_KEY",
+  "base_url": "https://api.eurouter.ai/api/v1",
+  "models": [],
+  "dynamic_models": true,
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true
+}
