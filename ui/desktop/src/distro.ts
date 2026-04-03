@@ -27,13 +27,19 @@ function findDistroDir(): string | null {
 // Executes on import — must be imported before anything that reads process.env
 distroDir = findDistroDir();
 if (distroDir) {
-  const configPath = path.join(distroDir, 'distro.json');
-  distroConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  try {
+    const configPath = path.join(distroDir, 'distro.json');
+    distroConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-  if (distroConfig.env) {
-    for (const [key, value] of Object.entries(distroConfig.env)) {
-      process.env[key] = value;
+    if (distroConfig.env) {
+      for (const [key, value] of Object.entries(distroConfig.env)) {
+        process.env[key] = value;
+      }
     }
+  } catch (err) {
+    console.error('Failed to load distro.json, falling back to stock defaults:', err);
+    distroDir = null;
+    distroConfig = {};
   }
 }
 
