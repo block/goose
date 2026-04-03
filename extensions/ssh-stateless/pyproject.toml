@@ -1,0 +1,13 @@
+[project]
+name = "ssh-stateless"
+version = "0.1.0"
+description = "Stateless SSH MCP extension for goose"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.14.4",
+    "paramiko>=3.5.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

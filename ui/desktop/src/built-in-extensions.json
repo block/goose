@@ -42,5 +42,16 @@
     "enabled": false,
     "type": "builtin",
     "env_keys": []
+  },
+  {
+    "id": "ssh-stateless",
+    "name": "Stateless SSH Executor",
+    "description": "Runs one-shot SSH commands. No persistent sessions or stored creds.",
+    "enabled": true,
+    "type": "stdio",
+    "cmd": "ssh-stateless-mcp",
+    "args": [],
+    "env_keys": [],
+    "timeout": 300
   }
 ]
