@@ -378,6 +378,18 @@ You can change your LLM provider and/or model or update your API key at any time
         goose session
         ```
     </TabItem>
+    <TabItem value="web" label="goose Web UI">
+        The web UI serves the same React interface in a regular browser. Build from source:
+
+        ```sh
+        cd ui/desktop && pnpm install && pnpm run build:web && cd ../..
+        cargo run -p goose-web -- --port 3000
+        ```
+
+        Then open `http://localhost:3000`. The `goose-web` binary spawns `goosed` automatically and proxies API calls, so the browser never needs direct access to the backend.
+
+        See the [environment variables guide](/docs/guides/environment-variables#web-ui-goose-web) for configuration options.
+    </TabItem>
 </Tabs>
 
 ## Shared Configuration Settings

@@ -162,7 +162,7 @@ cargo clippy --all-targets -- -D warnings # run the linter
 
 ### Node
 
-To run the app:
+To run the Electron desktop app:
 
 ```
 just run-ui
@@ -172,6 +172,34 @@ This command builds a release build of Rust (equivalent to `cargo build -r`) and
 The app opens a window and displays first-time setup. After completing setup, goose is ready for use.
 
 Make GUI changes in `ui/desktop`.
+
+### Web UI
+
+The same React UI can run in a regular browser via `goose-web`, a standalone binary
+that embeds the static files and reverse-proxies API calls to `goosed`.
+
+1. Build the web-specific static files:
+
+```bash
+cd ui/desktop
+pnpm install
+pnpm run build:web   # outputs to dist-web/
+```
+
+2. Build and run the web server:
+
+```bash
+cargo run -p goose-web -- --port 3000
+```
+
+This spawns `goosed` as a child process automatically and opens the UI at
+`http://localhost:3000`. You can also connect to an existing goosed instance:
+
+```bash
+cargo run -p goose-web -- --goosed-url https://127.0.0.1:PORT --secret-key YOUR_KEY
+```
+
+See `cargo run -p goose-web -- --help` for all options.
 
 ### Regenerating the OpenAPI schema
 

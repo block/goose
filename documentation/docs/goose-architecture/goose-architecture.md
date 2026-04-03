@@ -10,7 +10,7 @@ goose, an open source AI Agent, builds upon the basic interaction framework of L
 ## goose Components
 goose operates using three main components, the **interface**, the **agent**, and the **connected [extensions](/docs/getting-started/using-extensions)**.
 
-* **Interface**: This is the desktop application or CLI that the user is using to run goose. It collects input from the user and displays outputs to the user
+* **Interface**: This is the desktop application, CLI, or web UI that the user is using to run goose. It collects input from the user and displays outputs to the user. The web UI (`goose-web`) serves the same React frontend in a regular browser via a reverse proxy to `goosed`.
 
 * **Agent**: The agent runs goose's core logic, managing the interactive loop. 
 
