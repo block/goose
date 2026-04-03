@@ -1,0 +1,193 @@
+version: 1.0.0
+title: "Research & Visual Content Flock (Sats4AI + Goosetown)"
+description: Orchestrate a parallel flock of Goose agents — researchers gather context, workers generate images and remove backgrounds simultaneously — all paid with Bitcoin Lightning via Sats4AI.
+
+author:
+  contact: cnghockey
+
+activities:
+  - "Spawn parallel researcher agents to gather context and visual references"
+  - "Synthesize research findings from the Town Wall (gtwall)"
+  - "Batch all Lightning payments upfront — pay once for the full flock"
+  - "Dispatch parallel worker agents: image generation + background removal"
+  - "Aggregate results and deliver final transparent-background assets"
+  - "message: **Requires Goosetown** — clone https://github.com/block/goosetown and run this recipe from inside it with `./goose`. Workers coordinate via gtwall. Sats4AI MCP must be configured at https://sats4ai.com/api/mcp"
+
+instructions: |
+  You are a Goosetown orchestrator coordinating a parallel flock of agents to produce
+  visual assets using Sats4AI — a Bitcoin-powered AI tools marketplace.
+
+  ## What is Goosetown
+  Goosetown is a multi-agent coordination framework (https://github.com/block/goosetown).
+  You spawn delegate agents (researchers, workers) that run in parallel and communicate
+  via the Town Wall (gtwall). Run this recipe from inside a goosetown installation
+  using `./goose` so telepathy and gtwall are active.
+
+  ## Sats4AI payment flow
+  Every Sats4AI tool requires a Lightning micropayment before it executes:
+  1. Call create_payment({ toolName, ...params }) → { paymentId, invoice, amountSats }
+  2. Pay the invoice with any Lightning wallet
+  3. Call check_payment_status({ paymentId }) → wait for { paid: true }
+  4. Call the tool with { paymentId, ...params } → result
+
+  **Batch payments:** Create ALL payments upfront, show all invoices at once, let the
+  user pay them in a single pass, then confirm all, then execute all tools in parallel.
+  This is the correct pattern for parallel flocks — never create payments one at a time.
+
+  ## Sats4AI MCP setup
+  If not already configured, add the server to Goose:
+  - Type: streamable-http
+  - URL: https://sats4ai.com/api/mcp
+  - No auth headers needed
+  Docs: https://sats4ai.com/mcp
+
+  ## Goosetown orchestration rules
+  - Spawn researchers first — they post findings to gtwall before workers start
+  - Read gtwall before dispatching workers: ./gtwall <your-session-id>
+  - Workers claim their output files on gtwall to avoid collisions
+  - Post ⏰ 5-min and 🚨 60-sec wrap-up signals to gtwall when time is short
+  - Synthesize all gtwall findings before creating payment batch
+  - If a tool fails after payment, call request_refund({ paymentId }) immediately
+
+parameters:
+  - key: topic
+    input_type: string
+    requirement: required
+    description: "Topic or subject for the visual content (e.g. 'electric vehicles in a city', 'artisan coffee')"
+
+  - key: image_count
+    input_type: select
+    requirement: optional
+    description: "Number of image variations for workers to generate in parallel"
+    default: "2"
+    options:
+      - "1"
+      - "2"
+      - "4"
+
+  - key: style
+    input_type: select
+    requirement: optional
+    description: "Visual style for generated images"
+    default: "photorealistic"
+    options:
+      - "photorealistic"
+      - "illustration"
+      - "watercolor"
+      - "3D render"
+      - "minimalist"
+
+  - key: research_depth
+    input_type: select
+    requirement: optional
+    description: "How many researcher agents to spawn in parallel"
+    default: "2"
+    options:
+      - "1"
+      - "2"
+      - "3"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For shell commands (gtwall, spawning delegates) and file operations
+
+  - type: builtin
+    name: memory
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    description: For storing research findings and payment IDs across flock stages
+
+prompt: |
+  Orchestrate a Goosetown visual content flock for: **{{ topic }}**
+
+  Target: {{ image_count | default('2') }} {{ style | default('photorealistic') }} images with backgrounds removed.
+
+  ---
+
+  ## Phase 1 — Research Flock
+
+  Spawn {{ research_depth | default('2') }} parallel researcher delegates. Each researcher has a distinct angle:
+
+  {% if research_depth == '1' or research_depth is not defined %}
+  - **researcher-visual**: Find visual references, color palettes, composition styles, and lighting approaches for {{ topic }}. Post top 5 findings to gtwall.
+  {% elif research_depth == '2' %}
+  - **researcher-visual**: Find visual references, color palettes, composition styles, and lighting approaches for {{ topic }}. Post top 5 findings to gtwall.
+  - **researcher-context**: Research the context, mood, and audience associations for {{ topic }}. What emotions and settings resonate? Post top 5 findings to gtwall.
+  {% else %}
+  - **researcher-visual**: Find visual references, color palettes, composition styles, and lighting approaches for {{ topic }}. Post top 5 findings to gtwall.
+  - **researcher-context**: Research the context, mood, and audience associations for {{ topic }}. What emotions and settings resonate? Post top 5 findings to gtwall.
+  - **researcher-trends**: Find current visual trends for {{ topic }} in design and photography. What styles are performing well? Post top 5 findings to gtwall.
+  {% endif %}
+
+  After spawning researchers, poll gtwall every 30 seconds until all researchers have posted findings.
+
+  ---
+
+  ## Phase 2 — Synthesize
+
+  Read gtwall: `./gtwall <your-session-id>`
+
+  Synthesize researcher findings into {{ image_count | default('2') }} distinct image prompts for {{ topic }}.
+  Each prompt should be specific, evocative, and reflect the research. Store prompts in memory.
+
+  ---
+
+  ## Phase 3 — Payment Batch
+
+  Before spawning workers, create ALL payments upfront:
+
+  1. Call `list_models` to confirm current pricing for `generate_image` and `remove_background`.
+
+  2. Create {{ image_count | default('2') }} payments for `generate_image` simultaneously.
+  {% if image_count == '4' %}
+  3. Create 4 payments for `remove_background` simultaneously (we'll use them after generation).
+  {% elif image_count == '1' %}
+  3. Create 1 payment for `remove_background`.
+  {% else %}
+  3. Create 2 payments for `remove_background` simultaneously.
+  {% endif %}
+
+  4. Show ALL invoices to the user in a single list with amounts. Wait for confirmation that all are paid.
+
+  5. After confirmation, call `check_payment_status` for every paymentId. Store all confirmed paymentIds in memory.
+
+  ---
+
+  ## Phase 4 — Worker Flock
+
+  Spawn {{ image_count | default('2') }} parallel worker delegates. Each worker claims its output slot on gtwall before starting.
+
+  Assign each worker:
+  - Its image prompt (from memory)
+  - Its generate_image paymentId
+  - Its remove_background paymentId
+  - Instructions: generate the image, then immediately remove the background using the assigned paymentIds
+
+  Worker instructions to pass at spawn:
+  ```
+  You are image-worker-N in a Goosetown flock.
+  1. Post to gtwall: "Claiming image-N"
+  2. Call generate_image({ paymentId: <gen_paymentId>, prompt: "<your prompt>", model: "grok-imagine" })
+  3. When result arrives, call remove_background({ paymentId: <bg_paymentId>, imageUrl: <result_url> })
+  4. Post final transparent-background URL to gtwall: "image-N complete: <url>"
+  5. Post to gtwall: "image-N done"
+  ```
+
+  ---
+
+  ## Phase 5 — Aggregate & Deliver
+
+  Poll gtwall until all workers post "done". Then read gtwall for all final URLs.
+
+  Deliver:
+  - All transparent-background image URLs (labelled by variation)
+  - The synthesized prompts used for each
+  - Total sats spent
+  - Brief description of what each variation captures based on the research
+
+  If any worker reports a failed tool call, call `request_refund` for that paymentId and note it in the summary.
