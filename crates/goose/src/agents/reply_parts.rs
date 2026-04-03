@@ -125,16 +125,21 @@ async fn toolshim_postprocess(
     response: Message,
     toolshim_tools: &[Tool],
 ) -> Result<Message, ProviderError> {
-    // Try llama.cpp interpreter first (no external server needed)
+    // Try llama.cpp interpreter first (no external server needed).
+    // Fall back to Ollama if creation OR augmentation fails.
     #[cfg(feature = "local-inference")]
     {
         match LlamaCppInterpreter::new() {
             Ok(interpreter) => {
-                return augment_message_with_tool_calls(&interpreter, response, toolshim_tools)
-                    .await
-                    .map_err(|e| {
-                        ProviderError::ExecutionError(format!("Failed to augment message: {}", e))
-                    });
+                match augment_message_with_tool_calls(&interpreter, response.clone(), toolshim_tools).await {
+                    Ok(msg) => return Ok(msg),
+                    Err(e) => {
+                        tracing::debug!(
+                            "LlamaCpp augmentation failed ({}), falling back to Ollama",
+                            e
+                        );
+                    }
+                }
             }
             Err(e) => {
                 tracing::debug!(
@@ -335,7 +340,8 @@ impl Agent {
         };
 
         Ok(Box::pin(try_stream! {
-            let mut last_message: Option<Message> = None;
+            let mut accumulated_message: Option<Message> = None;
+            let mut stream_done = false;
             while let Some(result) = stream.next().await {
                 let (message, usage) = result?;
 
@@ -344,24 +350,43 @@ impl Agent {
                     crate::providers::base::set_current_model(&usage.model);
                 }
 
-                // Track the latest message for toolshim post-processing
-                if message.is_some() {
-                    last_message = message.clone();
+                // Accumulate message content across streaming chunks.
+                // Each chunk may contain only a delta; we keep the latest
+                // complete message snapshot for toolshim post-processing.
+                if let Some(msg) = &message {
+                    accumulated_message = Some(msg.clone());
                 }
 
-                // Apply toolshim only on the final chunk (when usage is present, indicating
-                // stream completion). This ensures the interpreter sees the complete message
-                // text rather than partial streaming fragments, which small models like
-                // qwen3:1.7b cannot interpret.
-                if config.toolshim && usage.is_some() {
-                    if let Some(msg) = last_message.take() {
+                // Detect stream completion: usage present or message without
+                // further chunks. Only apply toolshim on the final message so
+                // the interpreter sees complete text, not fragments.
+                let is_final = usage.is_some();
+
+                if config.toolshim && is_final {
+                    if let Some(msg) = accumulated_message.take() {
                         let augmented = toolshim_postprocess(msg, &toolshim_tools).await?;
                         yield (Some(augmented), usage);
+                        stream_done = true;
                         continue;
                     }
                 }
 
-                yield (message, usage);
+                if !config.toolshim {
+                    yield (message, usage);
+                } else {
+                    // In toolshim mode, yield intermediate chunks as-is for
+                    // streaming display, but defer tool interpretation to the end.
+                    yield (message, usage);
+                }
+            }
+
+            // If the stream ended without usage (some OpenAI-compatible providers
+            // omit it), run toolshim on whatever we accumulated.
+            if config.toolshim && !stream_done {
+                if let Some(msg) = accumulated_message.take() {
+                    let augmented = toolshim_postprocess(msg, &toolshim_tools).await?;
+                    yield (Some(augmented), None);
+                }
             }
         }))
     }
