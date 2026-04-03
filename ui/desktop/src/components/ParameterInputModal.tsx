@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { platform } from '../platform';
 import { Parameter } from '../recipe';
 import { Button } from './ui/button';
 import { getInitialWorkingDir } from '../utils/workingDir';
@@ -128,8 +129,8 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     if (option === 'new-chat') {
       try {
         const workingDir = getInitialWorkingDir();
-        window.electron.createChatWindow({ dir: workingDir });
-        window.electron.hideWindow();
+        platform.createChatWindow({ dir: workingDir });
+        platform.hideWindow();
       } catch (error) {
         console.error('Error creating new window:', error);
         onClose();

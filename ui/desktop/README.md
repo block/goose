@@ -90,6 +90,41 @@ The built application will be available in:
 Use the existing Windows build process as documented.
 
 
+# Web UI (browser mode)
+
+The same React UI can run in a regular browser without Electron, served by
+the `goose-web` binary. A platform abstraction layer (`src/platform/`) switches
+between Electron IPC and browser-native APIs at runtime.
+
+## Building
+
+```bash
+pnpm run build:web   # outputs static files to dist-web/
+```
+
+## Running
+
+```bash
+# From the project root:
+cargo run -p goose-web -- --port 3000
+```
+
+This embeds the `dist-web/` files, spawns `goosed` as a child process, and
+serves the UI at `http://localhost:3000`. The reverse proxy injects the secret
+key server-side so the browser never needs it.
+
+See `cargo run -p goose-web -- --help` for all options (custom goosed URL,
+working directory, etc.).
+
+## Platform abstraction
+
+- `src/platform/types.ts` — `PlatformAPI` interface
+- `src/platform/electron.ts` — delegates to `window.electron.*`
+- `src/platform/web.ts` — browser implementations (localStorage settings, Web Notifications, etc.)
+- `src/platform/index.ts` — runtime detection, exports `platform`
+
+All renderer code imports `platform` instead of accessing `window.electron` directly.
+
 # Running with goosed server from source
 
 Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env`.

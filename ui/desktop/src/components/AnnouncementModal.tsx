@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../platform';
 import { BaseModal } from './ui/BaseModal';
 import MarkdownContent from './MarkdownContent';
 import { ANNOUNCEMENTS_ENABLED } from '../updates';
@@ -72,7 +73,7 @@ export default function AnnouncementModal() {
         });
 
         // Get list of seen announcement IDs
-        const seenAnnouncementIds = await window.electron.getSetting('seenAnnouncementIds');
+        const seenAnnouncementIds = await platform.getSetting('seenAnnouncementIds');
 
         // Find ALL unseen announcements (in order)
         const unseenAnnouncementsList = applicableAnnouncements.filter(
@@ -112,7 +113,7 @@ export default function AnnouncementModal() {
     if (unseenAnnouncements.length === 0) return;
 
     // Get existing seen announcement IDs
-    const seenAnnouncementIds = await window.electron.getSetting('seenAnnouncementIds');
+    const seenAnnouncementIds = await platform.getSetting('seenAnnouncementIds');
 
     // Add all unseen announcement IDs to the seen list
     const newSeenIds = [...seenAnnouncementIds];
@@ -122,7 +123,7 @@ export default function AnnouncementModal() {
       }
     });
 
-    await window.electron.setSetting('seenAnnouncementIds', newSeenIds);
+    await platform.setSetting('seenAnnouncementIds', newSeenIds);
     setShowAnnouncementModal(false);
   };
 

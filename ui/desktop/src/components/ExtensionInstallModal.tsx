@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { IpcRendererEvent } from 'electron';
+import { platform } from '../platform';
 import {
   Dialog,
   DialogContent,
@@ -165,14 +165,14 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
     _remoteUrl: string | null
   ): Promise<ModalType> => {
     try {
-      const config = window.electron.getConfig();
+      const config = platform.getConfig();
       const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
 
       if (ALLOWLIST_WARNING_MODE) {
         return 'untrusted';
       }
 
-      const allowedCommands = await window.electron.getAllowedExtensions();
+      const allowedCommands = await platform.getAllowedExtensions();
 
       if (!allowedCommands || allowedCommands.length === 0) {
         return 'trusted';
@@ -277,7 +277,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
 
       setPendingLink(modalType === 'blocked' ? null : link);
 
-      window.electron.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
+      platform.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
     } catch (error) {
       console.error('Error processing extension request:', error);
       setModalState((prev) => ({
@@ -332,15 +332,15 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
 
   useEffect(() => {
 
-    const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleAddExtension = async (_event: unknown, ...args: unknown[]) => {
       const link = args[0] as string;
       await handleExtensionRequest(link);
     };
 
-    window.electron.on('add-extension', handleAddExtension);
+    platform.on('add-extension', handleAddExtension);
 
     return () => {
-      window.electron.off('add-extension', handleAddExtension);
+      platform.off('add-extension', handleAddExtension);
     };
   }, [handleExtensionRequest]);
 

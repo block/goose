@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { platform } from '../../platform';
 import { useForm } from '@tanstack/react-form';
 import { Recipe, generateDeepLink, Parameter } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
@@ -458,7 +459,7 @@ export default function CreateEditRecipeModal({
 
       onClose(true);
 
-      window.electron.createChatWindow({ recipeId: savedId });
+      platform.createChatWindow({ recipeId: savedId });
 
       toastSuccess({
         title: recipe.title,

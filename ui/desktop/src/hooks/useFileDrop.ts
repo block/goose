@@ -1,5 +1,6 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { compressImageDataUrl, errorMessage } from '../utils/conversionUtils';
+import { platform } from '../platform';
 
 export interface DroppedFile {
   id: string;
@@ -45,7 +46,7 @@ export const useFileDrop = () => {
         let droppedFile: DroppedFile;
 
         try {
-          const path = window.electron.getPathForFile(file);
+          const path = platform.getPathForFile(file);
           const isImage = file.type.startsWith('image/');
 
           droppedFile = {

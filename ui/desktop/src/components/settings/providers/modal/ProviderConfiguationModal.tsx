@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react';
+import { platform } from '../../../../platform';
 import {
   Dialog,
   DialogContent,
@@ -433,7 +434,7 @@ export default function ProviderConfigurationModal({
                               href="#"
                               onClick={(e) => {
                                 e.preventDefault();
-                                window.electron.openExternal(provider.metadata.model_doc_link);
+                                platform.openExternal(provider.metadata.model_doc_link);
                               }}
                               className="underline hover:text-text-primary"
                             >

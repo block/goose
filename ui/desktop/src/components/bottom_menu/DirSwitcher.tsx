@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { platform } from '../../platform';
 import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import { updateWorkingDir } from '../../api';
@@ -39,7 +40,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
 
     let result;
     try {
-      result = await window.electron.directoryChooser();
+      result = await platform.directoryChooser();
     } finally {
       setIsDirectoryChooserOpen(false);
     }
@@ -50,7 +51,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
 
     const newDir = result.filePaths[0];
 
-    window.electron.addRecentDir(newDir);
+    platform.addRecentDir(newDir);
 
     if (sessionId) {
       onWorkingDirChange?.(newDir);
@@ -82,7 +83,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
     if (isCmdOrCtrlClick) {
       event.preventDefault();
       event.stopPropagation();
-      await window.electron.openDirectoryInExplorer(workingDir);
+      await platform.openDirectoryInExplorer(workingDir);
     } else {
       await handleDirectoryChange();
     }

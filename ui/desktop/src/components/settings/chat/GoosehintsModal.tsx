@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../../../platform';
 import { Button } from '../../ui/button';
 import { Check } from '../../icons';
 import {
@@ -148,7 +149,7 @@ const FileInfo = ({ filePath, found }: { filePath: string; found: boolean }) => 
   );
 };
 
-const getGoosehintsFile = async (filePath: string) => await window.electron.readFile(filePath);
+const getGoosehintsFile = async (filePath: string) => await platform.readFile(filePath);
 
 interface GoosehintsModalProps {
   directory: string;
@@ -183,7 +184,7 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      await window.electron.writeFile(goosehintsFilePath, goosehintsFile);
+      await platform.writeFile(goosehintsFilePath, goosehintsFile);
       setSaveSuccess(true);
       setGoosehintsFileFound(true);
       setTimeout(() => setSaveSuccess(false), 3000);

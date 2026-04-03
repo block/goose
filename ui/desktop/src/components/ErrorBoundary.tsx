@@ -1,4 +1,5 @@
 import React from 'react';
+import { platform } from '../platform';
 import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { errorMessage, formatErrorForLogging } from '../utils/conversionUtils';
@@ -31,7 +32,7 @@ function getCurrentPage(): string {
 // Capture unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
   const reasonStr = formatErrorForLogging(event.reason);
-  window.electron.logInfo(`[UNHANDLED REJECTION] ${reasonStr}`);
+  platform.logInfo(`[UNHANDLED REJECTION] ${reasonStr}`);
   trackErrorWithContext(event.reason, {
     component: 'global',
     page: getCurrentPage(),
@@ -42,7 +43,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 // Capture global errors
 window.addEventListener('error', (event) => {
-  window.electron.logInfo(
+  platform.logInfo(
     `[GLOBAL ERROR] ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`
   );
   trackErrorWithContext(event.error || event.message, {
@@ -60,7 +61,7 @@ export function ErrorUI({ error }: { error: string }) {
       name: 'app_reloaded',
       properties: { reason: 'error_recovery' },
     });
-    window.electron.reloadApp();
+    platform.reloadApp();
   };
 
   const version = window?.appConfig?.get('GOOSE_VERSION') as string | undefined;
@@ -105,7 +106,7 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Send error to main process
-    window.electron.logInfo(`[ERROR] ${error.toString()}\n${errorInfo.componentStack}`);
+    platform.logInfo(`[ERROR] ${error.toString()}\n${errorInfo.componentStack}`);
 
     const componentMatch = errorInfo.componentStack?.match(/^\s*at\s+(\w+)/);
     const componentName = componentMatch ? componentMatch[1] : undefined;

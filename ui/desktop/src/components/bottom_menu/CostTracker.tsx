@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../../platform';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { fetchCanonicalModelInfo } from '../../utils/canonical';
@@ -58,7 +59,7 @@ export function CostTracker({
   // Check if pricing is enabled
   useEffect(() => {
     const loadPricingSetting = async () => {
-      const enabled = await window.electron.getSetting('showPricing');
+      const enabled = await platform.getSetting('showPricing');
       setShowPricing(enabled);
     };
 

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { platform } from '../platform';
 import { defineMessages, useIntl } from '../i18n';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
@@ -19,9 +20,9 @@ export default function LauncherView() {
     if (query.trim()) {
       const initialMessage = query;
       setQuery('');
-      window.electron.createChatWindow({ query: initialMessage, dir: getInitialWorkingDir() });
+      platform.createChatWindow({ query: initialMessage, dir: getInitialWorkingDir() });
       setTimeout(() => {
-        window.electron.closeWindow();
+        platform.closeWindow();
       }, 200);
     }
   };
@@ -29,7 +30,7 @@ export default function LauncherView() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Close on Escape
     if (e.key === 'Escape') {
-      window.electron.closeWindow();
+      platform.closeWindow();
     }
   };
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { platform } from '../../platform';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
 import { Download, Play, Upload } from 'lucide-react';
@@ -175,7 +176,7 @@ export default function AppsView() {
 
   const handleLaunchApp = async (app: GooseApp) => {
     try {
-      await window.electron.launchApp(app);
+      await platform.launchApp(app);
     } catch (err) {
       console.error('Failed to launch app:', err);
       // App launch errors shouldn't hide the apps list, just log it

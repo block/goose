@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { platform } from '../../platform';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import {
   FileText,
@@ -407,7 +408,7 @@ export default function RecipesView() {
 
   const handleStartRecipeChatInNewWindow = async (recipeId: string) => {
     try {
-      window.electron.createChatWindow({
+      platform.createChatWindow({
         dir: getInitialWorkingDir(),
         viewType: 'pair',
         recipeId,
@@ -420,7 +421,7 @@ export default function RecipesView() {
   };
 
   const handleDeleteRecipe = async (recipeManifest: RecipeManifest) => {
-    const result = await window.electron.showMessageBox({
+    const result = await platform.showMessageBox({
       type: 'warning',
       buttons: [intl.formatMessage(i18n.cancel), 'Delete'],
       defaultId: 0,
@@ -526,7 +527,7 @@ export default function RecipesView() {
 
       const filename = `${sanitizedTitle}.yaml`;
 
-      const result = await window.electron.showSaveDialog({
+      const result = await platform.showSaveDialog({
         title: intl.formatMessage(i18n.exportRecipeDialogTitle),
         defaultPath: filename,
         filters: [
@@ -536,7 +537,7 @@ export default function RecipesView() {
       });
 
       if (!result.canceled && result.filePath) {
-        await window.electron.writeFile(result.filePath, response.data.yaml);
+        await platform.writeFile(result.filePath, response.data.yaml);
         trackRecipeExportedToFile(true);
         toastSuccess({
           title: intl.formatMessage(i18n.recipeExportedTitle),

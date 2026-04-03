@@ -1,4 +1,5 @@
 import { AppEvents } from '../constants/events';
+import { platform } from '../platform';
 import {
   UIResourceRenderer,
   UIActionResultIntent,
@@ -142,8 +143,8 @@ export default function MCPUIResourceRenderer({
   useEffect(() => {
     const fetchProxyUrl = async () => {
       try {
-        const gooseApiHost = await window.electron.getGoosedHostPort();
-        const secretKey = await window.electron.getSecretKey();
+        const gooseApiHost = await platform.getGoosedHostPort();
+        const secretKey = await platform.getSecretKey();
         if (gooseApiHost && secretKey) {
           setProxyUrl(`${gooseApiHost}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
         } else {
@@ -222,7 +223,7 @@ export default function MCPUIResourceRenderer({
         // Safe protocols open directly, unknown protocols require user confirmation
         // Dangerous protocols are blocked by main.ts in the open-external handler
         if (isProtocolSafe(url)) {
-          await window.electron.openExternal(url);
+          await platform.openExternal(url);
           return {
             status: 'success' as const,
             message: `Opened ${url} in default application`,
@@ -242,7 +243,7 @@ export default function MCPUIResourceRenderer({
           };
         }
 
-        const result = await window.electron.showMessageBox({
+        const result = await platform.showMessageBox({
           type: 'question',
           buttons: [
             intl.formatMessage(i18n.cancelButton),
@@ -265,7 +266,7 @@ export default function MCPUIResourceRenderer({
           };
         }
 
-        await window.electron.openExternal(url);
+        await platform.openExternal(url);
         return {
           status: 'success' as const,
           message: `Opened ${url} in default application`,

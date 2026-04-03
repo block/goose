@@ -1,4 +1,5 @@
 import { listApps, GooseApp } from '../api';
+import { platform } from '../platform';
 
 interface PlatformEventData {
   extension: string;
@@ -33,7 +34,7 @@ async function handleAppsEvent(eventType: string, eventData: PlatformEventData):
   switch (eventType) {
     case 'app_created':
       if (targetApp) {
-        await window.electron.launchApp(targetApp).catch((err) => {
+        await platform.launchApp(targetApp).catch((err) => {
           console.error('Failed to launch newly created app:', err);
         });
       }
@@ -41,7 +42,7 @@ async function handleAppsEvent(eventType: string, eventData: PlatformEventData):
 
     case 'app_updated':
       if (targetApp) {
-        await window.electron.refreshApp(targetApp).catch((err) => {
+        await platform.refreshApp(targetApp).catch((err) => {
           console.error('Failed to refresh updated app:', err);
         });
       }
@@ -49,7 +50,7 @@ async function handleAppsEvent(eventType: string, eventData: PlatformEventData):
 
     case 'app_deleted':
       if (app_name) {
-        await window.electron.closeApp(app_name).catch((err) => {
+        await platform.closeApp(app_name).catch((err) => {
           console.error('Failed to close deleted app:', err);
         });
       }

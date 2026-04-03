@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { platform } from '../../../platform';
 import { type MessageDescriptor } from 'react-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -310,7 +311,7 @@ export const getShortcutLabel = (
 };
 
 export const formatShortcut = (shortcut: string): string => {
-  const isMac = window.electron.platform === 'darwin';
+  const isMac = platform.platform === 'darwin';
   return shortcut
     .replace('CommandOrControl', isMac ? '⌘' : 'Ctrl')
     .replace('Command', '⌘')
@@ -340,7 +341,7 @@ export default function KeyboardShortcutsSection() {
   const [showRestartNotice, setShowRestartNotice] = useState(false);
 
   const loadShortcuts = useCallback(async () => {
-    const keyboardShortcuts = await window.electron.getSetting('keyboardShortcuts');
+    const keyboardShortcuts = await platform.getSetting('keyboardShortcuts');
     setShortcuts({ ...defaultKeyboardShortcuts, ...keyboardShortcuts });
   }, []);
 
@@ -360,7 +361,7 @@ export default function KeyboardShortcutsSection() {
       )?.[0];
 
       if (conflictingKey) {
-        const confirmed = await window.electron.showMessageBox({
+        const confirmed = await platform.showMessageBox({
           type: 'warning',
           title: intl.formatMessage(i18n.shortcutConflictTitle),
           message: intl.formatMessage(i18n.shortcutConflictToggleMessage, {
@@ -390,7 +391,7 @@ export default function KeyboardShortcutsSection() {
       newShortcuts[key] = null;
     }
 
-    await window.electron.setSetting('keyboardShortcuts', newShortcuts);
+    await platform.setSetting('keyboardShortcuts', newShortcuts);
     setShortcuts(newShortcuts);
     trackSettingToggled(`shortcut_${key}`, enabled);
     if (needsRestart.has(key)) {
@@ -410,7 +411,7 @@ export default function KeyboardShortcutsSection() {
     )?.[0];
 
     if (conflictingKey) {
-      const confirmed = await window.electron.showMessageBox({
+      const confirmed = await platform.showMessageBox({
         type: 'warning',
         title: intl.formatMessage(i18n.shortcutConflictTitle),
         message: intl.formatMessage(i18n.shortcutConflictToggleMessage, {
@@ -441,7 +442,7 @@ export default function KeyboardShortcutsSection() {
 
     newShortcuts[editingKey] = shortcut || null;
 
-    await window.electron.setSetting('keyboardShortcuts', newShortcuts);
+    await platform.setSetting('keyboardShortcuts', newShortcuts);
     setShortcuts(newShortcuts);
     setEditingKey(null);
     if (needsRestart.has(editingKey)) {
@@ -454,7 +455,7 @@ export default function KeyboardShortcutsSection() {
   };
 
   const handleResetToDefaults = async () => {
-    const confirmed = await window.electron.showMessageBox({
+    const confirmed = await platform.showMessageBox({
       type: 'question',
       title: intl.formatMessage(i18n.resetShortcutsTitle),
       message: intl.formatMessage(i18n.resetShortcutsMessage),
@@ -467,7 +468,7 @@ export default function KeyboardShortcutsSection() {
     });
 
     if (confirmed.response === 0) {
-      await window.electron.setSetting('keyboardShortcuts', { ...defaultKeyboardShortcuts });
+      await platform.setSetting('keyboardShortcuts', { ...defaultKeyboardShortcuts });
       setShortcuts({ ...defaultKeyboardShortcuts });
       setShowRestartNotice(true);
       trackSettingToggled('shortcuts_reset', true);

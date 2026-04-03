@@ -4573,7 +4573,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "1.29.0"
+version = "1.30.0"
 dependencies = [
  "agent-client-protocol-schema",
  "sacp",
@@ -4649,6 +4649,25 @@ dependencies = [
  "rmcp",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "goose-web"
+version = "1.30.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "hex",
+ "include_dir",
+ "mime_guess",
+ "rand 0.8.5",
+ "reqwest 0.13.2",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "which 8.0.2",
 ]
 
 [[package]]

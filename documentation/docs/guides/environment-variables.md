@@ -604,6 +604,32 @@ export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
 export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
 ```
 
+## Web UI (`goose-web`)
+
+These variables configure the `goose-web` binary, which serves the browser-based UI and proxies API calls to `goosed`.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_WEB_PORT` | Port for the web UI HTTP server | Integer | `3000` |
+| `GOOSE_WEB_GOOSED_URL` | Connect to an existing `goosed` instance instead of spawning one | URL (e.g., `https://127.0.0.1:3001`) | None (spawns automatically) |
+| `GOOSE_SERVER__SECRET_KEY` | Secret key for `goosed` authentication (generated automatically when spawning) | String | Auto-generated |
+| `GOOSED_BINARY` | Path to the `goosed` binary | File path | Auto-detected from build dir or PATH |
+| `GOOSE_WORKING_DIR` | Working directory for goose sessions | Directory path | Current directory |
+
+**Examples**
+
+```bash
+# Run web UI on a custom port
+export GOOSE_WEB_PORT=8080
+
+# Connect to an existing goosed instance
+export GOOSE_WEB_GOOSED_URL="https://127.0.0.1:3001"
+export GOOSE_SERVER__SECRET_KEY="your-secret-key"
+
+# Specify goosed binary location
+export GOOSED_BINARY="/usr/local/bin/goosed"
+```
+
 ## Development & Testing
 
 These variables are primarily used for development, testing, and debugging goose itself.

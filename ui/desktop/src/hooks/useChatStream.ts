@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
+import { platform } from '../platform';
 
 import {
   getSession,
@@ -401,7 +402,7 @@ export function useChatStream({
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTimeRef.current;
       if (!error && timeSinceLastInteraction > 60000) {
-        window.electron.showNotification({
+        platform.showNotification({
           title: 'goose finished the task.',
           body: 'Click here to expand.',
         });
@@ -998,7 +999,7 @@ export function useChatStream({
             },
           });
           window.dispatchEvent(event);
-          window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
+          platform.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
         } else {
           const { getSession } = await import('../api');
           const sessionResponse = await getSession({

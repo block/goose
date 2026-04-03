@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { IpcRendererEvent } from 'electron';
+import { platform } from './platform';
 import {
   HashRouter,
   Routes,
@@ -395,7 +395,7 @@ export function AppInner() {
 
   useEffect(() => {
     try {
-      window.electron.reactReady();
+      platform.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
       setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
@@ -403,9 +403,9 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
-    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleOpenSharedSession = async (_event: unknown, ...args: unknown[]) => {
       const link = args[0] as string;
-      window.electron.logInfo(`Opening shared session from deep link ${link}`);
+      platform.logInfo(`Opening shared session from deep link ${link}`);
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
@@ -431,19 +431,19 @@ export function AppInner() {
         setIsLoadingSharedSession(false);
       }
     };
-    window.electron.on('open-shared-session', handleOpenSharedSession);
+    platform.on('open-shared-session', handleOpenSharedSession);
     return () => {
-      window.electron.off('open-shared-session', handleOpenSharedSession);
+      platform.off('open-shared-session', handleOpenSharedSession);
     };
   }, [navigate]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const isMac = window.electron.platform === 'darwin';
+      const isMac = platform.platform === 'darwin';
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          window.electron.createChatWindow({ dir: getInitialWorkingDir() });
+          platform.createChatWindow({ dir: getInitialWorkingDir() });
         } catch (error) {
           console.error('Error creating new window:', error);
         }
@@ -463,8 +463,8 @@ export function AppInner() {
         toastId: 'mesh-not-running',
       });
     };
-    window.electron.on('mesh-not-running', handler);
-    return () => { window.electron.off('mesh-not-running', handler); };
+    platform.on('mesh-not-running', handler);
+    return () => { platform.off('mesh-not-running', handler); };
   }, []);
 
   // Prevent default drag and drop behavior globally to avoid opening files in new windows
@@ -513,19 +513,19 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
-    const handleFatalError = (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleFatalError = (_event: unknown, ...args: unknown[]) => {
       const errorMessage = args[0] as string;
       console.error('Encountered a fatal error:', errorMessage);
       setFatalError(errorMessage);
     };
-    window.electron.on('fatal-error', handleFatalError);
+    platform.on('fatal-error', handleFatalError);
     return () => {
-      window.electron.off('fatal-error', handleFatalError);
+      platform.off('fatal-error', handleFatalError);
     };
   }, []);
 
   useEffect(() => {
-    const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleSetView = (_event: unknown, ...args: unknown[]) => {
       const newView = args[0] as View;
       const section = args[1] as string | undefined;
 
@@ -536,29 +536,29 @@ export function AppInner() {
       }
     };
 
-    window.electron.on('set-view', handleSetView);
-    return () => window.electron.off('set-view', handleSetView);
+    platform.on('set-view', handleSetView);
+    return () => platform.off('set-view', handleSetView);
   }, [navigate]);
 
   useEffect(() => {
-    const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
+    const handleNewChat = (_event: unknown, ..._args: unknown[]) => {
       window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
     };
 
-    window.electron.on('new-chat', handleNewChat);
-    return () => window.electron.off('new-chat', handleNewChat);
+    platform.on('new-chat', handleNewChat);
+    return () => platform.off('new-chat', handleNewChat);
   }, []);
 
   useEffect(() => {
-    const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
+    const handleFocusInput = (_event: unknown, ..._args: unknown[]) => {
       const inputField = document.querySelector('input[type="text"], textarea') as HTMLInputElement;
       if (inputField) {
         inputField.focus();
       }
     };
-    window.electron.on('focus-input', handleFocusInput);
+    platform.on('focus-input', handleFocusInput);
     return () => {
-      window.electron.off('focus-input', handleFocusInput);
+      platform.off('focus-input', handleFocusInput);
     };
   }, []);
 
@@ -566,7 +566,7 @@ export function AppInner() {
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
-    const handleSetInitialMessage = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleSetInitialMessage = async (_event: unknown, ...args: unknown[]) => {
       const initialMessage = args[0] as string;
 
       if (initialMessage && !isProcessingRef.current) {
@@ -581,9 +581,9 @@ export function AppInner() {
         }, 1000);
       }
     };
-    window.electron.on('set-initial-message', handleSetInitialMessage);
+    platform.on('set-initial-message', handleSetInitialMessage);
     return () => {
-      window.electron.off('set-initial-message', handleSetInitialMessage);
+      platform.off('set-initial-message', handleSetInitialMessage);
     };
   }, [navigate]);
 

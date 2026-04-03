@@ -1,5 +1,6 @@
 import { AppEvents } from '../constants/events';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import { platform } from '../platform';
 import { Bug, ChefHat, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
@@ -1152,7 +1153,7 @@ export default function ChatInput({
       reader.readAsDataURL(file);
     } else {
       trackFileAttached('file');
-      const path = window.electron.getPathForFile(file);
+      const path = platform.getPathForFile(file);
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
       setDisplayValue(newValue);
       setValue(newValue);

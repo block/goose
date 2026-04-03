@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { platform } from '../platform';
 import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
@@ -157,7 +158,7 @@ const MentionPopover = forwardRef<
         if (depth > 5) return [];
 
         try {
-          const items = await window.electron.listFiles(dirPath);
+          const items = await platform.listFiles(dirPath);
           const results: DisplayItem[] = [];
 
           // Common directories to prioritize or skip
@@ -345,7 +346,7 @@ const MentionPopover = forwardRef<
 
             // Otherwise, try to determine if it's a directory
             try {
-              await window.electron.listFiles(fullPath);
+              await platform.listFiles(fullPath);
 
               results.push({
                 name: item,
@@ -380,9 +381,9 @@ const MentionPopover = forwardRef<
         let startPath = currentWorkingDir;
 
         if (!startPath) {
-          if (window.electron.platform === 'win32') {
+          if (platform.platform === 'win32') {
             startPath = 'C:\\Users';
-          } else if (window.electron.platform === 'linux') {
+          } else if (platform.platform === 'linux') {
             startPath = '/home';
           } else {
             startPath = '/Users'; // Default to macOS

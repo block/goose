@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { platform } from '../../platform';
 import { configureProviderOauth, ProviderDetails } from '../../api';
 import { useConfig } from '../ConfigContext';
 import DefaultProviderSetupForm, {
@@ -51,7 +52,7 @@ function parseLinks(text: string) {
         href="#"
         onClick={(e) => {
           e.preventDefault();
-          window.electron.openExternal(part);
+          platform.openExternal(part);
         }}
         className="underline hover:text-text-default cursor-pointer"
       >

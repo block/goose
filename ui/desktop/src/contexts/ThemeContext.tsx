@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { applyThemeTokens, buildMcpHostStyles } from '../theme/theme-tokens';
 import type { McpUiHostStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
+import { platform } from '../platform';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -48,8 +49,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     async function loadThemeFromSettings() {
       try {
         const [useSystemTheme, savedTheme] = await Promise.all([
-          window.electron.getSetting('useSystemTheme'),
-          window.electron.getSetting('theme'),
+          platform.getSetting('useSystemTheme'),
+          platform.getSetting('theme'),
         ]);
 
         let preference: ThemePreference;
@@ -78,17 +79,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // Save to settings
     try {
       if (preference === 'system') {
-        await window.electron.setSetting('useSystemTheme', true);
+        await platform.setSetting('useSystemTheme', true);
       } else {
-        await window.electron.setSetting('useSystemTheme', false);
-        await window.electron.setSetting('theme', preference);
+        await platform.setSetting('useSystemTheme', false);
+        await platform.setSetting('theme', preference);
       }
     } catch (error) {
       console.warn('[ThemeContext] Failed to save theme settings:', error);
     }
 
     // Broadcast to other windows via Electron
-    window.electron?.broadcastThemeChange({
+    platform?.broadcastThemeChange({
       mode: resolved,
       useSystemTheme: preference === 'system',
       theme: resolved,
@@ -111,7 +112,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   // Listen for theme changes from other windows (via Electron IPC)
   useEffect(() => {
-    if (!window.electron) return;
+    if (!platform) return;
 
     const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
       const themeData = args[0] as { useSystemTheme: boolean; theme: string };
@@ -126,16 +127,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
       // Save to settings (don't await, fire and forget)
       if (newPreference === 'system') {
-        window.electron.setSetting('useSystemTheme', true);
+        platform.setSetting('useSystemTheme', true);
       } else {
-        window.electron.setSetting('useSystemTheme', false);
-        window.electron.setSetting('theme', newPreference);
+        platform.setSetting('useSystemTheme', false);
+        platform.setSetting('theme', newPreference);
       }
     };
 
-    window.electron.on('theme-changed', handleThemeChanged);
+    platform.on('theme-changed', handleThemeChanged);
     return () => {
-      window.electron.off('theme-changed', handleThemeChanged);
+      platform.off('theme-changed', handleThemeChanged);
     };
   }, []);
 

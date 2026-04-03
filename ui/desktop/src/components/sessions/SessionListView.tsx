@@ -1,5 +1,6 @@
 import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
+import { platform } from '../../platform';
 import { defineMessages, useIntl } from '../../i18n';
 import {
   MessageSquareText,
@@ -573,7 +574,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     const handleOpenInNewWindow = useCallback((session: Session, e: React.MouseEvent) => {
       e.stopPropagation();
-      window.electron.createChatWindow({
+      platform.createChatWindow({
         dir: session.working_dir,
         resumeSessionId: session.id,
         viewType: 'pair',

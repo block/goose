@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { platform } from '../../../platform';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Input } from '../../ui/input';
@@ -113,7 +114,7 @@ interface PairingCodeResponse {
 }
 
 async function gatewayFetch(endpoint: string, options: globalThis.RequestInit = {}) {
-  const secretKey = await window.electron.getSecretKey();
+  const secretKey = await platform.getSecretKey();
   const url = getApiUrl(endpoint);
   return fetch(url, {
     ...options,

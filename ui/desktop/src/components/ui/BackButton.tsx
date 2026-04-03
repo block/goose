@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { platform } from '../../platform';
 import { Button } from './button';
 import type { VariantProps } from 'class-variance-authority';
 import { buttonVariants } from './button';
@@ -46,7 +47,7 @@ const BackButton: React.FC<BackButtonProps> = ({
       handleExit();
     };
 
-    if (window.electron) {
+    if (platform) {
       const mouseBackHandler = (e: MouseEvent) => {
         // MouseButton 3 or 4 is typically back button.
         if (e.button === 3 || e.button === 4) {
@@ -55,14 +56,14 @@ const BackButton: React.FC<BackButtonProps> = ({
         }
       };
 
-      window.electron.on('mouse-back-button-clicked', handleMouseBack);
+      platform.on('mouse-back-button-clicked', handleMouseBack);
 
       // Also listen for mouseup events directly, for better OS compatibility.
       document.addEventListener('mouseup', mouseBackHandler);
 
       return () => {
-        if (window.electron) {
-          window.electron.off('mouse-back-button-clicked', handleMouseBack);
+        if (platform) {
+          platform.off('mouse-back-button-clicked', handleMouseBack);
         }
         document.removeEventListener('mouseup', mouseBackHandler);
       };

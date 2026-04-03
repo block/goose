@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../../../platform';
 import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -64,7 +65,7 @@ export default function ExternalBackendSection() {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const externalGoosed = await window.electron.getSetting('externalGoosed');
+      const externalGoosed = await platform.getSetting('externalGoosed');
       setConfig(externalGoosed);
     };
     loadSettings();
@@ -92,7 +93,7 @@ export default function ExternalBackendSection() {
   const saveConfig = async (newConfig: ExternalGoosedConfig): Promise<void> => {
     setIsSaving(true);
     try {
-      await window.electron.setSetting('externalGoosed', newConfig);
+      await platform.setSetting('externalGoosed', newConfig);
     } catch (error) {
       console.error('Failed to save external backend settings:', error);
     } finally {
