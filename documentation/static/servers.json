@@ -36,7 +36,7 @@
   {
     "id": "apify",
     "name": "Apify",
-    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store \u26a1",
     "command": "npx -y @apify/actors-mcp-server",
     "link": "https://github.com/apify/apify-mcp-server",
     "installation_notes": "Install using npx. Requires an Apify API token.",
@@ -807,5 +807,32 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
+  },
+  {
+    "id": "zcash-mcp",
+    "name": "Zcash",
+    "description": "Shielded transactions, memo decoding, and on-chain attestation for AI agents via ZAP1",
+    "command": "npx -y @frontiercompute/zcash-mcp",
+    "link": "https://github.com/Frontier-Compute/zcash-mcp",
+    "installation_notes": "Optional: set ZEBRA_RPC_URL for direct node access, ZAP1_API_URL and ZAP1_API_KEY for attestation features.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "ZEBRA_RPC_URL",
+        "description": "Zcash Zebra node RPC endpoint",
+        "required": false
+      },
+      {
+        "name": "ZAP1_API_URL",
+        "description": "ZAP1 attestation API",
+        "required": false
+      },
+      {
+        "name": "ZAP1_API_KEY",
+        "description": "ZAP1 API key for write operations",
+        "required": false
+      }
+    ]
   }
 ]
