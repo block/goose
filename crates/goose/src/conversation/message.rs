@@ -10,8 +10,49 @@ use rmcp::model::{
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
+use utoipa::openapi::RefOr;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+fn json_object_schema() -> RefOr<utoipa::openapi::Schema> {
+    RefOr::Ref(utoipa::openapi::Ref::from_schema_name("JsonObject"))
+}
+
+struct TextContentSchemaRef;
+impl utoipa::PartialSchema for TextContentSchemaRef {
+    fn schema() -> RefOr<utoipa::openapi::Schema> {
+        RefOr::Ref(utoipa::openapi::Ref::from_schema_name("TextContent"))
+    }
+}
+impl utoipa::ToSchema for TextContentSchemaRef {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("TextContent")
+    }
+}
+
+struct RoleSchemaRef;
+impl utoipa::PartialSchema for RoleSchemaRef {
+    fn schema() -> RefOr<utoipa::openapi::Schema> {
+        RefOr::Ref(utoipa::openapi::Ref::from_schema_name("Role"))
+    }
+}
+impl utoipa::ToSchema for RoleSchemaRef {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("Role")
+    }
+}
+
+struct ImageContentSchemaRef;
+impl utoipa::PartialSchema for ImageContentSchemaRef {
+    fn schema() -> RefOr<utoipa::openapi::Schema> {
+        RefOr::Ref(utoipa::openapi::Ref::from_schema_name("ImageContent"))
+    }
+}
+impl utoipa::ToSchema for ImageContentSchemaRef {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("ImageContent")
+    }
+}
 
 #[derive(ToSchema)]
 pub enum ToolCallResult<T> {
@@ -126,6 +167,7 @@ pub struct ToolResponse {
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
+    #[schema(schema_with = json_object_schema)]
     pub arguments: JsonObject,
     pub prompt: Option<String>,
 }
@@ -137,6 +179,7 @@ pub enum ActionRequiredData {
     ToolConfirmation {
         id: String,
         tool_name: String,
+        #[schema(schema_with = json_object_schema)]
         arguments: JsonObject,
         prompt: Option<String>,
     },
@@ -198,7 +241,9 @@ pub struct SystemNotificationContent {
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
+    #[schema(value_type = TextContentSchemaRef)]
     Text(TextContent),
+    #[schema(value_type = ImageContentSchemaRef)]
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
@@ -660,6 +705,7 @@ impl MessageMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: Option<String>,
+    #[schema(value_type = RoleSchemaRef)]
     pub role: Role,
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
