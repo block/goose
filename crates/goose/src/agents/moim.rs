@@ -36,6 +36,9 @@ pub async fn inject_moim(
             !issue.contains("Merged consecutive user messages")
                 && !issue.contains("Merged consecutive assistant messages")
                 && !issue.contains("Added placeholder to empty tool result")
+                && !issue.contains("Merged text content")
+                && !issue.contains("Removed trailing assistant message")
+                && !issue.contains("Trimmed trailing whitespace from assistant message")
         });
 
         if has_unexpected_issues {

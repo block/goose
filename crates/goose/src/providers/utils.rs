@@ -469,9 +469,81 @@ pub fn safely_parse_json(s: &str) -> Result<serde_json::Value, serde_json::Error
         Err(_) => {
             // If that fails, try with control character escaping
             let escaped = json_escape_control_chars_in_string(s);
-            serde_json::from_str(&escaped)
+            match serde_json::from_str(&escaped) {
+                Ok(value) => Ok(value),
+                Err(original_err) => {
+                    // As a last resort, attempt to repair truncated JSON
+                    match repair_truncated_json(&escaped) {
+                        Some(repaired) => serde_json::from_str(&repaired),
+                        None => Err(original_err),
+                    }
+                }
+            }
         }
     }
+}
+
+/// Attempt to repair JSON that was truncated mid-stream (e.g., unclosed strings,
+/// missing closing braces/brackets). This handles the common case where an LLM's
+/// streaming output is cut off before completing a tool call's JSON arguments.
+///
+/// Returns `None` if the input doesn't look like truncated JSON (e.g., it's
+/// fundamentally malformed rather than just incomplete).
+fn repair_truncated_json(s: &str) -> Option<String> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() || !trimmed.starts_with('{') {
+        return None;
+    }
+
+    let mut repaired = String::from(trimmed);
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut stack: Vec<char> = Vec::new();
+
+    for c in trimmed.chars() {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+        match c {
+            '\\' if in_string => {
+                escape_next = true;
+            }
+            '"' => {
+                in_string = !in_string;
+            }
+            '{' if !in_string => stack.push('}'),
+            '[' if !in_string => stack.push(']'),
+            '}' if !in_string => {
+                if stack.last() == Some(&'}') {
+                    stack.pop();
+                }
+            }
+            ']' if !in_string => {
+                if stack.last() == Some(&']') {
+                    stack.pop();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Nothing to repair — JSON structure is already balanced
+    if stack.is_empty() && !in_string {
+        return None;
+    }
+
+    // Close an unclosed string
+    if in_string {
+        repaired.push('"');
+    }
+
+    // Close all unclosed braces/brackets in reverse order
+    for closer in stack.iter().rev() {
+        repaired.push(*closer);
+    }
+
+    Some(repaired)
 }
 
 /// Helper to escape control characters in a string that is supposed to be a JSON document.
@@ -765,9 +837,14 @@ mod tests {
         let result = safely_parse_json(good_json).unwrap();
         assert_eq!(result["test"], "value");
 
-        // Test completely invalid JSON that can't be fixed
+        // Test truncated JSON — repair should close the unclosed string and brace
         let broken_json = r#"{"key": "unclosed_string"#;
-        assert!(safely_parse_json(broken_json).is_err());
+        let result = safely_parse_json(broken_json).unwrap();
+        assert_eq!(result["key"], "unclosed_string");
+
+        // Test fundamentally malformed JSON that can't be repaired
+        let garbage = "not json at all";
+        assert!(safely_parse_json(garbage).is_err());
 
         // Test empty object
         let empty_json = "{}";
@@ -778,6 +855,41 @@ mod tests {
         let escaped_json = r#"{"key": "value with\nnewline"}"#;
         let result = safely_parse_json(escaped_json).unwrap();
         assert_eq!(result["key"], "value with\nnewline");
+    }
+
+    #[test]
+    fn test_repair_truncated_json() {
+        // Unclosed string at end of object
+        let repaired = repair_truncated_json(r#"{"key": "unclosed"#).unwrap();
+        assert_eq!(repaired, r#"{"key": "unclosed"}"#);
+
+        // Missing closing brace
+        let repaired = repair_truncated_json(r#"{"key": "value""#).unwrap();
+        assert_eq!(repaired, r#"{"key": "value"}"#);
+
+        // Nested objects with missing closers
+        let repaired = repair_truncated_json(r#"{"a": {"b": "c""#).unwrap();
+        assert_eq!(repaired, r#"{"a": {"b": "c"}}"#);
+
+        // Truncated in array
+        let repaired = repair_truncated_json(r#"{"items": [1, 2"#).unwrap();
+        assert_eq!(repaired, r#"{"items": [1, 2]}"#);
+
+        // Already valid JSON returns None (nothing to repair)
+        assert!(repair_truncated_json(r#"{"key": "value"}"#).is_none());
+
+        // Empty string returns None
+        assert!(repair_truncated_json("").is_none());
+
+        // Non-object returns None
+        assert!(repair_truncated_json("not json").is_none());
+
+        // Large truncated write payload (simulates the column 27409 case)
+        let long_content = "x".repeat(30000);
+        let truncated = format!(r#"{{"path": "/tmp/file", "content": "{}"#, long_content);
+        let repaired = repair_truncated_json(&truncated).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&repaired).unwrap();
+        assert_eq!(parsed["path"], "/tmp/file");
     }
 
     #[test]

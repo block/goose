@@ -149,7 +149,10 @@ struct AgentMetadata {
     model: Option<String>,
 }
 
-fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, String)> {
+fn parse_frontmatter<T: for<'de> Deserialize<'de>>(
+    content: &str,
+    source_path: Option<&Path>,
+) -> Option<(T, String)> {
     let parts: Vec<&str> = content.split("---").collect();
     if parts.len() < 3 {
         return None;
@@ -159,7 +162,11 @@ fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, 
     let metadata: T = match serde_yaml::from_str(yaml_content) {
         Ok(m) => m,
         Err(e) => {
-            warn!("Failed to parse frontmatter: {}", e);
+            if let Some(path) = source_path {
+                tracing::debug!("Failed to parse frontmatter in {}: {}", path.display(), e);
+            } else {
+                tracing::debug!("Failed to parse frontmatter: {}", e);
+            }
             return None;
         }
     };
@@ -169,7 +176,7 @@ fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, 
 }
 
 fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
-    let (metadata, body): (SkillMetadata, String) = parse_frontmatter(content)?;
+    let (metadata, body): (SkillMetadata, String) = parse_frontmatter(content, Some(&path))?;
 
     if metadata.name.contains('/') {
         warn!(
@@ -190,7 +197,7 @@ fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
 }
 
 fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
-    let (metadata, body): (AgentMetadata, String) = parse_frontmatter(content)?;
+    let (metadata, body): (AgentMetadata, String) = parse_frontmatter(content, Some(&path))?;
 
     let description = metadata.description.unwrap_or_else(|| {
         let model_info = metadata
@@ -1589,7 +1596,7 @@ impl SummonClient {
         };
 
         let (metadata, _): (AgentMetadata, String) =
-            parse_frontmatter(&agent_content).ok_or("Failed to parse agent frontmatter")?;
+            parse_frontmatter(&agent_content, None).ok_or("Failed to parse agent frontmatter")?;
 
         let model = metadata.model;
 
