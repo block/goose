@@ -84,7 +84,11 @@ impl TetrateProvider {
             .unwrap_or(500) as u16;
         let status = reqwest::StatusCode::from_u16(code)
             .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
-        Self::enrich_credits_error(map_http_error_to_provider_error(status, Some(payload)))
+        Self::enrich_credits_error(map_http_error_to_provider_error(
+            status,
+            Some(payload),
+            None,
+        ))
     }
 }
 
