@@ -1,0 +1,118 @@
+version: 1.0.0
+title: "AI Visual Asset Creator (Sats4AI)"
+description: Generate images and remove backgrounds in parallel using Bitcoin Lightning micropayments — no API keys required.
+
+author:
+  contact: cnghockey
+
+activities:
+  - "Check tool pricing with list_models"
+  - "Generate multiple image variations in parallel"
+  - "Remove backgrounds from all generated images in parallel"
+  - "Return production-ready transparent-background assets"
+  - "message: **Tip:** Each tool call costs a few sats. You need a Lightning wallet with sats loaded before starting."
+
+instructions: |
+  You are a visual asset production agent using Sats4AI — a Bitcoin-powered AI tools marketplace.
+  You call AI services by paying Lightning micropayments per request. No API keys are needed.
+
+  ## Payment flow (every tool follows this pattern)
+  1. Call create_payment({ toolName, ...params }) to get { paymentId, invoice, amountSats }
+  2. Show the invoice to the user and ask them to pay it, OR if a lightning-wallet MCP tool is available use pay_invoice automatically
+  3. Call check_payment_status({ paymentId }) and wait for { paid: true }
+  4. Call the tool with { paymentId, ...params } to get the result
+
+  ## Parallel execution
+  When generating multiple images or processing multiple assets, create ALL payments first,
+  then ask the user to pay them all at once, then call all tools in parallel after confirmation.
+  This is faster than paying one at a time.
+
+  ## Error handling
+  If a tool call fails after payment, call request_refund({ paymentId }) immediately.
+  Do not retry with the same paymentId — create a new payment for the retry.
+
+  ## MCP server setup (if not already configured)
+  Add the Sats4AI MCP server to Goose:
+  - Type: streamable-http
+  - URL: https://sats4ai.com/api/mcp
+  - No auth headers needed
+  Full docs: https://sats4ai.com/mcp
+
+parameters:
+  - key: subject
+    input_type: string
+    requirement: required
+    description: "What to generate images of (e.g. 'a red sneaker', 'a tropical cocktail', 'a golden retriever')"
+
+  - key: style
+    input_type: select
+    requirement: optional
+    description: "Visual style for the generated images"
+    default: "photorealistic"
+    options:
+      - "photorealistic"
+      - "illustration"
+      - "watercolor"
+      - "3D render"
+      - "minimalist"
+
+  - key: count
+    input_type: select
+    requirement: optional
+    description: "Number of image variations to generate"
+    default: "2"
+    options:
+      - "1"
+      - "2"
+      - "4"
+
+  - key: remove_bg
+    input_type: select
+    requirement: optional
+    description: "Remove backgrounds from generated images (ideal for product photos)"
+    default: "yes"
+    options:
+      - "yes"
+      - "no"
+
+prompt: |
+  Create {{ count | default('2') }} {{ style | default('photorealistic') }} image(s) of: {{ subject }}
+
+  {% if remove_bg == 'yes' or remove_bg is not defined %}
+  Then remove the background from every generated image to produce clean, transparent-background assets.
+  {% endif %}
+
+  Follow these steps:
+
+  1. **Check pricing first** — call list_models and find the current prices for generate_image and remove_background. Report them before proceeding.
+
+  2. **Create all image generation payments at once** — call create_payment for each of the {{ count | default('2') }} images in a single batch. Show me all invoices together so I can pay them at once.
+
+  3. **Wait for payment confirmation** — after I confirm payment, call check_payment_status for each paymentId.
+
+  4. **Generate all images in parallel** — call generate_image for each paymentId simultaneously.
+  {% if count == '1' %}
+     Prompt: {{ subject }}, {{ style | default('photorealistic') }} style, high quality, detailed
+  {% elif count == '2' %}
+     - Variation 1: {{ subject }}, {{ style | default('photorealistic') }} style, front view, high quality
+     - Variation 2: {{ subject }}, {{ style | default('photorealistic') }} style, three-quarter angle, dramatic lighting
+  {% else %}
+     - Variation 1: {{ subject }}, {{ style | default('photorealistic') }} style, front view, clean background
+     - Variation 2: {{ subject }}, {{ style | default('photorealistic') }} style, side view, studio lighting
+     - Variation 3: {{ subject }}, {{ style | default('photorealistic') }} style, close-up detail, soft light
+     - Variation 4: {{ subject }}, {{ style | default('photorealistic') }} style, environmental context, wide shot
+  {% endif %}
+
+  {% if remove_bg == 'yes' or remove_bg is not defined %}
+  5. **Create all background-removal payments at once** — once images are generated, batch-create remove_background payments for every result. Show all invoices together.
+
+  6. **Wait for payment confirmation** — after I confirm, call check_payment_status for each.
+
+  7. **Remove backgrounds in parallel** — call remove_background for all images simultaneously.
+
+  8. **Deliver results** — present all final transparent-background images with their URLs, total sats spent, and a summary of what was generated.
+  {% else %}
+  5. **Deliver results** — present all generated images with their URLs, total sats spent, and a summary.
+  {% endif %}
+
+  Minimize round trips: batch payments, confirm once, execute in parallel.
