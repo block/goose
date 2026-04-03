@@ -45,6 +45,7 @@ goose's architecture is designed for extensibility. Organizations can create "re
 | What You Want | Where to Look | Complexity |
 |---------------|---------------|------------|
 | Preconfigure a model/provider | `config.yaml`, `init-config.yaml`, environment variables | Low |
+| Customize the desktop app without rebuilding | Distro overlay (`distro/` directory) | Low |
 | Add custom AI providers | `crates/goose/src/providers/declarative/` | Low |
 | Bundle custom MCP extensions | `config.yaml` extensions section, `ui/desktop/src/built-in-extensions.json`, `ui/desktop/src/components/settings/extensions/bundled-extensions.json` | Medium |
 | Modify system prompts | `crates/goose/src/prompts/` | Low |
@@ -64,6 +65,7 @@ cd goose
 
 ### 2. Choose Your Customization Strategy
 
+- **Distro overlay**: Drop config files alongside a stock goose release (no fork, no rebuild — see [Appendix J](#j-distro-overlay-no-fork-no-rebuild))
 - **Configuration-only**: Modify config files and environment variables (no code changes)
 - **Extension-based**: Add custom MCP servers for your tools (minimal core changes)
 - **Deep customization**: Modify core behavior, UI, or add new providers
@@ -828,3 +830,201 @@ prompt: |
 - Subagent execution: `crates/goose/src/agents/subagent_handler.rs`
 - Recipe sub_recipes field: `crates/goose/src/recipe/mod.rs` (SubRecipe struct)
 - Template rendering: `crates/goose/src/recipe/template_recipe.rs`
+
+---
+
+## J. Distro Overlay (No Fork, No Rebuild)
+
+**Goal**: Customize the Goose desktop app for your organization — preconfigured provider, custom extensions, internal registries, feature flags — without forking the repo, rebuilding from source, or re-signing the application.
+
+### How It Works
+
+On startup, the Goose desktop app looks for a `distro/` directory containing a `distro.json` file. If found, configuration is applied before the app finishes initializing. If not found, Goose behaves as the stock open-source release with zero changes.
+
+### Overlay Location
+
+The overlay lives inside the app bundle at `<app>/Contents/Resources/distro/` (macOS) or the equivalent `resources/distro/` on other platforms. Because it's inside the bundle, it's covered by the code signature — tampering breaks the signature and the OS refuses to launch the app.
+
+### Directory Structure
+
+```
+distro/
+├── distro.json                 # Required. Env vars + feature flags.
+├── bundled-extensions.json     # Optional. Replaces the default extension catalog.
+├── init-config.yaml            # Optional. First-run config for new users.
+├── bin/                        # Optional. Shell shims prepended to PATH.
+│   ├── uvx
+│   └── npx
+└── announcements/              # Optional. In-app announcement modals.
+    ├── index.json
+    └── content/
+        └── *.md
+```
+
+Every file except `distro.json` is optional. Include whichever subset you need.
+
+### `distro.json`
+
+Two top-level keys: `env` and `features`.
+
+**`env`** — key-value pairs injected into `process.env` before any other module reads them:
+
+```json
+{
+  "env": {
+    "GOOSE_DEFAULT_PROVIDER": "databricks",
+    "GOOSE_DEFAULT_MODEL": "my-model",
+    "DATABRICKS_HOST": "https://my-instance.cloud.databricks.com/",
+    "GOOSE_PREDEFINED_MODELS": "[{\"id\":1,\"name\":\"my-model\",\"provider\":\"databricks\",\"alias\":\"My Model\",\"subtext\":\"Custom\"}]",
+    "GOOSE_NPM_REGISTRY": "https://registry.example.com/npm/",
+    "GOOSE_UV_REGISTRY": "https://registry.example.com/pypi/simple",
+    "GOOSE_VERSION": "1.0.0-custom",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "https://telemetry.example.com/"
+  }
+}
+```
+
+**`features`** — UI feature flags (all default to stock values when omitted):
+
+| Key | Type | Default | Effect |
+|-----|------|---------|--------|
+| `updatesEnabled` | `boolean` | `true` | Auto-update checks and prompts |
+| `costTrackingEnabled` | `boolean` | `true` | Token cost tracking UI |
+| `announcementsEnabled` | `boolean` | `false` | In-app announcement modals |
+| `configurationEnabled` | `boolean` | `true` | Provider/model configuration UI |
+| `telemetryUiEnabled` | `boolean` | `true` | Telemetry settings in the UI |
+| `dictationAllowedProviders` | `string[] \| null` | `null` | Restrict dictation to listed providers |
+
+```json
+{
+  "features": {
+    "updatesEnabled": false,
+    "configurationEnabled": false
+  }
+}
+```
+
+### `bundled-extensions.json`
+
+Replaces the default extension catalog in Settings → Extensions. Same format as `ui/desktop/src/components/settings/extensions/bundled-extensions.json`:
+
+```json
+[
+  {
+    "id": "developer",
+    "name": "developer",
+    "display_name": "Developer",
+    "description": "General development tools.",
+    "enabled": true,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  }
+]
+```
+
+### `init-config.yaml`
+
+Applied when a user has no existing config (first run). Sets default provider, model, and extensions:
+
+```yaml
+GOOSE_MODEL: my-model
+GOOSE_PROVIDER: databricks
+DATABRICKS_HOST: https://my-instance.cloud.databricks.com/
+extensions:
+  developer:
+    display_name: Developer
+    enabled: true
+    name: developer
+    timeout: 300
+    type: builtin
+```
+
+Existing users with a `~/.config/goose/config.yaml` are not affected.
+
+### `bin/`
+
+Executable scripts here are prepended to `PATH` when spawning the `goosed` backend. Use this to override `uvx`, `npx`, or other commands with shims that route through internal registries.
+
+### `announcements/`
+
+In-app modals shown to users. Requires `"announcementsEnabled": true` in features.
+
+`announcements/index.json`:
+```json
+[
+  {
+    "id": "2024-q1-welcome",
+    "version": "1.0.0",
+    "title": "Welcome",
+    "file": "welcome.md",
+    "contentFile": "welcome.md"
+  }
+]
+```
+
+`announcements/content/welcome.md`: standard markdown.
+
+Each announcement is shown once per user (tracked by `id`). The `version` field gates the announcement to users on that version or later.
+
+### Quick Start
+
+```bash
+# 1. Download and unpack the stock Goose release
+unzip Goose-darwin-arm64.zip
+
+# 2. Create the distro overlay
+mkdir -p Goose.app/Contents/Resources/distro
+
+cat > Goose.app/Contents/Resources/distro/distro.json << 'EOF'
+{
+  "env": {
+    "GOOSE_DEFAULT_PROVIDER": "openai"
+  },
+  "features": {
+    "updatesEnabled": false
+  }
+}
+EOF
+
+# 3. Re-sign (required on macOS after modifying the bundle)
+codesign --deep --force --sign "Developer ID Application: Your Org" Goose.app
+
+# 4. Notarize
+xcrun notarytool submit Goose.zip --apple-id ... --team-id ... --password ...
+
+# 5. Distribute the re-signed app
+```
+
+For development/testing, you can skip signing and run unsigned:
+```bash
+# Place overlay in the Electron resources path used by `npm run dev`
+mkdir -p ui/desktop/src/distro
+cp distro.json ui/desktop/src/distro/
+# Add 'src/distro' to extraResource in forge.config.ts for dev builds
+```
+
+### Error Handling
+
+A malformed `distro.json` is logged and ignored — the app starts with stock defaults.
+
+### Deployment
+
+The recommended workflow is **repackage + re-sign** (no rebuild):
+
+1. Download the stock Goose release artifact.
+2. Unpack the `.app` bundle.
+3. Copy your `distro/` directory into `Contents/Resources/`.
+4. Re-sign and notarize.
+5. Distribute.
+
+No Rust compilation, no Node bundling. The overlay is versioned with the app it ships in, scoped to that specific build, and protected by the code signature.
+
+### Technical Details
+
+- Overlay loader: `ui/desktop/src/distro.ts`
+- Feature flag plumbing: `ui/desktop/src/main.ts` (appConfig), `ui/desktop/src/updates.ts` (renderer)
+- Extensions override: `ui/desktop/src/components/settings/extensions/bundled-extensions.ts`
+- Init config: `crates/goose/src/config/base.rs` (`GOOSE_INIT_CONFIG` env var)
+- PATH injection: `ui/desktop/src/goosed.ts` (`buildGoosedEnv`)

@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { app } from 'electron';
 
 interface DistroConfig {
   env?: Record<string, string>;
@@ -11,17 +10,6 @@ let distroDir: string | null = null;
 let distroConfig: DistroConfig = {};
 
 function findDistroDir(): string | null {
-  if (!app) return null;
-
-  try {
-    const externalPath = path.join(app.getPath('userData'), 'distro');
-    if (fs.existsSync(path.join(externalPath, 'distro.json'))) {
-      return externalPath;
-    }
-  } catch {
-    // app.getPath may throw outside a fully initialized Electron context
-  }
-
   try {
     const bundlePath = path.join(process.resourcesPath, 'distro');
     if (fs.existsSync(path.join(bundlePath, 'distro.json'))) {
