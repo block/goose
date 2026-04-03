@@ -1,3 +1,4 @@
+import './distro'; // Must be first — sets process.env before other modules load
 import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
@@ -45,7 +46,9 @@ import {
   setupAutoUpdater,
   updateTrayMenu,
 } from './utils/autoUpdater';
-import { UPDATES_ENABLED } from './updates';
+import { getDistroFeature, getDistroFilePath, getDistroDir } from './distro';
+
+const UPDATES_ENABLED = getDistroFeature('updatesEnabled', true);
 import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
@@ -539,6 +542,15 @@ let appConfig = {
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  DISTRO_UPDATES_ENABLED: getDistroFeature('updatesEnabled', true),
+  DISTRO_COST_TRACKING_ENABLED: getDistroFeature('costTrackingEnabled', true),
+  DISTRO_ANNOUNCEMENTS_ENABLED: getDistroFeature('announcementsEnabled', false),
+  DISTRO_CONFIGURATION_ENABLED: getDistroFeature('configurationEnabled', true),
+  DISTRO_TELEMETRY_UI_ENABLED: getDistroFeature('telemetryUiEnabled', true),
+  DISTRO_DICTATION_ALLOWED_PROVIDERS: getDistroFeature<string[] | null>(
+    'dictationAllowedProviders',
+    null
+  ),
 };
 
 const windowMap = new Map<number, BrowserWindow>();
@@ -1728,6 +1740,32 @@ ipcMain.handle('show-save-dialog', async (_event, options) => {
 
 ipcMain.handle('get-allowed-extensions', async () => {
   return await getAllowList();
+});
+
+ipcMain.handle('get-distro-bundled-extensions', async () => {
+  const extensionsPath = getDistroFilePath('bundled-extensions.json');
+  if (extensionsPath) {
+    const data = fsSync.readFileSync(extensionsPath, 'utf-8');
+    return JSON.parse(data);
+  }
+  return null;
+});
+
+ipcMain.handle('get-distro-announcements', async () => {
+  const indexPath = getDistroFilePath('announcements/index.json');
+  if (!indexPath) return null;
+
+  const index = JSON.parse(fsSync.readFileSync(indexPath, 'utf-8'));
+  const distroPath = getDistroDir()!;
+  for (const entry of index) {
+    if (entry.contentFile) {
+      const mdPath = path.join(distroPath, 'announcements', 'content', entry.contentFile);
+      if (fsSync.existsSync(mdPath)) {
+        entry.content = fsSync.readFileSync(mdPath, 'utf-8');
+      }
+    }
+  }
+  return index;
 });
 
 const createNewWindow = async (app: App, dir?: string | null) => {

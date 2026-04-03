@@ -1,6 +1,6 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import { FixedExtensionEntry } from '../../ConfigContext';
-import bundledExtensionsData from './bundled-extensions.json';
+import defaultBundledExtensionsData from './bundled-extensions.json';
 import { nameToKey } from './utils';
 
 // Type definition for built-in extensions from JSON
@@ -19,6 +19,23 @@ type BundledExtension = {
   timeout?: number;
   allow_configure?: boolean;
 };
+
+let bundledExtensionsOverride: BundledExtension[] | null = null;
+
+async function loadBundledExtensions(): Promise<BundledExtension[]> {
+  if (bundledExtensionsOverride !== null) return bundledExtensionsOverride;
+
+  try {
+    const distroExtensions = await window.electron.getDistroBundledExtensions();
+    if (distroExtensions) {
+      bundledExtensionsOverride = distroExtensions;
+      return distroExtensions;
+    }
+  } catch {
+    // Fall through to default
+  }
+  return defaultBundledExtensionsData as BundledExtension[];
+}
 
 const DEPRECATED_GOOGLE_DRIVE_IDS = ['googledrive', 'google_drive'];
 const DEPRECATED_GOOGLE_DRIVE_ENV_KEYS = [
@@ -58,8 +75,8 @@ export async function syncBundledExtensions(
   addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
 ): Promise<void> {
   try {
-    // Cast the imported JSON data to the expected type
-    const bundledExtensions = bundledExtensionsData as BundledExtension[];
+    // Load bundled extensions (may be overridden by distro overlay)
+    const bundledExtensions = await loadBundledExtensions();
 
     // Process each bundled extension
     for (const bundledExt of bundledExtensions) {

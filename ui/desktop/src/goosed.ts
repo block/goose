@@ -6,6 +6,7 @@ import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client, createClient, createConfig } from './api/client';
+import { getDistroFilePath } from './distro';
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -128,10 +129,20 @@ export const buildGoosedEnv = (
   // Add binary directory to PATH for any dependencies
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
   const currentPath = process.env[pathKey] || '';
+  let newPath = currentPath;
+
   if (binaryPath) {
-    env[pathKey] = `${path.dirname(binaryPath)}${path.delimiter}${currentPath}`;
-  } else if (currentPath) {
-    env[pathKey] = currentPath;
+    newPath = `${path.dirname(binaryPath)}${path.delimiter}${newPath}`;
+  }
+
+  // Prepend distro bin path (takes precedence over default shims)
+  const distroBinPath = getDistroFilePath('bin');
+  if (distroBinPath) {
+    newPath = `${distroBinPath}${path.delimiter}${newPath}`;
+  }
+
+  if (newPath) {
+    env[pathKey] = newPath;
   }
 
   return env;
@@ -244,6 +255,12 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     if (value !== undefined) {
       spawnEnv[key] = value;
     }
+  }
+
+  // Pass distro init-config path to goosed if available
+  const initConfigPath = getDistroFilePath('init-config.yaml');
+  if (initConfigPath) {
+    spawnEnv.GOOSE_INIT_CONFIG = initConfigPath;
   }
 
   const spawnCommand = goosedPath;
