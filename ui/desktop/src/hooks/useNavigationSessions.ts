@@ -8,16 +8,16 @@ import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../sessi
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
-
-const MAX_RECENT_SESSIONS = 5;
+import { DEFAULT_MAX_RECENT_SESSIONS } from '../components/Layout/NavigationContext';
 
 interface UseNavigationSessionsOptions {
   onNavigate?: () => void;
   fetchOnMount?: boolean;
+  maxRecentSessions?: number;
 }
 
 export function useNavigationSessions(options: UseNavigationSessionsOptions = {}) {
-  const { onNavigate, fetchOnMount = false } = options;
+  const { onNavigate, fetchOnMount = false, maxRecentSessions = DEFAULT_MAX_RECENT_SESSIONS } = options;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,14 +51,14 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       if (response.data) {
         const sorted = [...response.data.sessions]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, MAX_RECENT_SESSIONS);
+          .slice(0, maxRecentSessions);
         setRecentSessions(sorted);
         sessionsRef.current = response.data.sessions;
       }
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
-  }, []);
+  }, [maxRecentSessions]);
 
   useEffect(() => {
     if (fetchOnMount) {
@@ -74,10 +74,10 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       if (!response.data) return;
       setRecentSessions((prev) => {
         if (prev.some((s) => s.id === activeSessionId)) return prev;
-        return [response.data as Session, ...prev].slice(0, MAX_RECENT_SESSIONS);
+        return [response.data as Session, ...prev].slice(0, maxRecentSessions);
       });
     });
-  }, [activeSessionId, recentSessions]);
+  }, [activeSessionId, recentSessions, maxRecentSessions]);
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -88,7 +88,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       if (session) {
         setRecentSessions((prev) => {
           if (prev.some((s) => s.id === session.id)) return prev;
-          return [session, ...prev].slice(0, MAX_RECENT_SESSIONS);
+          return [session, ...prev].slice(0, maxRecentSessions);
         });
         sessionsRef.current = [session, ...sessionsRef.current.filter((s) => s.id !== session.id)];
       }
@@ -106,13 +106,13 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
         try {
           const response = await listSessions({ throwOnError: false });
           if (response.data) {
-            const apiSessions = response.data.sessions.slice(0, MAX_RECENT_SESSIONS);
+            const apiSessions = response.data.sessions.slice(0, maxRecentSessions);
             setRecentSessions((prev) => {
               const emptyLocalSessions = prev.filter(
                 (local) =>
                   local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
               );
-              return [...emptyLocalSessions, ...apiSessions].slice(0, MAX_RECENT_SESSIONS);
+              return [...emptyLocalSessions, ...apiSessions].slice(0, maxRecentSessions);
             });
             sessionsRef.current = response.data.sessions;
           }
@@ -136,7 +136,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
       pollingTimeouts.forEach(clearTimeout);
     };
-  }, []);
+  }, [maxRecentSessions]);
 
   const handleNavClick = useCallback(
     (path: string) => {

@@ -2339,6 +2339,12 @@
   "navigationCustomization.itemSettings": {
     "defaultMessage": "Settings"
   },
+  "navigationCustomization.recentSessionsDescription": {
+    "defaultMessage": "Number of recent sessions displayed in the sidebar"
+  },
+  "navigationCustomization.recentSessionsLabel": {
+    "defaultMessage": "Recent sessions shown"
+  },
   "navigationCustomization.resetToDefaults": {
     "defaultMessage": "Reset to defaults"
   },
