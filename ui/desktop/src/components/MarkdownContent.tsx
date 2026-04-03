@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
+import { platform } from '../platform';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -218,9 +219,9 @@ const MarkdownContent = memo(function MarkdownContent({
   const handleConfirmOpen = useCallback(async () => {
     if (pendingLink) {
       try {
-        await window.electron.openExternal(pendingLink.href);
+        await platform.openExternal(pendingLink.href);
       } catch {
-        await window.electron.showMessageBox({
+        await platform.showMessageBox({
           type: 'error',
           buttons: ['OK'],
           title: intl.formatMessage(i18n.failedToOpenLink),
@@ -282,7 +283,7 @@ const MarkdownContent = memo(function MarkdownContent({
                     if (!props.href) return;
 
                     if (isProtocolSafe(props.href)) {
-                      window.electron.openExternal(props.href);
+                      platform.openExternal(props.href);
                     } else {
                       const protocol = getProtocol(props.href);
                       if (!protocol) return;

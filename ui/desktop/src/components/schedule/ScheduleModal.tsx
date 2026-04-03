@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FormEvent, useCallback } from 'react';
+import { platform } from '../../platform';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -130,14 +131,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const handleBrowseFile = async () => {
     const defaultPath = getStorageDirectory(true);
-    const filePath = await window.electron.selectFileOrDirectory(defaultPath);
+    const filePath = await platform.selectFileOrDirectory(defaultPath);
     if (filePath) {
       if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
         setRecipeSourcePath(filePath);
         setInternalValidationError(null);
 
         try {
-          const fileResponse = await window.electron.readFile(filePath);
+          const fileResponse = await platform.readFile(filePath);
           if (!fileResponse.found || fileResponse.error) {
             throw new Error(intl.formatMessage(i18n.failedReadFile));
           }

@@ -6,6 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { platform } from '../platform';
 import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
@@ -209,7 +210,7 @@ export default function BaseChat({
     if (!recipe) return;
 
     (async () => {
-      const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
+      const accepted = await platform.hasAcceptedRecipeBefore(recipe);
       setHasNotAcceptedRecipe(!accepted);
 
       if (!accepted) {
@@ -221,7 +222,7 @@ export default function BaseChat({
 
   const handleRecipeAccept = async (accept: boolean) => {
     if (recipe && accept) {
-      await window.electron.recordRecipeHash(recipe);
+      await platform.recordRecipeHash(recipe);
       setHasNotAcceptedRecipe(false);
     } else {
       setView('chat');

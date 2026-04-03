@@ -1,4 +1,5 @@
 import React from 'react';
+import { platform } from '../../platform';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { Message, SystemNotificationContent } from '../../api';
 import { WEB_PROTOCOLS } from '../../utils/urlSecurity';
@@ -53,7 +54,7 @@ export const CreditsExhaustedNotification: React.FC<CreditsExhaustedNotification
 
   const handleTopUp = () => {
     if (topUpUrl) {
-      window.electron.openExternal(topUpUrl);
+      platform.openExternal(topUpUrl);
     }
   };
 

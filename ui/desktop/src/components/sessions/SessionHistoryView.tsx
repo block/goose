@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { platform } from '../../platform';
 import {
   Calendar,
   MessageSquareText,
@@ -225,7 +226,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const setView = useNavigation();
 
   useEffect(() => {
-    window.electron.getSetting('sessionSharing').then((config) => {
+    platform.getSetting('sessionSharing').then((config) => {
       if (config.enabled && config.baseUrl) {
         setCanShare(true);
       }
@@ -236,7 +237,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     setIsSharing(true);
 
     try {
-      const config = await window.electron.getSetting('sessionSharing');
+      const config = await platform.getSetting('sessionSharing');
       if (!config.enabled || !config.baseUrl) {
         throw new Error('Session sharing is not enabled or base URL is not configured.');
       }

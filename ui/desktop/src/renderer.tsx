@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import { IntlProvider } from 'react-intl';
+import { platform } from './platform';
 import { ConfigProvider } from './components/ConfigContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import SuspenseLoader from './suspense-loader';
@@ -22,7 +23,7 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
   const isLauncher = window.location.hash === '#/launcher';
 
   if (!isLauncher) {
-    const gooseApiHost = await window.electron.getGoosedHostPort();
+    const gooseApiHost = await platform.getGoosedHostPort();
     if (gooseApiHost === null) {
       window.alert('failed to start goose backend process');
       return;
@@ -31,7 +32,7 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
       baseUrl: gooseApiHost,
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': await window.electron.getSecretKey(),
+        'X-Secret-Key': await platform.getSecretKey(),
       },
     });
 

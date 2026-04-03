@@ -1,0 +1,30 @@
+[package]
+name = "goose-web"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Web UI frontend for Goose — embeds static files and reverse-proxies to goosed"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+clap = { workspace = true, features = ["env"] }
+hex = "0.4"
+include_dir = { workspace = true }
+mime_guess = "2"
+rand = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls"], default-features = false }
+tokio = { workspace = true }
+tower-http = { workspace = true, features = ["cors"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+which = { workspace = true }
+
+[[bin]]
+name = "goose-web"
+path = "src/main.rs"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { platform } from '../../../platform';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
@@ -121,11 +122,11 @@ export default function UpdateSection() {
 
   useEffect(() => {
     // Get current version on mount
-    const currentVersion = window.electron.getVersion();
+    const currentVersion = platform.getVersion();
     setUpdateInfo((prev) => ({ ...prev, currentVersion }));
 
     // Check if there's already an update state from the auto-check
-    window.electron.getUpdateState().then((state) => {
+    platform.getUpdateState().then((state) => {
       if (state) {
         setUpdateInfo((prev) => ({
           ...prev,
@@ -136,12 +137,12 @@ export default function UpdateSection() {
     });
 
     // Check if using GitHub fallback
-    window.electron.isUsingGitHubFallback().then((isGitHub) => {
+    platform.isUsingGitHubFallback().then((isGitHub) => {
       setIsUsingGitHubFallback(isGitHub);
     });
 
     // Listen for updater events
-    window.electron.onUpdaterEvent((event) => {
+    platform.onUpdaterEvent((event) => {
 
       switch (event.event) {
         case 'checking-for-update':
@@ -156,7 +157,7 @@ export default function UpdateSection() {
             isUpdateAvailable: true,
           }));
           // Check if GitHub fallback is being used
-          window.electron.isUsingGitHubFallback().then((isGitHub) => {
+          platform.isUsingGitHubFallback().then((isGitHub) => {
             setIsUsingGitHubFallback(isGitHub);
           });
           break;
@@ -222,7 +223,7 @@ export default function UpdateSection() {
     lastProgressRef.current = 0; // Reset progress tracking for new download
 
     try {
-      const result = await window.electron.checkForUpdates();
+      const result = await platform.checkForUpdates();
 
       if (result.error) {
         throw new Error(result.error);
@@ -246,7 +247,7 @@ export default function UpdateSection() {
   };
 
   const installUpdate = () => {
-    window.electron.installUpdate();
+    platform.installUpdate();
   };
 
   const getStatusMessage = () => {

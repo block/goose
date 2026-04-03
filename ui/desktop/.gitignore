@@ -1,6 +1,7 @@
 node_modules
 .vite/
 out
+dist-web/
 src/bin/goosed
 src/bin/goose-npm/
 /src/bin/*.exe

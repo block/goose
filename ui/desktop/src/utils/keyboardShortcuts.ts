@@ -1,5 +1,7 @@
+import { platform } from '../platform';
+
 function isMac(): boolean {
-  return window.electron?.platform === 'darwin';
+  return platform.platform === 'darwin';
 }
 
 export function getNavigationShortcutText(): string {

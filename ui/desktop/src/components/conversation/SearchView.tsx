@@ -1,4 +1,5 @@
 import React, { useState, useEffect, PropsWithChildren, useCallback, useRef } from 'react';
+import { platform } from '../../platform';
 import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import debounce from 'lodash/debounce';
@@ -296,7 +297,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   // Listen for keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = window.electron.platform === 'darwin';
+      const isMac = platform.platform === 'darwin';
 
       // Handle ⌘F/Ctrl+F to show/focus search
       if ((isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && e.key === 'f') {
@@ -345,16 +346,16 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   // Listen for Find menu commands
   useEffect(() => {
-    window.electron.on('find-command', handleFindCommand);
-    window.electron.on('find-next', handleFindNext);
-    window.electron.on('find-previous', handleFindPrevious);
-    window.electron.on('use-selection-find', handleUseSelectionFind);
+    platform.on('find-command', handleFindCommand);
+    platform.on('find-next', handleFindNext);
+    platform.on('find-previous', handleFindPrevious);
+    platform.on('use-selection-find', handleUseSelectionFind);
 
     return () => {
-      window.electron.off('find-command', handleFindCommand);
-      window.electron.off('find-next', handleFindNext);
-      window.electron.off('find-previous', handleFindPrevious);
-      window.electron.off('use-selection-find', handleUseSelectionFind);
+      platform.off('find-command', handleFindCommand);
+      platform.off('find-next', handleFindNext);
+      platform.off('find-previous', handleFindPrevious);
+      platform.off('use-selection-find', handleUseSelectionFind);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - handlers are stable due to useCallback and useRef

@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { platform } from '../../platform';
 
 export type NavigationMode = 'push' | 'overlay';
 export type NavigationStyle = 'expanded' | 'condensed';
@@ -165,9 +166,9 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     const handleToggleNavigation = () => {
       setIsNavExpanded(!isNavExpandedRef.current);
     };
-    window.electron.on('toggle-navigation', handleToggleNavigation);
+    platform.on('toggle-navigation', handleToggleNavigation);
     return () => {
-      window.electron.off('toggle-navigation', handleToggleNavigation);
+      platform.off('toggle-navigation', handleToggleNavigation);
     };
   }, [setIsNavExpanded]);
 

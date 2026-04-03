@@ -1,4 +1,5 @@
 import { AppEvents } from '../constants/events';
+import { platform } from '../platform';
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState } from 'react';
@@ -510,10 +511,10 @@ function ToolCallView({
 
   useEffect(() => {
     // Load initial value from settings
-    window.electron.getSetting('responseStyle').then(setResponseStyle);
+    platform.getSetting('responseStyle').then(setResponseStyle);
 
     const handleStyleChange = () => {
-      window.electron.getSetting('responseStyle').then(setResponseStyle);
+      platform.getSetting('responseStyle').then(setResponseStyle);
     };
 
     window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
@@ -888,7 +889,7 @@ function ToolCallView({
           <div className="border-t border-border-primary">
             <button
               onClick={() => {
-                window.electron.createChatWindow({
+                platform.createChatWindow({
                   resumeSessionId: subagentSessionId,
                   viewType: 'pair',
                 });

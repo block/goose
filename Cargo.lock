@@ -4652,6 +4652,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-web"
+version = "1.29.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "hex",
+ "include_dir",
+ "mime_guess",
+ "rand 0.8.5",
+ "reqwest 0.13.2",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "which 8.0.2",
+]
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

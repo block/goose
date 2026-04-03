@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { platform } from '../platform';
 import { defineMessages, useIntl } from '../i18n';
 import { Message, SystemNotificationContent } from '../api';
 import GooseMessage from './GooseMessage';
@@ -175,7 +176,7 @@ export default function ProgressiveMessageList({
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = window.electron.platform === 'darwin';
+      const isMac = platform.platform === 'darwin';
       const isSearchShortcut = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'f';
 
       if (isSearchShortcut) {

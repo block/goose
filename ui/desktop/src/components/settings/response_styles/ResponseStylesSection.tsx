@@ -1,5 +1,6 @@
 import { AppEvents } from '../../../constants/events';
 import { useEffect, useState } from 'react';
+import { platform } from '../../../platform';
 import { all_response_styles, ResponseStyleSelectionItem } from './ResponseStyleSelectionItem';
 
 export const ResponseStylesSection = () => {
@@ -8,7 +9,7 @@ export const ResponseStylesSection = () => {
   useEffect(() => {
     async function loadResponseStyle() {
       try {
-        const savedStyle = await window.electron.getSetting('responseStyle');
+        const savedStyle = await platform.getSetting('responseStyle');
         setCurrentStyle(savedStyle);
       } catch (error) {
         console.error('Error loading response style:', error);
@@ -20,7 +21,7 @@ export const ResponseStylesSection = () => {
   const handleStyleChange = async (newStyle: string) => {
     setCurrentStyle(newStyle);
     try {
-      await window.electron.setSetting('responseStyle', newStyle);
+      await platform.setSetting('responseStyle', newStyle);
     } catch (error) {
       console.error('Error saving response style:', error);
     }

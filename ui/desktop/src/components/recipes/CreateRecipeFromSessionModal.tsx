@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../../platform';
 import { useForm } from '@tanstack/react-form';
 import { Recipe } from '../../recipe';
 import { Geese } from '../icons/Geese';
@@ -273,7 +274,7 @@ export default function CreateRecipeFromSessionModal({
       onClose();
 
       if (runAfterSave) {
-        window.electron.createChatWindow({ recipeId });
+        platform.createChatWindow({ recipeId });
       }
     } catch (error) {
       console.error('Failed to create recipe:', error);

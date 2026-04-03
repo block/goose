@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { platform } from '../../platform';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu } from 'lucide-react';
@@ -51,7 +52,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const navWidthRef = useRef<number | null>(null);
 
   useEffect(() => {
-    window.electron.getSetting('navExpandedWidth').then((delta) => {
+    platform.getSetting('navExpandedWidth').then((delta) => {
       if (delta !== null) {
         setNavWidth(
           Math.min(
@@ -89,7 +90,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
     if (navWidthRef.current !== null) {
-      window.electron.setSetting(
+      platform.setSetting(
         'navExpandedWidth',
         navWidthRef.current - NAV_DIMENSIONS.CONDENSED_WIDTH
       );

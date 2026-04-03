@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../../../platform';
 import { Switch } from '../../ui/switch';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -19,7 +20,7 @@ export const SpellcheckToggle = () => {
 
   useEffect(() => {
     const loadState = async () => {
-      const state = await window.electron.getSpellcheckState();
+      const state = await platform.getSpellcheckState();
       setEnabled(state);
     };
     loadState();
@@ -27,7 +28,7 @@ export const SpellcheckToggle = () => {
 
   const handleToggle = async (checked: boolean) => {
     setEnabled(checked);
-    await window.electron.setSpellcheck(checked);
+    await platform.setSpellcheck(checked);
   };
 
   return (

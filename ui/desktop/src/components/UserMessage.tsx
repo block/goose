@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { platform } from '../platform';
 import ImagePreview from './ImagePreview';
 import MarkdownContent from './MarkdownContent';
 import { getTextAndImageContent } from '../types/message';
@@ -100,7 +101,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const initializeEditMode = useCallback(() => {
     setEditContent(textContent);
     setError(null);
-    window.electron.logInfo(`Entering edit mode with content: ${textContent}`);
+    platform.logInfo(`Entering edit mode with content: ${textContent}`);
   }, [textContent]);
 
   // Handle edit button click
@@ -111,7 +112,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     // Initialize edit content when entering edit mode
     if (newEditingState) {
       initializeEditMode();
-      window.electron.logInfo(`Edit interface shown for message: ${message.id}`);
+      platform.logInfo(`Edit interface shown for message: ${message.id}`);
 
       // Focus the textarea after a brief delay to ensure it's rendered
       setTimeout(() => {
@@ -125,7 +126,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
       }, 50);
     }
 
-    window.electron.logInfo(`Edit state toggled: ${newEditingState} for message: ${message.id}`);
+    platform.logInfo(`Edit state toggled: ${newEditingState} for message: ${message.id}`);
   }, [isEditing, initializeEditMode, message.id]);
 
   // Handle content changes in edit mode
@@ -133,7 +134,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     const newContent = e.target.value;
     setEditContent(newContent);
     setError(null); // Clear any previous errors
-    window.electron.logInfo(`Content changed: ${newContent}`);
+    platform.logInfo(`Content changed: ${newContent}`);
   }, []);
 
   const handleSave = useCallback(
@@ -158,7 +159,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
   // Handle cancel action
   const handleCancel = useCallback(() => {
-    window.electron.logInfo('Cancel clicked - reverting to original content');
+    platform.logInfo('Cancel clicked - reverting to original content');
     setIsEditing(false);
     setEditContent(textContent); // Reset to original content
     setError(null);
@@ -167,7 +168,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   // Handle keyboard events for accessibility
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      window.electron.logInfo(
+      platform.logInfo(
         `Key pressed: ${e.key}, metaKey: ${e.metaKey}, ctrlKey: ${e.ctrlKey}`
       );
 
@@ -176,7 +177,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         handleCancel();
       } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        window.electron.logInfo('Cmd+Enter detected, calling handleSave');
+        platform.logInfo('Cmd+Enter detected, calling handleSave');
         handleSave();
       }
     },

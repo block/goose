@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { platform } from '../../../platform';
 import { Input } from '../../ui/input';
 import { Check, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { Switch } from '../../ui/switch';
@@ -111,9 +112,9 @@ export default function SessionSharingSection() {
         enabled: true,
         baseUrl: typeof envBaseUrlShare === 'string' ? envBaseUrlShare : '',
       };
-      window.electron.setSetting('sessionSharing', forcedConfig);
+      platform.setSetting('sessionSharing', forcedConfig);
     } else {
-      window.electron.getSetting('sessionSharing').then((config) => {
+      platform.getSetting('sessionSharing').then((config) => {
         setSessionSharingConfig(config);
       });
     }
@@ -137,7 +138,7 @@ export default function SessionSharingSection() {
     }
     const updated = { ...sessionSharingConfig, enabled: !sessionSharingConfig.enabled };
     setSessionSharingConfig(updated);
-    await window.electron.setSetting('sessionSharing', updated);
+    await platform.setSetting('sessionSharing', updated);
     trackSettingToggled('session_sharing', updated.enabled);
   };
 
@@ -155,7 +156,7 @@ export default function SessionSharingSection() {
     if (isValidUrl(newBaseUrl)) {
       setUrlError('');
       const updated = { ...sessionSharingConfig, baseUrl: newBaseUrl };
-      await window.electron.setSetting('sessionSharing', updated);
+      await platform.setSetting('sessionSharing', updated);
     } else {
       setUrlError(intl.formatMessage(i18n.invalidUrl));
     }

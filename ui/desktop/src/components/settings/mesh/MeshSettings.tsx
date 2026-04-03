@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { platform } from '../../../platform';
 import {
   RefreshCw,
   ExternalLink,
@@ -46,7 +47,7 @@ interface MeshStatusInfo {
 
 export const MeshSettings = () => {
   const { refreshCurrentModelAndProvider } = useModelAndProvider();
-  const isMacOS = window.electron.platform === 'darwin' && window.electron.arch === 'arm64';
+  const isMacOS = platform.platform === 'darwin' && platform.arch === 'arm64';
   const [status, setStatus] = useState<MeshStatus>('unknown');
   const [statusInfo, setStatusInfo] = useState<MeshStatusInfo>({
     running: false,
@@ -75,7 +76,7 @@ export const MeshSettings = () => {
   const checkStatus = useCallback(async () => {
     setChecking(true);
     try {
-      const result = await window.electron.checkMesh();
+      const result = await platform.checkMesh();
       if (result.running) {
         setStatus('running');
         setStatusInfo(result);
@@ -191,7 +192,7 @@ export const MeshSettings = () => {
         }
       }
 
-      const result = await window.electron.startMesh(args);
+      const result = await platform.startMesh(args);
       if (!result.started) {
         setError(result.error || 'Failed to start mesh-llm');
         setStatus('stopped');
@@ -221,7 +222,7 @@ export const MeshSettings = () => {
 
   const stopMesh = async () => {
     try {
-      const result = await window.electron.stopMesh();
+      const result = await platform.stopMesh();
       if (result.stopped) {
         setStatus('stopped');
         setStatusInfo((prev) => ({ ...prev, running: false, models: [], token: undefined }));

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { platform } from '../../../platform';
 import { defineMessages, useIntl } from '../../../i18n';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
@@ -215,10 +216,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
-  const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
+  const shouldShowUpdates = !platform.isWeb && !window.appConfig?.get('GOOSE_VERSION');
 
   useEffect(() => {
-    setIsMacOS(window.electron.platform === 'darwin');
+    setIsMacOS(platform.platform === 'darwin');
   }, []);
 
   useEffect(() => {
@@ -238,7 +239,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   }, []);
 
   useEffect(() => {
-    window.electron.getSetting('showPricing').then(setShowPricing);
+    platform.getSetting('showPricing').then(setShowPricing);
   }, []);
 
   useEffect(() => {
@@ -250,16 +251,16 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   }, [scrollToSection]);
 
   useEffect(() => {
-    window.electron.getMenuBarIconState().then((enabled) => {
+    platform.getMenuBarIconState().then((enabled) => {
       setMenuBarIconEnabled(enabled);
     });
 
-    window.electron.getWakelockState().then((enabled) => {
+    platform.getWakelockState().then((enabled) => {
       setWakelockEnabled(enabled);
     });
 
     if (isMacOS) {
-      window.electron.getDockIconState().then((enabled) => {
+      platform.getDockIconState().then((enabled) => {
         setDockIconEnabled(enabled);
       });
     }
@@ -270,12 +271,12 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     // If we're turning off the menu bar icon and the dock icon is hidden,
     // we need to show the dock icon to maintain accessibility
     if (!newState && !dockIconEnabled && isMacOS) {
-      const success = await window.electron.setDockIcon(true);
+      const success = await platform.setDockIcon(true);
       if (success) {
         setDockIconEnabled(true);
       }
     }
-    const success = await window.electron.setMenuBarIcon(newState);
+    const success = await platform.setMenuBarIcon(newState);
     if (success) {
       setMenuBarIconEnabled(newState);
       trackSettingToggled('menu_bar_icon', newState);
@@ -287,7 +288,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     // If we're turning off the dock icon and the menu bar icon is hidden,
     // we need to show the menu bar icon to maintain accessibility
     if (!newState && !menuBarIconEnabled) {
-      const success = await window.electron.setMenuBarIcon(true);
+      const success = await platform.setMenuBarIcon(true);
       if (success) {
         setMenuBarIconEnabled(true);
       }
@@ -300,7 +301,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     }, 1000);
 
     // Set the dock icon state
-    const success = await window.electron.setDockIcon(newState);
+    const success = await platform.setDockIcon(newState);
     if (success) {
       setDockIconEnabled(newState);
       trackSettingToggled('dock_icon', newState);
@@ -309,7 +310,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
   const handleWakelockToggle = async () => {
     const newState = !wakelockEnabled;
-    const success = await window.electron.setWakelock(newState);
+    const success = await platform.setWakelock(newState);
     if (success) {
       setWakelockEnabled(newState);
       trackSettingToggled('prevent_sleep', newState);
@@ -318,7 +319,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
   const handleShowPricingToggle = async (checked: boolean) => {
     setShowPricing(checked);
-    await window.electron.setSetting('showPricing', checked);
+    await platform.setSetting('showPricing', checked);
     trackSettingToggled('cost_tracking', checked);
     // Trigger event for other components
     window.dispatchEvent(new CustomEvent('showPricingChanged'));
@@ -334,60 +335,64 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <CardDescription>{intl.formatMessage(i18n.appearanceDesc)}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-text-primary text-xs">
-                {intl.formatMessage(i18n.notifications)}
-              </h3>
-              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                {intl.formatMessage(i18n.notificationsDesc, {
-                  link: (
-                    <span
-                      className="underline hover:cursor-pointer"
-                      onClick={() => setShowNotificationModal(true)}
-                    >
-                      {intl.formatMessage(i18n.configGuide)}
-                    </span>
-                  ),
-                })}
-              </p>
+          {!platform.isWeb && (
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-text-primary text-xs">
+                  {intl.formatMessage(i18n.notifications)}
+                </h3>
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                  {intl.formatMessage(i18n.notificationsDesc, {
+                    link: (
+                      <span
+                        className="underline hover:cursor-pointer"
+                        onClick={() => setShowNotificationModal(true)}
+                      >
+                        {intl.formatMessage(i18n.configGuide)}
+                      </span>
+                    ),
+                  })}
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Button
+                  className="flex items-center gap-2 justify-center"
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await platform.openNotificationsSettings();
+                    } catch (error) {
+                      console.error('Failed to open notification settings:', error);
+                    }
+                  }}
+                >
+                  <Settings />
+                  {intl.formatMessage(i18n.openSettings)}
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center">
-              <Button
-                className="flex items-center gap-2 justify-center"
-                variant="secondary"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await window.electron.openNotificationsSettings();
-                  } catch (error) {
-                    console.error('Failed to open notification settings:', error);
-                  }
-                }}
-              >
-                <Settings />
-                {intl.formatMessage(i18n.openSettings)}
-              </Button>
-            </div>
-          </div>
+          )}
 
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-text-primary text-xs">{intl.formatMessage(i18n.menuBarIcon)}</h3>
-              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                {intl.formatMessage(i18n.menuBarIconDesc)}
-              </p>
+          {!platform.isWeb && (
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-text-primary text-xs">{intl.formatMessage(i18n.menuBarIcon)}</h3>
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                  {intl.formatMessage(i18n.menuBarIconDesc)}
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={menuBarIconEnabled}
+                  onCheckedChange={handleMenuBarIconToggle}
+                  variant="mono"
+                />
+              </div>
             </div>
-            <div className="flex items-center">
-              <Switch
-                checked={menuBarIconEnabled}
-                onCheckedChange={handleMenuBarIconToggle}
-                variant="mono"
-              />
-            </div>
-          </div>
+          )}
 
-          {isMacOS && (
+          {!platform.isWeb && isMacOS && (
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-text-primary text-xs">{intl.formatMessage(i18n.dockIcon)}</h3>
@@ -508,7 +513,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                 className="h-8 w-auto"
               />
               <span className="text-2xl font-mono text-black dark:text-white">
-                {String(window.appConfig.get('GOOSE_VERSION') || 'Development')}
+                {String(window.appConfig?.get('GOOSE_VERSION') || 'Development')}
               </span>
             </div>
           </CardContent>

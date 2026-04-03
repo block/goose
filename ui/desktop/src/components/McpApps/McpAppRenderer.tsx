@@ -15,6 +15,7 @@
  * - "standalone" — Goose-specific mode for dedicated Electron windows
  */
 
+import { platform } from '../../platform';
 import { AppRenderer, type RequestHandlerExtra } from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
@@ -175,8 +176,8 @@ function getContainerDimensions(
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
-    const baseUrl = await window.electron.getGoosedHostPort();
-    const secretKey = await window.electron.getSecretKey();
+    const baseUrl = await platform.getGoosedHostPort();
+    const secretKey = await platform.getSecretKey();
 
     if (!baseUrl || !secretKey) {
       console.error('[McpAppRenderer] Failed to get goosed host/port or secret key');
@@ -421,8 +422,8 @@ export default function McpAppRenderer({
   const [secretKey, setSecretKey] = useState<string | null>(null);
 
   useEffect(() => {
-    window.electron.getGoosedHostPort().then(setApiHost);
-    window.electron.getSecretKey().then(setSecretKey);
+    platform.getGoosedHostPort().then(setApiHost);
+    platform.getSecretKey().then(setSecretKey);
   }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
@@ -550,7 +551,7 @@ export default function McpAppRenderer({
 
   const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
     if (isProtocolSafe(url)) {
-      await window.electron.openExternal(url);
+      await platform.openExternal(url);
       return { status: 'success' as const };
     }
 
@@ -559,7 +560,7 @@ export default function McpAppRenderer({
       return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
     }
 
-    const result = await window.electron.showMessageBox({
+    const result = await platform.showMessageBox({
       type: 'question',
       buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
       defaultId: 0,
@@ -572,7 +573,7 @@ export default function McpAppRenderer({
       return { status: 'error' as const, message: 'User cancelled' };
     }
 
-    await window.electron.openExternal(url);
+    await platform.openExternal(url);
     return { status: 'success' as const };
   }, [intl]);
 

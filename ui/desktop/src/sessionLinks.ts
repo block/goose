@@ -1,6 +1,7 @@
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
 import { View, ViewOptions } from './utils/navigationUtils';
 import { errorMessage } from './utils/conversionUtils';
+import { platform } from './platform';
 
 /**
  * Handles opening a shared session from a deep link
@@ -28,7 +29,7 @@ export async function openSharedSessionFromDeepLink(
 
     // If no baseUrl is provided, check if there's one in settings
     if (!baseUrl) {
-      const config = await window.electron.getSetting('sessionSharing');
+      const config = await platform.getSetting('sessionSharing');
       if (config.enabled && config.baseUrl) {
         baseUrl = config.baseUrl;
       } else {

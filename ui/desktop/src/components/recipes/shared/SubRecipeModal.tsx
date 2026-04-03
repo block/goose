@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { platform } from '../../../platform';
 import { X, FolderOpen } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { SubRecipeFormData } from './recipeFormSchema';
@@ -154,7 +155,7 @@ export default function SubRecipeModal({
 
   const handleBrowseFile = async () => {
     try {
-      const selectedPath = await window.electron.selectFileOrDirectory();
+      const selectedPath = await platform.selectFileOrDirectory();
       if (selectedPath) {
         if (!selectedPath.endsWith('.yaml') && !selectedPath.endsWith('.yml')) {
           toastError({
