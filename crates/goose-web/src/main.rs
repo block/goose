@@ -37,12 +37,17 @@ struct Cli {
     /// Path to goosed binary (auto-detected if not specified)
     #[arg(long, env = "GOOSED_BINARY")]
     goosed_binary: Option<PathBuf>,
+
+    /// Working directory for goose sessions (defaults to current directory)
+    #[arg(long, env = "GOOSE_WORKING_DIR")]
+    dir: Option<PathBuf>,
 }
 
 #[derive(Clone)]
 struct AppState {
     goosed_base_url: String,
     secret_key: String,
+    working_dir: String,
 }
 
 #[tokio::main]
@@ -70,9 +75,16 @@ async fn main() -> anyhow::Result<()> {
             (url, secret, Some(child))
         };
 
+    let working_dir = cli
+        .dir
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+        .to_string_lossy()
+        .to_string();
+
     let state = AppState {
         goosed_base_url,
         secret_key,
+        working_dir,
     };
 
     let cors = CorsLayer::new()
@@ -103,19 +115,22 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// Serve index.html with injected meta tags for API config
-async fn serve_index(State(_state): State<AppState>) -> impl IntoResponse {
+async fn serve_index(State(state): State<AppState>) -> impl IntoResponse {
     let index_html = WEB_ASSETS
         .get_file("index.html")
         .map(|f| f.contents_utf8().unwrap_or(""))
         .unwrap_or("<html><body>dist-web not found — run pnpm build:web first</body></html>");
 
-    // Inject goosed connection info as meta tags before </head>.
-    // API is proxied through same origin, so base is empty.
+    // Inject config as meta tags before </head>.
     let injected = index_html.replace(
         "</head>",
-        "<meta name=\"goose:api-base\" content=\"\">\n\
-         <meta name=\"goose:secret-key\" content=\"\">\n\
-         </head>",
+        &format!(
+            "<meta name=\"goose:api-base\" content=\"\">\n\
+             <meta name=\"goose:secret-key\" content=\"\">\n\
+             <meta name=\"goose:working-dir\" content=\"{}\">\n\
+             </head>",
+            state.working_dir.replace('"', "&quot;")
+        ),
     );
 
     Html(injected)

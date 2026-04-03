@@ -2,11 +2,17 @@ import type { PlatformAPI, PlatformEventCallback } from './types';
 import { defaultSettings } from '../utils/settings';
 import type { Settings, SettingKey } from '../utils/settings';
 
-// Polyfill window.appConfig for web mode (Electron preload normally sets this)
+// Polyfill window.appConfig for web mode (Electron preload normally sets this).
+// Config values are injected by goose-web as <meta name="goose:KEY"> tags.
 if (typeof window !== 'undefined' && !window.appConfig) {
+  const readMeta = (name: string) =>
+    document.querySelector(`meta[name="goose:${name}"]`)?.getAttribute('content') ?? undefined;
+  const webConfig: Record<string, unknown> = {
+    GOOSE_WORKING_DIR: readMeta('working-dir') ?? '',
+  };
   (window as unknown as Record<string, unknown>).appConfig = {
-    get: () => undefined,
-    getAll: () => ({}),
+    get: (key: string) => webConfig[key],
+    getAll: () => webConfig,
   };
 }
 
@@ -105,7 +111,10 @@ export const webPlatform: PlatformAPI = {
 
   // Dialogs
   directoryChooser: async () => {
-    // No native directory picker on all browsers, return cancelled
+    const path = window.prompt('Enter working directory path:');
+    if (path) {
+      return { canceled: false, filePaths: [path] };
+    }
     return { canceled: true, filePaths: [] };
   },
 
