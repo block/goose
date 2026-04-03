@@ -126,11 +126,14 @@ async fn serve_static_or_proxy(
     State(state): State<AppState>,
     req: Request<Body>,
 ) -> impl IntoResponse {
-    let path = req.uri().path().trim_start_matches('/');
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    let path_trimmed = path.trim_start_matches('/');
 
     // Try static file first
-    if let Some(file) = WEB_ASSETS.get_file(path) {
-        let mime = mime_guess::from_path(path)
+    if let Some(file) = WEB_ASSETS.get_file(path_trimmed) {
+        tracing::debug!("{} /{} -> static ({})", method, path_trimmed, file.contents().len());
+        let mime = mime_guess::from_path(path_trimmed)
             .first_or_octet_stream()
             .to_string();
         return Response::builder()
@@ -146,7 +149,9 @@ async fn serve_static_or_proxy(
     }
 
     // Not a static file — proxy to goosed
-    proxy_to_goosed(state, req).await.into_response()
+    let resp = proxy_to_goosed(state, req).await.into_response();
+    tracing::info!("{} {} -> proxy {}", method, path, resp.status());
+    resp
 }
 
 /// Forward a request to the goosed backend, injecting the secret key
@@ -171,13 +176,14 @@ async fn proxy_to_goosed(state: AppState, req: Request<Body>) -> impl IntoRespon
         }
     };
 
+    let secret_header = header::HeaderName::from_static("x-secret-key");
     let mut proxy_req = client.request(method, &uri);
     for (key, value) in headers.iter() {
-        if key != header::HOST {
+        if key != header::HOST && key != secret_header {
             proxy_req = proxy_req.header(key, value);
         }
     }
-    proxy_req = proxy_req.header("X-Secret-Key", &state.secret_key);
+    proxy_req = proxy_req.header(&secret_header, &state.secret_key);
     proxy_req = proxy_req.body(body_bytes);
 
     match proxy_req.send().await {
