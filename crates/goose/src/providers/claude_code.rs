@@ -689,6 +689,10 @@ impl Provider for ClaudeCodeProvider {
         Ok(())
     }
 
+    fn skip_moim(&self) -> bool {
+        true
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }

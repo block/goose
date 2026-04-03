@@ -1255,18 +1255,23 @@ impl Agent {
                     break;
                 }
 
-                let conversation_with_moim = super::moim::inject_moim(
-                    &session_config.id,
-                    conversation.clone(),
-                    &self.extension_manager,
-                    &working_dir,
-                ).await;
+                let provider = self.provider().await?;
+                let messages = if provider.skip_moim() {
+                    conversation.clone()
+                } else {
+                    super::moim::inject_moim(
+                        &session_config.id,
+                        conversation.clone(),
+                        &self.extension_manager,
+                        &working_dir,
+                    ).await
+                };
 
                 let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
+                    provider,
                     &session_config.id,
                     &system_prompt,
-                    conversation_with_moim.messages(),
+                    messages.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;

@@ -5,6 +5,7 @@ use goose::acp::ACP_CURRENT_MODEL;
 use goose::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, PromptManager, SessionConfig};
 use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
+use goose::conversation::Conversation;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
@@ -182,6 +183,11 @@ impl ProviderTestConfig {
         self
     }
 
+    fn test_mode_update(mut self, v: bool) -> Self {
+        self.test_mode_update = v;
+        self
+    }
+
     fn expect_context_length_exceeded(mut self, v: bool) -> Self {
         self.expect_context_length_exceeded = v;
         self
@@ -198,7 +204,6 @@ impl ProviderTestConfig {
             skip,
             expected_session_id: || Arc::new(IgnoreSessionId),
             test_smart_approve: false,
-            test_mode_update: false,
             test_context_length_exceeded: false,
             ..Self::with_llm_provider(name, model_name, &[])
         }
@@ -605,15 +610,45 @@ impl ProviderFixture {
         self.agent
             .update_goose_mode(GooseMode::Approve, &self.session_id)
             .await?;
-        // Verify tool call now requires permission (ActionRequired).
-        // Cancel prevents the task from completing → tool fails.
+        // Use a write prompt so ACP agents trigger sandbox permission requests.
+        let test_file = tempfile::NamedTempFile::new()?;
         self.run_permission_test(
             Permission::Cancel,
             true,
-            "Use the get_code tool and output only its result.",
+            &format!("Write the word 'hello' to {}", test_file.path().display()),
             "mode_update",
         )
         .await
+    }
+
+    async fn test_session_naming(&self) -> Result<()> {
+        let model_config = self.provider.get_model_config();
+        let mut conv = Conversation::default();
+        let prompts = ["say hello", "what is 1+1", "say goodbye"];
+        for prompt in &prompts {
+            let user_msg = Message::user().with_text(*prompt);
+            conv.push(user_msg.clone());
+            let (response, _) = self
+                .provider
+                .complete(
+                    &model_config,
+                    &self.session_id,
+                    "You are a helpful assistant.",
+                    conv.messages(),
+                    &[],
+                )
+                .await?;
+            conv.push(response);
+            let name = self
+                .provider
+                .generate_session_name(&self.session_id, &conv)
+                .await?;
+            if !name.is_empty() {
+                println!("=== {}::session_naming === {}", self.name, name);
+                return Ok(());
+            }
+        }
+        panic!("{}: session name not set after 3 prompts", self.name);
     }
 }
 
@@ -703,6 +738,10 @@ async fn test_provider(config: ProviderTestConfig) -> Result<()> {
         if config.test_mode_update {
             run_test(GooseMode::Auto).await?.test_mode_update().await?;
         }
+        run_test(GooseMode::Auto)
+            .await?
+            .test_session_naming()
+            .await?;
         Ok(())
     }
     .await;
@@ -871,6 +910,7 @@ async fn test_xai_provider() -> Result<()> {
 async fn test_claude_code_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("claude-code", CLAUDE_CODE_DEFAULT_MODEL, "claude")
         .model_switch_name("sonnet")
+        .test_mode_update(false)
         .run()
         .await
 }
@@ -879,6 +919,7 @@ async fn test_claude_code_provider() -> Result<()> {
 async fn test_codex_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("codex", CODEX_DEFAULT_MODEL, "codex")
         .test_permissions(false)
+        .test_mode_update(false)
         .run()
         .await
 }

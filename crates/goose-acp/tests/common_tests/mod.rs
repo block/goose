@@ -681,6 +681,36 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
             Notification::AgentMessage,
         ],
     );
+
+    // Chat on session_b must not leak reject_all_tools to session_a.
+    conn.reset_openai();
+    let session_b_id = &session_b.session_id().0;
+    match via {
+        SetModeVia::Dedicated => conn
+            .set_mode(session_b_id, <&str>::from(GooseMode::Chat))
+            .await
+            .unwrap(),
+        SetModeVia::ConfigOption => conn
+            .set_config_option(session_b_id, "mode", <&str>::from(GooseMode::Chat))
+            .await
+            .unwrap(),
+    }
+
+    expected_session_id.set(&session_a.session_id().0);
+    let output = session_a
+        .prompt(prompt, PermissionDecision::Cancel)
+        .await
+        .unwrap();
+    assert_eq!(output.text, FAKE_CODE);
+    assert_notifications(
+        &session_a.notifications(),
+        &[
+            Notification::ToolCall,
+            Notification::ToolCallContent("content".into()),
+            Notification::ToolCallStatus(ToolCallStatus::Completed),
+            Notification::AgentMessage,
+        ],
+    );
 }
 
 pub async fn run_mode_set_error<C: Connection>(
@@ -767,6 +797,11 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
                 format!(r#""model":"{TEST_MODEL}""#),
                 include_str!("../test_data/openai_basic.txt"),
             ),
+            // Session C (created after switch) with default model
+            (
+                format!(r#""model":"{TEST_MODEL}""#),
+                include_str!("../test_data/openai_basic.txt"),
+            ),
         ],
         expected_session_id.clone(),
     )
@@ -825,6 +860,18 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
         .unwrap();
     assert_eq!(output.text, "2");
     assert_notifications(&session_a.notifications(), &[Notification::AgentMessage]);
+
+    // New session after model switch must use the default model.
+    let SessionData {
+        session: mut session_c,
+        ..
+    } = conn.new_session().await.unwrap();
+    expected_session_id.set(&session_c.session_id().0);
+    let output = session_c
+        .prompt("what is 1+1", PermissionDecision::Cancel)
+        .await
+        .unwrap();
+    assert_eq!(output.text, "2");
 }
 
 pub async fn run_model_set_error_session_not_found<C: Connection>() {

@@ -61,6 +61,7 @@ native-tls = [
 workspace = true
 
 [dependencies]
+downcast-rs = "2.0.2"
 lru = { workspace = true }
 rmcp = { workspace = true, features = [
     "client",
