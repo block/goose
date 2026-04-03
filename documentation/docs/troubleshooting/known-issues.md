@@ -541,3 +541,50 @@ If you can share a [diagnostic report](/docs/troubleshooting/diagnostics-and-rep
 [goosehints]: /docs/guides/context-engineering/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
 [extensions-directory]: /extensions
+
+### macOS Network & Firewall Issues
+
+On managed macOS devices (common in enterprise environments), Goose may fail to connect to extension APIs with vague errors like "failed to connect" or "error sending request". Common causes:
+
+#### Firewall Not Allowing Goose
+
+macOS Application Firewall may block Goose's network access. Check if Goose is in the allowlist:
+
+```bash
+# Check firewall status
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --listapps | grep -i goose
+```
+
+If Goose isn't listed and you have admin access:
+
+```bash
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/Goose.app/Contents/MacOS/Goose
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /Applications/Goose.app/Contents/MacOS/Goose
+```
+
+:::note
+On MDM-managed Macs, firewall settings may be locked. Contact your IT department to add Goose to the firewall allowlist.
+:::
+
+#### Local Network Permission
+
+MCP extensions that run as subprocesses need Local Network access. If extensions fail to start:
+
+1. Open **System Settings** → **Privacy & Security** → **Local Network**
+2. Find **Goose** and toggle it **ON**
+
+#### DNS Issues on Wired Connections
+
+USB-C docks and Thunderbolt displays sometimes have no DNS servers configured on their network interface. If Goose works on Wi-Fi but fails when docked:
+
+```bash
+# Check DNS on your wired interface (replace interface name)
+networksetup -getdnsservers "USB 10/100/1000 LAN"
+
+# If it shows "There aren't any DNS Servers set", add fallback DNS:
+sudo networksetup -setdnsservers "USB 10/100/1000 LAN" 1.1.1.1 1.0.0.1
+```
+
+:::tip
+Run `networksetup -listallnetworkservices` to find your interface name.
+:::
