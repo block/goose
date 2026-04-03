@@ -140,7 +140,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 12
+    "model_count": 13
   },
   {
     "id": "nova",
@@ -217,7 +217,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 11
+    "model_count": 12
   },
   {
     "id": "poe",
@@ -228,7 +228,7 @@
     "env": [
       "POE_API_KEY"
     ],
-    "model_count": 122
+    "model_count": 126
   },
   {
     "id": "opencode",
@@ -239,7 +239,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 47
+    "model_count": 48
   },
   {
     "id": "berget",
@@ -272,7 +272,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 10
+    "model_count": 11
   },
   {
     "id": "nvidia",
@@ -415,7 +415,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 28
+    "model_count": 29
   },
   {
     "id": "siliconflow-cn",
@@ -475,13 +475,13 @@
   {
     "id": "zenmux",
     "display_name": "ZenMux",
-    "npm": "@ai-sdk/anthropic",
-    "api": "https://zenmux.ai/api/anthropic/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://zenmux.ai/api/v1",
     "doc": "https://docs.zenmux.ai",
     "env": [
       "ZENMUX_API_KEY"
     ],
-    "model_count": 87
+    "model_count": 85
   },
   {
     "id": "privatemode-ai",
@@ -614,7 +614,7 @@
     "env": [
       "SYNTHETIC_API_KEY"
     ],
-    "model_count": 28
+    "model_count": 29
   },
   {
     "id": "llmgateway",
@@ -628,15 +628,15 @@
     "model_count": 203
   },
   {
-    "id": "aihubmix",
-    "display_name": "AIHubMix",
+    "id": "the-grid-ai",
+    "display_name": "The Grid AI",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://aihubmix.com/v1",
-    "doc": "https://docs.aihubmix.com",
+    "api": "https://api.thegrid.ai/v1",
+    "doc": "https://thegrid.ai/docs",
     "env": [
-      "AIHUBMIX_API_KEY"
+      "THEGRIDAI_API_KEY"
     ],
-    "model_count": 48
+    "model_count": 3
   },
   {
     "id": "minimax-cn-coding-plan",
@@ -757,7 +757,7 @@
     "env": [
       "VULTR_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 4
   },
   {
     "id": "github-models",
@@ -779,7 +779,7 @@
     "env": [
       "NANO_GPT_API_KEY"
     ],
-    "model_count": 517
+    "model_count": 519
   },
   {
     "id": "clarifai",
@@ -857,7 +857,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 13
+    "model_count": 14
   },
   {
     "id": "moonshotai-cn",
@@ -890,7 +890,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 6
   },
   {
     "id": "abacus",
