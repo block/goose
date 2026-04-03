@@ -816,6 +816,7 @@
     "url": "https://sats4ai.com/api/mcp",
     "link": "https://sats4ai.com/mcp",
     "is_builtin": false,
-    "endorsed": false
+    "endorsed": false,
+    "environmentVariables": []
   }
 ]
