@@ -20,7 +20,11 @@ use tower_http::cors::{Any, CorsLayer};
 static WEB_ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../ui/desktop/dist-web");
 
 #[derive(Parser)]
-#[command(author, version, about = "Goose Web UI — serves the browser frontend and proxies API calls to goosed")]
+#[command(
+    author,
+    version,
+    about = "Goose Web UI — serves the browser frontend and proxies API calls to goosed"
+)]
 struct Cli {
     /// Port to listen on for the web UI
     #[arg(long, default_value = "3000", env = "GOOSE_WEB_PORT")]
@@ -147,17 +151,19 @@ async fn serve_static_or_proxy(
 
     // Try static file first
     if let Some(file) = WEB_ASSETS.get_file(path_trimmed) {
-        tracing::debug!("{} /{} -> static ({})", method, path_trimmed, file.contents().len());
+        tracing::debug!(
+            "{} /{} -> static ({})",
+            method,
+            path_trimmed,
+            file.contents().len()
+        );
         let mime = mime_guess::from_path(path_trimmed)
             .first_or_octet_stream()
             .to_string();
         return Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, mime)
-            .header(
-                header::CACHE_CONTROL,
-                "public, max-age=31536000, immutable",
-            )
+            .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
             .body(Body::from(file.contents().to_vec()))
             .unwrap()
             .into_response();

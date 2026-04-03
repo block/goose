@@ -1,3 +1,4 @@
+/* global location, Notification */
 import type { PlatformAPI, PlatformEventCallback } from './types';
 import { defaultSettings } from '../utils/settings';
 import type { Settings, SettingKey } from '../utils/settings';
