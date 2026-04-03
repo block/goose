@@ -48,6 +48,10 @@ use uuid::Uuid;
 /// Default model to use for tool interpretation
 pub const DEFAULT_INTERPRETER_MODEL_OLLAMA: &str = "mistral-nemo";
 
+/// Default model to use for llama.cpp tool interpretation
+#[cfg(feature = "local-inference")]
+pub const DEFAULT_INTERPRETER_MODEL_LLAMACPP: &str = "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M";
+
 /// Environment variables that affect behavior:
 /// - GOOSE_TOOLSHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
 /// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter (default: DEFAULT_INTERPRETER_MODEL)
@@ -294,6 +298,201 @@ Otherwise, if no JSON tool requests are provided, use the no-op tool:
 
         // Process the interpreter response to get tool calls directly
         let tool_calls = OllamaInterpreter::process_interpreter_response(&interpreter_response)?;
+
+        Ok(tool_calls)
+    }
+}
+
+/// llama.cpp-based implementation of the ToolInterpreter trait.
+/// Uses the built-in llama.cpp backend to interpret tool calls locally,
+/// without requiring an external Ollama server.
+#[cfg(feature = "local-inference")]
+pub struct LlamaCppInterpreter {
+    runtime: std::sync::Arc<super::local_inference::InferenceRuntime>,
+}
+
+#[cfg(feature = "local-inference")]
+impl LlamaCppInterpreter {
+    pub fn new() -> Result<Self, ProviderError> {
+        let runtime = super::local_inference::InferenceRuntime::get_or_init();
+        Ok(Self { runtime })
+    }
+
+    /// Generate text from a prompt using the local model.
+    fn generate_sync(
+        &self,
+        model_id: &str,
+        system_prompt: &str,
+        user_prompt: &str,
+    ) -> Result<String, ProviderError> {
+        use super::local_inference::inference_engine::{
+            create_and_prefill_context, generation_loop, validate_and_compute_context, TokenAction,
+        };
+        use llama_cpp_2::model::LlamaChatMessage;
+
+        // Resolve model path and settings
+        let (_model_path, context_limit, settings) =
+            super::local_inference::resolve_model_path(model_id).ok_or_else(|| {
+                ProviderError::ExecutionError(format!(
+                    "Toolshim model '{}' not found in registry. \
+                     Download it from Settings > Local Inference or set \
+                     GOOSE_TOOLSHIM_MODEL to a downloaded model.",
+                    model_id
+                ))
+            })?;
+
+        // Get or load the model
+        let model_slot = self.runtime.get_or_create_model_slot(model_id);
+        let mut model_guard = model_slot.blocking_lock();
+
+        if model_guard.is_none() {
+            let loaded_model =
+                super::local_inference::LocalInferenceProvider::load_model_sync_public(
+                    &self.runtime,
+                    model_id,
+                    &settings,
+                )?;
+            *model_guard = Some(loaded_model);
+        }
+
+        let loaded = model_guard.as_ref().unwrap();
+
+        let chat_messages = vec![
+            LlamaChatMessage::new("system".to_string(), system_prompt.to_string())
+                .map_err(|e| ProviderError::ExecutionError(format!("Chat message error: {}", e)))?,
+            LlamaChatMessage::new("user".to_string(), user_prompt.to_string())
+                .map_err(|e| ProviderError::ExecutionError(format!("Chat message error: {}", e)))?,
+        ];
+
+        let template_result = loaded
+            .model
+            .apply_chat_template_with_tools_oaicompat(
+                &loaded.template,
+                &chat_messages,
+                None,  // no tools
+                None,  // no json_schema
+                true,  // add_generation_prompt
+            )
+            .map_err(|e| ProviderError::ExecutionError(format!("Template error: {}", e)))?;
+
+        let prompt_text = &template_result.prompt;
+
+        let tokens = loaded
+            .model
+            .str_to_token(prompt_text, llama_cpp_2::model::AddBos::Never)
+            .map_err(|e| ProviderError::ExecutionError(format!("Tokenization error: {}", e)))?;
+
+        let prompt_token_count = tokens.len();
+        let ctx_limit = if context_limit > 0 { context_limit } else { 4096 };
+        let (_, effective_ctx) = validate_and_compute_context(
+            loaded,
+            &self.runtime,
+            prompt_token_count,
+            ctx_limit,
+            &settings,
+        )?;
+
+        let mut ctx = create_and_prefill_context(
+            loaded,
+            &self.runtime,
+            &tokens,
+            effective_ctx,
+            &settings,
+        )?;
+
+        let mut output = String::new();
+        generation_loop(
+            &loaded.model,
+            &mut ctx,
+            &settings,
+            prompt_token_count,
+            effective_ctx,
+            |piece| {
+                output.push_str(piece);
+                Ok(TokenAction::Continue)
+            },
+        )?;
+
+        Ok(output)
+    }
+}
+
+#[cfg(feature = "local-inference")]
+#[async_trait::async_trait]
+impl ToolInterpreter for LlamaCppInterpreter {
+    async fn interpret_to_tool_calls(
+        &self,
+        last_assistant_msg: &str,
+        tools: &[Tool],
+    ) -> Result<Vec<CallToolRequestParams>, ProviderError> {
+        if tools.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let system_prompt = "You are a tool call parser. Given text that may contain tool call requests, \
+extract them into valid JSON. Output ONLY a JSON object with this exact format:\n\
+{\"tool_calls\": [{\"name\": \"tool_name\", \"arguments\": {\"param1\": \"value1\"}}]}\n\
+If no tool calls are found, output: {\"tool_calls\": [{\"name\": \"noop\", \"arguments\": {}}]}";
+
+        let user_prompt = format!("Extract tool calls from this text:\n\n{}", last_assistant_msg);
+
+        let interpreter_model = std::env::var("GOOSE_TOOLSHIM_MODEL")
+            .unwrap_or_else(|_| DEFAULT_INTERPRETER_MODEL_LLAMACPP.to_string());
+
+        // Run generation on a blocking thread since llama.cpp is synchronous
+        let runtime = self.runtime.clone();
+        let interpreter = LlamaCppInterpreter { runtime };
+        let model_id = interpreter_model.clone();
+        let sys = system_prompt.to_string();
+        let usr = user_prompt.clone();
+
+        let output = tokio::task::spawn_blocking(move || {
+            interpreter.generate_sync(&model_id, &sys, &usr)
+        })
+        .await
+        .map_err(|e| ProviderError::ExecutionError(format!("Spawn blocking failed: {}", e)))??;
+
+        tracing::info!("LlamaCpp tool interpreter response: {}", output);
+
+        // Parse the output as JSON
+        let mut tool_calls = Vec::new();
+        if let Ok(content_json) = serde_json::from_str::<Value>(&output) {
+            if let Some(tool_calls_array) = content_json.get("tool_calls").and_then(|v| v.as_array()) {
+                for item in tool_calls_array {
+                    if let (Some(name), Some(arguments)) = (
+                        item.get("name").and_then(|v| v.as_str()),
+                        item.get("arguments"),
+                    ) {
+                        tool_calls.push(
+                            CallToolRequestParams::new(name.to_string())
+                                .with_arguments(object(arguments.clone())),
+                        );
+                    }
+                }
+            }
+        } else {
+            // Try to extract JSON from the output (model may wrap it in text)
+            if let Some(start) = output.find('{') {
+                if let Some(end) = output.rfind('}') {
+                    let json_str = &output[start..=end];
+                    if let Ok(content_json) = serde_json::from_str::<Value>(json_str) {
+                        if let Some(tool_calls_array) = content_json.get("tool_calls").and_then(|v| v.as_array()) {
+                            for item in tool_calls_array {
+                                if let (Some(name), Some(arguments)) = (
+                                    item.get("name").and_then(|v| v.as_str()),
+                                    item.get("arguments"),
+                                ) {
+                                    tool_calls.push(
+                                        CallToolRequestParams::new(name.to_string())
+                                            .with_arguments(object(arguments.clone())),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(tool_calls)
     }

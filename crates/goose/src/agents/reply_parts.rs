@@ -20,6 +20,8 @@ use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
+#[cfg(feature = "local-inference")]
+use crate::providers::toolshim::LlamaCppInterpreter;
 use rmcp::model::Tool;
 
 async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>) -> ProviderError {
@@ -123,6 +125,27 @@ async fn toolshim_postprocess(
     response: Message,
     toolshim_tools: &[Tool],
 ) -> Result<Message, ProviderError> {
+    // Try llama.cpp interpreter first (no external server needed)
+    #[cfg(feature = "local-inference")]
+    {
+        match LlamaCppInterpreter::new() {
+            Ok(interpreter) => {
+                return augment_message_with_tool_calls(&interpreter, response, toolshim_tools)
+                    .await
+                    .map_err(|e| {
+                        ProviderError::ExecutionError(format!("Failed to augment message: {}", e))
+                    });
+            }
+            Err(e) => {
+                tracing::debug!(
+                    "LlamaCppInterpreter unavailable ({}), falling back to Ollama",
+                    e
+                );
+            }
+        }
+    }
+
+    // Fallback to Ollama interpreter
     let interpreter = OllamaInterpreter::new().map_err(|e| {
         ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
     })?;
@@ -312,17 +335,30 @@ impl Agent {
         };
 
         Ok(Box::pin(try_stream! {
+            let mut last_message: Option<Message> = None;
             while let Some(result) = stream.next().await {
-                let (mut message, usage) = result?;
+                let (message, usage) = result?;
 
                 // Store the model information in the global store
                 if let Some(usage) = usage.as_ref() {
                     crate::providers::base::set_current_model(&usage.model);
                 }
 
-                // Post-process / structure the response only if tool interpretation is enabled
-                if message.is_some() && config.toolshim {
-                    message = Some(toolshim_postprocess(message.unwrap(), &toolshim_tools).await?);
+                // Track the latest message for toolshim post-processing
+                if message.is_some() {
+                    last_message = message.clone();
+                }
+
+                // Apply toolshim only on the final chunk (when usage is present, indicating
+                // stream completion). This ensures the interpreter sees the complete message
+                // text rather than partial streaming fragments, which small models like
+                // qwen3:1.7b cannot interpret.
+                if config.toolshim && usage.is_some() {
+                    if let Some(msg) = last_message.take() {
+                        let augmented = toolshim_postprocess(msg, &toolshim_tools).await?;
+                        yield (Some(augmented), usage);
+                        continue;
+                    }
                 }
 
                 yield (message, usage);

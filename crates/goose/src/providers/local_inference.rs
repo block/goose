@@ -1,6 +1,6 @@
 pub mod hf_models;
 mod inference_emulated_tools;
-mod inference_engine;
+pub(crate) mod inference_engine;
 mod inference_native_tools;
 pub mod local_model_registry;
 mod tool_parsing;
@@ -93,7 +93,7 @@ impl InferenceRuntime {
         &self.backend
     }
 
-    fn get_or_create_model_slot(&self, model_id: &str) -> ModelSlot {
+    pub fn get_or_create_model_slot(&self, model_id: &str) -> ModelSlot {
         let mut map = self.models.lock().expect("model cache lock poisoned");
         map.entry(model_id.to_string())
             .or_insert_with(|| Arc::new(Mutex::new(None)))
@@ -316,6 +316,15 @@ impl LocalInferenceProvider {
             model_config: model,
             name: PROVIDER_NAME.to_string(),
         })
+    }
+
+    /// Public wrapper for loading a model, used by the toolshim LlamaCppInterpreter.
+    pub(crate) fn load_model_sync_public(
+        runtime: &InferenceRuntime,
+        model_id: &str,
+        settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+    ) -> Result<LoadedModel, ProviderError> {
+        Self::load_model_sync(runtime, model_id, settings)
     }
 
     fn load_model_sync(

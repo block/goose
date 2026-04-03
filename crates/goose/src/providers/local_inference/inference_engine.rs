@@ -21,7 +21,7 @@ pub(super) struct GenerationContext<'a> {
     pub log: &'a mut RequestLog,
 }
 
-pub(super) struct LoadedModel {
+pub(crate) struct LoadedModel {
     pub model: LlamaModel,
     pub template: LlamaChatTemplate,
 }
@@ -30,7 +30,7 @@ pub(super) struct LoadedModel {
 /// memory based on the model's KV cache requirements.
 ///
 /// Returns `None` if the model architecture values are unavailable.
-pub(super) fn estimate_max_context_for_memory(
+pub(crate) fn estimate_max_context_for_memory(
     model: &LlamaModel,
     runtime: &InferenceRuntime,
 ) -> Option<usize> {
@@ -109,7 +109,7 @@ pub(super) fn context_cap(
     }
 }
 
-pub(super) fn effective_context_size(
+pub(crate) fn effective_context_size(
     prompt_token_count: usize,
     settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
     context_limit: usize,
@@ -129,7 +129,7 @@ pub(super) fn effective_context_size(
     needed.min(limit)
 }
 
-pub(super) fn build_context_params(
+pub(crate) fn build_context_params(
     ctx_size: u32,
     settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
 ) -> LlamaContextParams {
@@ -201,7 +201,7 @@ pub(super) fn build_sampler(
 
 /// Validate prompt tokens against memory limits and compute the effective
 /// context size. Returns `(prompt_token_count, effective_ctx)`.
-pub(super) fn validate_and_compute_context(
+pub(crate) fn validate_and_compute_context(
     loaded: &LoadedModel,
     runtime: &InferenceRuntime,
     prompt_token_count: usize,
@@ -237,7 +237,7 @@ pub(super) fn validate_and_compute_context(
 }
 
 /// Create a llama context and prefill (decode) all prompt tokens.
-pub(super) fn create_and_prefill_context<'model>(
+pub(crate) fn create_and_prefill_context<'model>(
     loaded: &'model LoadedModel,
     runtime: &InferenceRuntime,
     tokens: &[llama_cpp_2::token::LlamaToken],
@@ -262,7 +262,7 @@ pub(super) fn create_and_prefill_context<'model>(
 }
 
 /// Action to take after processing a generated token piece.
-pub(super) enum TokenAction {
+pub(crate) enum TokenAction {
     Continue,
     Stop,
 }
@@ -270,7 +270,7 @@ pub(super) enum TokenAction {
 /// Run the autoregressive generation loop. Calls `on_piece` for each non-empty
 /// token piece. The callback returns `TokenAction::Stop` to break early.
 /// Returns the total number of generated tokens.
-pub(super) fn generation_loop(
+pub(crate) fn generation_loop(
     model: &LlamaModel,
     ctx: &mut llama_cpp_2::context::LlamaContext<'_>,
     settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
