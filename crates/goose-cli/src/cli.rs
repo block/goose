@@ -709,6 +709,8 @@ enum Command {
         /// Show verbose information including current configuration
         #[arg(short, long, help = "Show verbose information including config.yaml")]
         verbose: bool,
+        #[arg(long, help = "Test provider connection and show status")]
+        check: bool,
     },
 
     /// Manage system prompts and behaviors
@@ -1755,7 +1757,7 @@ pub async fn cli() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Command::Configure {}) => handle_configure().await,
-        Some(Command::Info { verbose }) => handle_info(verbose),
+        Some(Command::Info { verbose, check }) => handle_info(verbose, check).await,
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
         Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Serve {
