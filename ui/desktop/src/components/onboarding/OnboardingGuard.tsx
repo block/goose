@@ -51,10 +51,17 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     const checkProvider = async () => {
       try {
         const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
-        setHasProvider(provider.trim() !== '');
+        const configured = provider.trim() !== '';
+        setHasProvider(configured);
+        if (configured) {
+          localStorage.setItem('goose_has_provider', 'true');
+        }
       } catch (error) {
         console.error('Error checking provider:', error);
-        setHasProvider(false);
+        // If the server is unreachable but the user has previously configured
+        // a provider, don't show onboarding — they're an existing user.
+        const previouslyConfigured = localStorage.getItem('goose_has_provider') === 'true';
+        setHasProvider(previouslyConfigured);
       } finally {
         setIsCheckingProvider(false);
       }
