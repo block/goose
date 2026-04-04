@@ -452,9 +452,18 @@ pub fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<
         if let Some(last) = merged_messages.last_mut() {
             let effective = effective_role(&message);
             if effective_role(last) == effective {
-                last.content.extend(message.content);
-                issues.push(format!("Merged consecutive {} messages", effective));
-                continue;
+                // Don't merge if either message contains tool responses — they must stay as
+                // separate messages so providers can correlate them with the tool requests.
+                let has_tool_response = |msg: &Message| {
+                    msg.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+                };
+                if !has_tool_response(last) && !has_tool_response(&message) {
+                    last.content.extend(message.content);
+                    issues.push(format!("Merged consecutive {} messages", effective));
+                    continue;
+                }
             }
         }
         merged_messages.push(message);
