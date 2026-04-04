@@ -92,6 +92,7 @@ export default function BaseChat({
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
+    retrySessionLoad,
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
@@ -350,19 +351,30 @@ export default function BaseChat({
           {renderHeader && renderHeader()}
           <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
             <div className="flex-1 bg-background-primary rounded-b-2xl flex items-center justify-center">
-              <div className="flex flex-col items-center justify-center p-8">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
+              <div className="flex flex-col items-center justify-center p-8 max-w-md w-full">
+                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-6 w-full">
                   <h3 className="font-semibold mb-2">Failed to Load Session</h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setView('chat');
-                  }}
-                  className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
-                >
-                  Go home
-                </button>
+                <div className="flex gap-3 mb-4">
+                  <button
+                    onClick={retrySessionLoad}
+                    className="px-4 py-2 text-center cursor-pointer text-text-on-primary bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-150 font-medium"
+                  >
+                    Retry connection
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('chat');
+                    }}
+                    className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
+                  >
+                    New session
+                  </button>
+                </div>
+                <p className="text-xs text-text-muted text-center">
+                  Session: <code className="select-all bg-background-secondary px-1 py-0.5 rounded">{sessionId}</code>
+                </p>
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
@@ -50,6 +50,7 @@ interface UseChatStreamReturn {
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  retrySessionLoad: () => void;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
   onMessageUpdate: (
@@ -349,6 +350,7 @@ export function useChatStream({
   onSessionLoaded,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [state, dispatch] = useReducer(streamReducer, initialState);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Long-lived SSE connection for this session
   const { addListener, setActiveRequestsHandler } = useSessionEvents(sessionId);
@@ -776,7 +778,7 @@ export function useChatStream({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, onSessionLoaded]);
+  }, [sessionId, onSessionLoaded, retryCount]);
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
@@ -1058,8 +1060,15 @@ export function useChatStream({
     }, new Map<string, NotificationEvent[]>());
   }, [state.notifications]);
 
+  const retrySessionLoad = useCallback(() => {
+    dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+    dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.LoadingConversation });
+    setRetryCount((c) => c + 1);
+  }, []);
+
   return {
     sessionLoadError: state.sessionLoadError,
+    retrySessionLoad,
     messages: maybe_cached_messages,
     session: maybe_cached_session,
     chatState: state.chatState,
