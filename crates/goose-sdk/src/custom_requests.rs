@@ -1,6 +1,7 @@
 use sacp::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Schema descriptor for a single custom method, produced by the
 /// `#[custom_methods]` macro's generated `custom_method_schemas()` function.
@@ -148,6 +149,82 @@ pub struct GetExtensionsResponse {
     /// Array of ExtensionEntry objects with `enabled` flag and config details.
     pub extensions: Vec<serde_json::Value>,
     pub warnings: Vec<String>,
+}
+
+/// Atomically update the provider for a live session.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/session/provider/update", response = UpdateProviderResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProviderRequest {
+    pub session_id: String,
+    pub provider: String,
+    pub model: Option<String>,
+    pub context_limit: Option<usize>,
+    pub request_params: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// Provider update response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProviderResponse {
+    /// Refreshed session config options after the provider/model change.
+    pub config_options: Vec<serde_json::Value>,
+}
+
+/// Read a single config value.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/config/read", response = ReadConfigResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadConfigRequest {
+    pub key: String,
+    pub is_secret: bool,
+}
+
+/// Config read response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadConfigResponse {
+    #[serde(default)]
+    pub value: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub masked_value: Option<String>,
+}
+
+/// Upsert a single config value.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/config/upsert", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertConfigRequest {
+    pub key: String,
+    pub value: serde_json::Value,
+    pub is_secret: bool,
+}
+
+/// Remove a single config value.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/config/remove", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveConfigRequest {
+    pub key: String,
+    pub is_secret: bool,
+}
+
+/// List providers available through goose, including the config-default sentinel.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/providers/list", response = ListProvidersResponse)]
+pub struct ListProvidersRequest {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderListEntry {
+    pub id: String,
+    pub label: String,
+}
+
+/// Provider list response.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct ListProvidersResponse {
+    pub providers: Vec<ProviderListEntry>,
 }
 
 /// Empty success response for operations that return no data.

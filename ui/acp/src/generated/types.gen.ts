@@ -145,17 +145,91 @@ export type GetExtensionsResponse = {
     warnings: Array<string>;
 };
 
+/**
+ * Atomically update the provider for a live session.
+ */
+export type UpdateProviderRequest = {
+    sessionId: string;
+    provider: string;
+    model?: string | null;
+    contextLimit?: number | null;
+    requestParams?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * Provider update response.
+ */
+export type UpdateProviderResponse = {
+    /**
+     * Refreshed session config options after the provider/model change.
+     */
+    configOptions: Array<unknown>;
+};
+
+/**
+ * List providers available through goose, including the config-default sentinel.
+ */
+export type ListProvidersRequest = {
+    [key: string]: unknown;
+};
+
+/**
+ * Provider list response.
+ */
+export type ListProvidersResponse = {
+    providers: Array<ProviderListEntry>;
+};
+
+export type ProviderListEntry = {
+    id: string;
+    label: string;
+};
+
+/**
+ * Read a single config value.
+ */
+export type ReadConfigRequest = {
+    key: string;
+    isSecret: boolean;
+};
+
+/**
+ * Config read response.
+ */
+export type ReadConfigResponse = {
+    value?: unknown;
+    maskedValue?: string | null;
+};
+
+/**
+ * Upsert a single config value.
+ */
+export type UpsertConfigRequest = {
+    key: string;
+    isSecret: boolean;
+};
+
+/**
+ * Remove a single config value.
+ */
+export type RemoveConfigRequest = {
+    key: string;
+    isSecret: boolean;
+};
+
 export type ExtRequest = {
     id: string;
     method: string;
-    params?: AddExtensionRequest | RemoveExtensionRequest | GetToolsRequest | ReadResourceRequest | UpdateWorkingDirRequest | GetSessionRequest | DeleteSessionRequest | ExportSessionRequest | ImportSessionRequest | GetExtensionsRequest | {
+    params?: AddExtensionRequest | RemoveExtensionRequest | GetToolsRequest | ReadResourceRequest | UpdateWorkingDirRequest | GetSessionRequest | DeleteSessionRequest | ExportSessionRequest | ImportSessionRequest | GetExtensionsRequest | UpdateProviderRequest | ListProvidersRequest | ReadConfigRequest | UpsertConfigRequest | RemoveConfigRequest | {
         [key: string]: unknown;
     } | null;
 };
 
 export type ExtResponse = {
     id: string;
-    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | unknown;
+    result?: EmptyResponse | GetToolsResponse | ReadResourceResponse | GetSessionResponse | ExportSessionResponse | ImportSessionResponse | GetExtensionsResponse | UpdateProviderResponse | ListProvidersResponse | ReadConfigResponse | unknown;
 } | {
     error: {
         code: number;
