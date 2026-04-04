@@ -1,0 +1,56 @@
+#!/bin/busybox sh
+set -eu
+
+SCRIPT_DIR=$(/bin/busybox dirname "$0")
+
+if [ -n "${GOOSE_SSH_STATELESS_ROOT:-}" ]; then
+  REPO_ROOT="${GOOSE_SSH_STATELESS_ROOT}"
+else
+  CDPATH= cd "$SCRIPT_DIR/../../../.." || exit 1
+  REPO_ROOT="$(pwd)"
+fi
+
+PROJECT_DIR="${REPO_ROOT}/extensions/ssh-stateless"
+SERVER_SCRIPT="${PROJECT_DIR}/ssh_stateless.py"
+
+if [ ! -f "${SERVER_SCRIPT}" ]; then
+  printf 'ssh-stateless-mcp: missing server script at %s\n' "${SERVER_SCRIPT}" >&2
+  exit 1
+fi
+
+UV_BIN="${GOOSE_SSH_STATELESS_UV:-}"
+if [ -z "${UV_BIN}" ]; then
+  for candidate in \
+    "${HOME}/.cache/hermit/pkg/uv-0.11.3/uv" \
+    "${HOME}"/.cache/hermit/pkg/uv-*/uv
+  do
+    if [ -x "${candidate}" ]; then
+      UV_BIN="${candidate}"
+      break
+    fi
+  done
+fi
+
+if [ -z "${UV_BIN}" ]; then
+  printf 'ssh-stateless-mcp: could not find a usable uv binary\n' >&2
+  exit 1
+fi
+
+PYTHON_BIN="${GOOSE_SSH_STATELESS_PYTHON:-}"
+if [ -z "${PYTHON_BIN}" ]; then
+  for candidate in \
+    "${HOME}/.cache/hermit/pkg/python3@3.10/install/bin/python3" \
+    "${HOME}"/.cache/hermit/pkg/python3@*/install/bin/python3
+  do
+    if [ -x "${candidate}" ]; then
+      PYTHON_BIN="${candidate}"
+      break
+    fi
+  done
+fi
+
+if [ -n "${PYTHON_BIN}" ] && [ -x "${PYTHON_BIN}" ]; then
+  export UV_PYTHON="${PYTHON_BIN}"
+fi
+
+exec "${UV_BIN}" run --project "${PROJECT_DIR}" "${SERVER_SCRIPT}"

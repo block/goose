@@ -52,5 +52,17 @@
     "type": "builtin",
     "env_keys": [],
     "bundled": true
+  },
+  {
+    "id": "ssh-stateless",
+    "name": "ssh-stateless",
+    "description": "Runs one-shot SSH commands with a fresh connection on every call.",
+    "enabled": true,
+    "type": "stdio",
+    "cmd": "ssh-stateless-mcp",
+    "args": [],
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
   }
 ]
