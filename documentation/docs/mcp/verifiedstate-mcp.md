@@ -1,17 +1,17 @@
 ---
 title: VerifiedState Extension
-description: Add VerifiedState MCP Server as a Goose Extension for verified agent memory with cryptographic receipts
+description: Add VerifiedState MCP Server as a goose Extension for verified agent memory with cryptographic receipts
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the [VerifiedState MCP Server](https://verifiedstate.ai) as a Goose extension. VerifiedState provides decision trace infrastructure — every assertion your Goose agent makes gets a cryptographic verification receipt.
+This tutorial covers how to add the [VerifiedState MCP Server](https://verifiedstate.ai) as a goose extension. VerifiedState provides decision trace infrastructure — every assertion your goose agent makes gets a cryptographic verification receipt.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="goose CLI" default>
   Use `goose configure` to add a `Command-line Extension (stdio)` extension type with:
 
   **Command**
@@ -28,19 +28,19 @@ This tutorial covers how to add the [VerifiedState MCP Server](https://verifieds
 </Tabs>
 :::
 
-## What VerifiedState adds to Goose
+## What VerifiedState adds to goose
 
-Goose is an autonomous agent making consequential decisions — architectural choices, tool selections, code changes. VerifiedState adds a signed audit trail to every decision:
+goose is an autonomous agent making consequential decisions — architectural choices, tool selections, code changes. VerifiedState adds a signed audit trail to every decision:
 
-- **Verified memory** — every fact Goose stores gets a cryptographic receipt
-- **Point-in-time queries** — reconstruct what Goose believed at any moment
+- **Verified memory** — every fact goose stores gets a cryptographic receipt
+- **Point-in-time queries** — reconstruct what goose believed at any moment
 - **Conflict detection** — detect when new assertions contradict verified facts
 - **Audit export** — full decision trace bundle for compliance review
 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="goose CLI" default>
 
     <CLIExtensionInstructions
       name="VerifiedState"
@@ -69,19 +69,19 @@ Get a free API key at [verifiedstate.ai/keys](https://verifiedstate.ai/keys). Fr
 
 ## Example Usage
 
-Once connected, Goose can use VerifiedState tools naturally:
+Once connected, goose can use VerifiedState tools naturally:
 
 ```
 Store this decision: "Chose PostgreSQL over MySQL for the user service because of jsonb support and pgvector for embeddings"
 ```
 
-Goose will call `memory_ingest`, extract assertions, and verify them with signed receipts.
+goose will call `memory_ingest`, extract assertions, and verify them with signed receipts.
 
 ```
 What did I decide about the database for the user service?
 ```
 
-Goose will call `memory_query` to retrieve the verified assertion with its receipt.
+goose will call `memory_query` to retrieve the verified assertion with its receipt.
 
 ## Links
 
