@@ -94,7 +94,21 @@ export function getTextAndImageContent(message: Message): {
     }
   }
 
+  // Strip tool call markers only from assistant messages (not user-authored text)
+  if (message.role === 'assistant') {
+    textContent = stripToolCallMarkers(textContent);
+  }
+
   return { textContent, imagePaths };
+}
+
+function stripToolCallMarkers(text: string): string {
+  // Remove all tool call XML markers and their content
+  return text
+    .replace(/<\|tool_calls_section_begin\|>[\s\S]*?<\|tool_calls_section_end\|>/g, '')
+    .replace(/<\|tool_call_begin\|>[\s\S]*?<\|tool_call_end\|>/g, '')
+    .replace(/<\|tool_call_argument_begin\|>[\s\S]*?<\|tool_call_argument_end\|>/g, '')
+    .trim();
 }
 
 export function getThinkingContent(message: Message): string | null {
