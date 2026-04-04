@@ -23,7 +23,7 @@ import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
 import { startGoosed } from './goosed';
@@ -1442,38 +1442,40 @@ ipcMain.handle('open-notifications-settings', async () => {
       return true;
     } else if (process.platform === 'linux') {
       // Linux: Try different desktop environments
+      function canSpawn(cmd: string): boolean {
+        try {
+          execFileSync('which', [cmd], { stdio: 'ignore' });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
       // GNOME
-      try {
+      if (canSpawn('gnome-control-center')) {
         spawn('gnome-control-center', ['notifications']);
         return true;
-      } catch {
-        console.log('GNOME control center not found, trying other options');
       }
 
       // KDE Plasma
-      try {
+      if (canSpawn('systemsettings5')) {
         spawn('systemsettings5', ['kcm_notifications']);
         return true;
-      } catch {
-        console.log('KDE systemsettings5 not found, trying other options');
       }
 
       // XFCE
-      try {
+      if (canSpawn('xfce4-settings-manager')) {
         spawn('xfce4-settings-manager', ['--socket-id=notifications']);
         return true;
-      } catch {
-        console.log('XFCE settings manager not found, trying other options');
       }
 
       // Fallback: Try to open general settings
-      try {
+      if (canSpawn('gnome-control-center')) {
         spawn('gnome-control-center');
         return true;
-      } catch {
-        console.warn('Could not find a suitable settings application for Linux');
-        return false;
       }
+      console.warn('Could not find a suitable settings application for Linux');
+      return false;
     } else {
       console.warn(
         `Opening notification settings is not supported on platform: ${process.platform}`
