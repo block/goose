@@ -46,9 +46,11 @@ goose is an autonomous agent making consequential decisions — architectural ch
       name="VerifiedState"
       description="Decision trace infrastructure for AI agents. Cryptographic receipts on every assertion."
       type="stdio"
-      command="npx"
-      args={["@verifiedstate/mcp-server"]}
-      envVars={["VERIFIEDSTATE_API_KEY", "VERIFIEDSTATE_NAMESPACE_ID"]}
+      command="npx @verifiedstate/mcp-server"
+      envVars={[
+        { key: "VERIFIEDSTATE_API_KEY", value: "your-api-key" },
+        { key: "VERIFIEDSTATE_NAMESPACE_ID", value: "your-namespace-id" }
+      ]}
     />
 
   </TabItem>
