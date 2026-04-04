@@ -292,6 +292,7 @@ const MarkdownContent = memo(function MarkdownContent({
                 />
               );
             },
+            pre: ({ children }) => <>{children}</>,
             code: MarkdownCode,
           }}
         >

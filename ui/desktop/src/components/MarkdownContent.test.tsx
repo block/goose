@@ -161,6 +161,71 @@ console.log('Hello, World!');
       });
     });
 
+    it('does not nest block-level code block content inside a <pre> element', async () => {
+      // react-markdown wraps code blocks in <pre> by default; when CodeBlock renders
+      // a <div>, this creates invalid HTML (<pre><div>) that browsers auto-correct
+      // by moving the <div> outside <pre>, disrupting surrounding text layout.
+      // The fix: components.pre returns its children directly (no <pre> wrapper).
+      const content = `Any text
+
+\`\`\`bash
+ls -la
+\`\`\`
+
+Additional text`;
+
+      const { container } = renderWithIntl(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container).toHaveTextContent('Any text');
+        expect(container).toHaveTextContent('ls -la');
+        expect(container).toHaveTextContent('Additional text');
+      });
+
+      // The code block content should NOT be inside a <pre> element
+      // (pre is stripped to avoid <pre><div> invalid HTML nesting)
+      const preElements = container.querySelectorAll('pre');
+      expect(preElements).toHaveLength(0);
+    });
+
+    it('renders multiple fenced code blocks without disrupting surrounding text layout', async () => {
+      const content = `Any text
+
+Another text
+
+\`\`\`bash
+ls -la
+pwd
+\`\`\`
+
+Additional text
+
+Maybe something else
+
+\`\`\`text
+And some text here
+\`\`\`
+
+Final text`;
+
+      const { container } = renderWithIntl(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container).toHaveTextContent('Any text');
+        expect(container).toHaveTextContent('Another text');
+        expect(container).toHaveTextContent('ls -la');
+        expect(container).toHaveTextContent('pwd');
+        expect(container).toHaveTextContent('Additional text');
+        expect(container).toHaveTextContent('Maybe something else');
+        expect(container).toHaveTextContent('And some text here');
+        expect(container).toHaveTextContent('Final text');
+      });
+
+      // No <pre> elements should remain (stripped to avoid invalid nesting)
+      const preElements = container.querySelectorAll('pre');
+      expect(preElements).toHaveLength(0);
+    });
+
     it('renders inline code', async () => {
       const content = 'Use `console.log()` to debug.';
 
