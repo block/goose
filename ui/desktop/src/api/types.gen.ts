@@ -1148,6 +1148,10 @@ export type RetryConfig = {
      */
     on_failure_timeout_seconds?: number | null;
     /**
+     * Whether to reset the conversation context on retry (default: true)
+     */
+    reset_context?: boolean;
+    /**
      * Timeout in seconds for individual shell commands (default: 300 seconds)
      */
     timeout_seconds?: number | null;

@@ -261,18 +261,283 @@ mod tests {
     #[cfg(test)]
     mod retry_tests {
         use super::*;
+        use async_trait::async_trait;
         use goose::agents::types::{RetryConfig, SuccessCheck};
+        use goose::agents::SessionConfig;
+        use goose::conversation::message::Message;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+            ProviderUsage, Usage,
+        };
+        use goose::providers::errors::ProviderError;
+        use goose::session::session_manager::SessionType;
+        use rmcp::model::Tool;
+        use std::path::PathBuf;
+
+        struct MockRetryProvider {}
+        impl MockRetryProvider {
+            fn new() -> Self {
+                Self {}
+            }
+        }
+        impl ProviderDef for MockRetryProvider {
+            type Provider = Self;
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock-retry".to_string(),
+                    display_name: "Mock Retry Provider".to_string(),
+                    description: "Mock provider for retry tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                }
+            }
+            fn from_env(
+                _model: ModelConfig,
+                _extensions: Vec<goose::config::ExtensionConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
+            }
+        }
+        #[async_trait]
+        impl Provider for MockRetryProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let message = Message::assistant().with_text("I'm done.");
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(5), Some(15)),
+                );
+                Ok(stream_from_single_message(message, usage))
+            }
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+            fn get_name(&self) -> &str {
+                "mock-retry"
+            }
+        }
+
+        #[tokio::test]
+        async fn test_retry_reset_context_true() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(MockRetryProvider::new());
+            let session_manager = agent.config.session_manager.clone();
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "retry-reset".to_string(),
+                    SessionType::Hidden,
+                    goose::config::GooseMode::default(),
+                )
+                .await?;
+            agent.update_provider(provider, &session.id).await?;
+
+            let retry_config = RetryConfig {
+                max_retries: 1,
+                checks: vec![SuccessCheck::Shell {
+                    command: "false".to_string(),
+                }],
+                reset_context: true,
+                ..Default::default()
+            };
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: Some(retry_config),
+            };
+            let reply_stream = agent
+                .reply(Message::user().with_text("Initial"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while reply_stream.next().await.is_some() {}
+
+            let final_session = session_manager.get_session(&session.id, true).await?;
+            let messages = final_session.conversation.unwrap().messages().to_vec();
+            // Should only have initial user message and the assistant reply, because history was reset
+            // (The "Maximum retry attempts exceeded" message is also added at the end)
+            assert!(messages
+                .iter()
+                .any(|m| m.as_concat_text().contains("Maximum retry attempts")));
+            // The "Initial" message should be there
+            assert!(messages
+                .iter()
+                .any(|m| m.as_concat_text().contains("Initial")));
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_retry_reset_context_false_feedback() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(MockRetryProvider::new());
+            let session_manager = agent.config.session_manager.clone();
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "retry-feedback".to_string(),
+                    SessionType::Hidden,
+                    goose::config::GooseMode::default(),
+                )
+                .await?;
+            agent.update_provider(provider, &session.id).await?;
+
+            let retry_config = RetryConfig {
+                max_retries: 1,
+                checks: vec![SuccessCheck::Shell {
+                    command: "echo 'err_out' && false".to_string(),
+                }],
+                reset_context: false,
+                ..Default::default()
+            };
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: Some(retry_config),
+            };
+            let reply_stream = agent
+                .reply(Message::user().with_text("Initial"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while reply_stream.next().await.is_some() {}
+
+            let final_session = session_manager.get_session(&session.id, true).await?;
+            let messages = final_session.conversation.unwrap().messages().to_vec();
+
+            let feedback = messages
+                .iter()
+                .find(|m| m.as_concat_text().contains("Validation failed"));
+            assert!(feedback.is_some());
+            assert!(feedback.unwrap().as_concat_text().contains("err_out"));
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_retry_on_failure_feedback() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(MockRetryProvider::new());
+            let session_manager = agent.config.session_manager.clone();
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "retry-on-failure".to_string(),
+                    SessionType::Hidden,
+                    goose::config::GooseMode::default(),
+                )
+                .await?;
+            agent.update_provider(provider, &session.id).await?;
+
+            let retry_config = RetryConfig {
+                max_retries: 1,
+                checks: vec![SuccessCheck::Shell {
+                    command: "false".to_string(),
+                }],
+                on_failure: Some("echo 'recovery_failed' && false".to_string()),
+                reset_context: false,
+                ..Default::default()
+            };
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: Some(retry_config),
+            };
+            let reply_stream = agent
+                .reply(Message::user().with_text("Initial"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while reply_stream.next().await.is_some() {}
+
+            let final_session = session_manager.get_session(&session.id, true).await?;
+            let messages = final_session.conversation.unwrap().messages().to_vec();
+
+            let recovery = messages
+                .iter()
+                .find(|m| m.as_concat_text().contains("Recovery command"));
+            assert!(recovery.is_some());
+            assert!(recovery.unwrap().as_concat_text().contains("with failure"));
+            assert!(recovery
+                .unwrap()
+                .as_concat_text()
+                .contains("recovery_failed"));
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_retry_output_truncation() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(MockRetryProvider::new());
+            let session_manager = agent.config.session_manager.clone();
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "retry-truncation".to_string(),
+                    SessionType::Hidden,
+                    goose::config::GooseMode::default(),
+                )
+                .await?;
+            agent.update_provider(provider, &session.id).await?;
+
+            // Generate a lot of output
+            let large_output_cmd = if cfg!(target_os = "windows") {
+                "for /L %i in (1,1,3000) do echo line %i && false"
+            } else {
+                "for i in $(seq 1 3000); do echo line $i; done && false"
+            };
+
+            let retry_config = RetryConfig {
+                max_retries: 1,
+                checks: vec![SuccessCheck::Shell {
+                    command: large_output_cmd.to_string(),
+                }],
+                reset_context: false,
+                ..Default::default()
+            };
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: Some(retry_config),
+            };
+            let reply_stream = agent
+                .reply(Message::user().with_text("Initial"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while reply_stream.next().await.is_some() {}
+
+            let final_session = session_manager.get_session(&session.id, true).await?;
+            let messages = final_session.conversation.unwrap().messages().to_vec();
+
+            let feedback = messages
+                .iter()
+                .find(|m| m.as_concat_text().contains("Validation failed"))
+                .unwrap();
+            assert!(feedback.as_concat_text().contains("truncated"));
+            Ok(())
+        }
 
         #[tokio::test]
         async fn test_retry_success_check_execution() -> Result<()> {
             use goose::agents::retry::execute_success_checks;
 
             let retry_config = RetryConfig {
-                max_retries: 3,
-                checks: vec![],
-                on_failure: None,
                 timeout_seconds: Some(30),
                 on_failure_timeout_seconds: Some(60),
+                ..Default::default()
             };
 
             let success_checks = vec![SuccessCheck::Shell {
@@ -281,7 +546,13 @@ mod tests {
 
             let result = execute_success_checks(&success_checks, &retry_config).await;
             assert!(result.is_ok(), "Success check should pass");
-            assert!(result.unwrap(), "Command should succeed");
+            assert!(
+                matches!(
+                    result.unwrap(),
+                    goose::agents::retry::SuccessCheckResult::Passed
+                ),
+                "Command should succeed"
+            );
 
             let fail_checks = vec![SuccessCheck::Shell {
                 command: "false".to_string(),
@@ -289,7 +560,13 @@ mod tests {
 
             let result = execute_success_checks(&fail_checks, &retry_config).await;
             assert!(result.is_ok(), "Success check execution should not error");
-            assert!(!result.unwrap(), "Command should fail");
+            assert!(
+                matches!(
+                    result.unwrap(),
+                    goose::agents::retry::SuccessCheckResult::Failed(_)
+                ),
+                "Command should fail"
+            );
 
             Ok(())
         }
@@ -298,10 +575,8 @@ mod tests {
         async fn test_retry_logic_with_validation_errors() -> Result<()> {
             let invalid_retry_config = RetryConfig {
                 max_retries: 0,
-                checks: vec![],
-                on_failure: None,
                 timeout_seconds: Some(0),
-                on_failure_timeout_seconds: None,
+                ..Default::default()
             };
 
             let validation_result = invalid_retry_config.validate();

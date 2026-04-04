@@ -437,6 +437,7 @@ The `retry` field enables recipes to automatically retry execution if success cr
 | `timeout_seconds` | Number | - | Timeout for success check commands (default: 300 seconds) |
 | `on_failure_timeout_seconds` | Number | - | Timeout for on_failure commands (default: 600 seconds) |
 | `on_failure` | String | - | Shell command to run when a retry attempt fails |
+| `reset_context` | Boolean | - | Whether to reset the conversation context on retry (default: true) |
 
 #### Success Check Configuration
 
@@ -452,8 +453,10 @@ Each success check in the `checks` array has the following schema:
 1. **Recipe Execution**: The recipe runs normally with the provided instructions
 2. **Success Validation**: After completion, all success checks are executed in order
 3. **Retry Decision**: If any success check fails and retry attempts remain:
-   - Execute the on_failure command (if configured)
-   - Reset the agent's message history to initial state
+   - Execute the `on_failure` command (if configured)
+   - Handle context based on `reset_context`:
+     - **If `true` (default)**: Reset the agent's message history to initial state
+     - **If `false`**: Provide the success check's `stdout`/`stderr` and the `on_failure` command's output to the agent as a new user message
    - Increment retry counter and restart execution
 4. **Completion**: Process stops when either:
    - All success checks pass (success)
@@ -495,6 +498,30 @@ retry:
       command: "pgrep -f 'web-service' > /dev/null"
   on_failure: "systemctl stop web-service || killall web-service"
 ```
+
+#### Feedback Loop Retry Example (Context Persistence)
+
+This recipe demonstrates how `reset_context: false` can provide rich feedback to the agent, allowing it to adapt its strategy without starting from scratch.
+
+```yaml
+version: "1.0.0"
+title: "Compile and Fix Project"
+description: "Run compilation and fix all errors"
+prompt: "Compile the C project in the current directory. Fix any reported errors."
+
+retry:
+  max_retries: 3
+  reset_context: false
+  checks:
+    - type: shell
+      command: "make build"
+  on_failure: "ls -l build/"
+```
+
+When `make build` fails:
+1. The compilation's `stderr` (with specific error lines) is provided back to the agent as a user message.
+2. The `on_failure` output (showing which build artifacts were created or missing) is also shared.
+3. The agent continues the conversation, using this information to fix the specific source code lines that caused the failure.
 
 #### Environment Variables
 
@@ -840,6 +867,7 @@ settings:
 retry:
   max_retries: 3
   timeout_seconds: 30
+  reset_context: true
   checks:
     - type: shell
       command: "echo 'Task validation check passed'"
