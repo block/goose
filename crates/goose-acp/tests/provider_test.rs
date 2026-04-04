@@ -1,5 +1,6 @@
 #![recursion_limit = "256"]
 
+#[allow(dead_code)]
 mod common_tests;
 use common_tests::fixtures::provider::AcpProviderConnection;
 use common_tests::fixtures::run_test;

@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 mod common_tests;
 use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::AcpServerConnection;
