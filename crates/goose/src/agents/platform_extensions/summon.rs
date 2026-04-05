@@ -35,7 +35,7 @@ use tokio::sync::{mpsc, Mutex};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub static EXTENSION_NAME: &str = "summon";
 
@@ -159,7 +159,7 @@ fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, 
     let metadata: T = match serde_yaml::from_str(yaml_content) {
         Ok(m) => m,
         Err(e) => {
-            warn!("Failed to parse frontmatter: {}", e);
+            debug!("Failed to parse frontmatter: {}", e);
             return None;
         }
     };
