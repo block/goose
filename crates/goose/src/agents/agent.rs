@@ -1727,6 +1727,7 @@ impl Agent {
                         }
                         None => {
                             // Merge pending messages so handle_retry_logic sees the full history
+                            let old_len_before_drain = conversation.len();
                             conversation.extend(std::mem::take(&mut messages_to_add));
                             let old_len = conversation.len();
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
@@ -1742,10 +1743,12 @@ impl Agent {
                                                 yield AgentEvent::Message(conversation.messages()[i].clone());
                                             }
                                         }
-                                        // Always persist: messages_to_add was drained into conversation
-                                        // above (std::mem::take), so we must save even when retry added
-                                        // nothing — otherwise the assistant reply is lost from session.
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                        // Keep append-only persistence on non-retry turns.
+                                        // Since we drained `messages_to_add` into `conversation`, we need to 
+                                        // add all newly appended messages individually to avoid O(n) replace_conversation.
+                                        for msg in &conversation.messages()[old_len_before_drain..] {
+                                            session_manager.add_message(&session_config.id, msg).await?;
+                                        }
                                         exit_chat = true;
                                     }
                                 }
