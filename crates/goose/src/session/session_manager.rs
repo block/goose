@@ -227,11 +227,6 @@ impl<'a> SessionUpdateBuilder<'a> {
         self
     }
 
-    pub fn clear_provider_name(mut self) -> Self {
-        self.provider_name = Some(None);
-        self
-    }
-
     pub fn model_config(mut self, model_config: ModelConfig) -> Self {
         self.model_config = Some(Some(model_config));
         self
