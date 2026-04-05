@@ -1726,24 +1726,40 @@ impl Agent {
                             // continue from last user message after recovery compact
                         }
                         None => {
+                            // Merge pending messages so handle_retry_logic sees the full history
+                            let old_len_before_drain = conversation.len();
+                            conversation.extend(std::mem::take(&mut messages_to_add));
+                            let old_len = conversation.len();
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
                                 Ok(should_retry) => {
                                     if should_retry {
                                         info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
                                         session_manager.replace_conversation(&session_config.id, &conversation).await?;
                                         yield AgentEvent::HistoryReplaced(conversation.clone());
                                     } else {
+                                        // Yield any messages added by retry logic (e.g. "Max attempts exceeded")
+                                        if conversation.len() > old_len {
+                                            for i in old_len..conversation.len() {
+                                                yield AgentEvent::Message(conversation.messages()[i].clone());
+                                            }
+                                        }
+                                        // Keep append-only persistence on non-retry turns.
+                                        // Since we drained `messages_to_add` into `conversation`, we need to 
+                                        // add all newly appended messages individually to avoid O(n) replace_conversation.
+                                        for msg in &conversation.messages()[old_len_before_drain..] {
+                                            session_manager.add_message(&session_config.id, msg).await?;
+                                        }
                                         exit_chat = true;
                                     }
                                 }
                                 Err(e) => {
                                     error!("Retry logic failed: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Retry logic encountered an error: {}", e)
-                                        )
+                                    let err_msg = Message::assistant().with_text(
+                                        format!("Retry logic encountered an error: {}", e)
                                     );
+                                    conversation.push(err_msg.clone());
+                                    session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                    yield AgentEvent::Message(err_msg);
                                     exit_chat = true;
                                 }
                             }

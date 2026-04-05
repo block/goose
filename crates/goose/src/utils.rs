@@ -21,6 +21,35 @@ pub fn sanitize_unicode_tags(text: &str) -> String {
         .collect()
 }
 
+/// Truncate text to `max_chars` characters, keeping the head (beginning).
+/// Returns `(kept_slice, omitted_count)`. Zero-allocation.
+pub fn truncate_keep_head(text: &str, max_chars: usize) -> (&str, usize) {
+    let char_count = text.chars().count();
+    if char_count <= max_chars {
+        return (text, 0);
+    }
+    if max_chars == 0 {
+        return ("", char_count);
+    }
+    let (idx, _) = text.char_indices().nth(max_chars).unwrap();
+    (text.get(..idx).unwrap(), char_count - max_chars)
+}
+
+/// Truncate text to `max_chars` characters, keeping the tail (end).
+/// Returns `(kept_slice, omitted_count)`. Zero-allocation.
+pub fn truncate_keep_tail(text: &str, max_chars: usize) -> (&str, usize) {
+    let char_count = text.chars().count();
+    if char_count <= max_chars {
+        return (text, 0);
+    }
+    if max_chars == 0 {
+        return ("", char_count);
+    }
+    let omitted = char_count - max_chars;
+    let (idx, _) = text.char_indices().nth(omitted).unwrap();
+    (text.get(idx..).unwrap(), omitted)
+}
+
 /// Safely truncate a string at character boundaries, not byte boundaries
 ///
 /// This function ensures that multi-byte UTF-8 characters (like Japanese, emoji, etc.)
@@ -36,7 +65,8 @@ pub fn safe_truncate(s: &str, max_chars: usize) -> String {
     if s.chars().count() <= max_chars {
         s.to_string()
     } else {
-        let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
+        let keep_chars = max_chars.saturating_sub(3);
+        let (truncated, _) = truncate_keep_head(s, keep_chars);
         format!("{}...", truncated)
     }
 }
@@ -124,5 +154,19 @@ mod tests {
         let mixed = "Hello こんにちは";
         assert_eq!(safe_truncate(mixed, 20), mixed);
         assert_eq!(safe_truncate(mixed, 8), "Hello...");
+    }
+
+    #[test]
+    fn test_truncate_keep_head_zero() {
+        assert_eq!(truncate_keep_head("hello", 0), ("", 5));
+        assert_eq!(truncate_keep_head("こんにちは", 0), ("", 5));
+        assert_eq!(truncate_keep_head("", 0), ("", 0));
+    }
+
+    #[test]
+    fn test_truncate_keep_tail_zero() {
+        assert_eq!(truncate_keep_tail("hello", 0), ("", 5));
+        assert_eq!(truncate_keep_tail("こんにちは", 0), ("", 5));
+        assert_eq!(truncate_keep_tail("", 0), ("", 0));
     }
 }

@@ -7408,6 +7408,10 @@
             "nullable": true,
             "minimum": 0
           },
+          "reset_context": {
+            "type": "boolean",
+            "description": "Whether to reset the conversation context on retry (default: true)"
+          },
           "timeout_seconds": {
             "type": "integer",
             "format": "int64",

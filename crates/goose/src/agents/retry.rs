@@ -36,6 +36,10 @@ const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SEC
 /// Environment variable for configuring on_failure timeout globally
 const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS";
 
+/// Maximum number of characters to retain in retry failure feedback to prevent context overflow.
+/// 20,000 chars is roughly 5k-10k tokens depending on the model/content.
+const MAX_RETRY_OUTPUT_CHARS: usize = 20_000;
+
 /// Manages retry state and operations for agent execution
 #[derive(Debug)]
 pub struct RetryManager {
@@ -122,9 +126,9 @@ impl RetryManager {
             return Ok(RetryResult::Skipped);
         };
 
-        let success = execute_success_checks(&retry_config.checks, retry_config).await?;
+        let check_result = execute_success_checks(&retry_config.checks, retry_config).await?;
 
-        if success {
+        if let SuccessCheckResult::Passed = check_result {
             info!("All success checks passed, no retry needed");
             return Ok(RetryResult::SuccessChecksPassed);
         }
@@ -148,17 +152,133 @@ impl RetryManager {
             return Ok(RetryResult::MaxAttemptsReached);
         }
 
-        if let Some(on_failure_cmd) = &retry_config.on_failure {
-            info!("Executing on_failure command: {}", on_failure_cmd);
-            execute_on_failure_command(on_failure_cmd, retry_config).await?;
-        }
+        let on_failure_details = if let Some(on_failure_cmd) = &retry_config.on_failure {
+            Some(execute_on_failure_command(on_failure_cmd, retry_config).await?)
+        } else {
+            None
+        };
 
-        Self::reset_status_for_retry(messages, initial_messages, final_output_tool).await;
+        if retry_config.reset_context {
+            if let Some(ref details) = on_failure_details {
+                if !details.exit_status.success() {
+                    return Err(anyhow::anyhow!(
+                        "On_failure command '{}' exited with status {}, stderr: {}",
+                        details.command,
+                        details.exit_status,
+                        details.stderr.trim()
+                    ));
+                }
+            }
+            Self::reset_status_for_retry(messages, initial_messages, final_output_tool).await;
+        } else {
+            use std::fmt::Write;
+            let mut failure_message = String::new();
+
+            let mut remaining_budget = MAX_RETRY_OUTPUT_CHARS;
+
+            if let SuccessCheckResult::Failed(details) = check_result {
+                let _ = writeln!(
+                    failure_message,
+                    "Validation failed: command '{}' exited with status {}",
+                    details.command, details.exit_status
+                );
+                append_output_details(
+                    &mut failure_message,
+                    "Validation",
+                    &details.stdout,
+                    &details.stderr,
+                    &mut remaining_budget,
+                );
+            }
+
+            if let Some(details) = on_failure_details {
+                let status_str = if details.exit_status.success() {
+                    "successfully"
+                } else {
+                    "with failure"
+                };
+                let _ = writeln!(
+                    failure_message,
+                    "\nRecovery command '{}' executed {}.",
+                    details.command, status_str
+                );
+                append_output_details(
+                    &mut failure_message,
+                    "Recovery",
+                    &details.stdout,
+                    &details.stderr,
+                    &mut remaining_budget,
+                );
+            }
+
+            failure_message
+                .push_str("\nPlease analyze the outputs above and try again to achieve the goal.");
+            messages.push(
+                Message::user()
+                    .with_text(failure_message.trim())
+                    .agent_only(),
+            );
+            info!(
+                "Added comprehensive failure context to conversation history for retry (no reset)"
+            );
+        }
 
         let new_attempts = self.increment_attempts().await;
         info!("Incrementing retry attempts to {}", new_attempts);
 
         Ok(RetryResult::Retried)
+    }
+}
+
+/// Helper function to append stdout/stderr to a failure message with truncation.
+fn append_output_details(
+    message: &mut String,
+    prefix: &str,
+    stdout: &str,
+    stderr: &str,
+    budget: &mut usize,
+) {
+    use crate::agents::large_response_handler::write_large_text_to_file;
+    use crate::utils::truncate_keep_tail;
+    use std::fmt::Write;
+
+    if stdout.is_empty() && stderr.is_empty() {
+        return;
+    }
+
+    let _ = writeln!(message, "{} output:", prefix);
+    for (label, text) in [("stdout", stdout), ("stderr", stderr)] {
+        if text.is_empty() {
+            continue;
+        }
+
+        if *budget == 0 {
+            let file_note = match write_large_text_to_file(text) {
+                Ok(path) => format!(" [Full {} saved to: {}]", label, path),
+                Err(_) => String::new(),
+            };
+            let _ = writeln!(
+                message,
+                "  {label}:\n[... omitted: global cap reached ...]{file_note}"
+            );
+            continue;
+        }
+
+        let (kept, omitted) = truncate_keep_tail(text, *budget);
+        *budget = budget.saturating_sub(kept.chars().count());
+
+        if omitted > 0 {
+            let file_note = match write_large_text_to_file(text) {
+                Ok(path) => format!("\n[Full {} saved to: {}]", label, path),
+                Err(_) => String::new(),
+            };
+            let _ = writeln!(
+                message,
+                "  {label}:\n[... truncated {omitted} chars ...]{file_note}\n{kept}"
+            );
+        } else {
+            let _ = writeln!(message, "  {label}:\n{kept}");
+        }
     }
 }
 
@@ -192,11 +312,40 @@ fn get_on_failure_timeout(retry_config: &RetryConfig) -> Duration {
     Duration::from_secs(timeout_seconds)
 }
 
-/// Execute all success checks and return true if all pass
+/// Detailed result of a command execution
+#[derive(Debug, Clone)]
+pub struct ExecutionDetails {
+    pub command: String,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_status: std::process::ExitStatus,
+}
+
+impl ExecutionDetails {
+    pub fn from_output(command: String, output: std::process::Output) -> Self {
+        Self {
+            command,
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            exit_status: output.status,
+        }
+    }
+}
+
+/// Result of executing success checks
+#[derive(Debug)]
+pub enum SuccessCheckResult {
+    /// All checks passed
+    Passed,
+    /// A check failed with details
+    Failed(ExecutionDetails),
+}
+
+/// Execute all success checks and return detailed result
 pub async fn execute_success_checks(
     checks: &[SuccessCheck],
     retry_config: &RetryConfig,
-) -> Result<bool> {
+) -> Result<SuccessCheckResult> {
     let timeout = get_retry_timeout(retry_config);
 
     for check in checks {
@@ -210,7 +359,10 @@ pub async fn execute_success_checks(
                         result.status,
                         String::from_utf8_lossy(&result.stderr)
                     );
-                    return Ok(false);
+                    return Ok(SuccessCheckResult::Failed(ExecutionDetails::from_output(
+                        command.clone(),
+                        result,
+                    )));
                 }
                 info!(
                     "Success check passed: command '{}' completed successfully",
@@ -219,7 +371,7 @@ pub async fn execute_success_checks(
             }
         }
     }
-    Ok(true)
+    Ok(SuccessCheckResult::Passed)
 }
 
 /// Execute a shell command with cross-platform compatibility and mandatory timeout
@@ -277,81 +429,41 @@ pub async fn execute_shell_command(
     }
 }
 
-/// Execute an on_failure command and return an error if it fails
-pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
+/// Execute an on_failure command and return its details even if it fails
+pub async fn execute_on_failure_command(
+    command: &str,
+    retry_config: &RetryConfig,
+) -> Result<ExecutionDetails> {
     let timeout = get_on_failure_timeout(retry_config);
     info!(
         "Executing on_failure command with timeout {:?}: {}",
         timeout, command
     );
 
-    let output = match execute_shell_command(command, timeout).await {
-        Ok(output) => output,
-        Err(e) => {
-            if e.to_string().contains("timed out") {
-                let error_msg = format!(
-                    "On_failure command timed out after {:?}: {}",
-                    timeout, command
+    match execute_shell_command(command, timeout).await {
+        Ok(output) => {
+            let details = ExecutionDetails::from_output(command.to_string(), output);
+            if !details.exit_status.success() {
+                warn!(
+                    "On_failure command failed with status {}: {}",
+                    details.exit_status, command
                 );
-                warn!("{}", error_msg);
-                return Err(anyhow::anyhow!(error_msg));
             } else {
-                warn!("On_failure command execution error: {}", e);
-                return Err(e);
+                info!("On_failure command completed successfully: {}", command);
             }
+            Ok(details)
         }
-    };
-
-    if !output.status.success() {
-        let error_msg = format!(
-            "On_failure command failed: command '{}' exited with status {}, stderr: {}",
-            command,
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        warn!("{}", error_msg);
-        return Err(anyhow::anyhow!(error_msg));
-    } else {
-        info!("On_failure command completed successfully: {}", command);
+        Err(e) => {
+            warn!("On_failure command execution error: {}", e);
+            Err(e)
+        }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::agents::types::SuccessCheck;
-
-    fn create_test_retry_config() -> RetryConfig {
-        RetryConfig {
-            max_retries: 3,
-            checks: vec![],
-            on_failure: None,
-            timeout_seconds: Some(60),
-            on_failure_timeout_seconds: Some(120),
-        }
-    }
-
-    #[test]
-    fn test_retry_result_enum() {
-        assert_ne!(RetryResult::Skipped, RetryResult::MaxAttemptsReached);
-        assert_ne!(RetryResult::Skipped, RetryResult::SuccessChecksPassed);
-        assert_ne!(RetryResult::Skipped, RetryResult::Retried);
-        assert_ne!(
-            RetryResult::MaxAttemptsReached,
-            RetryResult::SuccessChecksPassed
-        );
-        assert_ne!(RetryResult::MaxAttemptsReached, RetryResult::Retried);
-        assert_ne!(RetryResult::SuccessChecksPassed, RetryResult::Retried);
-
-        let result = RetryResult::Retried;
-        let cloned = result.clone();
-        assert_eq!(result, cloned);
-
-        let debug_str = format!("{:?}", RetryResult::MaxAttemptsReached);
-        assert!(debug_str.contains("MaxAttemptsReached"));
-    }
 
     #[tokio::test]
     async fn test_execute_success_checks_all_pass() {
@@ -363,11 +475,11 @@ mod tests {
                 command: "true".to_string(),
             },
         ];
-        let retry_config = create_test_retry_config();
+        let retry_config = RetryConfig::default();
 
         let result = execute_success_checks(&checks, &retry_config).await;
         assert!(result.is_ok());
-        assert!(result.unwrap());
+        assert!(matches!(result.unwrap(), SuccessCheckResult::Passed));
     }
 
     #[tokio::test]
@@ -380,11 +492,11 @@ mod tests {
                 command: "false".to_string(),
             },
         ];
-        let retry_config = create_test_retry_config();
+        let retry_config = RetryConfig::default();
 
         let result = execute_success_checks(&checks, &retry_config).await;
         assert!(result.is_ok());
-        assert!(!result.unwrap());
+        assert!(matches!(result.unwrap(), SuccessCheckResult::Failed(_)));
     }
 
     #[tokio::test]
@@ -406,16 +518,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_on_failure_command_success() {
-        let retry_config = create_test_retry_config();
+        let retry_config = RetryConfig::default();
         let result = execute_on_failure_command("echo 'cleanup'", &retry_config).await;
         assert!(result.is_ok());
+        assert!(result.unwrap().exit_status.success());
     }
 
     #[tokio::test]
     async fn test_execute_on_failure_command_failure() {
-        let retry_config = create_test_retry_config();
+        let retry_config = RetryConfig::default();
         let result = execute_on_failure_command("false", &retry_config).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert!(!result.unwrap().exit_status.success());
     }
 
     #[tokio::test]
@@ -433,11 +547,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_retry_timeout_uses_config_default() {
         let retry_config = RetryConfig {
-            max_retries: 1,
-            checks: vec![],
-            on_failure: None,
             timeout_seconds: None,
-            on_failure_timeout_seconds: None,
+            ..Default::default()
         };
 
         let timeout = get_retry_timeout(&retry_config);
@@ -447,11 +558,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_retry_timeout_uses_retry_config() {
         let retry_config = RetryConfig {
-            max_retries: 1,
-            checks: vec![],
-            on_failure: None,
             timeout_seconds: Some(120),
-            on_failure_timeout_seconds: None,
+            ..Default::default()
         };
 
         let timeout = get_retry_timeout(&retry_config);
@@ -461,11 +569,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_on_failure_timeout_uses_config_default() {
         let retry_config = RetryConfig {
-            max_retries: 1,
-            checks: vec![],
-            on_failure: None,
-            timeout_seconds: None,
             on_failure_timeout_seconds: None,
+            ..Default::default()
         };
 
         let timeout = get_on_failure_timeout(&retry_config);
@@ -478,11 +583,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_on_failure_timeout_uses_retry_config() {
         let retry_config = RetryConfig {
-            max_retries: 1,
-            checks: vec![],
-            on_failure: None,
-            timeout_seconds: None,
             on_failure_timeout_seconds: Some(900),
+            ..Default::default()
         };
 
         let timeout = get_on_failure_timeout(&retry_config);
@@ -492,11 +594,9 @@ mod tests {
     #[tokio::test]
     async fn test_on_failure_timeout_different_from_retry_timeout() {
         let retry_config = RetryConfig {
-            max_retries: 1,
-            checks: vec![],
-            on_failure: None,
             timeout_seconds: Some(60),
             on_failure_timeout_seconds: Some(300),
+            ..Default::default()
         };
 
         let retry_timeout = get_retry_timeout(&retry_config);

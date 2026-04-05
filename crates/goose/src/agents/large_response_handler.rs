@@ -59,7 +59,7 @@ pub fn process_tool_response(
 }
 
 /// Write large text content to a temporary file
-fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
+pub fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
     // Create temp directory if it doesn't exist
     let temp_dir = std::env::temp_dir().join("goose_mcp_responses");
     std::fs::create_dir_all(&temp_dir)?;

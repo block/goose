@@ -18,6 +18,10 @@ pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;
 /// Default timeout for on_failure operations (10 minutes - longer for on_failure tasks)
 pub const DEFAULT_ON_FAILURE_TIMEOUT_SECONDS: u64 = 600;
 
+fn default_reset_context() -> bool {
+    true
+}
+
 /// Configuration for retry logic in recipe execution
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RetryConfig {
@@ -34,6 +38,22 @@ pub struct RetryConfig {
     /// Timeout in seconds for on_failure commands (default: 600 seconds)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_failure_timeout_seconds: Option<u64>,
+    /// Whether to reset the conversation context on retry (default: true)
+    #[serde(default = "default_reset_context")]
+    pub reset_context: bool,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            checks: Vec::new(),
+            on_failure: None,
+            timeout_seconds: Some(DEFAULT_RETRY_TIMEOUT_SECONDS),
+            on_failure_timeout_seconds: Some(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS),
+            reset_context: true,
+        }
+    }
 }
 
 impl RetryConfig {
@@ -43,18 +63,14 @@ impl RetryConfig {
             return Err("max_retries must be greater than 0".to_string());
         }
 
-        if let Some(timeout) = self.timeout_seconds {
-            if timeout == 0 {
-                return Err("timeout_seconds must be greater than 0 if specified".to_string());
-            }
+        if let Some(0) = self.timeout_seconds {
+            return Err("timeout_seconds must be greater than 0 if specified".to_string());
         }
 
-        if let Some(on_failure_timeout) = self.on_failure_timeout_seconds {
-            if on_failure_timeout == 0 {
-                return Err(
-                    "on_failure_timeout_seconds must be greater than 0 if specified".to_string(),
-                );
-            }
+        if let Some(0) = self.on_failure_timeout_seconds {
+            return Err(
+                "on_failure_timeout_seconds must be greater than 0 if specified".to_string(),
+            );
         }
 
         Ok(())
@@ -101,11 +117,9 @@ mod tests {
     #[test]
     fn test_retry_config_validate_success() {
         let config = RetryConfig {
-            max_retries: 3,
-            checks: vec![],
-            on_failure: None,
             timeout_seconds: Some(60),
             on_failure_timeout_seconds: Some(120),
+            ..Default::default()
         };
         assert!(config.validate().is_ok());
     }
@@ -114,10 +128,7 @@ mod tests {
     fn test_retry_config_validate_max_retries_zero() {
         let config = RetryConfig {
             max_retries: 0,
-            checks: vec![],
-            on_failure: None,
-            timeout_seconds: None,
-            on_failure_timeout_seconds: None,
+            ..Default::default()
         };
         let result = config.validate();
         assert!(result.is_err());
@@ -127,11 +138,8 @@ mod tests {
     #[test]
     fn test_retry_config_validate_timeout_zero() {
         let config = RetryConfig {
-            max_retries: 3,
-            checks: vec![],
-            on_failure: None,
             timeout_seconds: Some(0),
-            on_failure_timeout_seconds: None,
+            ..Default::default()
         };
         let result = config.validate();
         assert!(result.is_err());
@@ -144,11 +152,8 @@ mod tests {
     #[test]
     fn test_retry_config_validate_on_failure_timeout_zero() {
         let config = RetryConfig {
-            max_retries: 3,
-            checks: vec![],
-            on_failure: None,
-            timeout_seconds: None,
             on_failure_timeout_seconds: Some(0),
+            ..Default::default()
         };
         let result = config.validate();
         assert!(result.is_err());
