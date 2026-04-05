@@ -5,27 +5,28 @@ description: Add VerifiedState MCP Server as a goose Extension for verified agen
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 This tutorial covers how to add the [VerifiedState MCP Server](https://verifiedstate.ai) as a goose extension. VerifiedState provides decision trace infrastructure — every assertion your goose agent makes gets a cryptographic verification receipt.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="cli" label="goose CLI" default>
-  Use `goose configure` to add a `Command-line Extension (stdio)` extension type with:
-
+  <TabItem value="ui" label="goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40verifiedstate%2Fmcp-server&id=verifiedstate&name=VerifiedState&description=Verified%20agent%20memory%20with%20cryptographic%20receipts&env=VERIFIEDSTATE_API_KEY%3DYour%20API%20Key&env=VERIFIEDSTATE_NAMESPACE_ID%3DYour%20Namespace%20ID)
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
   **Command**
-  ```
-  npx @verifiedstate/mcp-server
-  ```
-
-  **Environment Variables**
-  ```
-  VERIFIEDSTATE_API_KEY=vs_live_your_key
-  VERIFIEDSTATE_NAMESPACE_ID=your_namespace_id
+  ```sh
+  npx -y @verifiedstate/mcp-server
   ```
   </TabItem>
 </Tabs>
+  **Environment Variables**
+  ```
+  VERIFIEDSTATE_API_KEY: <YOUR_API_KEY>
+  VERIFIEDSTATE_NAMESPACE_ID: <YOUR_NAMESPACE_ID>
+  ```
 :::
 
 ## What VerifiedState adds to goose
@@ -39,21 +40,44 @@ goose is an autonomous agent making consequential decisions — architectural ch
 
 ## Configuration
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
 <Tabs groupId="interface">
-  <TabItem value="cli" label="goose CLI" default>
-
-    <CLIExtensionInstructions
-      name="VerifiedState"
-      description="Decision trace infrastructure for AI agents. Cryptographic receipts on every assertion."
-      type="stdio"
-      command="npx @verifiedstate/mcp-server"
-      envVars={[
-        { key: "VERIFIEDSTATE_API_KEY", value: "your-api-key" },
-        { key: "VERIFIEDSTATE_NAMESPACE_ID", value: "your-namespace-id" }
-      ]}
-    />
-
+  <TabItem value="ui" label="goose Desktop" default>
+  <GooseDesktopInstaller
+    extensionId="verifiedstate"
+    extensionName="VerifiedState"
+    description="Verified agent memory with cryptographic receipts"
+    command="npx"
+    args={["-y", "@verifiedstate/mcp-server"]}
+    envVars={[
+      { name: "VERIFIEDSTATE_API_KEY", label: "Your VerifiedState API Key" },
+      { name: "VERIFIEDSTATE_NAMESPACE_ID", label: "Your Namespace ID" }
+    ]}
+    apiKeyLink="https://verifiedstate.ai/keys"
+    apiKeyLinkText="VerifiedState API Key"
+  />
   </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="verifiedstate"
+      description="Verified agent memory with cryptographic receipts"
+      type="stdio"
+      command="npx -y @verifiedstate/mcp-server"
+      timeout={300}
+      envVars={[
+        { key: "VERIFIEDSTATE_API_KEY", value: "<Your VerifiedState API Key>" },
+        { key: "VERIFIEDSTATE_NAMESPACE_ID", value: "<Your Namespace ID>" }
+      ]}
+      infoNote={
+        <>
+          Get your free API key at <a href="https://verifiedstate.ai/keys" target="_blank" rel="noopener noreferrer">verifiedstate.ai/keys</a>. Free tier includes 25,000 assertions/month.
+        </>
+      }
+    />
+    </TabItem>
 </Tabs>
 
 ## Available Tools
