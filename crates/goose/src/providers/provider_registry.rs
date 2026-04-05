@@ -142,7 +142,7 @@ impl ProviderRegistry {
             display_name: config.display_name.clone(),
             description,
             default_model,
-            known_models,
+            known_models: known_models.clone(),
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
             setup_steps: vec![],
@@ -153,6 +153,18 @@ impl ProviderRegistry {
             ProviderEntry {
                 metadata: custom_metadata,
                 constructor: Arc::new(move |model, _extensions| {
+                    // Apply context_limit from known_models if not already set
+                    let model = if model.context_limit.is_none() {
+                        if let Some(model_info) =
+                            known_models.iter().find(|m| m.name == model.model_name)
+                        {
+                            model.with_context_limit(Some(model_info.context_limit))
+                        } else {
+                            model
+                        }
+                    } else {
+                        model
+                    };
                     let result = constructor(model);
                     Box::pin(async move {
                         let provider = result?;
