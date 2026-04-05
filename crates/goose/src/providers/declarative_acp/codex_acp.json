@@ -1,0 +1,20 @@
+{
+  "name": "codex-acp",
+  "display_name": "Codex CLI",
+  "description": "Use goose with your ChatGPT Plus/Pro subscription via the codex-acp adapter.",
+  "doc_url": "https://github.com/zed-industries/codex-acp",
+  "binary": "codex-acp",
+  "args": ["-c", "sandbox_workspace_write.network_access=true"],
+  "allow_option_id": "approved",
+  "reject_option_id": "abort",
+  "modes": {
+    "auto": "Default",
+    "approve": "Default",
+    "smart_approve": "Default",
+    "chat": "Plan"
+  },
+  "setup_steps": [
+    "Install the ACP adapter: `npm install -g @zed-industries/codex-acp`",
+    "Run `codex` once to authenticate with your OpenAI account"
+  ]
+}

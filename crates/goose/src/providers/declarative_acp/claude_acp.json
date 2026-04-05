@@ -1,0 +1,20 @@
+{
+  "name": "claude-acp",
+  "display_name": "Claude Code",
+  "description": "Use goose with your Claude Code subscription via the claude-agent-acp adapter.",
+  "doc_url": "https://github.com/zed-industries/claude-agent-acp",
+  "binary": "claude-agent-acp",
+  "env_remove": ["CLAUDECODE"],
+  "allow_option_id": "allow",
+  "reject_option_id": "reject",
+  "modes": {
+    "auto": "bypassPermissions",
+    "approve": "default",
+    "smart_approve": "acceptEdits",
+    "chat": "plan"
+  },
+  "setup_steps": [
+    "Install the ACP adapter: `npm install -g @zed-industries/claude-agent-acp`",
+    "Ensure your Claude CLI is authenticated (run `claude` to verify)"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "copilot-acp",
+  "display_name": "GitHub Copilot CLI (ACP)",
+  "description": "Use goose with your GitHub Copilot subscription via the Copilot CLI.",
+  "doc_url": "https://github.com/github/copilot-cli",
+  "binary": "copilot",
+  "args": ["--acp"],
+  "modes": {
+    "auto": "https://agentclientprotocol.com/protocol/session-modes#agent",
+    "approve": "https://agentclientprotocol.com/protocol/session-modes#agent",
+    "smart_approve": "https://agentclientprotocol.com/protocol/session-modes#agent",
+    "chat": "https://agentclientprotocol.com/protocol/session-modes#plan"
+  },
+  "setup_steps": [
+    "Install the Copilot CLI: `npm install -g @github/copilot`",
+    "Run `copilot login` to authenticate with your GitHub account"
+  ]
+}
