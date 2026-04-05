@@ -215,7 +215,9 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        let custom_models = if !config.models.is_empty() {
+        // When dynamic_models is explicitly false and a static model list is provided,
+        // use only the static list and skip the /v1/models API call.
+        let custom_models = if config.dynamic_models == Some(false) && !config.models.is_empty() {
             Some(config.models.iter().map(|m| m.name.clone()).collect())
         } else {
             None
@@ -434,19 +436,10 @@ impl Provider for OpenAiProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        // When custom_models is set (dynamic_models=false), return the static
+        // list directly without hitting the provider's /v1/models endpoint.
         if let Some(custom_models) = &self.custom_models {
-            match self.fetch_models_from_api().await {
-                Ok(models) => return Ok(models),
-                Err(e) if e.is_endpoint_not_found() => {
-                    tracing::debug!(
-                        "Models endpoint not implemented for provider '{}' ({}), using predefined list",
-                        self.name,
-                        e
-                    );
-                    return Ok(custom_models.clone());
-                }
-                Err(e) => return Err(e),
-            }
+            return Ok(custom_models.clone());
         }
 
         self.fetch_models_from_api().await
