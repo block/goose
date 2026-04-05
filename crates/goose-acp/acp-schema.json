@@ -252,6 +252,172 @@
       "x-side": "agent",
       "x-method": "_goose/config/extensions"
     },
+    "UpdateProviderRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contextLimit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "requestParams": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "sessionId",
+        "provider"
+      ],
+      "description": "Atomically update the provider for a live session.",
+      "x-side": "agent",
+      "x-method": "_goose/session/provider/update"
+    },
+    "UpdateProviderResponse": {
+      "type": "object",
+      "properties": {
+        "configOptions": {
+          "type": "array",
+          "items": true,
+          "description": "Refreshed session config options after the provider/model change."
+        }
+      },
+      "required": [
+        "configOptions"
+      ],
+      "description": "Provider update response.",
+      "x-side": "agent",
+      "x-method": "_goose/session/provider/update"
+    },
+    "ListProvidersRequest": {
+      "type": "object",
+      "description": "List providers available through goose, including the config-default sentinel.",
+      "x-side": "agent",
+      "x-method": "_goose/providers/list"
+    },
+    "ListProvidersResponse": {
+      "type": "object",
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderListEntry"
+          }
+        }
+      },
+      "required": [
+        "providers"
+      ],
+      "description": "Provider list response.",
+      "x-side": "agent",
+      "x-method": "_goose/providers/list"
+    },
+    "ProviderListEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ]
+    },
+    "ReadConfigRequest": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "isSecret"
+      ],
+      "description": "Read a single config value.",
+      "x-side": "agent",
+      "x-method": "_goose/config/read"
+    },
+    "ReadConfigResponse": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "default": null
+        },
+        "maskedValue": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "Config read response.",
+      "x-side": "agent",
+      "x-method": "_goose/config/read"
+    },
+    "UpsertConfigRequest": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": true,
+        "isSecret": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "value",
+        "isSecret"
+      ],
+      "description": "Upsert a single config value.",
+      "x-side": "agent",
+      "x-method": "_goose/config/upsert"
+    },
+    "RemoveConfigRequest": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "isSecret"
+      ],
+      "description": "Remove a single config value.",
+      "x-side": "agent",
+      "x-method": "_goose/config/remove"
+    },
     "ExtRequest": {
       "properties": {
         "id": {
@@ -353,6 +519,51 @@
                   ],
                   "description": "Params for _goose/config/extensions",
                   "title": "GetExtensionsRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UpdateProviderRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/session/provider/update",
+                  "title": "UpdateProviderRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListProvidersRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/providers/list",
+                  "title": "ListProvidersRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ReadConfigRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/config/read",
+                  "title": "ReadConfigRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UpsertConfigRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/config/upsert",
+                  "title": "UpsertConfigRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RemoveConfigRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/config/remove",
+                  "title": "RemoveConfigRequest"
                 }
               ]
             },
@@ -439,6 +650,30 @@
                         }
                       ],
                       "title": "GetExtensionsResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/UpdateProviderResponse"
+                        }
+                      ],
+                      "title": "UpdateProviderResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListProvidersResponse"
+                        }
+                      ],
+                      "title": "ListProvidersResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ReadConfigResponse"
+                        }
+                      ],
+                      "title": "ReadConfigResponse"
                     }
                   ]
                 },

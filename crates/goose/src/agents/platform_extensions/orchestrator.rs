@@ -6,6 +6,7 @@ use crate::config::GooseMode;
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::Message;
 use crate::execution::manager::AgentManager;
+use crate::providers;
 use crate::providers::base::Provider;
 use crate::session::session_manager::SessionType;
 use anyhow::Result;
@@ -397,8 +398,14 @@ impl OrchestratorClient {
             .await
             .map_err(|e| format!("Failed to create agent: {}", e))?;
 
-        // Inherit the orchestrator's provider and model
-        let provider = self.get_provider().await?;
+        let parent_provider = self.get_provider().await?;
+        let provider = providers::create(
+            parent_provider.get_name(),
+            parent_provider.get_model_config(),
+            Vec::new(),
+        )
+        .await
+        .map_err(|e| format!("Failed to create provider for new agent: {}", e))?;
         agent
             .update_provider(provider, &session.id)
             .await
@@ -432,11 +439,19 @@ impl OrchestratorClient {
             .map_err(|e| format!("Failed to get agent for session '{}': {}", session_id, e))?;
 
         if agent.provider().await.is_err() {
-            if let Ok(provider) = self.get_provider().await {
-                agent
-                    .update_provider(provider, &session_id)
-                    .await
-                    .map_err(|e| format!("Failed to set provider: {}", e))?;
+            if let Ok(parent_provider) = self.get_provider().await {
+                if let Ok(provider) = providers::create(
+                    parent_provider.get_name(),
+                    parent_provider.get_model_config(),
+                    Vec::new(),
+                )
+                .await
+                {
+                    agent
+                        .update_provider(provider, &session_id)
+                        .await
+                        .map_err(|e| format!("Failed to set provider: {}", e))?;
+                }
             }
         }
 
