@@ -145,6 +145,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const {
     recentSessions,
+    recentSessionsByProject,
     activeSessionId,
     fetchSessions,
     handleNavClick,
@@ -194,6 +195,21 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   }, [isNavExpanded, fetchSessions]);
 
   const [isChatsExpanded, setIsChatsExpanded] = useState(true);
+  const groupedSessions = recentSessionsByProject.length > 1 ? recentSessionsByProject : null;
+
+  const renderSessionRow = (session: SessionListItem) => (
+    <SessionRow
+      key={session.id}
+      session={session}
+      active={session.id === activeSessionId}
+      status={sessionStatuses.get(session.id)}
+      onClick={() => {
+        clearUnread(session.id);
+        handleSessionClick(session.id);
+      }}
+      onRenamed={fetchSessions}
+    />
+  );
 
   if (!isNavExpanded) return null;
 
@@ -253,20 +269,20 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
               <div className="px-3 py-2 text-xs text-text-secondary">
                 {intl.formatMessage(i18n.noChats)}
               </div>
-            ) : (
-              recentSessions.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  active={session.id === activeSessionId}
-                  status={sessionStatuses.get(session.id)}
-                  onClick={() => {
-                    clearUnread(session.id);
-                    handleSessionClick(session.id);
-                  }}
-                  onRenamed={fetchSessions}
-                />
+            ) : groupedSessions ? (
+              groupedSessions.map((group) => (
+                <React.Fragment key={group.path}>
+                  <div
+                    className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-wider text-text-tertiary truncate"
+                    title={group.path}
+                  >
+                    {group.label}
+                  </div>
+                  {group.sessions.map(renderSessionRow)}
+                </React.Fragment>
               ))
+            ) : (
+              recentSessions.map(renderSessionRow)
             )}
           </div>
         )}

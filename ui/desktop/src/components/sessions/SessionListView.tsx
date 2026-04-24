@@ -47,6 +47,7 @@ import {
 } from '../../acp/sessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { clearSessionCache } from '../../hooks/useChatStream';
+import { groupSessionsByProject } from '../../utils/projectSessions';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -93,6 +94,8 @@ const i18n = defineMessages({
   shareNostrTitle: { id: 'sessions.shareNostr.title', defaultMessage: 'Encrypted Nostr Share Link' },
   shareNostrDesc: { id: 'sessions.shareNostr.description', defaultMessage: 'Anyone with this link can fetch and decrypt the session. Treat it like a secret.' },
   close: { id: 'sessions.close', defaultMessage: 'Close' },
+  allProjects: { id: 'sessions.projects.all', defaultMessage: 'All' },
+  projects: { id: 'sessions.projects.label', defaultMessage: 'Projects' },
 });
 
 interface EditSessionModalProps {
@@ -236,6 +239,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
   ({ onSelectSession, selectedSessionId }) => {
     const intl = useIntl();
     const [sessions, setSessions] = useState<SessionListItem[]>([]);
+    const [selectedProject, setSelectedProject] = useState<string | null>(null);
     const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
     const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -282,6 +286,18 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const projectGroups = useMemo(() => groupSessionsByProject(sessions), [sessions]);
+    const projectFilteredSessions = useMemo(() => {
+      if (selectedProject === null) return sessions;
+      return sessions.filter((session) => session.workingDir.trim() === selectedProject);
+    }, [selectedProject, sessions]);
+
+    useEffect(() => {
+      if (selectedProject === null) return;
+      if (!projectGroups.some((group) => group.path === selectedProject)) {
+        setSelectedProject(null);
+      }
+    }, [projectGroups, selectedProject]);
 
     const visibleDateGroups = useMemo(() => {
       return dateGroups.slice(0, visibleGroupsCount);
@@ -419,11 +435,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     // Memoize date groups calculation to prevent unnecessary recalculations
     const memoizedDateGroups = useMemo(() => {
-      if (sessions.length > 0) {
-        return groupSessionsByDate(sessions);
+      if (projectFilteredSessions.length > 0) {
+        return groupSessionsByDate(projectFilteredSessions);
       }
       return [];
-    }, [sessions]);
+    }, [projectFilteredSessions]);
 
     // Update date groups when filtered sessions change
     useEffect(() => {
@@ -459,7 +475,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
         prevSessions.map((s) =>
-          s.id === sessionId ? { ...s, name: newDescription, user_set_name: true } : s
+          s.id === sessionId ? { ...s, name: newDescription, userSetName: true } : s
         )
       );
       window.dispatchEvent(
@@ -851,8 +867,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
 
       if (sessions.length === 0) {
-        // `sessions` holds the keyword-filtered set, so an empty result while searching
-        // means "no matches" rather than "no sessions at all".
         if (debouncedSearchTerm) {
           return (
             <div className="flex flex-col items-center justify-center h-full text-text-secondary mt-4">
@@ -867,6 +881,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <MessageSquareText className="h-12 w-12 mb-4" />
             <p className="text-lg mb-2">{intl.formatMessage(i18n.noSessions)}</p>
             <p className="text-sm">{intl.formatMessage(i18n.noSessionsDesc)}</p>
+          </div>
+        );
+      }
+
+      if (dateGroups.length === 0 && selectedProject !== null) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary mt-4">
+            <MessageSquareText className="h-12 w-12 mb-4" />
+            <p className="text-lg mb-2">{intl.formatMessage(i18n.noMatching)}</p>
+            <p className="text-sm">{intl.formatMessage(i18n.noMatchingDesc)}</p>
           </div>
         );
       }
@@ -942,6 +966,39 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <p className="text-sm text-text-secondary mb-4">
                   {intl.formatMessage(i18n.chatHistoryDesc, { shortcut: getSearchShortcutText() })}
                 </p>
+                {projectGroups.length > 1 && (
+                  <div
+                    className="flex gap-2 overflow-x-auto pb-1"
+                    aria-label={intl.formatMessage(i18n.projects)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProject(null)}
+                      className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
+                        selectedProject === null
+                          ? 'bg-background-inverse text-text-inverse'
+                          : 'bg-background-secondary text-text-secondary hover:bg-background-tertiary'
+                      }`}
+                    >
+                      {intl.formatMessage(i18n.allProjects)} ({sessions.length})
+                    </button>
+                    {projectGroups.map((project) => (
+                      <button
+                        key={project.path}
+                        type="button"
+                        title={project.path}
+                        onClick={() => setSelectedProject(project.path)}
+                        className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
+                          selectedProject === project.path
+                            ? 'bg-background-inverse text-text-inverse'
+                            : 'bg-background-secondary text-text-secondary hover:bg-background-tertiary'
+                        }`}
+                      >
+                        {project.label} ({project.sessions.length})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
