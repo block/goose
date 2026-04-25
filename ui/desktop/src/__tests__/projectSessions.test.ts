@@ -55,6 +55,18 @@ describe('groupSessionsByProject', () => {
     expect(groups[0].sessions.map((session) => session.id)).toEqual(['new', 'middle', 'old']);
   });
 
+  it('canonicalizes trailing separators when grouping projects', () => {
+    const groups = groupSessionsByProject([
+      makeSession({ id: 'a', workingDir: '/tmp/goose' }),
+      makeSession({ id: 'b', workingDir: '/tmp/goose/' }),
+      makeSession({ id: 'c', workingDir: '  /tmp/goose//  ' }),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].path).toBe('/tmp/goose');
+    expect(groups[0].sessions.map((session) => session.id)).toEqual(['a', 'b', 'c']);
+  });
+
   it('normalizes empty working directories into one group', () => {
     const groups = groupSessionsByProject([
       makeSession({ id: 'a', workingDir: '' }),
@@ -115,5 +127,23 @@ describe('resolveNewChatWorkingDir', () => {
 
   it('returns fallback when the active session is not found', () => {
     expect(resolveNewChatWorkingDir('missing', sessions, '/tmp/fallback')).toBe('/tmp/fallback');
+  });
+
+  it('returns fallback when the active session working directory is blank', () => {
+    const sessionsWithBlankActive = [makeSession({ id: 'active', workingDir: '   ' })];
+
+    expect(resolveNewChatWorkingDir('active', sessionsWithBlankActive, '/tmp/fallback')).toBe(
+      '/tmp/fallback'
+    );
+  });
+
+  it('trims the active session working directory', () => {
+    const sessionsWithPaddedActive = [
+      makeSession({ id: 'active', workingDir: '  /tmp/active  ' }),
+    ];
+
+    expect(resolveNewChatWorkingDir('active', sessionsWithPaddedActive, '/tmp/fallback')).toBe(
+      '/tmp/active'
+    );
   });
 });
