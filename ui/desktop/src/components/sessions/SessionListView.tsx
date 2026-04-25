@@ -47,7 +47,7 @@ import {
 } from '../../acp/sessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { clearSessionCache } from '../../hooks/useChatStream';
-import { groupSessionsByProject } from '../../utils/projectSessions';
+import { groupSessionsByProject, normalizeProjectPath } from '../../utils/projectSessions';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -289,7 +289,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const projectGroups = useMemo(() => groupSessionsByProject(sessions), [sessions]);
     const projectFilteredSessions = useMemo(() => {
       if (selectedProject === null) return sessions;
-      return sessions.filter((session) => session.workingDir.trim() === selectedProject);
+      return sessions.filter((session) => normalizeProjectPath(session.workingDir) === selectedProject);
     }, [selectedProject, sessions]);
 
     useEffect(() => {
