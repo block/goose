@@ -1,5 +1,6 @@
 import {
   AppWindow,
+  Bot,
   Clock,
   FileText,
   History,
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
+  { id: 'copilot', path: '/copilot', label: 'Copilot', icon: Bot },
   { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
 ];
 
@@ -65,6 +67,10 @@ const navItemMessages = defineMessages({
   extensions: {
     id: 'navigation.itemExtensions',
     defaultMessage: 'Extensions',
+  },
+  copilot: {
+    id: 'navigation.itemCopilot',
+    defaultMessage: 'Copilot',
   },
   sessions: {
     id: 'navigation.itemSessions',
