@@ -1546,7 +1546,8 @@ async fn download_gguf_to_hf_cache(
 ) -> Result<Vec<std::path::PathBuf>> {
     let (owner, name) = split_repo_id(repo_id)?;
     let model_id = model_id_from_repo(repo_id, quantization);
-    let progress = HfDownloadProgress::new(model_id);
+    let total_size = resolved.files.iter().map(|file| file.size_bytes).sum();
+    let progress = HfDownloadProgress::new(model_id, total_size);
     progress.init();
     let client = hf_client()?;
     let repo = client.model(owner.to_string(), name.to_string());
@@ -1566,6 +1567,7 @@ async fn download_gguf_to_hf_cache(
                 return Err(error);
             }
         };
+        progress.finish_file(file.size_bytes);
         paths.push(path);
     }
     progress.complete();
@@ -1610,8 +1612,6 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         bail!("No MLX variant '{}' found in {}", variant_id, repo_id);
     }
     let (owner, name) = split_repo_id(repo_id)?;
-    let progress = HfDownloadProgress::new(repo_id.to_string());
-    progress.init();
     let client = hf_client()?;
     let repo = client.model(owner.to_string(), name.to_string());
     let info = repo
@@ -1630,8 +1630,15 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
                 .and_then(|s| s.size)
         })
         .sum();
+    let progress = HfDownloadProgress::new(repo_id.to_string(), total_size);
+    progress.init();
     let mut snapshot_path = None;
     for filename in filenames {
+        let file_size = siblings
+            .iter()
+            .find(|s| s.rfilename == filename)
+            .and_then(|s| s.size)
+            .unwrap_or(0);
         let path = match repo
             .download_file()
             .filename(filename.clone())
@@ -1649,6 +1656,7 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         if snapshot_path.is_none() {
             snapshot_path = snapshot_root_for_file(&path, &filename);
         }
+        progress.finish_file(file_size);
     }
     progress.complete();
     let snapshot_path = snapshot_path
@@ -1669,20 +1677,24 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
 #[derive(Clone)]
 struct HfDownloadProgress {
     model_id: String,
+    total_bytes: u64,
+    completed_bytes: Arc<Mutex<u64>>,
     state: Arc<Mutex<HfDownloadState>>,
 }
 
 #[derive(Default)]
 struct HfDownloadState {
-    total_bytes: u64,
     bytes_downloaded: u64,
+    current_file_total_bytes: u64,
     speed_bps: Option<u64>,
 }
 
 impl HfDownloadProgress {
-    fn new(model_id: String) -> Self {
+    fn new(model_id: String, total_bytes: u64) -> Self {
         Self {
             model_id,
+            total_bytes,
+            completed_bytes: Arc::new(Mutex::new(0)),
             state: Arc::new(Mutex::new(HfDownloadState::default())),
         }
     }
@@ -1693,7 +1705,7 @@ impl HfDownloadProgress {
                 model_id: format!("{}-model", self.model_id),
                 status: crate::download_manager::DownloadStatus::Downloading,
                 bytes_downloaded: 0,
-                total_bytes: 0,
+                total_bytes: self.total_bytes,
                 progress_percent: 0.0,
                 speed_bps: None,
                 eta_seconds: None,
@@ -1736,6 +1748,30 @@ impl HfDownloadProgress {
             },
         );
     }
+
+    fn finish_file(&self, size_bytes: u64) {
+        if let Ok(mut completed_bytes) = self.completed_bytes.lock() {
+            *completed_bytes = completed_bytes.saturating_add(size_bytes);
+        }
+        if let Ok(mut state) = self.state.lock() {
+            state.bytes_downloaded = 0;
+            state.current_file_total_bytes = 0;
+        }
+        self.update_progress_from_state();
+    }
+
+    fn update_progress_from_state(&self) {
+        let completed_bytes = self.completed_bytes.lock().map(|value| *value).unwrap_or(0);
+        if let Ok(state) = self.state.lock() {
+            let bytes_downloaded = completed_bytes.saturating_add(state.bytes_downloaded);
+            update_download_manager_progress(
+                &self.model_id,
+                bytes_downloaded.min(self.total_bytes),
+                self.total_bytes.max(state.current_file_total_bytes),
+                state.speed_bps,
+            );
+        }
+    }
 }
 
 impl ProgressHandler for HfDownloadProgress {
@@ -1746,14 +1782,9 @@ impl ProgressHandler for HfDownloadProgress {
         match event {
             DownloadEvent::Start { total_bytes, .. } => {
                 if let Ok(mut state) = self.state.lock() {
-                    state.total_bytes = *total_bytes;
+                    state.current_file_total_bytes = *total_bytes;
                 }
-                crate::download_manager::get_download_manager().update_progress(
-                    &format!("{}-model", self.model_id),
-                    |progress| {
-                        progress.total_bytes = *total_bytes;
-                    },
-                );
+                self.update_progress_from_state();
             }
             DownloadEvent::Progress { files } => {
                 if self.is_cancelled() {
@@ -1768,11 +1799,12 @@ impl ProgressHandler for HfDownloadProgress {
                             file.bytes_completed
                         }
                     })
-                    .sum::<u64>();
+                    .max()
+                    .unwrap_or(0);
                 if let Ok(mut state) = self.state.lock() {
                     state.bytes_downloaded = state.bytes_downloaded.max(bytes_downloaded);
-                    update_download_manager_progress(&self.model_id, &state);
                 }
+                self.update_progress_from_state();
             }
             DownloadEvent::AggregateProgress {
                 bytes_completed,
@@ -1784,10 +1816,11 @@ impl ProgressHandler for HfDownloadProgress {
                 }
                 if let Ok(mut state) = self.state.lock() {
                     state.bytes_downloaded = *bytes_completed;
-                    state.total_bytes = (*total_bytes).max(state.total_bytes);
+                    state.current_file_total_bytes =
+                        (*total_bytes).max(state.current_file_total_bytes);
                     state.speed_bps = bytes_per_sec.map(|speed| speed as u64);
-                    update_download_manager_progress(&self.model_id, &state);
                 }
+                self.update_progress_from_state();
             }
             DownloadEvent::Complete => {}
         }
@@ -1875,21 +1908,26 @@ pub fn register_resolved_model(resolved: ResolvedLocalModel, source: &str) -> Re
     Ok(model_id)
 }
 
-fn update_download_manager_progress(model_id: &str, state: &HfDownloadState) {
+fn update_download_manager_progress(
+    model_id: &str,
+    bytes_downloaded: u64,
+    total_bytes: u64,
+    speed_bps: Option<u64>,
+) {
     crate::download_manager::get_download_manager().update_progress(
         &format!("{}-model", model_id),
         |progress| {
             if progress.status == crate::download_manager::DownloadStatus::Cancelled {
                 return;
             }
-            progress.bytes_downloaded = state.bytes_downloaded;
-            progress.total_bytes = state.total_bytes;
-            progress.progress_percent = if state.total_bytes > 0 {
-                (state.bytes_downloaded as f64 / state.total_bytes as f64 * 100.0) as f32
+            progress.bytes_downloaded = bytes_downloaded;
+            progress.total_bytes = total_bytes;
+            progress.progress_percent = if total_bytes > 0 {
+                (bytes_downloaded as f64 / total_bytes as f64 * 100.0) as f32
             } else {
                 0.0
             };
-            progress.speed_bps = state.speed_bps;
+            progress.speed_bps = speed_bps;
         },
     );
 }
