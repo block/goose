@@ -1495,7 +1495,7 @@
   },
   "huggingFaceModelSearch.noGgufModels": {
     "defaultMessage": "No compatible local models found for this query."
-  }
+  },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Recommended"
   },
@@ -1513,7 +1513,7 @@
   },
   "huggingFaceModelSearch.searchPlaceholder": {
     "defaultMessage": "Search for local models..."
-  }
+  },
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "May not fit in memory ({size} model, {available} available)"
   },
@@ -1852,7 +1852,7 @@
   },
   "localInferenceSettings.description": {
     "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below."
-  }
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "Download"
   },
