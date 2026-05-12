@@ -155,11 +155,7 @@ impl ResolvedLocalModel {
                 quantization,
                 ..
             } => model_id_from_repo(repo_id, quantization),
-            Self::Mlx {
-                repo_id,
-                variant_id,
-                ..
-            } => model_id_from_repo_backend(repo_id, "mlx", variant_id),
+            Self::Mlx { repo_id, .. } => repo_id.clone(),
         }
     }
 
@@ -1368,14 +1364,13 @@ fn mlx_variants_from_model_info(repo_id: &str, info: &ModelInfo) -> Vec<HfModelV
         })
         .sum();
     let variant_id = mlx_variant_id(repo_id, &info.config);
-    let model_id = model_id_from_repo_backend(repo_id, MLX_BACKEND_ID, &variant_id);
 
     vec![HfModelVariant {
         variant_id: variant_id.clone(),
         label: mlx_variant_label(&variant_id),
         backend_id: MLX_BACKEND_ID.to_string(),
         format: MLX_FORMAT.to_string(),
-        model_id: model_id.clone(),
+        model_id: repo_id.to_string(),
         download_id: repo_id.to_string(),
         size_bytes,
         filename: None,
@@ -1516,6 +1511,14 @@ fn mlx_variant_label(variant_id: &str) -> String {
     }
 }
 
+fn snapshot_root_for_file(path: &std::path::Path, repo_filename: &str) -> Option<std::path::PathBuf> {
+    let mut root = path.to_path_buf();
+    for _ in 0..repo_filename.split('/').count() {
+        root.pop();
+    }
+    Some(root)
+}
+
 async fn resolve_gguf_model(repo_id: &str, quantization: &str) -> Result<ResolvedLocalModel> {
     let spec = format!("{}:{}", repo_id, quantization);
     let (_repo, resolved) = resolve_model_spec_full(&spec).await?;
@@ -1587,20 +1590,6 @@ pub async fn resolve_local_model_spec(spec: &str) -> Result<ResolvedLocalModel> 
         );
     }
 
-    if let Some((repo_id, rest)) = spec.rsplit_once('@') {
-        let (backend_id, variant_id) = rest.split_once(':').ok_or_else(|| {
-            anyhow::anyhow!(
-                "Invalid model spec '{}': expected user/repo@backend:variant",
-                spec
-            )
-        })?;
-        return match backend_id {
-            MLX_BACKEND_ID => resolve_mlx_model(repo_id, variant_id).await,
-            LLAMACPP_BACKEND_ID => resolve_gguf_model(repo_id, variant_id).await,
-            other => bail!("Unsupported local inference backend '{}'", other),
-        };
-    }
-
     let (repo_id, quantization) = parse_model_spec(spec)?;
     resolve_gguf_model(&repo_id, &quantization).await
 }
@@ -1614,44 +1603,54 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         bail!("No MLX variant '{}' found in {}", variant_id, repo_id);
     }
     let (owner, name) = split_repo_id(repo_id)?;
-    let progress = HfDownloadProgress::new(model_id_from_repo_backend(
-        repo_id,
-        MLX_BACKEND_ID,
-        variant_id,
-    ));
+    let progress = HfDownloadProgress::new(repo_id.to_string());
     progress.init();
     let client = hf_client()?;
     let repo = client.model(owner.to_string(), name.to_string());
-    let snapshot_path = match repo
-        .snapshot_download()
-        .allow_patterns(vec![
-            "*.safetensors".to_string(),
-            "*.json".to_string(),
-            "*.model".to_string(),
-            "*.tiktoken".to_string(),
-            "vocab.*".to_string(),
-            "merges.txt".to_string(),
-        ])
-        .ignore_patterns(vec![
-            "*.gguf".to_string(),
-            "*.onnx".to_string(),
-            "*.pt".to_string(),
-            "*.pth".to_string(),
-            "*.bin".to_string(),
-        ])
-        .progress(progress.clone())
+    let info = repo
+        .info()
+        .expand(vec!["siblings".to_string()])
         .send()
-        .await
-        .map_err(anyhow::Error::from)
-    {
-        Ok(path) => path,
-        Err(error) => {
-            progress.fail(&error);
-            return Err(error);
+        .await?;
+    let siblings = info.siblings.as_deref().unwrap_or(&[]);
+    let filenames = mlx_download_filenames(siblings);
+    let total_size = filenames
+        .iter()
+        .filter_map(|filename| {
+            siblings
+                .iter()
+                .find(|s| s.rfilename == *filename)
+                .and_then(|s| s.size)
+        })
+        .sum();
+    let mut snapshot_path = None;
+    for filename in filenames {
+        let path = match repo
+            .download_file()
+            .filename(filename.clone())
+            .progress(progress.clone())
+            .send()
+            .await
+            .map_err(anyhow::Error::from)
+        {
+            Ok(path) => path,
+            Err(error) => {
+                progress.fail(&error);
+                return Err(error);
+            }
+        };
+        if snapshot_path.is_none() {
+            snapshot_path = snapshot_root_for_file(&path, &filename);
         }
-    };
+    }
     progress.complete();
-    let total_size = dir_size(&snapshot_path);
+    let snapshot_path = snapshot_path
+        .ok_or_else(|| anyhow::anyhow!("MLX model {} has no downloadable files", repo_id))?;
+    let total_size = if total_size > 0 {
+        total_size
+    } else {
+        dir_size(&snapshot_path)
+    };
     Ok(ResolvedLocalModel::Mlx {
         repo_id: repo_id.to_string(),
         variant_id: variant_id.to_string(),
@@ -1878,12 +1877,4 @@ fn dir_size(path: &std::path::Path) -> u64 {
         }
     }
     total
-}
-
-pub fn model_id_from_repo_backend(repo_id: &str, backend_id: &str, variant_id: &str) -> String {
-    if backend_id == LLAMACPP_BACKEND_ID {
-        model_id_from_repo(repo_id, variant_id)
-    } else {
-        format!("{}@{}:{}", repo_id, backend_id, variant_id)
-    }
 }
