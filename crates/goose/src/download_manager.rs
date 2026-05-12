@@ -106,6 +106,11 @@ impl DownloadManager {
         self.downloads.lock().ok()?.get(model_id).cloned()
     }
 
+    pub fn is_downloading(&self, model_id: &str) -> bool {
+        self.get_progress(model_id)
+            .is_some_and(|progress| progress.status == DownloadStatus::Downloading)
+    }
+
     pub fn list_progress(&self) -> Vec<DownloadProgress> {
         self.downloads
             .lock()
