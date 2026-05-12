@@ -206,18 +206,13 @@ pub fn get_registry() -> &'static Mutex<LocalModelRegistry> {
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LocalModelStorage {
+    #[default]
     GooseManaged,
     HuggingFaceCache,
     ManualPath,
-}
-
-impl Default for LocalModelStorage {
-    fn default() -> Self {
-        Self::GooseManaged
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

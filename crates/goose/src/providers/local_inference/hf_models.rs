@@ -1789,7 +1789,7 @@ impl ProgressHandler for HfDownloadProgress {
                     update_download_manager_progress(&self.model_id, &state);
                 }
             }
-            DownloadEvent::Complete => self.complete(),
+            DownloadEvent::Complete => {}
         }
     }
 }
