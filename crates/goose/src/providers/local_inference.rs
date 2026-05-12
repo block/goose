@@ -2,7 +2,11 @@ mod backend;
 pub mod hf_models;
 mod llamacpp;
 pub mod local_model_registry;
+mod mlx;
 pub(crate) mod multimodal;
+#[cfg(feature = "mlx")]
+mod native_tool_parsing;
+mod tool_emulation;
 mod tool_parsing;
 
 use crate::config::ExtensionConfig;
@@ -20,6 +24,7 @@ use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
 use local_model_registry::ChatTemplate;
+use mlx::{MlxBackend, MLX_BACKEND_ID};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -74,8 +79,10 @@ impl InferenceRuntime {
             return Ok(runtime);
         }
         let llamacpp_backend: Arc<dyn LocalInferenceBackend> = Arc::new(LlamaCppBackend::new()?);
+        let mlx_backend: Arc<dyn LocalInferenceBackend> = Arc::new(MlxBackend::new());
         let mut backends = HashMap::new();
         backends.insert(LLAMACPP_BACKEND_ID, llamacpp_backend);
+        backends.insert(MLX_BACKEND_ID, mlx_backend);
         let runtime = Arc::new(Self {
             models: StdMutex::new(HashMap::new()),
             backends,
@@ -93,14 +100,18 @@ impl InferenceRuntime {
 
     fn backend_for_model(
         &self,
-        _resolved: &ResolvedModelPaths,
+        resolved: &ResolvedModelPaths,
     ) -> Result<Arc<dyn LocalInferenceBackend>, ProviderError> {
-        self.backends
-            .get(LLAMACPP_BACKEND_ID)
-            .cloned()
-            .ok_or_else(|| {
-                ProviderError::ExecutionError("Local inference backend unavailable".to_string())
-            })
+        let backend_id = resolved
+            .backend_id
+            .as_deref()
+            .unwrap_or(LLAMACPP_BACKEND_ID);
+        self.backends.get(backend_id).cloned().ok_or_else(|| {
+            ProviderError::ExecutionError(format!(
+                "Local inference backend '{}' unavailable",
+                backend_id
+            ))
+        })
     }
 
     fn get_or_create_model_slot(&self, key: ModelCacheKey) -> ModelSlot {
@@ -130,23 +141,41 @@ pub(super) struct ResolvedModelPaths {
     pub context_limit: usize,
     pub settings: crate::providers::local_inference::local_model_registry::ModelSettings,
     pub mmproj_path: Option<PathBuf>,
+    pub backend_id: Option<String>,
+    pub draft_model_path: Option<PathBuf>,
 }
 
 /// Resolve model path, context limit, settings, and mmproj path for a model ID from the registry.
 fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
-    use crate::providers::local_inference::local_model_registry::get_registry;
+    use crate::providers::local_inference::local_model_registry::{
+        default_settings_for_model, get_registry,
+    };
 
     if let Ok(registry) = get_registry().lock() {
         if let Some(entry) = registry.get_model(model_id) {
             let ctx = entry.settings.context_size.unwrap_or(0) as usize;
             let mut settings = entry.settings.clone();
+            let defaults = default_settings_for_model(model_id);
+            settings.vision_capable = defaults.vision_capable;
             settings.mmproj_size_bytes = entry.mmproj_size_bytes;
             let mmproj_path = entry.mmproj_path.as_ref().filter(|p| p.exists()).cloned();
+            let backend_id = entry
+                .backend_id
+                .clone()
+                .or_else(|| settings.backend_id.clone());
+            let draft_model = settings
+                .draft_model
+                .clone()
+                .or_else(|| std::env::var("GOOSE_LOCAL_DRAFT_MODEL").ok())
+                .filter(|draft_model| draft_model != model_id);
+            let draft_model_path = draft_model.as_deref().and_then(resolve_model_local_path);
             return Some(ResolvedModelPaths {
                 model_path: entry.local_path.clone(),
                 context_limit: ctx,
                 settings,
                 mmproj_path,
+                backend_id,
+                draft_model_path,
             });
         }
     }
