@@ -1383,7 +1383,8 @@ fn mlx_variants_from_model_info(repo_id: &str, info: &ModelInfo) -> Vec<HfModelV
             .count()
             > 1,
         supported: mlx_model_type(&info.config).is_some_and(is_mlx_runtime_supported_model_type)
-            && cfg!(target_os = "macos"),
+            && cfg!(target_os = "macos")
+            && cfg!(feature = "mlx"),
         unsupported_reason: mlx_unsupported_reason(&info.config),
     }]
 }
@@ -1412,6 +1413,9 @@ fn is_mlx_runtime_supported_model_type(model_type: &str) -> bool {
 fn mlx_unsupported_reason(config: &Option<serde_json::Value>) -> Option<String> {
     if !cfg!(target_os = "macos") {
         return Some("MLX requires macOS".to_string());
+    }
+    if !cfg!(feature = "mlx") {
+        return Some("MLX support was not compiled in".to_string());
     }
 
     let model_type = mlx_model_type(config)?;
@@ -1511,7 +1515,10 @@ fn mlx_variant_label(variant_id: &str) -> String {
     }
 }
 
-fn snapshot_root_for_file(path: &std::path::Path, repo_filename: &str) -> Option<std::path::PathBuf> {
+fn snapshot_root_for_file(
+    path: &std::path::Path,
+    repo_filename: &str,
+) -> Option<std::path::PathBuf> {
     let mut root = path.to_path_buf();
     for _ in 0..repo_filename.split('/').count() {
         root.pop();
