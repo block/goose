@@ -290,8 +290,8 @@ impl LocalModelEntry {
     pub fn all_local_paths(&self) -> impl Iterator<Item = &std::path::Path> {
         let goose_managed = self.storage == LocalModelStorage::GooseManaged;
         std::iter::once(self.local_path.as_path())
-            .filter(move |path| goose_managed && !path.is_dir())
             .chain(self.shard_files.iter().map(|s| s.local_path.as_path()))
+            .filter(move |path| goose_managed && !path.is_dir())
     }
 
     pub fn is_downloading(&self) -> bool {

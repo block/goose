@@ -1542,13 +1542,20 @@ async fn download_gguf_to_hf_cache(
     let repo = client.model(owner.to_string(), name.to_string());
     let mut paths = Vec::with_capacity(resolved.files.len());
     for file in &resolved.files {
-        let path = repo
+        let path = match repo
             .download_file()
             .filename(file.filename.clone())
             .progress(progress.clone())
             .send()
             .await
-            .map_err(anyhow::Error::from)?;
+            .map_err(anyhow::Error::from)
+        {
+            Ok(path) => path,
+            Err(error) => {
+                progress.fail(&error);
+                return Err(error);
+            }
+        };
         paths.push(path);
     }
     progress.complete();
@@ -1615,7 +1622,7 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
     progress.init();
     let client = hf_client()?;
     let repo = client.model(owner.to_string(), name.to_string());
-    let snapshot_path = repo
+    let snapshot_path = match repo
         .snapshot_download()
         .allow_patterns(vec![
             "*.safetensors".to_string(),
@@ -1635,7 +1642,14 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         .progress(progress.clone())
         .send()
         .await
-        .map_err(anyhow::Error::from)?;
+        .map_err(anyhow::Error::from)
+    {
+        Ok(path) => path,
+        Err(error) => {
+            progress.fail(&error);
+            return Err(error);
+        }
+    };
     progress.complete();
     let total_size = dir_size(&snapshot_path);
     Ok(ResolvedLocalModel::Mlx {
@@ -1689,6 +1703,17 @@ impl HfDownloadProgress {
             |progress| {
                 progress.status = crate::download_manager::DownloadStatus::Completed;
                 progress.progress_percent = 100.0;
+                progress.task_exited = true;
+            },
+        );
+    }
+
+    fn fail(&self, error: impl ToString) {
+        crate::download_manager::get_download_manager().update_progress(
+            &format!("{}-model", self.model_id),
+            |progress| {
+                progress.status = crate::download_manager::DownloadStatus::Failed;
+                progress.error = Some(error.to_string());
                 progress.task_exited = true;
             },
         );
