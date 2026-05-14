@@ -1214,11 +1214,6 @@ fn hf_client() -> Result<HFClient> {
         .map_err(Into::into)
 }
 
-fn hf_client_sync() -> Result<hf_hub::HFClientSync> {
-    let client = HFClient::builder().user_agent("goose-ai-agent").build()?;
-    hf_hub::HFClientSync::from_inner(client).map_err(Into::into)
-}
-
 fn model_repo(client: &HFClient, repo_id: &str) -> Result<HFRepository<RepoTypeModel>> {
     let (owner, name) = split_repo_id(repo_id)?;
     Ok(client.model(owner, name))
@@ -1543,30 +1538,19 @@ async fn download_gguf_to_hf_cache(
     let model_id = model_id_from_repo(repo_id, quantization);
     let progress = HfDownloadProgress::new(model_id);
     progress.init();
-    let progress_for_download = progress.clone();
-    let owner = owner.to_string();
-    let name = name.to_string();
-    let filenames: Vec<String> = resolved
-        .files
-        .iter()
-        .map(|file| file.filename.clone())
-        .collect();
-    let paths = tokio::task::spawn_blocking(move || -> Result<Vec<std::path::PathBuf>> {
-        let client = hf_client_sync()?;
-        let repo = client.model(owner, name);
-        let mut paths = Vec::with_capacity(filenames.len());
-        for filename in filenames {
-            let path = repo
-                .download_file()
-                .filename(filename)
-                .progress(progress_for_download.clone())
-                .send()
-                .map_err(anyhow::Error::from)?;
-            paths.push(path);
-        }
-        Ok(paths)
-    })
-    .await??;
+    let client = hf_client()?;
+    let repo = client.model(owner.to_string(), name.to_string());
+    let mut paths = Vec::with_capacity(resolved.files.len());
+    for file in &resolved.files {
+        let path = repo
+            .download_file()
+            .filename(file.filename.clone())
+            .progress(progress.clone())
+            .send()
+            .await
+            .map_err(anyhow::Error::from)?;
+        paths.push(path);
+    }
     progress.complete();
     Ok(paths)
 }
@@ -1629,33 +1613,29 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         variant_id,
     ));
     progress.init();
-    let progress_for_download = progress.clone();
-    let owner = owner.to_string();
-    let name = name.to_string();
-    let snapshot_path = tokio::task::spawn_blocking(move || {
-        let client = hf_client_sync()?;
-        let repo = client.model(owner, name);
-        repo.snapshot_download()
-            .allow_patterns(vec![
-                "*.safetensors".to_string(),
-                "*.json".to_string(),
-                "*.model".to_string(),
-                "*.tiktoken".to_string(),
-                "vocab.*".to_string(),
-                "merges.txt".to_string(),
-            ])
-            .ignore_patterns(vec![
-                "*.gguf".to_string(),
-                "*.onnx".to_string(),
-                "*.pt".to_string(),
-                "*.pth".to_string(),
-                "*.bin".to_string(),
-            ])
-            .progress(progress_for_download)
-            .send()
-            .map_err(anyhow::Error::from)
-    })
-    .await??;
+    let client = hf_client()?;
+    let repo = client.model(owner.to_string(), name.to_string());
+    let snapshot_path = repo
+        .snapshot_download()
+        .allow_patterns(vec![
+            "*.safetensors".to_string(),
+            "*.json".to_string(),
+            "*.model".to_string(),
+            "*.tiktoken".to_string(),
+            "vocab.*".to_string(),
+            "merges.txt".to_string(),
+        ])
+        .ignore_patterns(vec![
+            "*.gguf".to_string(),
+            "*.onnx".to_string(),
+            "*.pt".to_string(),
+            "*.pth".to_string(),
+            "*.bin".to_string(),
+        ])
+        .progress(progress.clone())
+        .send()
+        .await
+        .map_err(anyhow::Error::from)?;
     progress.complete();
     let total_size = dir_size(&snapshot_path);
     Ok(ResolvedLocalModel::Mlx {
