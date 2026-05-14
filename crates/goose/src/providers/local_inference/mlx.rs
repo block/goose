@@ -4,12 +4,14 @@ mod imp {
     use std::path::{Path, PathBuf};
 
     use mlx_lm::cache::ConcatKeyValueCache;
-    use mlx_lm::models::LoadedModel;
+    use mlx_lm::gemma4_mtp::generate_gemma4_mtp;
+    use mlx_lm::models::{gemma4_assistant::load_gemma4_assistant_model, LoadedModel, Model};
     use mlx_lm_utils::tokenizer::{Chat, Conversation, Role};
     use mlx_rs::transforms::eval;
+    use serde_json::json;
 
     use crate::conversation::message::Message;
-    use crate::providers::base::{ProviderUsage, Usage};
+    use crate::providers::base::{DraftStats, ProviderStats, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use crate::providers::local_inference::backend::{
         BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
@@ -21,6 +23,7 @@ mod imp {
         StreamingEmulatorParser, CODE_EXECUTION_TOOL,
     };
     use crate::providers::local_inference::{extract_text_content, ResolvedModelPaths};
+    use crate::providers::utils::filter_extensions_from_system_prompt;
 
     pub(in crate::providers::local_inference) const MLX_BACKEND_ID: &str = "mlx";
 
@@ -78,18 +81,17 @@ mod imp {
             } else {
                 match request.settings.tool_calling {
                     ToolCallingMode::ForceNative => ToolMode::Native,
-                    ToolCallingMode::Auto | ToolCallingMode::ForceEmulated => {
-                        ToolMode::Emulated {
-                            code_mode_enabled: request
-                                .tools
-                                .iter()
-                                .any(|t| t.name == CODE_EXECUTION_TOOL),
-                        }
-                    }
+                    ToolCallingMode::Auto | ToolCallingMode::ForceEmulated => ToolMode::Emulated {
+                        code_mode_enabled: request
+                            .tools
+                            .iter()
+                            .any(|t| t.name == CODE_EXECUTION_TOOL),
+                    },
                 }
             };
             let prompt = build_prompt(
                 &mut loaded.model,
+                &request.model_name,
                 request.system,
                 request.messages,
                 request.tools,
@@ -107,26 +109,69 @@ mod imp {
                 .model
                 .encode_to_array(&prompt, false)
                 .map_err(mlx_error)?;
-            let max_tokens = request.settings.max_output_tokens.unwrap_or(512);
-            let temp = temperature(request.settings);
-            let mut cache: Vec<Option<ConcatKeyValueCache>> = Vec::new();
+            let max_tokens = request
+                .settings
+                .max_output_tokens
+                .or_else(|| {
+                    request
+                        .max_tokens
+                        .and_then(|tokens| usize::try_from(tokens).ok())
+                })
+                .unwrap_or(512);
+            let temp = request
+                .temperature
+                .unwrap_or_else(|| temperature(request.settings));
             let eos_token_ids = loaded.model.eos_token_ids().to_vec();
-            let mut generated_ids = Vec::new();
-            {
-                let generator = loaded
-                    .model
-                    .generate(&mut cache, temp, &prompt_array)
-                    .take(max_tokens);
-                for token in generator {
-                    let token = token.map_err(mlx_error)?;
-                    eval([&token]).map_err(mlx_error)?;
-                    let token_id = token.item::<u32>();
-                    if eos_token_ids.contains(&token_id) {
-                        break;
+            let generation_started = std::time::Instant::now();
+            let (generated_ids, draft_stats) =
+                if let Some(draft_model_path) = &request.draft_model_path {
+                    if matches!(loaded.model.model_mut(), Model::Gemma4(_)) {
+                        let mut assistant =
+                            load_gemma4_assistant_model(draft_model_path).map_err(|error| {
+                                mlx_error(format!("failed to load MLX draft model: {error}"))
+                            })?;
+                        let target = match loaded.model.model_mut() {
+                            Model::Gemma4(target) => target,
+                            _ => unreachable!(),
+                        };
+                        let (ids, stats) = generate_gemma4_mtp(
+                            target,
+                            &mut assistant,
+                            &prompt_array,
+                            &eos_token_ids,
+                            max_tokens,
+                            temp,
+                        )
+                        .map_err(mlx_error)?;
+                        (
+                            ids,
+                            Some(DraftStats {
+                                model: Some(draft_model_path.display().to_string()),
+                                draft_tokens: stats.draft_tokens,
+                                accepted_tokens: stats.accepted_tokens,
+                                target_tokens: stats.target_tokens,
+                                rounds: stats.rounds,
+                                accept_rate: stats.accept_rate(),
+                            }),
+                        )
+                    } else {
+                        generate_single_model(
+                            &mut loaded.model,
+                            &prompt_array,
+                            &eos_token_ids,
+                            max_tokens,
+                            temp,
+                        )?
                     }
-                    generated_ids.push(token_id);
-                }
-            }
+                } else {
+                    generate_single_model(
+                        &mut loaded.model,
+                        &prompt_array,
+                        &eos_token_ids,
+                        max_tokens,
+                        temp,
+                    )?
+                };
 
             let generated_text = loaded
                 .model
@@ -147,9 +192,16 @@ mod imp {
                 "prompt_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "generated_text": generated_text,
+                "draft": draft_stats,
             });
             let _ = request.log.write(&log_json, Some(&usage));
-            let provider_usage = ProviderUsage::new(request.model_name, usage);
+            let stats = ProviderStats {
+                time_to_first_token_ms: None,
+                elapsed_ms: Some(generation_started.elapsed().as_millis() as u64),
+                output_tokens: Some(generated_ids.len()),
+                draft: draft_stats,
+            };
+            let provider_usage = ProviderUsage::new(request.model_name, usage).with_stats(stats);
             let _ = request.tx.blocking_send(Ok((None, Some(provider_usage))));
             Ok(())
         }
@@ -189,6 +241,7 @@ mod imp {
 
     fn build_prompt(
         model: &mut LoadedModel,
+        model_name: &str,
         system: &str,
         messages: &[Message],
         tools: &[rmcp::model::Tool],
@@ -214,6 +267,16 @@ mod imp {
                     load_tiny_model_prompt(),
                     build_emulator_tool_description(tools, code_mode_enabled)
                 );
+                if is_gemma4(model) {
+                    let conversations = gemma4_messages_with_system(&system_prompt, messages);
+                    if let Some(prompt) = model
+                        .apply_chat_template_json([conversations], None, true)
+                        .map_err(mlx_error)?
+                    {
+                        return Ok(prompt);
+                    }
+                }
+
                 let conversations = chat_conversations(&system_prompt, messages);
                 if let Some(prompt) = model
                     .apply_chat_template([Chat::Owned(conversations)], None, true)
@@ -225,6 +288,16 @@ mod imp {
                 Ok(render_prompt(&system_prompt, messages))
             }
             ToolMode::None => {
+                if is_gemma4(model) {
+                    let conversations = gemma4_messages(model_name, system, messages);
+                    if let Some(prompt) = model
+                        .apply_chat_template_json([conversations], None, true)
+                        .map_err(mlx_error)?
+                    {
+                        return Ok(prompt);
+                    }
+                }
+
                 let conversations = chat_conversations(system, messages);
                 if let Some(prompt) = model
                     .apply_chat_template([Chat::Owned(conversations)], None, true)
@@ -236,6 +309,120 @@ mod imp {
                 Ok(render_prompt(system, messages))
             }
         }
+    }
+
+    fn generate_single_model(
+        model: &mut LoadedModel,
+        prompt_array: &mlx_rs::Array,
+        eos_token_ids: &[u32],
+        max_tokens: usize,
+        temp: f32,
+    ) -> Result<(Vec<u32>, Option<DraftStats>), ProviderError> {
+        let mut cache: Vec<Option<ConcatKeyValueCache>> = Vec::new();
+        let mut generated_ids = Vec::new();
+        {
+            let generator = model
+                .generate(&mut cache, temp, prompt_array)
+                .take(max_tokens);
+            for token in generator {
+                let token = token.map_err(mlx_error)?;
+                eval([&token]).map_err(mlx_error)?;
+                let token_id = token.item::<u32>();
+                if eos_token_ids.contains(&token_id) {
+                    break;
+                }
+                generated_ids.push(token_id);
+            }
+        }
+        Ok((generated_ids, None))
+    }
+
+    fn is_gemma4(model: &LoadedModel) -> bool {
+        matches!(model.model_type(), "gemma4" | "gemma4_text")
+    }
+
+    fn gemma4_messages(
+        model_name: &str,
+        system: &str,
+        messages: &[Message],
+    ) -> Vec<serde_json::Value> {
+        let system = gemma4_system_prompt(model_name, system);
+        gemma4_messages_with_optional_system(system.as_deref(), messages)
+    }
+
+    fn gemma4_messages_with_system(system: &str, messages: &[Message]) -> Vec<serde_json::Value> {
+        gemma4_messages_with_optional_system(Some(system), messages)
+    }
+
+    fn gemma4_messages_with_optional_system(
+        system: Option<&str>,
+        messages: &[Message],
+    ) -> Vec<serde_json::Value> {
+        let mut values = Vec::new();
+        if let Some(system) = system.map(str::trim).filter(|system| !system.is_empty()) {
+            values.push(json!({
+                "role": "system",
+                "content": system,
+            }));
+        }
+
+        for message in messages.iter().filter(|message| message.is_agent_visible()) {
+            let text = extract_text_content(message);
+            if text.trim().is_empty() {
+                continue;
+            }
+
+            match message.role {
+                rmcp::model::Role::User => values.push(json!({
+                    "role": "user",
+                    "content": [{"type": "text", "text": text.trim(), "content": text.trim()}],
+                })),
+                rmcp::model::Role::Assistant => values.push(json!({
+                    "role": "assistant",
+                    "content": text.trim(),
+                })),
+            }
+        }
+
+        values
+    }
+
+    fn gemma4_system_prompt(model_name: &str, system: &str) -> Option<String> {
+        if should_use_tiny_system_prompt(model_name) {
+            return Some(load_tiny_model_prompt());
+        }
+
+        let filtered = filter_extensions_from_system_prompt(system);
+        let system = filtered.trim();
+        if system.is_empty() {
+            None
+        } else {
+            Some(system.to_string())
+        }
+    }
+
+    fn should_use_tiny_system_prompt(model_name: &str) -> bool {
+        estimate_model_size_billions(model_name).is_some_and(|size| size <= 4.0)
+    }
+
+    fn estimate_model_size_billions(model_name: &str) -> Option<f32> {
+        let normalized = model_name.to_ascii_lowercase().replace('-', "_");
+        for part in normalized.split('_') {
+            if let Some(value) = part.strip_suffix('b') {
+                if let Ok(size) = value.parse::<f32>() {
+                    return Some(size);
+                }
+            }
+            if let Some(value) = part
+                .strip_prefix('e')
+                .and_then(|value| value.strip_suffix('b'))
+            {
+                if let Ok(size) = value.parse::<f32>() {
+                    return Some(size);
+                }
+            }
+        }
+        None
     }
 
     fn openai_messages(system: &str, messages: &[Message]) -> Vec<serde_json::Value> {
@@ -258,7 +445,7 @@ mod imp {
                 content: system.trim().to_string(),
             });
         }
-        for message in messages {
+        for message in messages.iter().filter(|message| message.is_agent_visible()) {
             let role = match message.role {
                 rmcp::model::Role::User => Role::User,
                 rmcp::model::Role::Assistant => Role::Assistant,
@@ -343,7 +530,7 @@ mod imp {
             prompt.push_str(system.trim());
             prompt.push('\n');
         }
-        for message in messages {
+        for message in messages.iter().filter(|message| message.is_agent_visible()) {
             let role = match message.role {
                 rmcp::model::Role::User => "User",
                 rmcp::model::Role::Assistant => "Assistant",

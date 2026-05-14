@@ -146,36 +146,104 @@ impl Default for ModelSettings {
     }
 }
 
+/// HuggingFace repo + filename for multimodal projection weights (vision encoder).
+pub struct MmprojSpec {
+    pub repo: &'static str,
+    pub filename: &'static str,
+}
+
+impl MmprojSpec {
+    /// Local path for this mmproj, namespaced by repo to avoid collisions
+    /// between different models that use the same filename.
+    pub fn local_path(&self) -> std::path::PathBuf {
+        let repo_name = self.repo.split('/').next_back().unwrap_or(self.repo);
+        Paths::in_data_dir("models")
+            .join(repo_name)
+            .join(self.filename)
+    }
+}
+
 pub struct FeaturedModel {
     /// HuggingFace spec in "author/repo-GGUF:quantization" format.
     pub spec: &'static str,
+    /// Whether this model's GGUF template supports native tool calling via llama.cpp.
+    pub native_tool_calling: bool,
+    /// Multimodal projection weights spec. None for text-only models.
+    pub mmproj: Option<MmprojSpec>,
 }
 
 pub const FEATURED_MODELS: &[FeaturedModel] = &[
     FeaturedModel {
         spec: "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
+        native_tool_calling: false,
+        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
+        native_tool_calling: false,
+        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
+        native_tool_calling: false,
+        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
+        native_tool_calling: false,
+        mmproj: None,
     },
     FeaturedModel {
         spec: "unsloth/gemma-4-E4B-it-GGUF:Q4_K_M",
+        native_tool_calling: true,
+        mmproj: Some(MmprojSpec {
+            repo: "unsloth/gemma-4-E4B-it-GGUF",
+            filename: "mmproj-BF16.gguf",
+        }),
     },
     FeaturedModel {
         spec: "unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M",
+        native_tool_calling: true,
+        mmproj: Some(MmprojSpec {
+            repo: "unsloth/gemma-4-26B-A4B-it-GGUF",
+            filename: "mmproj-BF16.gguf",
+        }),
     },
 ];
 
-pub fn default_settings_for_model(_model_id: &str) -> ModelSettings {
+pub fn default_settings_for_model(model_id: &str) -> ModelSettings {
+    use super::hf_models::parse_model_spec;
+    let model_repo = model_id.split(':').next().unwrap_or(model_id);
+    let featured = FEATURED_MODELS.iter().find(|m| {
+        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
+            repo_id == model_repo
+        } else {
+            false
+        }
+    });
     ModelSettings {
+        tool_calling: if featured.is_some_and(|m| m.native_tool_calling) {
+            ToolCallingMode::ForceNative
+        } else {
+            ToolCallingMode::Auto
+        },
+        vision_capable: featured.is_some_and(|m| m.mmproj.is_some()),
         ..ModelSettings::default()
     }
+}
+
+/// Look up the `MmprojSpec` for a featured model by its model ID.
+pub fn featured_mmproj_spec(model_id: &str) -> Option<&'static MmprojSpec> {
+    use super::hf_models::parse_model_spec;
+    let model_repo = model_id.split(':').next().unwrap_or(model_id);
+    FEATURED_MODELS.iter().find_map(|m| {
+        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
+            if repo_id == model_repo {
+                return m.mmproj.as_ref();
+            }
+        }
+        None
+    })
 }
 
 /// Local path for an mmproj file, namespaced by repo to avoid collisions
@@ -259,6 +327,27 @@ pub struct LocalModelEntry {
 }
 
 impl LocalModelEntry {
+    /// Populate mmproj metadata and vision settings from the featured model
+    /// table if this model's repo has a known vision encoder.
+    pub fn enrich_with_featured_mmproj(&mut self) {
+        if let Some(mmproj) = featured_mmproj_spec(&self.id) {
+            let path = mmproj.local_path();
+            if self.mmproj_path.as_ref() != Some(&path) {
+                self.mmproj_path = Some(path.clone());
+                self.mmproj_source_url = Some(format!(
+                    "https://huggingface.co/{}/resolve/main/{}",
+                    mmproj.repo, mmproj.filename
+                ));
+            }
+            self.mmproj_size_bytes = path_size(&path);
+            self.settings.vision_capable = true;
+            self.settings.mmproj_size_bytes = self.mmproj_size_bytes;
+            if matches!(self.settings.tool_calling, ToolCallingMode::Auto) {
+                self.settings.tool_calling = ToolCallingMode::ForceNative;
+            }
+        }
+    }
+
     pub fn refresh_mmproj_metadata(&mut self) {
         self.settings.vision_capable = self.mmproj_path.is_some();
         if let Some(path) = &self.mmproj_path {
@@ -421,7 +510,7 @@ impl LocalModelRegistry {
 
         for mut entry in featured_entries {
             if !self.models.iter().any(|m| m.id == entry.id) {
-                entry.refresh_mmproj_metadata();
+                entry.enrich_with_featured_mmproj();
                 self.models.push(entry);
                 changed = true;
             }
@@ -440,6 +529,7 @@ impl LocalModelRegistry {
     }
 
     pub fn add_model(&mut self, mut entry: LocalModelEntry) -> Result<()> {
+        entry.enrich_with_featured_mmproj();
         entry.refresh_mmproj_metadata();
         if let Some(existing) = self.models.iter_mut().find(|m| m.id == entry.id) {
             *existing = entry;

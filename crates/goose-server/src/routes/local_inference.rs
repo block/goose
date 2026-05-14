@@ -157,6 +157,7 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
                 mmproj_path: None,
                 mmproj_source_url: None,
                 mmproj_size_bytes: 0,
+                mmproj_checked: false,
                 shard_files: vec![],
             }
         })
