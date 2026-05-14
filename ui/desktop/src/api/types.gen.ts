@@ -175,9 +175,12 @@ export type Conversation = Array<Message>;
 
 export type CopilotReviewRequest = {
     /**
-     * The recipe updates this Check Run on completion.
+     * The endpoint updates this Check Run on completion.
      */
     check_run_id?: number | null;
+    /**
+     * Short-lived GitHub App installation token, scoped to the user's repos.
+     */
     github_token: string;
     head_sha: string;
     pr_number: number;
@@ -189,7 +192,7 @@ export type CopilotReviewRequest = {
 };
 
 export type CopilotReviewResponse = {
-    session_id: string;
+    accepted: boolean;
 };
 
 export type CopilotSetupResponse = {
@@ -3092,10 +3095,6 @@ export type ReviewData = {
 
 export type ReviewErrors = {
     /**
-     * Recipe missing or invalid
-     */
-    400: unknown;
-    /**
      * Internal error
      */
     500: unknown;
@@ -3103,7 +3102,7 @@ export type ReviewErrors = {
 
 export type ReviewResponses = {
     /**
-     * Review session spawned
+     * Review accepted, running in background
      */
     200: CopilotReviewResponse;
 };
