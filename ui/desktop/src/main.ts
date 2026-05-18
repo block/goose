@@ -431,7 +431,7 @@ if (process.platform !== 'darwin') {
         }
 
         // For non-bot URLs, continue with normal handling
-        handleProtocolUrl(protocolUrl);
+        handleProtocolUrl(protocolUrl, parsedUrl);
       }
 
       // Only focus existing windows for non-bot/recipe URLs
@@ -494,10 +494,9 @@ async function createResumeChatWindow(parsedUrl: URL, dir?: string): Promise<boo
   return true;
 }
 
-async function handleProtocolUrl(url: string, parsedUrl?: URL) {
+async function handleProtocolUrl(url: string, parsedUrl: URL) {
   if (!url) return;
 
-  parsedUrl ??= new URL(url);
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
