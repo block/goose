@@ -86,37 +86,89 @@ Carried through but never read:
 | `session.working_dir` | only on `session/list` `SessionInfo`, **not on `session/load`** | ✗ gap | add to `LoadSessionResponse._meta.workingDir`, or expose on `SessionInfoUpdate` |
 | `session.conversation` (Message[]) | replayed as `*MessageChunk` + `ToolCall*` notifications | ✓ streamed | rebuild `Message[]` client-side from chunk notifications (no server change needed) |
 | `session.total_tokens` | `UsageUpdate.used` | ✓ | — |
-| `session.accumulated_input_tokens` | — | ✗ gap | emit via `UsageUpdate._meta.accumulatedInputTokens` |
-| `session.accumulated_output_tokens` | — | ✗ gap | emit via `UsageUpdate._meta.accumulatedOutputTokens` |
-| `session.accumulated_cost` | `UsageUpdate.cost` (schema has it, goose returns `None`) | ⚠ unfilled | populate `cost: Some(Cost { amount, currency })` in `build_usage_update` from `session.accumulated_cost` |
+| `session.accumulated_input_tokens` | `_goose/session/update` → `SessionUsageUpdate.accumulatedInputTokens` | ✓ already emitted | wire `Client.extNotification` in `acpConnection.ts` to receive it |
+| `session.accumulated_output_tokens` | `_goose/session/update` → `SessionUsageUpdate.accumulatedOutputTokens` | ✓ already emitted | same as above |
+| `session.accumulated_cost` | `_goose/session/update` → `SessionUsageUpdate.accumulatedCost` (the standard ACP `UsageUpdate.cost` is left as `None`; the rich value lives on the custom notification) | ✓ already emitted | same as above |
 | `session.provider_name` | `LoadSessionResponse.models.current_model_id` (provider derivable from `ModelInfo`) | ✓ first-class | use it directly; no `_meta` hack needed |
 | `session.model_config.model_name` | same — `SessionModelState.current_model_id` / `ModelInfo` | ✓ first-class | use it directly |
 | `session.model_config.context_limit` | implicitly via `UsageUpdate.size` | ⚠ partial | for context-fill bar use `used / size` directly; if needed independently, populate `ModelInfo._meta.contextLimit` |
 | `session.recipe` | — | ✗ gap | add to `LoadSessionResponse._meta.recipe` (full recipe JSON) |
 | `session.user_recipe_values` | — | ✗ gap | add to `LoadSessionResponse._meta.userRecipeValues` |
 | `extension_results` (load failures) | — | ✗ gap | new typed update `SessionUpdate::ExtensionLoadResult { name, status, error? }`, or surface via `SessionInfoUpdate._meta.extensionResults` once setup finishes |
-| Load-complete signal | — | ✗ gap | emit one `SessionInfoUpdate` with `_meta.replayComplete: true` after replay + agent-setup finishes; client uses this to flip `chatState` from `LoadingConversation` to `Idle` |
+| Load-complete signal | `session/load` request resolution | ✓ already covered | ACP requires `session/load` to resolve only after replay notifications have been sent. Use that as the replay-complete boundary; no new notification needed |
 
 ## Server-side touchpoints
 
-All `_meta`-based fixes live in two functions in `crates/goose/src/acp/server.rs`:
+What's already in place:
 
-- `session_meta` (line 256) — expand for `session/list` AND add a sibling for `session/load` carrying `working_dir`, `recipe`, `user_recipe_values`, `accumulated_*`.
-- `build_usage_update` (line 1042) — enrich to populate `cost` and add `_meta` accumulated fields.
+- `_goose/session/update` (`GooseSessionNotification`) is emitted from
+  `build_usage_updates` (`crates/goose/src/acp/server.rs` line ~1065) at
+  `session/new` and `session/load`. It carries `used`, `context_limit`,
+  `accumulated_input_tokens`, `accumulated_output_tokens`, and
+  `accumulated_cost` — i.e. everything the CostTracker chip needs.
+  Definition: `crates/goose-sdk/src/custom_notifications.rs`. TS types:
+  `ui/sdk/src/generated/types.gen.ts` (`GooseSessionNotification`,
+  `GooseSessionUpdate`, `SessionUsageUpdate`).
+- Provider/model are populated into `SessionModelState` by
+  `prepare_session_init_config` (~line 2869) and returned inline on
+  `LoadSessionResponse`. No extra work.
 
-Provider/model fields require no extra work — they're already populated into `SessionModelState` by `prepare_session_init_config` (line ~2869) and returned on `LoadSessionResponse`.
+Still missing:
 
-Two structural additions need more work:
-- `ExtensionLoadResult` notification — either a new `SessionUpdate` variant (upstream schema PR) or a side-channel via `SessionInfoUpdate._meta`.
-- Load-complete signal — same options.
+- `recipe` and `user_recipe_values` on `LoadSessionResponse._meta` — no
+  current carrier.
+- `working_dir` on `LoadSessionResponse._meta` for cold-open / deep-link
+  paths that have no cached `SessionListItem`.
+- Extension load results — either a new `SessionUpdate::ExtensionLoadResult`
+  variant or `SessionInfoUpdate._meta.extensionResults`. This models
+  provider/extension setup readiness.
+
+No replay-complete notification is needed. ACP `session/load` resolves only
+after replay notifications have been sent, so the request resolution itself
+is the authoritative replay-complete boundary.
+
+### Agent-side side effect: rendered recipe application
+
+Not a data field, but a behavioral gap worth tracking here. The session row
+stores only the raw `recipe` + `user_recipe_values`; the rendered system
+prompt is computed at runtime by `build_recipe_with_parameter_values` and
+pushed onto the in-memory agent by `apply_recipe_to_agent`.
+
+Today this happens via REST `update_from_session`, which the desktop
+triggers from a `useEffect` on `state.session` — firing after every cold
+load, cache hit, reattach, name refresh, and recipe-param submit.
+
+ACP server.rs has no equivalent. ACP-loaded recipe sessions would render
+the recipe UI but the agent's system prompt would not include the
+rendered recipe — silent behavioral regression.
+
+Fix options:
+- Auto-apply during ACP `spawn_agent_setup` when `session.recipe.is_some()`
+  and all params are present (covers cold-load and create-time).
+- Expose a Goose-custom ACP request that mirrors `update_from_session` so
+  the desktop can drive it explicitly (covers recipe-param submit).
+
+A single custom request can cover both if it's idempotent.
 
 ## Client-side touchpoints
 
 For the ACP-based hook:
 
-- Replace `resumeAgent` Promise resolution with: subscribe to notifications → call `session/load` → accumulate chunks/tool-calls into `Message[]` → seed `tokenState` from first `UsageUpdate` → read provider/model from `LoadSessionResponse.models` → wait for `replayComplete` to clear loading state.
-- For the context-fill bar, divide `UsageUpdate.used / UsageUpdate.size` directly — no separate model-context-limit lookup needed.
-- Drop unused `tokenState.{inputTokens, outputTokens, accumulatedTotalTokens}` from the client's `TokenState` shape since they're no longer in the payload.
+- Wire `Client.extNotification(method, params)` in `acpConnection.ts` so
+  `_goose/session/update` is dispatched alongside standard ACP
+  `sessionUpdate`. Without this, the desktop never sees `accumulated_*` or
+  `accumulatedCost` and the CostTracker chip silently regresses to zero.
+- Replace `resumeAgent` Promise resolution with: subscribe to notifications
+  → call `session/load` → accumulate chunks/tool-calls into `Message[]` →
+  seed `tokenState` from the `_goose/session/update` `usage_update` (rich
+  fields) and standard `UsageUpdate` (`used`/`size`) → read provider/model
+  from `LoadSessionResponse.models` → use `session/load` resolution itself
+  as the replay-complete boundary to clear loading state.
+- For the context-fill bar, divide `UsageUpdate.used / UsageUpdate.size`
+  directly — no separate model-context-limit lookup needed.
+- Drop unused `tokenState.{inputTokens, outputTokens,
+  accumulatedTotalTokens}` from the client's `TokenState` shape since
+  they're no longer in the payload.
 
 ## Code dead-weight observations (orthogonal to ACP)
 

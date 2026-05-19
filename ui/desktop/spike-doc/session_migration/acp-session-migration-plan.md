@@ -99,173 +99,206 @@ same call site.
 
 ## Vertical Slice Plan
 
-The migration can land in one PR, but implementation should proceed as vertical
-slices. Each slice should prove one user-visible path end to end before adding
-more ACP surface area.
+The migration proceeds as vertical slices. Each slice should prove one
+user-visible path end to end before adding more ACP surface area. ACP session
+behavior is notification-driven, so a wrapper can typecheck without proving
+that chat actually works — the proof comes from wiring the wrapper, router,
+adapter, and React state together against a real session.
 
 Working agreement: `working-agreement.md`
 
-This is intentionally different from building all wrappers first. ACP session
-behavior is notification-driven, so a wrapper can typecheck without proving that
-chat actually works. The first useful proof is a narrow `session/load` path that
-exercises the wrapper, notification router, adapter, and React state together.
+### Why load-first
 
-### 1. Harden ACP Client
+Load is the right entry point for the chat-runtime migration. The reasoning,
+in priority order:
+
+1. **Rollback boundary.** Load only touches the cold-read path. A regression
+   means falling back to REST `resumeAgent` with one import swap; submitting
+   messages still works because submit was never touched. Creation, by
+   contrast, is the entry point to every new chat — a regression there
+   blocks all new work.
+2. **Lifecycle hazard with create-first.** ACP `on_new_session`
+   (`crates/goose/src/acp/server.rs`) spawns its own agent setup under
+   `self.sessions` keyed by ACP `SessionId`. REST `startAgent` uses the REST
+   agent registry. Migrating creation while leaving live prompt on REST
+   means REST `sessionReply` would run against an ACP-spawned agent — an
+   untested combination. Load avoids that entanglement entirely.
+3. **Adapter de-risk.** Load exercises the notification router and adapter
+   in a deterministic replay context where you can A/B against
+   `resumeAgent`. Save bug-discovery for a read path; don't combine it with
+   the live-prompt cutover.
+4. **Gap shape favors load.** Load's remaining server gaps (recipe /
+   extension-results on the load response) are data-carrying additions to
+   existing payloads. Create's server gaps (recipe input + extension
+   overrides on `session/new`) change agent setup behavior, which is
+   structurally riskier.
+
+Concrete sequencing implications:
+
+- Permission must land before live prompt. The ACP client currently returns
+  `cancelled` from `requestPermission` if no handler is registered
+  (`ui/desktop/src/acp/acpConnection.ts`), so the first prompt that needs
+  approval would silently die.
+- Creation and live prompt must ship together, not separately. A new
+  ACP-created session whose first message goes through REST `sessionReply`
+  hits the same hazard as point 2.
+
+### 1. Harden ACP Client — done
 
 Detailed plan: `01-harden-acp-client.md`
 
-Update `ui/desktop/src/acp/acpConnection.ts` so ACP session notifications and
-permission requests have explicit integration points.
+`ui/desktop/src/acp/acpConnection.ts` exposes `setAcpNotificationHandler`,
+`setAcpPermissionHandler`, and forwards ACP `sessionUpdate` notifications.
 
-### 2. Text-Only Conversation Load Slice
+### 2. ACP Wrapper + Notification Router + Text Adapter — done
+
+Detailed plans: `02-acp-session-wrapper.md`, `03-notification-adapter.md`
+
+- `acpLoadSession` and the rest of the session helpers live in
+  `ui/desktop/src/acp/sessions.ts`.
+- The session-scoped router (`installAcpSessionNotificationRouter`,
+  `subscribeToAcpSession`) lives in
+  `ui/desktop/src/acp/sessionNotificationRouter.ts`.
+- A minimal text adapter
+  (`ui/desktop/src/acp/sessionNotificationAdapter.ts`) handles
+  `user_message_chunk`, `agent_message_chunk`, and a stub
+  `session_info_update`.
+
+These pieces are not yet referenced by production code. The load slice
+(step 4) is what wires them in.
+
+### 3. Session List Slice — done
 
 Detailed plan: `02-acp-session-wrapper.md`
 
-Build the minimum ACP path needed to load an existing text-only session:
+Session list migration landed first and is in production. ACP exports:
+`acpListSessions`, `acpRenameSession`, `acpDeleteSession`, `acpForkSession`,
+`acpExportSession`, `acpImportSession`. `sessionInfoToListItem` maps
+`SessionInfo` into desktop `SessionListItem`. The session list is the
+authoritative metadata source for the load slice (`workingDir`, title,
+provider, model).
 
-- add `loadAcpSession` in `ui/desktop/src/acp/sessions.ts`
-- add the session-scoped ACP notification router
-- add the minimal notification adapter for `user_message_chunk`,
-  `agent_message_chunk`, and session metadata needed by load
-- add server support for an initial `session_info_update` during
-  `session/load`, so desktop has session metadata without depending on REST
-  `resumeAgent.session`
-- wire conversation load in the chat hook
-- verify an existing text-only session renders through ACP
+### 4. Conversation Load Slice — current focus
 
-This slice should prove:
+Detailed plan: `05-conversation-load.md`. Field-level audit:
+`ui/desktop/spike-doc/useChatStream-acp-data-gap.md`.
 
-```text
-React hook subscribes by sessionId
-  -> calls ACP session/load
-  -> ACP sends session/update: session_info_update
-  -> ACP sends session/update: replayed message chunks
-  -> ACP sends session/update: usage_update
-  -> router delivers notifications to the matching session
-  -> adapter converts metadata, usage, and text chunks
-  -> UI renders messages
-```
+Replace REST `resumeAgent` cold-load with ACP `session/load` +
+`SessionUpdate` notifications. This slice expands the adapter beyond text
+(thinking, tool calls, tool updates, usage, full session info) and bridges
+adapter output into `useChatStream`'s reducer.
+
+Server prerequisites:
+
+- Attach `recipe` and `user_recipe_values` to `LoadSessionResponse._meta`
+  (data carrying).
+- Apply the rendered recipe to the agent's system prompt during ACP agent
+  setup (lifecycle). The DB stores only the raw recipe + values; the
+  rendered prompt is computed at runtime and currently pushed by REST
+  `update_from_session`. ACP has no equivalent, so without this step
+  ACP-loaded recipe sessions render the recipe UI but the agent silently
+  behaves as a plain chat. Either auto-apply during `spawn_agent_setup`
+  or expose a Goose-custom ACP request mirroring `update_from_session`.
+- Decide and implement the extension-load-result surface
+  (`SessionUpdate::ExtensionLoadResult` variant or
+  `SessionInfoUpdate._meta.extensionResults`). This models
+  provider/extension setup readiness — separate from conversation replay
+  completion.
+
+No replay-complete notification needed. ACP `session/load` only resolves
+after replay notifications have been sent, so the request resolution
+itself is the authoritative replay-complete boundary.
+
+Already in place: the rich usage payload (`accumulated_input_tokens`,
+`accumulated_output_tokens`, `accumulated_cost`) is emitted via the existing
+custom `_goose/session/update` notification (`GooseSessionNotification`).
+The client work below picks it up via `Client.extNotification`.
+
+Client prerequisite specific to this slice:
+
+- Wire `Client.extNotification(method, params)` in `acpConnection.ts` so
+  the custom `_goose/session/update` notification is dispatched alongside
+  standard ACP `sessionUpdate`.
 
 Do not make `useChatStream` depend on both `resumeAgent.session.conversation`
-and ACP replay as competing conversation sources. REST may remain temporarily
-for setup behavior that ACP does not yet expose, but conversation and session
-metadata for the load slice should come from ACP notifications.
+and ACP replay as competing sources. REST live prompt, cancel, reattach,
+and name polling stay alive — this slice only swaps the cold-load path.
 
-### 3. Live Text Prompt Slice
-
-Detailed plans: `03-notification-adapter.md`, `06-live-prompt-streaming.md`
-
-Add `promptAcpSession` and migrate the live text submit path. Reuse the router
-and text adapter path proven by conversation load.
-
-The new flow should be:
-
-```text
-user submits message
-  -> call ACP session/prompt
-  -> receive session/update notifications on the WebSocket
-  -> adapter updates Message[] / TokenState / ChatState
-  -> prompt response resolves with final stop reason
-  -> mark stream finished
-```
-
-Do not carry over REST request ID routing. ACP session notifications are scoped
-by ACP `sessionId`.
-
-### 4. Cancellation Slice
-
-Detailed plan: `07-cancellation.md`
-
-Add `cancelAcpSession` and replace REST cancellation after live prompt state
-exists.
-
-Keep the existing stop button behavior:
-
-- user can cancel an active prompt
-- UI returns to idle or cancelled state
-- no stale active request state remains
-
-### 5. Tool Call Display Slice
-
-Detailed plan: `03-notification-adapter.md`
-
-Extend the notification adapter beyond text:
-
-- `agent_thought_chunk`
-- `tool_call`
-- `tool_call_update`
-- `usage_update`
-- richer `session_info_update`
-
-Verify loading and live prompt sessions with thinking and tool history.
-
-### 6. Tool Permission Slice
+### 5. Tool Permission Bridge
 
 Detailed plan: `08-tool-permissions.md`
 
-ACP tool approval uses `requestPermission`, not the REST
-`/action-required/tool-confirmation` path.
+Must land before live prompt. Without it, any prompt that triggers a tool
+approval will return `cancelled` from `requestPermission` and die.
 
-The ACP client callback should bridge permission requests into the existing UI
-approval pattern, then return the selected ACP permission outcome.
+Bridge the ACP `requestPermission` callback into the existing UI approval
+pattern. Map approve / reject / cancel into ACP outcomes.
 
-Minimum acceptable behavior for live chat:
+Can be drafted in parallel with the load slice — it touches a different
+ACP integration point.
 
-- permission request is visible to the user
-- approve/reject maps to ACP response options
-- cancellation maps to ACP cancelled outcome
+### 6. Live Prompt Slice + Session Creation Slice — paired
 
-### 7. Session Creation Slice
+Detailed plans: `06-live-prompt-streaming.md`, `04-session-creation.md`,
+`03-notification-adapter.md`.
 
-Detailed plan: `04-session-creation.md`
+These ship together. A new ACP-created session whose first user message
+goes through REST `sessionReply` hits an untested agent-lifecycle path
+(REST handler against ACP-spawned agent). The cleanest cut is:
+ACP-created sessions only ever take live prompts via ACP.
 
-Add `createAcpSession` and update `ui/desktop/src/sessions.ts` so new sessions
-use ACP `session/new`.
+Live prompt:
 
-Session creation comes after load/prompt because it has extra parity risk.
-Before switching, check whether the current REST creation behavior needs parity
-for:
+- Add `promptAcpSession`.
+- Reuse the router and adapter wired in the load slice.
+- Set streaming state on submit, handle ACP completion / errors / late
+  notifications.
+- Drop REST request-ID routing — ACP scopes by `sessionId`.
+- Replace REST session-name refresh with `SessionInfoUpdate` handling.
 
-- working directory
-- recipe deeplinks
-- recipe IDs
-- extension overrides
+Session creation:
 
-If any of these are required for the initial ACP cutover and ACP does not support
-them yet, add the missing behavior to ACP first. Do not keep a hidden REST
-fallback for only those cases unless the migration scope is intentionally reduced.
+- Add `createAcpSession`.
+- Server prerequisites: accept `recipe` / `recipe_id` and
+  `extension_overrides` on ACP `session/new`. Currently `on_new_session`
+  only honors `_meta.provider`, `_meta.projectId`, `_meta.client`.
+- Preserve `AppEvents.SESSION_CREATED`, `AppEvents.ADD_ACTIVE_SESSION`,
+  and the `setView('pair', ...)` navigation.
+- Confirm recipe-deeplink and extension-override entry points still work.
 
-### 8. Optional Session List Slice
+### 7. Cancellation Slice
 
-Detailed plan: `02-acp-session-wrapper.md`
+Detailed plan: `07-cancellation.md`
 
-Add `listAcpSessions()` only if session list migration is included in this PR.
-Otherwise leave session list on REST until cleanup scope is explicit.
+Once live prompt is on ACP, replace REST `sessionCancel` with
+`acpCancelSession`. Preserve stop-button semantics: no-op when idle, clean
+return to idle on cancel, no stale active-request state.
 
-### 9. Remove Desktop REST Session Usage
+### 8. Remove Desktop REST Session Usage
 
 Detailed plan: `09-rest-cleanup.md`
 
-After the ACP flow works, remove unused desktop REST session imports and code
-paths.
+After the ACP flows above are proven, remove unused desktop REST session
+imports: `resumeAgent`, `getSession` (for migrated chat loading),
+`startAgent`, `sessionReply`, `sessionCancel`, `sessionEvents`. Update
+tests that mocked them. Keep unrelated REST APIs untouched. Do not manually
+edit `ui/desktop/openapi.json`.
 
-Keep unrelated REST APIs untouched.
+## Detail Docs
 
-Do not manually edit `ui/desktop/openapi.json`.
+The detail files split work by subsystem. Their filenames predate the current
+slice numbering — the mapping is:
 
-## Legacy Phase Docs
-
-The detailed files still split work by subsystem because that is useful while
-implementing. Use them inside the vertical slices above:
-
-- `02-acp-session-wrapper.md` for the wrapper and router.
-- `03-notification-adapter.md` for conversion logic.
-- `04-session-creation.md` for the later creation slice.
-- `05-conversation-load.md` for load integration details.
-- `06-live-prompt-streaming.md` for prompt integration details.
-- `07-cancellation.md` for cancellation.
-- `08-tool-permissions.md` for permission bridging.
-- `09-rest-cleanup.md` for cleanup after replacement behavior is proven.
+| Slice | Detail file(s) |
+|---|---|
+| 1. Harden ACP client | `01-harden-acp-client.md` |
+| 2. Wrapper + router + text adapter | `02-acp-session-wrapper.md`, `03-notification-adapter.md` |
+| 3. Session list | `02-acp-session-wrapper.md` |
+| 4. Conversation load | `05-conversation-load.md`, `03-notification-adapter.md`, `useChatStream-acp-data-gap.md` |
+| 5. Tool permission bridge | `08-tool-permissions.md` |
+| 6. Live prompt + session creation | `06-live-prompt-streaming.md`, `04-session-creation.md`, `03-notification-adapter.md` |
+| 7. Cancellation | `07-cancellation.md` |
+| 8. REST cleanup | `09-rest-cleanup.md` |
 
 ## Main Risks
 
