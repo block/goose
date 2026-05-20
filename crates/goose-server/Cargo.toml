@@ -90,7 +90,6 @@ axum-server = { version = "0.8", default-features = false }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"] }
-tempfile.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.56", default-features = false }
