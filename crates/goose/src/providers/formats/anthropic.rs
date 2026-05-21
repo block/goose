@@ -118,6 +118,21 @@ const EVENT_CONTENT_BLOCK_START: &str = "content_block_start";
 const EVENT_CONTENT_BLOCK_DELTA: &str = "content_block_delta";
 const EVENT_CONTENT_BLOCK_STOP: &str = "content_block_stop";
 
+/// Coerce a tool call's optional arguments into the JSON value Anthropic
+/// expects for the `input` field of a `tool_use` content block.
+///
+/// Anthropic's Messages API requires `input` to be an object. When the
+/// internal `CallToolRequestParams::arguments` is `None` (which happens for
+/// parameterless tools, tool calls round-tripped from disk, or calls created
+/// via `CallToolRequestParams::new` without `.with_arguments(...)`) the
+/// `json!` macro would otherwise serialize it as JSON `null` and the API
+/// rejects the next replay of the tool_use block with a 400 error:
+/// `messages.<N>.content.<M>.tool_use.input: Input should be an object.`
+/// See issue #9287.
+fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
+    Value::Object(arguments.unwrap_or_default())
+}
+
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     format_messages_with_options(messages, AnthropicFormatOptions::default())
@@ -153,7 +168,7 @@ fn format_messages_with_options(
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
                                 NAME_FIELD: tool_call.name,
-                                INPUT_FIELD: tool_call.arguments
+                                INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                             }));
                         }
                         Err(_tool_error) => {
@@ -235,7 +250,7 @@ fn format_messages_with_options(
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
                             NAME_FIELD: tool_call.name,
-                            INPUT_FIELD: tool_call.arguments
+                            INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                         }));
                     }
                 }
@@ -1424,6 +1439,59 @@ mod tests {
             spec[1]["content"][0]["content"],
             "Summary: file loaded\nFile content here"
         );
+    }
+
+    #[test]
+    fn test_args_to_input_value_returns_empty_object_for_none() {
+        let value = args_to_input_value(None);
+        assert!(value.is_object(), "expected JSON object, got {value:?}");
+        assert_eq!(value, json!({}));
+        assert!(!value.is_null());
+    }
+
+    #[test]
+    fn test_args_to_input_value_preserves_existing_args() {
+        let args = object!({"query": "rust"});
+        let value = args_to_input_value(Some(args));
+        assert_eq!(value, json!({"query": "rust"}));
+    }
+
+    #[test]
+    fn test_parameterless_tool_request_serializes_input_as_empty_object() {
+        // Regression test for #9287: when arguments is None (parameterless
+        // MCP tool, session reload, or provider switching) the `input` field
+        // must serialize as `{}` so the Anthropic API does not reject the
+        // replayed tool_use block with a 400 error.
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("list_things"))),
+            Message::user()
+                .with_tool_response("tool_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let input = &spec[0]["content"][0]["input"];
+        assert!(input.is_object(), "expected object, got {input:?}");
+        assert!(!input.is_null());
+        assert_eq!(input, &json!({}));
+    }
+
+    #[test]
+    fn test_parameterless_frontend_tool_request_serializes_input_as_empty_object() {
+        // Same regression as above, but exercises the FrontendToolRequest
+        // branch which is reached for UI-originated tool calls.
+        let messages = vec![Message::assistant().with_frontend_tool_request(
+            "frontend_tool_1",
+            Ok(CallToolRequestParams::new("list_things")),
+        )];
+
+        let spec = format_messages(&messages);
+
+        let input = &spec[0]["content"][0]["input"];
+        assert!(input.is_object(), "expected object, got {input:?}");
+        assert!(!input.is_null());
+        assert_eq!(input, &json!({}));
     }
 
     fn cfg(name: &str) -> ModelConfig {
