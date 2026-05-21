@@ -29,9 +29,10 @@ pub struct AgentManager {
     /// `sessions` cache it acquires the per-session lock before doing the
     /// expensive work (provider restore, MCP extension initialization) so
     /// concurrent callers for the same session never race into doing the
-    /// work twice.  Entries are inserted on demand and removed when the
-    /// session is removed; the underlying `Arc<Mutex<()>>` stays alive as
-    /// long as any caller still holds it, even after removal.
+    /// work twice.  Entries are inserted on demand and pruned when the
+    /// session is removed *or* evicted by the LRU; the underlying
+    /// `Arc<Mutex<()>>` stays alive as long as any caller still holds it,
+    /// even after the HashMap entry is removed.
     creation_locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
 }
 
@@ -181,10 +182,40 @@ impl AgentManager {
 
         let mut sessions = self.sessions.write().await;
         if let Some(existing) = sessions.get(&session_id) {
-            Ok(Arc::clone(existing))
-        } else {
-            sessions.put(session_id, agent.clone());
-            Ok(agent)
+            return Ok(Arc::clone(existing));
+        }
+        // `push` returns the LRU-evicted entry when the cache is at
+        // capacity, which `put` does not surface.  We need the evicted
+        // key so we can also drop its creation lock below, otherwise the
+        // `creation_locks` HashMap would grow without bound in long-lived
+        // processes that churn through many sessions.
+        let evicted = sessions.push(session_id, agent.clone()).map(|(k, _)| k);
+        drop(sessions);
+
+        if let Some(evicted_id) = evicted {
+            self.prune_creation_lock(&evicted_id).await;
+        }
+
+        Ok(agent)
+    }
+
+    /// Drop the per-session creation lock for `session_id` if no other
+    /// caller is currently holding a clone of its `Arc`.  Holding the
+    /// `creation_locks` mutex while we both check `Arc::strong_count` and
+    /// remove guarantees no new waiter can race in between the check and
+    /// the removal: any new caller would need to acquire the outer mutex
+    /// first to clone the inner `Arc`.
+    ///
+    /// If a waiter is still in flight (strong_count > 1) we leave the
+    /// entry in place so the in-flight callers continue to serialize
+    /// through the same lock; a later removal or eviction will sweep it.
+    async fn prune_creation_lock(&self, session_id: &str) {
+        let mut locks = self.creation_locks.lock().await;
+        let in_use = locks
+            .get(session_id)
+            .is_some_and(|lock| Arc::strong_count(lock) > 1);
+        if !in_use {
+            locks.remove(session_id);
         }
     }
 
@@ -196,10 +227,12 @@ impl AgentManager {
         sessions
             .pop(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session {} not found", session_id))?;
-        // Drop the per-session creation lock entry so the HashMap doesn't
-        // grow unbounded.  Any caller still holding a clone of the Arc
-        // keeps the underlying Mutex alive until it releases its guard.
-        self.creation_locks.lock().await.remove(session_id);
+        drop(sessions);
+        // Best-effort prune of the per-session creation lock so the
+        // HashMap doesn't grow unbounded.  Any caller still holding a
+        // clone of the Arc keeps the underlying Mutex alive until it
+        // releases its guard.
+        self.prune_creation_lock(session_id).await;
         info!("Removed session {}", session_id);
         Ok(())
     }
@@ -464,6 +497,64 @@ mod tests {
         let result = manager.remove_session(&session).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_remove_session_prunes_creation_lock() {
+        // remove_session must drop the per-session creation lock so the
+        // HashMap doesn't grow unboundedly.
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        let session = String::from("to-be-removed");
+
+        manager.get_or_create_agent(session.clone()).await.unwrap();
+        assert_eq!(manager.creation_locks.lock().await.len(), 1);
+
+        manager.remove_session(&session).await.unwrap();
+        assert!(
+            manager.creation_locks.lock().await.is_empty(),
+            "remove_session must prune the creation lock for the removed session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_lru_eviction_prunes_creation_lock() {
+        // Sessions can disappear from the LRU cache without going through
+        // remove_session.  When that happens the matching creation lock
+        // must also be pruned, otherwise long-lived processes that churn
+        // through many session IDs would accumulate stale lock entries
+        // even though only `max_sessions` agents remain cached.
+        let temp_dir = TempDir::new().unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let schedule_path = temp_dir.path().join("schedule.json");
+        let manager = AgentManager::new(
+            session_manager,
+            schedule_path,
+            Some(2),
+            GooseMode::default(),
+        )
+        .await
+        .unwrap();
+
+        manager.get_or_create_agent("a".into()).await.unwrap();
+        manager.get_or_create_agent("b".into()).await.unwrap();
+        assert_eq!(manager.creation_locks.lock().await.len(), 2);
+
+        // Inserting a third session evicts the LRU entry ("a").
+        manager.get_or_create_agent("c".into()).await.unwrap();
+
+        let locks = manager.creation_locks.lock().await;
+        assert_eq!(
+            locks.len(),
+            2,
+            "creation_locks must stay bounded by max_sessions after LRU eviction"
+        );
+        assert!(
+            !locks.contains_key("a"),
+            "LRU-evicted session's creation lock should be pruned"
+        );
+        assert!(locks.contains_key("b"));
+        assert!(locks.contains_key("c"));
     }
 
     #[test_case(GooseMode::Approve ; "approve")]
