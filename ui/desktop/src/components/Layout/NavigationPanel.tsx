@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronRight, PanelLeft, Plus, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, PanelLeft, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
@@ -15,8 +15,9 @@ import { AppEvents } from '../../constants/events';
 import { Goose } from '../icons/Goose';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
-import { searchSessions, updateSessionName, type Session } from '../../api';
+import { updateSessionName, type Session } from '../../api';
 import { cn } from '../../utils';
+import { defineMessages, useIntl } from '../../i18n';
 
 type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
 
@@ -24,13 +25,8 @@ interface SessionStatus {
   streamState: StreamState;
   hasUnreadActivity: boolean;
 }
-import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
-  searchPlaceholder: {
-    id: 'navigationPanel.searchPlaceholder',
-    defaultMessage: 'Search chats…',
-  },
   chats: {
     id: 'navigationPanel.chats',
     defaultMessage: 'Chats',
@@ -39,25 +35,9 @@ const i18n = defineMessages({
     id: 'navigationPanel.noChats',
     defaultMessage: 'No recent chats',
   },
-  noResults: {
-    id: 'navigationPanel.noResults',
-    defaultMessage: 'No chats match your search',
-  },
-  searchError: {
-    id: 'navigationPanel.searchError',
-    defaultMessage: 'Search failed',
-  },
-  searching: {
-    id: 'navigationPanel.searching',
-    defaultMessage: 'Searching…',
-  },
   newChat: {
     id: 'navigationPanel.newChat',
     defaultMessage: 'New chat',
-  },
-  viewAllChats: {
-    id: 'navigationPanel.viewAllChats',
-    defaultMessage: 'View all chats',
   },
   untitledSession: {
     id: 'navigationPanel.untitledSession',
@@ -73,7 +53,9 @@ const navItemClass = (active: boolean) =>
   cn(
     'flex flex-row items-center gap-3 outline-none no-drag w-full',
     'rounded-full px-3 py-2 text-sm font-medium transition-colors',
-    active ? 'bg-background-tertiary text-text-primary' : 'text-text-primary hover:bg-background-tertiary/60'
+    active
+      ? 'bg-background-tertiary text-text-primary'
+      : 'text-text-primary hover:bg-background-tertiary/60'
   );
 
 interface NavRowProps {
@@ -211,53 +193,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   }, [isNavExpanded, fetchSessions]);
 
   const [isChatsExpanded, setIsChatsExpanded] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Session[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState(false);
-  const searchRequestIdRef = useRef(0);
-
-  // Debounced API search across all sessions when the user types a query.
-  useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q) {
-      searchRequestIdRef.current += 1;
-      setSearchResults([]);
-      setIsSearching(false);
-      setSearchError(false);
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchError(false);
-    const requestId = ++searchRequestIdRef.current;
-    const timeoutId = setTimeout(async () => {
-      try {
-        const response = await searchSessions({
-          query: { query: q, limit: 50 },
-          throwOnError: false,
-        });
-        if (requestId !== searchRequestIdRef.current) return;
-        if (response.error || !response.data) {
-          setSearchResults([]);
-          setSearchError(true);
-        } else {
-          setSearchResults(response.data);
-        }
-      } catch {
-        if (requestId !== searchRequestIdRef.current) return;
-        setSearchResults([]);
-        setSearchError(true);
-      } finally {
-        if (requestId === searchRequestIdRef.current) setIsSearching(false);
-      }
-    }, 250);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
-
-  const isSearchActive = searchQuery.trim().length > 0;
-  const displayedSessions = isSearchActive ? searchResults : recentSessions;
 
   if (!isNavExpanded) return null;
 
@@ -286,26 +221,8 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="px-3 pb-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={intl.formatMessage(i18n.searchPlaceholder)}
-            className={cn(
-              'w-full pl-9 pr-3 py-2 rounded-full text-sm bg-background-secondary',
-              'border border-transparent focus:border-border-primary focus:bg-background-primary',
-              'outline-none transition-colors placeholder:text-text-secondary'
-            )}
-          />
-        </div>
-      </div>
-
       {/* Nav items */}
-      <div className="px-2 flex flex-col gap-0.5">
+      <div className="px-2 pt-2 flex flex-col gap-0.5">
         {visibleItems.map((item) => (
           <NavRow
             key={item.id}
@@ -339,42 +256,26 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
           </button>
         </div>
         {isChatsExpanded && (
-          <div className="flex-1 min-h-0 flex flex-col px-2 pb-2 mt-1">
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {isSearchActive && isSearching && displayedSessions.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-text-secondary">
-                  {intl.formatMessage(i18n.searching)}
-                </div>
-              ) : isSearchActive && searchError ? (
-                <div className="px-3 py-2 text-xs text-text-secondary">
-                  {intl.formatMessage(i18n.searchError)}
-                </div>
-              ) : displayedSessions.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-text-secondary">
-                  {intl.formatMessage(isSearchActive ? i18n.noResults : i18n.noChats)}
-                </div>
-              ) : (
-                displayedSessions.map((session) => (
-                  <SessionRow
-                    key={session.id}
-                    session={session}
-                    active={session.id === activeSessionId}
-                    status={sessionStatuses.get(session.id)}
-                    onClick={() => {
-                      clearUnread(session.id);
-                      handleSessionClick(session.id);
-                    }}
-                    onRenamed={fetchSessions}
-                  />
-                ))
-              )}
-            </div>
-            <button
-              onClick={() => handleNavClick('/sessions')}
-              className="mt-1 px-3 py-1.5 rounded-full text-xs text-text-secondary hover:text-text-primary hover:bg-background-tertiary/60 transition-colors text-left"
-            >
-              {intl.formatMessage(i18n.viewAllChats)}
-            </button>
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 mt-1">
+            {recentSessions.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-text-secondary">
+                {intl.formatMessage(i18n.noChats)}
+              </div>
+            ) : (
+              recentSessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  active={session.id === activeSessionId}
+                  status={sessionStatuses.get(session.id)}
+                  onClick={() => {
+                    clearUnread(session.id);
+                    handleSessionClick(session.id);
+                  }}
+                  onRenamed={fetchSessions}
+                />
+              ))
+            )}
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { Home, FileText, AppWindow, Clock, Puzzle, Settings, Zap } from 'lucide-react';
+import { Home, FileText, AppWindow, Clock, History, Puzzle, Settings, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { defineMessages, type IntlShape, type MessageDescriptor } from 'react-intl';
 
@@ -19,6 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
+  { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
 ];
 
 /** Settings is rendered separately, pinned to the bottom of the sidebar. */
@@ -55,6 +56,10 @@ const navItemMessages = defineMessages({
   extensions: {
     id: 'navigation.itemExtensions',
     defaultMessage: 'Extensions',
+  },
+  sessions: {
+    id: 'navigation.itemSessions',
+    defaultMessage: 'Session History',
   },
   settings: {
     id: 'navigation.itemSettings',
