@@ -46,14 +46,21 @@ design before implementation.
   `acp/server/load_session.rs`, renamed to `on_load_session_legacy`.
   **Bit-for-bit identical behavior.**
 - Add `on_load_session_inline` (new implementation) in the same file.
-  Inline applies all new policies:
+  Inline mirrors REST `resume_agent`'s shape (provider + extensions),
+  with these new policies:
   - Reject non-empty `mcpServers` with `invalid_params`.
   - Ignore `args.cwd` entirely (session is source of truth).
-  - Apply rendered recipe inline (parity with REST).
   - Surface `recipe`, `userRecipeValues`, `extensionResults`, `workingDir`
     on `LoadSessionResponse._meta`.
 - Add dispatcher `on_load_session` that routes based on
   `GOOSE_ACP_LEGACY_LOAD` env var. Default → inline.
+
+**Recipe application is NOT in scope for this PR.** Mirroring REST's split
+(`resume_agent` does provider + extensions; `update_from_session` applies
+the rendered recipe), recipe application lives in a separate custom RPC
+in a follow-up PR. The raw `recipe` and `userRecipeValues` still go out
+on `_meta` so the desktop can render the parameter modal — that part is
+unchanged.
 
 **Explicitly NOT in scope (this PR):**
 
@@ -71,6 +78,12 @@ design before implementation.
 
 **Follow-up PRs (sequenced):**
 
+- **Recipe RPC** (`_goose/recipe/apply`): mirrors REST `update_from_session`
+  semantics. Client calls it after `loadSession` (and after the user fills
+  any required parameters) to render the recipe and apply it as a system
+  prompt extension on the agent. Required for recipe-bearing sessions to
+  behave correctly under ACP — desktop migration depends on this landing
+  alongside or before the ACP loadSession cutover.
 - Rewrite `on_new_session` to the same inline pattern. Add `mcp_servers`
   rejection there.
 - Rewrite the fork/duplicate site.
@@ -96,14 +109,15 @@ New file: `crates/goose/src/acp/server/load_session.rs`
 Contains everything related to `on_load_session`:
 
 ```
-acp/server/load_session.rs (new, ~500 lines)
-├── pub(super) async fn on_load_session              (~10 line dispatcher)
+acp/server/load_session.rs (new, ~470 lines)
 ├── pub(super) async fn on_load_session_legacy      (~250 lines, moved verbatim from server.rs)
 ├── async fn on_load_session_inline                  (~80 lines, new)
-├── fn replay_conversation_to_client                 (~100 lines, extracted)
-├── async fn build_agent_for_session                 (~80 lines, new — duplicates spawn_agent_setup logic)
-├── async fn apply_recipe_if_present                 (~30 lines, new)
-└── fn legacy_acp_load_enabled                       (~10 lines, env helper)
+├── fn replay_conversation_to_client                 (~100 lines, new copy of legacy replay loop)
+├── async fn build_agent_for_session                 (~80 lines, new copy of spawn_agent_setup phase 1+2)
+└── pub(super) fn legacy_acp_load_enabled            (~10 lines, env helper)
+
+acp/server.rs
+└── on_load_session                                  (~10 line dispatcher, stays here; routes to legacy or inline based on env)
 ```
 
 Existing `acp/server.rs` shrinks by ~250 lines (current `on_load_session`
@@ -150,13 +164,13 @@ async fn on_load_session_inline(
     //    no recovery path needed. Explicit changes use _goose/working_dir/update.
 
     // 5. Build agent inline (provider + extensions)
+    //    Note: recipe is NOT applied here. Mirroring REST's split
+    //    (resume_agent + update_from_session), recipe application is a
+    //    separate custom RPC in a follow-up PR.
     let (agent, extension_results) =
         build_agent_for_session(&goose_session, &deps).await?;
 
-    // 6. Apply rendered recipe if present
-    apply_recipe_if_present(&agent, &goose_session).await?;
-
-    // 7. Register session as Ready (never Loading)
+    // 6. Register session as Ready (never Loading)
     self.sessions.lock().await.insert(id.clone(), GooseAcpSession {
         agent: AgentHandle::Ready(agent.clone()),
         tool_requests: HashMap::new(),
@@ -167,11 +181,11 @@ async fn on_load_session_inline(
         pending_working_dir: None,
     });
 
-    // 8. Post-load notifications
+    // 7. Post-load notifications
     send_initial_usage_updates(cx, &args.session_id, &goose_session, &agent)?;
     self.send_available_commands_update(cx, &args.session_id).await?;
 
-    // 9. Response
+    // 8. Response
     Ok(LoadSessionResponse::new()
         .modes(mode_state)
         .models(model_state)
@@ -197,8 +211,10 @@ logic, untouched.
 | Helper | Purpose | Approx LOC |
 |---|---|---|
 | `replay_conversation_to_client(cx, session_id, session)` | Walks `session.conversation.messages()`, emits one `SessionUpdate` notification per content item. **Logic copied from today's `on_load_session` replay loop; legacy keeps its inline copy unchanged.** | ~100 |
-| `build_agent_for_session(session, deps) -> (Arc<Agent>, Vec<ExtensionLoadResult>)` | Phase 1 (provider init) + Phase 2 (extension load) executed inline and returning the per-extension results. **Logic copied from `spawn_agent_setup`; that function stays unchanged.** | ~80 |
-| `apply_recipe_if_present(agent, session)` | Mirrors REST `update_from_session`: `build_recipe_with_parameter_values` → `apply_recipe_to_agent` → `agent.extend_system_prompt("recipe", …)`. **New logic; no equivalent in legacy.** | ~30 |
+| `build_agent_for_session(session, deps) -> (Arc<Agent>, Vec<ExtensionLoadResult>)` | Phase 1 (provider init) + Phase 2 (extension load) executed inline and returning the per-extension results. **Logic copied from `spawn_agent_setup`; that function stays unchanged.** Recipe is **not** applied here — that lives in a separate custom RPC. | ~80 |
+
+Recipe application is intentionally out of scope. See "Follow-up PRs" for
+the `_goose/recipe/apply` custom RPC that mirrors REST `update_from_session`.
 
 ### No extraction, only duplication — by design
 
@@ -206,19 +222,47 @@ logic, untouched.
 logic from `spawn_agent_setup` and the legacy `on_load_session` body
 respectively, instead of extracting shared code.
 
-**Rationale:** the legacy path and `spawn_agent_setup` are the kill-switch
-fallback (and `on_new_session`'s implementation). If we refactor either to
-call new shared helpers, their behavior is no longer bit-for-bit identical
-to today, weakening the "flip env var to revert" guarantee and risking
-unintended changes to `on_new_session`.
+**Rationale (ACP-side):** the legacy path and `spawn_agent_setup` are
+the kill-switch fallback (and `on_new_session`'s implementation). If we
+refactor either to call new shared helpers, their behavior is no longer
+bit-for-bit identical to today, weakening the "flip env var to revert"
+guarantee and risking unintended changes to `on_new_session`.
+
+**Rationale (vs goose-core helpers):** goose-core already has
+`agent.restore_provider_from_session` and
+`agent.load_extensions_from_session` (used by REST, AgentManager,
+Gateway, tests). `build_agent_for_session` re-implements equivalent
+logic instead of calling those helpers. This is also a deliberate
+choice for this PR:
+
+- `restore_provider_from_session` reads `Config::global()` rather than
+  the per-instance `self.config_dir` that ACP uses. Behaviorally the
+  same in production, but architecturally couples ACP to the global
+  singleton.
+- `restore_provider_from_session` persists the fallback provider back
+  to the session DB on case-1 (registry miss). Violates the read-only
+  principle we adopted for `loadSession`.
+- `load_extensions_from_session` doesn't know about the AcpTools
+  `developer` wrap and would either load developer twice or need a
+  new "exclusion" parameter.
+
+Adopting the goose-core helpers also requires deciding on a per-instance
+`AgentManager` to get LRU caching and auto-restore for free. That set of
+design choices (helpers + AgentManager + scheduler ownership) is
+substantial enough to deserve its own focused PR — see Path B in the
+follow-up list. **Bundling it into this PR would expand scope and weaken
+the kill-switch's bit-for-bit revert guarantee.**
 
 **Cost:** ~200 lines of duplicated logic, temporarily. The duplication
 disappears naturally in the follow-up PRs:
 - Legacy's replay copy → deleted with `on_load_session_legacy`.
-- `spawn_agent_setup`'s phase-1/2 copy → deleted when `on_new_session` and
-  the fork site are rewritten to use the inline pattern.
+- `spawn_agent_setup`'s phase-1/2 copy → deleted when `on_new_session`
+  and the fork site are rewritten to use the inline pattern.
+- `build_agent_for_session`'s phase-1/2 copy → replaced by calls to
+  goose-core helpers in the Path B follow-up.
 
-**This PR is pure addition for legacy and `spawn_agent_setup`. Zero edits.**
+**This PR is pure addition for legacy, `spawn_agent_setup`, and the
+goose-core helpers. Zero edits to any of them.**
 
 ### What stays in place
 
@@ -324,28 +368,43 @@ Sessions own their `working_dir`. Once set (by `newSession`), it's
 immutable via `loadSession`. Clients that need to change working dir use
 the explicit `_goose/working_dir/update` RPC.
 
-### Recipe application
+### Recipe application — NOT in this PR
 
-Match REST `update_from_session` semantics:
+Recipe application is intentionally split out of `on_load_session_inline`,
+mirroring REST's split between `resume_agent` (no recipe) and
+`update_from_session` (applies recipe).
 
-```rust
-if let Some(recipe) = &goose_session.recipe {
-    let values = goose_session.user_recipe_values.clone().unwrap_or_default();
-    match build_recipe_with_parameter_values(recipe, values).await? {
-        Some(rendered) => {
-            if let Some(prompt) =
-                apply_recipe_to_agent(&agent, &rendered, true).await
-            {
-                agent.extend_system_prompt("recipe".into(), prompt).await;
-            }
-        }
-        None => { /* missing params — raw recipe still surfaces on _meta */ }
-    }
-}
-```
+**Why split:**
 
-Runs **after** extensions are loaded, so a recipe prompt can reference
-extension-provided tools if needed (matches REST ordering).
+- Each function has one responsibility. Load sets up session machinery
+  (provider + extensions). Recipe RPC handles recipe-specific prompt
+  extension. Easier to read, test, and modify in isolation.
+- Matches the existing REST architecture, so anyone familiar with REST
+  immediately understands ACP.
+- Cleanly handles the "fresh session, params not yet filled" case: load
+  returns, UI shows param modal, user fills, then recipe RPC fires.
+- Smaller PR scope. No recipe primitives or `apply_recipe_if_present`
+  helper in `load_session.rs`.
+
+**What this PR still does for recipes:** the raw `recipe` and
+`userRecipeValues` are surfaced on `LoadSessionResponse._meta` so the
+desktop can render the parameter modal (when params are missing) or
+trigger the recipe RPC (when params are present). Same data the desktop
+sees today from REST `getSession`/`resumeAgent` — just delivered via ACP.
+
+**Recipe application itself** lands in a follow-up PR that introduces a
+custom RPC `_goose/recipe/apply` mirroring REST `update_from_session`:
+takes a session_id (and optionally values), renders the recipe with
+`build_recipe_with_parameter_values`, applies via
+`apply_recipe_to_agent` + `agent.extend_system_prompt("recipe", …)`.
+
+**Trade-off accepted:** until that follow-up lands, recipe-bearing
+sessions loaded via ACP `loadSession` will not have their recipes
+applied. Desktop and goose-internal migrations to ACP need to wait for
+both PRs (or call REST `update_from_session` as a transition fallback).
+Same risk class as the bug that motivated this whole rewrite (legacy ACP
+dropped recipe application silently) — mitigated by surfacing the recipe
+data on `_meta` so the gap is visible to anyone implementing a client.
 
 ### `extension_results` surface
 
@@ -369,15 +428,18 @@ or ordering concern.
 
 ### Recipe surface (raw)
 
-`LoadSessionResponse._meta.recipe` (full sanitized JSON) and
+`LoadSessionResponse._meta.recipe` (full recipe JSON) and
 `LoadSessionResponse._meta.userRecipeValues` (persisted param values).
 
-Both surface even when `build_recipe_with_parameter_values` returns `None`
-(missing params), so the client can render the param input modal for fresh
-sessions.
+Both surface unconditionally — the client uses them to render the param
+input modal (for fresh sessions) and to call the future `_goose/recipe/apply`
+RPC (once params are filled).
 
-**Sanitization risk:** the raw recipe may carry extension API keys. Use the
-same sanitization as today's REST `getSession`. Verify before merging.
+**Sanitization:** verified against REST `GET /sessions/{id}`
+([routes/session.rs:134-145](../../crates/goose-server/src/routes/session.rs#L134)).
+REST returns `Json(session)` with the `recipe` field passed through
+unchanged — no sanitization. Match REST behavior: pass `goose_session.recipe`
+through as-is.
 
 ## Performance analysis
 
@@ -531,14 +593,18 @@ passes unchanged.
 - Unit test `legacy_acp_load_enabled` env routing.
 - Unit test `mcp_servers` rejection on `on_load_session_inline` (legacy
   and `on_new_session` are not in scope for this PR).
-- Integration test the inline path: load a session with conversation,
-  recipe, extensions; assert messages replayed, agent Ready, recipe applied
-  to system prompt, `extensionResults` populated, `working_dir` preserved.
+- Integration test the inline path: load a session with conversation and
+  extensions; assert messages replayed, agent Ready,
+  `_meta.extensionResults` populated, `_meta.recipe` and
+  `_meta.userRecipeValues` surfaced when present, `working_dir`
+  preserved.
 - Integration test cwd is ignored on inline: load with non-empty saved
   `working_dir` and a different request `cwd`; assert saved value
   preserved (no overwrite happened).
-- Integration test recipe with missing params: assert `_meta.recipe` and
-  `_meta.userRecipeValues` present, no `recipe` system prompt applied.
+- Integration test that recipe is **not** applied to the agent's system
+  prompt on load (recipe-bearing session: assert no `recipe` system prompt
+  exists on the agent after load). Recipe application is tested
+  separately by the `_goose/recipe/apply` PR.
 - Re-run the existing ACP load test suite with `GOOSE_ACP_LEGACY_LOAD=1`
   to confirm the legacy path is bit-for-bit unchanged.
 
@@ -547,14 +613,14 @@ passes unchanged.
 | # | Question | Decision |
 |---|---|---|
 | 1 | cwd policy | **Always ignore `args.cwd` on load** (inline only). Verified zero sessions have empty `working_dir` in DB. Legacy untouched. |
-| 2 | Recipe ordering | **Extensions-then-recipe** (match REST). Defensive default — if a recipe references extension tools, this is correct. |
+| 2 | Recipe application | **Deferred to a separate custom RPC** (`_goose/recipe/apply`, follow-up PR). Mirrors REST split (`resume_agent` doesn't apply recipe; `update_from_session` does). `_meta.recipe` and `_meta.userRecipeValues` still surface so UI can render param modal. |
 | 3 | `extensionResults` shape | **Full list** (success + failures, match REST). Desktop's `showExtensionLoadResults` branches on shape and expects the full list. |
-| 4 | Recipe sanitization | **Verify before code lands.** Audit what REST `getSession` sanitizes; apply identically before serializing into `_meta.recipe`. |
+| 4 | Recipe sanitization | **No sanitization needed.** Verified REST `GET /sessions/{id}` returns `recipe` field unchanged. Match REST behavior — pass through as-is. |
 | 5 | Legacy `UsageUpdate` notification | **Keep emitting** alongside `_goose/session/update` for backwards compat. Delete in the follow-up PR that retires legacy load. |
-| 6 | Env var name | `GOOSE_ACP_LEGACY_LOAD=1` opts back into legacy. Default = inline. |
+| 6 | Env var name | `GOOSE_ACP_LEGACY_LOAD=1` opts back into legacy. Default = inline (after the flip commit). |
 | 7 | Per-extension failures | **Match REST**: warn-log per-extension failures, include in `Vec<ExtensionLoadResult>` with `success: false`. Do not fail the entire load. |
 | 8 | `on_new_session` policies | **Deferred to follow-up.** This PR does not touch `on_new_session` at all. `mcp_servers` rejection and other policy changes apply there only when it's rewritten. |
-| 9 | File layout | **Option B1**: new file `acp/server/load_session.rs` holds dispatcher + legacy + inline + helpers. Legacy moves verbatim from `server.rs`. |
+| 9 | File layout | **Option B1**: new file `acp/server/load_session.rs` holds legacy + inline + helpers + env. Dispatcher stays in `server.rs`. Legacy moves verbatim from `server.rs`. |
 
 ## PR commit plan
 
@@ -599,14 +665,40 @@ default is legacy.
 
 ## Follow-up PRs (sequenced)
 
-1. Rewrite `on_new_session` to inline shape. Same pattern, same
-   helpers (extract for real this time).
-2. Rewrite the fork/duplicate site near server.rs:3432.
-3. Delete `on_load_session_legacy`, `spawn_agent_setup`,
+1. **Recipe RPC** (`_goose/recipe/apply`): mirrors REST `update_from_session`.
+   See "Recipe application — NOT in this PR" above. Required for
+   recipe-bearing sessions to behave correctly under ACP.
+
+2. **Path B: adopt goose-core helpers + per-instance `AgentManager`.**
+   - Replace `build_agent_for_session`'s manual phase-1/2 with calls to
+     `agent.restore_provider_from_session` and
+     `agent.load_extensions_from_session` from goose core.
+   - Introduce an ACP-instantiated `AgentManager` on `GooseAcpAgent` for
+     LRU caching + auto-restore on miss (not the REST singleton — a
+     separate instance per ACP connection).
+   - Parameterize `AgentManager` for `GoosePlatform` and
+     `session_name_update_tx` (currently hardcoded / unsupported).
+   - Resolve scheduler ownership (currently constructed inside
+     `AgentManager::new`; must be shared process-wide).
+   - Handle AcpTools `developer` wrap as a post-load overwrite, or
+     enhance `load_extensions_from_session` to accept an exclusion list.
+   - Decide on `Config::global()` vs per-instance `config_dir` policy.
+   - Decide on persist-on-fallback policy
+     (`restore_provider_from_session` writes to DB on case-1 miss; we
+     may want a read-only variant).
+
+3. Rewrite `on_new_session` to inline shape, alongside or after Path B
+   so it uses the same shared helpers.
+
+4. Rewrite the fork/duplicate site near server.rs:3432.
+
+5. Delete `on_load_session_legacy`, `spawn_agent_setup`,
    `AgentHandle::Loading`, `AgentSetupSignal`, `AgentSetupProgress`,
    `get_session_agent_provider_ready`, `get_agent_or_receiver`,
    `add_mcp_extensions`, the env var, and the dispatcher.
-4. (Optional) Prewarm globally-enabled extensions at ACP `initialize`
+
+6. (Optional) Prewarm globally-enabled extensions at ACP `initialize`
    time, if measurement shows the longer spinner is a problem.
-5. (Optional) Share `extension_manager` across sessions in a connection.
+
+7. (Optional) Share `extension_manager` across sessions in a connection.
    Bigger refactor.

@@ -2711,11 +2711,11 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
-        // Implementation lives in `load_session` submodule. Today this
-        // dispatcher unconditionally routes to the preserved legacy
-        // behavior. A follow-up commit adds `on_load_session_inline` and
-        // makes this routing conditional on `GOOSE_ACP_LEGACY_LOAD`.
-        self.on_load_session_legacy(cx, args).await
+        if load_session::legacy_acp_load_enabled() {
+            self.on_load_session_legacy(cx, args).await
+        } else {
+            self.on_load_session_inline(cx, args).await
+        }
     }
 
     async fn on_prompt(
