@@ -131,13 +131,16 @@ impl AgentManager {
         let result = self.create_agent_locked(&session_id).await;
 
         if result.is_err() {
-            // Release the per-session lock before pruning so
-            // `prune_creation_lock` sees `strong_count == 1` (only the
-            // HashMap holds the Arc) and removes the entry.  In-flight
-            // waiters keep the Arc alive and prune skips the entry,
-            // which is fine: they will redo creation and clean up
-            // themselves on their own error/success path.
+            // Release BOTH the guard and our local Arc clone of the
+            // creation lock before pruning.  `prune_creation_lock`
+            // gates removal on `Arc::strong_count == 1`; if we kept
+            // `creation_lock` alive the count would still be at least
+            // two (HashMap + this local) and the failed session would
+            // leak its lock entry forever.  In-flight waiters keep the
+            // Arc alive on their own and prune correctly skips while
+            // they hold it.
             drop(creation_guard);
+            drop(creation_lock);
             self.prune_creation_lock(&session_id).await;
         }
 
@@ -541,6 +544,82 @@ mod tests {
         assert!(
             manager.creation_locks.lock().await.is_empty(),
             "remove_session must prune the creation lock for the removed session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_failed_creation_prunes_creation_lock() {
+        // Regression test for the Codex review note on PR #9357: when the
+        // provider-setup path in `create_agent_locked` returns Err, the
+        // outer `get_or_create_agent` must also drop its local Arc clone
+        // of the creation lock before pruning.  Otherwise
+        // `Arc::strong_count` stays > 1 and the failed session leaks a
+        // permanent entry in `creation_locks`.
+        use async_trait::async_trait;
+        use rmcp::model::Tool;
+
+        use crate::conversation::message::Message;
+        use crate::model::ModelConfig;
+        use crate::providers::base::{MessageStream, Provider, ProviderUsage, Usage};
+        use crate::providers::errors::ProviderError;
+
+        struct FailingProvider;
+
+        #[async_trait]
+        impl Provider for FailingProvider {
+            fn get_name(&self) -> &str {
+                "failing-test-provider"
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new_or_fail("test-model")
+            }
+
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> std::result::Result<MessageStream, ProviderError> {
+                Ok(crate::providers::base::stream_from_single_message(
+                    Message::assistant().with_text("unused"),
+                    ProviderUsage::new("failing-test-provider".into(), Usage::default()),
+                ))
+            }
+
+            async fn update_mode(
+                &self,
+                _session_id: &str,
+                _mode: GooseMode,
+            ) -> std::result::Result<(), ProviderError> {
+                Err(ProviderError::ExecutionError(
+                    "intentional failure for test".into(),
+                ))
+            }
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        manager
+            .set_default_provider(Arc::new(FailingProvider))
+            .await;
+
+        let session_id = String::from("failed-creation-test");
+        let result = manager.get_or_create_agent(session_id.clone()).await;
+
+        assert!(
+            result.is_err(),
+            "expected provider mode-update failure to propagate"
+        );
+        assert!(
+            manager.creation_locks.lock().await.is_empty(),
+            "creation_locks must be empty after a failed agent creation"
+        );
+        assert!(
+            !manager.has_session(&session_id).await,
+            "failed creation must not insert into the LRU cache"
         );
     }
 
