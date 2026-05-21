@@ -2405,11 +2405,23 @@
   "navigationPanel.noChats": {
     "defaultMessage": "No recent chats"
   },
+  "navigationPanel.noResults": {
+    "defaultMessage": "No chats match your search"
+  },
+  "navigationPanel.searchError": {
+    "defaultMessage": "Search failed"
+  },
   "navigationPanel.searchPlaceholder": {
     "defaultMessage": "Search chats…"
   },
+  "navigationPanel.searching": {
+    "defaultMessage": "Searching…"
+  },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Untitled session"
+  },
+  "navigationPanel.viewAllChats": {
+    "defaultMessage": "View all chats"
   },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "The server may be starting up or temporarily unavailable."
