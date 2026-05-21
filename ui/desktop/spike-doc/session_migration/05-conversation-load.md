@@ -66,6 +66,120 @@ visible UI regressions (broken recipe UI, missing extension-error toasts)
 or silent behavioral regression (recipe UI renders but agent does not
 follow the recipe).
 
+## Recommendation (ACP shape)
+
+Grounded in the ACP extensibility doc
+(https://agentclientprotocol.com/protocol/extensibility.md):
+
+- `_meta` = attach custom data to existing messages without changing their
+  semantics.
+- Custom methods/notifications = new protocol behaviors. Method names MUST
+  start with `_` and be namespaced.
+- ACP does **not** sanction custom variants of standard enums like
+  `SessionUpdate`. New event types belong in custom notifications, not in
+  new variants of existing ones.
+
+### Conventions (existing in the goose ACP layer)
+
+- Custom methods: `_goose/<area>/<verb>` — already established by
+  `_goose/session/update`, `_goose/extensions/add`,
+  `_goose/working_dir/update`, `_goose/session/rename`,
+  `_goose/preferences/save`, etc. (see
+  `crates/goose-sdk/src/custom_requests.rs`,
+  `crates/goose-sdk/src/custom_notifications.rs`).
+- `_meta` keys: **top-level camelCase**, matching the existing
+  `session_meta` convention in
+  `crates/goose/src/acp/server.rs:270-289` (`messageCount`, `createdAt`,
+  `archivedAt`, `userSetName`). New fields added here join that same
+  flat namespace.
+- Do **not** introduce a reverse-DNS namespace (`block.xyz/goose`) — it
+  conflicts with the conventions already in the repo.
+
+New `_meta` keys introduced by this slice (all top-level, camelCase):
+
+- `LoadSessionResponse._meta.recipe` — full recipe JSON (sanitized).
+- `LoadSessionResponse._meta.userRecipeValues` — persisted param values
+  for the session's recipe, when present.
+- `SessionInfoUpdate._meta.extensionResults` — array of
+  `{ name, success, error? }` emitted once after agent setup completes.
+
+### Refined field-by-field plan
+
+| Need | Mechanism | Why |
+|---|---|---|
+| `recipe` (full JSON) | `LoadSessionResponse._meta.recipe` | Pure data, no new semantics, optional. Vanilla clients that ignore `_meta` still load the session correctly. |
+| `user_recipe_values` (already persisted) | `LoadSessionResponse._meta.userRecipeValues` | Bundled with recipe; one round-trip. |
+| Rendered recipe → system prompt (resumed session with values present) | Auto-apply inside `spawn_agent_setup` | Server already has the values in the DB. No protocol surface needed. |
+| Rendered recipe → system prompt (fresh session, user just filled params) | **Custom request** `_goose/recipe/apply { values }` | Replaces today's `PUT /sessions/{id}/user_recipe_values` + `update_from_session` in one call. Persists, renders, applies as system prompt extension, returns the rendered recipe. Invoked at most once per session today (no mid-session edit UI). Naming follows the existing `_goose/<area>/<verb>` style; `apply` captures the activation side effect (not just data write). |
+| `extension_results` | `SessionInfoUpdate._meta.extensionResults` emitted once after setup completes | One-shot transient signal, not persisted, only fires UI toasts. A new `SessionUpdate` variant would break clients that pattern-match on known variants. |
+| Auto-rename push (replaces current REST name polling) | `SessionInfoUpdate` (standard, no `_meta`) | Standard ACP info-update semantics; eliminates the polling loop in `useChatStream`. |
+
+Total extension surface: **one custom RPC, three `_meta` fields, two
+`SessionInfoUpdate` pushes.** No new `SessionUpdate` variants. No new
+namespace conventions.
+
+### Findings that shape this plan
+
+- **Mid-session recipe param editing does not exist in the UI today.**
+  `ParameterInputModal` only renders when `!session?.user_recipe_values`
+  (`ui/desktop/src/components/BaseChat.tsx:539`); once values are
+  persisted, no UI surfaces them again. So a custom `set_recipe_values`
+  RPC is needed at most once per session (between setup and first message
+  on fresh sessions only). Resumed sessions never call it.
+- **`extension_results` is fully transient.** Not persisted to the session
+  DB; held only in `state.extension_loading_tasks` (a one-shot rendezvous,
+  see `crates/goose-server/src/state.rs`). The only consumer is
+  `showExtensionLoadResults` (`ui/desktop/src/utils/extensionErrorUtils.ts`)
+  which fires toasts and discards the array. `SessionInfoUpdate._meta`
+  cleanly fits this lifecycle — no need for a streaming notification or
+  persistence.
+- **The UI does not call `getSession` after `resumeAgent` to populate the
+  conversation.** It already takes `loadedSession.conversation` straight
+  off the resume response (`ui/desktop/src/hooks/useChatStream.ts:737-748`).
+  Other `getSession` callers (name polling, edit/fork, sidebar) are
+  unrelated to the cold-load path and migrate independently:
+  - Name polling → replace with `SessionInfoUpdate` push.
+  - Edit/fork → already has the message list in memory; no server read
+    needed.
+  - `reloadConversation` (SSE buffer overrun recovery) → re-`loadSession`
+    or tear-down + reconnect. Open question: ACP spec is silent on whether
+    `session/load` can be called twice on the same session within one
+    connection. Verify against Zed's impl before relying on it; otherwise
+    a custom `_block.xyz/goose/replay_from(messageId)` RPC is the fallback.
+
+### Open risks specific to this shape
+
+- **`_meta` recipe payload may carry secrets** (extension API keys, etc.).
+  Confirm the same sanitization that today's REST `getSession` applies is
+  also applied before serializing into `LoadSessionResponse._meta`.
+- **Ordering of `SessionInfoUpdate.extensionResults` vs history replay.**
+  Extensions load during setup, so the info-update may arrive interleaved
+  with `SessionUpdate` history-replay events. Toast firing must not couple
+  to "history replay complete." Surface them independently in the
+  reducer.
+- **`session/load` re-entrancy** (above). Validate before adding a
+  recovery path that depends on it.
+
+### Phased rollout
+
+1. Ship `_meta.recipe` + `_meta.userRecipeValues` on `LoadSessionResponse`.
+   Unblocks recipe rendering immediately.
+2. Auto-apply rendered recipe inside `spawn_agent_setup` for resumed
+   sessions where all params are present. Removes the desktop's
+   `update_from_session` REST dependency for resumed sessions.
+3. Add the custom RPC `_goose/recipe/apply` for the fill-in-then-submit
+   case on fresh sessions. Retire the REST
+   `PUT /sessions/{id}/user_recipe_values`.
+4. Emit `extension_results` via `SessionInfoUpdate._meta` once setup
+   completes. Wire toasts.
+5. Push auto-renames via `SessionInfoUpdate`; delete the name-polling
+   loop in `useChatStream`.
+6. Audit remaining `getSession` callers; migrate each to either the
+   client-side session cache or a `SessionInfoUpdate` subscription.
+
+Steps 1–2 are independent and unblock the load slice. Steps 3–5 can land
+in any order. Step 6 is cleanup.
+
 ## Files
 
 - `ui/desktop/src/hooks/useChatStream.ts`
