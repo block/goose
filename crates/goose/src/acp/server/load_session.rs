@@ -8,9 +8,7 @@ pub(super) fn legacy_acp_load_enabled() -> bool {
             let v = v.trim();
             !(v.is_empty() || v == "0" || v.eq_ignore_ascii_case("false"))
         }
-        // Default during the migration: legacy. Flipped to `false` in
-        // the commit that activates the inline path.
-        Err(_) => true,
+        Err(_) => false,
     }
 }
 
