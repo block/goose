@@ -1,4 +1,13 @@
-import { Home, FileText, AppWindow, Clock, History, Puzzle, Settings, Zap } from 'lucide-react';
+import {
+  AppWindow,
+  Clock,
+  FileText,
+  History,
+  MessageSquarePlus,
+  Puzzle,
+  Settings,
+  Zap,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { defineMessages, type IntlShape, type MessageDescriptor } from 'react-intl';
 
@@ -13,7 +22,7 @@ export interface NavItem {
 
 /** Top-level nav items (excluding Settings which is pinned to the bottom). */
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'home', path: '/', label: 'Home', icon: Home },
+  { id: 'home', path: '/', label: 'New Chat', icon: MessageSquarePlus },
   { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
   { id: 'skills', path: '/skills', label: 'Skills', icon: Zap },
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
@@ -35,7 +44,7 @@ export const SETTINGS_NAV_ITEM: NavItem = {
 const navItemMessages = defineMessages({
   home: {
     id: 'navigation.itemHome',
-    defaultMessage: 'Home',
+    defaultMessage: 'New Chat',
   },
   recipes: {
     id: 'navigation.itemRecipes',

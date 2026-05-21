@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronRight, PanelLeft, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, PanelLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
@@ -34,10 +34,6 @@ const i18n = defineMessages({
   noChats: {
     id: 'navigationPanel.noChats',
     defaultMessage: 'No recent chats',
-  },
-  newChat: {
-    id: 'navigationPanel.newChat',
-    defaultMessage: 'New chat',
   },
   untitledSession: {
     id: 'navigationPanel.untitledSession',
@@ -146,7 +142,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     activeSessionId,
     fetchSessions,
     handleNavClick,
-    handleNewChat,
     handleSessionClick,
   } = useNavigationSessions();
 
@@ -235,26 +230,17 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
       {/* Chats section — takes remaining vertical space */}
       <div className="flex-1 min-h-0 flex flex-col mt-3">
-        <div className="flex items-center justify-between pr-2">
-          <button
-            onClick={() => setIsChatsExpanded((v) => !v)}
-            className="flex items-center gap-1 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors"
-          >
-            {isChatsExpanded ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-            <span>{intl.formatMessage(i18n.chats)}</span>
-          </button>
-          <button
-            onClick={handleNewChat}
-            className="p-1 rounded-md hover:bg-background-tertiary transition-colors"
-            title={intl.formatMessage(i18n.newChat)}
-          >
-            <Plus className="w-3.5 h-3.5 text-text-secondary" />
-          </button>
-        </div>
+        <button
+          onClick={() => setIsChatsExpanded((v) => !v)}
+          className="flex items-center gap-1 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors self-start"
+        >
+          {isChatsExpanded ? (
+            <ChevronDown className="w-3 h-3" />
+          ) : (
+            <ChevronRight className="w-3 h-3" />
+          )}
+          <span>{intl.formatMessage(i18n.chats)}</span>
+        </button>
         {isChatsExpanded && (
           <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 mt-1">
             {recentSessions.length === 0 ? (
