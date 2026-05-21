@@ -526,7 +526,10 @@ impl OpenAiProvider {
             }
 
             if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
-                obj.remove("reasoning_effort");
+                let model_name = obj.get("model").and_then(|model| model.as_str());
+                if !model_name.is_some_and(Self::is_responses_model) {
+                    obj.remove("reasoning_effort");
+                }
 
                 if let Some(messages) = obj.get_mut("messages").and_then(|m| m.as_array_mut()) {
                     for message in messages {
@@ -1058,7 +1061,7 @@ mod tests {
     fn sanitize_nearai_reasoning_chat_params() {
         let provider = make_provider("nearai");
         let payload = json!({
-            "model": "openai/gpt-5",
+            "model": "Qwen/Qwen3.6-35B-A3B-FP8",
             "messages": [
                 {
                     "role": "developer",
@@ -1081,6 +1084,24 @@ mod tests {
         assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
         assert_eq!(obj["messages"][0]["role"], "system");
         assert_eq!(obj["messages"][1]["role"], "user");
+    }
+
+    #[test]
+    fn sanitize_nearai_preserves_openai_reasoning_effort() {
+        let provider = make_provider("nearai");
+        let payload = json!({
+            "model": "openai/gpt-5",
+            "messages": [],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
+        assert!(!obj.contains_key("max_completion_tokens"));
+        assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
     }
 
     #[test]
