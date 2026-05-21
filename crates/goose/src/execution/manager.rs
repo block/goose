@@ -10,7 +10,7 @@ use lru::LruCache;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use tokio::sync::{OnceCell, RwLock};
+use tokio::sync::{Mutex, OnceCell, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
@@ -25,6 +25,14 @@ pub struct AgentManager {
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
     default_mode: GooseMode,
     cancel_tokens: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    /// Per-session creation locks.  When `get_or_create_agent` misses the
+    /// `sessions` cache it acquires the per-session lock before doing the
+    /// expensive work (provider restore, MCP extension initialization) so
+    /// concurrent callers for the same session never race into doing the
+    /// work twice.  Entries are inserted on demand and removed when the
+    /// session is removed; the underlying `Arc<Mutex<()>>` stays alive as
+    /// long as any caller still holds it, even after removal.
+    creation_locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
 }
 
 impl AgentManager {
@@ -46,6 +54,7 @@ impl AgentManager {
             default_provider: Arc::new(RwLock::new(None)),
             default_mode,
             cancel_tokens: Arc::new(RwLock::new(HashMap::new())),
+            creation_locks: Arc::new(Mutex::new(HashMap::new())),
         };
 
         Ok(manager)
@@ -89,6 +98,31 @@ impl AgentManager {
     }
 
     pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
+        // Fast path: agent already cached.
+        {
+            let mut sessions = self.sessions.write().await;
+            if let Some(existing) = sessions.get(&session_id) {
+                return Ok(Arc::clone(existing));
+            }
+        }
+
+        // Slow path: serialize creation per session so concurrent callers
+        // (e.g. start_agent's background extension-loading task and a
+        // resume_agent request racing through the frontend) cannot each
+        // construct their own Agent and independently send `initialize` to
+        // every MCP server.  See issue #9031.
+        let creation_lock = {
+            let mut locks = self.creation_locks.lock().await;
+            Arc::clone(
+                locks
+                    .entry(session_id.clone())
+                    .or_insert_with(|| Arc::new(Mutex::new(()))),
+            )
+        };
+        let _creation_guard = creation_lock.lock().await;
+
+        // Re-check under the creation lock: another caller may have
+        // finished creating the agent while we were waiting.
         {
             let mut sessions = self.sessions.write().await;
             if let Some(existing) = sessions.get(&session_id) {
@@ -162,6 +196,10 @@ impl AgentManager {
         sessions
             .pop(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session {} not found", session_id))?;
+        // Drop the per-session creation lock entry so the HashMap doesn't
+        // grow unbounded.  Any caller still holding a clone of the Arc
+        // keeps the underlying Mutex alive until it releases its guard.
+        self.creation_locks.lock().await.remove(session_id);
         info!("Removed session {}", session_id);
         Ok(())
     }
