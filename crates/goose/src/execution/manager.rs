@@ -120,13 +120,38 @@ impl AgentManager {
                     .or_insert_with(|| Arc::new(Mutex::new(()))),
             )
         };
-        let _creation_guard = creation_lock.lock().await;
+        let creation_guard = creation_lock.lock().await;
 
+        // Funnel the fallible work through a helper so we can prune the
+        // per-session creation lock on every error exit.  Without this
+        // the provider-setup path (update_provider / update_mode) could
+        // bail out via `?`, leaving a permanent `creation_locks` entry
+        // for a session that never made it into the LRU cache and that
+        // no one will ever call `remove_session` on.
+        let result = self.create_agent_locked(&session_id).await;
+
+        if result.is_err() {
+            // Release the per-session lock before pruning so
+            // `prune_creation_lock` sees `strong_count == 1` (only the
+            // HashMap holds the Arc) and removes the entry.  In-flight
+            // waiters keep the Arc alive and prune skips the entry,
+            // which is fine: they will redo creation and clean up
+            // themselves on their own error/success path.
+            drop(creation_guard);
+            self.prune_creation_lock(&session_id).await;
+        }
+
+        result
+    }
+
+    /// Slow-path body for `get_or_create_agent`.  Must be called with the
+    /// per-session creation lock held by the caller.
+    async fn create_agent_locked(&self, session_id: &str) -> Result<Arc<Agent>> {
         // Re-check under the creation lock: another caller may have
         // finished creating the agent while we were waiting.
         {
             let mut sessions = self.sessions.write().await;
-            if let Some(existing) = sessions.get(&session_id) {
+            if let Some(existing) = sessions.get(session_id) {
                 return Ok(Arc::clone(existing));
             }
         }
@@ -134,7 +159,7 @@ impl AgentManager {
         let mut mode = self.default_mode;
         let permission_manager = PermissionManager::instance();
 
-        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+        if let Ok(session) = self.session_manager.get_session(session_id, false).await {
             mode = session.goose_mode;
             info!(goose_mode = %mode, session_id = %session_id, "Session loaded");
         }
@@ -151,7 +176,7 @@ impl AgentManager {
         );
         let agent = Arc::new(Agent::with_config(config));
 
-        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+        if let Ok(session) = self.session_manager.get_session(session_id, false).await {
             if session.provider_name.is_some() {
                 info!(
                     "Restoring evicted session {} (provider: {:?})",
@@ -171,17 +196,17 @@ impl AgentManager {
         if agent.provider().await.is_err() {
             if let Some(provider) = &*self.default_provider.read().await {
                 agent
-                    .update_provider(Arc::clone(provider), &session_id)
+                    .update_provider(Arc::clone(provider), session_id)
                     .await?;
                 provider
-                    .update_mode(&session_id, mode)
+                    .update_mode(session_id, mode)
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to propagate mode to provider: {}", e))?;
             }
         }
 
         let mut sessions = self.sessions.write().await;
-        if let Some(existing) = sessions.get(&session_id) {
+        if let Some(existing) = sessions.get(session_id) {
             return Ok(Arc::clone(existing));
         }
         // `push` returns the LRU-evicted entry when the cache is at
@@ -189,7 +214,9 @@ impl AgentManager {
         // key so we can also drop its creation lock below, otherwise the
         // `creation_locks` HashMap would grow without bound in long-lived
         // processes that churn through many sessions.
-        let evicted = sessions.push(session_id, agent.clone()).map(|(k, _)| k);
+        let evicted = sessions
+            .push(session_id.to_string(), agent.clone())
+            .map(|(k, _)| k);
         drop(sessions);
 
         if let Some(evicted_id) = evicted {
