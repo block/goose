@@ -99,10 +99,7 @@ export function CostTracker({
     return accumulatedCost ?? 0;
   };
 
-  const formatCost = (cost: number): string => {
-    // Always show 4 decimal places for consistency
-    return cost.toFixed(4);
-  };
+  const formatCost = (cost: number): string => cost.toFixed(2);
 
   // Show loading state or when we don't have model/provider info
   if (!currentModel || !currentProvider) {
