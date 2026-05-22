@@ -685,9 +685,9 @@ async fn search_sessions(
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
         .map(|dt| dt.with_timezone(&chrono::Utc));
 
-    let search_results = state
+    let sessions = state
         .session_manager()
-        .search_chat_history(
+        .search_chat_sessions(
             query,
             Some(limit),
             after_date,
@@ -698,23 +698,5 @@ async fn search_sessions(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Get full Session objects for matching session IDs
-    let session_ids: Vec<String> = search_results
-        .results
-        .into_iter()
-        .map(|r| r.session_id)
-        .collect();
-
-    let all_sessions = state
-        .session_manager()
-        .list_sessions()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let matching_sessions: Vec<Session> = all_sessions
-        .into_iter()
-        .filter(|s| session_ids.contains(&s.id))
-        .collect();
-
-    Ok(Json(matching_sessions))
+    Ok(Json(sessions))
 }
