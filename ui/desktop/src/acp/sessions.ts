@@ -5,10 +5,13 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
-import type { ExtensionLoadResult } from '../api';
+import type { ExtensionLoadResult, Recipe } from '../api';
 
 interface AcpLoadSessionMeta {
   extensionResults?: ExtensionLoadResult[] | null;
+  recipe?: Recipe | null;
+  userRecipeValues?: Record<string, string> | null;
+  workingDir?: string;
 }
 
 export async function acpLoadSession(
@@ -58,6 +61,9 @@ export function acpLoadSessionMeta(response: LoadSessionResponse): AcpLoadSessio
   const meta = (response._meta ?? {}) as Record<string, unknown>;
   return {
     extensionResults: meta.extensionResults as ExtensionLoadResult[] | null | undefined,
+    recipe: meta.recipe as Recipe | null | undefined,
+    userRecipeValues: meta.userRecipeValues as Record<string, string> | null | undefined,
+    workingDir: typeof meta.workingDir === 'string' ? meta.workingDir : undefined,
   };
 }
 

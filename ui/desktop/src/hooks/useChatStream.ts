@@ -7,7 +7,6 @@ import { ChatState } from '../types/chatState';
 import {
   getSession,
   Message,
-  resumeAgent,
   Session,
   sessionCancel,
   sessionReply,
@@ -137,7 +136,7 @@ function mergeTokenState(tokenState: TokenState, update: Partial<TokenState>): T
   };
 }
 
-async function loadNonRecipeSessionViaAcp(
+async function loadSessionViaAcp(
   sessionId: string,
   sessionSnapshot: Session
 ): Promise<{
@@ -173,14 +172,18 @@ async function loadNonRecipeSessionViaAcp(
 
   try {
     const response = await acpLoadSession(sessionId, sessionSnapshot.working_dir);
+    const meta = acpLoadSessionMeta(response);
     return {
       session: {
         ...sessionSnapshot,
         name: sessionName,
+        working_dir: meta.workingDir ?? sessionSnapshot.working_dir,
+        recipe: meta.recipe ?? sessionSnapshot.recipe,
+        user_recipe_values: meta.userRecipeValues ?? sessionSnapshot.user_recipe_values,
         conversation: adapter.snapshot().messages,
       },
       tokenState,
-      extensionResults: acpLoadSessionMeta(response).extensionResults,
+      extensionResults: meta.extensionResults,
     };
   } finally {
     unsubscribeSession();
@@ -451,7 +454,7 @@ export function useChatStream({
   const activeRequestSessionIdRef = useRef<string | null>(null);
   const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
-  // When ActiveRequests fires before resumeAgent populates messages (cold mount),
+  // When ActiveRequests fires before session load populates messages (cold mount),
   // defer the reattach until the session is loaded so the event processor has
   // the full conversation history. Events are buffered in the meantime.
   const pendingReattachRequestIdRef = useRef<string | null>(null);
@@ -646,7 +649,7 @@ export function useChatStream({
       const currentMessages = stateRef.current.messages;
 
       if (currentMessages.length === 0) {
-        // Cold mount: resumeAgent hasn't populated messages yet.
+        // Cold mount: session load hasn't populated messages yet.
         // Defer event processing until session load completes so the
         // processor starts with the full conversation history.
         // Register a buffering listener NOW so replayed events aren't
@@ -800,33 +803,15 @@ export function useChatStream({
 
         const sessionSnapshot = sessionResponse.data as Session;
 
-        if (sessionSnapshot.recipe) {
-          const response = await resumeAgent({
-            body: {
-              session_id: sessionId,
-              load_model_and_extensions: true,
-            },
-            throwOnError: true,
-          });
+        const response = await loadSessionViaAcp(sessionId, sessionSnapshot);
 
-          if (cancelled) {
-            return;
-          }
-
-          loadedSession = response.data?.session;
-          loadedTokenState = tokenStateFromSession(loadedSession);
-          extensionResults = response.data?.extension_results;
-        } else {
-          const response = await loadNonRecipeSessionViaAcp(sessionId, sessionSnapshot);
-
-          if (cancelled) {
-            return;
-          }
-
-          loadedSession = response.session;
-          loadedTokenState = response.tokenState;
-          extensionResults = response.extensionResults;
+        if (cancelled) {
+          return;
         }
+
+        loadedSession = response.session;
+        loadedTokenState = response.tokenState;
+        extensionResults = response.extensionResults;
 
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
@@ -835,7 +820,7 @@ export function useChatStream({
         const reattachedToActiveRequest = activeRequestIdRef.current !== null;
 
         if (pendingRequestId) {
-          // Cold-mount reattach: ActiveRequests arrived before resumeAgent
+          // Cold-mount reattach: ActiveRequests arrived before session load
           // returned. Load session state first, then complete the reattach
           // with the full conversation so the event processor has context.
           dispatch({
