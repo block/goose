@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # pnpm workspace for the UI (desktop, acp, text, sdk, goose-binary/*, goose2).
+  # pnpm workspace for the UI (desktop, acp, text, sdk, goose-binary/*).
   # Point at the workspace ROOT where pnpm-lock.yaml lives so Dependabot updates
   # both the child package.json AND ui/pnpm-lock.yaml in one PR.
   - package-ecosystem: "npm"
