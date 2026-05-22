@@ -82,8 +82,8 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         </div>
       )}
 
-      {/* Main content with navigation. Single shared canvas; a hairline border
-          on the sidebar's right edge is the only separator. */}
+      {/* Main content with navigation. Shared white canvas; the sidebar is a
+          rounded outlined card floating on it with breathing room. */}
       <div className="flex flex-1 w-full h-full min-h-0 flex-row">
         <motion.div
           key="nav"
@@ -91,25 +91,20 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           animate={{ width: isNavExpanded ? NAV_DIMENSIONS.NAV_WIDTH : 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 40 }}
           style={{ height: '100%' }}
-          className={cn(
-            'relative flex-shrink-0 overflow-hidden h-full',
-            isNavExpanded && 'border-r border-border-primary'
-          )}
+          className="relative flex-shrink-0 overflow-hidden h-full p-2"
         >
-          <div className="w-full h-full overflow-hidden">
+          <div className="w-full h-full overflow-hidden rounded-xl border border-border-primary">
             <Navigation />
           </div>
         </motion.div>
 
-        {/* Main content */}
+        {/* Main content — no border / no card; just flows on the canvas. */}
         <div className="flex-1 overflow-hidden min-h-0">
-          <div className="h-full w-full overflow-hidden">
-            <Outlet />
-            {/* Always render ChatSessionsContainer to keep SSE connections alive.
-                When navigating away from /pair, hide it with CSS */}
-            <div className={isOnPairRoute ? 'contents' : 'hidden'}>
-              <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
-            </div>
+          <Outlet />
+          {/* Always render ChatSessionsContainer to keep SSE connections alive.
+              When navigating away from /pair, hide it with CSS */}
+          <div className={isOnPairRoute ? 'contents' : 'hidden'}>
+            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
           </div>
         </div>
       </div>
