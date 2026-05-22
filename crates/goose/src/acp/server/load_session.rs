@@ -247,8 +247,7 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        Self::send_available_commands_update(cx, &args.session_id,&args.cwd)
-            .await?;
+        Self::send_available_commands_update(cx, &args.session_id, &args.cwd)?;
 
         debug!(
             target: "perf",
@@ -468,7 +467,12 @@ impl GooseAcpAgent {
         let provider = match prebuilt_provider {
             Some(provider) => provider,
             None => self
-                .create_provider(&provider_name, model_config, ext_state)
+                .create_provider(
+                    &provider_name,
+                    model_config,
+                    ext_state,
+                    Some(session.working_dir.clone()),
+                )
                 .await
                 .map_err(|e| {
                     agent_client_protocol::Error::internal_error()
@@ -700,8 +704,7 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        self.send_available_commands_update(cx, &args.session_id)
-            .await?;
+        Self::send_available_commands_update(cx, &args.session_id, &session.working_dir)?;
 
         let mut response = LoadSessionResponse::new().modes(mode_state);
         if let Some(ms) = model_state {
