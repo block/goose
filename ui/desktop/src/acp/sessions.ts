@@ -5,6 +5,11 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import type { ExtensionLoadResult } from '../api';
+
+interface AcpLoadSessionMeta {
+  extensionResults?: ExtensionLoadResult[] | null;
+}
 
 export async function acpLoadSession(
   sessionId: string,
@@ -47,6 +52,13 @@ export async function acpExportSession(sessionId: string): Promise<string> {
 export async function acpImportSession(data: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.GooseSessionImport({ data });
+}
+
+export function acpLoadSessionMeta(response: LoadSessionResponse): AcpLoadSessionMeta {
+  const meta = (response._meta ?? {}) as Record<string, unknown>;
+  return {
+    extensionResults: meta.extensionResults as ExtensionLoadResult[] | null | undefined,
+  };
 }
 
 interface GooseSessionInfoMeta {

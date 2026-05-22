@@ -15,6 +15,7 @@ import {
   updateFromSession,
   updateSessionUserRecipeValues,
   listApps,
+  ExtensionLoadResult,
 } from '../api';
 
 import {
@@ -29,6 +30,15 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
+import { acpLoadSession, acpLoadSessionMeta } from '../acp/sessions';
+import {
+  createAcpSessionNotificationAdapter,
+  type AcpSessionUpdate,
+} from '../acp/sessionNotificationAdapter';
+import {
+  subscribeToAcpGooseSession,
+  subscribeToAcpSession,
+} from '../acp/sessionNotificationRouter';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -107,6 +117,76 @@ const initialState: StreamState = {
   tokenState: initialTokenState,
   notifications: [],
 };
+
+function tokenStateFromSession(session: Session | undefined): TokenState {
+  return {
+    inputTokens: session?.input_tokens ?? 0,
+    outputTokens: session?.output_tokens ?? 0,
+    totalTokens: session?.total_tokens ?? 0,
+    accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
+    accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
+    accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+    accumulatedCost: session?.accumulated_cost,
+  };
+}
+
+function mergeTokenState(tokenState: TokenState, update: Partial<TokenState>): TokenState {
+  return {
+    ...tokenState,
+    ...update,
+  };
+}
+
+async function loadNonRecipeSessionViaAcp(
+  sessionId: string,
+  sessionSnapshot: Session
+): Promise<{
+  session: Session;
+  tokenState: TokenState;
+  extensionResults: ExtensionLoadResult[] | null | undefined;
+}> {
+  const adapter = createAcpSessionNotificationAdapter();
+  let tokenState = tokenStateFromSession(sessionSnapshot);
+  let sessionName = sessionSnapshot.name;
+
+  const applyUpdates = (updates: AcpSessionUpdate[]) => {
+    for (const update of updates) {
+      switch (update.type) {
+        case 'sessionInfo':
+          sessionName = update.name ?? sessionName;
+          break;
+        case 'tokenState':
+          tokenState = mergeTokenState(tokenState, update.tokenState);
+          break;
+        case 'messages':
+          break;
+      }
+    }
+  };
+
+  const unsubscribeSession = subscribeToAcpSession(sessionId, (notification) => {
+    applyUpdates(adapter.apply(notification));
+  });
+  const unsubscribeGooseSession = subscribeToAcpGooseSession(sessionId, (notification) => {
+    applyUpdates(adapter.applyGoose(notification));
+  });
+
+  try {
+    const response = await acpLoadSession(sessionId, sessionSnapshot.working_dir);
+    return {
+      session: {
+        ...sessionSnapshot,
+        name: sessionName,
+        conversation: adapter.snapshot().messages,
+      },
+      tokenState,
+      extensionResults: acpLoadSessionMeta(response).extensionResults,
+    };
+  } finally {
+    unsubscribeSession();
+    unsubscribeGooseSession();
+  }
+}
 
 function streamReducer(state: StreamState, action: StreamAction): StreamState {
   switch (action.type) {
@@ -705,11 +785,12 @@ export function useChatStream({
 
     (async () => {
       try {
-        const response = await resumeAgent({
-          body: {
-            session_id: sessionId,
-            load_model_and_extensions: true,
-          },
+        let loadedSession: Session | undefined;
+        let loadedTokenState: TokenState | undefined;
+        let extensionResults: ExtensionLoadResult[] | null | undefined;
+
+        const sessionResponse = await getSession({
+          path: { session_id: sessionId },
           throwOnError: true,
         });
 
@@ -717,9 +798,35 @@ export function useChatStream({
           return;
         }
 
-        const resumeData = response.data;
-        const loadedSession = resumeData?.session;
-        const extensionResults = resumeData?.extension_results;
+        const sessionSnapshot = sessionResponse.data as Session;
+
+        if (sessionSnapshot.recipe) {
+          const response = await resumeAgent({
+            body: {
+              session_id: sessionId,
+              load_model_and_extensions: true,
+            },
+            throwOnError: true,
+          });
+
+          if (cancelled) {
+            return;
+          }
+
+          loadedSession = response.data?.session;
+          loadedTokenState = tokenStateFromSession(loadedSession);
+          extensionResults = response.data?.extension_results;
+        } else {
+          const response = await loadNonRecipeSessionViaAcp(sessionId, sessionSnapshot);
+
+          if (cancelled) {
+            return;
+          }
+
+          loadedSession = response.session;
+          loadedTokenState = response.tokenState;
+          extensionResults = response.extensionResults;
+        }
 
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
@@ -736,14 +843,7 @@ export function useChatStream({
             payload: {
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
+              tokenState: loadedTokenState ?? tokenStateFromSession(loadedSession),
             },
           });
           // Now complete the deferred reattach with the loaded messages
@@ -755,14 +855,7 @@ export function useChatStream({
           dispatch({ type: 'SET_SESSION', payload: loadedSession });
           dispatch({
             type: 'SET_TOKEN_STATE',
-            payload: {
-              inputTokens: loadedSession?.input_tokens ?? 0,
-              outputTokens: loadedSession?.output_tokens ?? 0,
-              totalTokens: loadedSession?.total_tokens ?? 0,
-              accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-              accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-            },
+            payload: loadedTokenState ?? tokenStateFromSession(loadedSession),
           });
         } else {
           dispatch({
@@ -770,14 +863,7 @@ export function useChatStream({
             payload: {
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
+              tokenState: loadedTokenState ?? tokenStateFromSession(loadedSession),
             },
           });
         }

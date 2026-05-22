@@ -1,8 +1,8 @@
-import type { SessionNotification } from '@agentclientprotocol/sdk';
+import type { GooseSessionNotification } from '@aaif/goose-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setAcpGooseSessionNotificationHandler, setAcpNotificationHandler } from '../acpConnection';
+import { setAcpGooseSessionNotificationHandler } from '../acpConnection';
 import {
-  createAcpSessionNotificationRouter,
+  createAcpGooseSessionNotificationRouter,
   installAcpSessionNotificationRouters,
 } from '../sessionNotificationRouter';
 
@@ -11,29 +11,34 @@ vi.mock('../acpConnection', () => ({
   setAcpGooseSessionNotificationHandler: vi.fn(),
 }));
 
-function notification(sessionId: string): SessionNotification {
+function notification(sessionId: string): GooseSessionNotification {
   return {
     sessionId,
     update: {
-      sessionUpdate: 'session_info_update',
+      sessionUpdate: 'usage_update',
+      used: 10,
+      contextLimit: 100,
+      accumulatedInputTokens: 3,
+      accumulatedOutputTokens: 7,
+      accumulatedCost: 0.01,
     },
-  } as SessionNotification;
+  };
 }
 
-describe('sessionNotificationRouter', () => {
+describe('gooseSessionNotificationRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('dispatches notifications only to subscribers for the matching session', async () => {
-    const router = createAcpSessionNotificationRouter();
+    const router = createAcpGooseSessionNotificationRouter();
     const sessionOneListener = vi.fn();
     const sessionTwoListener = vi.fn();
 
     router.subscribe('session-1', sessionOneListener);
     router.subscribe('session-2', sessionTwoListener);
 
-    await router.handler.handleSessionNotification(notification('session-1'));
+    await router.handler.handleGooseSessionNotification(notification('session-1'));
 
     expect(sessionOneListener).toHaveBeenCalledTimes(1);
     expect(sessionOneListener).toHaveBeenCalledWith(notification('session-1'));
@@ -41,58 +46,54 @@ describe('sessionNotificationRouter', () => {
   });
 
   it('supports multiple subscribers for one session', async () => {
-    const router = createAcpSessionNotificationRouter();
+    const router = createAcpGooseSessionNotificationRouter();
     const firstListener = vi.fn();
     const secondListener = vi.fn();
 
     router.subscribe('session-1', firstListener);
     router.subscribe('session-1', secondListener);
 
-    await router.handler.handleSessionNotification(notification('session-1'));
+    await router.handler.handleGooseSessionNotification(notification('session-1'));
 
     expect(firstListener).toHaveBeenCalledTimes(1);
     expect(secondListener).toHaveBeenCalledTimes(1);
   });
 
   it('does not dispatch after unsubscribe', async () => {
-    const router = createAcpSessionNotificationRouter();
+    const router = createAcpGooseSessionNotificationRouter();
     const listener = vi.fn();
     const unsubscribe = router.subscribe('session-1', listener);
 
     unsubscribe();
-    await router.handler.handleSessionNotification(notification('session-1'));
+    await router.handler.handleGooseSessionNotification(notification('session-1'));
 
     expect(listener).not.toHaveBeenCalled();
   });
 
   it('allows unsubscribe to be called more than once', async () => {
-    const router = createAcpSessionNotificationRouter();
+    const router = createAcpGooseSessionNotificationRouter();
     const listener = vi.fn();
     const unsubscribe = router.subscribe('session-1', listener);
 
     unsubscribe();
     unsubscribe();
-    await router.handler.handleSessionNotification(notification('session-1'));
+    await router.handler.handleGooseSessionNotification(notification('session-1'));
 
     expect(listener).not.toHaveBeenCalled();
   });
 
   it('ignores notifications with no subscribers', async () => {
-    const router = createAcpSessionNotificationRouter();
+    const router = createAcpGooseSessionNotificationRouter();
 
     await expect(
-      router.handler.handleSessionNotification(notification('session-1'))
+      router.handler.handleGooseSessionNotification(notification('session-1'))
     ).resolves.toBeUndefined();
   });
 
-  it('installs the ACP handlers explicitly and only once', async () => {
+  it('installs the ACP goose session handler explicitly and only once', async () => {
     installAcpSessionNotificationRouters();
     installAcpSessionNotificationRouters();
 
-    expect(setAcpNotificationHandler).toHaveBeenCalledTimes(1);
-    expect(setAcpNotificationHandler).toHaveBeenCalledWith({
-      handleSessionNotification: expect.any(Function),
-    });
     expect(setAcpGooseSessionNotificationHandler).toHaveBeenCalledTimes(1);
     expect(setAcpGooseSessionNotificationHandler).toHaveBeenCalledWith({
       handleGooseSessionNotification: expect.any(Function),

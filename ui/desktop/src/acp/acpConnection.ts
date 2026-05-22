@@ -2,6 +2,7 @@ import {
   DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
   GooseClient,
   type Client,
+  type GooseSessionNotification,
   type GooseInitializeRequest,
 } from '@aaif/goose-sdk';
 import {
@@ -16,10 +17,15 @@ import { createWebSocketStream } from './createWebSocketStream';
 let clientPromise: Promise<GooseClient> | null = null;
 let resolvedClient: GooseClient | null = null;
 let notificationHandler: AcpNotificationHandler | null = null;
+let gooseSessionNotificationHandler: AcpGooseSessionNotificationHandler | null = null;
 let permissionHandler: AcpPermissionHandler | null = null;
 
 export interface AcpNotificationHandler {
   handleSessionNotification(notification: SessionNotification): Promise<void>;
+}
+
+export interface AcpGooseSessionNotificationHandler {
+  handleGooseSessionNotification(notification: GooseSessionNotification): Promise<void>;
 }
 
 export type AcpPermissionHandler = (
@@ -28,6 +34,12 @@ export type AcpPermissionHandler = (
 
 export function setAcpNotificationHandler(handler: AcpNotificationHandler | null): void {
   notificationHandler = handler;
+}
+
+export function setAcpGooseSessionNotificationHandler(
+  handler: AcpGooseSessionNotificationHandler | null
+): void {
+  gooseSessionNotificationHandler = handler;
 }
 
 export function setAcpPermissionHandler(handler: AcpPermissionHandler | null): void {
@@ -51,7 +63,35 @@ function createClientCallbacks(): () => Client {
     sessionUpdate: async (notification) => {
       await notificationHandler?.handleSessionNotification(notification);
     },
+    extNotification: async (method, params) => {
+      if (method !== '_goose/session/update') {
+        return;
+      }
+
+      const notification = parseGooseSessionNotification(params);
+      if (notification) {
+        await gooseSessionNotificationHandler?.handleGooseSessionNotification(notification);
+      }
+    },
   });
+}
+
+function parseGooseSessionNotification(
+  params: Record<string, unknown>
+): GooseSessionNotification | null {
+  if (typeof params.sessionId !== 'string' || !isRecord(params.update)) {
+    return null;
+  }
+
+  if (params.update.sessionUpdate !== 'usage_update') {
+    return null;
+  }
+
+  return params as GooseSessionNotification;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function monitorConnection(client: GooseClient): void {

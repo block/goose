@@ -1,68 +1,63 @@
+import type { GooseSessionNotification } from '@aaif/goose-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
-import { type AcpNotificationHandler, setAcpNotificationHandler } from './acpConnection';
+import {
+  type AcpGooseSessionNotificationHandler,
+  type AcpNotificationHandler,
+  setAcpGooseSessionNotificationHandler,
+  setAcpNotificationHandler,
+} from './acpConnection';
+import {
+  createSessionScopedNotificationRouter,
+  type SessionScopedNotificationListener,
+} from './sessionScopedNotificationRouter';
 
-export type AcpSessionNotificationListener = (
-  notification: SessionNotification
-) => Promise<void> | void;
+export type AcpSessionNotificationListener = SessionScopedNotificationListener<SessionNotification>;
+export type AcpGooseSessionNotificationListener =
+  SessionScopedNotificationListener<GooseSessionNotification>;
 
 export interface AcpSessionNotificationRouter {
   handler: AcpNotificationHandler;
-  route(notification: SessionNotification): Promise<void>;
   subscribe(sessionId: string, listener: AcpSessionNotificationListener): () => void;
 }
 
+export interface AcpGooseSessionNotificationRouter {
+  handler: AcpGooseSessionNotificationHandler;
+  subscribe(sessionId: string, listener: AcpGooseSessionNotificationListener): () => void;
+}
+
 export function createAcpSessionNotificationRouter(): AcpSessionNotificationRouter {
-  const listenersBySessionId = new Map<string, Set<AcpSessionNotificationListener>>();
-
-  const route = async (notification: SessionNotification): Promise<void> => {
-    const listeners = listenersBySessionId.get(notification.sessionId);
-    if (!listeners) {
-      return;
-    }
-
-    await Promise.all([...listeners].map((listener) => listener(notification)));
-  };
-
-  const subscribe = (sessionId: string, listener: AcpSessionNotificationListener): (() => void) => {
-    const listeners = listenersBySessionId.get(sessionId) ?? new Set();
-    listenersBySessionId.set(sessionId, listeners);
-    listeners.add(listener);
-
-    let unsubscribed = false;
-
-    return () => {
-      if (unsubscribed) {
-        return;
-      }
-
-      unsubscribed = true;
-      const currentListeners = listenersBySessionId.get(sessionId);
-      currentListeners?.delete(listener);
-
-      if (currentListeners?.size === 0) {
-        listenersBySessionId.delete(sessionId);
-      }
-    };
-  };
+  const router = createSessionScopedNotificationRouter<SessionNotification>();
 
   return {
     handler: {
-      handleSessionNotification: route,
+      handleSessionNotification: router.route,
     },
-    route,
-    subscribe,
+    subscribe: router.subscribe,
+  };
+}
+
+export function createAcpGooseSessionNotificationRouter(): AcpGooseSessionNotificationRouter {
+  const router = createSessionScopedNotificationRouter<GooseSessionNotification>();
+
+  return {
+    handler: {
+      handleGooseSessionNotification: router.route,
+    },
+    subscribe: router.subscribe,
   };
 }
 
 const acpSessionNotificationRouter = createAcpSessionNotificationRouter();
+const acpGooseSessionNotificationRouter = createAcpGooseSessionNotificationRouter();
 let installed = false;
 
-export function installAcpSessionNotificationRouter(): void {
+export function installAcpSessionNotificationRouters(): void {
   if (installed) {
     return;
   }
 
   setAcpNotificationHandler(acpSessionNotificationRouter.handler);
+  setAcpGooseSessionNotificationHandler(acpGooseSessionNotificationRouter.handler);
   installed = true;
 }
 
@@ -71,4 +66,11 @@ export function subscribeToAcpSession(
   listener: AcpSessionNotificationListener
 ): () => void {
   return acpSessionNotificationRouter.subscribe(sessionId, listener);
+}
+
+export function subscribeToAcpGooseSession(
+  sessionId: string,
+  listener: AcpGooseSessionNotificationListener
+): () => void {
+  return acpGooseSessionNotificationRouter.subscribe(sessionId, listener);
 }
