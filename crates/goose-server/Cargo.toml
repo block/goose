@@ -77,8 +77,8 @@ serde_path_to_error = { version = "0.1.8", default-features = false }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect"] }
 url = { workspace = true }
 rand = { workspace = true }
-hex = { version = "0.4.3", default-features = false }
-subtle = { version = "2.5", default-features = false }
+hex = { version = "0.4.3", default-features = false, features = ["std"] }
+subtle = { version = "2.5", default-features = false, features = ["std"] }
 socket2 = { version = "0.6", default-features = false }
 fs2 = { workspace = true }
 rustls = { workspace = true, optional = true }
@@ -87,7 +87,7 @@ rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "
 axum-server = { version = "0.8", default-features = false }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
-pem = { version = "3.0.2", default-features = false }
+pem = { version = "3.0.2", default-features = false, features = ["std"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.56", default-features = false }
