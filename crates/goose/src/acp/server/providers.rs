@@ -613,12 +613,7 @@ impl GooseAcpAgent {
                 .data(format!("Provider is not editable: {}", req.provider_id)));
         }
 
-        if Config::global()
-            .get_param::<String>("GOOSE_PROVIDER")
-            .ok()
-            .as_deref()
-            == Some(req.provider_id.as_str())
-        {
+        if Config::global().get_goose_provider().ok().as_deref() == Some(req.provider_id.as_str()) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
                 "Cannot delete active provider: {}",
                 req.provider_id
@@ -703,7 +698,7 @@ impl GooseAcpAgent {
                     let model_config =
                         crate::model::ModelConfig::new(&metadata.metadata().default_model)?
                             .with_canonical_limits(&provider_id);
-                    provider_factory(provider_id.clone(), model_config, Vec::new()).await
+                    provider_factory(provider_id.clone(), model_config, Vec::new(), None).await
                 })
                 .catch_unwind()
                 .await;

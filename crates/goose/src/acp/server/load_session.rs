@@ -22,6 +22,7 @@ impl GooseAcpAgent {
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
         debug!(?args, "load session request");
+        validate_absolute_cwd(&args.cwd)?;
 
         let session_id = args.session_id.0.to_string();
         let sid = sid_short(&session_id);
@@ -179,6 +180,11 @@ impl GooseAcpAgent {
             .apply()
             .await
             .internal_err_ctx("Failed to update session working directory")?;
+        let goose_session = self
+            .session_manager
+            .get_session(&session_id, false)
+            .await
+            .internal_err_ctx("Failed to reload session")?;
 
         let (agent_tx, agent_rx) = tokio::sync::watch::channel::<AgentSetupSignal>(None);
 
@@ -241,7 +247,7 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        self.send_available_commands_update(cx, &args.session_id)
+        Self::send_available_commands_update(cx, &args.session_id,&args.cwd)
             .await?;
 
         debug!(
@@ -252,6 +258,20 @@ impl GooseAcpAgent {
         );
         Ok(response)
     }
+}
+
+fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_protocol::Error> {
+    if !cwd.is_absolute() {
+        return Err(
+            agent_client_protocol::Error::invalid_params().data("cwd must be an absolute path")
+        );
+    }
+
+    if !cwd.exists() || !cwd.is_dir() {
+        return Err(agent_client_protocol::Error::invalid_params().data("invalid directory path"));
+    }
+
+    Ok(())
 }
 
 fn replay_conversation_to_client(
