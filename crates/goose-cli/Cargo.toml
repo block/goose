@@ -20,7 +20,7 @@ name = "generate_manpages"
 path = "src/bin/generate_manpages.rs"
 
 [dependencies]
-clap_mangen = "0.2.31"
+clap_mangen = "0.3.0"
 goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
