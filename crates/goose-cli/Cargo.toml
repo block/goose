@@ -75,6 +75,7 @@ default = [
     "local-inference",
     "aws-providers",
     "telemetry",
+    "nostr",
     "otel",
     "rustls-tls",
     "system-keyring",
@@ -85,6 +86,7 @@ aws-providers = ["goose/aws-providers"]
 cuda = ["goose/cuda", "local-inference"]
 vulkan = ["goose/vulkan", "local-inference"]
 telemetry = ["goose/telemetry"]
+nostr = ["goose/nostr"]
 otel = ["goose/otel"]
 system-keyring = ["goose/system-keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]

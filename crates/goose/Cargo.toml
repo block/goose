@@ -9,15 +9,7 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = [
-    "code-mode",
-    "local-inference",
-    "aws-providers",
-    "telemetry",
-    "otel",
-    "rustls-tls",
-    "system-keyring",
-]
+default = []
 telemetry = []
 otel = [
     "dep:tracing-opentelemetry",
@@ -72,6 +64,7 @@ native-tls = [
 ]
 system-keyring = ["dep:keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
+nostr = ["dep:nostr", "dep:nostr-sdk"]
 
 [lints]
 workspace = true
@@ -209,8 +202,8 @@ tower-http = { workspace = true, features = ["cors"] }
 http-body-util = { version = "0.1.2", default-features = false }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
-nostr = { version = "0.44", default-features = false, features = ["nip44", "std"] }
-nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"] }
+nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
+nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
