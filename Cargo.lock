@@ -45,7 +45,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4361ba6627e51de955b10f3c77fb9eb959c85191a236c1c2c84e32f4ff240faf"
 dependencies = [
  "agent-client-protocol-derive",
- "agent-client-protocol-schema 0.13.2",
+ "agent-client-protocol-schema",
  "async-process",
  "blocking",
  "futures",
@@ -71,21 +71,6 @@ checksum = "cabdc9d845d08ec7ed2d0c9de1ae4a1b198301407d55855261572761be90ec9f"
 dependencies = [
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "agent-client-protocol-schema"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49bae57dad1c28a362fbdcf7bab0583316a02b45a70792109fced55780a3b63c"
-dependencies = [
- "anyhow",
- "derive_more",
- "schemars 1.2.1",
- "serde",
- "serde_json",
- "serde_with",
- "strum 0.28.0",
 ]
 
 [[package]]
@@ -4689,7 +4674,7 @@ name = "goose"
 version = "1.35.0"
 dependencies = [
  "agent-client-protocol",
- "agent-client-protocol-schema 0.12.0",
+ "agent-client-protocol-schema",
  "ahash",
  "anyhow",
  "arboard",
@@ -4909,7 +4894,7 @@ name = "goose-sdk"
 version = "1.35.0"
 dependencies = [
  "agent-client-protocol",
- "agent-client-protocol-schema 0.12.0",
+ "agent-client-protocol-schema",
  "schemars 1.2.1",
  "serde",
  "serde_json",
