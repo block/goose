@@ -5,9 +5,9 @@ use cliclack::{confirm, multiselect, select};
 use etcetera::home_dir;
 #[cfg(feature = "nostr")]
 use goose::config::Config;
-use goose::session::{generate_diagnostics, Session, SessionManager, SessionType};
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
+use goose::session::{generate_diagnostics, Session, SessionManager, SessionType};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
@@ -221,8 +221,7 @@ pub async fn handle_session_export(
     output_path: Option<PathBuf>,
     format: String,
     nostr: bool,
-    #[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
-    relays: Vec<String>,
+    #[cfg_attr(not(feature = "nostr"), allow(unused_variables))] relays: Vec<String>,
 ) -> Result<()> {
     let session_manager = SessionManager::instance();
     let session = match session_manager.get_session(&session_id, true).await {
@@ -291,7 +290,9 @@ pub async fn handle_session_export(
 pub async fn handle_session_import(input: String, nostr: bool) -> Result<()> {
     let json = if nostr || input.starts_with("goose://sessions/nostr") {
         #[cfg(feature = "nostr")]
-        { nostr_share::import_session_json_from_deeplink(&input).await? }
+        {
+            nostr_share::import_session_json_from_deeplink(&input).await?
+        }
         #[cfg(not(feature = "nostr"))]
         return Err(anyhow::anyhow!("goose was not built with nostr support"));
     } else {
