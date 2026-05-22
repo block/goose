@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
-import { TextInput, PasswordInput } from '@inkjs/ui';
+import { TextInput, PasswordInput } from "@inkjs/ui";
 import type { GooseClient, ProviderInventoryEntryDto } from "@aaif/goose-sdk";
 import {
   CRANBERRY,
@@ -38,7 +38,14 @@ export interface ProviderSelectorProps {
   onBack?: () => void;
 }
 
-export const ProviderSelector = React.memo(function ProviderSelector({ providers, height, onSelect, title, subtitle, onBack }: ProviderSelectorProps) {
+export const ProviderSelector = React.memo(function ProviderSelector({
+  providers,
+  height,
+  onSelect,
+  title,
+  subtitle,
+  onBack,
+}: ProviderSelectorProps) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const { stdout } = useStdout();
@@ -55,27 +62,38 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
   })();
 
   // Calculate grid dimensions based on terminal size
-  const cardWidth = 36;  // Width of each provider card
-  const cardHeight = 8;  // Height of each provider card
-  const minSpacing = 2;  // Minimum spacing between cards
-  
+  const cardWidth = 36; // Width of each provider card
+  const cardHeight = 8; // Height of each provider card
+  const minSpacing = 2; // Minimum spacing between cards
+
   const availableWidth = columns - 4; // Leave margins
   // Header: marginTop(1) + title+mb(2) + subtitle+mb(3) + searchbar+mb(5) = 11
   // Footer: mt(2) + text(1) = 3, plus potential scroll indicators(2)
   const availableHeight = height - 16;
-  
-  const cardsPerRow = Math.max(1, Math.floor(availableWidth / (cardWidth + minSpacing)));
+
+  const cardsPerRow = Math.max(
+    1,
+    Math.floor(availableWidth / (cardWidth + minSpacing)),
+  );
   // Cap horizontal gap so it doesn't grow unbounded on wide terminals
-  const columnSpacing = Math.min(minSpacing, Math.floor((availableWidth - (cardsPerRow * cardWidth)) / Math.max(1, cardsPerRow - 1)));
+  const columnSpacing = Math.min(
+    minSpacing,
+    Math.floor(
+      (availableWidth - cardsPerRow * cardWidth) / Math.max(1, cardsPerRow - 1),
+    ),
+  );
   // Terminal chars are ~2× taller than wide, so 1 row ≈ 2 columns visually
   const rowSpacing = 1;
-  const rowsVisible = Math.max(1, Math.floor((availableHeight + rowSpacing) / (cardHeight + rowSpacing)));
-  
+  const rowsVisible = Math.max(
+    1,
+    Math.floor((availableHeight + rowSpacing) / (cardHeight + rowSpacing)),
+  );
+
   const totalRows = Math.ceil(filtered.length / cardsPerRow);
   const selectedRow = Math.floor(selectedIdx / cardsPerRow);
   // Calculate scroll offset for rows
   const [scrollRow, setScrollRow] = useState(0);
-  
+
   useEffect(() => {
     if (selectedRow < scrollRow) {
       setScrollRow(selectedRow);
@@ -159,7 +177,7 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
     const cardBorder = isSelected ? "double" : "single";
     const cardBorderColor = isSelected ? GOLD : RULE_COLOR;
     const textColor = isSelected ? TEXT_PRIMARY : TEXT_SECONDARY;
-    
+
     // Calculate actual content width: cardWidth - borders (2) - paddingX (2)
     const contentWidth = cardWidth - 4;
     // Width for title (leave space for icons: 2-3 chars)
@@ -167,7 +185,7 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
     // Available lines for description: cardHeight - borders (2) - title (1) - margin (1) - name (1) - margin (1)
     const descriptionMaxLines = Math.max(1, cardHeight - 6);
     const descriptionMaxChars = descriptionMaxLines * contentWidth;
-    
+
     return (
       <Box
         key={provider.providerId}
@@ -189,12 +207,10 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
             {provider.providerType === "Preferred" && (
               <Text color={TEAL}>★</Text>
             )}
-            {provider.configured && (
-              <Text color={TEAL}>✓</Text>
-            )}
+            {provider.configured && <Text color={TEAL}>✓</Text>}
           </Box>
         </Box>
-        
+
         <Box marginTop={1} flexDirection="column" flexGrow={1}>
           <Box width={contentWidth}>
             <Text color={TEXT_DIM} wrap="truncate">
@@ -216,22 +232,33 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
   };
 
   const visibleRows = [];
-  for (let row = scrollRow; row < Math.min(scrollRow + rowsVisible, totalRows); row++) {
+  for (
+    let row = scrollRow;
+    row < Math.min(scrollRow + rowsVisible, totalRows);
+    row++
+  ) {
     const rowProviders = [];
     for (let col = 0; col < cardsPerRow; col++) {
       const index = row * cardsPerRow + col;
       if (index < filtered.length) {
         const isSelected = index === selectedIdx;
-        rowProviders.push(renderProviderCard(filtered[index], index, isSelected));
+        rowProviders.push(
+          renderProviderCard(filtered[index], index, isSelected),
+        );
       }
     }
-    
+
     if (rowProviders.length > 0) {
-      const isLastVisibleRow = row === Math.min(scrollRow + rowsVisible, totalRows) - 1;
+      const isLastVisibleRow =
+        row === Math.min(scrollRow + rowsVisible, totalRows) - 1;
       visibleRows.push(
-        <Box key={row} gap={columnSpacing} marginBottom={isLastVisibleRow ? 0 : rowSpacing}>
+        <Box
+          key={row}
+          gap={columnSpacing}
+          marginBottom={isLastVisibleRow ? 0 : rowSpacing}
+        >
           {rowProviders}
-        </Box>
+        </Box>,
       );
     }
   }
@@ -250,7 +277,7 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
           {subtitle ?? "Connect an AI model provider to get started"}
         </Text>
       </Box>
-      
+
       {/* Search Bar */}
       <Box justifyContent="center" marginBottom={2}>
         <Box
@@ -278,20 +305,21 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
           <>
             {scrollRow > 0 && (
               <Box justifyContent="center" marginBottom={1}>
-                <Text color={TEXT_DIM}>▲ {scrollRow * cardsPerRow} more above</Text>
+                <Text color={TEXT_DIM}>
+                  ▲ {scrollRow * cardsPerRow} more above
+                </Text>
               </Box>
             )}
-            
+
             <Box justifyContent="center">
-              <Box flexDirection="column">
-                {visibleRows}
-              </Box>
+              <Box flexDirection="column">{visibleRows}</Box>
             </Box>
-            
+
             {scrollRow + rowsVisible < totalRows && (
               <Box justifyContent="center" marginTop={1}>
                 <Text color={TEXT_DIM}>
-                  ▼ {filtered.length - (scrollRow + rowsVisible) * cardsPerRow} more below
+                  ▼ {filtered.length - (scrollRow + rowsVisible) * cardsPerRow}{" "}
+                  more below
                 </Text>
               </Box>
             )}
@@ -302,7 +330,8 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
       {/* Footer */}
       <Box justifyContent="center" marginTop={2}>
         <Text color={TEXT_DIM}>
-          ↑↓←→ navigate · enter select · type to search{onBack ? " · esc back" : " · esc clear"}
+          ↑↓←→ navigate · enter select · type to search
+          {onBack ? " · esc back" : " · esc clear"}
         </Text>
       </Box>
     </Box>
@@ -316,7 +345,12 @@ export interface ProviderConfiguratorProps {
   onBack: () => void;
 }
 
-export const ProviderConfigurator = React.memo(function ProviderConfigurator({ provider, height, onComplete, onBack }: ProviderConfiguratorProps) {
+export const ProviderConfigurator = React.memo(function ProviderConfigurator({
+  provider,
+  height,
+  onComplete,
+  onBack,
+}: ProviderConfiguratorProps) {
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
   const [activeKeyIdx, setActiveKeyIdx] = useState(0);
   const [showMasked, setShowMasked] = useState<Record<string, boolean>>({});
@@ -354,7 +388,7 @@ export const ProviderConfigurator = React.memo(function ProviderConfigurator({ p
     if (activeKeyIdx < keys.length - 1) {
       setActiveKeyIdx(activeKeyIdx + 1);
       setShowMasked({});
-      setInputKey(prev => prev + 1); // Force new input component
+      setInputKey((prev) => prev + 1); // Force new input component
     } else {
       onComplete(newValues);
     }
@@ -376,12 +410,20 @@ export const ProviderConfigurator = React.memo(function ProviderConfigurator({ p
   const headerHeight = 1 + (provider.description ? 2 : 0) + 1; // title + description + spacer
   const keysHeight = keys.length; // one line per key
   const inputHeight = currentKey ? 3 : 0; // input + help text + spacing
-  const setupStepsHeight = provider.setupSteps?.length ? provider.setupSteps.length + 1 : 0;
-  const contentHeight = headerHeight + keysHeight + inputHeight + setupStepsHeight;
+  const setupStepsHeight = provider.setupSteps?.length
+    ? provider.setupSteps.length + 1
+    : 0;
+  const contentHeight =
+    headerHeight + keysHeight + inputHeight + setupStepsHeight;
   const topPad = Math.max(0, Math.floor((height - contentHeight) / 2));
 
   return (
-    <Box flexDirection="column" height={height} alignItems="center" width={columns}>
+    <Box
+      flexDirection="column"
+      height={height}
+      alignItems="center"
+      width={columns}
+    >
       {topPad > 0 && <Box height={topPad} />}
       <Box flexDirection="column" width={maxWidth} paddingX={2}>
         {/* Header */}
@@ -393,7 +435,9 @@ export const ProviderConfigurator = React.memo(function ProviderConfigurator({ p
         {provider.description && (
           <Box justifyContent="center" marginBottom={1}>
             <Box width={maxWidth - 4}>
-              <Text color={TEXT_DIM} wrap="wrap">{provider.description}</Text>
+              <Text color={TEXT_DIM} wrap="wrap">
+                {provider.description}
+              </Text>
             </Box>
           </Box>
         )}
@@ -411,9 +455,7 @@ export const ProviderConfigurator = React.memo(function ProviderConfigurator({ p
             >
               {k.name}
             </Text>
-            {i < activeKeyIdx && (
-              <Text color={TEAL}> ••••••</Text>
-            )}
+            {i < activeKeyIdx && <Text color={TEAL}> ••••••</Text>}
           </Box>
         ))}
 
@@ -458,19 +500,18 @@ export const ProviderConfigurator = React.memo(function ProviderConfigurator({ p
         )}
 
         {/* Setup Steps */}
-        {provider.setupSteps &&
-          provider.setupSteps.length > 0 && (
-            <Box marginTop={2} flexDirection="column">
-              <Text color={TEXT_DIM}>Setup steps:</Text>
-              {provider.setupSteps.map((step, i) => (
-                <Box key={i} width={maxWidth - 4} marginTop={1}>
-                  <Text color={TEXT_DIM} wrap="wrap">
-                    {i + 1}. {step}
-                  </Text>
-                </Box>
-              ))}
-            </Box>
-          )}
+        {provider.setupSteps && provider.setupSteps.length > 0 && (
+          <Box marginTop={2} flexDirection="column">
+            <Text color={TEXT_DIM}>Setup steps:</Text>
+            {provider.setupSteps.map((step, i) => (
+              <Box key={i} width={maxWidth - 4} marginTop={1}>
+                <Text color={TEXT_DIM} wrap="wrap">
+                  {i + 1}. {step}
+                </Text>
+              </Box>
+            ))}
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -481,7 +522,10 @@ interface SuccessScreenProps {
   height: number;
 }
 
-const SuccessScreen = React.memo(function SuccessScreen({ provider, height }: SuccessScreenProps) {
+const SuccessScreen = React.memo(function SuccessScreen({
+  provider,
+  height,
+}: SuccessScreenProps) {
   const { stdout } = useStdout();
   const columns = stdout?.columns ?? 80;
 
@@ -539,7 +583,9 @@ export default function Onboarding({
   useEffect(() => {
     (async () => {
       try {
-        const resp = await client.goose.GooseProvidersList({ providerIds: [] });
+        const resp = await client.goose.providersList_unstable({
+          providerIds: [],
+        });
         const sorted = [...resp.entries].sort((a, b) => {
           const aP = a.providerType === "Preferred" ? 0 : 1;
           const bP = b.providerType === "Preferred" ? 0 : 1;
@@ -556,10 +602,13 @@ export default function Onboarding({
   }, [client, fetchKey]);
 
   const saveProvider = useCallback(
-    async (provider: ProviderInventoryEntryDto, values: Record<string, string>) => {
+    async (
+      provider: ProviderInventoryEntryDto,
+      values: Record<string, string>,
+    ) => {
       setPhase("saving");
       try {
-        await client.goose.GooseProvidersConfigSave({
+        await client.goose.providersConfigSave_unstable({
           providerId: provider.providerId,
           fields: Object.entries(values).map(([key, value]) => ({
             key,
@@ -600,7 +649,7 @@ export default function Onboarding({
   if (phase === "loading") {
     const contentHeight = 3; // spinner + text + spacing
     const topPad = Math.max(0, Math.floor((height - contentHeight) / 2));
-    
+
     return (
       <Box
         flexDirection="column"
@@ -622,7 +671,12 @@ export default function Onboarding({
 
   if (phase === "error") {
     return (
-      <Box flexDirection="column" height={height} alignItems="center" width={width}>
+      <Box
+        flexDirection="column"
+        height={height}
+        alignItems="center"
+        width={width}
+      >
         <ErrorScreen errorMsg={errorMsg} onRetry={handleRetry} />
       </Box>
     );
@@ -631,7 +685,7 @@ export default function Onboarding({
   if (phase === "saving") {
     const contentHeight = 3; // spinner + text + spacing
     const topPad = Math.max(0, Math.floor((height - contentHeight) / 2));
-    
+
     return (
       <Box
         flexDirection="column"
@@ -652,9 +706,7 @@ export default function Onboarding({
   }
 
   if (phase === "success") {
-    return (
-      <SuccessScreen provider={selectedProvider} height={height} />
-    );
+    return <SuccessScreen provider={selectedProvider} height={height} />;
   }
 
   if (phase === "configure" && selectedProvider) {
