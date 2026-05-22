@@ -1,5 +1,5 @@
 import type { GooseSessionNotification } from '@aaif/goose-sdk';
-import type { SessionNotification } from '@agentclientprotocol/sdk';
+import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../api';
 import { createAcpSessionNotificationAdapter } from '../sessionNotificationAdapter';
@@ -195,6 +195,40 @@ function mcpAppToolCallUpdateNotification(): SessionNotification {
       },
     },
   } as SessionNotification;
+}
+
+function permissionRequest(): RequestPermissionRequest {
+  return {
+    sessionId: 'session-1',
+    toolCall: {
+      toolCallId: 'tool-1',
+      title: 'Shell',
+      rawInput: { command: 'ls -1 ~/Desktop | wc -l' },
+      content: [
+        {
+          type: 'content',
+          content: {
+            type: 'text',
+            text: 'Run this command?',
+          },
+        },
+      ],
+      _meta: {
+        goose: {
+          toolCall: {
+            toolName: 'developer__shell',
+            extensionName: 'developer',
+          },
+        },
+      },
+    },
+    options: [
+      { optionId: 'allow_once', name: 'allow_once', kind: 'allow_once' },
+      { optionId: 'allow_always', name: 'allow_always', kind: 'allow_always' },
+      { optionId: 'reject_once', name: 'reject_once', kind: 'reject_once' },
+      { optionId: 'reject_always', name: 'reject_always', kind: 'reject_always' },
+    ],
+  } as RequestPermissionRequest;
 }
 
 describe('sessionNotificationAdapter', () => {
@@ -470,6 +504,30 @@ describe('sessionNotificationAdapter', () => {
           accumulatedTotalTokens: 30,
           accumulatedCost: 0.12,
         },
+      },
+    ]);
+  });
+
+  it('converts an ACP permission request into desktop tool confirmation content', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.applyPermissionRequest(permissionRequest());
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'actionRequired',
+            data: {
+              actionType: 'toolConfirmation',
+              id: 'tool-1',
+              toolName: 'developer__shell',
+              arguments: { command: 'ls -1 ~/Desktop | wc -l' },
+              prompt: 'Run this command?',
+            },
+          },
+        ],
       },
     ]);
   });

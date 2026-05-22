@@ -52,11 +52,19 @@ export interface ToolApprovalData {
   prompt?: string;
   sessionId: string;
   isClicked?: boolean;
+  onAcpPermissionDecision?: (action: Permission) => Promise<boolean>;
 }
 
 export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }) {
   const intl = useIntl();
-  const { id, toolName, prompt, sessionId, isClicked: initialIsClicked } = data;
+  const {
+    id,
+    toolName,
+    prompt,
+    sessionId,
+    isClicked: initialIsClicked,
+    onAcpPermissionDecision,
+  } = data;
 
   const storedState = globalApprovalState.get(id);
   const [decision, setDecision] = useState<Permission | null>(storedState?.decision ?? null);
@@ -79,6 +87,10 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
     setIsClicked(true);
 
     try {
+      if (onAcpPermissionDecision && (await onAcpPermissionDecision(action))) {
+        return;
+      }
+
       const response = await confirmToolAction({
         body: {
           sessionId,

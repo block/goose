@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { SessionConfigOption } from '@agentclientprotocol/sdk';
+import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
 import { defineMessages, useIntl } from '../i18n';
 import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
@@ -16,6 +17,7 @@ import {
   updateSessionUserRecipeValues,
   listApps,
   ExtensionLoadResult,
+  Permission,
 } from '../api';
 
 import {
@@ -46,6 +48,7 @@ import {
   subscribeToAcpGooseSession,
   subscribeToAcpSession,
 } from '../acp/sessionNotificationRouter';
+import { setAcpPermissionHandler } from '../acp/acpConnection';
 
 const resultsCache = new Map<
   string,
@@ -80,6 +83,12 @@ interface UseChatStreamReturn {
     newContent: string,
     editType?: 'fork' | 'edit'
   ) => Promise<void>;
+  onAcpPermissionDecision: (toolCallId: string, action: Permission) => Promise<boolean>;
+}
+
+interface PendingAcpPermissionRequest {
+  request: RequestPermissionRequest;
+  resolve: (response: RequestPermissionResponse) => void;
 }
 
 interface StreamState {
@@ -151,6 +160,22 @@ function mergeTokenState(tokenState: TokenState, update: Partial<TokenState>): T
     ...tokenState,
     ...update,
   };
+}
+
+function acpPermissionOptionId(
+  request: RequestPermissionRequest,
+  action: Permission
+): string | undefined {
+  const preferredKind = {
+    allow_once: 'allow_once',
+    always_allow: 'allow_always',
+    deny_once: 'reject_once',
+    always_deny: 'reject_always',
+    cancel: undefined,
+  } satisfies Record<Permission, string | undefined>;
+
+  const kind = preferredKind[action];
+  return kind ? request.options.find((option) => option.kind === kind)?.optionId : undefined;
 }
 
 function createAcpLoadSessionSnapshot(sessionId: string): Session {
@@ -549,6 +574,9 @@ export function useChatStream({
   const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
   const activeAcpPromptSessionRef = useRef<string | null>(null);
+  const pendingAcpPermissionRequestsRef = useRef<Map<string, PendingAcpPermissionRequest>>(
+    new Map()
+  );
   // When ActiveRequests fires before session load populates messages (cold mount),
   // defer the reattach until the session is loaded so the event processor has
   // the full conversation history. Events are buffered in the meantime.
@@ -775,6 +803,26 @@ export function useChatStream({
     };
   }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
 
+  const onAcpPermissionDecision = useCallback(
+    async (toolCallId: string, action: Permission): Promise<boolean> => {
+      const pending = pendingAcpPermissionRequestsRef.current.get(toolCallId);
+      if (!pending) {
+        return false;
+      }
+
+      pendingAcpPermissionRequestsRef.current.delete(toolCallId);
+      const optionId = acpPermissionOptionId(pending.request, action);
+      pending.resolve(
+        optionId
+          ? { outcome: { outcome: 'selected', optionId } }
+          : { outcome: { outcome: 'cancelled' } }
+      );
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+      return true;
+    },
+    []
+  );
+
   /**
    * Submit a message via the new POST+SSE pattern.
    * 1. Generate request_id
@@ -852,6 +900,7 @@ export function useChatStream({
       const adapter = createAcpSessionNotificationAdapter(currentMessages);
       activeRequestSessionIdRef.current = targetSessionId;
       activeAcpPromptSessionRef.current = targetSessionId;
+      pendingAcpPermissionRequestsRef.current.clear();
 
       const applyUpdates = (updates: AcpSessionUpdate[]) => {
         for (const update of updates) {
@@ -902,6 +951,22 @@ export function useChatStream({
       };
       activeUnsubscribeRef.current = unsubscribe;
 
+      setAcpPermissionHandler((request) => {
+        if (request.sessionId !== targetSessionId) {
+          return Promise.resolve({ outcome: { outcome: 'cancelled' } });
+        }
+
+        applyUpdates(adapter.applyPermissionRequest(request));
+        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.WaitingForUserInput });
+
+        return new Promise<RequestPermissionResponse>((resolve) => {
+          pendingAcpPermissionRequestsRef.current.set(request.toolCall.toolCallId, {
+            request,
+            resolve,
+          });
+        });
+      });
+
       try {
         const response = await acpPromptSession(targetSessionId, userMessage);
         if (response.stopReason === 'cancelled') {
@@ -915,6 +980,11 @@ export function useChatStream({
         }
         onFinish('Submit error: ' + errorMessage(error));
       } finally {
+        setAcpPermissionHandler(null);
+        for (const pending of pendingAcpPermissionRequestsRef.current.values()) {
+          pending.resolve({ outcome: { outcome: 'cancelled' } });
+        }
+        pendingAcpPermissionRequestsRef.current.clear();
         unsubscribe();
         if (activeAcpPromptSessionRef.current === targetSessionId) {
           activeAcpPromptSessionRef.current = null;
@@ -1372,5 +1442,6 @@ export function useChatStream({
     setAcpConfigOptions,
     notifications: notificationsMap,
     onMessageUpdate,
+    onAcpPermissionDecision,
   };
 }

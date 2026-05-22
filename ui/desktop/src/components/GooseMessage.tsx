@@ -16,7 +16,7 @@ import {
   ToolConfirmationData,
   NotificationEvent,
 } from '../types/message';
-import { Message } from '../api';
+import { Message, Permission } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';
@@ -35,6 +35,7 @@ interface GooseMessageProps {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<void>;
+  onAcpPermissionDecision?: (toolCallId: string, action: Permission) => Promise<boolean>;
 }
 
 export default function GooseMessage({
@@ -45,6 +46,7 @@ export default function GooseMessage({
   append,
   isStreaming,
   submitElicitationResponse,
+  onAcpPermissionDecision,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -181,6 +183,7 @@ export default function GooseMessage({
                         append={append}
                         confirmationContent={confirmationContent}
                         isApprovalClicked={isApprovalClicked}
+                        onAcpPermissionDecision={onAcpPermissionDecision}
                       />
                     </div>
                   );
@@ -198,6 +201,7 @@ export default function GooseMessage({
             sessionId={sessionId}
             isClicked={false}
             actionRequiredContent={toolConfirmationContent}
+            onAcpPermissionDecision={onAcpPermissionDecision}
           />
         )}
 

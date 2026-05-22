@@ -16,7 +16,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
-import { Message, SystemNotificationContent } from '../api';
+import { Message, Permission, SystemNotificationContent } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import {
@@ -66,6 +66,7 @@ interface ProgressiveMessageListProps {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<void>;
+  onAcpPermissionDecision?: (toolCallId: string, action: Permission) => Promise<boolean>;
 }
 
 export default function ProgressiveMessageList({
@@ -82,6 +83,7 @@ export default function ProgressiveMessageList({
   onMessageUpdate,
   onRenderingComplete,
   submitElicitationResponse,
+  onAcpPermissionDecision,
 }: ProgressiveMessageListProps) {
   const intl = useIntl();
   const [renderedCount, setRenderedCount] = useState(() => {
@@ -303,6 +305,7 @@ export default function ProgressiveMessageList({
                     message.role === 'assistant'
                   }
                   submitElicitationResponse={submitElicitationResponse}
+                  onAcpPermissionDecision={onAcpPermissionDecision}
                 />
               )}
             </div>
@@ -322,6 +325,7 @@ export default function ProgressiveMessageList({
     onMessageUpdate,
     toolCallChains,
     submitElicitationResponse,
+    onAcpPermissionDecision,
     getPreviousResolvedModel,
     getResolvedModel,
     renderModelChangeDisclosure,

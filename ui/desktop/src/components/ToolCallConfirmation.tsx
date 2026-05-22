@@ -1,4 +1,4 @@
-import { ActionRequired } from '../api';
+import { ActionRequired, Permission } from '../api';
 import { defineMessages, useIntl } from '../i18n';
 import { snakeToTitleCase } from '../utils';
 import ToolApprovalButtons from './ToolApprovalButtons';
@@ -26,12 +26,14 @@ interface ToolConfirmationProps {
   sessionId: string;
   isClicked: boolean;
   actionRequiredContent: ActionRequired & { type: 'actionRequired' };
+  onAcpPermissionDecision?: (toolCallId: string, action: Permission) => Promise<boolean>;
 }
 
 export default function ToolConfirmation({
   sessionId,
   isClicked,
   actionRequiredContent,
+  onAcpPermissionDecision,
 }: ToolConfirmationProps) {
   const intl = useIntl();
   const data = actionRequiredContent.data as ToolConfirmationData;
@@ -46,7 +48,15 @@ export default function ToolConfirmation({
           : intl.formatMessage(i18n.gooseWouldLikeToCallWithName, { toolName: displayName })}
       </div>
       <ToolApprovalButtons
-        data={{ id, toolName, prompt: prompt ?? undefined, sessionId, isClicked }}
+        data={{
+          id,
+          toolName,
+          prompt: prompt ?? undefined,
+          sessionId,
+          isClicked,
+          onAcpPermissionDecision: (action) =>
+            onAcpPermissionDecision?.(id, action) ?? Promise.resolve(false),
+        }}
       />
     </div>
   );

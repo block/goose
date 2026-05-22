@@ -118,6 +118,7 @@ export default function BaseChat({
     setAcpConfigOptions,
     notifications: toolCallNotifications,
     onMessageUpdate,
+    onAcpPermissionDecision,
   } = useChatStream({
     sessionId,
     onStreamFinish,
@@ -462,6 +463,7 @@ export default function BaseChat({
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={onMessageUpdate}
                     submitElicitationResponse={submitElicitationResponse}
+                    onAcpPermissionDecision={onAcpPermissionDecision}
                   />
                 </SearchView>
 

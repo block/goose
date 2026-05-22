@@ -3,6 +3,7 @@ import type {
   ContentBlock,
   SessionConfigOption,
   SessionNotification,
+  RequestPermissionRequest,
   ToolCall,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
@@ -41,6 +42,7 @@ export interface AcpSessionSnapshot {
 export interface AcpSessionNotificationAdapter {
   apply(notification: SessionNotification): AcpSessionUpdate[];
   applyGoose(notification: GooseSessionNotification): AcpSessionUpdate[];
+  applyPermissionRequest(request: RequestPermissionRequest): AcpSessionUpdate[];
   snapshot(): AcpSessionSnapshot;
 }
 
@@ -57,6 +59,9 @@ export function createAcpSessionNotificationAdapter(
     },
     applyGoose(notification) {
       return applyGooseSessionNotification(notification);
+    },
+    applyPermissionRequest(request) {
+      return applyPermissionRequest(state, request);
     },
     snapshot() {
       return {
@@ -181,6 +186,45 @@ function applyToolCallUpdate(state: AdapterState, update: ToolCallUpdate): AcpSe
         metadata: toolMetadata(update, identity),
       });
     }
+  }
+
+  return [{ type: 'messages', messages: state.messages.map(cloneMessage) }];
+}
+
+function applyPermissionRequest(
+  state: AdapterState,
+  request: RequestPermissionRequest
+): AcpSessionUpdate[] {
+  const toolCallId = request.toolCall.toolCallId;
+  const alreadyExists = state.messages.some((message) =>
+    message.content.some(
+      (content) =>
+        content.type === 'actionRequired' &&
+        content.data.actionType === 'toolConfirmation' &&
+        content.data.id === toolCallId
+    )
+  );
+
+  if (!alreadyExists) {
+    const identity = toolIdentity(request.toolCall);
+    const prompt = permissionPrompt(request);
+    state.messages.push({
+      role: 'assistant',
+      created: Math.floor(Date.now() / 1000),
+      content: [
+        {
+          type: 'actionRequired',
+          data: {
+            actionType: 'toolConfirmation',
+            id: toolCallId,
+            toolName: identity.toolName ?? request.toolCall.title ?? toolCallId,
+            arguments: rawInputToArguments(request.toolCall.rawInput),
+            ...(prompt ? { prompt } : {}),
+          },
+        },
+      ],
+      metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
+    });
   }
 
   return [{ type: 'messages', messages: state.messages.map(cloneMessage) }];
@@ -401,6 +445,16 @@ function toolResultContent(update: ToolCallUpdate): ContentBlock[] {
   }
 
   return [];
+}
+
+function permissionPrompt(request: RequestPermissionRequest): string | undefined {
+  for (const content of request.toolCall.content ?? []) {
+    if (content.type === 'content' && content.content.type === 'text') {
+      return content.content.text;
+    }
+  }
+
+  return undefined;
 }
 
 function toolError(update: ToolCallUpdate): string {
