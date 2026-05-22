@@ -101,7 +101,7 @@ uuid = { workspace = true, features = ["v7"] }
 regex = { workspace = true }
 async-trait = { workspace = true }
 async-stream = { workspace = true }
-minijinja = { version = "2.18", default-features = false, features = ["loader", "serde"] }
+minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 include_dir = { workspace = true }
 tiktoken-rs = { version = "0.11", default-features = false }
 chrono = { workspace = true }
