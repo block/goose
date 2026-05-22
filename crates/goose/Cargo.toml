@@ -243,6 +243,7 @@ bytes.workspace = true
 http.workspace = true
 goose-mcp = { path = "../goose-mcp" }
 insta = "1.47.2"
+dtor = "1.0.3"
 
 [[example]]
 name = "agent"
