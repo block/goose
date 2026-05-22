@@ -2111,7 +2111,7 @@ mod tests {
         for (text, timestamp) in messages {
             add_message_at(sm, &session.id, text, timestamp).await;
         }
-        set_sessions_updated_at(sm, &[session.id.clone()], updated_at).await;
+        set_sessions_updated_at(sm, std::slice::from_ref(&session.id), updated_at).await;
 
         session.id
     }
