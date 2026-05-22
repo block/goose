@@ -1187,7 +1187,7 @@ export default function ChatInput({
     }
   };
 
-  const onFormSubmit = (e: React.FormEvent) => {
+  const onFormSubmit = (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
     if (isLoading && hasSubmittableContent) {
       handleInterruptionAndQueue();
@@ -1729,12 +1729,13 @@ export default function ChatInput({
             <TooltipTrigger asChild>
               <span>
                 <Button
-                  type="submit"
+                  type="button"
                   size="sm"
                   shape="round"
                   variant="outline"
                   disabled={isSubmitButtonDisabled}
                   aria-label={intl.formatMessage(i18n.send)}
+                  onClick={onFormSubmit}
                   className={cn(
                     'w-8 h-8 p-0 rounded-full border-transparent flex items-center justify-center bg-background-tertiary',
                     isSubmitButtonDisabled
