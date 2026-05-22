@@ -267,6 +267,57 @@ describe('sessionNotificationAdapter', () => {
     expect(adapter.snapshot().messages[0].id).toBeUndefined();
   });
 
+  it('appends consecutive text chunks without message IDs to the current role message', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.apply(textNotificationWithoutMessageId('agent_message_chunk', 'Hello'));
+    adapter.apply(textNotificationWithoutMessageId('agent_message_chunk', ' Summer'));
+    adapter.apply(textNotificationWithoutMessageId('agent_message_chunk', '!'));
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hello Summer!' }],
+      },
+    ]);
+    expect(adapter.snapshot().messages[0].id).toBeUndefined();
+  });
+
+  it('does not duplicate replayed optimistic user text without a message ID', () => {
+    const adapter = createAcpSessionNotificationAdapter([
+      {
+        role: 'user',
+        created: 1,
+        content: [{ type: 'text', text: 'hellohello' }],
+        metadata: { userVisible: true, agentVisible: true },
+      },
+    ]);
+
+    adapter.apply(textNotificationWithoutMessageId('user_message_chunk', 'hellohello'));
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'hellohello' }],
+      },
+    ]);
+  });
+
+  it('uses cumulative text chunks without message IDs as the latest text', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.apply(textNotificationWithoutMessageId('agent_message_chunk', 'Hello'));
+    adapter.apply(textNotificationWithoutMessageId('agent_message_chunk', 'Hello Summer'));
+    adapter.apply(textNotificationWithoutMessageId('agent_message_chunk', 'Hello Summer!'));
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hello Summer!' }],
+      },
+    ]);
+  });
+
   it('appends text chunks with the same role and message ID', () => {
     const adapter = createAcpSessionNotificationAdapter();
 
@@ -378,6 +429,30 @@ describe('sessionNotificationAdapter', () => {
     } as SessionNotification);
 
     expect(updates).toEqual([{ type: 'sessionInfo', name: 'New title' }]);
+  });
+
+  it('converts config option updates', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+    const configOptions = [
+      {
+        id: 'mode',
+        name: 'Mode',
+        type: 'select',
+        currentValue: 'approve',
+        options: [{ value: 'approve', name: 'Manual' }],
+        category: 'mode',
+      },
+    ];
+
+    const updates = adapter.apply({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'config_option_update',
+        configOptions,
+      },
+    } as SessionNotification);
+
+    expect(updates).toEqual([{ type: 'configOptions', configOptions }]);
   });
 
   it('converts Goose usage updates into token state updates', () => {

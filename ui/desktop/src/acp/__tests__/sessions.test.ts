@@ -1,6 +1,7 @@
 import type { LoadSessionResponse } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
-import { acpLoadSessionMeta } from '../sessions';
+import { acpLoadSessionMeta, messageToAcpPromptContent } from '../sessions';
+import type { Message } from '../../api';
 
 describe('acpLoadSessionMeta', () => {
   it('extracts extension results from ACP response metadata', () => {
@@ -23,19 +24,31 @@ describe('acpLoadSessionMeta', () => {
       recipe: undefined,
       userRecipeValues: undefined,
       workingDir: undefined,
+      configOptions: undefined,
     });
   });
 
-  it('extracts recipe session metadata from ACP response metadata', () => {
+  it('extracts recipe session metadata and config options from ACP response metadata', () => {
     const recipe = {
       title: 'Recipe Session',
       description: 'test recipe',
       instructions: 'Do the recipe',
     };
     const userRecipeValues = { target: 'desktop' };
+    const configOptions = [
+      {
+        id: 'mode',
+        name: 'Mode',
+        type: 'select',
+        currentValue: 'approve',
+        options: [{ value: 'approve', name: 'Manual' }],
+        category: 'mode',
+      },
+    ];
 
     const response = {
       sessionId: 'session-1',
+      configOptions,
       _meta: {
         recipe,
         userRecipeValues,
@@ -48,6 +61,7 @@ describe('acpLoadSessionMeta', () => {
       recipe,
       userRecipeValues,
       workingDir: '/tmp/project',
+      configOptions,
     });
   });
 
@@ -59,6 +73,46 @@ describe('acpLoadSessionMeta', () => {
       recipe: undefined,
       userRecipeValues: undefined,
       workingDir: undefined,
+      configOptions: undefined,
     });
+  });
+});
+
+describe('messageToAcpPromptContent', () => {
+  it('converts text and image content into ACP prompt blocks', () => {
+    const message: Message = {
+      id: 'message-1',
+      role: 'user',
+      created: 123,
+      content: [
+        { type: 'text', text: 'Describe this' },
+        { type: 'image', data: 'abc123', mimeType: 'image/png' },
+      ],
+      metadata: { userVisible: true, agentVisible: true },
+    };
+
+    expect(messageToAcpPromptContent(message)).toEqual([
+      { type: 'text', text: 'Describe this' },
+      { type: 'image', data: 'abc123', mimeType: 'image/png' },
+    ]);
+  });
+
+  it('omits empty text content and unsupported content blocks', () => {
+    const message: Message = {
+      id: 'message-1',
+      role: 'user',
+      created: 123,
+      content: [
+        { type: 'text', text: '   ' },
+        {
+          type: 'toolResponse',
+          id: 'tool-1',
+          toolResult: { status: 'success', value: [] },
+        },
+      ],
+      metadata: { userVisible: true, agentVisible: true },
+    } as Message;
+
+    expect(messageToAcpPromptContent(message)).toEqual([]);
   });
 });

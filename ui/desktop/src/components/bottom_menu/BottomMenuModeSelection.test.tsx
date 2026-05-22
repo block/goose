@@ -7,7 +7,16 @@ const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
 
 let mockConfig: Record<string, unknown> = {};
-const mockUpdateSession = vi.fn().mockResolvedValue({});
+const mockAcpSetSessionConfigOption = vi.fn().mockResolvedValue([
+  {
+    id: 'mode',
+    name: 'Mode',
+    type: 'select',
+    currentValue: 'approve',
+    options: [{ value: 'approve', name: 'approve' }],
+    category: 'mode',
+  },
+]);
 const mockGetSession = vi.fn().mockResolvedValue({ data: null });
 
 vi.mock('../ConfigContext', () => ({
@@ -21,8 +30,11 @@ vi.mock('../../utils/analytics', () => ({
 }));
 
 vi.mock('../../api', () => ({
-  updateSession: (...args: unknown[]) => mockUpdateSession(...args),
   getSession: (...args: unknown[]) => mockGetSession(...args),
+}));
+
+vi.mock('../../acp/sessions', () => ({
+  acpSetSessionConfigOption: (...args: unknown[]) => mockAcpSetSessionConfigOption(...args),
 }));
 
 // Radix dropdown doesn't open in jsdom — render children directly
@@ -67,20 +79,38 @@ describe('BottomMenuModeSelection', () => {
     });
   });
 
-  it('calls updateSession and does not write global config', async () => {
+  it('sets active session mode through ACP and does not write global config', async () => {
     mockConfig.GOOSE_MODE = 'auto';
-    renderWithIntl(<BottomMenuModeSelection sessionId="test-session-123" />);
+    const onAcpConfigOptionsChange = vi.fn();
+    renderWithIntl(
+      <BottomMenuModeSelection
+        sessionId="test-session-123"
+        onAcpConfigOptionsChange={onAcpConfigOptionsChange}
+      />
+    );
 
     fireEvent.click(screen.getByText('Manual'));
 
     await waitFor(() => {
-      expect(mockUpdateSession).toHaveBeenCalledWith({
-        body: { session_id: 'test-session-123', goose_mode: 'approve' },
-      });
+      expect(mockAcpSetSessionConfigOption).toHaveBeenCalledWith(
+        'test-session-123',
+        'mode',
+        'approve'
+      );
     });
+    expect(onAcpConfigOptionsChange).toHaveBeenCalledWith([
+      {
+        id: 'mode',
+        name: 'Mode',
+        type: 'select',
+        currentValue: 'approve',
+        options: [{ value: 'approve', name: 'approve' }],
+        category: 'mode',
+      },
+    ]);
   });
 
-  it('does not call updateSession when sessionId is null', async () => {
+  it('does not set active session mode through ACP when sessionId is null', async () => {
     mockConfig.GOOSE_MODE = 'auto';
     renderWithIntl(<BottomMenuModeSelection sessionId={null} />);
 
@@ -89,7 +119,7 @@ describe('BottomMenuModeSelection', () => {
     await waitFor(() => {
       expect(screen.getByText('manual')).toBeInTheDocument();
     });
-    expect(mockUpdateSession).not.toHaveBeenCalled();
+    expect(mockAcpSetSessionConfigOption).not.toHaveBeenCalled();
   });
 
   it('ignores stale session fetch after sessionId changes', async () => {

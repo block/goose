@@ -12,6 +12,7 @@ import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
+import type { SessionConfigOption } from '@agentclientprotocol/sdk';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
@@ -204,6 +205,8 @@ interface ChatInputProps {
   sessionModel?: string | null;
   sessionProvider?: string | null;
   sessionLoaded?: boolean;
+  acpConfigOptions?: SessionConfigOption[] | null;
+  onAcpConfigOptionsChange?: (configOptions: SessionConfigOption[] | null | undefined) => void;
   latestInference?: Message['metadata']['inference'] | null;
 }
 
@@ -235,6 +238,8 @@ export default function ChatInput({
   sessionModel,
   sessionProvider,
   sessionLoaded,
+  acpConfigOptions,
+  onAcpConfigOptionsChange,
   latestInference,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -1766,7 +1771,11 @@ export default function ChatInput({
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-primary mx-2" />
-          <BottomMenuModeSelection sessionId={sessionId} />
+          <BottomMenuModeSelection
+            sessionId={sessionId}
+            acpConfigOptions={acpConfigOptions}
+            onAcpConfigOptionsChange={onAcpConfigOptionsChange}
+          />
           <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import type { SessionConfigOption } from '@agentclientprotocol/sdk';
 import { defineMessages, useIntl } from '../i18n';
 import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
@@ -29,7 +30,12 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
-import { acpLoadSession, acpLoadSessionMeta } from '../acp/sessions';
+import {
+  acpCancelPrompt,
+  acpLoadSession,
+  acpLoadSessionMeta,
+  acpPromptSession,
+} from '../acp/sessions';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import {
@@ -41,7 +47,10 @@ import {
   subscribeToAcpSession,
 } from '../acp/sessionNotificationRouter';
 
-const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
+const resultsCache = new Map<
+  string,
+  { messages: Message[]; session: Session; acpConfigOptions?: SessionConfigOption[] | null }
+>();
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -63,6 +72,8 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
+  acpConfigOptions?: SessionConfigOption[] | null;
+  setAcpConfigOptions: (configOptions: SessionConfigOption[] | null | undefined) => void;
   notifications: Map<string, NotificationEvent[]>;
   onMessageUpdate: (
     messageId: string,
@@ -77,6 +88,7 @@ interface StreamState {
   chatState: ChatState;
   sessionLoadError: string | undefined;
   tokenState: TokenState;
+  acpConfigOptions?: SessionConfigOption[] | null;
   notifications: NotificationEvent[];
 }
 
@@ -86,6 +98,7 @@ type StreamAction =
   | { type: 'SET_CHAT_STATE'; payload: ChatState }
   | { type: 'SET_SESSION_LOAD_ERROR'; payload: string | undefined }
   | { type: 'SET_TOKEN_STATE'; payload: TokenState }
+  | { type: 'SET_ACP_CONFIG_OPTIONS'; payload: SessionConfigOption[] | null | undefined }
   | { type: 'ADD_NOTIFICATION'; payload: NotificationEvent }
   | { type: 'CLEAR_NOTIFICATIONS' }
   | {
@@ -94,6 +107,7 @@ type StreamAction =
         session: Session;
         messages: Message[];
         tokenState: TokenState;
+        acpConfigOptions?: SessionConfigOption[] | null;
       };
     }
   | { type: 'RESET_FOR_NEW_SESSION' }
@@ -116,6 +130,7 @@ const initialState: StreamState = {
   chatState: ChatState.Idle,
   sessionLoadError: undefined,
   tokenState: initialTokenState,
+  acpConfigOptions: undefined,
   notifications: [],
 };
 
@@ -159,6 +174,7 @@ async function loadSessionViaAcp(
   session: Session;
   tokenState: TokenState;
   extensionResults: ExtensionLoadResult[] | null | undefined;
+  acpConfigOptions?: SessionConfigOption[] | null;
 }> {
   const adapter = createAcpSessionNotificationAdapter();
   let tokenState = tokenStateFromSession(sessionSnapshot);
@@ -172,6 +188,8 @@ async function loadSessionViaAcp(
           break;
         case 'tokenState':
           tokenState = mergeTokenState(tokenState, update.tokenState);
+          break;
+        case 'configOptions':
           break;
         case 'messages':
           break;
@@ -200,6 +218,7 @@ async function loadSessionViaAcp(
       },
       tokenState,
       extensionResults: meta.extensionResults,
+      acpConfigOptions: meta.configOptions,
     };
   } finally {
     unsubscribeSession();
@@ -224,6 +243,9 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
     case 'SET_TOKEN_STATE':
       return { ...state, tokenState: action.payload };
 
+    case 'SET_ACP_CONFIG_OPTIONS':
+      return { ...state, acpConfigOptions: action.payload };
+
     case 'ADD_NOTIFICATION':
       return { ...state, notifications: [...state.notifications, action.payload] };
 
@@ -236,6 +258,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         session: action.payload.session,
         messages: action.payload.messages,
         tokenState: action.payload.tokenState,
+        acpConfigOptions: action.payload.acpConfigOptions,
         chatState: ChatState.Idle,
         sessionLoadError: undefined,
       };
@@ -246,6 +269,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         messages: [],
         session: undefined,
         sessionLoadError: undefined,
+        acpConfigOptions: undefined,
         chatState: ChatState.LoadingConversation,
       };
 
@@ -524,6 +548,7 @@ export function useChatStream({
   const activeRequestSessionIdRef = useRef<string | null>(null);
   const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
+  const activeAcpPromptSessionRef = useRef<string | null>(null);
   // When ActiveRequests fires before session load populates messages (cold mount),
   // defer the reattach until the session is loaded so the event processor has
   // the full conversation history. Events are buffered in the meantime.
@@ -547,9 +572,13 @@ export function useChatStream({
 
   useEffect(() => {
     if (state.session) {
-      resultsCache.set(sessionId, { session: state.session, messages: state.messages });
+      resultsCache.set(sessionId, {
+        session: state.session,
+        messages: state.messages,
+        acpConfigOptions: state.acpConfigOptions,
+      });
     }
-  }, [sessionId, state.session, state.messages]);
+  }, [sessionId, state.session, state.messages, state.acpConfigOptions]);
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
@@ -760,66 +789,139 @@ export function useChatStream({
       currentMessages: Message[],
       overrideConversation?: Message[]
     ) => {
-      const requestId = uuidv7();
-      const abortController = new AbortController();
-      activeRequestIdRef.current = requestId;
-      activeRequestSessionIdRef.current = targetSessionId;
-      activeAbortRef.current = abortController;
+      if (overrideConversation) {
+        // Fork/edit replay still relies on REST override semantics for now.
+        const requestId = uuidv7();
+        const abortController = new AbortController();
+        activeRequestIdRef.current = requestId;
+        activeRequestSessionIdRef.current = targetSessionId;
+        activeAbortRef.current = abortController;
 
-      // Create event processor and register listener BEFORE the POST
-      const processEvent = createEventProcessor(
-        currentMessages,
-        dispatch,
-        onFinish,
-        targetSessionId,
-        reloadConversation
-      );
+        const processEvent = createEventProcessor(
+          currentMessages,
+          dispatch,
+          onFinish,
+          targetSessionId,
+          reloadConversation
+        );
 
-      const unsubscribe = addListener(requestId, (event) => {
-        const isTerminal = processEvent(event);
-        if (isTerminal) {
+        const unsubscribe = addListener(requestId, (event) => {
+          const isTerminal = processEvent(event);
+          if (isTerminal) {
+            unsubscribe();
+            if (activeRequestIdRef.current === requestId) {
+              activeUnsubscribeRef.current = null;
+              activeRequestIdRef.current = null;
+              activeRequestSessionIdRef.current = null;
+              activeAbortRef.current = null;
+            }
+          }
+        });
+        activeUnsubscribeRef.current = unsubscribe;
+
+        try {
+          await sessionReply({
+            path: { id: targetSessionId },
+            body: {
+              request_id: requestId,
+              user_message: userMessage,
+              override_conversation: overrideConversation,
+            },
+            signal: abortController.signal,
+            throwOnError: true,
+          });
+        } catch (error) {
+          if (abortController.signal.aborted) return;
           unsubscribe();
-          // Only clear global refs if this request is still the active one.
-          // A newer request may have already replaced them.
           if (activeRequestIdRef.current === requestId) {
             activeUnsubscribeRef.current = null;
             activeRequestIdRef.current = null;
             activeRequestSessionIdRef.current = null;
             activeAbortRef.current = null;
           }
+          const msg = errorMessage(error);
+          if (msg.includes('already has an active request')) {
+            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
+          } else {
+            onFinish('Submit error: ' + msg);
+          }
         }
+        return;
+      }
+
+      const adapter = createAcpSessionNotificationAdapter(currentMessages);
+      activeRequestSessionIdRef.current = targetSessionId;
+      activeAcpPromptSessionRef.current = targetSessionId;
+
+      const applyUpdates = (updates: AcpSessionUpdate[]) => {
+        for (const update of updates) {
+          switch (update.type) {
+            case 'messages':
+              dispatch({ type: 'SET_MESSAGES', payload: update.messages });
+              break;
+            case 'sessionInfo': {
+              const currentSession = stateRef.current.session;
+              if (currentSession && update.name) {
+                dispatch({
+                  type: 'SET_SESSION',
+                  payload: { ...currentSession, name: update.name },
+                });
+                window.dispatchEvent(
+                  new CustomEvent(AppEvents.SESSION_RENAMED, {
+                    detail: { sessionId: targetSessionId, newName: update.name },
+                  })
+                );
+              }
+              break;
+            }
+            case 'tokenState':
+              dispatch({
+                type: 'SET_TOKEN_STATE',
+                payload: mergeTokenState(stateRef.current.tokenState, update.tokenState),
+              });
+              break;
+            case 'configOptions':
+              dispatch({ type: 'SET_ACP_CONFIG_OPTIONS', payload: update.configOptions });
+              break;
+          }
+        }
+      };
+
+      const unsubscribeSession = subscribeToAcpSession(targetSessionId, (notification) => {
+        applyUpdates(adapter.apply(notification));
       });
+      const unsubscribeGooseSession = subscribeToAcpGooseSession(
+        targetSessionId,
+        (notification) => {
+          applyUpdates(adapter.applyGoose(notification));
+        }
+      );
+      const unsubscribe = () => {
+        unsubscribeSession();
+        unsubscribeGooseSession();
+      };
       activeUnsubscribeRef.current = unsubscribe;
 
       try {
-        await sessionReply({
-          path: { id: targetSessionId },
-          body: {
-            request_id: requestId,
-            user_message: userMessage,
-            override_conversation: overrideConversation,
-          },
-          signal: abortController.signal,
-          throwOnError: true,
-        });
-      } catch (error) {
-        // Abort is expected when stopStreaming races with the POST
-        if (abortController.signal.aborted) return;
-        // POST failed — clean up listener and report error.
-        // Only clear global refs if this request is still the active one;
-        // a newer request may have already replaced them.
-        unsubscribe();
-        if (activeRequestIdRef.current === requestId) {
-          activeUnsubscribeRef.current = null;
-          activeRequestIdRef.current = null;
-          activeRequestSessionIdRef.current = null;
-          activeAbortRef.current = null;
-        }
-        const msg = errorMessage(error);
-        if (msg.includes('already has an active request')) {
+        const response = await acpPromptSession(targetSessionId, userMessage);
+        if (response.stopReason === 'cancelled') {
           dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         } else {
-          onFinish('Submit error: ' + msg);
+          onFinish();
+        }
+      } catch (error) {
+        if (activeAcpPromptSessionRef.current === null) {
+          return;
+        }
+        onFinish('Submit error: ' + errorMessage(error));
+      } finally {
+        unsubscribe();
+        if (activeAcpPromptSessionRef.current === targetSessionId) {
+          activeAcpPromptSessionRef.current = null;
+          activeRequestSessionIdRef.current = null;
+          activeUnsubscribeRef.current = null;
+        } else {
+          activeUnsubscribeRef.current = null;
         }
       }
     },
@@ -837,6 +939,7 @@ export function useChatStream({
         payload: {
           session: cached.session,
           messages: cached.messages,
+          acpConfigOptions: cached.acpConfigOptions,
           tokenState: {
             inputTokens: cached.session?.input_tokens ?? 0,
             outputTokens: cached.session?.output_tokens ?? 0,
@@ -861,6 +964,7 @@ export function useChatStream({
         let loadedSession: Session | undefined;
         let loadedTokenState: TokenState | undefined;
         let extensionResults: ExtensionLoadResult[] | null | undefined;
+        let loadedAcpConfigOptions: SessionConfigOption[] | null | undefined;
 
         const sessionSnapshot = createAcpLoadSessionSnapshot(sessionId);
 
@@ -877,6 +981,7 @@ export function useChatStream({
         loadedSession = response.session;
         loadedTokenState = response.tokenState;
         extensionResults = response.extensionResults;
+        loadedAcpConfigOptions = response.acpConfigOptions;
 
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
@@ -894,6 +999,7 @@ export function useChatStream({
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
               tokenState: loadedTokenState ?? tokenStateFromSession(loadedSession),
+              acpConfigOptions: loadedAcpConfigOptions,
             },
           });
           // Now complete the deferred reattach with the loaded messages
@@ -903,6 +1009,7 @@ export function useChatStream({
           // messages — only load session metadata, don't overwrite messages
           // with the stale DB snapshot.
           dispatch({ type: 'SET_SESSION', payload: loadedSession });
+          dispatch({ type: 'SET_ACP_CONFIG_OPTIONS', payload: loadedAcpConfigOptions });
           dispatch({
             type: 'SET_TOKEN_STATE',
             payload: loadedTokenState ?? tokenStateFromSession(loadedSession),
@@ -914,6 +1021,7 @@ export function useChatStream({
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
               tokenState: loadedTokenState ?? tokenStateFromSession(loadedSession),
+              acpConfigOptions: loadedAcpConfigOptions,
             },
           });
         }
@@ -1100,11 +1208,19 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     const requestId = activeRequestIdRef.current;
     const requestSessionId = activeRequestSessionIdRef.current;
+    const acpPromptSessionId = activeAcpPromptSessionRef.current;
 
     // Abort the in-flight POST so the reply never starts if cancel wins the race
     if (activeAbortRef.current) {
       activeAbortRef.current.abort();
       activeAbortRef.current = null;
+    }
+
+    if (acpPromptSessionId) {
+      activeAcpPromptSessionRef.current = null;
+      acpCancelPrompt(acpPromptSessionId).catch((e) => {
+        console.warn('Failed to cancel ACP prompt:', e);
+      });
     }
 
     if (requestId && requestSessionId) {
@@ -1125,6 +1241,7 @@ export function useChatStream({
     }
     activeRequestIdRef.current = null;
     activeRequestSessionIdRef.current = null;
+    activeAcpPromptSessionRef.current = null;
 
     dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
   }, []);
@@ -1215,9 +1332,19 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
+  const setAcpConfigOptions = useCallback(
+    (configOptions: SessionConfigOption[] | null | undefined) => {
+      dispatch({ type: 'SET_ACP_CONFIG_OPTIONS', payload: configOptions });
+    },
+    []
+  );
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
+  const maybe_cached_acp_config_options = state.session
+    ? state.acpConfigOptions
+    : cached?.acpConfigOptions;
 
   const notificationsMap = useMemo(() => {
     return state.notifications.reduce((map, notification) => {
@@ -1241,6 +1368,8 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState: state.tokenState,
+    acpConfigOptions: maybe_cached_acp_config_options,
+    setAcpConfigOptions,
     notifications: notificationsMap,
     onMessageUpdate,
   };

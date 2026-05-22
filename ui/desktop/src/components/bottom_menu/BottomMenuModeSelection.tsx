@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { SessionConfigOption } from '@agentclientprotocol/sdk';
 import { Tornado } from 'lucide-react';
 import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
 import { useConfig } from '../ConfigContext';
@@ -9,7 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { trackModeChanged } from '../../utils/analytics';
-import { getSession, updateSession } from '../../api';
+import { getSession } from '../../api';
+import { acpSetSessionConfigOption } from '../../acp/sessions';
+import { findModeConfigOption, modeConfigOptionToModes } from '../../acp/sessionConfigOptions';
 import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
@@ -27,14 +30,26 @@ const i18n = defineMessages({
   },
 });
 
-export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | null }) => {
+export const BottomMenuModeSelection = ({
+  sessionId,
+  acpConfigOptions,
+  onAcpConfigOptionsChange,
+}: {
+  sessionId: string | null;
+  acpConfigOptions?: SessionConfigOption[] | null;
+  onAcpConfigOptionsChange?: (configOptions: SessionConfigOption[] | null | undefined) => void;
+}) => {
   const intl = useIntl();
   const [gooseMode, setGooseMode] = useState('auto');
   const { config } = useConfig();
+  const modeConfigOption = findModeConfigOption(acpConfigOptions);
+  const modes = modeConfigOptionToModes(modeConfigOption) ?? all_goose_modes;
 
   useEffect(() => {
     let cancelled = false;
-    if (sessionId) {
+    if (modeConfigOption?.type === 'select') {
+      setGooseMode(modeConfigOption.currentValue);
+    } else if (sessionId) {
       getSession({ path: { session_id: sessionId } }).then((res) => {
         if (!cancelled && res.data?.goose_mode) {
           setGooseMode(res.data.goose_mode);
@@ -49,7 +64,7 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
     return () => {
       cancelled = true;
     };
-  }, [sessionId, config.GOOSE_MODE]);
+  }, [sessionId, config.GOOSE_MODE, modeConfigOption]);
 
   const handleModeChange = async (newMode: string) => {
     if (gooseMode === newMode) {
@@ -58,7 +73,8 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
 
     try {
       if (sessionId) {
-        await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
+        const configOptions = await acpSetSessionConfigOption(sessionId, 'mode', newMode);
+        onAcpConfigOptionsChange?.(configOptions);
       }
       setGooseMode(newMode);
       trackModeChanged(gooseMode, newMode);
@@ -69,15 +85,20 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
   };
 
   function getValueByKey(key: string): string {
-    const mode = all_goose_modes.find((mode) => mode.key === key);
+    const mode = modes.find((mode) => mode.key === key);
     if (!mode) return intl.formatMessage(i18n.autoFallback);
-    return intl.formatMessage(mode.labelDescriptor);
+    return mode.label ?? (mode.labelDescriptor ? intl.formatMessage(mode.labelDescriptor) : mode.key);
   }
 
   function getModeDescription(key: string): string {
-    const mode = all_goose_modes.find((mode) => mode.key === key);
+    const mode = modes.find((mode) => mode.key === key);
     if (!mode) return intl.formatMessage(i18n.automaticModeDescription);
-    return intl.formatMessage(mode.descriptionDescriptor);
+    return (
+      mode.description ??
+      (mode.descriptionDescriptor
+        ? intl.formatMessage(mode.descriptionDescriptor)
+        : intl.formatMessage(i18n.automaticModeDescription))
+    );
   }
 
   return (
@@ -90,7 +111,7 @@ export const BottomMenuModeSelection = ({ sessionId }: { sessionId: string | nul
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" side="top" align="center">
-          {all_goose_modes.map((mode) => (
+          {modes.map((mode) => (
             <DropdownMenuItem key={mode.key} asChild>
               <ModeSelectionItem
                 mode={mode}

@@ -1,6 +1,7 @@
 import type { GooseSessionNotification } from '@aaif/goose-sdk';
 import type {
   ContentBlock,
+  SessionConfigOption,
   SessionNotification,
   ToolCall,
   ToolCallUpdate,
@@ -10,6 +11,7 @@ import type { Message, MessageContent, TokenState } from '../api';
 export type AcpSessionUpdate =
   | { type: 'messages'; messages: Message[] }
   | { type: 'sessionInfo'; name?: string }
+  | { type: 'configOptions'; configOptions: SessionConfigOption[] }
   | { type: 'tokenState'; tokenState: Partial<TokenState> };
 
 interface AdapterState {
@@ -88,6 +90,9 @@ function applyAcpSessionNotification(
 
     case 'session_info_update':
       return [{ type: 'sessionInfo', name: update.title ?? undefined }];
+
+    case 'config_option_update':
+      return [{ type: 'configOptions', configOptions: update.configOptions }];
 
     default:
       return [];
@@ -198,12 +203,12 @@ function applyContentChunk(
   const id = update.messageId ?? replayMeta.messageId;
   const existing = id
     ? state.messages.find((message) => message.id === id && message.role === role)
-    : undefined;
+    : lastMessageWithRole(state, role);
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
     if (lastContent?.type === 'text' && content.type === 'text') {
-      lastContent.text += content.text;
+      lastContent.text = mergeTextChunk(lastContent.text, content.text);
     } else {
       existing.content.push(content);
     }
@@ -218,6 +223,18 @@ function applyContentChunk(
   }
 
   return [{ type: 'messages', messages: [...state.messages] }];
+}
+
+function mergeTextChunk(existing: string, incoming: string): string {
+  if (!incoming || incoming === existing || existing.endsWith(incoming)) {
+    return existing;
+  }
+
+  if (!existing || incoming.startsWith(existing)) {
+    return incoming;
+  }
+
+  return existing + incoming;
 }
 
 function assistantMessageForReplayUpdate(
@@ -406,7 +423,7 @@ function applyThoughtChunk(
   const id = update.messageId ?? replayMeta.messageId;
   const existing = id
     ? state.messages.find((message) => message.id === id && message.role === 'assistant')
-    : undefined;
+    : lastMessageWithRole(state, 'assistant');
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
@@ -466,6 +483,11 @@ function acpReplayMessageMeta(update: AcpReplayMetaContainer): AcpReplayMessageM
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function lastMessageWithRole(state: AdapterState, role: Message['role']): Message | undefined {
+  const lastMessage = state.messages[state.messages.length - 1];
+  return lastMessage?.role === role ? lastMessage : undefined;
 }
 
 function cloneMessage(message: Message): Message {

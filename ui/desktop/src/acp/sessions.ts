@@ -1,17 +1,21 @@
 import type {
+  ContentBlock,
   ListSessionsResponse,
   LoadSessionResponse,
+  PromptResponse,
+  SessionConfigOption,
   SessionInfo,
 } from '@agentclientprotocol/sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
-import type { ExtensionLoadResult, Recipe } from '../api';
+import type { ExtensionLoadResult, Message, Recipe } from '../api';
 
 interface AcpLoadSessionMeta {
   extensionResults?: ExtensionLoadResult[] | null;
   recipe?: Recipe | null;
   userRecipeValues?: Record<string, string> | null;
   workingDir?: string;
+  configOptions?: SessionConfigOption[] | null;
 }
 
 export async function acpLoadSession(
@@ -24,6 +28,58 @@ export async function acpLoadSession(
     cwd: workingDir,
     mcpServers: [],
   });
+}
+
+export async function acpPromptSession(
+  sessionId: string,
+  message: Message
+): Promise<PromptResponse> {
+  const client = await getAcpClient();
+  return client.prompt({
+    sessionId,
+    prompt: messageToAcpPromptContent(message),
+  });
+}
+
+export async function acpCancelPrompt(sessionId: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.cancel({ sessionId });
+}
+
+export async function acpSetSessionConfigOption(
+  sessionId: string,
+  configId: string,
+  value: string
+): Promise<SessionConfigOption[]> {
+  const client = await getAcpClient();
+  const response = await client.setSessionConfigOption({ sessionId, configId, value });
+  return response.configOptions;
+}
+
+export function messageToAcpPromptContent(message: Message): ContentBlock[] {
+  const prompt: ContentBlock[] = [];
+
+  for (const content of message.content) {
+    switch (content.type) {
+      case 'text':
+        if (content.text.trim()) {
+          prompt.push({
+            type: 'text',
+            text: content.text,
+          });
+        }
+        break;
+      case 'image':
+        prompt.push({
+          type: 'image',
+          data: content.data,
+          mimeType: content.mimeType,
+        });
+        break;
+    }
+  }
+
+  return prompt;
 }
 
 export async function acpListSessions(): Promise<ListSessionsResponse> {
@@ -64,6 +120,7 @@ export function acpLoadSessionMeta(response: LoadSessionResponse): AcpLoadSessio
     recipe: meta.recipe as Recipe | null | undefined,
     userRecipeValues: meta.userRecipeValues as Record<string, string> | null | undefined,
     workingDir: typeof meta.workingDir === 'string' ? meta.workingDir : undefined,
+    configOptions: response.configOptions,
   };
 }
 
