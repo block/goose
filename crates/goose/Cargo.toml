@@ -43,16 +43,15 @@ aws-providers = [
     "dep:aws-smithy-types",
     "dep:aws-sdk-bedrockruntime",
     "dep:aws-sdk-sagemakerruntime",
+    "dep:smithy-transport-reqwest",
 ]
 cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 vulkan = ["local-inference", "llama-cpp-2/vulkan"]
 rustls-tls = [
     "dep:rustls",
-    "aws-config?/default-https-client",
-    "aws-sdk-bedrockruntime?/default-https-client",
-    "aws-sdk-sagemakerruntime?/default-https-client",
     "reqwest/rustls",
     "rmcp/reqwest",
+    "smithy-transport-reqwest?/rustls",
     "sqlx/runtime-tokio-rustls",
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
@@ -65,6 +64,7 @@ native-tls = [
     "dep:sec1",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
+    "smithy-transport-reqwest?/native-tls",
     "sqlx/runtime-tokio-native-tls",
     "jsonwebtoken/rust_crypto",
     "oauth2/reqwest",
@@ -128,12 +128,12 @@ strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
-goose-sdk = { path = "../goose-sdk" }
+goose-sdk = { path = "../goose-sdk", default-features = false }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
 tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
-v_htmlescape = { version = "0.17", default-features = false }
+v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }
 sqlx = { version = "0.8.5", default-features = false, features = [
     "sqlite",
     "chrono",
@@ -146,6 +146,7 @@ sqlx = { version = "0.8.5", default-features = false, features = [
 aws-config = { version = "1.6", default-features = false, features = ["credentials-process", "rt-tokio", "sso", "behavior-version-latest"], optional = true }
 aws-smithy-types = { version = "1.3.4", default-features = false, features = ["rt-tokio"], optional = true }
 aws-sdk-bedrockruntime = { version = "1.119", default-features = false, features = ["rt-tokio"], optional = true }
+smithy-transport-reqwest = { version = "0.1", default-features = false, features = ["http2", "system-proxy"], optional = true }
 
 # For SageMaker TGI provider (optional, behind "aws-providers" feature)
 aws-sdk-sagemakerruntime = { version = "1.64", default-features = false, features = ["rt-tokio"], optional = true }
@@ -153,22 +154,22 @@ aws-sdk-sagemakerruntime = { version = "1.64", default-features = false, feature
 # For GCP Vertex AI provider auth
 jsonwebtoken = { version = "10.2", default-features = false, features = ["use_pem"] }
 
-blake3 = { version = "1", default-features = false }
+blake3 = { version = "1", default-features = false, features = ["std"] }
 fs2 = { workspace = true }
 tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }
 dashmap = { version = "6", default-features = false }
-ahash = { version = "0.8.11", default-features = false }
+ahash = { version = "0.8.11", default-features = false, features = ["std"] }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
 agent-client-protocol = { workspace = true, features = ["unstable"] }
-unicode-normalization = { version = "0.1.22", default-features = false }
+unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 
 # For local Whisper transcription (optional, behind "local-inference" feature)
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
 candle-transformers = { version = "0.10", default-features = false, optional = true }
-byteorder = { version = "1.5", default-features = false, optional = true }
+byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.21", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, optional = true }
 rubato = { version = "0.16", default-features = false, optional = true }
@@ -181,7 +182,7 @@ schemars = { workspace = true, features = [
     "derive",
 ] }
 shellexpand = { workspace = true }
-indexmap = { version = "2.9", default-features = false }
+indexmap = { version = "2.9", default-features = false, features = ["std"] }
 ignore = { workspace = true }
 rayon = { workspace = true }
 tree-sitter = { workspace = true }
@@ -199,16 +200,16 @@ pulldown-cmark = { version = "0.13", default-features = false }
 encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
-pem = { version = "3.0.2", default-features = false, optional = true }
-pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8"], optional = true }
-pkcs8 = { version = "0.10.2", default-features = false, features = ["alloc"], optional = true }
-sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8"], optional = true }
-goose-acp-macros = { path = "../goose-acp-macros" }
+pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
+pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8", "std"], optional = true }
+pkcs8 = { version = "0.10.2", default-features = false, features = ["alloc", "std"], optional = true }
+sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8", "std"], optional = true }
+goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
 http-body-util = { version = "0.1.2", default-features = false }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
-nostr = { version = "0.44", default-features = false, features = ["nip44"] }
+nostr = { version = "0.44", default-features = false, features = ["nip44", "std"] }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"] }
 rustls = { workspace = true, optional = true }
 
@@ -233,7 +234,7 @@ keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { workspace = true, features = ["sync-secret-service"], optional = true }
-libc = { version = "0.2.182", default-features = false }
+libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
@@ -247,10 +248,10 @@ test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
-goose-test-support = { path = "../goose-test-support" }
+goose-test-support = { path = "../goose-test-support", default-features = false }
 bytes = { workspace = true }
 http = { workspace = true }
-goose-mcp = { path = "../goose-mcp" }
+goose-mcp = { path = "../goose-mcp", default-features = false }
 insta = { version = "1", default-features = false }
 
 [[example]]
