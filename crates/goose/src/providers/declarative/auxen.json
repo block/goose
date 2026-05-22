@@ -1,0 +1,39 @@
+{
+  "name": "auxen",
+  "engine": "openai",
+  "display_name": "Auxen",
+  "description": "Per-customer dedicated LLM endpoints (Llama, Qwen, Mistral, Gemma, Mixtral, Phi, Command R) with OpenAI-compatible API",
+  "api_key_env": "AUXEN_API_KEY",
+  "base_url": "${AUXEN_API_BASE}/chat/completions",
+  "env_vars": [
+    {
+      "name": "AUXEN_API_BASE",
+      "required": true,
+      "secret": false,
+      "primary": true,
+      "description": "Auxen instance base URL issued by the Auxen dashboard, e.g. https://api.auxen.ai/v1/inst_xxx/v1"
+    },
+    {
+      "name": "AUXEN_API_KEY",
+      "required": true,
+      "secret": true,
+      "description": "Auxen instance API key (auxk_*) issued by the Auxen dashboard"
+    }
+  ],
+  "models": [
+    { "name": "llama-3.1-8b",     "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "llama-3.1-70b",    "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "llama-3.2-3b",     "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "qwen2.5-7b",       "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "qwen2.5-14b",      "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "qwen2.5-32b",      "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "mistral-7b",       "context_limit": 32768,  "max_tokens": 8192 },
+    { "name": "mistral-nemo-12b", "context_limit": 131072, "max_tokens": 8192 },
+    { "name": "mixtral-8x7b",     "context_limit": 32768,  "max_tokens": 8192 },
+    { "name": "gemma2-9b",        "context_limit": 8192,   "max_tokens": 8192 },
+    { "name": "phi-3-mini",       "context_limit": 131072, "max_tokens": 4096 },
+    { "name": "command-r-7b",     "context_limit": 131072, "max_tokens": 4096 }
+  ],
+  "supports_streaming": true,
+  "requires_auth": true
+}
