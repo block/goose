@@ -282,8 +282,8 @@ path = "src/bin/generate_acp_schema.rs"
 ignored = [
     # Used only on windows
     "winapi",
-    # Used to provide extras imports for agent-client-protocol
-    "agent-client-protocol-schema",
-    # Used via http transport
-    "http-body-util",
+
+    # Included only to pin version
+    "icu_calendar",
+    "icu_locale",
 ]
