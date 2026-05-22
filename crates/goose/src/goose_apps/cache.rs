@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::utils::bytes_to_hex;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
@@ -36,8 +37,8 @@ impl McpAppCache {
 
     fn cache_key(extension_name: &str, resource_uri: &str) -> String {
         let input = format!("{}::{}", extension_name, resource_uri);
-        let hash = Sha256::digest(input.as_bytes());
-        format!("{}_{:x}", extension_name, hash)
+        let hash = bytes_to_hex(Sha256::digest(input.as_bytes()));
+        format!("{}_{}", extension_name, hash)
     }
 
     pub fn list_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
