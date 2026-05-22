@@ -1892,7 +1892,11 @@ impl SessionStorage {
 
         let mut sessions = Vec::with_capacity(session_ids.len());
         for session_id in session_ids {
-            sessions.push(self.get_session(&session_id, false).await?);
+            match self.get_session(&session_id, false).await {
+                Ok(session) => sessions.push(session),
+                Err(err) if err.to_string() == "Session not found" => continue,
+                Err(err) => return Err(err),
+            }
         }
         Ok(sessions)
     }
