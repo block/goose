@@ -200,8 +200,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        'bg-background-primary outline-none flex flex-col h-full rounded-xl',
-        'border border-border-primary shadow-sm',
+        'bg-background-primary outline-none flex flex-col h-full',
         className
       )}
     >

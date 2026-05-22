@@ -62,7 +62,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const headerTop = needsTrafficLightInset ? 'top-[15px]' : 'top-[11px]';
 
   return (
-    <div className="flex flex-1 w-full h-full relative animate-fade-in bg-background-secondary flex-row">
+    <div className="flex flex-1 w-full h-full relative animate-fade-in bg-background-primary flex-row">
       {/* Floating menu toggle — only when sidebar is collapsed. When expanded,
           the sidebar's own header has the collapse button. */}
       {!isNavExpanded && (
@@ -82,15 +82,19 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         </div>
       )}
 
-      {/* Main content with navigation */}
-      <div className="flex flex-1 w-full h-full min-h-0 p-1.5 gap-1.5 flex-row">
+      {/* Main content with navigation. Single shared canvas; a hairline border
+          on the sidebar's right edge is the only separator. */}
+      <div className="flex flex-1 w-full h-full min-h-0 flex-row">
         <motion.div
           key="nav"
           initial={false}
           animate={{ width: isNavExpanded ? NAV_DIMENSIONS.NAV_WIDTH : 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 40 }}
           style={{ height: '100%' }}
-          className="relative flex-shrink-0 overflow-hidden h-full"
+          className={cn(
+            'relative flex-shrink-0 overflow-hidden h-full',
+            isNavExpanded && 'border-r border-border-primary'
+          )}
         >
           <div className="w-full h-full overflow-hidden">
             <Navigation />
@@ -99,7 +103,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
         {/* Main content */}
         <div className="flex-1 overflow-hidden min-h-0">
-          <div className="h-full w-full bg-background-primary rounded-xl overflow-hidden border border-border-primary shadow-sm">
+          <div className="h-full w-full overflow-hidden">
             <Outlet />
             {/* Always render ChatSessionsContainer to keep SSE connections alive.
                 When navigating away from /pair, hide it with CSS */}
