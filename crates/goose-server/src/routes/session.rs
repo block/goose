@@ -11,6 +11,7 @@ use axum::{
 };
 use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
+#[cfg(feature = "nostr")]
 use goose::session::nostr_share;
 use goose::session::session_manager::{SessionInsights, SessionType};
 use goose::session::{EnabledExtensionsState, Session};
@@ -51,6 +52,7 @@ pub struct ImportSessionRequest {
     json: String,
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(dead_code))]
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ShareSessionNostrRequest {
@@ -67,6 +69,7 @@ pub struct ShareSessionNostrResponse {
     relays: Vec<String>,
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(dead_code))]
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportSessionNostrRequest {
@@ -387,6 +390,7 @@ async fn import_session(
     Ok(Json(session))
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
 #[utoipa::path(
     post,
     path = "/sessions/{session_id}/share/nostr",
@@ -410,25 +414,32 @@ async fn share_session_nostr(
     Path(session_id): Path<String>,
     Json(request): Json<ShareSessionNostrRequest>,
 ) -> Result<Json<ShareSessionNostrResponse>, StatusCode> {
-    let exported = state
-        .session_manager()
-        .export_session(&session_id)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    #[cfg(feature = "nostr")]
+    {
+        let exported = state
+            .session_manager()
+            .export_session(&session_id)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let relays = nostr_share::resolve_relays(request.relays, goose::config::Config::global());
-    let share = nostr_share::publish_session_json(&exported, relays)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let relays = nostr_share::resolve_relays(request.relays, goose::config::Config::global());
+        let share = nostr_share::publish_session_json(&exported, relays)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(ShareSessionNostrResponse {
-        deeplink: share.deeplink,
-        nevent: share.nevent,
-        event_id: share.event_id,
-        relays: share.relays,
-    }))
+        Ok(Json(ShareSessionNostrResponse {
+            deeplink: share.deeplink,
+            nevent: share.nevent,
+            event_id: share.event_id,
+            relays: share.relays,
+        }))
+    }
+
+    #[cfg(not(feature = "nostr"))]
+    Err(StatusCode::NOT_FOUND)
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
 #[utoipa::path(
     post,
     path = "/sessions/import/nostr",
@@ -448,16 +459,22 @@ async fn import_session_nostr(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ImportSessionNostrRequest>,
 ) -> Result<Json<Session>, StatusCode> {
-    let json = nostr_share::import_session_json_from_deeplink(&request.deeplink)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    let session = state
-        .session_manager()
-        .import_session(&json, Some(SessionType::User))
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    #[cfg(feature = "nostr")]
+    {
+        let json = nostr_share::import_session_json_from_deeplink(&request.deeplink)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        let session = state
+            .session_manager()
+            .import_session(&json, Some(SessionType::User))
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    Ok(Json(session))
+        Ok(Json(session))
+    }
+
+    #[cfg(not(feature = "nostr"))]
+    Err(StatusCode::NOT_FOUND)
 }
 
 #[utoipa::path(
