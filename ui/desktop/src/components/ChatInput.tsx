@@ -681,7 +681,7 @@ export default function ChatInput({
     setValue(value);
   }, []);
 
-  const minTextareaHeight = 38;
+  const minTextareaHeight = 56;
 
   const debouncedAutosize = useMemo(
     () =>
@@ -1441,7 +1441,7 @@ export default function ChatInput({
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-text-primary placeholder:text-text-secondary"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-4 pt-4 pb-2 text-sm resize-none text-text-primary placeholder:text-text-secondary"
           />
 
           {/* Recording/transcribing status indicator (floats above the bottom bar) */}
@@ -1571,7 +1571,7 @@ export default function ChatInput({
       {/* Bottom action bar. Single flat row; no dividers. Left side: model
           + working dir. Right side (after spacer): context indicator,
           extensions, diagnostics, attach, mic, send. */}
-      <div className="flex flex-row items-center gap-2 px-3 py-2 relative">
+      <div className="flex flex-row items-center gap-3 px-3 py-2 relative">
         {/* Left: model selector */}
         <Tooltip>
           <div>
@@ -1713,7 +1713,7 @@ export default function ChatInput({
             size="sm"
             shape="round"
             variant="outline"
-            className="w-8 h-8 p-0 rounded-full bg-background-tertiary text-text-primary border-transparent hover:bg-background-tertiary/80"
+            className="w-8 h-8 p-0 rounded-full bg-text-primary text-background-primary border-transparent hover:bg-text-primary/85"
             aria-label="Stop"
           >
             <Stop />
@@ -1733,7 +1733,7 @@ export default function ChatInput({
                     'w-8 h-8 p-0 rounded-full border-transparent flex items-center justify-center',
                     isSubmitButtonDisabled
                       ? 'bg-background-tertiary text-text-secondary cursor-not-allowed opacity-60'
-                      : 'bg-background-tertiary text-text-primary hover:bg-background-tertiary/80 hover:cursor-pointer'
+                      : 'bg-text-primary text-background-primary hover:bg-text-primary/85 hover:cursor-pointer'
                   )}
                 >
                   <Send className="w-4 h-4" />
