@@ -30,6 +30,8 @@ import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
 import { acpLoadSession, acpLoadSessionMeta } from '../acp/sessions';
+import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import { getInitialWorkingDir } from '../utils/workingDir';
 import {
   createAcpSessionNotificationAdapter,
   type AcpSessionUpdate,
@@ -133,6 +135,20 @@ function mergeTokenState(tokenState: TokenState, update: Partial<TokenState>): T
   return {
     ...tokenState,
     ...update,
+  };
+}
+
+function createAcpLoadSessionSnapshot(sessionId: string): Session {
+  const now = new Date().toISOString();
+  return {
+    id: sessionId,
+    name: DEFAULT_CHAT_TITLE,
+    working_dir: getInitialWorkingDir(),
+    created_at: now,
+    updated_at: now,
+    message_count: 0,
+    extension_data: {},
+    conversation: [],
   };
 }
 
@@ -792,16 +808,11 @@ export function useChatStream({
         let loadedTokenState: TokenState | undefined;
         let extensionResults: ExtensionLoadResult[] | null | undefined;
 
-        const sessionResponse = await getSession({
-          path: { session_id: sessionId },
-          throwOnError: true,
-        });
+        const sessionSnapshot = createAcpLoadSessionSnapshot(sessionId);
 
         if (cancelled) {
           return;
         }
-
-        const sessionSnapshot = sessionResponse.data as Session;
 
         const response = await loadSessionViaAcp(sessionId, sessionSnapshot);
 
