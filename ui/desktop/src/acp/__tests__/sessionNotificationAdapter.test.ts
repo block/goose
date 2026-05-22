@@ -142,7 +142,55 @@ function toolCallUpdateNotification(): SessionNotification {
       ],
       _meta: {
         goose: {
+          messageId: 'tool-response-message',
+        },
+      },
+    },
+  } as SessionNotification;
+}
+
+function mcpAppToolCallNotification(): SessionNotification {
+  return {
+    sessionId: 'session-1',
+    update: {
+      sessionUpdate: 'tool_call',
+      toolCallId: 'tool-1',
+      title: 'Render weather',
+      rawInput: { city: 'Oakland' },
+      _meta: {
+        goose: {
           messageId: 'assistant-message',
+          toolCall: {
+            toolName: 'weather__render',
+            extensionName: 'weather',
+          },
+          mcpApp: {
+            resourceUri: 'ui://weather/app',
+            extensionName: 'weather',
+            toolName: 'weather__render',
+          },
+        },
+      },
+    },
+  } as SessionNotification;
+}
+
+function mcpAppToolCallUpdateNotification(): SessionNotification {
+  return {
+    sessionId: 'session-1',
+    update: {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'tool-1',
+      status: 'completed',
+      content: [],
+      _meta: {
+        goose: {
+          messageId: 'tool-response-message',
+          mcpApp: {
+            resourceUri: 'ui://weather/app',
+            extensionName: 'weather',
+            toolName: 'weather__render',
+          },
         },
       },
     },
@@ -378,6 +426,12 @@ describe('sessionNotificationAdapter', () => {
               extensionName: 'developer',
             },
           },
+        ],
+      },
+      {
+        id: 'tool-response-message',
+        role: 'user',
+        content: [
           {
             type: 'toolResponse',
             id: 'tool-1',
@@ -385,6 +439,59 @@ describe('sessionNotificationAdapter', () => {
               status: 'success',
               value: {
                 content: [{ type: 'text', text: 'file contents' }],
+              },
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('converts Goose MCP app metadata into the desktop UI resource metadata shape', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.apply(mcpAppToolCallNotification());
+    adapter.apply(mcpAppToolCallUpdateNotification());
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        content: [
+          {
+            type: 'toolRequest',
+            id: 'tool-1',
+            toolCall: {
+              status: 'success',
+              value: {
+                name: 'weather__render',
+                arguments: { city: 'Oakland' },
+              },
+            },
+            _meta: {
+              ui: {
+                resourceUri: 'ui://weather/app',
+              },
+              extensionName: 'weather',
+              toolName: 'weather__render',
+            },
+          },
+        ],
+      },
+      {
+        content: [
+          {
+            type: 'toolResponse',
+            id: 'tool-1',
+            toolResult: {
+              status: 'success',
+              value: {
+                content: [],
+                _meta: {
+                  ui: {
+                    resourceUri: 'ui://weather/app',
+                  },
+                  extensionName: 'weather',
+                  toolName: 'weather__render',
+                },
               },
             },
           },

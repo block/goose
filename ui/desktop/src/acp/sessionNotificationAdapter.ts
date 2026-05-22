@@ -117,6 +117,7 @@ function applyGooseSessionNotification(notification: GooseSessionNotification): 
 function applyToolCall(state: AdapterState, update: ToolCall): AcpSessionUpdate[] {
   const message = assistantMessageForReplayUpdate(state, update);
   const identity = toolIdentity(update);
+  const mcpAppMeta = mcpAppMetadata(update);
   const existing = message.content.find(
     (content) => content.type === 'toolRequest' && content.id === update.toolCallId
   );
@@ -134,6 +135,7 @@ function applyToolCall(state: AdapterState, update: ToolCall): AcpSessionUpdate[
       },
       metadata: toolMetadata(update, identity),
       ...(update._meta ? { _meta: update._meta } : {}),
+      ...(mcpAppMeta ? { _meta: mcpAppMeta } : {}),
     });
   }
 
@@ -142,6 +144,7 @@ function applyToolCall(state: AdapterState, update: ToolCall): AcpSessionUpdate[
 
 function applyToolCallUpdate(state: AdapterState, update: ToolCallUpdate): AcpSessionUpdate[] {
   const identity = toolIdentity(update);
+  const mcpAppMeta = mcpAppMetadata(update);
   const message =
     messageWithToolRequest(state, update.toolCallId) ??
     assistantMessageForReplayUpdate(state, update);
@@ -157,18 +160,19 @@ function applyToolCallUpdate(state: AdapterState, update: ToolCallUpdate): AcpSe
   }
 
   if (update.status === 'completed' || update.status === 'failed') {
-    const existingResponse = message.content.find(
+    const responseMessage = toolResponseMessageForReplayUpdate(state, update);
+    const existingResponse = responseMessage.content.find(
       (content) => content.type === 'toolResponse' && content.id === update.toolCallId
     );
 
     if (!existingResponse) {
-      message.content.push({
+      responseMessage.content.push({
         type: 'toolResponse',
         id: update.toolCallId,
         toolResult:
           update.status === 'failed'
             ? { status: 'error', error: toolError(update) }
-            : { status: 'success', value: { content: toolResultContent(update) } },
+            : { status: 'success', value: toolResultValue(update, mcpAppMeta) },
         metadata: toolMetadata(update, identity),
       });
     }
@@ -248,6 +252,32 @@ function messageWithToolRequest(state: AdapterState, toolCallId: string): Messag
   );
 }
 
+function toolResponseMessageForReplayUpdate(
+  state: AdapterState,
+  update: AcpReplayMetaContainer & { toolCallId: string }
+): Message {
+  const replayMeta = acpReplayMessageMeta(update);
+  const existing = replayMeta.messageId
+    ? state.messages.find(
+        (message) => message.id === replayMeta.messageId && message.role === 'user'
+      )
+    : undefined;
+
+  if (existing) {
+    return existing;
+  }
+
+  const message: Message = {
+    ...(replayMeta.messageId ? { id: replayMeta.messageId } : {}),
+    role: 'user',
+    created: replayMeta.created ?? Math.floor(Date.now() / 1000),
+    content: [],
+    metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
+  };
+  state.messages.push(message);
+  return message;
+}
+
 function rawInputToArguments(rawInput: unknown): Record<string, unknown> {
   return isRecord(rawInput) ? rawInput : {};
 }
@@ -299,6 +329,45 @@ function toolMetadata(
   }
 
   return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+interface DesktopMcpAppMeta extends Record<string, unknown> {
+  ui: {
+    resourceUri: string;
+  };
+  extensionName?: string;
+  toolName?: string;
+}
+
+function mcpAppMetadata(update: ToolCall | ToolCallUpdate): DesktopMcpAppMeta | undefined {
+  const goose = update._meta?.goose;
+  if (!isRecord(goose) || !isRecord(goose.mcpApp)) {
+    return undefined;
+  }
+
+  const resourceUri = goose.mcpApp.resourceUri;
+  if (typeof resourceUri !== 'string') {
+    return undefined;
+  }
+
+  return {
+    ui: {
+      resourceUri,
+    },
+    extensionName:
+      typeof goose.mcpApp.extensionName === 'string' ? goose.mcpApp.extensionName : undefined,
+    toolName: typeof goose.mcpApp.toolName === 'string' ? goose.mcpApp.toolName : undefined,
+  };
+}
+
+function toolResultValue(
+  update: ToolCallUpdate,
+  mcpAppMeta: DesktopMcpAppMeta | undefined
+): { content: ContentBlock[]; _meta?: DesktopMcpAppMeta } {
+  return {
+    content: toolResultContent(update),
+    ...(mcpAppMeta ? { _meta: mcpAppMeta } : {}),
+  };
 }
 
 function toolResultContent(update: ToolCallUpdate): ContentBlock[] {
