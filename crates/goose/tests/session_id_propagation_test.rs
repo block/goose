@@ -161,7 +161,9 @@ async fn make_request(provider: &dyn Provider, session_id: &str) {
 async fn test_session_id_propagates_to_log_records() {
     use opentelemetry::logs::AnyValue;
     use opentelemetry::Key;
-    use opentelemetry_appender_tracing::layer::{OpenTelemetryTracingBridge, TracingSpanAttributes};
+    use opentelemetry_appender_tracing::layer::{
+        OpenTelemetryTracingBridge, TracingSpanAttributes,
+    };
     use opentelemetry_sdk::logs::{InMemoryLogExporterBuilder, SdkLoggerProvider};
     use tracing_subscriber::prelude::*;
 
