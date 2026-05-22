@@ -58,7 +58,7 @@ thiserror = "1.0"
 tokio = { version = "1.49", features = ["full"] }
 tokio-stream = "0.1"
 tokio-util = "0.7"
-tower-http = "0.6.10"
+tower-http = "0.6.11"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
