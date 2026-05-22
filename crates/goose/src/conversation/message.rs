@@ -1,5 +1,5 @@
 use crate::conversation::tool_result_serde;
-use crate::mcp_utils::{ToolResult, extract_text_from_resource};
+use crate::mcp_utils::{extract_text_from_resource, ToolResult};
 use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
