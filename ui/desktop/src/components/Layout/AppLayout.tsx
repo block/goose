@@ -83,7 +83,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       )}
 
       {/* Main content with navigation */}
-      <div className="flex flex-1 w-full h-full min-h-0 p-[2px] flex-row">
+      <div className="flex flex-1 w-full h-full min-h-0 p-1.5 gap-1.5 flex-row">
         <motion.div
           key="nav"
           initial={false}
@@ -99,7 +99,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
         {/* Main content */}
         <div className="flex-1 overflow-hidden min-h-0">
-          <div className="h-full w-full bg-background-primary rounded-lg overflow-hidden">
+          <div className="h-full w-full bg-background-primary rounded-xl overflow-hidden border border-border-primary shadow-sm">
             <Outlet />
             {/* Always render ChatSessionsContainer to keep SSE connections alive.
                 When navigating away from /pair, hide it with CSS */}

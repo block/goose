@@ -104,7 +104,7 @@ export default function Hub({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background-primary items-center justify-center px-6 relative">
+    <div className="flex flex-col h-full min-h-0 items-center justify-center px-6 relative">
       <div className="w-full max-w-2xl">
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-6xl font-light text-text-primary tracking-tight tabular-nums">
@@ -114,24 +114,26 @@ export default function Hub({
         </div>
         <p className="text-xl text-text-secondary mb-6">{greeting}</p>
 
-        <ChatInput
-          sessionId={null}
-          handleSubmit={handleSubmit}
-          chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
-          onStop={() => {}}
-          initialValue=""
-          setView={setView}
-          totalTokens={0}
-          accumulatedInputTokens={0}
-          accumulatedOutputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          disableAnimation={false}
-          toolCount={0}
-          onWorkingDirChange={setWorkingDir}
-          inputRef={inputRef}
-        />
+        <div className="rounded-2xl border border-border-primary shadow-sm overflow-hidden bg-background-primary">
+          <ChatInput
+            sessionId={null}
+            handleSubmit={handleSubmit}
+            chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
+            onStop={() => {}}
+            initialValue=""
+            setView={setView}
+            totalTokens={0}
+            accumulatedInputTokens={0}
+            accumulatedOutputTokens={0}
+            droppedFiles={[]}
+            onFilesProcessed={() => {}}
+            messages={[]}
+            disableAnimation={false}
+            toolCount={0}
+            onWorkingDirChange={setWorkingDir}
+            inputRef={inputRef}
+          />
+        </div>
       </div>
 
       {isCreatingSession && (
