@@ -1718,9 +1718,9 @@ export default function ChatInput({
             onClick={onStop}
             size="sm"
             shape="round"
-            variant="outline"
-            className="w-8 h-8 p-0 rounded-full bg-background-tertiary text-text-primary border-transparent hover:bg-background-tertiary/70"
+            variant="ghost"
             aria-label="Stop"
+            className="bg-background-tertiary text-text-primary hover:bg-background-tertiary/70"
           >
             <Stop />
           </Button>
@@ -1732,12 +1732,12 @@ export default function ChatInput({
                   type="button"
                   size="sm"
                   shape="round"
-                  variant="outline"
+                  variant="ghost"
                   disabled={isSubmitButtonDisabled}
                   aria-label={intl.formatMessage(i18n.send)}
                   onClick={onFormSubmit}
                   className={cn(
-                    'w-8 h-8 p-0 rounded-full border-transparent flex items-center justify-center bg-background-tertiary',
+                    'bg-background-tertiary',
                     isSubmitButtonDisabled
                       ? 'text-text-secondary cursor-not-allowed opacity-60'
                       : 'text-text-primary hover:bg-background-tertiary/70 hover:cursor-pointer'

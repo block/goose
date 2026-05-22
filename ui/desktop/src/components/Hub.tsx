@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
+import { ChatInputCard } from './ChatInputCard';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -114,7 +115,7 @@ export default function Hub({
         </div>
         <p className="text-xl text-text-secondary mb-6">{greeting}</p>
 
-        <div className="rounded-2xl border border-border-primary shadow-sm overflow-hidden bg-background-primary">
+        <ChatInputCard>
           <ChatInput
             sessionId={null}
             handleSubmit={handleSubmit}
@@ -133,7 +134,7 @@ export default function Hub({
             onWorkingDirChange={setWorkingDir}
             inputRef={inputRef}
           />
-        </div>
+        </ChatInputCard>
       </div>
 
       {isCreatingSession && (

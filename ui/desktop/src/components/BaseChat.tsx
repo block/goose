@@ -13,6 +13,7 @@ import LoadingGoose from './LoadingGoose';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
+import { ChatInputCard } from './ChatInputCard';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { Message } from '../api';
@@ -482,8 +483,11 @@ export default function BaseChat({
           )}
         </div>
 
-        <div
-          className={`relative z-10 mx-4 mb-4 rounded-2xl border border-border-primary shadow-sm overflow-hidden bg-background-primary ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+        <ChatInputCard
+          className={cn(
+            'relative z-10 mx-4 mb-4',
+            !disableAnimation && 'animate-[fadein_400ms_ease-in_forwards]'
+          )}
         >
           <ChatInput
             inputRef={chatInputRef}
@@ -520,7 +524,7 @@ export default function BaseChat({
             latestInference={latestInference}
             {...customChatInputProps}
           />
-        </div>
+        </ChatInputCard>
       </MainPanelLayout>
 
       {recipe && isActiveSession && (
