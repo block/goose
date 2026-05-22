@@ -1639,7 +1639,8 @@ export default function ChatInput({
                 }}
                 variant="ghost"
                 size="sm"
-                className="flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs cursor-pointer transition-colors"
+                shape="round"
+                className="text-text-primary/70 hover:text-text-primary cursor-pointer transition-colors"
               >
                 <Bug className="w-4 h-4" />
               </Button>
@@ -1657,7 +1658,11 @@ export default function ChatInput({
               disabled={isFilePickerOpen}
               variant="ghost"
               size="sm"
-              className={`flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              shape="round"
+              className={cn(
+                'text-text-primary/70 hover:text-text-primary transition-colors',
+                isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              )}
             >
               <Attach className="w-4 h-4" />
             </Button>
@@ -1673,6 +1678,7 @@ export default function ChatInput({
                 type="button"
                 variant="ghost"
                 size="sm"
+                shape="round"
                 onClick={() => {
                   if (!isEnabled) return;
                   if (isRecording) {
@@ -1685,7 +1691,7 @@ export default function ChatInput({
                 }}
                 disabled={!isEnabled || isTranscribing}
                 className={cn(
-                  'flex items-center justify-center text-xs transition-colors',
+                  'transition-colors',
                   isRecording
                     ? 'text-red-500 hover:text-red-600'
                     : 'text-text-primary/70 hover:text-text-primary',
