@@ -1396,7 +1396,7 @@ export default function ChatInput({
         isFocused
           ? 'border-border-secondary hover:border-border-secondary'
           : 'border-border-primary hover:border-border-primary'
-      } bg-background-primary z-10 rounded-t-2xl`}
+      } bg-background-primary z-10`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}

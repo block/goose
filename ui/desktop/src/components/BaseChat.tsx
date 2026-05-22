@@ -364,13 +364,13 @@ export default function BaseChat({
     return (
       <div className="h-full flex flex-col min-h-0">
         <MainPanelLayout
-          backgroundColor={'bg-background-secondary'}
+          backgroundColor={'bg-background-primary'}
           removeTopPadding={true}
           {...customMainLayoutProps}
         >
           {renderHeader && renderHeader()}
-          <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-            <div className="flex-1 bg-background-primary rounded-b-2xl flex items-center justify-center">
+          <div className="flex flex-col flex-1 min-h-0 relative">
+            <div className="flex-1 flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
                   <h3 className="font-semibold mb-2">{intl.formatMessage(i18n.failedToLoadSession)}</h3>
@@ -395,7 +395,7 @@ export default function BaseChat({
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout
-        backgroundColor={'bg-background-secondary'}
+        backgroundColor={'bg-background-primary'}
         removeTopPadding={true}
         {...customMainLayoutProps}
       >
@@ -403,7 +403,7 @@ export default function BaseChat({
         {renderHeader && renderHeader()}
 
         {/* Chat container with sticky recipe header */}
-        <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+        <div className="flex flex-col flex-1 min-h-0 relative">
           {/* Goose watermark - top right */}
           <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
             <a
@@ -422,7 +422,7 @@ export default function BaseChat({
 
           <ScrollArea
             ref={scrollRef}
-            className={`flex-1 bg-background-primary rounded-b-2xl min-h-0 relative ${contentClassName}`}
+            className={`flex-1 min-h-0 relative ${contentClassName}`}
             autoScroll
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -483,7 +483,7 @@ export default function BaseChat({
         </div>
 
         <div
-          className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+          className={`relative z-10 mx-4 mb-4 rounded-2xl border border-border-primary shadow-sm overflow-hidden bg-background-primary ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
             inputRef={chatInputRef}
