@@ -233,7 +233,7 @@ wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 dotenvy = { workspace = true }
-ctor = "0.2.9"
+ctor = "1.0.6"
 test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
