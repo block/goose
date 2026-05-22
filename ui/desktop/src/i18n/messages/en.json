@@ -1361,63 +1361,6 @@
   "goosehintsSection.title": {
     "defaultMessage": "Project Hints (.goosehints)"
   },
-  "greeting.readyToBuild": {
-    "defaultMessage": "Ready to build something amazing?"
-  },
-  "greeting.readyToCreateGreat": {
-    "defaultMessage": "Ready to create something great?"
-  },
-  "greeting.readyToGetStarted": {
-    "defaultMessage": "Ready to get started?"
-  },
-  "greeting.whatCanBeAchieved": {
-    "defaultMessage": "What can be achieved?"
-  },
-  "greeting.whatCanBeBuilt": {
-    "defaultMessage": "What can be built today?"
-  },
-  "greeting.whatNeedsToBeDone": {
-    "defaultMessage": "What needs to be done?"
-  },
-  "greeting.whatProgress": {
-    "defaultMessage": "What progress can be made?"
-  },
-  "greeting.whatProjectNeedsAttention": {
-    "defaultMessage": "What project needs attention?"
-  },
-  "greeting.whatProjectReadyToBegin": {
-    "defaultMessage": "What project is ready to begin?"
-  },
-  "greeting.whatShallWeCreate": {
-    "defaultMessage": "What shall we create today?"
-  },
-  "greeting.whatTaskAwaits": {
-    "defaultMessage": "What task awaits?"
-  },
-  "greeting.whatToAccomplish": {
-    "defaultMessage": "What would you like to accomplish?"
-  },
-  "greeting.whatToExplore": {
-    "defaultMessage": "What would you like to explore?"
-  },
-  "greeting.whatToTackle": {
-    "defaultMessage": "What would you like to tackle?"
-  },
-  "greeting.whatToWorkOn": {
-    "defaultMessage": "What would you like to work on?"
-  },
-  "greeting.whatsNextChallenge": {
-    "defaultMessage": "What's the next challenge?"
-  },
-  "greeting.whatsOnYourMind": {
-    "defaultMessage": "What's on your mind?"
-  },
-  "greeting.whatsTheMission": {
-    "defaultMessage": "What's the mission today?"
-  },
-  "greeting.whatsThePlan": {
-    "defaultMessage": "What's the plan for today?"
-  },
   "groupedExtensionLoadingToast.askGoose": {
     "defaultMessage": "Ask goose"
   },
@@ -1477,6 +1420,15 @@
   },
   "headersSection.value": {
     "defaultMessage": "Value"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "Good afternoon"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "Good evening"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "Good morning"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Download"
@@ -2379,13 +2331,16 @@
     "defaultMessage": "Extensions"
   },
   "navigation.itemHome": {
-    "defaultMessage": "Home"
+    "defaultMessage": "New Chat"
   },
   "navigation.itemRecipes": {
     "defaultMessage": "Recipes"
   },
   "navigation.itemScheduler": {
     "defaultMessage": "Scheduler"
+  },
+  "navigation.itemSessions": {
+    "defaultMessage": "Session History"
   },
   "navigation.itemSettings": {
     "defaultMessage": "Settings"
@@ -2399,29 +2354,11 @@
   "navigationPanel.collapseSidebar": {
     "defaultMessage": "Collapse sidebar"
   },
-  "navigationPanel.newChat": {
-    "defaultMessage": "New chat"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "No recent chats"
   },
-  "navigationPanel.noResults": {
-    "defaultMessage": "No chats match your search"
-  },
-  "navigationPanel.searchError": {
-    "defaultMessage": "Search failed"
-  },
-  "navigationPanel.searchPlaceholder": {
-    "defaultMessage": "Search chats…"
-  },
-  "navigationPanel.searching": {
-    "defaultMessage": "Searching…"
-  },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Untitled session"
-  },
-  "navigationPanel.viewAllChats": {
-    "defaultMessage": "View all chats"
   },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "The server may be starting up or temporarily unavailable."
@@ -3964,24 +3901,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Session description updated successfully"
-  },
-  "sessionsInsights.failedToLoad": {
-    "defaultMessage": "Failed to load insights"
-  },
-  "sessionsInsights.noRecentChats": {
-    "defaultMessage": "No recent chat sessions found."
-  },
-  "sessionsInsights.recentChats": {
-    "defaultMessage": "Recent chats"
-  },
-  "sessionsInsights.seeAll": {
-    "defaultMessage": "See all"
-  },
-  "sessionsInsights.totalSessions": {
-    "defaultMessage": "Total sessions"
-  },
-  "sessionsInsights.totalTokens": {
-    "defaultMessage": "Total tokens"
   },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "Failed to load session details. Please try again later."

@@ -112,12 +112,9 @@ export function CostTracker({
   // If still loading, show a placeholder
   if (isLoading) {
     return (
-      <>
-        <div className="flex items-center justify-center h-full text-text-secondary translate-y-[1px]">
-          <span className="text-xs font-mono">...</span>
-        </div>
-        <div className="w-px h-4 bg-border-primary mx-2" />
-      </>
+      <div className="flex items-center justify-center h-full text-text-secondary translate-y-[1px]">
+        <span className="text-xs font-mono">...</span>
+      </div>
     );
   }
 
@@ -129,14 +126,11 @@ export function CostTracker({
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
-        <>
-          <div className="flex items-center justify-center h-full text-text-primary/70 transition-colors cursor-default translate-y-[1px]">
-            <span className="text-xs font-mono">
-              {inputTokens.toLocaleString()}↑ {outputTokens.toLocaleString()}↓
-            </span>
-          </div>
-          <div className="w-px h-4 bg-border-primary mx-2" />
-        </>
+        <div className="flex items-center justify-center h-full text-text-primary/70 transition-colors cursor-default translate-y-[1px]">
+          <span className="text-xs font-mono">
+            {inputTokens.toLocaleString()}↑ {outputTokens.toLocaleString()}↓
+          </span>
+        </div>
       );
     }
 
@@ -153,18 +147,15 @@ export function CostTracker({
     };
 
     return (
-      <>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
-              <CoinIcon className="mr-1" size={16} />
-              <span className="text-xs font-mono">0.0000</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
-        </Tooltip>
-        <div className="w-px h-4 bg-border-primary mx-2" />
-      </>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
+            <CoinIcon className="mr-1" size={16} />
+            <span className="text-xs font-mono">0.0000</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
+      </Tooltip>
     );
   }
 
@@ -199,17 +190,14 @@ export function CostTracker({
   };
 
   return (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
-            <CoinIcon className="mr-1" size={16} />
-            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipContent()}</TooltipContent>
-      </Tooltip>
-      <div className="w-px h-4 bg-border-primary mx-2" />
-    </>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
+          <CoinIcon className="mr-1" size={16} />
+          <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>{getTooltipContent()}</TooltipContent>
+    </Tooltip>
   );
 }

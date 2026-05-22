@@ -1319,63 +1319,6 @@
   "goosehintsSection.title": {
     "defaultMessage": "项目提示（.goosehints）"
   },
-  "greeting.readyToBuild": {
-    "defaultMessage": "准备好构建点酷炫的东西了吗？"
-  },
-  "greeting.readyToCreateGreat": {
-    "defaultMessage": "准备好创造点了不起的东西了吗？"
-  },
-  "greeting.readyToGetStarted": {
-    "defaultMessage": "准备好开始了吗？"
-  },
-  "greeting.whatCanBeAchieved": {
-    "defaultMessage": "可以实现什么？"
-  },
-  "greeting.whatCanBeBuilt": {
-    "defaultMessage": "今天可以构建什么？"
-  },
-  "greeting.whatNeedsToBeDone": {
-    "defaultMessage": "有什么需要做的？"
-  },
-  "greeting.whatProgress": {
-    "defaultMessage": "可以取得什么进展？"
-  },
-  "greeting.whatProjectNeedsAttention": {
-    "defaultMessage": "哪个项目需要关注？"
-  },
-  "greeting.whatProjectReadyToBegin": {
-    "defaultMessage": "哪个项目准备好开始了？"
-  },
-  "greeting.whatShallWeCreate": {
-    "defaultMessage": "今天我们来创造点什么？"
-  },
-  "greeting.whatTaskAwaits": {
-    "defaultMessage": "有什么任务在等着？"
-  },
-  "greeting.whatToAccomplish": {
-    "defaultMessage": "你想完成什么？"
-  },
-  "greeting.whatToExplore": {
-    "defaultMessage": "你想探索什么？"
-  },
-  "greeting.whatToTackle": {
-    "defaultMessage": "你想解决什么？"
-  },
-  "greeting.whatToWorkOn": {
-    "defaultMessage": "你想在什么上工作？"
-  },
-  "greeting.whatsNextChallenge": {
-    "defaultMessage": "下一个挑战是什么？"
-  },
-  "greeting.whatsOnYourMind": {
-    "defaultMessage": "你在想什么？"
-  },
-  "greeting.whatsTheMission": {
-    "defaultMessage": "今天的任务是什么？"
-  },
-  "greeting.whatsThePlan": {
-    "defaultMessage": "今天的计划是什么？"
-  },
   "groupedExtensionLoadingToast.askGoose": {
     "defaultMessage": "问问 goose"
   },
@@ -3856,24 +3799,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "会话描述更新成功"
-  },
-  "sessionsInsights.failedToLoad": {
-    "defaultMessage": "加载概览失败"
-  },
-  "sessionsInsights.noRecentChats": {
-    "defaultMessage": "未找到近期聊天会话。"
-  },
-  "sessionsInsights.recentChats": {
-    "defaultMessage": "近期聊天"
-  },
-  "sessionsInsights.seeAll": {
-    "defaultMessage": "查看全部"
-  },
-  "sessionsInsights.totalSessions": {
-    "defaultMessage": "会话总数"
-  },
-  "sessionsInsights.totalTokens": {
-    "defaultMessage": "令牌总数"
   },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "加载会话详情失败，请稍后重试。"
