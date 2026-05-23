@@ -510,6 +510,7 @@ async fn connect_with_auth(
     auth_manager: rmcp::transport::AuthorizationManager,
     uri: &str,
     timeout: Duration,
+    headers: &HashMap<String, String>,
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
@@ -517,6 +518,15 @@ async fn connect_with_auth(
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+    for (key, value) in headers {
+        auth_headers.insert(
+            HeaderName::try_from(key)
+                .map_err(|_| ExtensionError::ConfigError(format!("invalid header: {}", key)))?,
+            value.parse().map_err(|_| {
+                ExtensionError::ConfigError(format!("invalid header value: {}", key))
+            })?,
+        );
+    }
     #[allow(unused_mut)]
     let mut auth_client_builder = reqwest::Client::builder().default_headers(auth_headers);
     #[cfg(target_os = "linux")]
@@ -619,6 +629,7 @@ async fn create_streamable_http_client(
                     auth_manager,
                     uri,
                     timeout_duration,
+                    headers,
                     provider,
                     client_name,
                     capabilities,
@@ -652,6 +663,7 @@ async fn create_streamable_http_client(
                     auth_manager,
                     uri,
                     timeout_duration,
+                    headers,
                     provider,
                     client_name,
                     capabilities,
