@@ -12,7 +12,7 @@ const i18n = defineMessages({
   },
   errorWithVersion: {
     id: 'errorBoundary.errorWithVersion',
-    defaultMessage: 'An error occurred in Goose v{version}.',
+    defaultMessage: 'An error occurred in ApeMind Agent v{version}.',
   },
   errorGeneric: {
     id: 'errorBoundary.errorGeneric',

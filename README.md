@@ -1,61 +1,57 @@
-> **🦆 goose has moved!** This project has moved from `block/goose` to the [Agentic AI Foundation (AAIF)](https://aaif.io/) at the Linux Foundation. Some links and references are still being updated — please bear with us during the transition.
+# ApeMind Agent
 
-<div align="center">
+ApeMind Agent is an ApeCloud desktop agent distribution based on upstream
+[Goose](https://github.com/aaif-goose/goose). It runs on the user's own machine
+and provides a local desktop entry point for agent workflows.
 
-# goose
+The first PoC focuses on desktop branding and safe packaging defaults while
+keeping the fork shallow enough to continue tracking upstream.
 
-_your native open source AI agent — desktop app, CLI, and API — for code, workflows, and everything in between_
+## What This Fork Changes
 
-<p align="center">
-  <a href="https://opensource.org/licenses/Apache-2.0"
-    ><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
-  <a href="https://discord.gg/goose-oss"
-    ><img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord"></a>
-  <a href="https://github.com/aaif-goose/goose/actions/workflows/ci.yml"
-     ><img src="https://img.shields.io/github/actions/workflow/status/aaif-goose/goose/ci.yml?branch=main" alt="CI"></a>
-  <a href="https://insights.linuxfoundation.org/project/goose"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=goose"></a>
-  <a href="https://repology.org/project/goose-cli/versions"><img src="https://repology.org/badge/tiny-repos/goose-cli.svg" alt="Packaging status"></a>
-</p>
-</div>
+- ApeMind Agent product name and desktop-facing copy.
+- ApeCloud/ApeMind visual assets for desktop packaging.
+- Build defaults that avoid telemetry, OTel, and AWS provider features unless
+  explicitly enabled.
 
-goose is a general-purpose AI agent that runs on your machine. Not just for code — use it for research, writing, automation, data analysis, or anything you need to get done.
+Packaging artifact names for desktop installers, CLI downloads, and Docker
+images are tracked separately as distribution work.
 
-A native desktop app for macOS, Linux, and Windows. A full CLI for terminal workflows. An API to embed it anywhere. Built in Rust for performance and portability.
+## What Stays Upstream-Compatible
 
-goose works with 15+ providers — Anthropic, OpenAI, Google, Ollama, OpenRouter, Azure, Bedrock, and more. Use API keys or your existing Claude, ChatGPT, or Gemini subscriptions via [ACP](https://goose-docs.ai/docs/guides/acp-providers). Connect to 70+ extensions via the [Model Context Protocol](https://modelcontextprotocol.io/) open standard.
+- Core agent loop.
+- Tool execution behavior.
+- Provider runtime internals.
+- MCP runtime internals.
+- Cargo crate names and repository path.
 
-goose is part of the [Agentic AI Foundation (AAIF)](https://aaif.io/) at the Linux Foundation.
+## Target Users
 
-# Get started
+The main user entry point is the desktop app:
 
-**[Download the desktop app](https://goose-docs.ai/docs/getting-started/installation)** for macOS, Linux, and Windows.
+- macOS Desktop for internal team validation.
+- Windows Desktop for customer validation.
+- CLI for debugging and automation.
+- Docker for distribution and automated smoke checks.
 
-Or install the CLI:
+## Build Notes
+
+The PoC CLI profile uses upstream feature flags and release settings:
 
 ```bash
-curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
+source ./bin/activate-hermit >/tmp/hermit.log 2>&1
+CARGO_PROFILE_RELEASE_LTO=true \
+CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
+CARGO_PROFILE_RELEASE_STRIP=true \
+  cargo build --release --package goose-cli --bin goose \
+  --no-default-features --features rustls-tls
 ```
 
-# Quick links
-- [Quickstart](https://goose-docs.ai/docs/quickstart)
-- [Installation](https://goose-docs.ai/docs/getting-started/installation)
-- [Tutorials](https://goose-docs.ai/docs/category/tutorials)
-- [Documentation](https://goose-docs.ai/docs/category/getting-started)
-- [Governance](https://github.com/aaif-goose/goose/blob/main/GOVERNANCE.md)
-- [Custom Distributions](https://github.com/aaif-goose/goose/blob/main/CUSTOM_DISTROS.md) — build your own goose distro with preconfigured providers, extensions, and branding
+This keeps AWS provider, telemetry, and OTel out of the default PoC build.
 
-## Need help?
-- [Diagnostics & Reporting](https://goose-docs.ai/docs/troubleshooting/diagnostics-and-reporting)
-- [Known Issues](https://goose-docs.ai/docs/troubleshooting/known-issues)
+## Upstream
 
-# a little goose humor 🪿
-
-> Why did the developer choose goose as their AI agent?
-> 
-> Because it always helps them "migrate" their code to production! 🚀
-
-# goose around with us
-- [Discord](https://discord.gg/goose-oss)
-- [YouTube](https://www.youtube.com/@goose-oss)
-- [LinkedIn](https://www.linkedin.com/company/goose-oss)
-- [Twitter/X](https://x.com/goose_oss)
+This project is a branded distribution of Goose, an Apache-2.0 licensed open
+source project from the Agentic AI Foundation at the Linux Foundation. Keep the
+upstream license and notices intact when distributing ApeMind Agent.

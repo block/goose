@@ -27,7 +27,7 @@ const i18n = defineMessages({
   description: {
     id: 'extensionsView.description',
     defaultMessage:
-      "These extensions use the Model Context Protocol (MCP). They can expand Goose's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search.",
+      "These extensions use the Model Context Protocol (MCP). They can expand ApeMind Agent's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search.",
   },
   defaultNote: {
     id: 'extensionsView.defaultNote',

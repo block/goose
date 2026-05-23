@@ -15,7 +15,7 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 // Compaction response message - must match backend constant
-const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
+const COMPACTION_THINKING_TEXT = 'ApeMind Agent is compacting the conversation...';
 
 export interface ImageData {
   data: string; // base64 encoded image data

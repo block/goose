@@ -1,8 +1,8 @@
 {
   "name": "goose-app",
-  "productName": "Goose",
+  "productName": "ApeMind Agent",
   "version": "1.35.0",
-  "description": "Goose App",
+  "description": "ApeMind Agent Desktop",
   "engines": {
     "node": "^24.10.0",
     "pnpm": ">=10.30.0"

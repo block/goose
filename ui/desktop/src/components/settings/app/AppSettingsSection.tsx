@@ -9,8 +9,8 @@ import UpdateSection from './UpdateSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
-import BlockLogoBlack from './icons/block-lockup_black.png';
-import BlockLogoWhite from './icons/block-lockup_white.png';
+import ApeCloudLogoDark from '../../../images/logo_dark_en_US.png';
+import ApeCloudLogoLight from '../../../images/logo_light_en_US.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
 import { NavigationModeSelector } from './NavigationModeSelector';
@@ -23,7 +23,7 @@ const i18n = defineMessages({
   appearanceTitle: { id: 'settings.appearance.title', defaultMessage: 'Appearance' },
   appearanceDesc: {
     id: 'settings.appearance.description',
-    defaultMessage: 'Configure how goose appears on your system',
+    defaultMessage: 'Configure how ApeMind Agent appears on your system',
   },
   notifications: { id: 'settings.notifications.title', defaultMessage: 'Notifications' },
   notificationsDesc: {
@@ -38,20 +38,24 @@ const i18n = defineMessages({
   },
   taskNotificationsDesc: {
     id: 'settings.notifications.task.description',
-    defaultMessage: 'Notify when Goose finishes a task while the window is in the background',
+    defaultMessage:
+      'Notify when ApeMind Agent finishes a task while the window is in the background',
   },
   menuBarIcon: { id: 'settings.menuBarIcon.title', defaultMessage: 'Menu bar icon' },
   menuBarIconDesc: {
     id: 'settings.menuBarIcon.description',
-    defaultMessage: 'Show goose in the menu bar',
+    defaultMessage: 'Show ApeMind Agent in the menu bar',
   },
   dockIcon: { id: 'settings.dockIcon.title', defaultMessage: 'Dock icon' },
-  dockIconDesc: { id: 'settings.dockIcon.description', defaultMessage: 'Show goose in the dock' },
+  dockIconDesc: {
+    id: 'settings.dockIcon.description',
+    defaultMessage: 'Show ApeMind Agent in the dock',
+  },
   preventSleep: { id: 'settings.preventSleep.title', defaultMessage: 'Prevent Sleep' },
   preventSleepDesc: {
     id: 'settings.preventSleep.description',
     defaultMessage:
-      'Keep your computer awake while goose is running a task (screen can still lock)',
+      'Keep your computer awake while ApeMind Agent is running a task (screen can still lock)',
   },
   costTracking: { id: 'settings.costTracking.title', defaultMessage: 'Cost Tracking' },
   costTrackingDesc: {
@@ -61,7 +65,7 @@ const i18n = defineMessages({
   themeTitle: { id: 'settings.theme.title', defaultMessage: 'Theme' },
   themeDesc: {
     id: 'settings.theme.description',
-    defaultMessage: 'Customize the look and feel of goose',
+    defaultMessage: 'Customize the look and feel of ApeMind Agent',
   },
   navigationTitle: { id: 'settings.navigation.title', defaultMessage: 'Navigation' },
   navigationDesc: {
@@ -75,7 +79,7 @@ const i18n = defineMessages({
   helpTitle: { id: 'settings.help.title', defaultMessage: 'Help & feedback' },
   helpDesc: {
     id: 'settings.help.description',
-    defaultMessage: 'Help us improve goose by reporting issues or requesting new features',
+    defaultMessage: 'Help us improve ApeMind Agent by reporting issues or requesting new features',
   },
   reportBug: { id: 'settings.help.reportBug', defaultMessage: 'Report a Bug' },
   requestFeature: { id: 'settings.help.requestFeature', defaultMessage: 'Request a Feature' },
@@ -83,7 +87,7 @@ const i18n = defineMessages({
   updatesTitle: { id: 'settings.updates.title', defaultMessage: 'Updates' },
   updatesDesc: {
     id: 'settings.updates.description',
-    defaultMessage: 'Check for and install updates to keep goose running at its best',
+    defaultMessage: 'Check for and install updates to keep ApeMind Agent running at its best',
   },
   notificationsModalTitle: {
     id: 'settings.notifications.modal.title',
@@ -103,7 +107,7 @@ const i18n = defineMessages({
   },
   notificationsMacStep3: {
     id: 'settings.notifications.modal.macStep3',
-    defaultMessage: 'Find and select goose in the application list',
+    defaultMessage: 'Find and select ApeMind Agent in the application list',
   },
   notificationsMacStep4: {
     id: 'settings.notifications.modal.macStep4',
@@ -123,7 +127,7 @@ const i18n = defineMessages({
   },
   notificationsWinStep3: {
     id: 'settings.notifications.modal.winStep3',
-    defaultMessage: 'Find and select goose in the application list',
+    defaultMessage: 'Find and select ApeMind Agent in the application list',
   },
   notificationsWinStep4: {
     id: 'settings.notifications.modal.winStep4',
@@ -506,7 +510,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <Button
               onClick={() => {
                 window.open(
-                  'https://github.com/aaif-goose/goose/issues/new?template=bug_report.md',
+                  'https://github.com/apecloud/goose/issues/new?template=bug_report.md',
                   '_blank'
                 );
               }}
@@ -518,7 +522,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <Button
               onClick={() => {
                 window.open(
-                  'https://github.com/aaif-goose/goose/issues/new?template=feature_request.md',
+                  'https://github.com/apecloud/goose/issues/new?template=feature_request.md',
                   '_blank'
                 );
               }}
@@ -540,8 +544,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <CardContent className="pt-4 px-4">
             <div className="flex items-center gap-3">
               <img
-                src={isDarkMode ? BlockLogoWhite : BlockLogoBlack}
-                alt="Block Logo" // TODO: replace with AAIF logo asset
+                src={isDarkMode ? ApeCloudLogoDark : ApeCloudLogoLight}
+                alt="ApeCloud"
                 className="h-8 w-auto"
               />
               <span className="text-2xl font-mono text-black dark:text-white">

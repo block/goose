@@ -17,7 +17,7 @@ const i18n = defineMessages({
   },
   getStarted: {
     id: 'defaultCardButtons.getStarted',
-    defaultMessage: 'Get started with goose!',
+    defaultMessage: 'Get started with ApeMind Agent!',
   },
 });
 

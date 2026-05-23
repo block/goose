@@ -26,7 +26,7 @@ const i18n = defineMessages({
   },
   toggleDescription: {
     id: 'telemetrySettings.toggleDescription',
-    defaultMessage: 'Help improve goose by sharing anonymous usage statistics.',
+    defaultMessage: 'Help improve ApeMind Agent by sharing anonymous usage statistics.',
   },
   learnMore: {
     id: 'telemetrySettings.learnMore',

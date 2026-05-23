@@ -108,7 +108,7 @@ const i18n = defineMessages({
   },
   promptEditingDescription: {
     id: 'promptsSettings.promptEditingDescription',
-    defaultMessage: "Customize the prompts that define goose's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality. Please share any improvements with the community.",
+    defaultMessage: "Customize the prompts that define ApeMind Agent's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality.",
   },
   resetAll: {
     id: 'promptsSettings.resetAll',

@@ -47,7 +47,7 @@ const i18n = defineMessages({
   },
   reviewWarning: {
     id: 'importRecipeForm.reviewWarning',
-    defaultMessage: 'Ensure you review contents of recipe files before adding them to your goose interface.',
+    defaultMessage: 'Ensure you review contents of recipe files before adding them to ApeMind Agent.',
   },
   cancel: {
     id: 'importRecipeForm.cancel',

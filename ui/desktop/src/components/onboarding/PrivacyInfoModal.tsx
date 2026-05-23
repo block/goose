@@ -8,7 +8,7 @@ const i18n = defineMessages({
   },
   description: {
     id: 'privacyInfoModal.description',
-    defaultMessage: 'Anonymous usage data helps us understand how goose is used and identify areas for improvement.',
+    defaultMessage: 'Anonymous usage data helps us understand how ApeMind Agent is used and identify areas for improvement.',
   },
   whatWeCollect: {
     id: 'privacyInfoModal.whatWeCollect',
@@ -20,7 +20,7 @@ const i18n = defineMessages({
   },
   collectVersion: {
     id: 'privacyInfoModal.collectVersion',
-    defaultMessage: 'goose version and install method',
+    defaultMessage: 'ApeMind Agent version and install method',
   },
   collectProvider: {
     id: 'privacyInfoModal.collectProvider',

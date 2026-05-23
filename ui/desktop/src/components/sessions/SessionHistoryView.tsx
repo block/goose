@@ -82,7 +82,7 @@ const i18n = defineMessages({
   },
   shareSessionDescription: {
     id: 'sessionHistory.shareModal.description',
-    defaultMessage: 'Share this session link to give others a read only view of your goose chat.',
+    defaultMessage: 'Share this session link to give others a read only view of your ApeMind Agent chat.',
   },
   copy: {
     id: 'sessionHistory.copy',
