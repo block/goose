@@ -1,16 +1,17 @@
-## Summary
-<!-- Describe your change -->
+## 变更摘要
+<!-- 请用中文描述这次改动。代码标识、命令、日志和上游英文术语可以保留原文。 -->
 
-### Testing
-<!-- How have this change been tested? Unit/integration tests? Manual testing? -->
+### 验证方式
+<!-- 请说明这次改动如何验证：单元测试、集成测试、手动 smoke、构建命令等。 -->
 
-### Related Issues
-Relates to #ISSUE_ID  
-Discussion: LINK (if any)
+### 关联 Issue
+关联：#ISSUE_ID  
+讨论：LINK（如有）
 
+### 改动边界
+<!-- 如果修改 Goose 上游代码，请说明属于哪一类：文案 / Logo 或资产 / 默认配置 / UI 功能隐藏 / ApeCloud 打包分发。若超出这五类，请先说明 blocker 和审批结论。 -->
 
-### Screenshots/Demos (for UX changes)
-Before:  
+### 截图 / Demo（涉及 UI 时填写）
+改动前：
 
-After:   
-
+改动后：
