@@ -1296,7 +1296,7 @@
     "defaultMessage": "Kullanıcının eşlemesi kaldırılamadı"
   },
   "gatewaySettings.loading": {
-    "defaultMessage": "Y��kleniyor..."
+    "defaultMessage": "Yükleniyor..."
   },
   "gatewaySettings.pairDevice": {
     "defaultMessage": "Cihazı Eşleştir"
@@ -2814,7 +2814,7 @@
     "defaultMessage": "• {envVar} gerektirir"
   },
   "providerCatalogPicker.searchProviders": {
-    "defaultMessage": "Sağlayıcılar�� arayın..."
+    "defaultMessage": "Sağlayıcıları arayın..."
   },
   "providerCatalogPicker.selectFormatDescription": {
     "defaultMessage": "Bir API formatı ve sağlayıcı seçin. Yapılandırmayı sizin için otomatik olarak dolduracağız."
@@ -4707,7 +4707,7 @@
     "defaultMessage": "Güncelleme arka planda otomatik olarak indirilecektir."
   },
   "updateSection.autoInstallNote": {
-    "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak y��klenecektir."
+    "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak yüklenecektir."
   },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Güncellemeleri Kontrol Et"
