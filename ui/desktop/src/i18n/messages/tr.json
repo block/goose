@@ -4046,6 +4046,33 @@
   "settings.help.title": {
     "defaultMessage": "Yardım ve geri bildirim"
   },
+  "settings.language.description": {
+    "defaultMessage": "goose için görüntüleme dilini seçin"
+  },
+  "settings.language.english": {
+    "defaultMessage": "İngilizce"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hintçe"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Japonca"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Rusça"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Sistem varsayılanı"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Dil"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Türkçe"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Çince (Basitleştirilmiş)"
+  },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Menü çubuğunda goose'yi göster"
   },

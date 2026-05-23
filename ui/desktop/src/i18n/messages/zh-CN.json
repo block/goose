@@ -4046,6 +4046,33 @@
   "settings.help.title": {
     "defaultMessage": "帮助与反馈"
   },
+  "settings.language.description": {
+    "defaultMessage": "选择 goose 的显示语言"
+  },
+  "settings.language.english": {
+    "defaultMessage": "英语"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "印地语"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "日语"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "俄语"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "系统默认"
+  },
+  "settings.language.title": {
+    "defaultMessage": "语言"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "土耳其语"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "简体中文"
+  },
   "settings.menuBarIcon.description": {
     "defaultMessage": "在菜单栏显示 goose"
   },
