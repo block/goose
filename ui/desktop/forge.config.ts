@@ -6,6 +6,7 @@ const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
 let cfg = {
   asar: true,
+  executableName: 'Goose',
   extraResource: ['src/bin', 'src/images'],
   icon: 'src/images/icon',
   // Windows specific configuration
