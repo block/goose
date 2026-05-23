@@ -10,7 +10,7 @@ use lru::LruCache;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use tokio::sync::{OnceCell, RwLock};
+use tokio::sync::{Mutex, OnceCell, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
@@ -25,6 +25,7 @@ pub struct AgentManager {
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
     default_mode: GooseMode,
     cancel_tokens: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    session_creation_locks: Arc<RwLock<HashMap<String, Arc<Mutex<()>>>>>,
 }
 
 impl AgentManager {
@@ -46,6 +47,7 @@ impl AgentManager {
             default_provider: Arc::new(RwLock::new(None)),
             default_mode,
             cancel_tokens: Arc::new(RwLock::new(HashMap::new())),
+            session_creation_locks: Arc::new(RwLock::new(HashMap::new())),
         };
 
         Ok(manager)
@@ -93,6 +95,29 @@ impl AgentManager {
             let mut sessions = self.sessions.write().await;
             if let Some(existing) = sessions.get(&session_id) {
                 return Ok(Arc::clone(existing));
+            }
+        }
+
+        let creation_lock = {
+            let mut locks = self.session_creation_locks.write().await;
+            Arc::clone(
+                locks
+                    .entry(session_id.clone())
+                    .or_insert_with(|| Arc::new(Mutex::new(()))),
+            )
+        };
+        let _creation_guard = creation_lock.lock().await;
+
+        {
+            let mut sessions = self.sessions.write().await;
+            if let Some(existing) = sessions.get(&session_id) {
+                let existing = Arc::clone(existing);
+                drop(sessions);
+                self.session_creation_locks
+                    .write()
+                    .await
+                    .remove(&session_id);
+                return Ok(existing);
             }
         }
 
@@ -145,13 +170,20 @@ impl AgentManager {
             }
         }
 
-        let mut sessions = self.sessions.write().await;
-        if let Some(existing) = sessions.get(&session_id) {
-            Ok(Arc::clone(existing))
-        } else {
-            sessions.put(session_id, agent.clone());
-            Ok(agent)
-        }
+        let agent = {
+            let mut sessions = self.sessions.write().await;
+            if let Some(existing) = sessions.get(&session_id) {
+                Arc::clone(existing)
+            } else {
+                sessions.put(session_id.clone(), agent.clone());
+                agent
+            }
+        };
+        self.session_creation_locks
+            .write()
+            .await
+            .remove(&session_id);
+        Ok(agent)
     }
 
     pub async fn remove_session(&self, session_id: &str) -> Result<()> {
