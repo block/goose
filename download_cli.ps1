@@ -8,7 +8,7 @@
 # Supported Architectures: x86_64
 #
 # Usage:
-#   Invoke-WebRequest -Uri "https://github.com/aaif-goose/goose/releases/download/stable/download_cli.ps1" -OutFile "download_cli.ps1"; .\download_cli.ps1
+#   Invoke-WebRequest -Uri "https://github.com/apecloud/goose/releases/download/stable/download_cli.ps1" -OutFile "download_cli.ps1"; .\download_cli.ps1
 #   Or simply: .\download_cli.ps1
 #
 # Environment variables:
@@ -25,7 +25,7 @@
 $ErrorActionPreference = "Stop"
 
 # --- 1) Variables ---
-$REPO = "aaif-goose/goose"
+$REPO = "apecloud/goose"
 $OUT_FILE = "goose.exe"
 
 # Set default bin directory if not specified

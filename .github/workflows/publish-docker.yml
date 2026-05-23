@@ -39,7 +39,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6.0.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/goose
+          images: ghcr.io/${{ github.repository_owner }}/apemind-agent
           tags: |
             # For main branch: latest, main, and sha
             type=ref,event=branch
@@ -67,6 +67,6 @@ jobs:
       - name: Attest Docker image
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/goose
+          subject-name: ghcr.io/${{ github.repository_owner }}/apemind-agent
           subject-digest: ${{ steps.docker-push.outputs.digest }}
           push-to-registry: true
