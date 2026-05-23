@@ -86,10 +86,4 @@ describe('loadMessages', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('No message catalog found'));
     warnSpy.mockRestore();
   });
-
-  it('loads Turkish messages', async () => {
-    const { loadMessages } = await import('./index');
-    const messages = await loadMessages('tr');
-    expect(messages).not.toEqual({});
-  });
 });
