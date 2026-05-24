@@ -37,6 +37,12 @@ export function formatErrorForLogging(error: unknown): string {
 }
 
 export async function compressImageDataUrl(dataUrl: string): Promise<string> {
+  const mimeType = dataUrl.match(/^data:([^;]+);/)?.[1]?.toLowerCase();
+
+  if (mimeType === 'image/heic' || mimeType === 'image/heif') {
+    return Promise.reject(new Error('Unsupported image format'));
+  }
+
   return new Promise((resolve, reject) => {
     const img = new globalThis.Image();
     img.onload = () => {
