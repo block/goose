@@ -70,7 +70,7 @@ ENTRYPOINT ["/usr/local/bin/goose"]
 CMD ["--help"]
 
 # Labels for metadata
-LABEL org.opencontainers.image.title="goose"
-LABEL org.opencontainers.image.description="goose CLI"
-LABEL org.opencontainers.image.vendor="AAIF"
-LABEL org.opencontainers.image.source="https://github.com/aaif-goose/goose"
+LABEL org.opencontainers.image.title="ApeMind Agent"
+LABEL org.opencontainers.image.description="ApeMind Agent CLI"
+LABEL org.opencontainers.image.vendor="ApeCloud"
+LABEL org.opencontainers.image.source="https://github.com/apecloud/apemind-agent"

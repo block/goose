@@ -66,8 +66,8 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: process.env.GITHUB_OWNER || 'aaif-goose',
-          name: process.env.GITHUB_REPO || 'goose',
+          owner: process.env.GITHUB_OWNER || 'apecloud',
+          name: process.env.GITHUB_REPO || 'apemind-agent',
         },
         prerelease: false,
         draft: true,
