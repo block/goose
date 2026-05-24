@@ -2723,4 +2723,125 @@ mod tests {
         );
         assert!(should_attempt_oauth_fallback(&Err(err)));
     }
+
+    #[tokio::test]
+    async fn test_invalid_header_name_returns_config_error() {
+        let mut headers = HashMap::new();
+        headers.insert("bad header name".to_string(), "value".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        let result = create_streamable_http_client(
+            "http://localhost:1",
+            None,
+            &headers,
+            "test-ext",
+            None,
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let Err(ExtensionError::ConfigError(msg)) = result else {
+            panic!("expected ConfigError, got a different result");
+        };
+        assert!(
+            msg.contains("invalid header"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_invalid_header_value_returns_config_error() {
+        let mut headers = HashMap::new();
+        headers.insert("x-valid-name".to_string(), "bad\r\nvalue".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        let result = create_streamable_http_client(
+            "http://localhost:1",
+            None,
+            &headers,
+            "test-ext",
+            None,
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let Err(ExtensionError::ConfigError(msg)) = result else {
+            panic!("expected ConfigError, got a different result");
+        };
+        assert!(
+            msg.contains("invalid header value"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_custom_headers_forwarded_to_http_extension() {
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut headers = HashMap::new();
+        headers.insert("x-api-key".to_string(), "test-secret-123".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        // The MCP handshake will fail against the stub server. We only care that
+        // the outgoing HTTP request carried the custom header.
+        let _ = create_streamable_http_client(
+            &mock_server.uri(),
+            None,
+            &headers,
+            "test-ext",
+            None,
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let received = mock_server.received_requests().await.unwrap();
+        assert!(
+            !received.is_empty(),
+            "expected at least one HTTP request to reach the mock server"
+        );
+        let header_found = received.iter().any(|req| {
+            req.headers
+                .get("x-api-key")
+                .map(|v| v == "test-secret-123")
+                .unwrap_or(false)
+        });
+        assert!(
+            header_found,
+            "custom header x-api-key was not forwarded to the extension server"
+        );
+    }
 }
