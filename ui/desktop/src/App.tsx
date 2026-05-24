@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
+  Navigate,
   Routes,
   Route,
   useNavigate,
@@ -45,7 +46,6 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
-import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
 
@@ -691,7 +691,7 @@ export function AppInner() {
                   </ChatProvider>
                 }
               />
-              <Route path="apps" element={<AppsView />} />
+              <Route path="apps" element={<Navigate to="/" replace />} />
               <Route path="sessions" element={<SessionsRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />

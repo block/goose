@@ -16,11 +16,11 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'createRecipeFromSession.title',
-    defaultMessage: 'Create Recipe from Session',
+    defaultMessage: 'Create Workflow from Session',
   },
   subtitle: {
     id: 'createRecipeFromSession.subtitle',
-    defaultMessage: 'Create a reusable recipe based on your current conversation.',
+    defaultMessage: 'Create a reusable workflow based on your current conversation.',
   },
   analyzingTitle: {
     id: 'createRecipeFromSession.analyzingTitle',
@@ -40,7 +40,7 @@ const i18n = defineMessages({
   },
   stageGenerating: {
     id: 'createRecipeFromSession.stageGenerating',
-    defaultMessage: 'Generating recipe structure...',
+    defaultMessage: 'Generating workflow structure...',
   },
   stageFinalizing: {
     id: 'createRecipeFromSession.stageFinalizing',
@@ -64,19 +64,19 @@ const i18n = defineMessages({
   },
   createRecipe: {
     id: 'createRecipeFromSession.createRecipe',
-    defaultMessage: 'Create Recipe',
+    defaultMessage: 'Create Workflow',
   },
   createAndRunRecipe: {
     id: 'createRecipeFromSession.createAndRunRecipe',
-    defaultMessage: 'Create & Run Recipe',
+    defaultMessage: 'Create & Run Workflow',
   },
   failedToCreateTitle: {
     id: 'createRecipeFromSession.failedToCreateTitle',
-    defaultMessage: 'Failed to create recipe',
+    defaultMessage: 'Failed to create workflow',
   },
   failedToCreateDefaultMsg: {
     id: 'createRecipeFromSession.failedToCreateDefaultMsg',
-    defaultMessage: 'An unexpected error occurred while creating the recipe. Please try again.',
+    defaultMessage: 'An unexpected error occurred while creating the workflow. Please try again.',
   },
 });
 
@@ -279,10 +279,7 @@ export default function CreateRecipeFromSessionModal({
       console.error('Failed to create recipe:', error);
       toastError({
         title: intl.formatMessage(i18n.failedToCreateTitle),
-        msg: errorMessage(
-          error,
-          intl.formatMessage(i18n.failedToCreateDefaultMsg)
-        ),
+        msg: errorMessage(error, intl.formatMessage(i18n.failedToCreateDefaultMsg)),
       });
     } finally {
       setIsCreating(false);
@@ -307,10 +304,10 @@ export default function CreateRecipeFromSessionModal({
               <Geese className="w-6 h-6 text-iconProminent" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-text-primary">{intl.formatMessage(i18n.title)}</h1>
-              <p className="text-text-secondary text-sm">
-                {intl.formatMessage(i18n.subtitle)}
-              </p>
+              <h1 className="text-xl font-medium text-text-primary">
+                {intl.formatMessage(i18n.title)}
+              </h1>
+              <p className="text-text-secondary text-sm">{intl.formatMessage(i18n.subtitle)}</p>
             </div>
           </div>
           <Button
@@ -388,7 +385,9 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="create-recipe-button"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {isCreating ? intl.formatMessage(i18n.creating) : intl.formatMessage(i18n.createRecipe)}
+                  {isCreating
+                    ? intl.formatMessage(i18n.creating)
+                    : intl.formatMessage(i18n.createRecipe)}
                 </Button>
                 <Button
                   onClick={() => {
@@ -399,7 +398,9 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="create-and-run-recipe-button"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  {isCreating ? intl.formatMessage(i18n.creating) : intl.formatMessage(i18n.createAndRunRecipe)}
+                  {isCreating
+                    ? intl.formatMessage(i18n.creating)
+                    : intl.formatMessage(i18n.createAndRunRecipe)}
                 </Button>
               </>
             )}

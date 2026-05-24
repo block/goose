@@ -63,7 +63,7 @@
     "defaultMessage": "“{title}”已保存，可以使用了。"
   },
   "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "配方创建成功！"
+    "defaultMessage": "工作流创建成功！"
   },
   "bottomMenuExtensionSelection.extensionToggleError": {
     "defaultMessage": "扩展开关错误"
@@ -123,7 +123,7 @@
     "defaultMessage": "上下文窗口"
   },
   "chatInput.createRecipeFromSession": {
-    "defaultMessage": "从会话创建配方"
+    "defaultMessage": "从会话创建工作流"
   },
   "chatInput.dictationError": {
     "defaultMessage": "语音输入错误"
@@ -165,7 +165,7 @@
     "defaultMessage": "未知类型"
   },
   "chatInput.viewEditRecipe": {
-    "defaultMessage": "查看/编辑配方"
+    "defaultMessage": "查看/编辑工作流"
   },
   "chatInput.viewExtensions": {
     "defaultMessage": "查看扩展"
@@ -318,13 +318,13 @@
     "defaultMessage": "复制此链接分享给好友，或直接粘贴到 Chrome 打开"
   },
   "createEditRecipe.createRecipeTitle": {
-    "defaultMessage": "创建配方"
+    "defaultMessage": "创建工作流"
   },
   "createEditRecipe.createSubtitle": {
-    "defaultMessage": "创建新配方，为可复用的聊天会话定义 agent 行为和能力。"
+    "defaultMessage": "创建新工作流，为可复用的聊天会话定义 agent 行为和能力。"
   },
   "createEditRecipe.editSubtitle": {
-    "defaultMessage": "你可以在下方编辑配方，以改变新会话中 agent 的行为。"
+    "defaultMessage": "你可以在下方编辑工作流，以改变新会话中 agent 的行为。"
   },
   "createEditRecipe.generatingDeeplink": {
     "defaultMessage": "正在生成深层链接…"
@@ -333,28 +333,28 @@
     "defaultMessage": "了解更多"
   },
   "createEditRecipe.recipeSavedAndLaunchedMsg": {
-    "defaultMessage": "配方保存并启动成功"
+    "defaultMessage": "工作流保存并启动成功"
   },
   "createEditRecipe.recipeSavedMsg": {
-    "defaultMessage": "配方保存成功"
+    "defaultMessage": "工作流保存成功"
   },
   "createEditRecipe.saveAndRunFailed": {
     "defaultMessage": "保存并运行失败"
   },
   "createEditRecipe.saveAndRunFailedMsg": {
-    "defaultMessage": "保存并运行配方失败：{error}"
+    "defaultMessage": "保存并运行工作流失败：{error}"
   },
   "createEditRecipe.saveAndRunRecipe": {
-    "defaultMessage": "保存并运行配方"
+    "defaultMessage": "保存并运行工作流"
   },
   "createEditRecipe.saveFailed": {
     "defaultMessage": "保存失败"
   },
   "createEditRecipe.saveFailedMsg": {
-    "defaultMessage": "保存配方失败：{error}"
+    "defaultMessage": "保存工作流失败：{error}"
   },
   "createEditRecipe.saveRecipe": {
-    "defaultMessage": "保存配方"
+    "defaultMessage": "保存工作流"
   },
   "createEditRecipe.saving": {
     "defaultMessage": "保存中…"
@@ -366,7 +366,7 @@
     "defaultMessage": "请填写所有必填字段并确保 JSON Schema 合法。"
   },
   "createEditRecipe.viewEditRecipeTitle": {
-    "defaultMessage": "查看/编辑配方"
+    "defaultMessage": "查看/编辑工作流"
   },
   "createRecipeFromSession.analyzingTitle": {
     "defaultMessage": "正在分析你的对话"
@@ -375,10 +375,10 @@
     "defaultMessage": "取消"
   },
   "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "创建并运行配方"
+    "defaultMessage": "创建并运行工作流"
   },
   "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "创建配方"
+    "defaultMessage": "创建工作流"
   },
   "createRecipeFromSession.creating": {
     "defaultMessage": "创建中…"
@@ -387,10 +387,10 @@
     "defaultMessage": "正在从你的聊天中提取要点"
   },
   "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "创建配方时发生意外错误，请重试。"
+    "defaultMessage": "创建工作流时发生意外错误，请重试。"
   },
   "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "创建配方失败"
+    "defaultMessage": "创建工作流失败"
   },
   "createRecipeFromSession.stageComplete": {
     "defaultMessage": "完成！"
@@ -402,7 +402,7 @@
     "defaultMessage": "正在敲定细节…"
   },
   "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "正在生成配方结构…"
+    "defaultMessage": "正在生成工作流结构…"
   },
   "createRecipeFromSession.stageIdentifying": {
     "defaultMessage": "正在识别关键模式…"
@@ -411,22 +411,22 @@
     "defaultMessage": "正在阅读你的对话…"
   },
   "createRecipeFromSession.subtitle": {
-    "defaultMessage": "基于当前对话创建一份可复用的配方。"
+    "defaultMessage": "基于当前对话创建一份可复用的工作流。"
   },
   "createRecipeFromSession.title": {
-    "defaultMessage": "从会话创建配方"
+    "defaultMessage": "从会话创建工作流"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "取消"
   },
   "createSubRecipeInline.closeModal": {
-    "defaultMessage": "关闭创建子配方弹窗"
+    "defaultMessage": "关闭创建子工作流弹窗"
   },
   "createSubRecipeInline.createAndAdd": {
-    "defaultMessage": "创建并添加子配方"
+    "defaultMessage": "创建并添加子工作流"
   },
   "createSubRecipeInline.createdSuccess": {
-    "defaultMessage": "子配方创建成功"
+    "defaultMessage": "子工作流创建成功"
   },
   "createSubRecipeInline.creating": {
     "defaultMessage": "创建中…"
@@ -435,13 +435,13 @@
     "defaultMessage": "名称重复"
   },
   "createSubRecipeInline.duplicateNameMsg": {
-    "defaultMessage": "已存在名为“{name}”的子配方，请使用唯一名称。"
+    "defaultMessage": "已存在名为“{name}”的子工作流，请使用唯一名称。"
   },
   "createSubRecipeInline.instructionsLabel": {
     "defaultMessage": "指令"
   },
   "createSubRecipeInline.instructionsPlaceholder": {
-    "defaultMessage": "当此子配方被调用时给 AI 的指令…"
+    "defaultMessage": "当此子工作流被调用时给 AI 的指令…"
   },
   "createSubRecipeInline.nameHint": {
     "defaultMessage": "用于生成工具名的唯一标识符"
@@ -456,16 +456,16 @@
     "defaultMessage": "预设参数值"
   },
   "createSubRecipeInline.preconfiguredValuesHint": {
-    "defaultMessage": "始终传给子配方的可选参数值"
+    "defaultMessage": "始终传给子工作流的可选参数值"
   },
   "createSubRecipeInline.recipeDescriptionLabel": {
-    "defaultMessage": "配方描述"
+    "defaultMessage": "工作流描述"
   },
   "createSubRecipeInline.recipeDescriptionPlaceholder": {
-    "defaultMessage": "此配方执行时的作用"
+    "defaultMessage": "此工作流执行时的作用"
   },
   "createSubRecipeInline.recipeTitleLabel": {
-    "defaultMessage": "配方标题"
+    "defaultMessage": "工作流标题"
   },
   "createSubRecipeInline.recipeTitlePlaceholder": {
     "defaultMessage": "例如：Security Analysis Tool"
@@ -474,7 +474,7 @@
     "defaultMessage": "保存失败"
   },
   "createSubRecipeInline.saveFailedMsg": {
-    "defaultMessage": "保存子配方失败：{error}"
+    "defaultMessage": "保存子工作流失败：{error}"
   },
   "createSubRecipeInline.sequentialHint": {
     "defaultMessage": "（强制多个实例按顺序执行）"
@@ -483,10 +483,10 @@
     "defaultMessage": "重复调用时按顺序执行"
   },
   "createSubRecipeInline.subtitle": {
-    "defaultMessage": "创建一个简单配方，作为主配方中可调用的工具"
+    "defaultMessage": "创建一个简单工作流，作为主工作流中可调用的工具"
   },
   "createSubRecipeInline.title": {
-    "defaultMessage": "创建新子配方"
+    "defaultMessage": "创建新子工作流"
   },
   "createSubRecipeInline.toolDescriptionLabel": {
     "defaultMessage": "工具描述"
@@ -498,7 +498,7 @@
     "defaultMessage": "校验失败"
   },
   "createSubRecipeInline.validationMsg": {
-    "defaultMessage": "名称、标题、配方描述和指令均为必填项。"
+    "defaultMessage": "名称、标题、工作流描述和指令均为必填项。"
   },
   "creditsExhaustedNotification.addCredits": {
     "defaultMessage": "充值额度"
@@ -1503,7 +1503,7 @@
     "defaultMessage": "取消"
   },
   "importRecipeForm.deeplinkHint": {
-    "defaultMessage": "粘贴以“goose://recipe?config=”开头的配方深层链接"
+    "defaultMessage": "粘贴以“goose://recipe?config=”开头的工作流深层链接"
   },
   "importRecipeForm.deeplinkPlaceholder": {
     "defaultMessage": "在此粘贴你的 goose://recipe?config=... 深层链接"
@@ -1512,13 +1512,13 @@
     "defaultMessage": "示例"
   },
   "importRecipeForm.expectedRecipeStructure": {
-    "defaultMessage": "期望的配方结构"
+    "defaultMessage": "期望的工作流结构"
   },
   "importRecipeForm.importRecipeButton": {
-    "defaultMessage": "导入配方"
+    "defaultMessage": "导入工作流"
   },
   "importRecipeForm.importRecipeTitle": {
-    "defaultMessage": "导入配方"
+    "defaultMessage": "导入工作流"
   },
   "importRecipeForm.importing": {
     "defaultMessage": "导入中…"
@@ -1527,16 +1527,16 @@
     "defaultMessage": "或"
   },
   "importRecipeForm.recipeDeeplinkLabel": {
-    "defaultMessage": "配方深层链接"
+    "defaultMessage": "工作流深层链接"
   },
   "importRecipeForm.recipeFileHint": {
-    "defaultMessage": "上传包含配方结构的 YAML 或 JSON 文件"
+    "defaultMessage": "上传包含工作流结构的 YAML 或 JSON 文件"
   },
   "importRecipeForm.recipeFileLabel": {
-    "defaultMessage": "配方文件"
+    "defaultMessage": "工作流文件"
   },
   "importRecipeForm.reviewWarning": {
-    "defaultMessage": "在将配方文件添加到 ApeMind Agent 之前，请务必先审查其内容。"
+    "defaultMessage": "在将工作流文件添加到 ApeMind Agent 之前，请务必先审查其内容。"
   },
   "importRecipeForm.schemaDescription": {
     "defaultMessage": "你的 YAML 或 JSON 文件应遵循此结构。必填字段：title、description，以及 instructions 或 prompt 之一。"
@@ -2351,9 +2351,6 @@
   "navigationCustomization.hideItem": {
     "defaultMessage": "隐藏项"
   },
-  "navigationCustomization.itemApps": {
-    "defaultMessage": "应用"
-  },
   "navigationCustomization.itemChat": {
     "defaultMessage": "聊天"
   },
@@ -2364,7 +2361,7 @@
     "defaultMessage": "首页"
   },
   "navigationCustomization.itemRecipes": {
-    "defaultMessage": "配方"
+    "defaultMessage": "工作流"
   },
   "navigationCustomization.itemScheduler": {
     "defaultMessage": "调度"
@@ -2520,7 +2517,7 @@
     "defaultMessage": "取消"
   },
   "parameterInputModal.cancelRecipeSetup": {
-    "defaultMessage": "取消配方设置"
+    "defaultMessage": "取消工作流设置"
   },
   "parameterInputModal.enterValue": {
     "defaultMessage": "为 {key} 输入值…"
@@ -2529,7 +2526,7 @@
     "defaultMessage": "False"
   },
   "parameterInputModal.recipeParameters": {
-    "defaultMessage": "配方参数"
+    "defaultMessage": "工作流参数"
   },
   "parameterInputModal.select": {
     "defaultMessage": "请选择…"
@@ -2538,10 +2535,10 @@
     "defaultMessage": "选择一个选项…"
   },
   "parameterInputModal.startNewChat": {
-    "defaultMessage": "开始新聊天（不使用配方）"
+    "defaultMessage": "开始新聊天（不使用工作流）"
   },
   "parameterInputModal.startRecipe": {
-    "defaultMessage": "启动配方"
+    "defaultMessage": "启动工作流"
   },
   "parameterInputModal.true": {
     "defaultMessage": "True"
@@ -2925,13 +2922,13 @@
     "defaultMessage": "提交"
   },
   "recipeActivityEditor.activitiesDescription": {
-    "defaultMessage": "将在配方聊天窗口中显示的顶部提示和活动按钮。"
+    "defaultMessage": "将在工作流聊天窗口中显示的顶部提示和活动按钮。"
   },
   "recipeActivityEditor.activitiesLabel": {
     "defaultMessage": "活动"
   },
   "recipeActivityEditor.activityButtonsDescription": {
-    "defaultMessage": "将出现在消息下方、帮助用户与你的配方交互的可点击按钮。"
+    "defaultMessage": "将出现在消息下方、帮助用户与你的工作流交互的可点击按钮。"
   },
   "recipeActivityEditor.activityButtonsLabel": {
     "defaultMessage": "活动按钮"
@@ -2943,16 +2940,16 @@
     "defaultMessage": "添加新活动…"
   },
   "recipeActivityEditor.messageDescription": {
-    "defaultMessage": "将出现在配方顶部的格式化消息。支持 markdown 格式。"
+    "defaultMessage": "将出现在工作流顶部的格式化消息。支持 markdown 格式。"
   },
   "recipeActivityEditor.messageLabel": {
     "defaultMessage": "消息"
   },
   "recipeActivityEditor.messagePlaceholder": {
-    "defaultMessage": "为你的配方输入面向用户的介绍消息（支持 **加粗**、*斜体*、`代码` 等）"
+    "defaultMessage": "为你的工作流输入面向用户的介绍消息（支持 **加粗**、*斜体*、`代码` 等）"
   },
   "recipeExtensionSelector.description": {
-    "defaultMessage": "选择运行此配方时可用的扩展。留空将使用默认扩展。"
+    "defaultMessage": "选择运行此工作流时可用的扩展。留空将使用默认扩展。"
   },
   "recipeExtensionSelector.extensionsSelected": {
     "defaultMessage": "{count,plural,one{已选 # 个扩展} other{已选 # 个扩展}}"
@@ -2976,13 +2973,13 @@
     "defaultMessage": "高级选项"
   },
   "recipeFormFields.advancedOptionsHint": {
-    "defaultMessage": "活动、参数、模型、扩展、响应 schema、子配方"
+    "defaultMessage": "活动、参数、模型、扩展、响应 schema、子工作流"
   },
   "recipeFormFields.descriptionLabel": {
     "defaultMessage": "描述"
   },
   "recipeFormFields.descriptionPlaceholder": {
-    "defaultMessage": "此配方功能的简要描述"
+    "defaultMessage": "此工作流功能的简要描述"
   },
   "recipeFormFields.enterValueFor": {
     "defaultMessage": "为 {key} 输入值"
@@ -3012,7 +3009,7 @@
     "defaultMessage": "（可选 - instructions 或 prompt 至少填一项）"
   },
   "recipeFormFields.promptPlaceholder": {
-    "defaultMessage": "配方启动时预填的提示词"
+    "defaultMessage": "工作流启动时预填的提示词"
   },
   "recipeFormFields.responseJsonSchema": {
     "defaultMessage": "响应 JSON Schema"
@@ -3021,16 +3018,16 @@
     "defaultMessage": "使用 JSON Schema 格式定义 AI 响应的期望结构"
   },
   "recipeFormFields.templateVarHint": {
-    "defaultMessage": "使用 '{{parameter_name}}' 定义运行配方时可填入的参数。"
+    "defaultMessage": "使用 '{{parameter_name}}' 定义运行工作流时可填入的参数。"
   },
   "recipeFormFields.titleLabel": {
     "defaultMessage": "标题"
   },
   "recipeFormFields.titlePlaceholder": {
-    "defaultMessage": "配方标题"
+    "defaultMessage": "工作流标题"
   },
   "recipeHeader.recipeLabel": {
-    "defaultMessage": "配方"
+    "defaultMessage": "工作流"
   },
   "recipeModelSelector.backToModelList": {
     "defaultMessage": "返回模型列表"
@@ -3069,7 +3066,7 @@
     "defaultMessage": "使用默认提供商"
   },
   "recipeNameField.defaultLabel": {
-    "defaultMessage": "配方名称"
+    "defaultMessage": "工作流名称"
   },
   "recipeNameField.formatHint": {
     "defaultMessage": "将自动格式化（小写字母，空格转为短横线）"
@@ -3081,19 +3078,19 @@
     "defaultMessage": "描述："
   },
   "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "你即将执行一个从未运行过的配方。"
+    "defaultMessage": "你即将执行一个从未运行过的工作流。"
   },
   "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "此配方包含隐藏字符，为了你的安全这些字符会被忽略，因为它们可能被用于恶意目的。"
+    "defaultMessage": "此工作流包含隐藏字符，为了你的安全这些字符会被忽略，因为它们可能被用于恶意目的。"
   },
   "recipeWarningModal.instructionsLabel": {
     "defaultMessage": "指令："
   },
   "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ 新配方警告"
+    "defaultMessage": "⚠️ 新工作流警告"
   },
   "recipeWarningModal.recipePreview": {
-    "defaultMessage": "配方预览："
+    "defaultMessage": "工作流预览："
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ 安全警告"
@@ -3105,7 +3102,7 @@
     "defaultMessage": "信任并执行"
   },
   "recipeWarningModal.trustSource": {
-    "defaultMessage": "只有在你信任此配方来源的情况下才应继续。"
+    "defaultMessage": "只有在你信任此工作流来源的情况下才应继续。"
   },
   "recipesView.addSchedule": {
     "defaultMessage": "添加计划"
@@ -3135,31 +3132,31 @@
     "defaultMessage": "复制 YAML"
   },
   "recipesView.copyYamlFailedMsg": {
-    "defaultMessage": "复制配方 YAML 到剪贴板失败"
+    "defaultMessage": "复制工作流 YAML 到剪贴板失败"
   },
   "recipesView.createRecipe": {
-    "defaultMessage": "创建配方"
+    "defaultMessage": "创建工作流"
   },
   "recipesView.deeplinkCopiedMsg": {
-    "defaultMessage": "配方深层链接已复制到剪贴板"
+    "defaultMessage": "工作流深层链接已复制到剪贴板"
   },
   "recipesView.deeplinkCopiedTitle": {
     "defaultMessage": "深层链接已复制"
   },
   "recipesView.deleteRecipe": {
-    "defaultMessage": "删除配方"
+    "defaultMessage": "删除工作流"
   },
   "recipesView.deleteRecipeConfirm": {
     "defaultMessage": "确定要删除“{title}”吗？"
   },
   "recipesView.deleteRecipeDetail": {
-    "defaultMessage": "配方文件将被删除。"
+    "defaultMessage": "工作流文件将被删除。"
   },
   "recipesView.deleteRecipeTitle": {
-    "defaultMessage": "删除配方"
+    "defaultMessage": "删除工作流"
   },
   "recipesView.editRecipe": {
-    "defaultMessage": "编辑配方"
+    "defaultMessage": "编辑工作流"
   },
   "recipesView.editSchedule": {
     "defaultMessage": "编辑计划"
@@ -3168,46 +3165,46 @@
     "defaultMessage": "编辑斜杠命令"
   },
   "recipesView.errorLoadingRecipes": {
-    "defaultMessage": "加载配方出错"
+    "defaultMessage": "加载工作流出错"
   },
   "recipesView.exportFailedMsg": {
-    "defaultMessage": "导出配方到文件失败"
+    "defaultMessage": "导出工作流到文件失败"
   },
   "recipesView.exportFailedTitle": {
     "defaultMessage": "导出失败"
   },
   "recipesView.exportRecipeDialogTitle": {
-    "defaultMessage": "导出配方"
+    "defaultMessage": "导出工作流"
   },
   "recipesView.exportToFile": {
     "defaultMessage": "导出到文件"
   },
   "recipesView.noMatchingRecipes": {
-    "defaultMessage": "未找到匹配的配方"
+    "defaultMessage": "未找到匹配的工作流"
   },
   "recipesView.noSavedRecipes": {
-    "defaultMessage": "暂无已保存的配方"
+    "defaultMessage": "暂无已保存的工作流"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "从聊天中保存的配方会显示在这里。"
+    "defaultMessage": "从聊天中保存的工作流会显示在这里。"
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "在新窗口中打开"
   },
   "recipesView.recipeDeletedSuccess": {
-    "defaultMessage": "配方删除成功"
+    "defaultMessage": "工作流删除成功"
   },
   "recipesView.recipeExportedMsg": {
-    "defaultMessage": "配方已保存到 {filePath}"
+    "defaultMessage": "工作流已保存到 {filePath}"
   },
   "recipesView.recipeExportedTitle": {
-    "defaultMessage": "配方已导出"
+    "defaultMessage": "工作流已导出"
   },
   "recipesView.recipesDescription": {
-    "defaultMessage": "查看并管理已保存的配方，以快速用预置配置开启新会话。按 {shortcut} 搜索。"
+    "defaultMessage": "查看并管理已保存的工作流，以快速用预置配置开启新会话。按 {shortcut} 搜索。"
   },
   "recipesView.recipesTitle": {
-    "defaultMessage": "配方"
+    "defaultMessage": "工作流"
   },
   "recipesView.remove": {
     "defaultMessage": "移除"
@@ -3225,37 +3222,37 @@
     "defaultMessage": "{action}计划"
   },
   "recipesView.scheduleRemovedMsg": {
-    "defaultMessage": "配方将不再自动运行"
+    "defaultMessage": "工作流将不再自动运行"
   },
   "recipesView.scheduleRemovedTitle": {
     "defaultMessage": "计划已移除"
   },
   "recipesView.scheduleSavedMsg": {
-    "defaultMessage": "配方将按 {schedule} 运行"
+    "defaultMessage": "工作流将按 {schedule} 运行"
   },
   "recipesView.scheduleSavedTitle": {
     "defaultMessage": "计划已保存"
   },
   "recipesView.searchRecipesPlaceholder": {
-    "defaultMessage": "搜索配方…"
+    "defaultMessage": "搜索工作流…"
   },
   "recipesView.shareRecipe": {
-    "defaultMessage": "分享配方"
+    "defaultMessage": "分享工作流"
   },
   "recipesView.slashCommandDescription": {
-    "defaultMessage": "设置斜杠命令，以便在任何聊天中快速运行此配方"
+    "defaultMessage": "设置斜杠命令，以便在任何聊天中快速运行此工作流"
   },
   "recipesView.slashCommandPlaceholder": {
     "defaultMessage": "command-name"
   },
   "recipesView.slashCommandRemovedMsg": {
-    "defaultMessage": "配方的斜杠命令已被移除"
+    "defaultMessage": "工作流的斜杠命令已被移除"
   },
   "recipesView.slashCommandRemovedTitle": {
     "defaultMessage": "斜杠命令已移除"
   },
   "recipesView.slashCommandSavedMsg": {
-    "defaultMessage": "使用 /{command} 运行此配方"
+    "defaultMessage": "使用 /{command} 运行此工作流"
   },
   "recipesView.slashCommandSavedTitle": {
     "defaultMessage": "斜杠命令已保存"
@@ -3264,16 +3261,16 @@
     "defaultMessage": "斜杠命令"
   },
   "recipesView.slashCommandUsageHint": {
-    "defaultMessage": "在任何聊天中使用 /{command} 即可运行此配方"
+    "defaultMessage": "在任何聊天中使用 /{command} 即可运行此工作流"
   },
   "recipesView.tryAgain": {
     "defaultMessage": "重试"
   },
   "recipesView.useRecipe": {
-    "defaultMessage": "使用配方"
+    "defaultMessage": "使用工作流"
   },
   "recipesView.yamlCopiedMsg": {
-    "defaultMessage": "配方 YAML 已复制到剪贴板"
+    "defaultMessage": "工作流 YAML 已复制到剪贴板"
   },
   "recipesView.yamlCopiedTitle": {
     "defaultMessage": "YAML 已复制"
@@ -3402,7 +3399,7 @@
     "defaultMessage": "近期会话"
   },
   "scheduleDetailView.recipeSource": {
-    "defaultMessage": "配方来源："
+    "defaultMessage": "工作流来源："
   },
   "scheduleDetailView.runScheduleError": {
     "defaultMessage": "运行计划错误"
@@ -3483,7 +3480,7 @@
     "defaultMessage": "编辑计划"
   },
   "scheduleModal.failedParseRecipe": {
-    "defaultMessage": "从文件解析配方失败。"
+    "defaultMessage": "从文件解析工作流失败。"
   },
   "scheduleModal.failedReadFile": {
     "defaultMessage": "读取所选文件失败。"
@@ -3501,13 +3498,13 @@
     "defaultMessage": "例如：daily-summary-job"
   },
   "scheduleModal.provideValidRecipe": {
-    "defaultMessage": "请提供有效的配方来源。"
+    "defaultMessage": "请提供有效的工作流来源。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "描述：{description}"
   },
   "scheduleModal.recipeParsed": {
-    "defaultMessage": "配方解析成功"
+    "defaultMessage": "工作流解析成功"
   },
   "scheduleModal.recipeTitle": {
     "defaultMessage": "标题：{title}"
@@ -3540,7 +3537,7 @@
     "defaultMessage": "创建计划"
   },
   "schedulesView.description": {
-    "defaultMessage": "创建和管理定时任务，在指定时间自动运行配方。"
+    "defaultMessage": "创建和管理定时任务，在指定时间自动运行工作流。"
   },
   "schedulesView.edit": {
     "defaultMessage": "编辑"
@@ -4094,9 +4091,6 @@
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"
   },
-  "settingsView.tabLocalInference": {
-    "defaultMessage": "本地推理"
-  },
   "settingsView.tabModels": {
     "defaultMessage": "模型"
   },
@@ -4197,25 +4191,25 @@
     "defaultMessage": "添加已有"
   },
   "subRecipeEditor.createNew": {
-    "defaultMessage": "创建新子配方"
+    "defaultMessage": "创建新子工作流"
   },
   "subRecipeEditor.deleteSubrecipe": {
-    "defaultMessage": "删除子配方 {name}"
+    "defaultMessage": "删除子工作流 {name}"
   },
   "subRecipeEditor.description": {
-    "defaultMessage": "子配方是可在执行过程中作为工具调用的配方。它们支持多步工作流和可复用组件。"
+    "defaultMessage": "子工作流是可在执行过程中作为工具调用的工作流。它们支持多步工作流和可复用组件。"
   },
   "subRecipeEditor.duplicateName": {
     "defaultMessage": "名称重复"
   },
   "subRecipeEditor.duplicateNameMsg": {
-    "defaultMessage": "已存在名为“{name}”的子配方，请使用唯一名称。"
+    "defaultMessage": "已存在名为“{name}”的子工作流，请使用唯一名称。"
   },
   "subRecipeEditor.editSubrecipe": {
-    "defaultMessage": "编辑子配方 {name}"
+    "defaultMessage": "编辑子工作流 {name}"
   },
   "subRecipeEditor.label": {
-    "defaultMessage": "子配方"
+    "defaultMessage": "子工作流"
   },
   "subRecipeEditor.preconfiguredValues": {
     "defaultMessage": "预设参数值："
@@ -4224,7 +4218,7 @@
     "defaultMessage": "按顺序"
   },
   "subRecipeModal.addTitle": {
-    "defaultMessage": "添加子配方"
+    "defaultMessage": "添加子工作流"
   },
   "subRecipeModal.apply": {
     "defaultMessage": "应用"
@@ -4236,16 +4230,16 @@
     "defaultMessage": "取消"
   },
   "subRecipeModal.closeModal": {
-    "defaultMessage": "关闭子配方弹窗"
+    "defaultMessage": "关闭子工作流弹窗"
   },
   "subRecipeModal.configureTitle": {
-    "defaultMessage": "配置子配方"
+    "defaultMessage": "配置子工作流"
   },
   "subRecipeModal.descriptionLabel": {
     "defaultMessage": "描述"
   },
   "subRecipeModal.descriptionPlaceholder": {
-    "defaultMessage": "此子配方功能的可选描述…"
+    "defaultMessage": "此子工作流功能的可选描述…"
   },
   "subRecipeModal.invalidFile": {
     "defaultMessage": "文件无效"
@@ -4263,7 +4257,7 @@
     "defaultMessage": "例如：security_scan"
   },
   "subRecipeModal.pathHint": {
-    "defaultMessage": "浏览现有配方文件，或手动输入路径"
+    "defaultMessage": "浏览现有工作流文件，或手动输入路径"
   },
   "subRecipeModal.pathLabel": {
     "defaultMessage": "路径"
@@ -4275,16 +4269,16 @@
     "defaultMessage": "预设参数值"
   },
   "subRecipeModal.preconfiguredValuesHint": {
-    "defaultMessage": "始终传给子配方的可选参数值"
+    "defaultMessage": "始终传给子工作流的可选参数值"
   },
   "subRecipeModal.sequentialHint": {
-    "defaultMessage": "（强制多个子配方实例按顺序执行）"
+    "defaultMessage": "（强制多个子工作流实例按顺序执行）"
   },
   "subRecipeModal.sequentialLabel": {
     "defaultMessage": "重复调用时按顺序执行"
   },
   "subRecipeModal.subtitle": {
-    "defaultMessage": "配置一个可在配方执行过程中作为工具调用的子配方"
+    "defaultMessage": "配置一个可在工作流执行过程中作为工具调用的子工作流"
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "返回模型列表"

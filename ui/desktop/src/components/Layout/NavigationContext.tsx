@@ -17,12 +17,13 @@ export interface NavigationPreferences {
   enabledItems: string[];
 }
 
+export const HIDDEN_NAV_ITEM_IDS = ['apps'];
+
 export const DEFAULT_ITEM_ORDER = [
   'home',
   'chat',
   'recipes',
   'skills',
-  'apps',
   'scheduler',
   'extensions',
   'settings',
@@ -103,12 +104,16 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
         // Only backfill truly new default IDs (not previously known to the user).
         // Using itemOrder as the source of truth ensures items the user
         // intentionally disabled stay disabled.
-        const newIds = DEFAULT_ITEM_ORDER.filter(
-          (id) => !parsed.itemOrder?.includes(id)
+        const itemOrder = (parsed.itemOrder ?? []).filter(
+          (id: string) => !HIDDEN_NAV_ITEM_IDS.includes(id)
         );
+        const enabledItems = (parsed.enabledItems ?? []).filter(
+          (id: string) => !HIDDEN_NAV_ITEM_IDS.includes(id)
+        );
+        const newIds = DEFAULT_ITEM_ORDER.filter((id) => !itemOrder.includes(id));
         return {
-          itemOrder: [...(parsed.itemOrder ?? []), ...newIds],
-          enabledItems: [...(parsed.enabledItems ?? []), ...newIds],
+          itemOrder: [...itemOrder, ...newIds],
+          enabledItems: [...enabledItems, ...newIds],
         };
       } catch {
         console.error('Failed to parse navigation preferences');

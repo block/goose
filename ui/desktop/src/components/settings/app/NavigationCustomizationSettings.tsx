@@ -5,6 +5,7 @@ import {
   useNavigationContext,
   DEFAULT_ITEM_ORDER,
   DEFAULT_ENABLED_ITEMS,
+  HIDDEN_NAV_ITEM_IDS,
 } from '../../Layout/NavigationContext';
 import { cn } from '../../../utils';
 
@@ -35,11 +36,7 @@ const i18n = defineMessages({
   },
   itemRecipes: {
     id: 'navigationCustomization.itemRecipes',
-    defaultMessage: 'Recipes',
-  },
-  itemApps: {
-    id: 'navigationCustomization.itemApps',
-    defaultMessage: 'Apps',
+    defaultMessage: 'Workflows',
   },
   itemScheduler: {
     id: 'navigationCustomization.itemScheduler',
@@ -59,7 +56,6 @@ const ITEM_LABEL_KEYS: Record<string, keyof typeof i18n> = {
   home: 'itemHome',
   chat: 'itemChat',
   recipes: 'itemRecipes',
-  apps: 'itemApps',
   scheduler: 'itemScheduler',
   extensions: 'itemExtensions',
   settings: 'itemSettings',
@@ -146,9 +142,7 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
     <div className={className}>
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-text-secondary">
-            {intl.formatMessage(i18n.dragInstructions)}
-          </p>
+          <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.dragInstructions)}</p>
           <button
             onClick={resetToDefaults}
             className="text-xs text-text-secondary hover:text-text-primary transition-colors"
@@ -157,45 +151,51 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
           </button>
         </div>
 
-        {preferences.itemOrder.map((itemId) => {
-          const isEnabled = preferences.enabledItems.includes(itemId);
-          const isDragging = draggedItem === itemId;
-          const isDragOver = dragOverItem === itemId;
-          const label = getItemLabel(itemId);
+        {preferences.itemOrder
+          .filter((itemId) => !HIDDEN_NAV_ITEM_IDS.includes(itemId))
+          .map((itemId) => {
+            const isEnabled = preferences.enabledItems.includes(itemId);
+            const isDragging = draggedItem === itemId;
+            const isDragOver = dragOverItem === itemId;
+            const label = getItemLabel(itemId);
 
-          return (
-            <div
-              key={itemId}
-              draggable
-              onDragStart={(e) => handleDragStart(e, itemId)}
-              onDragOver={(e) => handleDragOver(e, itemId)}
-              onDrop={(e) => handleDrop(e, itemId)}
-              onDragEnd={handleDragEnd}
-              className={cn(
-                'flex items-center gap-3 p-3 rounded-lg border transition-all',
-                isDragging && 'opacity-50',
-                isDragOver
-                  ? 'border-border-primary bg-background-tertiary'
-                  : 'border-border-secondary bg-background-primary',
-                !isEnabled && 'opacity-50'
-              )}
-            >
-              <GripVertical className="w-4 h-4 text-text-secondary cursor-move flex-shrink-0" />
-              <span className="flex-1 text-sm text-text-primary">{label}</span>
-              <button
-                onClick={() => toggleItemEnabled(itemId)}
-                className="p-1 rounded hover:bg-background-tertiary transition-colors flex-shrink-0"
-                title={isEnabled ? intl.formatMessage(i18n.hideItem) : intl.formatMessage(i18n.showItem)}
-              >
-                {isEnabled ? (
-                  <Eye className="w-4 h-4 text-text-primary" />
-                ) : (
-                  <EyeOff className="w-4 h-4 text-text-secondary" />
+            return (
+              <div
+                key={itemId}
+                draggable
+                onDragStart={(e) => handleDragStart(e, itemId)}
+                onDragOver={(e) => handleDragOver(e, itemId)}
+                onDrop={(e) => handleDrop(e, itemId)}
+                onDragEnd={handleDragEnd}
+                className={cn(
+                  'flex items-center gap-3 p-3 rounded-lg border transition-all',
+                  isDragging && 'opacity-50',
+                  isDragOver
+                    ? 'border-border-primary bg-background-tertiary'
+                    : 'border-border-secondary bg-background-primary',
+                  !isEnabled && 'opacity-50'
                 )}
-              </button>
-            </div>
-          );
-        })}
+              >
+                <GripVertical className="w-4 h-4 text-text-secondary cursor-move flex-shrink-0" />
+                <span className="flex-1 text-sm text-text-primary">{label}</span>
+                <button
+                  onClick={() => toggleItemEnabled(itemId)}
+                  className="p-1 rounded hover:bg-background-tertiary transition-colors flex-shrink-0"
+                  title={
+                    isEnabled
+                      ? intl.formatMessage(i18n.hideItem)
+                      : intl.formatMessage(i18n.showItem)
+                  }
+                >
+                  {isEnabled ? (
+                    <Eye className="w-4 h-4 text-text-primary" />
+                  ) : (
+                    <EyeOff className="w-4 h-4 text-text-secondary" />
+                  )}
+                </button>
+              </div>
+            );
+          })}
       </div>
     </div>
   );

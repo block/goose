@@ -33,7 +33,6 @@ export async function encodeRecipe(recipe: Recipe): Promise<string> {
 }
 
 export async function decodeRecipe(deeplink: string): Promise<Recipe> {
-
   try {
     const response = await apiDecodeRecipe({
       body: { deeplink },
@@ -130,16 +129,16 @@ export async function parseDeeplink(deeplink: string): Promise<Recipe | null> {
     const recipeEncoded = cleanLink.replace('goose://recipe?config=', '');
 
     if (!recipeEncoded) {
-      throw new Error('No recipe configuration found in deeplink');
+      throw new Error('No workflow configuration found in deeplink');
     }
     const recipe = await decodeRecipe(recipeEncoded);
 
     if (!recipe.title || !recipe.description) {
-      throw new Error('Recipe is missing required fields (title, description)');
+      throw new Error('Workflow is missing required fields (title, description)');
     }
 
     if (!recipe.instructions && !recipe.prompt) {
-      throw new Error('Recipe must have either instructions or prompt');
+      throw new Error('Workflow must have either instructions or prompt');
     }
 
     return recipe;

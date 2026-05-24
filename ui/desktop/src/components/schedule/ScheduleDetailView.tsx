@@ -37,7 +37,7 @@ const i18n = defineMessages({
   paused: { id: 'scheduleDetailView.paused', defaultMessage: 'Paused' },
   scheduleLabel: { id: 'scheduleDetailView.scheduleLabel', defaultMessage: 'Schedule:' },
   cronExpression: { id: 'scheduleDetailView.cronExpression', defaultMessage: 'Cron Expression:' },
-  recipeSource: { id: 'scheduleDetailView.recipeSource', defaultMessage: 'Recipe Source:' },
+  recipeSource: { id: 'scheduleDetailView.recipeSource', defaultMessage: 'Workflow Source:' },
   lastRun: { id: 'scheduleDetailView.lastRun', defaultMessage: 'Last Run:' },
   currentSession: { id: 'scheduleDetailView.currentSession', defaultMessage: 'Current Session:' },
   processStarted: { id: 'scheduleDetailView.processStarted', defaultMessage: 'Process Started:' },

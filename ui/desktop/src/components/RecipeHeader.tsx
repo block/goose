@@ -3,7 +3,7 @@ import { defineMessages, useIntl } from '../i18n';
 const i18n = defineMessages({
   recipeLabel: {
     id: 'recipeHeader.recipeLabel',
-    defaultMessage: 'Recipe',
+    defaultMessage: 'Workflow',
   },
 });
 

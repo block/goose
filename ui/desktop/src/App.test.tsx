@@ -139,6 +139,7 @@ vi.mock('react-router-dom', () => ({
   HashRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Routes: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Route: ({ element }: { element: React.ReactNode }) => element,
+  Navigate: () => null,
   useNavigate: () => mockNavigate,
   useLocation: () => ({ state: null, pathname: '/' }),
   useSearchParams: () => [mockSearchParams, mockSetSearchParams],

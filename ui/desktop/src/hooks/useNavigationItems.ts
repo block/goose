@@ -1,13 +1,4 @@
-import {
-  Home,
-  MessageSquare,
-  FileText,
-  AppWindow,
-  Clock,
-  Puzzle,
-  Settings,
-  Zap,
-} from 'lucide-react';
+import { Home, MessageSquare, FileText, Clock, Puzzle, Settings, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { defineMessages, type IntlShape, type MessageDescriptor } from 'react-intl';
 
@@ -24,9 +15,8 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { id: 'home', path: '/', label: 'Home', icon: Home },
   { id: 'chat', path: '/pair', label: 'Chat', icon: MessageSquare, hasSubItems: true },
-  { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
+  { id: 'recipes', path: '/recipes', label: 'Workflows', icon: FileText },
   { id: 'skills', path: '/skills', label: 'Skills', icon: Zap },
-  { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
   { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
@@ -46,15 +36,11 @@ const navItemMessages = defineMessages({
   },
   recipes: {
     id: 'navigationCustomization.itemRecipes',
-    defaultMessage: 'Recipes',
+    defaultMessage: 'Workflows',
   },
   skills: {
     id: 'navigationCustomization.itemSkills',
     defaultMessage: 'Skills',
-  },
-  apps: {
-    id: 'navigationCustomization.itemApps',
-    defaultMessage: 'Apps',
   },
   scheduler: {
     id: 'navigationCustomization.itemScheduler',

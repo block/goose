@@ -15,11 +15,11 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   importRecipeTitle: {
     id: 'importRecipeForm.importRecipeTitle',
-    defaultMessage: 'Import Recipe',
+    defaultMessage: 'Import Workflow',
   },
   recipeDeeplinkLabel: {
     id: 'importRecipeForm.recipeDeeplinkLabel',
-    defaultMessage: 'Recipe Deeplink',
+    defaultMessage: 'Workflow Deeplink',
   },
   deeplinkPlaceholder: {
     id: 'importRecipeForm.deeplinkPlaceholder',
@@ -27,7 +27,7 @@ const i18n = defineMessages({
   },
   deeplinkHint: {
     id: 'importRecipeForm.deeplinkHint',
-    defaultMessage: 'Paste a recipe deeplink starting with "goose://recipe?config="',
+    defaultMessage: 'Paste a workflow deeplink starting with "goose://recipe?config="',
   },
   or: {
     id: 'importRecipeForm.or',
@@ -35,11 +35,11 @@ const i18n = defineMessages({
   },
   recipeFileLabel: {
     id: 'importRecipeForm.recipeFileLabel',
-    defaultMessage: 'Recipe File',
+    defaultMessage: 'Workflow File',
   },
   recipeFileHint: {
     id: 'importRecipeForm.recipeFileHint',
-    defaultMessage: 'Upload a YAML or JSON file containing the recipe structure',
+    defaultMessage: 'Upload a YAML or JSON file containing the workflow structure',
   },
   example: {
     id: 'importRecipeForm.example',
@@ -47,7 +47,8 @@ const i18n = defineMessages({
   },
   reviewWarning: {
     id: 'importRecipeForm.reviewWarning',
-    defaultMessage: 'Ensure you review contents of recipe files before adding them to ApeMind Agent.',
+    defaultMessage:
+      'Ensure you review contents of workflow files before adding them to ApeMind Agent.',
   },
   cancel: {
     id: 'importRecipeForm.cancel',
@@ -59,15 +60,16 @@ const i18n = defineMessages({
   },
   importRecipeButton: {
     id: 'importRecipeForm.importRecipeButton',
-    defaultMessage: 'Import Recipe',
+    defaultMessage: 'Import Workflow',
   },
   expectedRecipeStructure: {
     id: 'importRecipeForm.expectedRecipeStructure',
-    defaultMessage: 'Expected Recipe Structure',
+    defaultMessage: 'Expected Workflow Structure',
   },
   schemaDescription: {
     id: 'importRecipeForm.schemaDescription',
-    defaultMessage: 'Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt.',
+    defaultMessage:
+      'Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt.',
   },
 });
 
@@ -95,7 +97,7 @@ const importRecipeSchema = z
       }, 'File is too large, max size is 1MB'),
   })
   .refine((data) => (data.deeplink && data.deeplink.trim()) || data.recipeUploadFile, {
-    message: 'Either of deeplink or recipe file are required',
+    message: 'Either a deeplink or workflow file is required',
     path: ['deeplink'],
   });
 
@@ -119,11 +121,11 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       try {
         let recipe: Recipe;
 
-        // Parse recipe from either deeplink or recipe file
+        // Parse workflow from either deeplink or file.
         if (value.deeplink && value.deeplink.trim()) {
           const parsedRecipe = await parseDeeplink(value.deeplink.trim());
           if (!parsedRecipe) {
-            throw new Error('Invalid deeplink or recipe format');
+            throw new Error('Invalid deeplink or workflow format');
           }
           recipe = parsedRecipe;
         } else {
@@ -144,14 +146,14 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
 
         toastSuccess({
           title: recipe.title.trim(),
-          msg: 'Recipe imported successfully',
+          msg: 'Workflow imported successfully',
         });
       } catch (error) {
-        console.error('Failed to import recipe:', error);
+        console.error('Failed to import workflow:', error);
 
         toastError({
           title: 'Import Failed',
-          msg: `Failed to import recipe: ${errorMessage(error, 'Unknown error')}`,
+          msg: `Failed to import workflow: ${errorMessage(error, 'Unknown error')}`,
           traceback: errorMessage(error),
         });
       } finally {
@@ -195,7 +197,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         await parseRecipeFromFile(fileContent);
       } catch (error) {
         toastError({
-          title: 'Invalid Recipe File',
+          title: 'Invalid Workflow File',
           msg: errorMessage(error, 'Unknown error'),
         });
       }
@@ -208,7 +210,9 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     <>
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
         <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-primary mb-4">{intl.formatMessage(i18n.importRecipeTitle)}</h3>
+          <h3 className="text-lg font-medium text-text-primary mb-4">
+            {intl.formatMessage(i18n.importRecipeTitle)}
+          </h3>
 
           <form
             onSubmit={(e) => {
@@ -354,7 +358,9 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                     disabled={!canSubmit || importing || isSubmitting}
                     variant="default"
                   >
-                    {importing || isSubmitting ? intl.formatMessage(i18n.importing) : intl.formatMessage(i18n.importRecipeButton)}
+                    {importing || isSubmitting
+                      ? intl.formatMessage(i18n.importing)
+                      : intl.formatMessage(i18n.importRecipeButton)}
                   </Button>
                 )}
               </importRecipeForm.Subscribe>
@@ -368,7 +374,9 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
           <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-text-primary">{intl.formatMessage(i18n.expectedRecipeStructure)}</h3>
+              <h3 className="text-lg font-medium text-text-primary">
+                {intl.formatMessage(i18n.expectedRecipeStructure)}
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowSchemaModal(false)}

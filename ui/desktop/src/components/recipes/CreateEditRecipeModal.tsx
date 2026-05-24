@@ -18,19 +18,21 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   createRecipeTitle: {
     id: 'createEditRecipe.createRecipeTitle',
-    defaultMessage: 'Create Recipe',
+    defaultMessage: 'Create Workflow',
   },
   viewEditRecipeTitle: {
     id: 'createEditRecipe.viewEditRecipeTitle',
-    defaultMessage: 'View/edit recipe',
+    defaultMessage: 'View/edit workflow',
   },
   createSubtitle: {
     id: 'createEditRecipe.createSubtitle',
-    defaultMessage: 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.',
+    defaultMessage:
+      'Create a new workflow to define agent behavior and capabilities for reusable chat sessions.',
   },
   editSubtitle: {
     id: 'createEditRecipe.editSubtitle',
-    defaultMessage: "You can edit the recipe below to change the agent's behavior in a new session.",
+    defaultMessage:
+      "You can edit the workflow below to change the agent's behavior in a new session.",
   },
   learnMore: {
     id: 'createEditRecipe.learnMore',
@@ -66,11 +68,11 @@ const i18n = defineMessages({
   },
   saveRecipe: {
     id: 'createEditRecipe.saveRecipe',
-    defaultMessage: 'Save Recipe',
+    defaultMessage: 'Save Workflow',
   },
   saveAndRunRecipe: {
     id: 'createEditRecipe.saveAndRunRecipe',
-    defaultMessage: 'Save & Run Recipe',
+    defaultMessage: 'Save & Run Workflow',
   },
   validationFailed: {
     id: 'createEditRecipe.validationFailed',
@@ -82,7 +84,7 @@ const i18n = defineMessages({
   },
   recipeSavedMsg: {
     id: 'createEditRecipe.recipeSavedMsg',
-    defaultMessage: 'Recipe saved successfully',
+    defaultMessage: 'Workflow saved successfully',
   },
   saveFailed: {
     id: 'createEditRecipe.saveFailed',
@@ -90,11 +92,11 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createEditRecipe.saveFailedMsg',
-    defaultMessage: 'Failed to save recipe: {error}',
+    defaultMessage: 'Failed to save workflow: {error}',
   },
   recipeSavedAndLaunchedMsg: {
     id: 'createEditRecipe.recipeSavedAndLaunchedMsg',
-    defaultMessage: 'Recipe saved and launched successfully',
+    defaultMessage: 'Workflow saved and launched successfully',
   },
   saveAndRunFailed: {
     id: 'createEditRecipe.saveAndRunFailed',
@@ -102,7 +104,7 @@ const i18n = defineMessages({
   },
   saveAndRunFailedMsg: {
     id: 'createEditRecipe.saveAndRunFailedMsg',
-    defaultMessage: 'Failed to save and run recipe: {error}',
+    defaultMessage: 'Failed to save and run workflow: {error}',
   },
 });
 
@@ -433,7 +435,9 @@ export default function CreateEditRecipeModal({
 
       toastError({
         title: intl.formatMessage(i18n.saveFailed),
-        msg: intl.formatMessage(i18n.saveFailedMsg, { error: errorMessage(error, 'Unknown error') }),
+        msg: intl.formatMessage(i18n.saveFailedMsg, {
+          error: errorMessage(error, 'Unknown error'),
+        }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -469,7 +473,9 @@ export default function CreateEditRecipeModal({
 
       toastError({
         title: intl.formatMessage(i18n.saveAndRunFailed),
-        msg: intl.formatMessage(i18n.saveAndRunFailedMsg, { error: errorMessage(error, 'Unknown error') }),
+        msg: intl.formatMessage(i18n.saveAndRunFailedMsg, {
+          error: errorMessage(error, 'Unknown error'),
+        }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -490,7 +496,9 @@ export default function CreateEditRecipeModal({
             </div>
             <div>
               <h1 className="text-xl font-medium text-text-primary">
-                {isCreateMode ? intl.formatMessage(i18n.createRecipeTitle) : intl.formatMessage(i18n.viewEditRecipeTitle)}
+                {isCreateMode
+                  ? intl.formatMessage(i18n.createRecipeTitle)
+                  : intl.formatMessage(i18n.viewEditRecipeTitle)}
               </h1>
               <p className="text-text-secondary text-sm">
                 {isCreateMode
@@ -589,7 +597,9 @@ export default function CreateEditRecipeModal({
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Play className="w-4 h-4" />
-              {isSaving ? intl.formatMessage(i18n.saving) : intl.formatMessage(i18n.saveAndRunRecipe)}
+              {isSaving
+                ? intl.formatMessage(i18n.saving)
+                : intl.formatMessage(i18n.saveAndRunRecipe)}
             </Button>
           </div>
         </div>

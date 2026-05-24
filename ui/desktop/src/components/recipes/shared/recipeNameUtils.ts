@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Validation schema for recipe names
  */
-export const recipeNameSchema = z.string().min(3, 'Recipe name must be at least 3 characters');
+export const recipeNameSchema = z.string().min(3, 'Workflow name must be at least 3 characters');
 
 /**
  * Transform a string to a valid recipe name format:

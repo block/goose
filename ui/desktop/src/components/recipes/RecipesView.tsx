@@ -64,7 +64,7 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   deleteRecipeTitle: {
     id: 'recipesView.deleteRecipeTitle',
-    defaultMessage: 'Delete Recipe',
+    defaultMessage: 'Delete Workflow',
   },
   deleteRecipeConfirm: {
     id: 'recipesView.deleteRecipeConfirm',
@@ -72,11 +72,11 @@ const i18n = defineMessages({
   },
   deleteRecipeDetail: {
     id: 'recipesView.deleteRecipeDetail',
-    defaultMessage: 'Recipe file will be deleted.',
+    defaultMessage: 'Workflow file will be deleted.',
   },
   recipeDeletedSuccess: {
     id: 'recipesView.recipeDeletedSuccess',
-    defaultMessage: 'Recipe deleted successfully',
+    defaultMessage: 'Workflow deleted successfully',
   },
   deeplinkCopiedTitle: {
     id: 'recipesView.deeplinkCopiedTitle',
@@ -84,7 +84,7 @@ const i18n = defineMessages({
   },
   deeplinkCopiedMsg: {
     id: 'recipesView.deeplinkCopiedMsg',
-    defaultMessage: 'Recipe deeplink has been copied to clipboard',
+    defaultMessage: 'Workflow deeplink has been copied to clipboard',
   },
   copyFailedTitle: {
     id: 'recipesView.copyFailedTitle',
@@ -100,15 +100,15 @@ const i18n = defineMessages({
   },
   yamlCopiedMsg: {
     id: 'recipesView.yamlCopiedMsg',
-    defaultMessage: 'Recipe YAML has been copied to clipboard',
+    defaultMessage: 'Workflow YAML has been copied to clipboard',
   },
   copyYamlFailedMsg: {
     id: 'recipesView.copyYamlFailedMsg',
-    defaultMessage: 'Failed to copy recipe YAML to clipboard',
+    defaultMessage: 'Failed to copy workflow YAML to clipboard',
   },
   exportRecipeDialogTitle: {
     id: 'recipesView.exportRecipeDialogTitle',
-    defaultMessage: 'Export Recipe',
+    defaultMessage: 'Export Workflow',
   },
   yamlFiles: {
     id: 'recipesView.yamlFiles',
@@ -120,11 +120,11 @@ const i18n = defineMessages({
   },
   recipeExportedTitle: {
     id: 'recipesView.recipeExportedTitle',
-    defaultMessage: 'Recipe exported',
+    defaultMessage: 'Workflow exported',
   },
   recipeExportedMsg: {
     id: 'recipesView.recipeExportedMsg',
-    defaultMessage: 'Recipe saved to {filePath}',
+    defaultMessage: 'Workflow saved to {filePath}',
   },
   exportFailedTitle: {
     id: 'recipesView.exportFailedTitle',
@@ -132,7 +132,7 @@ const i18n = defineMessages({
   },
   exportFailedMsg: {
     id: 'recipesView.exportFailedMsg',
-    defaultMessage: 'Failed to export recipe to file',
+    defaultMessage: 'Failed to export workflow to file',
   },
   scheduleSavedTitle: {
     id: 'recipesView.scheduleSavedTitle',
@@ -140,7 +140,7 @@ const i18n = defineMessages({
   },
   scheduleSavedMsg: {
     id: 'recipesView.scheduleSavedMsg',
-    defaultMessage: 'Recipe will run {schedule}',
+    defaultMessage: 'Workflow will run {schedule}',
   },
   scheduleRemovedTitle: {
     id: 'recipesView.scheduleRemovedTitle',
@@ -148,7 +148,7 @@ const i18n = defineMessages({
   },
   scheduleRemovedMsg: {
     id: 'recipesView.scheduleRemovedMsg',
-    defaultMessage: 'Recipe will no longer run automatically',
+    defaultMessage: 'Workflow will no longer run automatically',
   },
   slashCommandSavedTitle: {
     id: 'recipesView.slashCommandSavedTitle',
@@ -156,7 +156,7 @@ const i18n = defineMessages({
   },
   slashCommandSavedMsg: {
     id: 'recipesView.slashCommandSavedMsg',
-    defaultMessage: 'Use /{command} to run this recipe',
+    defaultMessage: 'Use /{command} to run this workflow',
   },
   slashCommandRemovedTitle: {
     id: 'recipesView.slashCommandRemovedTitle',
@@ -164,7 +164,7 @@ const i18n = defineMessages({
   },
   slashCommandRemovedMsg: {
     id: 'recipesView.slashCommandRemovedMsg',
-    defaultMessage: 'Recipe slash command has been removed',
+    defaultMessage: 'Workflow slash command has been removed',
   },
   runs: {
     id: 'recipesView.runs',
@@ -180,7 +180,7 @@ const i18n = defineMessages({
   },
   useRecipe: {
     id: 'recipesView.useRecipe',
-    defaultMessage: 'Use recipe',
+    defaultMessage: 'Use workflow',
   },
   openInNewWindow: {
     id: 'recipesView.openInNewWindow',
@@ -188,11 +188,11 @@ const i18n = defineMessages({
   },
   editRecipe: {
     id: 'recipesView.editRecipe',
-    defaultMessage: 'Edit recipe',
+    defaultMessage: 'Edit workflow',
   },
   shareRecipe: {
     id: 'recipesView.shareRecipe',
-    defaultMessage: 'Share recipe',
+    defaultMessage: 'Share workflow',
   },
   copyDeeplink: {
     id: 'recipesView.copyDeeplink',
@@ -216,11 +216,11 @@ const i18n = defineMessages({
   },
   deleteRecipe: {
     id: 'recipesView.deleteRecipe',
-    defaultMessage: 'Delete recipe',
+    defaultMessage: 'Delete workflow',
   },
   errorLoadingRecipes: {
     id: 'recipesView.errorLoadingRecipes',
-    defaultMessage: 'Error Loading Recipes',
+    defaultMessage: 'Error Loading Workflows',
   },
   tryAgain: {
     id: 'recipesView.tryAgain',
@@ -228,15 +228,15 @@ const i18n = defineMessages({
   },
   noSavedRecipes: {
     id: 'recipesView.noSavedRecipes',
-    defaultMessage: 'No saved recipes',
+    defaultMessage: 'No saved workflows',
   },
   noSavedRecipesDescription: {
     id: 'recipesView.noSavedRecipesDescription',
-    defaultMessage: 'Recipe saved from chats will show up here.',
+    defaultMessage: 'Workflow saved from chats will show up here.',
   },
   noMatchingRecipes: {
     id: 'recipesView.noMatchingRecipes',
-    defaultMessage: 'No matching recipes found',
+    defaultMessage: 'No matching workflows found',
   },
   adjustSearchTerms: {
     id: 'recipesView.adjustSearchTerms',
@@ -244,19 +244,20 @@ const i18n = defineMessages({
   },
   recipesTitle: {
     id: 'recipesView.recipesTitle',
-    defaultMessage: 'Recipes',
+    defaultMessage: 'Workflows',
   },
   createRecipe: {
     id: 'recipesView.createRecipe',
-    defaultMessage: 'Create Recipe',
+    defaultMessage: 'Create Workflow',
   },
   recipesDescription: {
     id: 'recipesView.recipesDescription',
-    defaultMessage: 'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
+    defaultMessage:
+      'View and manage your saved workflows to quickly start new sessions with predefined configurations. {shortcut} to search.',
   },
   searchRecipesPlaceholder: {
     id: 'recipesView.searchRecipesPlaceholder',
-    defaultMessage: 'Search recipes...',
+    defaultMessage: 'Search workflows...',
   },
   scheduleDialogTitle: {
     id: 'recipesView.scheduleDialogTitle',
@@ -280,7 +281,7 @@ const i18n = defineMessages({
   },
   slashCommandDescription: {
     id: 'recipesView.slashCommandDescription',
-    defaultMessage: 'Set a slash command to quickly run this recipe from any chat',
+    defaultMessage: 'Set a slash command to quickly run this workflow from any chat',
   },
   slashCommandPlaceholder: {
     id: 'recipesView.slashCommandPlaceholder',
@@ -288,7 +289,7 @@ const i18n = defineMessages({
   },
   slashCommandUsageHint: {
     id: 'recipesView.slashCommandUsageHint',
-    defaultMessage: 'Use /{command} in any chat to run this recipe',
+    defaultMessage: 'Use /{command} in any chat to run this workflow',
   },
   remove: {
     id: 'recipesView.remove',
@@ -643,7 +644,9 @@ export default function RecipesView() {
       trackRecipeSlashCommandSet(true, action);
       toastSuccess({
         title: intl.formatMessage(i18n.slashCommandSavedTitle),
-        msg: slashCommand ? intl.formatMessage(i18n.slashCommandSavedMsg, { command: slashCommand }) : intl.formatMessage(i18n.slashCommandRemovedMsg),
+        msg: slashCommand
+          ? intl.formatMessage(i18n.slashCommandSavedMsg, { command: slashCommand })
+          : intl.formatMessage(i18n.slashCommandRemovedMsg),
       });
 
       setShowSlashCommandDialog(false);
@@ -738,7 +741,11 @@ export default function RecipesView() {
           variant={slash_command ? 'default' : 'outline'}
           size="sm"
           className="h-8 w-8 p-0"
-          title={slash_command ? intl.formatMessage(i18n.editSlashCommand) : intl.formatMessage(i18n.addSlashCommand)}
+          title={
+            slash_command
+              ? intl.formatMessage(i18n.editSlashCommand)
+              : intl.formatMessage(i18n.addSlashCommand)
+          }
         >
           <Terminal className="w-4 h-4" />
         </Button>
@@ -815,7 +822,11 @@ export default function RecipesView() {
             variant={schedule_cron ? 'default' : 'outline'}
             size="sm"
             className="h-8 w-8 p-0"
-            title={schedule_cron ? intl.formatMessage(i18n.editSchedule) : intl.formatMessage(i18n.addSchedule)}
+            title={
+              schedule_cron
+                ? intl.formatMessage(i18n.editSchedule)
+                : intl.formatMessage(i18n.addSchedule)
+            }
           >
             <Clock className="w-4 h-4" />
           </Button>
@@ -888,7 +899,9 @@ export default function RecipesView() {
       return (
         <div className="flex flex-col justify-center pt-2 h-full">
           <p className="text-lg">{intl.formatMessage(i18n.noSavedRecipes)}</p>
-          <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.noSavedRecipesDescription)}</p>
+          <p className="text-sm text-text-secondary">
+            {intl.formatMessage(i18n.noSavedRecipesDescription)}
+          </p>
         </div>
       );
     }
@@ -944,7 +957,10 @@ export default function RecipesView() {
 
           <div className="flex-1 min-h-0 relative px-8">
             <ScrollArea className="h-full">
-              <SearchView onSearch={(term) => setSearchTerm(term)} placeholder={intl.formatMessage(i18n.searchRecipesPlaceholder)}>
+              <SearchView
+                onSearch={(term) => setSearchTerm(term)}
+                placeholder={intl.formatMessage(i18n.searchRecipesPlaceholder)}
+              >
                 <div
                   className={`h-full relative transition-all duration-300 ${
                     showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
@@ -989,7 +1005,9 @@ export default function RecipesView() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {intl.formatMessage(i18n.scheduleDialogTitle, { action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add' })}
+                {intl.formatMessage(i18n.scheduleDialogTitle, {
+                  action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add',
+                })}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">

@@ -13,15 +13,15 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'createSubRecipeInline.title',
-    defaultMessage: 'Create New Subrecipe',
+    defaultMessage: 'Create New Sub-workflow',
   },
   subtitle: {
     id: 'createSubRecipeInline.subtitle',
-    defaultMessage: 'Create a simple recipe to use as a callable tool in your main recipe',
+    defaultMessage: 'Create a simple workflow to use as a callable tool in your main workflow',
   },
   closeModal: {
     id: 'createSubRecipeInline.closeModal',
-    defaultMessage: 'Close create subrecipe modal',
+    defaultMessage: 'Close create sub-workflow modal',
   },
   nameLabel: {
     id: 'createSubRecipeInline.nameLabel',
@@ -37,7 +37,7 @@ const i18n = defineMessages({
   },
   recipeTitleLabel: {
     id: 'createSubRecipeInline.recipeTitleLabel',
-    defaultMessage: 'Recipe Title',
+    defaultMessage: 'Workflow Title',
   },
   recipeTitlePlaceholder: {
     id: 'createSubRecipeInline.recipeTitlePlaceholder',
@@ -45,11 +45,11 @@ const i18n = defineMessages({
   },
   recipeDescriptionLabel: {
     id: 'createSubRecipeInline.recipeDescriptionLabel',
-    defaultMessage: 'Recipe Description',
+    defaultMessage: 'Workflow Description',
   },
   recipeDescriptionPlaceholder: {
     id: 'createSubRecipeInline.recipeDescriptionPlaceholder',
-    defaultMessage: 'What this recipe does when executed',
+    defaultMessage: 'What this workflow does when executed',
   },
   instructionsLabel: {
     id: 'createSubRecipeInline.instructionsLabel',
@@ -57,7 +57,7 @@ const i18n = defineMessages({
   },
   instructionsPlaceholder: {
     id: 'createSubRecipeInline.instructionsPlaceholder',
-    defaultMessage: 'Instructions for the AI when this subrecipe is called...',
+    defaultMessage: 'Instructions for the AI when this sub-workflow is called...',
   },
   toolDescriptionLabel: {
     id: 'createSubRecipeInline.toolDescriptionLabel',
@@ -81,7 +81,7 @@ const i18n = defineMessages({
   },
   preconfiguredValuesHint: {
     id: 'createSubRecipeInline.preconfiguredValuesHint',
-    defaultMessage: 'Optional parameter values that are always passed to the subrecipe',
+    defaultMessage: 'Optional parameter values that are always passed to the sub-workflow',
   },
   cancel: {
     id: 'createSubRecipeInline.cancel',
@@ -93,7 +93,7 @@ const i18n = defineMessages({
   },
   createAndAdd: {
     id: 'createSubRecipeInline.createAndAdd',
-    defaultMessage: 'Create & Add Subrecipe',
+    defaultMessage: 'Create & Add Sub-workflow',
   },
   validationFailed: {
     id: 'createSubRecipeInline.validationFailed',
@@ -101,7 +101,7 @@ const i18n = defineMessages({
   },
   validationMsg: {
     id: 'createSubRecipeInline.validationMsg',
-    defaultMessage: 'Name, title, recipe description, and instructions are required.',
+    defaultMessage: 'Name, title, workflow description, and instructions are required.',
   },
   duplicateName: {
     id: 'createSubRecipeInline.duplicateName',
@@ -109,11 +109,11 @@ const i18n = defineMessages({
   },
   duplicateNameMsg: {
     id: 'createSubRecipeInline.duplicateNameMsg',
-    defaultMessage: 'A subrecipe named "{name}" already exists. Please use a unique name.',
+    defaultMessage: 'A sub-workflow named "{name}" already exists. Please use a unique name.',
   },
   createdSuccess: {
     id: 'createSubRecipeInline.createdSuccess',
-    defaultMessage: 'Subrecipe created successfully',
+    defaultMessage: 'Sub-workflow created successfully',
   },
   saveFailed: {
     id: 'createSubRecipeInline.saveFailed',
@@ -121,7 +121,7 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createSubRecipeInline.saveFailedMsg',
-    defaultMessage: 'Failed to save subrecipe: {error}',
+    defaultMessage: 'Failed to save sub-workflow: {error}',
   },
 });
 
@@ -221,12 +221,24 @@ export default function CreateSubRecipeInline({
 
       toastError({
         title: intl.formatMessage(i18n.saveFailed),
-        msg: intl.formatMessage(i18n.saveFailedMsg, { error: error instanceof Error ? error.message : 'Unknown error' }),
+        msg: intl.formatMessage(i18n.saveFailedMsg, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
       });
     } finally {
       setIsSaving(false);
     }
-  }, [form, name, toolDescription, sequentialWhenRepeated, values, existingSubRecipes, onSubRecipeSaved, onClose, intl]);
+  }, [
+    form,
+    name,
+    toolDescription,
+    sequentialWhenRepeated,
+    values,
+    existingSubRecipes,
+    onSubRecipeSaved,
+    onClose,
+    intl,
+  ]);
 
   if (!isOpen) return null;
 
@@ -236,10 +248,10 @@ export default function CreateSubRecipeInline({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-borderSubtle">
           <div>
-            <h2 className="text-xl font-medium text-textProminent">{intl.formatMessage(i18n.title)}</h2>
-            <p className="text-textSubtle text-sm">
-              {intl.formatMessage(i18n.subtitle)}
-            </p>
+            <h2 className="text-xl font-medium text-textProminent">
+              {intl.formatMessage(i18n.title)}
+            </h2>
+            <p className="text-textSubtle text-sm">{intl.formatMessage(i18n.subtitle)}</p>
           </div>
           <Button
             onClick={onClose}
@@ -270,9 +282,7 @@ export default function CreateSubRecipeInline({
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder={intl.formatMessage(i18n.namePlaceholder)}
             />
-            <p className="text-xs text-text-muted mt-1">
-              {intl.formatMessage(i18n.nameHint)}
-            </p>
+            <p className="text-xs text-text-muted mt-1">{intl.formatMessage(i18n.nameHint)}</p>
           </div>
 
           {/* Title Field */}
@@ -283,7 +293,8 @@ export default function CreateSubRecipeInline({
                   htmlFor="subrecipe-title"
                   className="block text-sm font-medium text-text-standard mb-2"
                 >
-                  {intl.formatMessage(i18n.recipeTitleLabel)} <span className="text-text-danger">*</span>
+                  {intl.formatMessage(i18n.recipeTitleLabel)}{' '}
+                  <span className="text-text-danger">*</span>
                 </label>
                 <input
                   id="subrecipe-title"
@@ -306,7 +317,8 @@ export default function CreateSubRecipeInline({
                   htmlFor="recipe-description"
                   className="block text-sm font-medium text-text-standard mb-2"
                 >
-                  {intl.formatMessage(i18n.recipeDescriptionLabel)} <span className="text-text-danger">*</span>
+                  {intl.formatMessage(i18n.recipeDescriptionLabel)}{' '}
+                  <span className="text-text-danger">*</span>
                 </label>
                 <input
                   id="recipe-description"
@@ -329,7 +341,8 @@ export default function CreateSubRecipeInline({
                   htmlFor="subrecipe-instructions"
                   className="block text-sm font-medium text-text-standard mb-2"
                 >
-                  {intl.formatMessage(i18n.instructionsLabel)} <span className="text-text-danger">*</span>
+                  {intl.formatMessage(i18n.instructionsLabel)}{' '}
+                  <span className="text-text-danger">*</span>
                 </label>
                 <textarea
                   id="subrecipe-instructions"

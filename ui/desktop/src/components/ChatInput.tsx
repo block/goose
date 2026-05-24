@@ -55,9 +55,7 @@ const turndown = new TurndownService({
 turndown.addRule('complexLinks', {
   filter: (node) => {
     return (
-      node.nodeName === 'A' &&
-      !!node.getAttribute('href') &&
-      /\n/.test(node.textContent || '')
+      node.nodeName === 'A' && !!node.getAttribute('href') && /\n/.test(node.textContent || '')
     );
   },
   replacement: (content, node) => {
@@ -168,11 +166,11 @@ const i18n = defineMessages({
   },
   viewEditRecipe: {
     id: 'chatInput.viewEditRecipe',
-    defaultMessage: 'View/Edit Recipe',
+    defaultMessage: 'View/Edit Workflow',
   },
   createRecipeFromSession: {
     id: 'chatInput.createRecipeFromSession',
-    defaultMessage: 'Create Recipe from Session',
+    defaultMessage: 'Create Workflow from Session',
   },
 });
 

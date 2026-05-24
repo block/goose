@@ -7,7 +7,7 @@ import { defineMessages, useIntl } from '../i18n';
 const i18n = defineMessages({
   cancelRecipeSetup: {
     id: 'parameterInputModal.cancelRecipeSetup',
-    defaultMessage: 'Cancel Recipe Setup',
+    defaultMessage: 'Cancel Workflow Setup',
   },
   whatToDo: {
     id: 'parameterInputModal.whatToDo',
@@ -19,11 +19,11 @@ const i18n = defineMessages({
   },
   startNewChat: {
     id: 'parameterInputModal.startNewChat',
-    defaultMessage: 'Start New Chat (No Recipe)',
+    defaultMessage: 'Start New Chat (No Workflow)',
   },
   recipeParameters: {
     id: 'parameterInputModal.recipeParameters',
-    defaultMessage: 'Recipe Parameters',
+    defaultMessage: 'Workflow Parameters',
   },
   selectOption: {
     id: 'parameterInputModal.selectOption',
@@ -51,7 +51,7 @@ const i18n = defineMessages({
   },
   startRecipe: {
     id: 'parameterInputModal.startRecipe',
-    defaultMessage: 'Start Recipe',
+    defaultMessage: 'Start Workflow',
   },
 });
 
@@ -228,7 +228,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-border-primary focus:ring-border-secondary'
                       }`}
-                      placeholder={param.default || intl.formatMessage(i18n.enterValue, { key: param.key })}
+                      placeholder={
+                        param.default || intl.formatMessage(i18n.enterValue, { key: param.key })
+                      }
                     />
                   )}
 

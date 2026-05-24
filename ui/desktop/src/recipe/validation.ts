@@ -129,8 +129,8 @@ export function getRecipeJsonSchema() {
     return {
       $schema: 'http://json-schema.org/draft-07/schema#',
       type: 'object',
-      title: 'Recipe',
-      description: 'Recipe schema not found in OpenAPI specification',
+      title: 'Workflow',
+      description: 'Workflow schema not found in OpenAPI specification',
       required: ['title', 'description'],
       properties: {
         title: { type: 'string' },
@@ -149,9 +149,9 @@ export function getRecipeJsonSchema() {
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     ...resolvedSchema,
-    title: resolvedSchema.title || 'Recipe',
+    title: resolvedSchema.title || 'Workflow',
     description:
       resolvedSchema.description ||
-      'A Recipe represents a personalized, user-generated agent configuration that defines specific behaviors and capabilities within the Goose system.',
+      'A Workflow represents a personalized, user-generated agent configuration that defines specific behaviors and capabilities within ApeMind Agent.',
   };
 }

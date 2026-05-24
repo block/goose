@@ -267,7 +267,7 @@ describe('RecipeFormFields', () => {
 
       // Check that activity input exists
       const messageInput = screen.getByPlaceholderText(
-        'Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)'
+        'Enter a user facing introduction message for your workflow (supports **bold**, *italic*, `code`, etc.)'
       );
       expect(messageInput).toBeInTheDocument();
 
@@ -1019,9 +1019,9 @@ describe('RecipeFormFields', () => {
 
       await expandAdvancedSection(user);
 
-      expect(screen.getByText('Subrecipes')).toBeInTheDocument();
+      expect(screen.getByText('Sub-workflows')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /add existing/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /create new subrecipe/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /create new sub-workflow/i })).toBeInTheDocument();
     });
 
     it('pre-fills subrecipes from initial values', async () => {
@@ -1100,7 +1100,7 @@ describe('RecipeFormFields', () => {
       const addButton = screen.getByRole('button', { name: /add existing/i });
       await user.click(addButton);
 
-      expect(screen.getByRole('heading', { name: /add subrecipe/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /add sub-workflow/i })).toBeInTheDocument();
       expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/^path/i)).toBeInTheDocument();
     });

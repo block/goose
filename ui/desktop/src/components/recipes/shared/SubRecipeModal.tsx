@@ -10,19 +10,20 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   configureTitle: {
     id: 'subRecipeModal.configureTitle',
-    defaultMessage: 'Configure Subrecipe',
+    defaultMessage: 'Configure Sub-workflow',
   },
   addTitle: {
     id: 'subRecipeModal.addTitle',
-    defaultMessage: 'Add Subrecipe',
+    defaultMessage: 'Add Sub-workflow',
   },
   subtitle: {
     id: 'subRecipeModal.subtitle',
-    defaultMessage: 'Configure a subrecipe that can be called as a tool during recipe execution',
+    defaultMessage:
+      'Configure a sub-workflow that can be called as a tool during workflow execution',
   },
   closeModal: {
     id: 'subRecipeModal.closeModal',
-    defaultMessage: 'Close subrecipe modal',
+    defaultMessage: 'Close sub-workflow modal',
   },
   nameLabel: {
     id: 'subRecipeModal.nameLabel',
@@ -42,7 +43,7 @@ const i18n = defineMessages({
   },
   pathPlaceholder: {
     id: 'subRecipeModal.pathPlaceholder',
-    defaultMessage: 'e.g., ./subrecipes/security-analysis.yaml',
+    defaultMessage: 'e.g., ./sub-workflows/security-analysis.yaml',
   },
   browse: {
     id: 'subRecipeModal.browse',
@@ -50,7 +51,7 @@ const i18n = defineMessages({
   },
   pathHint: {
     id: 'subRecipeModal.pathHint',
-    defaultMessage: 'Browse for an existing recipe file or enter a path manually',
+    defaultMessage: 'Browse for an existing workflow file or enter a path manually',
   },
   descriptionLabel: {
     id: 'subRecipeModal.descriptionLabel',
@@ -58,7 +59,7 @@ const i18n = defineMessages({
   },
   descriptionPlaceholder: {
     id: 'subRecipeModal.descriptionPlaceholder',
-    defaultMessage: 'Optional description of what this subrecipe does...',
+    defaultMessage: 'Optional description of what this sub-workflow does...',
   },
   sequentialLabel: {
     id: 'subRecipeModal.sequentialLabel',
@@ -66,7 +67,7 @@ const i18n = defineMessages({
   },
   sequentialHint: {
     id: 'subRecipeModal.sequentialHint',
-    defaultMessage: '(Forces sequential execution of multiple subrecipe instances)',
+    defaultMessage: '(Forces sequential execution of multiple sub-workflow instances)',
   },
   preconfiguredValues: {
     id: 'subRecipeModal.preconfiguredValues',
@@ -74,7 +75,7 @@ const i18n = defineMessages({
   },
   preconfiguredValuesHint: {
     id: 'subRecipeModal.preconfiguredValuesHint',
-    defaultMessage: 'Optional parameter values that are always passed to the subrecipe',
+    defaultMessage: 'Optional parameter values that are always passed to the sub-workflow',
   },
   cancel: {
     id: 'subRecipeModal.cancel',
@@ -179,11 +180,11 @@ export default function SubRecipeModal({
         <div className="flex items-center justify-between p-6 border-b border-borderSubtle">
           <div>
             <h2 className="text-xl font-medium text-textProminent">
-              {subRecipe ? intl.formatMessage(i18n.configureTitle) : intl.formatMessage(i18n.addTitle)}
+              {subRecipe
+                ? intl.formatMessage(i18n.configureTitle)
+                : intl.formatMessage(i18n.addTitle)}
             </h2>
-            <p className="text-textSubtle text-sm">
-              {intl.formatMessage(i18n.subtitle)}
-            </p>
+            <p className="text-textSubtle text-sm">{intl.formatMessage(i18n.subtitle)}</p>
           </div>
           <Button
             onClick={onClose}
@@ -214,9 +215,7 @@ export default function SubRecipeModal({
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder={intl.formatMessage(i18n.namePlaceholder)}
             />
-            <p className="text-xs text-text-muted mt-1">
-              {intl.formatMessage(i18n.nameHint)}
-            </p>
+            <p className="text-xs text-text-muted mt-1">{intl.formatMessage(i18n.nameHint)}</p>
           </div>
 
           {/* Path Field */}
@@ -246,9 +245,7 @@ export default function SubRecipeModal({
                 {intl.formatMessage(i18n.browse)}
               </Button>
             </div>
-            <p className="text-xs text-text-muted mt-1">
-              {intl.formatMessage(i18n.pathHint)}
-            </p>
+            <p className="text-xs text-text-muted mt-1">{intl.formatMessage(i18n.pathHint)}</p>
           </div>
 
           {/* Description Field */}

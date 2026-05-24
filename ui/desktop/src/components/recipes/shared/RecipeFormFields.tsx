@@ -11,7 +11,7 @@ const i18n = defineMessages({
   },
   titlePlaceholder: {
     id: 'recipeFormFields.titlePlaceholder',
-    defaultMessage: 'Recipe title',
+    defaultMessage: 'Workflow title',
   },
   descriptionLabel: {
     id: 'recipeFormFields.descriptionLabel',
@@ -19,7 +19,7 @@ const i18n = defineMessages({
   },
   descriptionPlaceholder: {
     id: 'recipeFormFields.descriptionPlaceholder',
-    defaultMessage: 'Brief description of what this recipe does',
+    defaultMessage: 'Brief description of what this workflow does',
   },
   instructionsLabel: {
     id: 'recipeFormFields.instructionsLabel',
@@ -35,7 +35,8 @@ const i18n = defineMessages({
   },
   templateVarHint: {
     id: 'recipeFormFields.templateVarHint',
-    defaultMessage: "Use '{{parameter_name}}' to define parameters that can be filled in when running the recipe.",
+    defaultMessage:
+      "Use '{{parameter_name}}' to define parameters that can be filled in when running the workflow.",
   },
   initialPrompt: {
     id: 'recipeFormFields.initialPrompt',
@@ -47,7 +48,7 @@ const i18n = defineMessages({
   },
   promptPlaceholder: {
     id: 'recipeFormFields.promptPlaceholder',
-    defaultMessage: 'Pre-filled prompt when the recipe starts',
+    defaultMessage: 'Pre-filled prompt when the workflow starts',
   },
   advancedOptions: {
     id: 'recipeFormFields.advancedOptions',
@@ -55,7 +56,7 @@ const i18n = defineMessages({
   },
   advancedOptionsHint: {
     id: 'recipeFormFields.advancedOptionsHint',
-    defaultMessage: 'Activities, parameters, model, extensions, response schema, subrecipes',
+    defaultMessage: 'Activities, parameters, model, extensions, response schema, sub-workflows',
   },
   parametersLabel: {
     id: 'recipeFormFields.parametersLabel',
@@ -63,7 +64,8 @@ const i18n = defineMessages({
   },
   parametersDescription: {
     id: 'recipeFormFields.parametersDescription',
-    defaultMessage: "Parameters will be automatically detected from '{{parameter_name}}' syntax in instructions/prompt/activities or you can manually add them below.",
+    defaultMessage:
+      "Parameters will be automatically detected from '{{parameter_name}}' syntax in instructions/prompt/activities or you can manually add them below.",
   },
   parameterNamePlaceholder: {
     id: 'recipeFormFields.parameterNamePlaceholder',
@@ -417,7 +419,9 @@ export function RecipeFormFields({
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
-          <span className="text-sm font-medium text-textStandard">{intl.formatMessage(i18n.advancedOptions)}</span>
+          <span className="text-sm font-medium text-textStandard">
+            {intl.formatMessage(i18n.advancedOptions)}
+          </span>
           <span className="text-xs text-textSubtle">
             {intl.formatMessage(i18n.advancedOptionsHint)}
           </span>
@@ -444,7 +448,9 @@ export function RecipeFormFields({
                 if (newParameterName.trim()) {
                   const newParam: Parameter = {
                     key: newParameterName.trim(),
-                    description: intl.formatMessage(i18n.enterValueFor, { key: newParameterName.trim() }),
+                    description: intl.formatMessage(i18n.enterValueFor, {
+                      key: newParameterName.trim(),
+                    }),
                     input_type: 'string',
                     requirement: 'required',
                   };
