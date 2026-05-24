@@ -128,6 +128,7 @@ jobs:
             goose-*.tar.gz
             goose-*.zip
             Goose*.zip
+            ApeMind Agent*.zip
             *.deb
             *.rpm
             *.flatpak
@@ -143,6 +144,7 @@ jobs:
             goose-*.tar.gz
             goose-*.zip
             Goose*.zip
+            ApeMind Agent*.zip
             *.deb
             *.rpm
             *.flatpak
@@ -163,6 +165,7 @@ jobs:
             goose-*.tar.gz
             goose-*.zip
             Goose*.zip
+            ApeMind Agent*.zip
             *.deb
             *.rpm
             *.flatpak
