@@ -865,13 +865,16 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform !== 'darwin',
+    // windowStateKeeper persists the outer window bounds (getBounds), so the
+    // window must be restored by outer bounds too. With useContentSize the saved
+    // outer height is reapplied as the content height, growing the window by the
+    // frame height on every launch on framed platforms (#9363).
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
     minWidth: 450,
     resizable: true,
-    useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
       spellcheck: settings.spellcheckEnabled ?? true,
