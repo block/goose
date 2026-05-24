@@ -44,28 +44,26 @@ jobs:
   # 3) Bundle Desktop App (macOS)
   # ------------------------------------------------------------
   bundle-desktop:
-    if: false  # ApeCloud fork dry-run: skip signed macOS Apple Silicon Desktop until signing is configured.
     uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: true
-      environment: signing
+      signing: false
+      quick_test: false
     secrets: inherit
 
   # ------------------------------------------------------------
   # 4) Bundle Desktop App (macOS)
   # ------------------------------------------------------------
   bundle-desktop-intel:
-    if: false  # ApeCloud fork dry-run: skip signed macOS Intel Desktop until signing is configured.
     uses: ./.github/workflows/bundle-desktop-intel.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: true
-      environment: signing
+      signing: false
+      quick_test: false
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -74,29 +72,27 @@ jobs:
   bundle-desktop-linux:
     uses: ./.github/workflows/bundle-desktop-linux.yml
 
-#  # ------------------------------------------------------------
-#  # 6) Bundle Desktop App (Windows)
-#  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+  # 6) Bundle Desktop App (Windows)
+  # ------------------------------------------------------------
   bundle-desktop-windows:
-    if: false  # ApeCloud fork dry-run: skip signed Windows Desktop until signing is configured.
     uses: ./.github/workflows/bundle-desktop-windows.yml
     permissions:
       id-token: write
       contents: read
       actions: read
     with:
-      signing: true
+      signing: false
     secrets: inherit
 
   bundle-desktop-windows-cuda:
-    if: false  # ApeCloud fork dry-run: skip signed Windows CUDA Desktop until signing is configured.
     uses: ./.github/workflows/bundle-desktop-windows.yml
     permissions:
       id-token: write
       contents: read
       actions: read
     with:
-      signing: true
+      signing: false
       windows_variant: cuda
     secrets: inherit
 
@@ -106,7 +102,14 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop-linux]
+    needs:
+      - build-cli
+      - install-script
+      - bundle-desktop
+      - bundle-desktop-intel
+      - bundle-desktop-linux
+      - bundle-desktop-windows
+      - bundle-desktop-windows-cuda
     permissions:
       contents: write
       id-token: write      # Required for Sigstore OIDC signing
