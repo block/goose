@@ -75,6 +75,7 @@ describe('SettingsView', () => {
 
     expect(screen.queryByTestId('settings-local-inference-tab')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-mesh-tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-sharing-tab')).not.toBeInTheDocument();
     expect(screen.getByText('Models section')).toBeInTheDocument();
   });
 });

@@ -25,7 +25,7 @@ const i18n = defineMessages({
   helpText1: {
     id: 'goosehintsModal.helpText1',
     defaultMessage:
-      '.goosehints is a text file used to provide additional context about your project and improve the communication with Goose.',
+      '.goosehints is a text file used to provide additional context about your project and improve the communication with ApeMind.',
   },
   helpText2: {
     id: 'goosehintsModal.helpText2',

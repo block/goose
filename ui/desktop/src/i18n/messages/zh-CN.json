@@ -1302,7 +1302,7 @@
     "defaultMessage": "已找到 .goosehints 文件：{filePath}"
   },
   "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints 是一个文本文件，用于为你的项目提供额外上下文，改善与 Goose 的沟通。"
+    "defaultMessage": ".goosehints 是一个文本文件，用于为你的项目提供额外上下文，改善与 ApeMind 的沟通。"
   },
   "goosehintsModal.helpText2": {
     "defaultMessage": "请确认已在扩展页面启用 {bold} 扩展。此扩展是使用 .goosehints 所必需的。你需要重启会话，.goosehints 的更新才会生效。"
@@ -1329,7 +1329,7 @@
     "defaultMessage": "配置"
   },
   "goosehintsSection.description": {
-    "defaultMessage": "配置项目的 .goosehints 文件，为 Goose 提供额外上下文"
+    "defaultMessage": "配置项目的 .goosehints 文件，为 ApeMind 提供额外上下文"
   },
   "goosehintsSection.title": {
     "defaultMessage": "项目提示（.goosehints）"
@@ -4096,9 +4096,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示词"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "会话"
   },
   "settingsView.title": {
     "defaultMessage": "设置"

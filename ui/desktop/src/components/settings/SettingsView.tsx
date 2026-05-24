@@ -2,25 +2,13 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import ModelsSection from './models/ModelsSection';
-import SessionSharingSection from './sessions/SessionSharingSection';
-import ExternalBackendSection from './app/ExternalBackendSection';
 import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import {
-  Bot,
-  Share2,
-  Monitor,
-  MessageSquare,
-  FileText,
-  Keyboard,
-} from 'lucide-react';
+import { Bot, Monitor, MessageSquare, FileText, Keyboard } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import TunnelSection from './tunnel/TunnelSection';
-import GatewaySettingsSection from './gateways/GatewaySettingsSection';
-import { getTunnelStatus } from '../../api/sdk.gen';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
@@ -39,10 +27,6 @@ const i18n = defineMessages({
   tabChat: {
     id: 'settingsView.tabChat',
     defaultMessage: 'Chat',
-  },
-  tabSession: {
-    id: 'settingsView.tabSession',
-    defaultMessage: 'Session',
   },
   tabPrompts: {
     id: 'settingsView.tabPrompts',
@@ -75,7 +59,6 @@ export default function SettingsView({
   viewOptions: SettingsViewOptions;
 }) {
   const [activeTab, setActiveTab] = useState('models');
-  const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
   const intl = useIntl();
 
@@ -92,14 +75,12 @@ export default function SettingsView({
         update: 'app',
         models: 'models',
         modes: 'chat',
-        sharing: 'sharing',
         styles: 'chat',
         tools: 'chat',
         app: 'app',
         chat: 'chat',
         prompts: 'prompts',
         keyboard: 'keyboard',
-        gateway: 'sharing',
       };
 
       const targetTab = sectionToTab[viewOptions.section];
@@ -115,16 +96,6 @@ export default function SettingsView({
       hasTrackedInitialTab.current = true;
     }
   }, [activeTab]);
-
-  useEffect(() => {
-    getTunnelStatus()
-      .then(({ data }) => {
-        setTunnelDisabled(data?.state === 'disabled');
-      })
-      .catch(() => {
-        setTunnelDisabled(false);
-      });
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -173,14 +144,6 @@ export default function SettingsView({
                     {intl.formatMessage(i18n.tabChat)}
                   </TabsTrigger>
                   <TabsTrigger
-                    value="sharing"
-                    className="flex gap-2"
-                    data-testid="settings-sharing-tab"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    {intl.formatMessage(i18n.tabSession)}
-                  </TabsTrigger>
-                  <TabsTrigger
                     value="prompts"
                     className="flex gap-2"
                     data-testid="settings-prompts-tab"
@@ -216,22 +179,6 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <ChatSettingsSection sessionId={viewOptions.sessionId} />
-                </TabsContent>
-
-                <TabsContent
-                  value="sharing"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <div className="space-y-8 pb-8">
-                    <SessionSharingSection />
-                    <ExternalBackendSection />
-                    {!tunnelDisabled && (
-                      <div className="space-y-4">
-                        <TunnelSection />
-                        <GatewaySettingsSection />
-                      </div>
-                    )}
-                  </div>
                 </TabsContent>
 
                 <TabsContent
