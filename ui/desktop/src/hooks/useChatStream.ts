@@ -571,7 +571,6 @@ export function useChatStream({
   // Track the active request for cancellation (includes the session that started it)
   const activeRequestIdRef = useRef<string | null>(null);
   const activeRequestSessionIdRef = useRef<string | null>(null);
-  const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
   const activeAcpPromptSessionRef = useRef<string | null>(null);
   const pendingAcpPermissionRequestsRef = useRef<Map<string, PendingAcpPermissionRequest>>(
@@ -823,80 +822,8 @@ export function useChatStream({
     []
   );
 
-  /**
-   * Submit a message via the new POST+SSE pattern.
-   * 1. Generate request_id
-   * 2. Register SSE listener BEFORE POST (no race condition)
-   * 3. POST to /sessions/{id}/reply
-   * 4. Events arrive on the long-lived SSE connection
-   */
   const submitToSession = useCallback(
-    async (
-      targetSessionId: string,
-      userMessage: Message,
-      currentMessages: Message[],
-      overrideConversation?: Message[]
-    ) => {
-      if (overrideConversation) {
-        // Fork/edit replay still relies on REST override semantics for now.
-        const requestId = uuidv7();
-        const abortController = new AbortController();
-        activeRequestIdRef.current = requestId;
-        activeRequestSessionIdRef.current = targetSessionId;
-        activeAbortRef.current = abortController;
-
-        const processEvent = createEventProcessor(
-          currentMessages,
-          dispatch,
-          onFinish,
-          targetSessionId,
-          reloadConversation
-        );
-
-        const unsubscribe = addListener(requestId, (event) => {
-          const isTerminal = processEvent(event);
-          if (isTerminal) {
-            unsubscribe();
-            if (activeRequestIdRef.current === requestId) {
-              activeUnsubscribeRef.current = null;
-              activeRequestIdRef.current = null;
-              activeRequestSessionIdRef.current = null;
-              activeAbortRef.current = null;
-            }
-          }
-        });
-        activeUnsubscribeRef.current = unsubscribe;
-
-        try {
-          await sessionReply({
-            path: { id: targetSessionId },
-            body: {
-              request_id: requestId,
-              user_message: userMessage,
-              override_conversation: overrideConversation,
-            },
-            signal: abortController.signal,
-            throwOnError: true,
-          });
-        } catch (error) {
-          if (abortController.signal.aborted) return;
-          unsubscribe();
-          if (activeRequestIdRef.current === requestId) {
-            activeUnsubscribeRef.current = null;
-            activeRequestIdRef.current = null;
-            activeRequestSessionIdRef.current = null;
-            activeAbortRef.current = null;
-          }
-          const msg = errorMessage(error);
-          if (msg.includes('already has an active request')) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
-          } else {
-            onFinish('Submit error: ' + msg);
-          }
-        }
-        return;
-      }
-
+    async (targetSessionId: string, userMessage: Message, currentMessages: Message[]) => {
       const adapter = createAcpSessionNotificationAdapter(currentMessages);
       activeRequestSessionIdRef.current = targetSessionId;
       activeAcpPromptSessionRef.current = targetSessionId;
@@ -995,7 +922,7 @@ export function useChatStream({
         }
       }
     },
-    [addListener, onFinish, reloadConversation]
+    [onFinish]
   );
 
   // Load session on mount or sessionId change
@@ -1279,12 +1206,6 @@ export function useChatStream({
     const requestId = activeRequestIdRef.current;
     const requestSessionId = activeRequestSessionIdRef.current;
     const acpPromptSessionId = activeAcpPromptSessionRef.current;
-
-    // Abort the in-flight POST so the reply never starts if cancel wins the race
-    if (activeAbortRef.current) {
-      activeAbortRef.current.abort();
-      activeAbortRef.current = null;
-    }
 
     if (acpPromptSessionId) {
       activeAcpPromptSessionRef.current = null;
