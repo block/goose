@@ -8,6 +8,7 @@ import {
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import { acpNewSession, acpNewSessionToSession } from './acp/sessions';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -56,6 +57,17 @@ export async function createSession(
     body.recipe_id = options.recipeId;
   } else if (options?.recipeDeeplink) {
     body.recipe = await decodeRecipe(options.recipeDeeplink);
+  }
+
+  const hasRecipe = Boolean(body.recipe_id || body.recipe);
+  const hasExplicitExtensionConfigs = Boolean(
+    options?.extensionConfigs && options.extensionConfigs.length > 0
+  );
+  const hasExtensionOverrideState = hasExtensionOverrides();
+
+  if (!hasRecipe && !hasExplicitExtensionConfigs && !hasExtensionOverrideState) {
+    const response = await acpNewSession(workingDir);
+    return acpNewSessionToSession(response, workingDir);
   }
 
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {

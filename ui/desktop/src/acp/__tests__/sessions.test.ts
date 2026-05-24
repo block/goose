@@ -1,6 +1,6 @@
-import type { LoadSessionResponse } from '@agentclientprotocol/sdk';
+import type { LoadSessionResponse, NewSessionResponse } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
-import { acpLoadSessionMeta, messageToAcpPromptContent } from '../sessions';
+import { acpLoadSessionMeta, acpNewSessionToSession, messageToAcpPromptContent } from '../sessions';
 import type { Message } from '../../api';
 
 describe('acpLoadSessionMeta', () => {
@@ -75,6 +75,28 @@ describe('acpLoadSessionMeta', () => {
       workingDir: undefined,
       configOptions: undefined,
     });
+  });
+});
+
+describe('acpNewSessionToSession', () => {
+  it('creates a desktop session snapshot from an ACP new session response', () => {
+    const response = {
+      sessionId: 'session-1',
+      configOptions: [],
+    } as unknown as NewSessionResponse;
+
+    const session = acpNewSessionToSession(response, '/tmp/project');
+
+    expect(session).toMatchObject({
+      id: 'session-1',
+      name: 'New Chat',
+      working_dir: '/tmp/project',
+      message_count: 0,
+      extension_data: {},
+      conversation: [],
+    });
+    expect(session.created_at).toEqual(expect.any(String));
+    expect(session.updated_at).toEqual(expect.any(String));
   });
 });
 

@@ -233,7 +233,6 @@ pub struct GooseAcpAgentOptions {
     pub builtins: Vec<String>,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
-    pub goose_mode: GooseMode,
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
@@ -250,7 +249,6 @@ pub struct GooseAcpAgent {
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
-    goose_mode: GooseMode,
     disable_session_naming: bool,
     provider_inventory: ProviderInventoryService,
     goose_platform: GoosePlatform,
@@ -1293,7 +1291,6 @@ impl GooseAcpAgent {
             config_dir: options.config_dir,
             session_manager,
             permission_manager,
-            goose_mode: options.goose_mode,
             disable_session_naming: options.disable_session_naming,
             provider_inventory,
             goose_platform: options.goose_platform,
@@ -2600,6 +2597,12 @@ impl GooseAcpAgent {
             None => SessionType::Acp,
         };
 
+        let current_mode = self
+            .load_config()
+            .ok()
+            .and_then(|config| config.get_goose_mode().ok())
+            .unwrap_or(GooseMode::Auto);
+
         let t0 = std::time::Instant::now();
         let goose_session = self
             .session_manager
@@ -2607,7 +2610,7 @@ impl GooseAcpAgent {
                 args.cwd.clone(),
                 "New Chat".to_string(),
                 session_type,
-                self.goose_mode,
+                current_mode,
             )
             .await
             .internal_err_ctx("Failed to create session")?;
@@ -2630,6 +2633,7 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to reload session")?;
 
+        let session_mode = goose_session.goose_mode;
         let session_id_str = goose_session.id.clone();
         let sid = sid_short(&session_id_str);
         debug!(target: "perf", sid = %sid, ms = t0.elapsed().as_millis() as u64, "perf: new_session create_session");
@@ -2650,7 +2654,7 @@ impl GooseAcpAgent {
             .await
             .insert(session_id_str.clone(), acp_session);
 
-        let mode_state = build_mode_state(self.goose_mode)?;
+        let mode_state = build_mode_state(session_mode)?;
 
         let resolved = resolve_provider_and_model(&self.config_dir, &goose_session).await;
         let acp_session_id = SessionId::new(session_id_str);
@@ -3372,7 +3376,7 @@ impl GooseAcpAgent {
             .await
             .insert(new_session_id.clone(), acp_session);
 
-        let mode_state = build_mode_state(self.goose_mode)?;
+        let mode_state = build_mode_state(goose_session.goose_mode)?;
         let resolved = resolve_provider_and_model(&self.config_dir, &goose_session).await;
         let (model_state, config_options, prebuilt_provider) = self
             .prepare_session_init_config(&resolved, &mode_state, &goose_session)

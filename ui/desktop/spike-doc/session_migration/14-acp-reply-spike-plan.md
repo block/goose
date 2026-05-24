@@ -19,6 +19,63 @@ Introduce an incremental ACP reply path using `session/prompt`, starting with a
 small spike that proves ACP-loaded sessions can continue through ACP without
 REST `sessionReply`.
 
+## Current Status
+
+ACP reply is now implemented incrementally for the normal desktop chat path.
+The original spike code is not throwaway; it has become the migration path.
+
+Implemented:
+
+- Normal follow-up prompts use ACP `session/prompt`.
+- REST `sessionReply` remains only for the edit/fork `overrideConversation`
+  path.
+- ACP `session/update` notifications drive message rendering through
+  `sessionNotificationAdapter`.
+- Tool calls and tool responses render in the existing desktop tool card shape.
+- ACP MCP app/resource metadata is adapted to the existing desktop MCP UI shape.
+- ACP `session/cancel` is used for active ACP prompts.
+- ACP `configOptions` from `session/load` and `config_option_update`
+  notifications are stored in desktop state.
+- Active session mode writes use ACP `session/set_config_option` with
+  `configId: "mode"`.
+- Bottom-bar session mode reads from ACP config options when available, with the
+  hardcoded Goose mode list retained as fallback.
+- ACP permission requests are bridged into the existing inline tool approval UI.
+- Approval buttons resolve ACP `requestPermission` when a pending ACP request
+  exists, and fall back to REST `confirmToolAction` for legacy REST
+  confirmation flows.
+- Text chunk merging is idempotent so repeated full/cumulative ACP chunks do not
+  duplicate text in the same bubble.
+
+Validated manually:
+
+- Text replies continue after ACP `session/load`.
+- Tool prompts run through ACP without the previous `Provider not set` failure.
+- Manual mode shows inline approval buttons for tool calls.
+- Allow/deny decisions continue the prompt turn through ACP.
+- MCP app/resource rendering still works in active chat and standalone app views.
+
+Validated with focused checks:
+
+- ACP adapter unit tests.
+- Desktop typecheck.
+
+Remaining migration work:
+
+- ACP new-session creation.
+- Recipe-session load/new-session behavior.
+- REST edit/fork `overrideConversation` migration or explicit retention:
+  `useChatStream.ts` still calls `sessionReply` when `overrideConversation`
+  exists.
+- ACP elicitation response migration: `useChatStream.ts` still calls
+  `sessionReply` for elicitation responses.
+- Reattach/resume behavior for in-flight ACP prompts.
+- Additional cancel cleanup validation for pending tool cards.
+- Optional stop-reason UX for non-cancel ACP stop reasons.
+
+Next lifecycle slice: see `15-acp-new-session-plan.md` for the guarded ACP
+`session/new` migration plan.
+
 ## Research Notes
 
 - The ACP SDK exposes `client.prompt(params)`, which sends
@@ -60,9 +117,9 @@ Do not adapt REST `request_id` / `chat_request_id` routing to ACP. ACP prompt
 already has a request lifecycle through the JSON-RPC call and session-scoped
 notifications.
 
-## Spike Scope
+## Initial Spike Scope
 
-The first patch should be intentionally narrow:
+The first patch was intentionally narrow:
 
 - Add an ACP prompt helper in `ui/desktop/src/acp/sessions.ts`.
 - Convert desktop user messages to ACP `ContentBlock[]`.
@@ -75,7 +132,7 @@ The first patch should be intentionally narrow:
 - Apply adapter updates directly to `messages`, `tokenState`, and chat state.
 - Clean up subscriptions when prompt resolves or errors.
 
-Out of scope for the spike:
+Originally out of scope for the spike:
 
 - REST active request reattach parity.
 - Full cancellation parity.
@@ -156,18 +213,21 @@ Automated:
 
 ## Follow-Up Hardening
 
-After the spike:
+Current hardening status:
 
-- Migrate session mode updates to ACP before treating manual approval as a
-  valid parity test.
-- Add ACP cancel support to `stopStreaming`.
+- Session mode updates have been migrated to ACP config options for active
+  sessions.
+- ACP cancel support has been added to `stopStreaming`.
+- ACP permission UI has been bridged into existing inline approval rendering.
+
+Still remaining:
+
 - Decide how ACP active prompt reattach should work, if at all.
 - Replace REST `getSession` title refresh with ACP session info updates or a
   Goose custom request.
-- Verify tool permissions and MCP app tool-result metadata in live prompt
-  streaming, not just load replay.
-- Remove REST `sessionReply` from the migrated chat path once parity is
-  acceptable.
+- Remove or migrate REST `sessionReply` from the edit/fork
+  `overrideConversation` path once parity is acceptable.
+- Remove or migrate REST `sessionReply` from the elicitation response path.
 
 ## Mode And Permission Parity
 
@@ -175,7 +235,7 @@ ACP reply uses the ACP-side live agent. Any setting that changes REST session
 state but not ACP session state can make the UI look configured while ACP runs
 with stale behavior.
 
-Known issue:
+Previously known issue:
 
 ```text
 Settings/manual mode or bottom-bar/manual mode
@@ -184,27 +244,12 @@ Settings/manual mode or bottom-bar/manual mode
   -> tools may auto-run
 ```
 
-The first fix is mode propagation, not permission UI.
+The first fix was mode propagation, not permission UI.
 
-Short-term bridge:
+Mode propagation implementation:
 
-1. Add an ACP helper around `client.setSessionMode(...)`.
-2. Update active-session mode controls to call ACP for ACP-backed sessions:
-   - `BottomMenuModeSelection`
-   - `ModeSection`
-3. Preserve global config writes for future session defaults.
-4. Verify a newly created session and an already loaded session both use the
-   selected mode during ACP `session/prompt`.
-
-This bridge is valid for current Goose ACP because the server supports
-`session/set_mode`, but it should not be the final desktop shape. The ACP
-Session Modes documentation says dedicated mode methods will be removed in a
-future protocol version and clients should use Session Config Options instead.
-
-Proper ACP migration path:
-
-1. Add an ACP helper around `client.setSessionConfigOption(...)`.
-2. Set active session mode with:
+- Desktop uses an ACP helper around `client.setSessionConfigOption(...)`.
+- Active session mode is written with:
 
    ```ts
    client.setSessionConfigOption({
@@ -214,22 +259,21 @@ Proper ACP migration path:
    });
    ```
 
-3. Capture `configOptions` from ACP `session/new` and `session/load`
-   responses.
-4. Handle ACP `config_option_update` session notifications in
-   `sessionNotificationAdapter`.
-5. Render active-session mode controls from the ACP mode config option when it
-   is available:
-   - find option by `category === "mode"` or `id === "mode"`
-   - current value comes from `currentValue`
-   - selectable values come from the option list
-   - labels/descriptions come from ACP instead of the hardcoded Goose mode list
-6. Keep the current hardcoded Goose modes as a fallback for:
-   - older ACP servers without config options
-   - unloaded sessions
-   - global default settings before a session exists
-7. Use `session/set_config_option` for active session mode writes. Keep
-   `session/set_mode` only as a fallback compatibility path if needed.
+- Desktop captures `configOptions` from ACP `session/load`.
+- Desktop handles ACP `config_option_update` session notifications in
+  `sessionNotificationAdapter`.
+- Active-session mode controls render from the ACP mode config option when it
+  is available:
+  - find option by `category === "mode"` or `id === "mode"`
+  - current value comes from `currentValue`
+  - selectable values come from the option list
+  - known Goose mode ids keep existing desktop labels
+  - unknown/custom mode ids use ACP labels/descriptions
+- The hardcoded Goose mode list remains as a fallback for:
+  - older ACP servers without config options
+  - unloaded sessions
+  - global default settings before a session exists
+- Global config writes still define defaults for future sessions.
 
 Goose server support already exists for the final path:
 
@@ -240,28 +284,33 @@ Goose server support already exists for the final path:
 - The server responds with the full updated config option list and also sends a
   `config_option_update` notification.
 
-After ACP mode propagation works, implement permission UI:
+Permission UI implementation:
 
-1. Register `setAcpPermissionHandler(...)`.
-2. Convert ACP `RequestPermissionRequest` into the existing desktop approval
-   UI shape, or add a small ACP-specific approval state.
-3. Resolve the ACP request with the selected option:
-   - `allow_once`
-   - `allow_always`
-   - `reject_once`
-   - `reject_always`
-4. Ensure cancellation resolves outstanding ACP permission requests with
-   `cancelled`.
+- `useChatStream` registers `setAcpPermissionHandler(...)` during an active ACP
+  prompt.
+- ACP `RequestPermissionRequest` is converted into the existing desktop
+  `actionRequired/toolConfirmation` shape.
+- Existing inline approval UI renders the buttons beside the tool card.
+- Approval buttons resolve the ACP request with the selected option:
+  - `allow_once`
+  - `allow_always`
+  - `reject_once`
+  - `reject_always`
+- If no ACP pending request exists for the tool id, approval buttons fall back
+  to REST `confirmToolAction`.
+- Prompt cleanup resolves outstanding ACP permission requests with
+  `cancelled`.
 
-Until both mode propagation and permission UI exist, manual approval should be
-considered an open parity gap for ACP reply.
+Manual approval is no longer an open ACP reply parity gap for the normal prompt
+path. It still needs regression coverage for edit/fork once that path migrates
+off REST.
 
 ## Prompt Turn Compliance Audit
 
 Reference: <https://agentclientprotocol.com/protocol/prompt-turn>
 
-Current desktop ACP reply implementation is partially aligned with the ACP
-prompt-turn lifecycle.
+Current desktop ACP reply implementation is mostly aligned with the ACP
+prompt-turn lifecycle for the normal chat path.
 
 ### What Already Matches
 
@@ -281,15 +330,17 @@ prompt-turn lifecycle.
   - `session_info_update`
 - Desktop applies Goose usage updates from `_goose/session/update`.
 - Desktop sends ACP `session/cancel` for active ACP prompt cancellation.
+- Desktop handles ACP `requestPermission` through inline approval UI and returns
+  the selected ACP permission option.
 
-### Required Before ACP Reply Parity
+### Completed Parity Work
 
 #### 1. ACP Mode Propagation
 
-Required because desktop already has user-facing mode controls. If the UI says
-manual/approve mode but the ACP-side live agent still runs in auto mode, tools
-can execute without approval. That is a behavior regression, not just missing
-polish.
+This was required because desktop already has user-facing mode controls. If the
+UI says manual/approve mode but the ACP-side live agent still runs in auto
+mode, tools can execute without approval. That is a behavior regression, not
+just missing polish.
 
 Relevant UI surfaces:
 
@@ -297,26 +348,26 @@ Relevant UI surfaces:
 - Settings mode section
 - new session defaults
 
-Target behavior:
+Implemented behavior:
 
 - active ACP sessions receive mode changes through ACP config options
 - global config writes still define defaults for future sessions
-- a newly created or ACP-loaded session uses the selected mode during
+- an ACP-loaded session uses the selected mode during
   `session/prompt`
 
 #### 2. ACP Permission UI
 
-Required because desktop already supports manual tool approval. ACP
+This was required because desktop already supports manual tool approval. ACP
 `requestPermission` must be wired to the UI so manual approval works during ACP
 prompt turns.
 
-Current gap:
+Previously:
 
 - `setAcpPermissionHandler(...)` exists
 - no desktop approval handler is registered
 - fallback returns `cancelled`
 
-Target behavior:
+Implemented behavior:
 
 - convert ACP `RequestPermissionRequest` into a visible approval UI state
 - resolve the ACP request with the selected permission option:
@@ -325,6 +376,8 @@ Target behavior:
   - `reject_once`
   - `reject_always`
 - cancellation resolves any pending ACP permission request as `cancelled`
+
+### Required Before Closing The Migration Slice
 
 #### 3. Cancel Cleanup Validation
 

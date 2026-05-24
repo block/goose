@@ -155,10 +155,8 @@ function applyToolCall(state: AdapterState, update: ToolCall): AcpSessionUpdate[
 function applyToolCallUpdate(state: AdapterState, update: ToolCallUpdate): AcpSessionUpdate[] {
   const identity = toolIdentity(update);
   const mcpAppMeta = mcpAppMetadata(update);
-  const message =
-    messageWithToolRequest(state, update.toolCallId) ??
-    assistantMessageForReplayUpdate(state, update);
-  const request = message.content.find(
+  const message = messageWithToolRequest(state, update.toolCallId);
+  const request = message?.content.find(
     (content) => content.type === 'toolRequest' && content.id === update.toolCallId
   );
 
@@ -167,6 +165,10 @@ function applyToolCallUpdate(state: AdapterState, update: ToolCallUpdate): AcpSe
       ...request.metadata,
       ...toolMetadata(update, identity),
     };
+  }
+
+  if (!message && update.status !== 'completed' && update.status !== 'failed') {
+    assistantMessageForReplayUpdate(state, update);
   }
 
   if (update.status === 'completed' || update.status === 'failed') {
@@ -209,6 +211,7 @@ function applyPermissionRequest(
     const identity = toolIdentity(request.toolCall);
     const prompt = permissionPrompt(request);
     state.messages.push({
+      id: `acp_permission_${toolCallId}`,
       role: 'assistant',
       created: Math.floor(Date.now() / 1000),
       content: [

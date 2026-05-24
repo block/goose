@@ -231,6 +231,17 @@ function permissionRequest(): RequestPermissionRequest {
   } as RequestPermissionRequest;
 }
 
+function permissionRequestForTool(toolCallId: string): RequestPermissionRequest {
+  const request = permissionRequest();
+  return {
+    ...request,
+    toolCall: {
+      ...request.toolCall,
+      toolCallId,
+    },
+  };
+}
+
 describe('sessionNotificationAdapter', () => {
   it('converts a user text chunk into a desktop message', () => {
     const adapter = createAcpSessionNotificationAdapter();
@@ -515,6 +526,7 @@ describe('sessionNotificationAdapter', () => {
 
     expect(adapter.snapshot().messages).toMatchObject([
       {
+        id: 'acp_permission_tool-1',
         role: 'assistant',
         content: [
           {
@@ -529,6 +541,18 @@ describe('sessionNotificationAdapter', () => {
           },
         ],
       },
+    ]);
+  });
+
+  it('gives ACP permission messages unique IDs for React keys', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.applyPermissionRequest(permissionRequestForTool('tool-1'));
+    adapter.applyPermissionRequest(permissionRequestForTool('tool-2'));
+
+    expect(adapter.snapshot().messages.map((message) => message.id)).toEqual([
+      'acp_permission_tool-1',
+      'acp_permission_tool-2',
     ]);
   });
 
@@ -574,6 +598,25 @@ describe('sessionNotificationAdapter', () => {
                 content: [{ type: 'text', text: 'file contents' }],
               },
             },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('does not create an empty assistant message for an orphan completed tool update', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.apply(toolCallUpdateNotification());
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        id: 'tool-response-message',
+        role: 'user',
+        content: [
+          {
+            type: 'toolResponse',
+            id: 'tool-1',
           },
         ],
       },

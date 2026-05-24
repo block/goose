@@ -167,7 +167,10 @@ pub async fn spawn_acp_server_in_process(
     if !config_path.exists() {
         fs::write(
             &config_path,
-            format!("GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\n"),
+            format!(
+                "GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: {}\n",
+                goose_mode.to_string()
+            ),
         )
         .unwrap();
     }
@@ -195,7 +198,6 @@ pub async fn spawn_acp_server_in_process(
         builtins: builtins.to_vec(),
         data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
-        goose_mode,
         disable_session_naming,
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),

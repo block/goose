@@ -2,6 +2,7 @@ import type {
   ContentBlock,
   ListSessionsResponse,
   LoadSessionResponse,
+  NewSessionResponse,
   PromptResponse,
   SessionConfigOption,
   SessionInfo,
@@ -9,6 +10,7 @@ import type {
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import type { ExtensionLoadResult, Message, Recipe } from '../api';
+import type { Session } from '../api';
 
 interface AcpLoadSessionMeta {
   extensionResults?: ExtensionLoadResult[] | null;
@@ -28,6 +30,29 @@ export async function acpLoadSession(
     cwd: workingDir,
     mcpServers: [],
   });
+}
+
+export async function acpNewSession(workingDir: string): Promise<NewSessionResponse> {
+  const client = await getAcpClient();
+  return client.newSession({
+    cwd: workingDir,
+    mcpServers: [],
+    _meta: { client: 'goose' },
+  });
+}
+
+export function acpNewSessionToSession(response: NewSessionResponse, workingDir: string): Session {
+  const now = new Date().toISOString();
+  return {
+    id: response.sessionId,
+    name: DEFAULT_CHAT_TITLE,
+    working_dir: workingDir,
+    created_at: now,
+    updated_at: now,
+    message_count: 0,
+    extension_data: {},
+    conversation: [],
+  };
 }
 
 export async function acpPromptSession(

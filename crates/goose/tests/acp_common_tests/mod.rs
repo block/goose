@@ -872,6 +872,37 @@ pub async fn run_new_session_returns_initial_config<C: Connection>() {
     assert!(!models.available_models.is_empty());
 }
 
+pub async fn run_new_session_uses_current_config_mode<C: Connection>() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join(goose::config::base::CONFIG_YAML_NAME);
+    fs::write(
+        &config_path,
+        format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: approve\n"),
+    )
+    .unwrap();
+
+    let expected_session_id = C::expected_session_id();
+    let openai = OpenAiFixture::new(vec![], expected_session_id.clone()).await;
+    let config = TestConnectionConfig {
+        goose_mode: GooseMode::Approve,
+        data_root: temp_dir.path().to_path_buf(),
+        ..Default::default()
+    };
+
+    let mut conn = C::new(config, openai).await;
+
+    fs::write(
+        &config_path,
+        format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: auto\n"),
+    )
+    .unwrap();
+
+    let SessionData { session, modes, .. } = conn.new_session().await.unwrap();
+    expected_session_id.set(&session.session_id().0);
+
+    assert_eq!(modes.unwrap().current_mode_id, SessionModeId::new("auto"));
+}
+
 pub async fn run_config_option_model_set<C: Connection>() {
     run_model_set_impl::<C>(SetModelVia::ConfigOption).await;
 }
