@@ -290,6 +290,15 @@ impl GooseAcpAgent {
         self.on_import_session(req).await
     }
 
+    #[custom_method(ElicitationRespondRequest)]
+    async fn dispatch_elicitation_respond(
+        &self,
+        _req: ElicitationRespondRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        Err(agent_client_protocol::Error::invalid_params()
+            .data("_goose/elicitation/respond requires connection-scoped dispatch"))
+    }
+
     #[custom_method(UpdateSessionProjectRequest)]
     async fn dispatch_update_session_project(
         &self,

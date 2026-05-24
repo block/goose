@@ -176,6 +176,11 @@
       "responseType": "ImportSessionResponse"
     },
     {
+      "method": "_goose/elicitation/respond",
+      "requestType": "ElicitationRespondRequest",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/session/update_project",
       "requestType": "UpdateSessionProjectRequest",
       "responseType": "EmptyResponse"

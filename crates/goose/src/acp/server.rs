@@ -3,6 +3,7 @@ use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
+use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
@@ -1824,6 +1825,7 @@ impl GooseAcpAgent {
         session_id: &SessionId,
         session_id_str: &str,
         message_id: Option<&str>,
+        message_created: i64,
         agent: &Arc<Agent>,
         session: &mut GooseAcpSession,
         cx: &ConnectionTo<Client>,
@@ -1867,14 +1869,13 @@ impl GooseAcpAgent {
                     ))),
                 ))?;
             }
-            MessageContent::ActionRequired(action_required) => {
-                if let ActionRequiredData::ToolConfirmation {
+            MessageContent::ActionRequired(action_required) => match &action_required.data {
+                ActionRequiredData::ToolConfirmation {
                     id,
                     tool_name,
                     arguments,
                     prompt,
-                } = &action_required.data
-                {
+                } => {
                     self.handle_tool_permission_request(
                         cx,
                         agent,
@@ -1885,7 +1886,23 @@ impl GooseAcpAgent {
                         prompt.clone(),
                     )?;
                 }
-            }
+                ActionRequiredData::Elicitation {
+                    id,
+                    message,
+                    requested_schema,
+                } => {
+                    send_elicitation_interaction_update(
+                        cx,
+                        session_id.0.as_ref(),
+                        id.clone(),
+                        InteractionState::Pending,
+                        Some(message.clone()),
+                        Some(requested_schema.clone()),
+                        Some(interaction_update_meta(message_id, message_created)),
+                    )?;
+                }
+                ActionRequiredData::ElicitationResponse { .. } => {}
+            },
             _ => {}
         }
         Ok(())
@@ -2417,6 +2434,41 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
         principal_type: PrincipalType::Tool,
         permission: Permission::from(PermissionDecision::from(outcome)),
     }
+}
+
+fn send_elicitation_interaction_update(
+    cx: &ConnectionTo<Client>,
+    session_id: &str,
+    id: String,
+    state: InteractionState,
+    message: Option<String>,
+    requested_schema: Option<serde_json::Value>,
+    meta: Option<serde_json::Value>,
+) -> Result<(), agent_client_protocol::Error> {
+    cx.send_notification(GooseSessionNotification {
+        session_id: session_id.to_string(),
+        update: GooseSessionUpdate::InteractionUpdate(InteractionUpdate {
+            interaction: Interaction::Elicitation {
+                id,
+                state,
+                message,
+                requested_schema,
+            },
+            meta,
+        }),
+    })
+}
+
+fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json::Value {
+    let mut goose = serde_json::Map::new();
+    goose.insert("created".to_string(), serde_json::json!(created));
+    if let Some(id) = message_id {
+        goose.insert("messageId".to_string(), serde_json::json!(id));
+    }
+
+    let mut meta = serde_json::Map::new();
+    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+    serde_json::Value::Object(meta)
 }
 
 fn extract_tool_call_update_meta(
@@ -2965,6 +3017,7 @@ impl GooseAcpAgent {
                             &args.session_id,
                             &session_id,
                             stored_message_id.as_deref(),
+                            message.created,
                             &agent,
                             session,
                             cx,
@@ -3055,6 +3108,45 @@ impl GooseAcpAgent {
         }
 
         Ok(())
+    }
+
+    async fn on_elicitation_respond(
+        &self,
+        cx: &ConnectionTo<Client>,
+        req: ElicitationRespondRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        ActionRequiredManager::global()
+            .submit_response(req.elicitation_id.clone(), req.user_data.clone())
+            .await
+            .invalid_params_err_ctx("Failed to submit elicitation response")?;
+
+        let response_message = Message::user()
+            .with_generated_id()
+            .with_content(MessageContent::action_required_elicitation_response(
+                req.elicitation_id.clone(),
+                req.user_data,
+            ))
+            .agent_only();
+
+        self.session_manager
+            .add_message(&req.session_id, &response_message)
+            .await
+            .internal_err_ctx("Failed to persist elicitation response")?;
+
+        send_elicitation_interaction_update(
+            cx,
+            &req.session_id,
+            req.elicitation_id,
+            InteractionState::Submitted,
+            None,
+            None,
+            Some(interaction_update_meta(
+                response_message.id.as_deref(),
+                response_message.created,
+            )),
+        )?;
+
+        Ok(EmptyResponse {})
     }
 
     async fn on_set_model(

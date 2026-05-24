@@ -1810,6 +1810,27 @@
       "x-side": "agent",
       "x-method": "_goose/session/import"
     },
+    "ElicitationRespondRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "elicitationId": {
+          "type": "string"
+        },
+        "userData": {
+          "default": null
+        }
+      },
+      "required": [
+        "sessionId",
+        "elicitationId"
+      ],
+      "description": "Submit a response for a pending MCP elicitation in an active session.",
+      "x-side": "agent",
+      "x-method": "_goose/elicitation/respond"
+    },
     "UpdateSessionProjectRequest": {
       "type": "object",
       "properties": {
@@ -2577,13 +2598,27 @@
           "required": [
             "sessionUpdate"
           ]
+        },
+        {
+          "$ref": "#/$defs/InteractionUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "interaction_update"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
       "discriminator": {
         "propertyName": "sessionUpdate",
         "mapping": {
-          "usage_update": "#/$defs/SessionUsageUpdate"
+          "usage_update": "#/$defs/SessionUsageUpdate",
+          "interaction_update": "#/$defs/InteractionUpdate"
         }
       }
     },
@@ -2621,6 +2656,58 @@
         "accumulatedOutputTokens"
       ],
       "description": "Streaming context-window usage update for a session."
+    },
+    "Interaction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/$defs/InteractionState"
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requestedSchema": {},
+            "type": {
+              "type": "string",
+              "const": "elicitation"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "state"
+          ]
+        }
+      ]
+    },
+    "InteractionState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "submitted",
+        "cancelled",
+        "expired"
+      ]
+    },
+    "InteractionUpdate": {
+      "type": "object",
+      "properties": {
+        "interaction": {
+          "$ref": "#/$defs/Interaction"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "interaction"
+      ]
     },
     "ExtRequest": {
       "properties": {
@@ -2948,6 +3035,15 @@
                   ],
                   "description": "Params for _goose/session/import",
                   "title": "ImportSessionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ElicitationRespondRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/elicitation/respond",
+                  "title": "ElicitationRespondRequest"
                 },
                 {
                   "allOf": [

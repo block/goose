@@ -88,6 +88,19 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     Ok(())
                 })
                 .await
+                .if_request({
+                    let agent = agent.clone();
+                    let cx = cx.clone();
+                    |req: ElicitationRespondRequest, responder: Responder<EmptyResponse>| async move {
+                        let cx_spawn = cx.clone();
+                        cx.spawn(async move {
+                            responder.respond_with_result(agent.on_elicitation_respond(&cx_spawn, req).await)?;
+                            Ok(())
+                        })?;
+                        Ok(())
+                    }
+                })
+                .await
                 // set_config_option (SACP 11) and legacy set_mode/set_model; custom _goose/* in otherwise.
                 .if_request({
                     let agent = agent.clone();

@@ -48,7 +48,7 @@ import {
   subscribeToAcpGooseSession,
   subscribeToAcpSession,
 } from '../acp/sessionNotificationRouter';
-import { setAcpPermissionHandler } from '../acp/acpConnection';
+import { getAcpClient, setAcpPermissionHandler } from '../acp/acpConnection';
 
 const resultsCache = new Map<
   string,
@@ -1145,14 +1145,27 @@ export function useChatStream({
       dispatch({ type: 'SET_MESSAGES', payload: nextMessages });
 
       try {
-        await sessionReply({
-          path: { id: sessionId },
-          body: {
-            request_id: uuidv7(),
-            user_message: responseMessage,
-          },
-          throwOnError: true,
-        });
+        const shouldUseAcp =
+          activeAcpPromptSessionRef.current === sessionId ||
+          currentState.acpConfigOptions !== undefined;
+
+        if (shouldUseAcp) {
+          const client = await getAcpClient();
+          await client.goose.GooseElicitationRespond({
+            sessionId,
+            elicitationId,
+            userData,
+          });
+        } else {
+          await sessionReply({
+            path: { id: sessionId },
+            body: {
+              request_id: uuidv7(),
+              user_message: responseMessage,
+            },
+            throwOnError: true,
+          });
+        }
       } catch (error) {
         onFinish('Submit error: ' + errorMessage(error));
       }

@@ -191,8 +191,29 @@ the same patch as the lifecycle migration.
 ## Follow-Ups
 
 - Recipe-session load/new-session behavior.
-- REST edit/fork `overrideConversation` reply path.
 - ACP elicitation response migration.
+- Edit/fork message migration should be treated as a session-history mutation
+  migration, not a reply migration. The actual assistant turn after edit/fork
+  already uses ACP `session/prompt`; the dead REST `overrideConversation`
+  reply branch has been removed from desktop.
+- Do not add a desktop-specific ACP method that directly mirrors the old REST
+  fork request shape (`copy` + `truncate` + `timestamp`) unless there is no
+  cleaner protocol shape available.
+- Prefer reusable ACP primitives for external clients:
+  - use ACP `unstable_forkSession` for session copy
+  - add a Goose ACP custom history method, likely `_goose/session/truncate`
+  - prefer truncating by `messageId` if the server can support it cleanly; keep
+    timestamp support only as a compatibility bridge if needed
+- Desktop fork-edit flow should become:
+  - ACP `unstable_forkSession`
+  - ACP `_goose/session/truncate` on the forked session
+  - navigate to the forked session
+  - existing ACP `session/prompt` submits the edited message
+- Desktop edit-in-place flow should become:
+  - ACP `_goose/session/truncate` on the current session
+  - ACP `session/load` to rebuild UI and ACP-side session state from truncated
+    DB history
+  - existing ACP `session/prompt` submits the edited message
 - Decide whether ACP `session/new` should support recipe session creation
   directly, or whether recipe creation should remain REST until recipes have an
   ACP-specific design.

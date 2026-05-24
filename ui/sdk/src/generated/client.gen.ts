@@ -40,6 +40,7 @@ import type {
   DictationSecretSaveRequest,
   DictationTranscribeRequest,
   DictationTranscribeResponse,
+  ElicitationRespondRequest,
   ExportSessionRequest,
   ExportSessionResponse,
   ExportSourceRequest,
@@ -429,6 +430,12 @@ export class GooseExtClient {
   ): Promise<ImportSessionResponse> {
     const raw = await this.conn.extMethod("_goose/session/import", params);
     return zImportSessionResponse.parse(raw) as ImportSessionResponse;
+  }
+
+  async GooseElicitationRespond(
+    params: ElicitationRespondRequest,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/elicitation/respond", params);
   }
 
   async GooseSessionUpdateProject(

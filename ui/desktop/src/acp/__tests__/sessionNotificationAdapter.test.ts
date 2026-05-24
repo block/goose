@@ -101,6 +101,33 @@ function gooseUsageNotification(): GooseSessionNotification {
   };
 }
 
+function goosePendingElicitationNotification(): GooseSessionNotification {
+  return {
+    sessionId: 'session-1',
+    update: {
+      sessionUpdate: 'interaction_update',
+      interaction: {
+        type: 'elicitation',
+        id: 'elicitation-1',
+        state: 'pending',
+        message: 'Please provide deployment details',
+        requestedSchema: {
+          type: 'object',
+          properties: {
+            environment: { type: 'string' },
+          },
+        },
+      },
+      _meta: {
+        goose: {
+          created: 1_700_000_000,
+          messageId: 'elicitation-message',
+        },
+      },
+    },
+  } as unknown as GooseSessionNotification;
+}
+
 function toolCallNotification(): SessionNotification {
   return {
     sessionId: 'session-1',
@@ -515,6 +542,41 @@ describe('sessionNotificationAdapter', () => {
           accumulatedTotalTokens: 30,
           accumulatedCost: 0.12,
         },
+      },
+    ]);
+  });
+
+  it('converts Goose pending elicitation updates into desktop action-required messages', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    const updates = adapter.applyGoose(goosePendingElicitationNotification());
+
+    expect(updates).toMatchObject([
+      {
+        type: 'messages',
+        messages: [
+          {
+            id: 'elicitation-message',
+            created: 1_700_000_000,
+            role: 'assistant',
+            content: [
+              {
+                type: 'actionRequired',
+                data: {
+                  actionType: 'elicitation',
+                  id: 'elicitation-1',
+                  message: 'Please provide deployment details',
+                  requested_schema: {
+                    type: 'object',
+                    properties: {
+                      environment: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
       },
     ]);
   });

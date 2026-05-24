@@ -83,7 +83,10 @@ function parseGooseSessionNotification(
     return null;
   }
 
-  if (params.update.sessionUpdate !== 'usage_update') {
+  if (
+    params.update.sessionUpdate !== 'usage_update' &&
+    params.update.sessionUpdate !== 'interaction_update'
+  ) {
     return null;
   }
 

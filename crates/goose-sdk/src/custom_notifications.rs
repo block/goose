@@ -24,11 +24,13 @@ pub struct GooseSessionNotification {
 #[schemars(extend("discriminator" = {
     "propertyName": "sessionUpdate",
     "mapping": {
-        "usage_update": "#/$defs/SessionUsageUpdate"
+        "usage_update": "#/$defs/SessionUsageUpdate",
+        "interaction_update": "#/$defs/InteractionUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
+    InteractionUpdate(InteractionUpdate),
 }
 
 impl Default for GooseSessionUpdate {
@@ -47,6 +49,50 @@ pub struct SessionUsageUpdate {
     pub accumulated_output_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accumulated_cost: Option<f64>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InteractionUpdate {
+    pub interaction: Interaction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "_meta")]
+    pub meta: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Interaction {
+    #[serde(rename_all = "camelCase")]
+    Elicitation {
+        id: String,
+        state: InteractionState,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        requested_schema: Option<serde_json::Value>,
+    },
+}
+
+impl Default for Interaction {
+    fn default() -> Self {
+        Self::Elicitation {
+            id: String::new(),
+            state: InteractionState::Pending,
+            message: None,
+            requested_schema: None,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum InteractionState {
+    #[default]
+    Pending,
+    Submitted,
+    Cancelled,
+    Expired,
 }
 
 fn notification_schema<T>(generator: &mut SchemaGenerator) -> CustomMethodSchema

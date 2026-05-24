@@ -724,6 +724,15 @@ export const zImportSessionResponse = z.object({
 });
 
 /**
+ * Submit a response for a pending MCP elicitation in an active session.
+ */
+export const zElicitationRespondRequest = z.object({
+    sessionId: z.string(),
+    elicitationId: z.string(),
+    userData: z.unknown().optional().default(null)
+});
+
+/**
  * Update the project association for a session.
  */
 export const zUpdateSessionProjectRequest = z.object({
@@ -1060,6 +1069,29 @@ export const zSessionUsageUpdate = z.object({
     ]).optional()
 });
 
+export const zInteractionState = z.enum([
+    'pending',
+    'submitted',
+    'cancelled',
+    'expired'
+]);
+
+export const zInteraction = z.object({
+    id: z.string(),
+    state: zInteractionState,
+    message: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    requestedSchema: z.unknown().optional(),
+    type: z.literal('elicitation')
+});
+
+export const zInteractionUpdate = z.object({
+    interaction: zInteraction,
+    _meta: z.unknown().optional()
+});
+
 /**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
@@ -1068,9 +1100,14 @@ export const zSessionUsageUpdate = z.object({
  * emit the correct snake_case tag value even when this enum has a single
  * variant. Add a mapping entry per variant.
  */
-export const zGooseSessionUpdate = z.object({
-    sessionUpdate: z.literal('usage_update')
-}).and(zSessionUsageUpdate);
+export const zGooseSessionUpdate = z.union([
+    z.object({
+        sessionUpdate: z.literal('usage_update')
+    }).and(zSessionUsageUpdate),
+    z.object({
+        sessionUpdate: z.literal('interaction_update')
+    }).and(zInteractionUpdate)
+]);
 
 /**
  * Goose-custom session update notification — a parallel to ACP's
@@ -1121,6 +1158,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest,
             zExportSessionRequest,
             zImportSessionRequest,
+            zElicitationRespondRequest,
             zUpdateSessionProjectRequest,
             zRenameSessionRequest,
             zArchiveSessionRequest,

@@ -25,10 +25,13 @@ interface AcpReplayMessageMeta {
 }
 
 interface AcpReplayMetaContainer {
-  _meta?: {
-    [key: string]: unknown;
-  } | null;
+  _meta?: unknown;
 }
+
+type GooseInteractionUpdate = Extract<
+  GooseSessionNotification['update'],
+  { sessionUpdate: 'interaction_update' }
+>;
 
 const DEFAULT_VISIBLE_MESSAGE_METADATA: Message['metadata'] = {
   userVisible: true,
@@ -58,7 +61,7 @@ export function createAcpSessionNotificationAdapter(
       return applyAcpSessionNotification(state, notification);
     },
     applyGoose(notification) {
-      return applyGooseSessionNotification(notification);
+      return applyGooseSessionNotification(state, notification);
     },
     applyPermissionRequest(request) {
       return applyPermissionRequest(state, request);
@@ -104,7 +107,10 @@ function applyAcpSessionNotification(
   }
 }
 
-function applyGooseSessionNotification(notification: GooseSessionNotification): AcpSessionUpdate[] {
+function applyGooseSessionNotification(
+  state: AdapterState,
+  notification: GooseSessionNotification
+): AcpSessionUpdate[] {
   const { update } = notification;
 
   switch (update.sessionUpdate) {
@@ -121,7 +127,71 @@ function applyGooseSessionNotification(notification: GooseSessionNotification): 
           },
         },
       ];
+    case 'interaction_update':
+      return applyInteractionUpdate(state, notification.sessionId, update);
   }
+}
+
+function applyInteractionUpdate(
+  state: AdapterState,
+  sessionId: string,
+  update: GooseInteractionUpdate
+): AcpSessionUpdate[] {
+  const { interaction } = update;
+  if (interaction.type !== 'elicitation') {
+    return [];
+  }
+
+  switch (interaction.state) {
+    case 'pending':
+      return applyPendingElicitation(state, sessionId, update);
+    case 'submitted':
+    case 'cancelled':
+    case 'expired':
+      return [];
+  }
+}
+
+function applyPendingElicitation(
+  state: AdapterState,
+  sessionId: string,
+  update: GooseInteractionUpdate
+): AcpSessionUpdate[] {
+  const { interaction } = update;
+  const replayMeta = acpReplayMessageMeta(update);
+  const messageId = replayMeta.messageId ?? `acp_elicitation_${sessionId}_${interaction.id}`;
+  const existing = state.messages.find(
+    (message) =>
+      message.id === messageId ||
+      message.content.some(
+        (content) =>
+          content.type === 'actionRequired' &&
+          content.data.actionType === 'elicitation' &&
+          content.data.id === interaction.id
+      )
+  );
+
+  if (!existing) {
+    state.messages.push({
+      id: messageId,
+      role: 'assistant',
+      created: replayMeta.created ?? Math.floor(Date.now() / 1000),
+      content: [
+        {
+          type: 'actionRequired',
+          data: {
+            actionType: 'elicitation',
+            id: interaction.id,
+            message: interaction.message ?? '',
+            requested_schema: interaction.requestedSchema ?? {},
+          },
+        },
+      ],
+      metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
+    });
+  }
+
+  return [{ type: 'messages', messages: state.messages.map(cloneMessage) }];
 }
 
 function applyToolCall(state: AdapterState, update: ToolCall): AcpSessionUpdate[] {
@@ -527,7 +597,11 @@ function messageContentFromAcpContentBlock(content: ContentBlock): MessageConten
 }
 
 function acpReplayMessageMeta(update: AcpReplayMetaContainer): AcpReplayMessageMeta {
-  const goose = update._meta?.goose;
+  if (!isRecord(update._meta)) {
+    return {};
+  }
+
+  const goose = update._meta.goose;
   if (!isRecord(goose)) {
     return {};
   }
