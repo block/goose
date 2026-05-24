@@ -1,5 +1,6 @@
 import type {
   ContentBlock,
+  ListSessionsRequest,
   ListSessionsResponse,
   LoadSessionResponse,
   NewSessionResponse,
@@ -109,7 +110,23 @@ export function messageToAcpPromptContent(message: Message): ContentBlock[] {
 
 export async function acpListSessions(): Promise<ListSessionsResponse> {
   const client = await getAcpClient();
-  return client.listSessions({});
+  const sessions: SessionInfo[] = [];
+  let cursor: string | null | undefined;
+  let meta: ListSessionsResponse['_meta'] = undefined;
+
+  do {
+    const request: ListSessionsRequest = cursor ? { cursor } : {};
+    const response = await client.listSessions(request);
+    sessions.push(...response.sessions);
+    meta = response._meta;
+    cursor = response.nextCursor;
+  } while (cursor);
+
+  return {
+    sessions,
+    nextCursor: null,
+    ...(meta === undefined ? {} : { _meta: meta }),
+  };
 }
 
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
