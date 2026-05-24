@@ -36,8 +36,8 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import apeCloudLogo from '../images/logo.png';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -404,19 +404,14 @@ export default function BaseChat({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-          {/* Goose watermark - top right */}
+          {/* Product watermark - top right */}
           <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
-            <a
-              href="https://goose-docs.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              <Goose className="size-5 goose-icon-animation" />
+            <div className="no-drag flex flex-row items-center gap-1">
+              <img src={apeCloudLogo} alt="" className="size-5 object-contain" />
               <span className="text-sm leading-none text-text-secondary -translate-y-px">
-                goose
+                ApeMind Agent
               </span>
-            </a>
+            </div>
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
