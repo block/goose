@@ -486,6 +486,21 @@ describe('sessionNotificationAdapter', () => {
     ]);
   });
 
+  it('does not duplicate the same ACP image content block for an existing message', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.apply(imageNotification());
+    adapter.apply(imageNotification());
+
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        id: 'message-1',
+        role: 'user',
+        content: [{ type: 'image', data: 'abc', mimeType: 'image/png' }],
+      },
+    ]);
+  });
+
   it('converts an agent thought chunk into assistant thinking content', () => {
     const adapter = createAcpSessionNotificationAdapter();
 

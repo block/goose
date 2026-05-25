@@ -174,8 +174,8 @@ Mapping from current `systemNotification`:
 - live `inlineMessage` -> `status.type = 'notice'`
 - `thinkingMessage` -> `status.type = 'progress'`
 
-Credits exhausted is currently bridged through `status_message` for parity with
-the existing REST UI, but the preferred ACP shape is a structured JSON-RPC
+Credits exhausted is not a `status_message`. ACP translates live
+`SystemNotificationType::CreditsExhausted` into a structured JSON-RPC
 `session/prompt` error:
 
 ```json
@@ -347,46 +347,54 @@ or whether the UI should render a placeholder equivalent to REST behavior.
 ACP currently drops it. Need to verify whether desktop sessions can contain it
 as user-visible content. If it is internal/provider-facing only, defer.
 
+### Legacy Tool Confirmation Request
+
+`toolConfirmationRequest` is a legacy message content shape. ACP live tool
+approval uses the standard `requestPermission` request/response path, and
+desktop locally projects that into the existing action-required UI. Keep this
+deferred unless old persisted sessions need compatibility replay.
+
 ## Proposed Priority
 
-This message/content work is now the active next slice. Recipe parity is
-intentionally deferred and should not block these message-gap fixes.
+This message/content work is now narrowed to replay/audit gaps. Recipe parity
+is intentionally deferred and should not block these message-gap fixes.
 
-1. Stop creating new persisted `systemNotification.inlineMessage` command
-   acknowledgements.
-   - Persist `/clear` and `/compact` acknowledgements as normal assistant text.
-   - Preserve `userVisible: true`, `agentVisible: false`.
+Done:
 
-2. Add custom Goose `status_message` for live session status.
-   - Use `_goose/session/update`.
-   - Cover live compaction progress and credits-exhausted UI first.
-   - Desktop prompt handling should listen to the existing Goose custom
-     notification router.
-   - Status rows are local UI rows and must not be merge targets for later
-     id-less transcript chunks.
+- Stop creating new persisted `systemNotification.inlineMessage` command
+  acknowledgements.
+  - Persist `/clear` and `/compact` acknowledgements as normal assistant text.
+  - Preserve `userVisible: true`, `agentVisible: false`.
+- Add custom Goose `status_message` for live session status.
+  - Use `_goose/session/update`.
+  - Cover live compaction progress/status.
+  - Desktop prompt handling should listen to the existing Goose custom
+    notification router.
+  - Status rows are local UI rows and must not be merge targets for later
+    id-less transcript chunks.
+- Represent credits exhausted as a structured `session/prompt` JSON-RPC error,
+  not `status_message`.
+- Keep ACP load behavior explicit for old persisted `systemNotification`
+  content.
+  - Current inline load skips these rows because `status_message` is live-only.
+  - If a historical compatibility need appears, project legacy inline
+    notifications to plain `agent_message_chunk` text in a targeted follow-up.
+- For ACP sessions, use `_goose/elicitation/respond` and surface
+  pending/submitted state through `_goose/session/update`
+  `interaction_update`.
+  - REST remains as the fallback for non-ACP sessions.
+  - Keep tool confirmation on standard ACP `requestPermission`; do not
+    duplicate it in the custom interaction update unless load replay later
+    needs legacy pending permission compatibility.
 
-3. Keep ACP load behavior explicit for old persisted `systemNotification`
-   content.
-   - Current inline load skips these rows because `status_message` is live-only.
-   - If a historical compatibility need appears, project legacy inline
-     notifications to plain `agent_message_chunk` text in a targeted follow-up.
+Next:
 
-4. Add ACP handling for image replay if manual testing confirms user image
+1. Add ACP handling for image replay if manual testing confirms user image
    history is missing after ACP load.
-
-5. Done for ACP sessions: use `_goose/elicitation/respond` and surface
-   pending/submitted state through `_goose/session/update`
-   `interaction_update`.
-   - REST remains as the fallback for non-ACP sessions.
-   - Keep tool confirmation on standard ACP `requestPermission`; do not
-     duplicate it in the custom interaction update unless load replay later
-     needs legacy pending permission compatibility.
-
-6. Audit `redactedThinking`, `frontendToolRequest`, and legacy
+2. Audit `redactedThinking`, `frontendToolRequest`, and legacy
    `toolConfirmationRequest` with real sessions or targeted tests before
    implementing mappings.
-
-7. Follow-up: make `systemNotification` structurally live-only.
+3. Follow-up: make `systemNotification` structurally live-only.
    - Add code docs on `SystemNotificationContent` / constructors that durable
      acknowledgements must use normal assistant text with user-only metadata.
    - Audit current producers to confirm no intentional durable

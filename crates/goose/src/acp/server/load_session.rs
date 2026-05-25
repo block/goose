@@ -329,6 +329,18 @@ fn replay_conversation_to_client(
                     };
                     cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
                 }
+                MessageContent::Image(image) => {
+                    let chunk = ContentChunk::new(ContentBlock::Image(ImageContent::new(
+                        image.data.clone(),
+                        image.mime_type.clone(),
+                    )))
+                    .meta(replay_message_meta(message));
+                    let update = match message.role {
+                        Role::User => SessionUpdate::UserMessageChunk(chunk),
+                        Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
+                    };
+                    cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
+                }
                 MessageContent::ToolRequest(tool_request) => {
                     replay_tool_requests.insert(tool_request.id.clone(), tool_request.clone());
 

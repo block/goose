@@ -374,6 +374,8 @@ function applyContentChunk(
     const lastContent = existing.content[existing.content.length - 1];
     if (lastContent?.type === 'text' && content.type === 'text') {
       lastContent.text = mergeTextChunk(lastContent.text, content.text);
+    } else if (content.type === 'image' && hasImageContent(existing, content)) {
+      return [{ type: 'messages', messages: [...state.messages] }];
     } else {
       existing.content.push(content);
     }
@@ -388,6 +390,13 @@ function applyContentChunk(
   }
 
   return [{ type: 'messages', messages: [...state.messages] }];
+}
+
+function hasImageContent(message: Message, image: Extract<MessageContent, { type: 'image' }>) {
+  return message.content.some(
+    (content) =>
+      content.type === 'image' && content.data === image.data && content.mimeType === image.mimeType
+  );
 }
 
 function mergeTextChunk(existing: string, incoming: string): string {

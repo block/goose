@@ -211,20 +211,27 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
-async function loadSessionViaAcp(
-  sessionId: string,
-  sessionSnapshot: Session
-): Promise<{
-  session: Session;
-  tokenState: TokenState;
-  extensionResults: ExtensionLoadResult[] | null | undefined;
-  acpConfigOptions?: SessionConfigOption[] | null;
-}> {
+interface AcpLoadController {
+  load(): Promise<{
+    session: Session;
+    tokenState: TokenState;
+    extensionResults: ExtensionLoadResult[] | null | undefined;
+    acpConfigOptions?: SessionConfigOption[] | null;
+  }>;
+  dispose(): void;
+}
+
+function createAcpLoadController(sessionId: string, sessionSnapshot: Session): AcpLoadController {
   const adapter = createAcpSessionNotificationAdapter();
   let tokenState = tokenStateFromSession(sessionSnapshot);
   let sessionName = sessionSnapshot.name;
+  let disposed = false;
 
   const applyUpdates = (updates: AcpSessionUpdate[]) => {
+    if (disposed) {
+      return;
+    }
+
     for (const update of updates) {
       switch (update.type) {
         case 'sessionInfo':
@@ -242,32 +249,43 @@ async function loadSessionViaAcp(
   };
 
   const unsubscribeSession = subscribeToAcpSession(sessionId, (notification) => {
-    applyUpdates(adapter.apply(notification));
+    if (!disposed) {
+      applyUpdates(adapter.apply(notification));
+    }
   });
   const unsubscribeGooseSession = subscribeToAcpGooseSession(sessionId, (notification) => {
-    applyUpdates(adapter.applyGoose(notification));
+    if (!disposed) {
+      applyUpdates(adapter.applyGoose(notification));
+    }
   });
 
-  try {
-    const response = await acpLoadSession(sessionId, sessionSnapshot.working_dir);
-    const meta = acpLoadSessionMeta(response);
-    return {
-      session: {
-        ...sessionSnapshot,
-        name: sessionName,
-        working_dir: meta.workingDir ?? sessionSnapshot.working_dir,
-        recipe: meta.recipe ?? sessionSnapshot.recipe,
-        user_recipe_values: meta.userRecipeValues ?? sessionSnapshot.user_recipe_values,
-        conversation: adapter.snapshot().messages,
-      },
-      tokenState,
-      extensionResults: meta.extensionResults,
-      acpConfigOptions: meta.configOptions,
-    };
-  } finally {
-    unsubscribeSession();
-    unsubscribeGooseSession();
-  }
+  return {
+    async load() {
+      const response = await acpLoadSession(sessionId, sessionSnapshot.working_dir);
+      const meta = acpLoadSessionMeta(response);
+      return {
+        session: {
+          ...sessionSnapshot,
+          name: sessionName,
+          working_dir: meta.workingDir ?? sessionSnapshot.working_dir,
+          recipe: meta.recipe ?? sessionSnapshot.recipe,
+          user_recipe_values: meta.userRecipeValues ?? sessionSnapshot.user_recipe_values,
+          conversation: adapter.snapshot().messages,
+        },
+        tokenState,
+        extensionResults: meta.extensionResults,
+        acpConfigOptions: meta.configOptions,
+      };
+    },
+    dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      unsubscribeSession();
+      unsubscribeGooseSession();
+    },
+  };
 }
 
 function streamReducer(state: StreamState, action: StreamAction): StreamState {
@@ -988,6 +1006,7 @@ export function useChatStream({
     dispatch({ type: 'RESET_FOR_NEW_SESSION' });
 
     let cancelled = false;
+    let loadController: AcpLoadController | null = null;
 
     (async () => {
       try {
@@ -1002,7 +1021,8 @@ export function useChatStream({
           return;
         }
 
-        const response = await loadSessionViaAcp(sessionId, sessionSnapshot);
+        loadController = createAcpLoadController(sessionId, sessionSnapshot);
+        const response = await loadController.load();
 
         if (cancelled) {
           return;
@@ -1068,11 +1088,16 @@ export function useChatStream({
         if (cancelled) return;
 
         dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
+      } finally {
+        loadController?.dispose();
+        loadController = null;
       }
     })();
 
     return () => {
       cancelled = true;
+      loadController?.dispose();
+      loadController = null;
     };
   }, [sessionId, onSessionLoaded]);
 
