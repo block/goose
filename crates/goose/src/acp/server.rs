@@ -2961,11 +2961,7 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
-        if load_session::legacy_acp_load_enabled() {
-            self.on_load_session_legacy(cx, args).await
-        } else {
-            self.on_load_session_inline(cx, args).await
-        }
+        self.handle_load_session(cx, args).await
     }
 
     async fn on_prompt(
