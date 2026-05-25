@@ -9,4 +9,5 @@ pub mod review;
 pub mod schedule;
 pub mod session;
 pub mod term;
+pub mod tui;
 pub mod update;

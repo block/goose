@@ -968,6 +968,27 @@ enum Command {
         #[command(subcommand)]
         command: TermCommand,
     },
+
+    /// Launch the goose terminal UI (TUI)
+    #[command(
+        about = "Launch the goose terminal UI",
+        long_about = "Launch the goose terminal UI (the @aaif/goose npm package).\n\
+                      \n\
+                      Resolution order:\n  \
+                      1. GOOSE_TUI_SCRIPT, if set to an existing dist/tui.js\n  \
+                      2. A local checkout's ui/text/dist/tui.js (dev workflow)\n  \
+                      3. `npx --yes --package <spec> -- goose-tui` (deployed installs)\n\
+                      \n\
+                      Override the npm spec via GOOSE_TUI_NPM_SPEC (default: @aaif/goose@latest).\n\
+                      Local script mode requires `node` on PATH; npx mode requires `npx` on PATH.\n\
+                      Any extra arguments are passed through to the TUI."
+    )]
+    Tui {
+        /// Arguments forwarded to the TUI
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
     /// Manage local inference models
     #[cfg(feature = "local-inference")]
     #[command(about = "Manage local inference models", visible_alias = "lm")]
@@ -1252,6 +1273,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Plugin { .. }) => "plugin",
         Some(Command::Term { .. }) => "term",
+        Some(Command::Tui { .. }) => "tui",
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
@@ -2087,6 +2109,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Plugin { command }) => handle_plugin_subcommand(command),
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        Some(Command::Tui { args }) => crate::commands::tui::handle_tui(args),
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
         Some(Command::Review {

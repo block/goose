@@ -18,6 +18,25 @@ use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingState, PlatformUser};
 
+/// Conservative default cap on tool-calling loops for gateway sessions.
+///
+/// Chat platforms like Telegram favor short, snappy replies, so the gateway
+/// keeps a stricter default than the global `GOOSE_MAX_TURNS` ceiling.  Users
+/// can override this through `GOOSE_GATEWAY_MAX_TURNS` (gateway-specific) or
+/// `GOOSE_MAX_TURNS` (applies globally).
+const DEFAULT_GATEWAY_MAX_TURNS: u32 = 5;
+
+/// Resolve the max turns to use for a gateway session.
+///
+/// Precedence: `GOOSE_GATEWAY_MAX_TURNS` -> `GOOSE_MAX_TURNS` ->
+/// `DEFAULT_GATEWAY_MAX_TURNS`.  Extracted as a pure function so the
+/// precedence rules can be unit-tested without touching the global config.
+fn resolve_gateway_max_turns(gateway_override: Option<u32>, global_max_turns: Option<u32>) -> u32 {
+    gateway_override
+        .or(global_max_turns)
+        .unwrap_or(DEFAULT_GATEWAY_MAX_TURNS)
+}
+
 #[derive(Clone)]
 pub struct GatewayHandler {
     agent_manager: Arc<AgentManager>,
@@ -316,12 +335,20 @@ impl GatewayHandler {
         // dozens of tool calls before responding.  After this many
         // LLM→tool round-trips the agent will stop and reply with
         // whatever it has.
-        const GATEWAY_MAX_TURNS: u32 = 5;
+        //
+        // Honors `GOOSE_GATEWAY_MAX_TURNS` (gateway-specific override) and
+        // `GOOSE_MAX_TURNS` (global), falling back to a conservative default
+        // so the limit is configurable without editing the source.
+        let config = Config::global();
+        let max_turns = resolve_gateway_max_turns(
+            config.get_param::<u32>("GOOSE_GATEWAY_MAX_TURNS").ok(),
+            config.get_param::<u32>("GOOSE_MAX_TURNS").ok(),
+        );
 
         let session_config = SessionConfig {
             id: session_id.to_string(),
             schedule_id: None,
-            max_turns: Some(GATEWAY_MAX_TURNS),
+            max_turns: Some(max_turns),
             retry_config: None,
         };
 
@@ -508,4 +535,32 @@ fn gateway_working_dir(platform: &str, user_id: &str) -> PathBuf {
         .join("gateway")
         .join(platform)
         .join(user_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_when_no_overrides() {
+        assert_eq!(
+            resolve_gateway_max_turns(None, None),
+            DEFAULT_GATEWAY_MAX_TURNS
+        );
+    }
+
+    #[test]
+    fn uses_global_max_turns_when_gateway_unset() {
+        assert_eq!(resolve_gateway_max_turns(None, Some(42)), 42);
+    }
+
+    #[test]
+    fn gateway_override_wins_over_global() {
+        assert_eq!(resolve_gateway_max_turns(Some(10), Some(42)), 10);
+    }
+
+    #[test]
+    fn gateway_override_used_when_global_unset() {
+        assert_eq!(resolve_gateway_max_turns(Some(25), None), 25);
+    }
 }

@@ -917,7 +917,7 @@ async fn test_copilot_acp_provider() -> Result<()> {
         .await
 }
 
-#[ctor::dtor]
+#[dtor::dtor(unsafe)]
 fn print_test_report() {
     TEST_REPORT.print_summary();
 }

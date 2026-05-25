@@ -435,7 +435,9 @@ fn with_line_timeout(
                     Err::<(), anyhow::Error>(anyhow::anyhow!(
                         "Ollama stream stalled: no data received for {}s. \
                          This may indicate the model is overwhelmed by the request payload. \
-                         Try a smaller model or reduce the number of tools.",
+                         Try a smaller model, reduce the number of tools, or increase the \
+                         timeout via OLLAMA_STREAM_TIMEOUT, GOOSE_STREAM_TIMEOUT, or \
+                         OLLAMA_TIMEOUT in your config.",
                         timeout_secs
                     ))?;
                 }
