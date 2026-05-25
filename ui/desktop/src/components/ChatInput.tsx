@@ -305,6 +305,21 @@ export default function ChatInput({
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
 
+  // Hide non-essential bottom-bar controls when the chat input is narrow.
+  // Only the model selector, mic, and send button remain visible.
+  const bottomBarRef = useRef<HTMLDivElement>(null);
+  const [isBottomBarNarrow, setIsBottomBarNarrow] = useState(false);
+  useEffect(() => {
+    const el = bottomBarRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      setIsBottomBarNarrow(width < 480);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!sessionId) {
       return;
@@ -1570,8 +1585,13 @@ export default function ChatInput({
 
       {/* Bottom action bar. Single flat row; no dividers. Left side: model
           + working dir. Right side (after spacer): context indicator,
-          extensions, diagnostics, attach, mic, send. */}
-      <div className="flex flex-row items-center gap-2 px-3 py-2 relative">
+          extensions, diagnostics, attach, mic, send. When the bar is narrow
+          (e.g. on a small window), the secondary controls drop out so the
+          model selector + send button always stay visible. */}
+      <div
+        ref={bottomBarRef}
+        className="flex flex-row items-center gap-2 px-3 py-2 relative"
+      >
         {/* Left: model selector */}
         <Tooltip>
           <div>
@@ -1589,86 +1609,92 @@ export default function ChatInput({
         </Tooltip>
 
         {/* Left: working directory (leaf folder name only) */}
-        <DirSwitcher
-          className=""
-          sessionId={sessionId ?? undefined}
-          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
-          onWorkingDirChange={(newDir) => {
-            setSessionWorkingDir(newDir);
-            if (onWorkingDirChange) {
-              onWorkingDirChange(newDir);
-            }
-          }}
-          onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
-          onRestartEnd={() => setChatState?.(ChatState.Idle)}
-        />
+        {!isBottomBarNarrow && (
+          <DirSwitcher
+            className=""
+            sessionId={sessionId ?? undefined}
+            workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+            onWorkingDirChange={(newDir) => {
+              setSessionWorkingDir(newDir);
+              if (onWorkingDirChange) {
+                onWorkingDirChange(newDir);
+              }
+            }}
+            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+            onRestartEnd={() => setChatState?.(ChatState.Idle)}
+          />
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Right: cost tracker (when enabled) */}
-        {COST_TRACKING_ENABLED && (
-          <CostTracker
-            inputTokens={accumulatedInputTokens}
-            outputTokens={accumulatedOutputTokens}
-            accumulatedCost={accumulatedCost}
-            model={effectiveModel}
-            provider={effectiveProvider}
-          />
+        {!isBottomBarNarrow && (
+          <>
+            {/* Right: cost tracker (when enabled) */}
+            {COST_TRACKING_ENABLED && (
+              <CostTracker
+                inputTokens={accumulatedInputTokens}
+                outputTokens={accumulatedOutputTokens}
+                accumulatedCost={accumulatedCost}
+                model={effectiveModel}
+                provider={effectiveProvider}
+              />
+            )}
+
+            {/* Right: context window indicator */}
+            <ContextWindowIndicator
+              totalTokens={totalTokens || 0}
+              tokenLimit={tokenLimit}
+              alerts={alerts}
+            />
+
+            {/* Right: extension selector */}
+            <BottomMenuExtensionSelection sessionId={sessionId} />
+
+            {/* Right: diagnostics */}
+            {sessionId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      trackDiagnosticsOpened();
+                      setDiagnosticsOpen(true);
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    shape="round"
+                    className="text-text-primary/70 hover:text-text-primary cursor-pointer transition-colors"
+                  >
+                    <Bug className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Generate diagnostics bundle</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Right: attach */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={handleFileSelect}
+                  disabled={isFilePickerOpen}
+                  variant="ghost"
+                  size="sm"
+                  shape="round"
+                  className={cn(
+                    'text-text-primary/70 hover:text-text-primary transition-colors',
+                    isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  )}
+                >
+                  <Attach className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Attach file</TooltipContent>
+            </Tooltip>
+          </>
         )}
-
-        {/* Right: context window indicator */}
-        <ContextWindowIndicator
-          totalTokens={totalTokens || 0}
-          tokenLimit={tokenLimit}
-          alerts={alerts}
-        />
-
-        {/* Right: extension selector */}
-        <BottomMenuExtensionSelection sessionId={sessionId} />
-
-        {/* Right: diagnostics */}
-        {sessionId && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                onClick={() => {
-                  trackDiagnosticsOpened();
-                  setDiagnosticsOpen(true);
-                }}
-                variant="ghost"
-                size="sm"
-                shape="round"
-                className="text-text-primary/70 hover:text-text-primary cursor-pointer transition-colors"
-              >
-                <Bug className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Generate diagnostics bundle</TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* Right: attach */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleFileSelect}
-              disabled={isFilePickerOpen}
-              variant="ghost"
-              size="sm"
-              shape="round"
-              className={cn(
-                'text-text-primary/70 hover:text-text-primary transition-colors',
-                isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-              )}
-            >
-              <Attach className="w-4 h-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Attach file</TooltipContent>
-        </Tooltip>
 
         {/* Right: mic — ghost icon, no background when idle */}
         {dictationProvider && (
@@ -1689,13 +1715,18 @@ export default function ChatInput({
                     startRecording();
                   }
                 }}
-                disabled={!isEnabled || isTranscribing}
+                // Keep the button hoverable when only !isEnabled so the
+                // "Dictation not configured" tooltip stays reachable.
+                // We still natively disable while transcribing.
+                disabled={isTranscribing}
+                aria-disabled={!isEnabled}
                 className={cn(
                   'transition-colors',
                   isRecording
                     ? 'text-red-500 hover:text-red-600'
                     : 'text-text-primary/70 hover:text-text-primary',
-                  isTranscribing && 'animate-pulse'
+                  isTranscribing && 'animate-pulse',
+                  !isEnabled && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 <Microphone size={16} />

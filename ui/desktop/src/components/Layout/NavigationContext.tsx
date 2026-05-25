@@ -8,6 +8,13 @@ import React, {
   useState,
 } from 'react';
 
+/**
+ * When the window is narrower than this many CSS pixels, we auto-collapse
+ * the sidebar. The user can re-expand it via the menu button; it will only
+ * auto-collapse again if they go below the threshold from above.
+ */
+const NARROW_WINDOW_THRESHOLD = 700;
+
 interface NavigationContextValue {
   isNavExpanded: boolean;
   setIsNavExpanded: (expanded: boolean) => void;
@@ -55,6 +62,29 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     return () => {
       window.electron.off('toggle-navigation', handleToggleNavigation);
     };
+  }, [setIsNavExpanded]);
+
+  // Auto-collapse the sidebar when the window becomes narrow. Track the
+  // previous width so we only fire on the downward crossing — the user can
+  // re-expand it manually without us fighting them on the next resize.
+  useEffect(() => {
+    let lastWidth = window.innerWidth;
+    if (lastWidth < NARROW_WINDOW_THRESHOLD && isNavExpandedRef.current) {
+      setIsNavExpanded(false);
+    }
+    const onResize = () => {
+      const width = window.innerWidth;
+      if (
+        width < NARROW_WINDOW_THRESHOLD &&
+        lastWidth >= NARROW_WINDOW_THRESHOLD &&
+        isNavExpandedRef.current
+      ) {
+        setIsNavExpanded(false);
+      }
+      lastWidth = width;
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, [setIsNavExpanded]);
 
   const value: NavigationContextValue = {
