@@ -18,8 +18,8 @@ fallbacks.
   `installAcpSessionNotificationRouters`, `subscribeToAcpSession`, and
   `subscribeToAcpGooseSession`; `App.tsx` installs the routers once.
 - `ui/desktop/src/acp/sessionNotificationAdapter.ts` now handles text,
-  thinking, tool calls, tool updates, Goose usage notifications, config option
-  updates, pending elicitation interactions, and ACP permission display
+  images, thinking, tool calls, tool updates, Goose usage notifications, config
+  option updates, pending elicitation interactions, and ACP permission display
   messages.
 - Server `on_load_session` dispatches to inline load by default through
   `crates/goose/src/acp/server/load_session.rs`; `GOOSE_ACP_LEGACY_LOAD=1`
@@ -28,6 +28,10 @@ fallbacks.
   ready agent handle, emits usage updates, sends available commands, and then
   resolves `session/load`. Per ACP, `session/load` resolution is the
   replay-complete boundary.
+- Desktop disposes stale ACP load subscriptions during React effect cleanup and
+  treats duplicate identical image chunks for the same message as idempotent,
+  because overlapping `session/load` calls can still replay to the current
+  session subscriber.
 - Inline ACP load intentionally ignores `args.cwd` and returns
   `LoadSessionResponse._meta.workingDir`; the old saved-working-dir overwrite
   only exists in legacy mode.

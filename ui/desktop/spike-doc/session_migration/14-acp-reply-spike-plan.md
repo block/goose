@@ -62,13 +62,14 @@ Validated with focused checks:
 
 Remaining migration work:
 
-- ACP new-session creation.
+- ACP new-session recipe and extension-override parity. Plain non-recipe
+  sessions already use ACP `session/new`.
 - Recipe-session load/new-session behavior.
-- REST edit/fork `overrideConversation` migration or explicit retention:
-  `useChatStream.ts` still calls `sessionReply` when `overrideConversation`
-  exists.
-- ACP elicitation response migration: `useChatStream.ts` still calls
-  `sessionReply` for elicitation responses.
+- REST edit/fork history mutation migration or explicit retention. The old
+  `overrideConversation` reply branch has been removed from `useChatStream`.
+- Elicitation response migration is done for active ACP sessions through
+  `_goose/elicitation/respond`; REST `sessionReply` remains only as the
+  non-ACP fallback.
 - Reattach/resume behavior for in-flight ACP prompts.
 - Additional cancel cleanup validation for pending tool cards.
 - Optional stop-reason UX for non-cancel ACP stop reasons.
@@ -225,9 +226,9 @@ Still remaining:
 - Decide how ACP active prompt reattach should work, if at all.
 - Replace REST `getSession` title refresh with ACP session info updates or a
   Goose custom request.
-- Remove or migrate REST `sessionReply` from the edit/fork
-  `overrideConversation` path once parity is acceptable.
-- Remove or migrate REST `sessionReply` from the elicitation response path.
+- Migrate or explicitly retain REST for edit/fork history mutation.
+- Keep REST `sessionReply` only for the non-ACP elicitation response fallback
+  until REST sessions are retired.
 
 ## Mode And Permission Parity
 

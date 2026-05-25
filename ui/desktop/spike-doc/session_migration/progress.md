@@ -13,10 +13,13 @@ session creation, recipe parameter persistence and recipe prompt application
 buffer-overrun recovery paths, app-cache population, and a few metadata
 fallbacks such as name polling and mode fallback reads.
 
-Next: close the remaining message/content parity gaps. Recipe-session parity is
-intentionally deferred for a later design pass because it needs a cleaner ACP
-shape for persisting values, rendering the recipe, and applying the rendered
-prompt to the agent.
+Next: finish the `systemNotification` structural follow-up from the message
+parity audit. Image replay is covered, duplicate overlapping ACP load replay is
+guarded in the desktop adapter, and `redactedThinking`, `frontendToolRequest`,
+and legacy `toolConfirmationRequest` are intentionally omitted from desktop ACP
+replay. Recipe-session parity is intentionally deferred for a later design pass
+because it needs a cleaner ACP shape for persisting values, rendering the
+recipe, and applying the rendered prompt to the agent.
 
 Owner: Codex
 
@@ -332,12 +335,22 @@ Immediate sequence:
    - Done for the current slice: `systemNotification` command
      acknowledgements move to normal durable text, live status uses
      `_goose/session/update` `status_message`, inline load skips legacy
-     persisted system notifications, and desktop status rows are not merge
-     targets for id-less transcript chunks.
+     persisted system notifications, desktop status rows are not merge
+     targets for id-less transcript chunks, and ACP load replays persisted image
+     content.
+   - Desktop ACP load cleanup now unsubscribes stale replay listeners on React
+     effect cleanup, and image replay is idempotent for duplicate identical
+     chunks from overlapping `session/load` calls.
+   - `redactedThinking` is intentionally omitted from desktop ACP replay because
+     it is opaque provider context, not user-visible transcript content.
+   - `frontendToolRequest` is intentionally omitted from desktop ACP replay
+     because it is provider/frontend-tool plumbing and REST desktop does not
+     render it as visible transcript content.
+   - Legacy `toolConfirmationRequest` is intentionally omitted from desktop ACP
+     replay because current approval paths use `actionRequired.toolConfirmation`
+     and ACP `requestPermission`; old sessions can still load and continue.
    - Follow up by making `systemNotification` structurally live-only: document
      the rule, audit producers, and add a persistence-boundary guard or test.
-   - Then audit image replay, `redactedThinking`, `frontendToolRequest`, and
-     legacy `toolConfirmationRequest`.
 2. Defer recipe parity.
    - Keep recipe creation, recipe deeplinks, recipe value persistence, and
      recipe prompt application on REST until the ACP recipe design is settled.
@@ -353,6 +366,7 @@ Manual:
 - [ ] Cancel a running prompt.
 - [x] Load an existing session with thinking content.
 - [x] Load an existing session with tool calls.
+- [x] Load an existing session with persisted user image content.
 - [x] Send a prompt that triggers tool approval.
 - [x] Approve a tool request.
 - [x] Reject a tool request.
@@ -378,6 +392,7 @@ Automated:
 - [x] Elicitation adapter test for pending -> submitted.
 - [x] Elicitation live-flow verification for ACP sessions.
 - [x] Elicitation load replay verification for pending persisted requests.
+- [x] Adapter test for duplicate identical image replay chunks.
 
 ## Blockers
 
@@ -389,7 +404,8 @@ Automated:
 - No automatic REST fallback for ACP chat errors.
 - REST remains only for session behavior not migrated yet.
 - Extension migration is out of scope for this plan.
-- ACP elicitation is complete; message parity is next.
+- ACP elicitation is complete; the remaining message-parity follow-up is making
+  `systemNotification` structurally live-only.
 - Defer recipe ACP parity until a later design pass.
 
 ## Follow-Up

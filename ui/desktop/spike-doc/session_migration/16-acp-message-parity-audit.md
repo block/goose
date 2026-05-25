@@ -53,7 +53,7 @@ Desktop ACP reconstruction is implemented in:
 | Goose content type | REST load | ACP load replay | ACP live prompt | Desktop ACP adapter | Status |
 | --- | --- | --- | --- | --- | --- |
 | `text` | Native `MessageContent` | `user_message_chunk` / `agent_message_chunk` | `agent_message_chunk` | Converts ACP text to `text` | Covered |
-| `image` | Native `MessageContent` | Not currently replayed | Prompt input conversion supports user images; live image output not mapped | Converts ACP image chunks if received | Partial |
+| `image` | Native `MessageContent` | Replayed as ACP image chunks with Goose replay metadata | Prompt input conversion supports user images; live image output should render if emitted | Converts ACP image chunks and de-duplicates identical overlapping replay chunks | Covered for persisted user images; assistant image output still needs manual rendering check |
 | `toolRequest` | Native `MessageContent` | `tool_call` | `tool_call` | Converts to `toolRequest` | Covered |
 | `toolResponse` | Native `MessageContent` | `tool_call_update` | `tool_call_update` | Converts to `toolResponse` | Covered |
 | `thinking` | Native `MessageContent` | `agent_thought_chunk` | `agent_thought_chunk` | Converts to `thinking` | Covered |
@@ -63,9 +63,9 @@ Desktop ACP reconstruction is implemented in:
 | `systemNotification.inlineMessage` | Native `MessageContent` | Skipped as live-only legacy status | `_goose/session/update` `status_message.notice` | Converts to local inline notification row | Covered for live status |
 | `systemNotification.thinkingMessage` | Native `MessageContent` | Skipped as live-only legacy status | `_goose/session/update` `status_message.progress` | Converts to local thinking notification row | Covered for live status |
 | `systemNotification.creditsExhausted` | Native `MessageContent` | Skipped as legacy status/error content | ACP-only prompt error translation: structured `session/prompt` JSON-RPC error with `data.reason = "credits_exhausted"` | Converts structured prompt error to local credits warning row | Covered |
-| `redactedThinking` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap or defer after provider check |
-| `frontendToolRequest` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap or defer after production check |
-| `toolConfirmationRequest` | Native legacy content | Dropped | Dropped | Existing REST UI helpers can read it | Likely defer/legacy |
+| `redactedThinking` | Native `MessageContent` | Intentionally omitted | Intentionally omitted | No ACP mapping | Omitted by design; opaque provider context, not visible transcript |
+| `frontendToolRequest` | Native `MessageContent` | Intentionally omitted | Intentionally omitted | No ACP mapping | Omitted by design; provider/frontend-tool plumbing, not REST-rendered transcript |
+| `toolConfirmationRequest` | Native legacy content | Intentionally omitted | Intentionally omitted | Existing REST UI helpers can read it | Omitted by design; current approval uses `actionRequired.toolConfirmation` and ACP `requestPermission` |
 
 ## Important Gaps
 
@@ -329,23 +329,44 @@ REST `sessionReply` remains only as the fallback for non-ACP sessions.
 
 Desktop ACP prompt input supports user text and image content.
 
-ACP load replay currently does not replay stored image message content. ACP
-adapter can reconstruct image chunks if the server emits them, but the server
-does not currently emit image chunks during replay. Need to verify whether
-assistant image output can appear in Goose sessions and whether user image
-history must be visible after reload.
+Manual testing confirmed user image history was missing after ACP load even
+though the image content was persisted in `sessions.db`. Inline ACP load now
+replays stored `MessageContent::Image` as ACP image chunks with replay metadata,
+and the desktop adapter reconstructs them as Goose image content.
+
+React StrictMode can start overlapping `session/load` calls in development. ACP
+load notifications are scoped by `sessionId`, so a current subscriber may still
+receive replay from an older in-flight load. Desktop now disposes stale ACP load
+subscriptions on effect cleanup and treats identical replayed image chunks for
+the same message as idempotent.
+
+Remaining question: verify whether assistant image output can appear in Goose
+sessions. If it can, the server replay path already routes image chunks by
+message role, but user-facing rendering should still be manually checked.
 
 ### Redacted Thinking
 
-`redactedThinking` is persisted by some provider formats. ACP currently drops
-it. Need to decide whether this is acceptable because the content is redacted,
-or whether the UI should render a placeholder equivalent to REST behavior.
+`redactedThinking` is persisted by some provider formats, notably Bedrock
+redacted reasoning content. The payload is opaque provider context, not
+displayable reasoning text. Goose stores it so provider history can be
+round-tripped, but desktop REST rendering does not expose it as thinking text.
+
+Decision: intentionally omit `redactedThinking` from ACP desktop replay. ACP
+load replay reconstructs the user-visible transcript; provider continuity still
+comes from the stored backend conversation.
 
 ### Frontend Tool Request
 
-`frontendToolRequest` appears in provider formatting and context management, but
-ACP currently drops it. Need to verify whether desktop sessions can contain it
-as user-visible content. If it is internal/provider-facing only, defer.
+`frontendToolRequest` is used by agent/provider plumbing for frontend tool calls
+and provider history formatting. Desktop REST types include it as part of the
+full `MessageContent` union, but desktop rendering code does not expose it as a
+visible transcript row.
+
+Decision: intentionally omit `frontendToolRequest` from ACP desktop replay.
+Visible tool UX should continue to use normal tool request/response rendering,
+ACP `requestPermission`, and Goose custom interaction/status updates. Revisit
+only if legacy REST sessions are found where `frontendToolRequest` was relied on
+as user-visible transcript content.
 
 ### Legacy Tool Confirmation Request
 
@@ -353,6 +374,13 @@ as user-visible content. If it is internal/provider-facing only, defer.
 approval uses the standard `requestPermission` request/response path, and
 desktop locally projects that into the existing action-required UI. Keep this
 deferred unless old persisted sessions need compatibility replay.
+
+Decision: intentionally omit legacy `toolConfirmationRequest` from ACP desktop
+replay for now. Current persisted approval content uses
+`actionRequired.toolConfirmation`, and current live ACP approval uses
+`requestPermission`. Old sessions can still load and continue without replaying
+the legacy row; a cold-loaded pending approval from an old session is not
+reliably actionable.
 
 ## Proposed Priority
 
@@ -386,15 +414,31 @@ Done:
   - Keep tool confirmation on standard ACP `requestPermission`; do not
     duplicate it in the custom interaction update unless load replay later
     needs legacy pending permission compatibility.
+- Replay stored image content during ACP load.
+  - Manual test confirmed persisted user image history was missing after ACP
+    reload.
+  - Inline ACP load emits ACP image chunks with replay metadata.
+  - Desktop treats duplicate identical image replay chunks as idempotent because
+    overlapping `session/load` calls can emit duplicate replay for the same
+    `sessionId`.
+- Omit `redactedThinking` from ACP desktop replay.
+  - It is opaque provider context, not displayable thinking text.
+  - REST desktop does not render it as visible thinking content.
+  - Provider continuity is preserved by the stored backend conversation, not by
+    desktop transcript replay.
+- Omit `frontendToolRequest` from ACP desktop replay.
+  - It is provider/frontend-tool plumbing, not rendered by desktop REST UI.
+  - User-visible tool UX is covered by normal tool request/response rendering,
+    ACP permission requests, and Goose custom interaction/status updates.
+- Omit legacy `toolConfirmationRequest` from ACP desktop replay.
+  - Current approval paths are covered by `actionRequired.toolConfirmation` and
+    ACP `requestPermission`.
+  - Old sessions can still load and continue; only a legacy pending approval row
+    would be absent from the replayed transcript.
 
 Next:
 
-1. Add ACP handling for image replay if manual testing confirms user image
-   history is missing after ACP load.
-2. Audit `redactedThinking`, `frontendToolRequest`, and legacy
-   `toolConfirmationRequest` with real sessions or targeted tests before
-   implementing mappings.
-3. Follow-up: make `systemNotification` structurally live-only.
+1. Follow-up: make `systemNotification` structurally live-only.
    - Add code docs on `SystemNotificationContent` / constructors that durable
      acknowledgements must use normal assistant text with user-only metadata.
    - Audit current producers to confirm no intentional durable

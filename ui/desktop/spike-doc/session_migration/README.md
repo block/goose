@@ -12,7 +12,7 @@ migration work.
 
 ## Active Implementation Areas
 
-- Immediate: close remaining message/content parity gaps; see
+- Immediate: finish making `systemNotification` structurally live-only; see
   `16-acp-message-parity-audit.md`.
 - Later design pass: recipe and recipe-parameter parity; see
   `05-conversation-load.md` and `15-acp-new-session-plan.md`.

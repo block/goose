@@ -111,10 +111,14 @@ Current status and next steps live in `progress.md`.
 
 The remaining work should proceed in this order:
 
-1. Close message/content parity gaps.
-   - Start with `systemNotification` replacement and live status updates.
-   - Then audit image replay, `redactedThinking`, `frontendToolRequest`, and
+1. Finish the message/content parity follow-up.
+   - Done: live status updates, command acknowledgement conversion, image
+     replay, stale ACP load listener cleanup, idempotent image replay, and the
+     documented omissions for `redactedThinking`, `frontendToolRequest`, and
      legacy `toolConfirmationRequest`.
+   - Remaining: make `systemNotification` structurally live-only by documenting
+     the producer rule, auditing remaining producers, and adding a
+     persistence-boundary guard or test.
 2. Defer recipe parity.
    - Keep recipe creation, recipe deeplink, recipe parameter persistence, and
      recipe prompt application on REST for now.
@@ -286,6 +290,8 @@ this plan.
 | ACP reply reference | `14-acp-reply-spike-plan.md` |
 | ACP new-session reference | `15-acp-new-session-plan.md` |
 | Message parity | `16-acp-message-parity-audit.md` |
+| Message identity | `17-acp-message-identity-lifecycle.md` |
+| ACP prompt errors | `18-acp-error-handling.md` |
 
 ## Main Risks
 

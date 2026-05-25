@@ -191,7 +191,9 @@ the same patch as the lifecycle migration.
 ## Follow-Ups
 
 - Recipe-session load/new-session behavior.
-- ACP elicitation response migration.
+- Keep ACP elicitation responses on `_goose/elicitation/respond`; REST
+  `sessionReply` remains only as the non-ACP fallback until REST sessions are
+  retired.
 - Edit/fork message migration should be treated as a session-history mutation
   migration, not a reply migration. The actual assistant turn after edit/fork
   already uses ACP `session/prompt`; the dead REST `overrideConversation`
