@@ -17,6 +17,7 @@ type BundledExtension = {
   uri?: string;
   envs?: { [key: string]: string };
   env_keys?: Array<string>;
+  headers?: { [key: string]: string };
   timeout?: number;
   allow_configure?: boolean;
 };
@@ -116,6 +117,9 @@ export async function syncBundledExtensions(
             description: bundledExt.description,
             timeout: bundledExt.timeout,
             uri: bundledExt.uri || '',
+            envs: bundledExt.envs,
+            env_keys: bundledExt.env_keys || [],
+            headers: bundledExt.headers,
             bundled: true,
           };
       }

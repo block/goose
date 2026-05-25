@@ -175,6 +175,25 @@ function translateMenuLabels(items: MenuItem[]): void {
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 const STARTUP_LOGS_DIR = path.join(app.getPath('userData'), 'logs', 'startup');
 
+async function seedDefaultRecipes(): Promise<void> {
+  const sourceRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'default-recipes')
+    : path.join(__dirname, '..', 'default-recipes');
+  const destDir = path.join(os.homedir(), '.config', 'goose', 'recipes');
+
+  if (!fsSync.existsSync(sourceRoot)) return;
+
+  await fs.mkdir(destDir, { recursive: true });
+  const entries = await fs.readdir(sourceRoot);
+  for (const entry of entries) {
+    if (!entry.endsWith('.yaml') && !entry.endsWith('.yml')) continue;
+    const destPath = path.join(destDir, entry);
+    if (fsSync.existsSync(destPath)) continue;
+    await fs.copyFile(path.join(sourceRoot, entry), destPath);
+    log.info(`[seedDefaultRecipes] seeded ${entry} → ${destPath}`);
+  }
+}
+
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
     let stored: Partial<Settings>;
@@ -2078,6 +2097,12 @@ const registerGlobalShortcuts = () => {
 
 async function appMain() {
   await configureProxy();
+
+  try {
+    await seedDefaultRecipes();
+  } catch (err) {
+    log.warn('[seedDefaultRecipes] failed:', err);
+  }
 
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();

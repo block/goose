@@ -52,5 +52,19 @@
     "type": "builtin",
     "env_keys": [],
     "bundled": true
+  },
+  {
+    "id": "apemind",
+    "name": "apemind",
+    "display_name": "ApeMind",
+    "description": "ApeMind 知识图谱 / RAG 服务（启用前请在扩展设置里替换 URL 与 Authorization Bearer token）",
+    "enabled": false,
+    "type": "streamable_http",
+    "uri": "https://your-apemind.example.com/mcp",
+    "headers": {
+      "Authorization": "Bearer your-api-key-here"
+    },
+    "timeout": 300,
+    "bundled": true
   }
 ]
