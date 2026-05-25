@@ -682,6 +682,39 @@ Cleanup later:
   - `get_agent_or_receiver`
   - `add_mcp_extensions`
 
+PR #9317 follow-ups marked `(TODO in next PR)`:
+
+- Revisit `loadSession` `mcpServers` semantics
+  ([discussion](https://github.com/aaif-goose/goose/pull/9317#discussion_r3297214483)).
+  Current desktop/Goose flow
+  relies on server-owned config extensions and rejects non-empty
+  `mcpServers`, but ACP common clients may expect load-time MCP servers to be
+  restored. Decide whether Goose keeps this divergence, advertises it, or adds
+  an explicit transient extension path.
+- Decide the `loadSession.cwd` contract
+  ([discussion](https://github.com/aaif-goose/goose/pull/9317#discussion_r3297215270)).
+  Inline load currently treats the
+  stored session working directory as authoritative and ignores request `cwd`;
+  legacy load updated the persisted working directory from request `cwd`.
+  Align server behavior, generated API expectations, and tests around one
+  contract. Re-enable
+  `crates/goose/tests/acp_custom_requests_test.rs`
+  `test_load_session_passes_load_cwd_to_provider_factory`, currently ignored
+  with `TODO(lifei)`, when this contract is settled.
+- Refactor `loadSession` setup boundaries
+  ([discussion](https://github.com/aaif-goose/goose/pull/9317#discussion_r3297236594)).
+  Decide whether replay/read-only
+  session restore should succeed even when provider resolution/auth/setup
+  fails, or whether `loadSession` should continue to mean "history replayed and
+  agent ready for prompt".
+- Revisit `forkSession` cwd ownership
+  ([discussion](https://github.com/aaif-goose/goose/pull/9317#discussion_r3297410789)).
+  ACP requires request `cwd`, so desktop
+  currently sends `session.workingDir`; this can be stale if the original
+  directory moved. Prefer a server-side contract where fork can use the source
+  session working directory or a safe default without forcing clients to echo
+  historical cwd values.
+
 ## Larger Backend Cleanup Path
 
 Optional Path B after the migration settles:
