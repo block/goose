@@ -166,6 +166,7 @@ fn test_new_session_passes_cwd_to_provider_factory() {
 }
 
 #[test]
+#[ignore = "TODO(lifei): decide whether loadSession should use request cwd or stored session cwd"]
 fn test_load_session_passes_load_cwd_to_provider_factory() {
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;

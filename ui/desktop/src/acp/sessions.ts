@@ -129,6 +129,21 @@ export async function acpListSessions(): Promise<ListSessionsResponse> {
   };
 }
 
+export async function acpListRecentSessions(maxSessions: number): Promise<ListSessionsResponse> {
+  if (maxSessions <= 0) {
+    return { sessions: [], nextCursor: null };
+  }
+
+  const client = await getAcpClient();
+  const response = await client.listSessions({});
+
+  return {
+    sessions: response.sessions.slice(0, maxSessions),
+    nextCursor: null,
+    ...(response._meta === undefined ? {} : { _meta: response._meta }),
+  };
+}
+
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionRename_unstable({ sessionId, title });

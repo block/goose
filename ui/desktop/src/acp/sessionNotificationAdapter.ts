@@ -196,7 +196,7 @@ function applyInteractionUpdate(
     case 'pending':
       return applyPendingElicitation(state, sessionId, update);
     case 'submitted':
-      return [];
+      return applySubmittedElicitation(state, update);
   }
 }
 
@@ -240,6 +240,40 @@ function applyPendingElicitation(
   }
 
   return [{ type: 'messages', messages: state.messages.map(cloneMessage) }];
+}
+
+function applySubmittedElicitation(
+  state: AdapterState,
+  update: GooseInteractionUpdate
+): AcpSessionUpdate[] {
+  const { interaction } = update;
+  let changed = false;
+
+  state.messages = state.messages.flatMap((message) => {
+    const content = message.content.filter((item) => {
+      const shouldRemove =
+        item.type === 'actionRequired' &&
+        item.data.actionType === 'elicitation' &&
+        item.data.id === interaction.id;
+      if (shouldRemove) {
+        changed = true;
+      }
+      return !shouldRemove;
+    });
+    const removedFromMessage = content.length !== message.content.length;
+
+    if (content.length === 0 && removedFromMessage) {
+      return [];
+    }
+
+    if (removedFromMessage) {
+      return [{ ...message, content }];
+    }
+
+    return [message];
+  });
+
+  return changed ? [{ type: 'messages', messages: state.messages.map(cloneMessage) }] : [];
 }
 
 function applyToolCall(state: AdapterState, update: ToolCall): AcpSessionUpdate[] {

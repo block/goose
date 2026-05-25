@@ -768,14 +768,14 @@ describe('sessionNotificationAdapter', () => {
     ]);
   });
 
-  it('leaves pending elicitation messages after Goose submitted updates', () => {
+  it('removes pending elicitation messages after Goose submitted updates', () => {
     const adapter = createAcpSessionNotificationAdapter();
 
     adapter.applyGoose(goosePendingElicitationNotification());
     const updates = adapter.applyGoose(gooseSubmittedElicitationNotification());
 
-    expect(updates).toEqual([]);
-    expect(adapter.snapshot().messages).toHaveLength(1);
+    expect(updates).toEqual([{ type: 'messages', messages: [] }]);
+    expect(adapter.snapshot().messages).toHaveLength(0);
   });
 
   it('converts an ACP permission request into desktop tool confirmation content', () => {

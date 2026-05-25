@@ -9,7 +9,7 @@ import { getInitialWorkingDir } from '../utils/workingDir';
 import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
 import {
-  acpListSessions,
+  acpListRecentSessions,
   sessionInfoToListItem,
   SessionListItem,
 } from '../acp/sessions';
@@ -43,7 +43,7 @@ function sortAndTrim(sessions: SessionListItem[]): SessionListItem[] {
 function sessionToListItem(s: Session): SessionListItem {
   return {
     id: s.id,
-    name: s.name || DEFAULT_CHAT_TITLE,
+    name: getSessionDisplayName(s),
     workingDir: s.working_dir,
     updatedAt: s.updated_at,
     messageCount: s.message_count,
@@ -88,7 +88,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
 
   const fetchSessions = useCallback(async () => {
     try {
-      const response = await acpListSessions();
+      const response = await acpListRecentSessions(MAX_RECENT_SESSIONS);
       setRecentSessions(sortAndTrim(response.sessions.map(sessionInfoToListItem)));
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
@@ -140,10 +140,8 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       const pollForUpdates = async () => {
         pollCount++;
         try {
-          const response = await acpListSessions();
-          const apiSessions = response.sessions
-            .slice(0, MAX_RECENT_SESSIONS)
-            .map(sessionInfoToListItem);
+          const response = await acpListRecentSessions(MAX_RECENT_SESSIONS);
+          const apiSessions = response.sessions.map(sessionInfoToListItem);
           setRecentSessions((prev) => mergeWithEmptyLocals(prev, apiSessions));
         } catch (error) {
           console.error('Failed to poll sessions:', error);
@@ -166,6 +164,19 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       if (lastSessionIdRef.current === sessionId) {
         lastSessionIdRef.current = null;
       }
+      void acpListRecentSessions(MAX_RECENT_SESSIONS + 1)
+        .then((response) => {
+          setRecentSessions(
+            sortAndTrim(
+              response.sessions
+                .filter((session) => session.sessionId !== sessionId)
+                .map(sessionInfoToListItem)
+            )
+          );
+        })
+        .catch((error) => {
+          console.error('Failed to refresh sessions after delete:', error);
+        });
     };
 
     const handleSessionRenamed = (event: Event) => {
