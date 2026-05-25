@@ -2692,9 +2692,7 @@
       "type": "string",
       "enum": [
         "pending",
-        "submitted",
-        "cancelled",
-        "expired"
+        "submitted"
       ]
     },
     "InteractionUpdate": {

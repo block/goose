@@ -1105,7 +1105,7 @@ export type Interaction = {
     type: 'elicitation';
 };
 
-export type InteractionState = 'pending' | 'submitted' | 'cancelled' | 'expired';
+export type InteractionState = 'pending' | 'submitted';
 
 export type InteractionUpdate = {
     interaction: Interaction;

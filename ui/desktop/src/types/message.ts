@@ -239,6 +239,20 @@ export function getElicitationContent(
   );
 }
 
+export function getElicitationResponseIds(messages: Message[]): Set<string> {
+  const responseIds = new Set<string>();
+
+  for (const message of messages) {
+    for (const content of message.content) {
+      if (content.type === 'actionRequired' && content.data.actionType === 'elicitationResponse') {
+        responseIds.add(content.data.id);
+      }
+    }
+  }
+
+  return responseIds;
+}
+
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   return toolRequests.length > 0;

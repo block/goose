@@ -107,6 +107,25 @@ adapter, and React state together against a real session.
 
 Current status and next steps live in `progress.md`.
 
+### Current Sequencing Decision
+
+The remaining work should proceed in this order:
+
+1. Finish ACP elicitation.
+   - The server and desktop paths are already mostly implemented.
+   - Close the submitted-state behavior, add focused tests, and manually verify
+     live and replay behavior.
+2. Close message/content parity gaps.
+   - Start with `systemNotification` replacement and live status updates.
+   - Then audit image replay, `redactedThinking`, `frontendToolRequest`, and
+     legacy `toolConfirmationRequest`.
+3. Defer recipe parity.
+   - Keep recipe creation, recipe deeplink, recipe parameter persistence, and
+     recipe prompt application on REST for now.
+   - Revisit recipe migration after deciding the ACP shape for persisting
+     values, rendering the recipe, and applying the rendered prompt to the
+     agent system prompt.
+
 ### Why load-first
 
 Load is the right entry point for the chat-runtime migration. The reasoning,
@@ -290,6 +309,10 @@ or cancel. This should be treated as a blocker for live ACP chat.
 Current REST session creation supports recipe and extension override inputs. ACP
 session creation may need backend additions before it can fully replace REST
 creation for all desktop entry points.
+
+Recipe migration is intentionally deferred until after elicitation and message
+parity. Avoid partially migrating recipe creation without a settled server-side
+render-and-apply mechanism.
 
 ### Reattach Semantics
 

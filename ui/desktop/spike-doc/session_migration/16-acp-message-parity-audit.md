@@ -245,7 +245,7 @@ type InteractionUpdate = {
   interaction: {
     type: 'elicitation';
     id: string;
-    state: 'pending' | 'submitted' | 'cancelled' | 'expired';
+    state: 'pending' | 'submitted';
     message?: string;
     requestedSchema?: unknown;
   };
@@ -255,9 +255,8 @@ type InteractionUpdate = {
 Rules:
 
 - `pending` includes `message` and `requestedSchema`.
-- `submitted`, `cancelled`, and `expired` only require `id` and `state`.
-- `cancelled` and `expired` may include `message` if there is a useful reason
-  to show.
+- `submitted` only requires `id` and `state`.
+- Expiration remains local desktop UI state, not a Goose ACP interaction state.
 
 Example pending elicitation:
 
@@ -352,6 +351,10 @@ ACP currently drops it. Need to verify whether desktop sessions can contain it
 as user-visible content. If it is internal/provider-facing only, defer.
 
 ## Proposed Priority
+
+This message/content work should start after the elicitation slice is finished.
+Recipe parity is intentionally deferred and should not block these message-gap
+fixes.
 
 1. Stop creating new persisted `systemNotification.inlineMessage` command
    acknowledgements.

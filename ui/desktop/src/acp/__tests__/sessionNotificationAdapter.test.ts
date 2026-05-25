@@ -128,6 +128,20 @@ function goosePendingElicitationNotification(): GooseSessionNotification {
   } as unknown as GooseSessionNotification;
 }
 
+function gooseSubmittedElicitationNotification(): GooseSessionNotification {
+  return {
+    sessionId: 'session-1',
+    update: {
+      sessionUpdate: 'interaction_update',
+      interaction: {
+        type: 'elicitation',
+        id: 'elicitation-1',
+        state: 'submitted',
+      },
+    },
+  } as unknown as GooseSessionNotification;
+}
+
 function toolCallNotification(): SessionNotification {
   return {
     sessionId: 'session-1',
@@ -579,6 +593,16 @@ describe('sessionNotificationAdapter', () => {
         ],
       },
     ]);
+  });
+
+  it('leaves pending elicitation messages after Goose submitted updates', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.applyGoose(goosePendingElicitationNotification());
+    const updates = adapter.applyGoose(gooseSubmittedElicitationNotification());
+
+    expect(updates).toEqual([]);
+    expect(adapter.snapshot().messages).toHaveLength(1);
   });
 
   it('converts an ACP permission request into desktop tool confirmation content', () => {

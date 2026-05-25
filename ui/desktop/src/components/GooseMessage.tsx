@@ -11,6 +11,7 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   getElicitationContent,
+  getElicitationResponseIds,
   getPendingToolConfirmationIds,
   getAnyToolConfirmationData,
   ToolConfirmationData,
@@ -58,6 +59,7 @@ export default function GooseMessage({
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
+  const elicitationResponseIds = useMemo(() => getElicitationResponseIds(messages), [messages]);
 
   const findConfirmationForToolAcrossMessages = (
     toolRequestId: string
@@ -208,7 +210,10 @@ export default function GooseMessage({
         {hasElicitation && submitElicitationResponse && (
           <ElicitationRequest
             isCancelledMessage={false}
-            isClicked={false}
+            isClicked={
+              elicitationContent.data.actionType === 'elicitation' &&
+              elicitationResponseIds.has(elicitationContent.data.id)
+            }
             actionRequiredContent={elicitationContent}
             onSubmit={submitElicitationResponse}
           />

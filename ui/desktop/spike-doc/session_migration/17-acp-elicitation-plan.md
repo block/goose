@@ -12,7 +12,8 @@ not represent Goose `actionRequired.elicitationResponse`.
 
 ## Current Status
 
-Implemented for ACP sessions.
+Mostly implemented for ACP sessions. This is now the immediate migration slice
+before message/content parity and before any recipe ACP design work.
 
 - `_goose/session/update` accepts `interaction_update`.
 - ACP load replays pending persisted elicitations and suppresses requests that
@@ -50,7 +51,7 @@ type InteractionUpdate = {
   interaction: {
     type: 'elicitation';
     id: string;
-    state: 'pending' | 'submitted' | 'cancelled' | 'expired';
+    state: 'pending' | 'submitted';
     message?: string;
     requestedSchema?: unknown;
   };
@@ -60,8 +61,8 @@ type InteractionUpdate = {
 Rules:
 
 - `pending` includes `message` and `requestedSchema`.
-- `submitted`, `cancelled`, and `expired` only require `id` and `state`.
-- `cancelled` and `expired` may include `message`.
+- `submitted` only requires `id` and `state`.
+- Expiration remains local desktop UI state, not a Goose ACP interaction state.
 
 Custom request:
 
@@ -139,3 +140,19 @@ Response is empty.
 4. Done: desktop notification parser and adapter.
 5. Done: desktop submit path.
 6. Done: ACP load replay for pending persisted elicitations.
+7. Next: finish desktop submitted-state handling.
+   - When `interaction.state === "submitted"`, clear or complete the matching
+     pending `actionRequired.elicitation` form.
+   - Avoid leaving a stale active form after the hidden response message has
+     been persisted.
+8. Next: add focused verification.
+   - Adapter test for pending -> submitted.
+   - Manual live ACP elicitation flow: tool asks for input, user submits, and
+     the original prompt continues.
+   - Manual replay flow: a pending persisted elicitation appears after load,
+     while an elicitation with a hidden response does not reappear.
+
+## Sequencing Decision
+
+Finish this slice before message parity. Recipe migration remains deferred until
+the ACP recipe design is settled.

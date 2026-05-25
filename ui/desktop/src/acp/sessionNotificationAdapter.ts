@@ -146,8 +146,6 @@ function applyInteractionUpdate(
     case 'pending':
       return applyPendingElicitation(state, sessionId, update);
     case 'submitted':
-    case 'cancelled':
-    case 'expired':
       return [];
   }
 }

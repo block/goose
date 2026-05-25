@@ -1069,12 +1069,7 @@ export const zSessionUsageUpdate = z.object({
     ]).optional()
 });
 
-export const zInteractionState = z.enum([
-    'pending',
-    'submitted',
-    'cancelled',
-    'expired'
-]);
+export const zInteractionState = z.enum(['pending', 'submitted']);
 
 export const zInteraction = z.object({
     id: z.string(),

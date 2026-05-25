@@ -13,9 +13,10 @@ session creation, recipe parameter persistence and recipe prompt application
 buffer-overrun recovery paths, app-cache population, and a few metadata
 fallbacks such as name polling and mode fallback reads.
 
-Next: decide whether to remove or intentionally retain those remaining REST
-paths. The biggest functional gaps are recipe-session parity and ACP reattach /
-recovery semantics.
+Next: finish the ACP elicitation slice, then close the remaining message/content
+parity gaps. Recipe-session parity is intentionally deferred for a later design
+pass because it needs a cleaner ACP shape for persisting values, rendering the
+recipe, and applying the rendered prompt to the agent.
 
 Owner: Codex
 
@@ -323,6 +324,28 @@ Notes:
 - REST `sessionCancel` is still retained for REST/SSE active request reattach
   paths.
 
+### 8. Current Sequencing
+
+Immediate sequence:
+
+1. Finish elicitation.
+   - Complete submitted-state handling for `_goose/session/update`
+     `interaction_update`.
+   - Add or confirm focused tests for pending -> submitted behavior.
+   - Manually verify a live ACP elicitation flow and reload-with-pending
+     behavior.
+2. Close message/content parity gaps.
+   - Prioritize `systemNotification` replacement with normal durable text for
+     command acknowledgements plus `_goose/session/update` `status_update` for
+     live status.
+   - Then audit image replay, `redactedThinking`, `frontendToolRequest`, and
+     legacy `toolConfirmationRequest`.
+3. Defer recipe parity.
+   - Keep recipe creation, recipe deeplinks, recipe value persistence, and
+     recipe prompt application on REST until the ACP recipe design is settled.
+   - Do not partially migrate recipe creation before the server-side
+     render-and-apply mechanism is agreed.
+
 ## Verification Checklist
 
 Manual:
@@ -354,6 +377,9 @@ Automated:
 - [x] Permission mapping test for approve.
 - [x] Permission mapping test for reject.
 - [x] Permission mapping test for cancel.
+- [ ] Elicitation adapter test for pending -> submitted.
+- [ ] Elicitation live-flow verification for ACP sessions.
+- [ ] Elicitation load replay verification for pending persisted requests.
 
 ## Blockers
 
@@ -365,6 +391,8 @@ Automated:
 - No automatic REST fallback for ACP chat errors.
 - REST remains only for session behavior not migrated yet.
 - Extension migration is out of scope for this plan.
+- Finish elicitation before message parity.
+- Defer recipe ACP parity until a later design pass.
 
 ## Follow-Up
 
