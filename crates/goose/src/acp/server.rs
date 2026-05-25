@@ -4570,7 +4570,10 @@ print(\"hello, world\")
         let updates =
             build_usage_updates(&SessionId::new("session-1".to_string()), &session, 258_000);
         assert_eq!(updates.custom.session_id, "session-1");
-        let GooseSessionUpdate::UsageUpdate(usage) = updates.custom.update;
+        let usage = match updates.custom.update {
+            GooseSessionUpdate::UsageUpdate(usage) => usage,
+            other => panic!("expected usage update, got {other:?}"),
+        };
         assert_eq!(usage.used, 0);
         assert_eq!(usage.context_limit, 258_000);
         assert_eq!(updates.legacy.used, 0);

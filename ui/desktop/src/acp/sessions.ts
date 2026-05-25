@@ -131,7 +131,7 @@ export async function acpListSessions(): Promise<ListSessionsResponse> {
 
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.GooseSessionRename({ sessionId, title });
+  await client.goose.sessionRename_unstable({ sessionId, title });
 }
 
 export async function acpDeleteSession(sessionId: string): Promise<void> {
@@ -146,13 +146,13 @@ export async function acpForkSession(sessionId: string, cwd: string): Promise<vo
 
 export async function acpExportSession(sessionId: string): Promise<string> {
   const client = await getAcpClient();
-  const result = await client.goose.GooseSessionExport({ sessionId });
+  const result = await client.goose.sessionExport_unstable({ sessionId });
   return result.data;
 }
 
 export async function acpImportSession(data: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.GooseSessionImport({ data });
+  await client.goose.sessionImport_unstable({ data });
 }
 
 export function acpLoadSessionMeta(response: LoadSessionResponse): AcpLoadSessionMeta {
