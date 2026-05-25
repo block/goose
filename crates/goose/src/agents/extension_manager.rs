@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::{future, FutureExt};
+use futures::{FutureExt, future};
 use once_cell::sync::Lazy;
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
@@ -14,10 +14,10 @@ use rmcp::transport::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -27,8 +27,8 @@ use tracing::{error, warn};
 
 use super::container::Container;
 use super::extension::{
-    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
-    ToolInfo, PLATFORM_EXTENSIONS,
+    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PLATFORM_EXTENSIONS,
+    PlatformExtensionContext, ToolInfo,
 };
 use super::tool_execution::{ToolCallContext, ToolCallResult};
 use super::types::SharedProvider;
@@ -40,8 +40,8 @@ use crate::agents::mcp_client::{
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
-use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::config::{Config, get_all_extensions};
+use crate::oauth::{GooseCredentialStore, oauth_flow};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
@@ -561,6 +561,7 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     socket: Option<&str>,
+    credential_store: Box<dyn CredentialStore>,
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
@@ -621,7 +622,6 @@ async fn create_streamable_http_client(
 
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
-    let credential_store = GooseCredentialStore::new(name.to_string());
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
         match oauth_flow(&uri.to_string(), &name.to_string()).await {
             Ok(auth_manager) => {
@@ -866,6 +866,7 @@ impl ExtensionManager {
                     &resolved_headers,
                     name,
                     resolved_socket.as_deref(),
+                    Box::new(GooseCredentialStore::new(name.to_string())),
                     self.provider.clone(),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
@@ -1983,7 +1984,7 @@ mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
     use rmcp::model::{InitializeResult, JsonObject};
-    use rmcp::{object, ServiceError as Error};
+    use rmcp::{ServiceError as Error, object};
 
     use rmcp::model::ListPromptsResult;
     use rmcp::model::ListResourcesResult;
@@ -2229,12 +2230,16 @@ mod tests {
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(!tool_names.iter().any(|name| name == "test_extension__tool")); // Default unavailable
-        assert!(tool_names
-            .iter()
-            .any(|name| name == "test_extension__available_tool"));
-        assert!(!tool_names
-            .iter()
-            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(
+            tool_names
+                .iter()
+                .any(|name| name == "test_extension__available_tool")
+        );
+        assert!(
+            !tool_names
+                .iter()
+                .any(|name| name == "test_extension__hidden_tool")
+        );
         assert!(tool_names.len() == 1);
     }
 
@@ -2259,12 +2264,16 @@ mod tests {
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|name| name == "test_extension__tool"));
-        assert!(tool_names
-            .iter()
-            .any(|name| name == "test_extension__available_tool"));
-        assert!(tool_names
-            .iter()
-            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(
+            tool_names
+                .iter()
+                .any(|name| name == "test_extension__available_tool")
+        );
+        assert!(
+            tool_names
+                .iter()
+                .any(|name| name == "test_extension__hidden_tool")
+        );
         assert!(tool_names.len() == 3);
     }
 
@@ -2742,6 +2751,7 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
             capabilities,
@@ -2776,6 +2786,7 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
             capabilities,
@@ -2815,14 +2826,13 @@ mod tests {
 
         // The MCP handshake will fail against the stub server. We only care that
         // the outgoing HTTP request carried the custom header.
-        // Use a name that cannot collide with real keychain entries and won't
-        // trigger the proactive OAuth path against a dev machine's stored credentials.
         let _ = create_streamable_http_client(
             &mock_server.uri(),
             None,
             &headers,
-            "__unit_test_custom_headers_forwarded__",
+            "test-ext",
             None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
             capabilities,
@@ -2844,6 +2854,87 @@ mod tests {
         assert!(
             header_found,
             "custom header x-api-key was not forwarded to the extension server"
+        );
+    }
+
+    /// Directly exercises `connect_with_auth`, which is the code path fixed by
+    /// the PR (custom headers were dropped when the OAuth connection path was
+    /// taken).  Uses a pre-seeded `InMemoryCredentialStore` with a fake,
+    /// non-expiring token so `get_access_token()` returns immediately without
+    /// touching any OAuth endpoints or the system keychain.
+    #[tokio::test]
+    async fn test_custom_headers_forwarded_oauth_path() {
+        use rmcp::transport::auth::{
+            InMemoryCredentialStore, OAuthTokenResponse, StoredCredentials,
+        };
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut headers = HashMap::new();
+        headers.insert("x-api-key".to_string(), "test-secret-oauth".to_string());
+
+        // Build a fake, non-expiring token. token_received_at=None skips the
+        // expiry check, so get_access_token() returns without any network call.
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "fake-test-token",
+            "token_type": "bearer",
+        }))
+        .expect("valid fake token JSON");
+        let creds = StoredCredentials::new(
+            "test-client".to_string(),
+            Some(token_response),
+            vec![],
+            None,
+        );
+        let store = InMemoryCredentialStore::new();
+        store.save(creds).await.unwrap();
+
+        let mut auth_manager = rmcp::transport::AuthorizationManager::new(mock_server.uri())
+            .await
+            .expect("AuthorizationManager::new should not make network calls");
+        auth_manager.set_credential_store(store);
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        // connect_with_auth will fail (mock server isn't an MCP server) but we
+        // only care that the outgoing request carried the custom header.
+        let _ = connect_with_auth(
+            auth_manager,
+            &mock_server.uri(),
+            Duration::from_secs(5),
+            &headers,
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let received = mock_server.received_requests().await.unwrap();
+        assert!(
+            !received.is_empty(),
+            "expected at least one HTTP request to reach the mock server"
+        );
+        let header_found = received.iter().any(|req| {
+            req.headers
+                .get("x-api-key")
+                .map(|v| v == "test-secret-oauth")
+                .unwrap_or(false)
+        });
+        assert!(
+            header_found,
+            "custom header x-api-key was not forwarded through the OAuth connection path"
         );
     }
 }
