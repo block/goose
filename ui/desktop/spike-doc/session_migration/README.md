@@ -690,7 +690,9 @@ PR #9317 follow-ups marked `(TODO in next PR)`:
   relies on server-owned config extensions and rejects non-empty
   `mcpServers`, but ACP common clients may expect load-time MCP servers to be
   restored. Decide whether Goose keeps this divergence, advertises it, or adds
-  an explicit transient extension path.
+  an explicit transient extension path. Re-enable
+  `crates/goose/tests/acp_server_test.rs` `test_load_session_mcp`, currently
+  ignored with `TODO(lifei)`, when this contract is settled.
 - Decide the `loadSession.cwd` contract
   ([discussion](https://github.com/aaif-goose/goose/pull/9317#discussion_r3297215270)).
   Inline load currently treats the

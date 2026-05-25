@@ -169,7 +169,7 @@ pub async fn spawn_acp_server_in_process(
             &config_path,
             format!(
                 "GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: {}\n",
-                goose_mode.to_string()
+                goose_mode
             ),
         )
         .unwrap();

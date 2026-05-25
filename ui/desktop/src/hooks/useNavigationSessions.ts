@@ -13,7 +13,6 @@ import {
   sessionInfoToListItem,
   SessionListItem,
 } from '../acp/sessions';
-import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 
 const MAX_RECENT_SESSIONS = 5;
 

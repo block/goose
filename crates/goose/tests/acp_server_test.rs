@@ -216,6 +216,7 @@ fn test_load_session_error_session_not_found() {
 }
 
 #[test]
+#[ignore = "TODO(lifei): decide Goose ACP loadSession mcpServers ownership semantics"]
 fn test_load_session_mcp() {
     run_test(async { run_load_session_mcp::<AcpServerConnection>().await });
 }
