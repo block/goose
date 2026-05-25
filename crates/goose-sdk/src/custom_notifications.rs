@@ -68,19 +68,6 @@ pub enum StatusMessage {
     Notice { message: String },
     #[serde(rename_all = "camelCase")]
     Progress { message: String },
-    #[serde(rename_all = "camelCase")]
-    RequiresUserAction {
-        reason: UserActionReason,
-        message: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        url: Option<String>,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum UserActionReason {
-    CreditsExhausted,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -161,12 +148,8 @@ mod tests {
         let notification = GooseSessionNotification {
             session_id: "s1".to_string(),
             update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
-                status: StatusMessage::RequiresUserAction {
-                    reason: UserActionReason::CreditsExhausted,
-                    message:
-                        "Please add credits to your account, then resend your message to continue."
-                            .to_string(),
-                    url: Some("https://example.com/billing".to_string()),
+                status: StatusMessage::Notice {
+                    message: "Compaction complete".to_string(),
                 },
             }),
         };
@@ -180,10 +163,8 @@ mod tests {
                 "update": {
                     "sessionUpdate": "status_message",
                     "status": {
-                        "type": "requires_user_action",
-                        "reason": "credits_exhausted",
-                        "message": "Please add credits to your account, then resend your message to continue.",
-                        "url": "https://example.com/billing"
+                        "type": "notice",
+                        "message": "Compaction complete"
                     }
                 }
             })

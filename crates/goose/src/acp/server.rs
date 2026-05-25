@@ -2446,39 +2446,69 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
     }
 }
 
+fn prompt_error_from_message_content(
+    content_item: &MessageContent,
+) -> Option<agent_client_protocol::Error> {
+    match content_item {
+        MessageContent::SystemNotification(notification)
+            if notification.notification_type == SystemNotificationType::CreditsExhausted =>
+        {
+            Some(credits_exhausted_prompt_error(notification))
+        }
+        _ => None,
+    }
+}
+
+fn credits_exhausted_prompt_error(
+    notification: &SystemNotificationContent,
+) -> agent_client_protocol::Error {
+    let mut data = serde_json::Map::new();
+    data.insert(
+        "reason".to_string(),
+        serde_json::Value::String("credits_exhausted".to_string()),
+    );
+
+    if let Some(url) = notification
+        .data
+        .as_ref()
+        .and_then(|data| data.get("top_up_url"))
+        .and_then(|url| url.as_str())
+    {
+        data.insert(
+            "url".to_string(),
+            serde_json::Value::String(url.to_string()),
+        );
+    }
+
+    agent_client_protocol::Error::new(-32603, notification.msg.clone())
+        .data(serde_json::Value::Object(data))
+}
+
 fn send_status_message_update(
     cx: &ConnectionTo<Client>,
     session_id: &str,
     notification: &SystemNotificationContent,
 ) -> Result<(), agent_client_protocol::Error> {
-    cx.send_notification(GooseSessionNotification {
-        session_id: session_id.to_string(),
-        update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
-            status: status_message_from_system_notification(notification),
-        }),
-    })
+    if let Some(status) = status_message_from_system_notification(notification) {
+        cx.send_notification(GooseSessionNotification {
+            session_id: session_id.to_string(),
+            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate { status }),
+        })?;
+    }
+    Ok(())
 }
 
 fn status_message_from_system_notification(
     notification: &SystemNotificationContent,
-) -> StatusMessage {
+) -> Option<StatusMessage> {
     match notification.notification_type {
-        SystemNotificationType::InlineMessage => StatusMessage::Notice {
+        SystemNotificationType::InlineMessage => Some(StatusMessage::Notice {
             message: notification.msg.clone(),
-        },
-        SystemNotificationType::ThinkingMessage => StatusMessage::Progress {
+        }),
+        SystemNotificationType::ThinkingMessage => Some(StatusMessage::Progress {
             message: notification.msg.clone(),
-        },
-        SystemNotificationType::CreditsExhausted => StatusMessage::RequiresUserAction {
-            reason: UserActionReason::CreditsExhausted,
-            message: notification.msg.clone(),
-            url: notification
-                .data
-                .as_ref()
-                .and_then(|data| data.get("top_up_url"))
-                .and_then(|url| url.as_str())
-                .map(ToOwned::to_owned),
-        },
+        }),
+        SystemNotificationType::CreditsExhausted => None,
     }
 }
 
@@ -3035,6 +3065,11 @@ impl GooseAcpAgent {
                     })?;
 
                     for content_item in &message.content {
+                        if let Some(error) = prompt_error_from_message_content(content_item) {
+                            session.cancel_token = None;
+                            return Err(error);
+                        }
+
                         match content_item {
                             MessageContent::ToolRequest(tr) => {
                                 if let Some(msg_id) = stored_message_id.as_deref() {
@@ -4386,6 +4421,44 @@ print(\"hello, world\")
                 "messageId": "msg_live",
             })),
         );
+    }
+
+    #[test]
+    fn test_credits_exhausted_system_notification_maps_to_prompt_error() {
+        let content = MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type: SystemNotificationType::CreditsExhausted,
+            msg: "Please add credits to your account, then resend your message to continue."
+                .to_string(),
+            data: Some(serde_json::json!({
+                "top_up_url": "https://router.tetrate.ai/billing"
+            })),
+        });
+
+        let error = prompt_error_from_message_content(&content).expect("expected prompt error");
+        let value = serde_json::to_value(error).unwrap();
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "code": -32603,
+                "message": "Please add credits to your account, then resend your message to continue.",
+                "data": {
+                    "reason": "credits_exhausted",
+                    "url": "https://router.tetrate.ai/billing"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_non_credit_system_notification_does_not_map_to_prompt_error() {
+        let content = MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type: SystemNotificationType::InlineMessage,
+            msg: "Compaction complete".to_string(),
+            data: None,
+        });
+
+        assert!(prompt_error_from_message_content(&content).is_none());
     }
 
     #[test]

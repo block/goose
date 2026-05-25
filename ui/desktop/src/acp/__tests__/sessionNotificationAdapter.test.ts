@@ -718,41 +718,6 @@ describe('sessionNotificationAdapter', () => {
     ]);
   });
 
-  it('converts Goose user-action status messages into local credits notifications', () => {
-    const adapter = createAcpSessionNotificationAdapter();
-
-    const updates = adapter.applyGoose(
-      gooseStatusMessageNotification({
-        type: 'requires_user_action',
-        reason: 'credits_exhausted',
-        message: 'Please add credits to your account, then resend your message to continue.',
-        url: 'https://example.com/billing',
-      })
-    );
-
-    expect(updates).toMatchObject([
-      {
-        type: 'messages',
-        messages: [
-          {
-            role: 'assistant',
-            content: [
-              {
-                type: 'systemNotification',
-                notificationType: 'creditsExhausted',
-                msg: 'Please add credits to your account, then resend your message to continue.',
-                data: {
-                  top_up_url: 'https://example.com/billing',
-                },
-              },
-            ],
-            metadata: { userVisible: true, agentVisible: false },
-          },
-        ],
-      },
-    ]);
-  });
-
   it('converts Goose pending elicitation updates into desktop action-required messages', () => {
     const adapter = createAcpSessionNotificationAdapter();
 

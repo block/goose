@@ -179,18 +179,6 @@ function messageFromStatusMessage(
           },
         ],
       };
-    case 'requires_user_action':
-      return {
-        ...baseMessage,
-        content: [
-          {
-            type: 'systemNotification',
-            notificationType: 'creditsExhausted',
-            msg: status.message,
-            ...(status.url ? { data: { top_up_url: status.url } } : {}),
-          },
-        ],
-      };
   }
 }
 

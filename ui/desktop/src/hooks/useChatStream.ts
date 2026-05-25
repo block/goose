@@ -23,6 +23,7 @@ import {
 import {
   createUserMessage,
   createElicitationResponseMessage,
+  generateMessageId,
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
@@ -44,6 +45,7 @@ import {
   createAcpSessionNotificationAdapter,
   type AcpSessionUpdate,
 } from '../acp/sessionNotificationAdapter';
+import { type AcpCreditsExhaustedError, parseAcpCreditsExhaustedError } from '../acp/errors';
 import {
   subscribeToAcpGooseSession,
   subscribeToAcpSession,
@@ -189,6 +191,23 @@ function createAcpLoadSessionSnapshot(sessionId: string): Session {
     message_count: 0,
     extension_data: {},
     conversation: [],
+  };
+}
+
+function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Message {
+  return {
+    id: generateMessageId(),
+    role: 'assistant',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'systemNotification',
+        notificationType: 'creditsExhausted',
+        msg: error.message,
+        ...(error.url ? { data: { top_up_url: error.url } } : {}),
+      },
+    ],
+    metadata: { userVisible: true, agentVisible: false },
   };
 }
 
@@ -905,6 +924,20 @@ export function useChatStream({
         if (activeAcpPromptSessionRef.current === null) {
           return;
         }
+
+        const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
+        if (creditsExhaustedError) {
+          dispatch({
+            type: 'SET_MESSAGES',
+            payload: [
+              ...stateRef.current.messages,
+              createAcpCreditsExhaustedMessage(creditsExhaustedError),
+            ],
+          });
+          onFinish();
+          return;
+        }
+
         onFinish('Submit error: ' + errorMessage(error));
       } finally {
         setAcpPermissionHandler(null);

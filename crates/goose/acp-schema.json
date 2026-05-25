@@ -2704,39 +2704,7 @@
             "type",
             "message"
           ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "reason": {
-              "$ref": "#/$defs/UserActionReason"
-            },
-            "message": {
-              "type": "string"
-            },
-            "url": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "type": {
-              "type": "string",
-              "const": "requires_user_action"
-            }
-          },
-          "required": [
-            "type",
-            "reason",
-            "message"
-          ]
         }
-      ]
-    },
-    "UserActionReason": {
-      "type": "string",
-      "enum": [
-        "credits_exhausted"
       ]
     },
     "StatusMessageUpdate": {

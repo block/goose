@@ -329,9 +329,11 @@ Notes:
 Immediate sequence:
 
 1. Close message/content parity gaps.
-   - Prioritize `systemNotification` replacement with normal durable text for
-     command acknowledgements plus `_goose/session/update` `status_message` for
-     live status.
+   - Done for the current slice: `systemNotification` command
+     acknowledgements move to normal durable text, live status uses
+     `_goose/session/update` `status_message`, inline load skips legacy
+     persisted system notifications, and desktop status rows are not merge
+     targets for id-less transcript chunks.
    - Follow up by making `systemNotification` structurally live-only: document
      the rule, audit producers, and add a persistence-boundary guard or test.
    - Then audit image replay, `redactedThinking`, `frontendToolRequest`, and

@@ -1105,14 +1105,7 @@ export type StatusMessage = {
 } | {
     message: string;
     type: 'progress';
-} | {
-    reason: UserActionReason;
-    message: string;
-    url?: string | null;
-    type: 'requires_user_action';
 };
-
-export type UserActionReason = 'credits_exhausted';
 
 /**
  * Live UI/session status. This is not conversation transcript content, and

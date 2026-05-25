@@ -83,7 +83,7 @@ legacy `systemNotification` content is skipped in inline load.
 | `tool_call_update` | `_meta.goose.messageId` from persisted user tool-response message | Should include owning user/tool-response message id | Tool response messages often have generated ids, but live ACP must merge that id into metadata |
 | `interaction_update` pending elicitation | `_meta.goose.messageId` from persisted assistant action-required message | Includes live action-required message id when present | Same as persisted only if the live message id is also persisted |
 | `interaction_update` submitted elicitation | Not replayed as pending; submitted responses suppress stale pending requests | Includes generated user elicitation response message id | Response path creates/persists the response message |
-| `status_message` from `SystemNotification` | Not replayed; live-only status | Should include source message id when present | Many current status producers use `Message::assistant()` with no id unless normalized |
+| `status_message` from `SystemNotification` | Not replayed; live-only status | No message identity in the current shape | N/A; status is correlated by ordering/session only in this increment |
 | `usage_update` | Session-level, no message id | Session-level, no message id | N/A |
 | `session_info_update` | Session-level, no message id | Session-level, no message id | N/A |
 | `config_option_update` | Session-level, no message id | Session-level, no message id | N/A |
@@ -92,8 +92,8 @@ legacy `systemNotification` content is skipped in inline load.
 
 ### Prompt Chunks Without Guaranteed IDs
 
-Live prompt text/thinking/status updates can only pass through a message id if
-the source Goose `Message` already has one.
+Live prompt text/thinking updates can only pass through a message id if the
+source Goose `Message` already has one.
 
 Some prompt messages are created with `Message::assistant()`, which defaults to
 `id: None`.
@@ -121,9 +121,9 @@ Live prompt tool updates still need the same treatment:
 
 `status_message` is live UI/session status, not transcript content.
 
-It may still include `_meta.goose.messageId/created` for correlation,
-ordering, de-duplication, and debugging. Clients should not replay it as
-conversation history.
+In this increment, `status_message` does not carry Goose message identity.
+Clients should treat it as session-scoped live status and should not replay it
+as conversation history.
 
 ### Client Fallback
 
@@ -143,8 +143,7 @@ For Goose-originated ACP updates:
 
 - Message-derived updates carry `_meta.goose.messageId/created`.
 - Session-level updates do not carry message identity.
-- Live-only status updates may carry message identity for correlation, but
-  remain non-transcript.
+- Live-only status updates remain non-transcript and are not message merge
+  targets.
 - Missing identity is reserved for synthetic or uncorrelated updates and should
   be rare.
-

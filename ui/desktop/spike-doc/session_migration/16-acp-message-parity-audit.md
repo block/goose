@@ -60,9 +60,9 @@ Desktop ACP reconstruction is implemented in:
 | `actionRequired.toolConfirmation` | Native `MessageContent` | Not replayed as `actionRequired` | ACP permission request path | Creates `actionRequired.toolConfirmation` from permission request | Partial |
 | `actionRequired.elicitation` | Native `MessageContent` | `_goose/session/update` `interaction_update` for pending persisted elicitations | `_goose/session/update` `interaction_update` | Creates `actionRequired.elicitation` from pending interaction updates | Covered for pending requests |
 | `actionRequired.elicitationResponse` | Native hidden message | Hidden/submitted responses are not replayed as visible content | ACP sessions submit via `_goose/elicitation/respond`; REST remains for non-ACP sessions | Response is not rendered as a normal visible message | Covered for ACP sessions, hidden by design |
-| `systemNotification.inlineMessage` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
-| `systemNotification.thinkingMessage` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
-| `systemNotification.creditsExhausted` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
+| `systemNotification.inlineMessage` | Native `MessageContent` | Skipped as live-only legacy status | `_goose/session/update` `status_message.notice` | Converts to local inline notification row | Covered for live status |
+| `systemNotification.thinkingMessage` | Native `MessageContent` | Skipped as live-only legacy status | `_goose/session/update` `status_message.progress` | Converts to local thinking notification row | Covered for live status |
+| `systemNotification.creditsExhausted` | Native `MessageContent` | Skipped as legacy status/error content | ACP-only prompt error translation: structured `session/prompt` JSON-RPC error with `data.reason = "credits_exhausted"` | Converts structured prompt error to local credits warning row | Covered |
 | `redactedThinking` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap or defer after provider check |
 | `frontendToolRequest` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap or defer after production check |
 | `toolConfirmationRequest` | Native legacy content | Dropped | Dropped | Existing REST UI helpers can read it | Likely defer/legacy |
@@ -88,17 +88,22 @@ Desktop already has renderers for these notifications:
 - `SystemNotificationInline`
 - `CreditsExhaustedNotification`
 
-ACP currently drops these notifications during both load replay and live prompt
-streaming. This can make ACP sessions look different from REST sessions after
-commands, compaction, or billing/context-limit events.
+ACP now maps live system notifications to the Goose custom `status_message`
+update. Inline ACP load skips persisted legacy `systemNotification` rows
+because status is live-only and should not be replayed as transcript history.
 
 Current `systemNotification` variants:
 
 - `inlineMessage`
   - UI behavior: small inline status row.
-  - Current persisted uses:
+  - Legacy persisted uses:
     - `/clear`: `Conversation cleared`
     - `/compact`: `Compaction complete`
+  - Current durable command acknowledgements:
+    - `/clear`: normal assistant text with `userVisible: true`,
+      `agentVisible: false`
+    - `/compact`: normal assistant text with `userVisible: true`,
+      `agentVisible: false`
   - Current live-only uses:
     - auto-compact and context-limit status messages
     - goal/grind notices
@@ -120,9 +125,10 @@ Long-term design direction:
   - `/compact` should persist `Compaction complete` as text.
 - `systemNotification` should be treated as live session status, not durable
   transcript content.
-- Existing persisted `systemNotification.inlineMessage` rows are legacy
-  compatibility cases. ACP load replay may project them to plain
-  `agent_message_chunk` text if needed.
+- Existing persisted `systemNotification` rows are legacy compatibility cases.
+  Inline ACP load intentionally skips them for now. If historical styling or
+  visibility becomes important, add an explicit compatibility projection rather
+  than treating them as live `status_message` replay.
 
 This keeps ACP transcript replay simple and keeps UI/status concepts out of
 standard ACP assistant message chunks.
@@ -157,12 +163,6 @@ type StatusMessage =
   | {
       type: 'progress';
       message: string;
-    }
-  | {
-      type: 'requires_user_action';
-      reason: 'credits_exhausted';
-      message: string;
-      url?: string | null;
     };
 ```
 
@@ -173,8 +173,25 @@ Mapping from current `systemNotification`:
 
 - live `inlineMessage` -> `status.type = 'notice'`
 - `thinkingMessage` -> `status.type = 'progress'`
-- `creditsExhausted` -> `status.type = 'requires_user_action'`,
-  `reason = 'credits_exhausted'`, `url = data.top_up_url`
+
+Credits exhausted is currently bridged through `status_message` for parity with
+the existing REST UI, but the preferred ACP shape is a structured JSON-RPC
+`session/prompt` error:
+
+```json
+{
+  "error": {
+    "code": -32603,
+    "message": "Please add credits to your account, then resend your message to continue.",
+    "data": {
+      "reason": "credits_exhausted",
+      "url": "https://router.tetrate.ai/billing"
+    }
+  }
+}
+```
+
+See `18-acp-error-handling.md`.
 
 Example compaction progress update:
 
@@ -194,32 +211,10 @@ Example compaction progress update:
 }
 ```
 
-Example credits update:
-
-```json
-{
-  "method": "_goose/session/update",
-  "params": {
-    "sessionId": "s1",
-    "update": {
-      "sessionUpdate": "status_message",
-      "status": {
-        "type": "requires_user_action",
-        "reason": "credits_exhausted",
-        "message": "Please add credits to your account, then resend your message to continue.",
-        "url": "https://..."
-      }
-    }
-  }
-}
-```
-
 This schema describes domain state, not presentation. Desktop can map:
 
 - `notice` to an inline notice or other local presentation
 - `progress` to loading/progress UI
-- `requires_user_action` with `reason = 'credits_exhausted'` to the credits
-  warning UI
 
 ### Goose Interaction Updates
 
@@ -367,12 +362,14 @@ intentionally deferred and should not block these message-gap fixes.
    - Cover live compaction progress and credits-exhausted UI first.
    - Desktop prompt handling should listen to the existing Goose custom
      notification router.
+   - Status rows are local UI rows and must not be merge targets for later
+     id-less transcript chunks.
 
-3. Optionally add ACP load backcompat for old persisted
-   `systemNotification.inlineMessage`.
-   - Project legacy inline notifications to plain `agent_message_chunk` text.
-   - Do not add nested Goose message-content metadata unless exact historical
-     desktop styling becomes required.
+3. Keep ACP load behavior explicit for old persisted `systemNotification`
+   content.
+   - Current inline load skips these rows because `status_message` is live-only.
+   - If a historical compatibility need appears, project legacy inline
+     notifications to plain `agent_message_chunk` text in a targeted follow-up.
 
 4. Add ACP handling for image replay if manual testing confirms user image
    history is missing after ACP load.
