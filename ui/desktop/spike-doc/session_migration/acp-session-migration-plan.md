@@ -111,15 +111,11 @@ Current status and next steps live in `progress.md`.
 
 The remaining work should proceed in this order:
 
-1. Finish ACP elicitation.
-   - The server and desktop paths are already mostly implemented.
-   - Close the submitted-state behavior, add focused tests, and manually verify
-     live and replay behavior.
-2. Close message/content parity gaps.
+1. Close message/content parity gaps.
    - Start with `systemNotification` replacement and live status updates.
    - Then audit image replay, `redactedThinking`, `frontendToolRequest`, and
      legacy `toolConfirmationRequest`.
-3. Defer recipe parity.
+2. Defer recipe parity.
    - Keep recipe creation, recipe deeplink, recipe parameter persistence, and
      recipe prompt application on REST for now.
    - Revisit recipe migration after deciding the ACP shape for persisting
@@ -290,7 +286,6 @@ this plan.
 | ACP reply reference | `14-acp-reply-spike-plan.md` |
 | ACP new-session reference | `15-acp-new-session-plan.md` |
 | Message parity | `16-acp-message-parity-audit.md` |
-| Elicitation | `17-acp-elicitation-plan.md` |
 
 ## Main Risks
 
@@ -310,8 +305,8 @@ Current REST session creation supports recipe and extension override inputs. ACP
 session creation may need backend additions before it can fully replace REST
 creation for all desktop entry points.
 
-Recipe migration is intentionally deferred until after elicitation and message
-parity. Avoid partially migrating recipe creation without a settled server-side
+Recipe migration is intentionally deferred until after message parity. Avoid
+partially migrating recipe creation without a settled server-side
 render-and-apply mechanism.
 
 ### Reattach Semantics

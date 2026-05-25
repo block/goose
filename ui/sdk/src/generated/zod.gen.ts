@@ -1069,6 +1069,36 @@ export const zSessionUsageUpdate = z.object({
     ]).optional()
 });
 
+export const zUserActionReason = z.enum(['credits_exhausted']);
+
+export const zStatusMessage = z.union([
+    z.object({
+        message: z.string(),
+        type: z.literal('notice')
+    }),
+    z.object({
+        message: z.string(),
+        type: z.literal('progress')
+    }),
+    z.object({
+        reason: zUserActionReason,
+        message: z.string(),
+        url: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        type: z.literal('requires_user_action')
+    })
+]);
+
+/**
+ * Live UI/session status. This is not conversation transcript content, and
+ * should not be persisted or replayed as history.
+ */
+export const zStatusMessageUpdate = z.object({
+    status: zStatusMessage
+});
+
 export const zInteractionState = z.enum(['pending', 'submitted']);
 
 export const zInteraction = z.object({
@@ -1099,6 +1129,9 @@ export const zGooseSessionUpdate = z.union([
     z.object({
         sessionUpdate: z.literal('usage_update')
     }).and(zSessionUsageUpdate),
+    z.object({
+        sessionUpdate: z.literal('status_message')
+    }).and(zStatusMessageUpdate),
     z.object({
         sessionUpdate: z.literal('interaction_update')
     }).and(zInteractionUpdate)

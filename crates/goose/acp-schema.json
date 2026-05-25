@@ -2600,6 +2600,19 @@
           ]
         },
         {
+          "$ref": "#/$defs/StatusMessageUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "status_message"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        },
+        {
           "$ref": "#/$defs/InteractionUpdate",
           "type": "object",
           "properties": {
@@ -2618,6 +2631,7 @@
         "propertyName": "sessionUpdate",
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
+          "status_message": "#/$defs/StatusMessageUpdate",
           "interaction_update": "#/$defs/InteractionUpdate"
         }
       }
@@ -2656,6 +2670,86 @@
         "accumulatedOutputTokens"
       ],
       "description": "Streaming context-window usage update for a session."
+    },
+    "StatusMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "notice"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "progress"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "$ref": "#/$defs/UserActionReason"
+            },
+            "message": {
+              "type": "string"
+            },
+            "url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "requires_user_action"
+            }
+          },
+          "required": [
+            "type",
+            "reason",
+            "message"
+          ]
+        }
+      ]
+    },
+    "UserActionReason": {
+      "type": "string",
+      "enum": [
+        "credits_exhausted"
+      ]
+    },
+    "StatusMessageUpdate": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/StatusMessage"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
     },
     "Interaction": {
       "oneOf": [

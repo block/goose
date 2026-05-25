@@ -142,6 +142,18 @@ function gooseSubmittedElicitationNotification(): GooseSessionNotification {
   } as unknown as GooseSessionNotification;
 }
 
+function gooseStatusMessageNotification(
+  status: Extract<GooseSessionNotification['update'], { sessionUpdate: 'status_message' }>['status']
+): GooseSessionNotification {
+  return {
+    sessionId: 'session-1',
+    update: {
+      sessionUpdate: 'status_message',
+      status,
+    },
+  };
+}
+
 function toolCallNotification(): SessionNotification {
   return {
     sessionId: 'session-1',
@@ -556,6 +568,187 @@ describe('sessionNotificationAdapter', () => {
           accumulatedTotalTokens: 30,
           accumulatedCost: 0.12,
         },
+      },
+    ]);
+  });
+
+  it('converts Goose notice status messages into local inline notifications', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    const updates = adapter.applyGoose(
+      gooseStatusMessageNotification({
+        type: 'notice',
+        message: 'Context limit reached. Compacting to continue conversation...',
+      })
+    );
+
+    expect(updates).toMatchObject([
+      {
+        type: 'messages',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'systemNotification',
+                notificationType: 'inlineMessage',
+                msg: 'Context limit reached. Compacting to continue conversation...',
+              },
+            ],
+            metadata: { userVisible: true, agentVisible: false },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps Goose status messages in the adapter snapshot after later ACP messages', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.applyGoose(
+      gooseStatusMessageNotification({
+        type: 'notice',
+        message: 'Compaction completed',
+      })
+    );
+
+    const updates = adapter.apply(textNotification('agent_message_chunk', 'Next response'));
+
+    expect(updates).toMatchObject([
+      {
+        type: 'messages',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'systemNotification',
+                notificationType: 'inlineMessage',
+                msg: 'Compaction completed',
+              },
+            ],
+          },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Next response' }],
+          },
+        ],
+      },
+    ]);
+    expect(adapter.snapshot().messages).toMatchObject([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'systemNotification',
+            notificationType: 'inlineMessage',
+            msg: 'Compaction completed',
+          },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Next response' }],
+      },
+    ]);
+  });
+
+  it('does not merge id-less thought chunks into Goose status messages', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    adapter.applyGoose(
+      gooseStatusMessageNotification({
+        type: 'progress',
+        message: 'goose is compacting the conversation...',
+      })
+    );
+
+    const updates = adapter.apply(thoughtNotification('checking the next step'));
+
+    expect(updates).toMatchObject([
+      {
+        type: 'messages',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'systemNotification',
+                notificationType: 'thinkingMessage',
+                msg: 'goose is compacting the conversation...',
+              },
+            ],
+          },
+          {
+            role: 'assistant',
+            content: [{ type: 'thinking', thinking: 'checking the next step' }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('converts Goose progress status messages into local thinking notifications', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    const updates = adapter.applyGoose(
+      gooseStatusMessageNotification({
+        type: 'progress',
+        message: 'goose is compacting the conversation...',
+      })
+    );
+
+    expect(updates).toMatchObject([
+      {
+        type: 'messages',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'systemNotification',
+                notificationType: 'thinkingMessage',
+                msg: 'goose is compacting the conversation...',
+              },
+            ],
+            metadata: { userVisible: true, agentVisible: false },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('converts Goose user-action status messages into local credits notifications', () => {
+    const adapter = createAcpSessionNotificationAdapter();
+
+    const updates = adapter.applyGoose(
+      gooseStatusMessageNotification({
+        type: 'requires_user_action',
+        reason: 'credits_exhausted',
+        message: 'Please add credits to your account, then resend your message to continue.',
+        url: 'https://example.com/billing',
+      })
+    );
+
+    expect(updates).toMatchObject([
+      {
+        type: 'messages',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'systemNotification',
+                notificationType: 'creditsExhausted',
+                msg: 'Please add credits to your account, then resend your message to continue.',
+                data: {
+                  top_up_url: 'https://example.com/billing',
+                },
+              },
+            ],
+            metadata: { userVisible: true, agentVisible: false },
+          },
+        ],
       },
     ]);
   });

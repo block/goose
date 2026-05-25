@@ -127,8 +127,70 @@ function applyGooseSessionNotification(
           },
         },
       ];
+    case 'status_message':
+      return applyStatusMessage(state, notification.sessionId, update);
     case 'interaction_update':
       return applyInteractionUpdate(state, notification.sessionId, update);
+  }
+}
+
+function applyStatusMessage(
+  state: AdapterState,
+  sessionId: string,
+  update: Extract<GooseSessionNotification['update'], { sessionUpdate: 'status_message' }>
+): AcpSessionUpdate[] {
+  const message = messageFromStatusMessage(sessionId, update);
+  state.messages.push(message);
+  return [{ type: 'messages', messages: state.messages.map(cloneMessage) }];
+}
+
+function messageFromStatusMessage(
+  sessionId: string,
+  update: Extract<GooseSessionNotification['update'], { sessionUpdate: 'status_message' }>
+): Message {
+  const { status } = update;
+  const baseMessage = {
+    id: `acp_status_${sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    role: 'assistant' as const,
+    created: Math.floor(Date.now() / 1000),
+    metadata: { userVisible: true, agentVisible: false },
+  };
+
+  switch (status.type) {
+    case 'notice':
+      return {
+        ...baseMessage,
+        content: [
+          {
+            type: 'systemNotification',
+            notificationType: 'inlineMessage',
+            msg: status.message,
+          },
+        ],
+      };
+    case 'progress':
+      return {
+        ...baseMessage,
+        content: [
+          {
+            type: 'systemNotification',
+            notificationType: 'thinkingMessage',
+            msg: status.message,
+          },
+        ],
+      };
+    case 'requires_user_action':
+      return {
+        ...baseMessage,
+        content: [
+          {
+            type: 'systemNotification',
+            notificationType: 'creditsExhausted',
+            msg: status.message,
+            ...(status.url ? { data: { top_up_url: status.url } } : {}),
+          },
+        ],
+      };
   }
 }
 
@@ -318,7 +380,7 @@ function applyContentChunk(
   const id = update.messageId ?? replayMeta.messageId;
   const existing = id
     ? state.messages.find((message) => message.id === id && message.role === role)
-    : lastMessageWithRole(state, role);
+    : lastMergeableMessageWithRole(state, role);
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
@@ -548,7 +610,7 @@ function applyThoughtChunk(
   const id = update.messageId ?? replayMeta.messageId;
   const existing = id
     ? state.messages.find((message) => message.id === id && message.role === 'assistant')
-    : lastMessageWithRole(state, 'assistant');
+    : lastMergeableMessageWithRole(state, 'assistant');
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
@@ -614,9 +676,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function lastMessageWithRole(state: AdapterState, role: Message['role']): Message | undefined {
+function lastMergeableMessageWithRole(
+  state: AdapterState,
+  role: Message['role']
+): Message | undefined {
   const lastMessage = state.messages[state.messages.length - 1];
-  return lastMessage?.role === role ? lastMessage : undefined;
+  if (lastMessage?.role !== role || lastMessage.metadata.agentVisible === false) {
+    return undefined;
+  }
+  return lastMessage;
 }
 
 function cloneMessage(message: Message): Message {

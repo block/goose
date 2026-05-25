@@ -127,7 +127,7 @@ Long-term design direction:
 This keeps ACP transcript replay simple and keeps UI/status concepts out of
 standard ACP assistant message chunks.
 
-### Goose Status Updates
+### Goose Status Messages
 
 Live Goose UI/session status should use the existing custom notification
 channel:
@@ -135,44 +135,46 @@ channel:
 - method: `_goose/session/update`
 - payload type: `GooseSessionNotification`
 
-Add a typed `status_update` variant to the existing `GooseSessionUpdate` union:
+Add a typed `status_message` variant to the existing `GooseSessionUpdate`
+union:
 
 ```ts
 type GooseSessionUpdate =
   | UsageUpdate
-  | StatusUpdate
+  | StatusMessageUpdate
   | InteractionUpdate;
 
-type StatusUpdate = {
-  sessionUpdate: 'status_update';
-  status: SessionStatus;
+type StatusMessageUpdate = {
+  sessionUpdate: 'status_message';
+  status: StatusMessage;
 };
 
-type SessionStatus =
+type StatusMessage =
   | {
-      type: 'info';
+      type: 'notice';
       message: string;
     }
   | {
       type: 'progress';
       message: string;
-      activity?: 'compaction';
     }
   | {
-      type: 'action_required';
-      action: 'add_credits';
+      type: 'requires_user_action';
+      reason: 'credits_exhausted';
       message: string;
       url?: string | null;
     };
 ```
 
+`status_message` is live-only UI/session status. It is not conversation
+transcript content, and should not be persisted or replayed as history.
+
 Mapping from current `systemNotification`:
 
-- `inlineMessage` -> `status.type = 'info'`
-- `thinkingMessage` -> `status.type = 'progress'`,
-  `activity = 'compaction'` when it represents compaction
-- `creditsExhausted` -> `status.type = 'action_required'`,
-  `action = 'add_credits'`, `url = data.top_up_url`
+- live `inlineMessage` -> `status.type = 'notice'`
+- `thinkingMessage` -> `status.type = 'progress'`
+- `creditsExhausted` -> `status.type = 'requires_user_action'`,
+  `reason = 'credits_exhausted'`, `url = data.top_up_url`
 
 Example compaction progress update:
 
@@ -182,10 +184,9 @@ Example compaction progress update:
   "params": {
     "sessionId": "s1",
     "update": {
-      "sessionUpdate": "status_update",
+      "sessionUpdate": "status_message",
       "status": {
         "type": "progress",
-        "activity": "compaction",
         "message": "goose is compacting the conversation..."
       }
     }
@@ -201,10 +202,10 @@ Example credits update:
   "params": {
     "sessionId": "s1",
     "update": {
-      "sessionUpdate": "status_update",
+      "sessionUpdate": "status_message",
       "status": {
-        "type": "action_required",
-        "action": "add_credits",
+        "type": "requires_user_action",
+        "reason": "credits_exhausted",
         "message": "Please add credits to your account, then resend your message to continue.",
         "url": "https://..."
       }
@@ -215,9 +216,10 @@ Example credits update:
 
 This schema describes domain state, not presentation. Desktop can map:
 
-- `info` to an inline notice or other local presentation
-- `progress` with `activity = 'compaction'` to compacting/loading state
-- `action_required/add_credits` to the credits warning UI
+- `notice` to an inline notice or other local presentation
+- `progress` to loading/progress UI
+- `requires_user_action` with `reason = 'credits_exhausted'` to the credits
+  warning UI
 
 ### Goose Interaction Updates
 
@@ -352,16 +354,15 @@ as user-visible content. If it is internal/provider-facing only, defer.
 
 ## Proposed Priority
 
-This message/content work should start after the elicitation slice is finished.
-Recipe parity is intentionally deferred and should not block these message-gap
-fixes.
+This message/content work is now the active next slice. Recipe parity is
+intentionally deferred and should not block these message-gap fixes.
 
 1. Stop creating new persisted `systemNotification.inlineMessage` command
    acknowledgements.
    - Persist `/clear` and `/compact` acknowledgements as normal assistant text.
    - Preserve `userVisible: true`, `agentVisible: false`.
 
-2. Add custom Goose `status_update` for live session status.
+2. Add custom Goose `status_message` for live session status.
    - Use `_goose/session/update`.
    - Cover live compaction progress and credits-exhausted UI first.
    - Desktop prompt handling should listen to the existing Goose custom
@@ -388,6 +389,16 @@ fixes.
    `toolConfirmationRequest` with real sessions or targeted tests before
    implementing mappings.
 
+7. Follow-up: make `systemNotification` structurally live-only.
+   - Add code docs on `SystemNotificationContent` / constructors that durable
+     acknowledgements must use normal assistant text with user-only metadata.
+   - Audit current producers to confirm no intentional durable
+     `systemNotification` remains after `/clear` and `/compact` move to text.
+   - Add a persistence-boundary guard or test so new `systemNotification`
+     messages are not accidentally stored as conversation history.
+   - Keep read/render compatibility for legacy sessions that already contain
+     persisted `systemNotification` content.
+
 ## Open Design Question
 
 ACP core has generic displayable `ContentBlock` updates, tool updates, thoughts,
@@ -413,7 +424,7 @@ Current decision:
   `systemNotification`.
 - Treat future persisted `/clear` and `/compact` acknowledgements as normal
   assistant text.
-- Treat live UI/session status as `status_update` on `_goose/session/update`.
+- Treat live UI/session status as `status_message` on `_goose/session/update`.
 - Use plain ACP text projection only as backward compatibility for older
   persisted inline system notifications.
 

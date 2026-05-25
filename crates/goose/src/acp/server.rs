@@ -14,7 +14,10 @@ use crate::config::extensions::get_enabled_extensions_with_config;
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
-use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
+use crate::conversation::message::{
+    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
+    ToolRequest,
+};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -1834,9 +1837,10 @@ impl GooseAcpAgent {
             MessageContent::Text(text) => {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
-                    SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
-                        TextContent::new(text.text.clone()),
-                    ))),
+                    SessionUpdate::AgentMessageChunk(
+                        ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
+                            .meta(message_update_meta(message_id, message_created)),
+                    ),
                 ))?;
             }
             MessageContent::ToolRequest(tool_request) => {
@@ -1864,9 +1868,12 @@ impl GooseAcpAgent {
             MessageContent::Thinking(thinking) => {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
-                    SessionUpdate::AgentThoughtChunk(ContentChunk::new(ContentBlock::Text(
-                        TextContent::new(thinking.thinking.clone()),
-                    ))),
+                    SessionUpdate::AgentThoughtChunk(
+                        ContentChunk::new(ContentBlock::Text(TextContent::new(
+                            thinking.thinking.clone(),
+                        )))
+                        .meta(message_update_meta(message_id, message_created)),
+                    ),
                 ))?;
             }
             MessageContent::ActionRequired(action_required) => match &action_required.data {
@@ -1903,6 +1910,9 @@ impl GooseAcpAgent {
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
             },
+            MessageContent::SystemNotification(notification) => {
+                send_status_message_update(cx, session_id.0.as_ref(), notification)?;
+            }
             _ => {}
         }
         Ok(())
@@ -2436,6 +2446,42 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
     }
 }
 
+fn send_status_message_update(
+    cx: &ConnectionTo<Client>,
+    session_id: &str,
+    notification: &SystemNotificationContent,
+) -> Result<(), agent_client_protocol::Error> {
+    cx.send_notification(GooseSessionNotification {
+        session_id: session_id.to_string(),
+        update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+            status: status_message_from_system_notification(notification),
+        }),
+    })
+}
+
+fn status_message_from_system_notification(
+    notification: &SystemNotificationContent,
+) -> StatusMessage {
+    match notification.notification_type {
+        SystemNotificationType::InlineMessage => StatusMessage::Notice {
+            message: notification.msg.clone(),
+        },
+        SystemNotificationType::ThinkingMessage => StatusMessage::Progress {
+            message: notification.msg.clone(),
+        },
+        SystemNotificationType::CreditsExhausted => StatusMessage::RequiresUserAction {
+            reason: UserActionReason::CreditsExhausted,
+            message: notification.msg.clone(),
+            url: notification
+                .data
+                .as_ref()
+                .and_then(|data| data.get("top_up_url"))
+                .and_then(|url| url.as_str())
+                .map(ToOwned::to_owned),
+        },
+    }
+}
+
 fn send_elicitation_interaction_update(
     cx: &ConnectionTo<Client>,
     session_id: &str,
@@ -2460,6 +2506,10 @@ fn send_elicitation_interaction_update(
 }
 
 fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json::Value {
+    serde_json::Value::Object(message_update_meta(message_id, created))
+}
+
+fn message_update_meta(message_id: Option<&str>, created: i64) -> Meta {
     let mut goose = serde_json::Map::new();
     goose.insert("created".to_string(), serde_json::json!(created));
     if let Some(id) = message_id {
@@ -2468,7 +2518,7 @@ fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json
 
     let mut meta = serde_json::Map::new();
     meta.insert("goose".to_string(), serde_json::Value::Object(goose));
-    serde_json::Value::Object(meta)
+    meta
 }
 
 fn extract_tool_call_update_meta(
@@ -4321,6 +4371,19 @@ print(\"hello, world\")
             Some(&serde_json::json!({
                 "created": 1_700_000_000,
                 "messageId": "msg_2",
+            })),
+        );
+    }
+
+    #[test]
+    fn test_message_update_meta_includes_created_and_message_id() {
+        let meta = message_update_meta(Some("msg_live"), 1_700_000_000);
+
+        assert_eq!(
+            meta.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_live",
             })),
         );
     }

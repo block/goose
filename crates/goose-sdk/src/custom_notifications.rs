@@ -25,11 +25,13 @@ pub struct GooseSessionNotification {
     "propertyName": "sessionUpdate",
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
+        "status_message": "#/$defs/StatusMessageUpdate",
         "interaction_update": "#/$defs/InteractionUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
+    StatusMessage(StatusMessageUpdate),
     InteractionUpdate(InteractionUpdate),
 }
 
@@ -49,6 +51,36 @@ pub struct SessionUsageUpdate {
     pub accumulated_output_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accumulated_cost: Option<f64>,
+}
+
+/// Live UI/session status. This is not conversation transcript content, and
+/// should not be persisted or replayed as history.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusMessageUpdate {
+    pub status: StatusMessage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StatusMessage {
+    #[serde(rename_all = "camelCase")]
+    Notice { message: String },
+    #[serde(rename_all = "camelCase")]
+    Progress { message: String },
+    #[serde(rename_all = "camelCase")]
+    RequiresUserAction {
+        reason: UserActionReason,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        url: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum UserActionReason {
+    CreditsExhausted,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -117,4 +149,44 @@ where
 /// `Default`) and add one line below.
 pub fn custom_notification_schemas(generator: &mut SchemaGenerator) -> Vec<CustomMethodSchema> {
     vec![notification_schema::<GooseSessionNotification>(generator)]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn status_message_serializes_to_expected_wire_shape() {
+        let notification = GooseSessionNotification {
+            session_id: "s1".to_string(),
+            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                status: StatusMessage::RequiresUserAction {
+                    reason: UserActionReason::CreditsExhausted,
+                    message:
+                        "Please add credits to your account, then resend your message to continue."
+                            .to_string(),
+                    url: Some("https://example.com/billing".to_string()),
+                },
+            }),
+        };
+
+        let value = serde_json::to_value(notification).unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "sessionId": "s1",
+                "update": {
+                    "sessionUpdate": "status_message",
+                    "status": {
+                        "type": "requires_user_action",
+                        "reason": "credits_exhausted",
+                        "message": "Please add credits to your account, then resend your message to continue.",
+                        "url": "https://example.com/billing"
+                    }
+                }
+            })
+        );
+    }
 }

@@ -7,15 +7,12 @@ migration work.
 
 1. `progress.md` - current status and remaining checklist.
 2. `acp-session-migration-plan.md` - overall migration shape and sequencing.
-3. `17-acp-elicitation-plan.md` - immediate elicitation completion slice.
-4. `16-acp-message-parity-audit.md` - message/content gaps that can still affect
+3. `16-acp-message-parity-audit.md` - message/content gaps that can still affect
    user-visible parity.
 
 ## Active Implementation Areas
 
-- Immediate: finish elicitation confidence and submitted-state handling; see
-  `17-acp-elicitation-plan.md`.
-- Next: close remaining message/content parity gaps; see
+- Immediate: close remaining message/content parity gaps; see
   `16-acp-message-parity-audit.md`.
 - Later design pass: recipe and recipe-parameter parity; see
   `05-conversation-load.md` and `15-acp-new-session-plan.md`.
@@ -33,3 +30,6 @@ migration work.
 
 Completed historical slice docs were deleted after their status was folded into
 `progress.md` and `acp-session-migration-plan.md`.
+
+- `17-acp-elicitation-plan.md` - completed; final status is tracked in
+  `progress.md`.

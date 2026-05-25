@@ -85,6 +85,7 @@ function parseGooseSessionNotification(
 
   if (
     params.update.sessionUpdate !== 'usage_update' &&
+    params.update.sessionUpdate !== 'status_message' &&
     params.update.sessionUpdate !== 'interaction_update'
   ) {
     return null;

@@ -426,6 +426,7 @@ fn replay_conversation_to_client(
                         }
                     }
                 }
+                MessageContent::SystemNotification(_) => {}
                 _ => {}
             }
         }

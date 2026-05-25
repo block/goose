@@ -1083,6 +1083,8 @@ export type GooseSessionNotification = {
 export type GooseSessionUpdate = ({
     sessionUpdate: 'usage_update';
 } & SessionUsageUpdate) | ({
+    sessionUpdate: 'status_message';
+} & StatusMessageUpdate) | ({
     sessionUpdate: 'interaction_update';
 } & InteractionUpdate);
 
@@ -1095,6 +1097,29 @@ export type SessionUsageUpdate = {
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
     accumulatedCost?: number | null;
+};
+
+export type StatusMessage = {
+    message: string;
+    type: 'notice';
+} | {
+    message: string;
+    type: 'progress';
+} | {
+    reason: UserActionReason;
+    message: string;
+    url?: string | null;
+    type: 'requires_user_action';
+};
+
+export type UserActionReason = 'credits_exhausted';
+
+/**
+ * Live UI/session status. This is not conversation transcript content, and
+ * should not be persisted or replayed as history.
+ */
+export type StatusMessageUpdate = {
+    status: StatusMessage;
 };
 
 export type Interaction = {
