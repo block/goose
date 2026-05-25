@@ -58,8 +58,8 @@ Desktop ACP reconstruction is implemented in:
 | `toolResponse` | Native `MessageContent` | `tool_call_update` | `tool_call_update` | Converts to `toolResponse` | Covered |
 | `thinking` | Native `MessageContent` | `agent_thought_chunk` | `agent_thought_chunk` | Converts to `thinking` | Covered |
 | `actionRequired.toolConfirmation` | Native `MessageContent` | Not replayed as `actionRequired` | ACP permission request path | Creates `actionRequired.toolConfirmation` from permission request | Partial |
-| `actionRequired.elicitation` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
-| `actionRequired.elicitationResponse` | Native hidden message | Dropped | Short-circuits through REST today | No ACP mapping | Gap, likely hidden |
+| `actionRequired.elicitation` | Native `MessageContent` | `_goose/session/update` `interaction_update` for pending persisted elicitations | `_goose/session/update` `interaction_update` | Creates `actionRequired.elicitation` from pending interaction updates | Covered for pending requests |
+| `actionRequired.elicitationResponse` | Native hidden message | Hidden/submitted responses are not replayed as visible content | ACP sessions submit via `_goose/elicitation/respond`; REST remains for non-ACP sessions | Response is not rendered as a normal visible message | Covered for ACP sessions, hidden by design |
 | `systemNotification.inlineMessage` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
 | `systemNotification.thinkingMessage` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
 | `systemNotification.creditsExhausted` | Native `MessageContent` | Dropped | Dropped | No ACP mapping | Gap |
@@ -313,28 +313,21 @@ Example submitted elicitation:
 Elicitation requests are represented in REST history as
 `actionRequired.elicitation` and rendered by `ElicitationRequest`.
 
-ACP currently does not replay or stream Goose elicitation messages. The current
-desktop response path still uses REST `sessionReply` with an
-`actionRequired.elicitationResponse` hidden message.
-
-This should not be migrated by forcing elicitation responses through ACP
-`session/prompt`, because ACP `prompt` content blocks cannot represent the full
-Goose `actionRequired` response message.
-
-Planned ACP migration shape:
+ACP now uses the planned custom interaction path for ACP sessions:
 
 - live prompt emits `_goose/session/update` with
   `sessionUpdate: "interaction_update"` and `interaction.type:
   "elicitation"` when an elicitation is pending
 - desktop renders the form from `interaction.requestedSchema`
-- desktop submits with a Goose custom method such as
-  `_goose/elicitation/respond`
+- desktop submits with the Goose custom method `_goose/elicitation/respond`
 - response request includes `sessionId`, `elicitationId`, and `userData`
 - server submits to `ActionRequiredManager`, persists the hidden response
   message, and emits `interaction.state: "submitted"`
 - the original prompt stream continues after the response is accepted
 - load session may emit the same `interaction_update` shape for any persisted
   elicitation request that is still pending
+
+REST `sessionReply` remains only as the fallback for non-ACP sessions.
 
 ### Images
 
@@ -380,10 +373,10 @@ as user-visible content. If it is internal/provider-facing only, defer.
 4. Add ACP handling for image replay if manual testing confirms user image
    history is missing after ACP load.
 
-5. Design ACP elicitation response as a Goose custom method.
-   - This removes the last live REST `/sessions/{id}/reply` call.
-   - Surface pending/submitted state through `_goose/session/update`
-     `interaction_update`.
+5. Done for ACP sessions: use `_goose/elicitation/respond` and surface
+   pending/submitted state through `_goose/session/update`
+   `interaction_update`.
+   - REST remains as the fallback for non-ACP sessions.
    - Keep tool confirmation on standard ACP `requestPermission`; do not
      duplicate it in the custom interaction update unless load replay later
      needs legacy pending permission compatibility.

@@ -10,6 +10,18 @@ Tool permission should continue to use standard ACP `requestPermission`.
 Elicitation should use Goose custom ACP messages because ACP prompt content does
 not represent Goose `actionRequired.elicitationResponse`.
 
+## Current Status
+
+Implemented for ACP sessions.
+
+- `_goose/session/update` accepts `interaction_update`.
+- ACP load replays pending persisted elicitations and suppresses requests that
+  already have a matching hidden response.
+- The desktop adapter converts pending elicitation interactions into the
+  existing `actionRequired.elicitation` message shape.
+- ACP sessions submit responses through `_goose/elicitation/respond`.
+- REST elicitation remains unchanged for non-ACP sessions.
+
 ## Compatibility
 
 This migration must be additive.
@@ -66,19 +78,19 @@ Response is empty.
 
 ## Server Implementation
 
-1. Extend `crates/goose-sdk/src/custom_notifications.rs`.
+1. Done: extend `crates/goose-sdk/src/custom_notifications.rs`.
    - Add `InteractionUpdate`.
    - Add `Interaction`.
    - Add `InteractionState`.
    - Add `GooseSessionUpdate::InteractionUpdate`.
    - Update the discriminator mapping.
 
-2. Extend `crates/goose-sdk/src/custom_requests.rs`.
+2. Done: extend `crates/goose-sdk/src/custom_requests.rs`.
    - Add `ElicitationRespondRequest`.
    - Use method `_goose/elicitation/respond`.
    - Response type is `EmptyResponse`.
 
-3. Add custom request dispatch.
+3. Done: add custom request dispatch.
    - Register `ElicitationRespondRequest` in
      `crates/goose/src/acp/server/custom_dispatch.rs`.
    - Implement handler on the ACP server.
@@ -86,13 +98,13 @@ Response is empty.
    - Persist a hidden `actionRequired.elicitationResponse` message.
    - Emit `interaction_update submitted`.
 
-4. Emit pending elicitation during ACP prompt.
+4. Done: emit pending elicitation during ACP prompt.
    - In `crates/goose/src/acp/server.rs`, when `handle_message_content` sees
      `ActionRequiredData::Elicitation`, send `_goose/session/update` with
      `interaction_update pending`.
    - Keep `ActionRequiredData::ToolConfirmation` on ACP `requestPermission`.
 
-5. Add ACP load replay after the live path works.
+5. Done: add ACP load replay after the live path works.
    - Scan persisted messages for `actionRequired.elicitation`.
    - Scan persisted hidden responses for matching
      `actionRequired.elicitationResponse`.
@@ -100,31 +112,30 @@ Response is empty.
 
 ## Desktop Implementation
 
-1. Widen `parseGooseSessionNotification`.
+1. Done: widen `parseGooseSessionNotification`.
    - Accept `usage_update`.
    - Accept `interaction_update`.
    - Ignore unknown updates.
 
-2. Adapt `interaction_update pending`.
+2. Done: adapt `interaction_update pending`.
    - Convert to the existing desktop `actionRequired.elicitation` message
      shape.
    - Reuse `ElicitationRequest`.
 
-3. Adapt `interaction_update submitted`.
+3. Partial: adapt `interaction_update submitted`.
    - Mark the pending form complete.
    - Prefer using the existing hidden response message shape if that avoids new
      UI state.
 
-4. Change ACP submit path.
+4. Done: change ACP submit path.
    - ACP sessions call `_goose/elicitation/respond`.
    - REST sessions keep current `sessionReply`.
 
 ## Incremental Order
 
-1. Server schema and custom request definitions.
-2. Server live pending emission.
-3. Server response handler.
-4. Desktop notification parser and adapter.
-5. Desktop submit path.
-6. ACP load replay for pending persisted elicitations.
-
+1. Done: server schema and custom request definitions.
+2. Done: server live pending emission.
+3. Done: server response handler.
+4. Done: desktop notification parser and adapter.
+5. Done: desktop submit path.
+6. Done: ACP load replay for pending persisted elicitations.

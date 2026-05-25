@@ -4,36 +4,38 @@
 
 Replace REST `getSession` / `resumeAgent` cold-load with ACP `session/load`.
 
-Do not partially read `resumeAgent.session` while also replaying ACP messages.
-The session-list slice already moved to ACP, so `SessionListItem` is the
-authoritative metadata source for cold load. Keep REST for live prompt,
-cancel, reattach, and name polling — those are out of scope for this slice.
+Status as of 2026-05-25: the normal cold-load path now uses ACP
+`session/load`; REST `resumeAgent` is no longer the source of the conversation
+snapshot. REST remains for recipe prompt application (`updateFromSession`),
+reattach / SSE recovery, edit/fork, app-cache population, and a few metadata
+fallbacks.
 
 ## State of the World
 
 - `ui/desktop/src/acp/sessions.ts` already exports `acpLoadSession`,
   `acpListSessions`, and friends.
 - `ui/desktop/src/acp/sessionNotificationRouter.ts` exports
-  `installAcpSessionNotificationRouter` and `subscribeToAcpSession` but is not
-  yet referenced by production code.
-- `ui/desktop/src/acp/sessionNotificationAdapter.ts` only handles
-  `user_message_chunk`, `agent_message_chunk`, and a minimal
-  `session_info_update`. It needs to grow before this slice ships.
-- Server `on_load_session` (`crates/goose/src/acp/server.rs`) emits per-message
-  replay chunks (`UserMessageChunk`, `AgentMessageChunk`, `ToolCall`,
-  `ToolCallUpdate`, `AgentThoughtChunk`), then `UsageUpdate`, then
-  `available_commands_update`, then resolves the `session/load` request. Per
-  ACP, `session/load` resolution is the replay-complete boundary.
-- `on_load_session` overwrites the session's saved `working_dir` from the
-  request `cwd`. Passing the wrong `cwd` is destructive.
+  `installAcpSessionNotificationRouters`, `subscribeToAcpSession`, and
+  `subscribeToAcpGooseSession`; `App.tsx` installs the routers once.
+- `ui/desktop/src/acp/sessionNotificationAdapter.ts` now handles text,
+  thinking, tool calls, tool updates, Goose usage notifications, config option
+  updates, pending elicitation interactions, and ACP permission display
+  messages.
+- Server `on_load_session` dispatches to inline load by default through
+  `crates/goose/src/acp/server/load_session.rs`; `GOOSE_ACP_LEGACY_LOAD=1`
+  routes back to the legacy implementation.
+- Inline ACP load emits replay chunks, builds the agent synchronously, stores a
+  ready agent handle, emits usage updates, sends available commands, and then
+  resolves `session/load`. Per ACP, `session/load` resolution is the
+  replay-complete boundary.
+- Inline ACP load intentionally ignores `args.cwd` and returns
+  `LoadSessionResponse._meta.workingDir`; the old saved-working-dir overwrite
+  only exists in legacy mode.
 - `LoadSessionResponse.models` already carries `current_model_id` /
   `ModelInfo`, so provider and model can be read directly from the response —
   no metadata seeding needed.
-- The detailed field-by-field audit lives in
-  `ui/desktop/spike-doc/useChatStream-acp-data-gap.md`. Pin that doc when
-  implementing — the table below summarises but the gap doc is authoritative.
 
-## Data Gaps (from useChatStream-acp-data-gap.md)
+## Data Gaps
 
 `SessionListItem` covers: `id`, `name`, `workingDir`, `updatedAt`,
 `messageCount`, `providerId`, `modelId`, `userSetName`, `hasRecipe`.
@@ -52,19 +54,18 @@ Already emitted by the server (no server change needed):
   `crates/goose-sdk/src/custom_notifications.rs`. The client just needs to
   receive it (see Client work below).
 
-Still missing for UI parity with `resumeAgent`:
+Original gaps and current status:
 
 | Field | Used for | Suggested server fix |
 |---|---|---|
-| `recipe` (full JSON) | recipe rendering, param substitution | `LoadSessionResponse._meta.recipe` |
-| `user_recipe_values` | recipe params submit | `LoadSessionResponse._meta.userRecipeValues` |
-| `extension_results` | extension load error toasts | new `SessionUpdate::ExtensionLoadResult` variant, or `SessionInfoUpdate._meta.extensionResults` after setup |
-| rendered recipe → agent system prompt | recipe behavior on load (today: REST `update_from_session` after `resumeAgent`) | auto-apply during ACP `spawn_agent_setup`, or expose a Goose-custom ACP request that mirrors `update_from_session` |
+| `recipe` (full JSON) | recipe rendering, param substitution | Done: `LoadSessionResponse._meta.recipe` |
+| `user_recipe_values` | recipe params submit | Done: `LoadSessionResponse._meta.userRecipeValues` |
+| `extension_results` | extension load error toasts | Done: `LoadSessionResponse._meta.extensionResults` |
+| `working_dir` | safe deep-link / cold-open load | Done: `LoadSessionResponse._meta.workingDir` |
+| rendered recipe → agent system prompt | recipe behavior on load | Still open for ACP-native behavior; desktop preserves current behavior by calling REST `updateFromSession` |
 
-Until these land, the load slice cannot fully replace `resumeAgent` without
-visible UI regressions (broken recipe UI, missing extension-error toasts)
-or silent behavioral regression (recipe UI renders but agent does not
-follow the recipe).
+The load slice has replaced `resumeAgent`, but recipe prompt application still
+depends on REST.
 
 ## Recommendation (ACP shape)
 
@@ -95,13 +96,14 @@ Grounded in the ACP extensibility doc
 - Do **not** introduce a reverse-DNS namespace (`block.xyz/goose`) — it
   conflicts with the conventions already in the repo.
 
-New `_meta` keys introduced by this slice (all top-level, camelCase):
+`_meta` keys introduced by this slice (all top-level, camelCase):
 
 - `LoadSessionResponse._meta.recipe` — full recipe JSON (sanitized).
 - `LoadSessionResponse._meta.userRecipeValues` — persisted param values
   for the session's recipe, when present.
-- `SessionInfoUpdate._meta.extensionResults` — array of
-  `{ name, success, error? }` emitted once after agent setup completes.
+- `LoadSessionResponse._meta.extensionResults` — array of
+  `{ name, success, error? }` returned after inline agent setup completes.
+- `LoadSessionResponse._meta.workingDir` — persisted working directory.
 
 ### Refined field-by-field plan
 
@@ -111,7 +113,7 @@ New `_meta` keys introduced by this slice (all top-level, camelCase):
 | `user_recipe_values` (already persisted) | `LoadSessionResponse._meta.userRecipeValues` | Bundled with recipe; one round-trip. |
 | Rendered recipe → system prompt (resumed session with values present) | Auto-apply inside `spawn_agent_setup` | Server already has the values in the DB. No protocol surface needed. |
 | Rendered recipe → system prompt (fresh session, user just filled params) | **Custom request** `_goose/recipe/apply { values }` | Replaces today's `PUT /sessions/{id}/user_recipe_values` + `update_from_session` in one call. Persists, renders, applies as system prompt extension, returns the rendered recipe. Invoked at most once per session today (no mid-session edit UI). Naming follows the existing `_goose/<area>/<verb>` style; `apply` captures the activation side effect (not just data write). |
-| `extension_results` | `SessionInfoUpdate._meta.extensionResults` emitted once after setup completes | One-shot transient signal, not persisted, only fires UI toasts. A new `SessionUpdate` variant would break clients that pattern-match on known variants. |
+| `extension_results` | Implemented as `LoadSessionResponse._meta.extensionResults` after inline setup completes | One-shot transient signal, not persisted, only fires UI toasts. Returning it on load matches the now-synchronous inline setup. |
 | Auto-rename push (replaces current REST name polling) | `SessionInfoUpdate` (standard, no `_meta`) | Standard ACP info-update semantics; eliminates the polling loop in `useChatStream`. |
 
 Total extension surface: **one custom RPC, three `_meta` fields, two
@@ -185,16 +187,16 @@ in any order. Step 6 is cleanup.
 - `ui/desktop/src/hooks/useChatStream.ts`
 - `ui/desktop/src/acp/sessionNotificationAdapter.ts`
 
-## Implementation Steps
+## Implementation Steps And Status
 
 ### Server prerequisites (do these first)
 
-1. `crates/goose/src/acp/server.rs` `on_load_session`: attach `recipe`,
-   `user_recipe_values`, and (until session-list metadata seeding is wired)
-   `working_dir` to `LoadSessionResponse._meta` so the response is
-   self-contained for deep-link / cold-open.
-2. Apply the rendered recipe to the agent's system prompt during ACP agent
-   setup. The DB only persists the raw `recipe` + `user_recipe_values`; the
+1. Done: `crates/goose/src/acp/server/load_session.rs` inline load attaches
+   `recipe`, `userRecipeValues`, `extensionResults`, and `workingDir` to
+   `LoadSessionResponse._meta`.
+2. Still open for ACP-native behavior: apply the rendered recipe to the
+   agent's system prompt during ACP agent setup. The DB only persists the raw
+   `recipe` + `user_recipe_values`; the
    rendered prompt is computed at runtime via
    `build_recipe_with_parameter_values` and pushed to the agent via
    `apply_recipe_to_agent` (today this lives in REST `update_from_session`,
@@ -206,10 +208,9 @@ in any order. Step 6 is cleanup.
    - Expose a Goose-custom ACP request that mirrors `update_from_session`
      so the desktop can drive it explicitly (mirrors the existing
      useEffect-on-session shape).
-3. Decide the extension-load-result surface: a new
-   `SessionUpdate::ExtensionLoadResult` variant or
-   `SessionInfoUpdate._meta.extensionResults` after agent setup completes.
-   This should model provider/extension setup readiness, not conversation
+3. Done: extension load results are returned as
+   `LoadSessionResponse._meta.extensionResults` after inline agent setup
+   completes. This models provider/extension setup readiness, not conversation
    replay completion.
 
 No replay-complete notification is needed for conversation replay. ACP already
@@ -252,7 +253,7 @@ extension-load errors.
 
 ### Client work
 
-4. Wire `Client.extNotification(method, params)` in
+4. Done: wire `Client.extNotification(method, params)` in
    `ui/desktop/src/acp/acpConnection.ts` to dispatch the custom
    `_goose/session/update` notification. Without this, the UI never sees
    `accumulated_input_tokens` / `accumulated_output_tokens` /
@@ -266,7 +267,7 @@ extension-load errors.
      subscribed session receives the goose-specific updates scoped by
      `sessionId`.
 
-5. Extend the adapter beyond text in the same change as the hook migration:
+5. Done: extend the adapter beyond text in the same change as the hook migration:
    - `agent_thought_chunk` → thinking content on the assistant message
    - `tool_call` → desktop tool request shape
    - `tool_call_update` → desktop tool response/update shape
@@ -278,31 +279,33 @@ extension-load errors.
 
    Text-only replay is not a useful UI milestone for any non-trivial session.
 
-6. Install the router once. Pick the chat hook mount or app boot — the call
+6. Done: install the router once. `App.tsx` calls
+   `installAcpSessionNotificationRouters()`.
+
+   Historical guidance: pick the chat hook mount or app boot — the call
    is idempotent (`installed` guard inside the module). React hooks must not
    call `setAcpNotificationHandler` directly.
 
-7. Inside `useChatStream`, before calling `acpLoadSession`:
-   - Look up the matching `SessionListItem` for `sessionId`.
-   - If no entry has a `workingDir`, fall back to
-     `LoadSessionResponse._meta.workingDir` once server step 2 lands; until
-     then, dispatch a load error.
+7. Mostly done: inside `useChatStream`, before calling `acpLoadSession`:
+   - Still open: look up the matching `SessionListItem` for `sessionId`.
+   - Current code starts from a minimal session snapshot and then uses
+     `LoadSessionResponse._meta.workingDir`.
    - Subscribe to the session via `subscribeToAcpSession(sessionId, ...)`.
    - Seed a fresh `AcpSessionNotificationAdapter` from that list item's
      metadata (title, updatedAt, messageCount, providerId, modelId) so the
      UI has session info before replay finishes.
 
-8. Replace the initial `resumeAgent` call with
+8. Done: replace the initial `resumeAgent` call with
    `acpLoadSession(sessionId, workingDir)`.
-   - Read `provider_name` / `model_name` / `model_id` from
+   - Still open: read `provider_name` / `model_name` / `model_id` from
      `LoadSessionResponse.models` directly.
-   - Read `recipe` / `user_recipe_values` from
+   - Done: read `recipe` / `user_recipe_values` from
      `LoadSessionResponse._meta.recipe` / `_meta.userRecipeValues`.
    - Treat `acpLoadSession` resolution as "conversation replay complete."
      Do one final adapter flush, then call `onSessionLoaded` and flip out of
      `LoadingConversation`.
 
-9. Bridge adapter updates into the existing reducer:
+9. Done: bridge adapter updates into the existing reducer:
    - `messages` → `SET_MESSAGES`
    - `usage` → `SET_TOKEN_STATE`
    - `sessionInfo` → `SET_SESSION` (merged onto the seeded `Session` shape)
@@ -312,16 +315,16 @@ extension-load errors.
    - on `acpLoadSession` resolution: dispatch `SESSION_LOADED`, call
      `onSessionLoaded`.
 
-10. Populate `resultsCache` after the load completes. The REST path does this
+10. Done: populate `resultsCache` after the load completes. The REST path does this
     for fast re-mounts; the ACP path should too.
 
-11. Reset adapter state when `sessionId` changes (`RESET_FOR_NEW_SESSION`),
+11. Done: reset adapter state when `sessionId` changes (`RESET_FOR_NEW_SESSION`),
     and call the unsubscribe returned by `subscribeToAcpSession` in effect
     cleanup so navigation away unsubscribes cleanly.
 
-12. Keep `useSessionEvents`, `sessionReply`, `sessionCancel`, and the name
-    polling REST calls alive — they belong to slices 3, 4, and the metadata
-    follow-up.
+12. Partially obsolete: live `sessionReply` and active-prompt cancel have moved
+    to ACP. REST remains for `useSessionEvents` reattach/recovery,
+    edit/fork, recipe apply, and name polling.
 
 13. Drop unused `tokenState.{inputTokens, outputTokens, accumulatedTotalTokens}`
     from the client `TokenState` once REST is removed (gap doc notes these

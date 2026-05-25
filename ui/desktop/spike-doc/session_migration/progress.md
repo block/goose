@@ -2,26 +2,30 @@
 
 ## Status
 
-Current status: steps 1, 2A, 2B, 2C, and the session-list slice (step 8) are
-complete. The router and adapter exist but are not yet consumed by any
-production code. Next: the conversation-load slice (2D), which now needs both
-server-side data additions and client work — see
-`useChatStream-acp-data-gap.md` for the field-by-field audit and
-`05-conversation-load.md` for the revised step list.
+Current status: desktop chat is ACP-backed for the normal session lifecycle:
+session list, cold conversation load, normal prompt streaming, active-prompt
+cancel, active session mode changes, plain non-recipe session creation, and
+inline ACP tool permission approval.
+
+REST remains in targeted places: recipe / recipe-deeplink / extension-override
+session creation, recipe parameter persistence and recipe prompt application
+(`updateFromSession`), edit/fork `overrideConversation`, REST/SSE reattach and
+buffer-overrun recovery paths, app-cache population, and a few metadata
+fallbacks such as name polling and mode fallback reads.
+
+Next: decide whether to remove or intentionally retain those remaining REST
+paths. The biggest functional gaps are recipe-session parity and ACP reattach /
+recovery semantics.
 
 Owner: Codex
 
-Last updated: 2026-05-19
+Last updated: 2026-05-25
 
 Plan: `ui/desktop/spike-doc/session_migration/acp-session-migration-plan.md`
-
-Working agreement: `ui/desktop/spike-doc/session_migration/working-agreement.md`
 
 ## Progress Checklist
 
 ### 1. Harden ACP Client
-
-Detailed plan: `01-harden-acp-client.md`
 
 - [x] Add `AcpNotificationHandler` interface.
 - [x] Add `setAcpNotificationHandler(...)`.
@@ -44,11 +48,7 @@ Notes:
 
 ### 2. ACP Wrapper + Notification Router + Text Adapter
 
-Detailed plans: `02-acp-session-wrapper.md`, `03-notification-adapter.md`
-
-This is the foundation step. The router and adapter exist but are not yet
-referenced by production code — step 4 (conversation load) is what wires
-them in.
+This foundation is now used by production chat load and prompt paths.
 
 #### 2A. Minimal Session API Wrapper
 
@@ -107,8 +107,6 @@ Notes:
   (`^24.10.0` wanted, shell has `v25.8.1`).
 ### 3. Session List Slice (done)
 
-Detailed plan: `02-acp-session-wrapper.md`
-
 - [x] Add `acpListSessions`, `acpRenameSession`, `acpDeleteSession`,
   `acpForkSession`, `acpExportSession`, `acpImportSession` in
   `ui/desktop/src/acp/sessions.ts`.
@@ -122,29 +120,21 @@ Notes:
 - Landed first; now provides the metadata source the load slice depends on
   for `workingDir` and initial title/updatedAt/messageCount/provider/model.
 
-### 4. Conversation Load Slice (current focus)
+### 4. Conversation Load Slice (done for normal load)
 
-Detailed plan: `05-conversation-load.md`. Field-level audit:
-`useChatStream-acp-data-gap.md` (authoritative reference).
+Detailed plan: `05-conversation-load.md`.
 
 Server prerequisites:
 
-- [ ] Attach `recipe` and `user_recipe_values` to
+- [x] Attach `recipe` and `user_recipe_values` to
   `LoadSessionResponse._meta` for recipe rendering and param submission.
 - [ ] Apply the rendered recipe to the agent's system prompt during ACP
-  agent setup (DB stores only the raw recipe + values; rendered prompt is
-  computed at runtime via `build_recipe_with_parameter_values` +
-  `apply_recipe_to_agent`, which today lives in REST `update_from_session`).
-  Either auto-apply during `spawn_agent_setup` when recipe + all params
-  are present, or expose a Goose-custom ACP request mirroring
-  `update_from_session`. Without this, ACP-loaded recipe sessions render
-  the recipe UI but the agent silently behaves as a plain chat.
-- [ ] Decide on the extension-load-result surface (new
-  `SessionUpdate::ExtensionLoadResult` variant vs.
-  `SessionInfoUpdate._meta.extensionResults`) and implement it.
-- [ ] (Optional cold-open improvement) attach `working_dir` to
-  `LoadSessionResponse._meta` for entry points without a cached
-  `SessionListItem`.
+  agent setup. Current desktop still calls REST `updateFromSession` after
+  session load, so recipe prompt application is not yet ACP-native.
+- [x] Decide on the extension-load-result surface and implement it. Current
+  inline ACP load attaches `_meta.extensionResults` to `LoadSessionResponse`.
+- [x] Attach `working_dir` to `LoadSessionResponse._meta` for entry points
+  without a cached `SessionListItem`.
 
 No replay-complete notification is needed. ACP `session/load` resolves only
 after replay notifications have been sent, so the request resolution itself
@@ -159,92 +149,103 @@ called from `build_usage_updates` in `crates/goose/src/acp/server.rs`).
 
 Client work:
 
-- [ ] Wire `Client.extNotification(method, params)` in
+- [x] Wire `Client.extNotification(method, params)` in
   `ui/desktop/src/acp/acpConnection.ts` so `_goose/session/update` is
   dispatched alongside standard ACP `sessionUpdate`. Add a parallel
   `AcpGooseNotificationHandler` interface +
   `setAcpGooseNotificationHandler(...)` to mirror the existing
   notification-handler pattern.
-- [ ] Extend `sessionNotificationRouter` (or add a sibling router) to
+- [x] Extend `sessionNotificationRouter` (or add a sibling router) to
   route `_goose/session/update` notifications by `sessionId`.
-- [ ] Install the notification router(s) once (chat hook mount or app boot).
-- [ ] Before calling `acpLoadSession`, subscribe to the session via
+- [x] Install the notification router(s) once (chat hook mount or app boot).
+- [x] Before calling `acpLoadSession`, subscribe to the session via
   `subscribeToAcpSession(sessionId, ...)` so replay notifications are not
   missed.
 - [ ] Seed an `AcpSessionNotificationAdapter` from the matching
   `SessionListItem` (title, updatedAt, messageCount, providerId, modelId).
-- [ ] Resolve `workingDir` from `SessionListItem.workingDir` (or
-  `LoadSessionResponse._meta.workingDir` once server step lands); surface a
-  load error if neither has it. Do not fall back to
-  `getInitialWorkingDir()` because Goose updates the saved working directory
-  from the ACP `session/load` request
-  (`crates/goose/src/acp/server.rs` `on_load_session`).
-- [ ] Extend the adapter beyond text — `agent_thought_chunk`, `tool_call`,
+  Current code uses a minimal snapshot and gets final `workingDir` from
+  `LoadSessionResponse._meta`.
+- [x] Resolve `workingDir` safely. Inline ACP load ignores `args.cwd` and
+  returns `_meta.workingDir`; the old destructive cwd update only exists behind
+  `GOOSE_ACP_LEGACY_LOAD=1`.
+- [x] Extend the adapter beyond text — `agent_thought_chunk`, `tool_call`,
   `tool_call_update`, standard ACP `usage_update` (used/size), custom
   `_goose/session/update` `usage_update` (accumulated tokens + cost),
   `session_info_update` (name / updatedAt / messageCount; also
   `extensionResults` if that surface is chosen).
 - [ ] Read `provider_name` / `model_name` / `model_id` from
-  `LoadSessionResponse.models` directly — first-class, no `_meta` seeding.
-- [ ] Read `recipe` and `user_recipe_values` from
+  `LoadSessionResponse.models` directly — ACP config options are consumed, but
+  the loaded desktop `Session` snapshot does not yet merge model/provider
+  fields from `models`.
+- [x] Read `recipe` and `user_recipe_values` from
   `LoadSessionResponse._meta`.
-- [ ] Bridge adapter `messages` / `usage` / `sessionInfo` updates into the
+- [x] Bridge adapter `messages` / `usage` / `sessionInfo` updates into the
   existing `SESSION_LOADED` / `SET_TOKEN_STATE` / `SET_SESSION` dispatches in
   `useChatStream`. Reuse `showExtensionLoadResults` for extension results.
-- [ ] Replace the REST `resumeAgent` conversation load path with
+- [x] Replace the REST `resumeAgent` conversation load path with
   `acpLoadSession(sessionId, workingDir)`.
-- [ ] Populate `resultsCache` after replay completes so re-mounts stay fast
+- [x] Populate `resultsCache` after replay completes so re-mounts stay fast
   (the REST path already does this).
-- [ ] Preserve loading conversation state and load error state.
-- [ ] Treat `acpLoadSession` resolution as the conversation-replay-complete
+- [x] Preserve loading conversation state and load error state.
+- [x] Treat `acpLoadSession` resolution as the conversation-replay-complete
   boundary. Do one final adapter flush, then dispatch `SESSION_LOADED`,
   call `onSessionLoaded`, and flip out of `LoadingConversation`. Do not
   leave `LoadingConversation` earlier even if progressive replay has
   already painted messages.
 - [ ] Optionally flush the adapter snapshot on a short throttle while
   `acpLoadSession` is pending so long replays paint progressively.
-- [ ] Keep REST alive for live prompt, cancel, reattach, and name polling —
-  the load slice intentionally does not touch them.
-- [ ] Add adapter unit tests for thinking, tool calls, tool updates,
+- [x] Keep REST alive where it is still needed. Live prompt and active-prompt
+  cancel have moved to ACP; REST remains for reattach, edit/fork, recipe apply,
+  app-cache population, and metadata fallbacks.
+- [x] Add adapter unit tests for thinking, tool calls, tool updates,
   standard usage, custom goose usage, and session info.
-- [ ] Manually verify an existing session loads through ACP with text,
+- [x] Manually verify an existing session loads through ACP with text,
   thinking, tool calls, recipe, cost chip, and extension errors all
   preserved.
 
 Notes:
 
-- TBD
+- ACP load now uses `crates/goose/src/acp/server/load_session.rs` inline mode
+  by default, with `GOOSE_ACP_LEGACY_LOAD=1` as a rollback switch.
+- Inline load rejects client-supplied `mcpServers`, replays conversation
+  notifications, builds the agent synchronously, stores `AgentHandle::Ready`,
+  emits usage updates, and returns `_meta.recipe`, `_meta.userRecipeValues`,
+  `_meta.extensionResults`, and `_meta.workingDir`.
+- The client load path creates an ACP adapter, subscribes before
+  `acpLoadSession`, collects ACP and `_goose/session/update` notifications,
+  dispatches `SESSION_LOADED`, shows extension results, and caches the result.
+- Still not ACP-native: rendered recipe prompt application is covered by the
+  existing REST `updateFromSession` effect.
 
-### 5. Tool Permission Bridge
+### 5. Tool Permission Bridge (mostly done for visible ACP prompts)
 
-Detailed plan: `08-tool-permissions.md`
+`ui/desktop/src/acp/acpConnection.ts` still returns `cancelled` if no handler
+is registered, but the normal ACP prompt path now registers a handler while the
+prompt is active.
 
-Must land before live prompt — `ui/desktop/src/acp/acpConnection.ts`
-currently returns `cancelled` if no handler is registered, so the first
-prompt that needs approval would silently die. Can be drafted in parallel
-with the load slice.
-
-- [ ] Define permission request UI state.
-- [ ] Bridge ACP `requestPermission` into chat UI.
-- [ ] Render tool approval request to user.
-- [ ] Map approve-once decision to ACP selected outcome.
-- [ ] Map approve-always decision to ACP selected outcome, if option exists.
-- [ ] Map reject-once decision to ACP selected outcome.
-- [ ] Map reject-always decision to ACP selected outcome, if option exists.
-- [ ] Map dismiss/cancel to ACP cancelled outcome.
-- [ ] Avoid assuming fixed ACP option IDs unless backend guarantees them.
-- [ ] Verify approved tool call continues.
-- [ ] Verify rejected tool call is handled cleanly.
+- [x] Define permission request UI state.
+- [x] Bridge ACP `requestPermission` into chat UI.
+- [x] Render tool approval request to user.
+- [x] Map approve-once decision to ACP selected outcome.
+- [x] Map approve-always decision to ACP selected outcome, if option exists.
+- [x] Map reject-once decision to ACP selected outcome.
+- [x] Map reject-always decision to ACP selected outcome, if option exists.
+- [x] Map dismiss/cancel to ACP cancelled outcome.
+- [x] Avoid assuming fixed ACP option IDs unless backend guarantees them.
+- [x] Verify approved tool call continues.
+- [x] Verify rejected tool call is handled cleanly.
 
 Notes:
 
-- Originally sequenced after live prompt; moved earlier because permission
-  is a prerequisite, not a follow-up.
+- Implemented in the visible chat prompt path: `useChatStream` registers
+  `setAcpPermissionHandler`, adapts requests into existing
+  `actionRequired/toolConfirmation` messages, and resolves by matching ACP
+  option `kind`, not hardcoded option IDs.
+- Remaining hardening: permission requests for hidden/background sessions or
+  requests that outlive the current hook instance still need an app-level
+  durable bridge if those scenarios become supported.
 
 ### 6. Live Prompt + Session Creation (paired)
-
-Detailed plans: `06-live-prompt-streaming.md`, `04-session-creation.md`,
-`03-notification-adapter.md`.
 
 These ship together. A new ACP-created session whose first user message
 goes through REST `sessionReply` hits an untested agent-lifecycle path
@@ -253,15 +254,16 @@ live prompts via ACP from their first message onward.
 
 Live prompt:
 
-- [ ] Add `promptAcpSession`.
-- [ ] Reuse the session-scoped router for live prompt notifications.
-- [ ] Replace REST `sessionReply` for the text prompt path.
-- [ ] Set streaming state on submit; handle ACP completion and errors.
-- [ ] Preserve task completion desktop notification behavior.
-- [ ] Preserve `AppEvents.MESSAGE_STREAM_FINISHED` if still needed.
+- [x] Add `promptAcpSession`.
+- [x] Reuse the session-scoped router for live prompt notifications.
+- [x] Replace REST `sessionReply` for the normal text/image prompt path.
+- [x] Set streaming state on submit; handle ACP completion and errors.
+- [x] Preserve task completion desktop notification behavior.
+- [x] Preserve `AppEvents.MESSAGE_STREAM_FINISHED` if still needed.
 - [ ] Replace REST session-name refresh with `SessionInfoUpdate` handling.
-- [ ] Drop REST request-ID routing — ACP scopes by `sessionId`.
-- [ ] Manually verify a text prompt streams through ACP.
+- [x] Drop REST request-ID routing for normal ACP prompts — ACP scopes by
+  `sessionId`.
+- [x] Manually verify a text prompt streams through ACP.
 
 Session creation:
 
@@ -285,12 +287,13 @@ Session creation:
   ACP should expose either a Goose-custom request that updates values
   AND re-applies, or pair a values-update notification with a
   re-apply mechanism.
-- [ ] Add `createAcpSession`.
-- [ ] Replace REST `startAgent` usage in `createSession`.
-- [ ] Preserve `AppEvents.SESSION_CREATED`.
-- [ ] Preserve `AppEvents.ADD_ACTIVE_SESSION`.
-- [ ] Preserve `setView('pair', ...)` behavior.
-- [ ] Verify launcher / new chat flow.
+- [x] Add `createAcpSession` / `acpNewSession`.
+- [x] Replace REST `startAgent` usage in `createSession` for guarded plain
+  non-recipe sessions.
+- [x] Preserve `AppEvents.SESSION_CREATED`.
+- [x] Preserve `AppEvents.ADD_ACTIVE_SESSION`.
+- [x] Preserve `setView('pair', ...)` behavior.
+- [x] Verify launcher / new chat flow.
 - [ ] Verify recipe deeplink and recipe-ID flows (deeplink-launch reads
   `recipe.prompt` off the create response).
 - [ ] Verify extension override flow.
@@ -299,76 +302,58 @@ Session creation:
 
 Notes:
 
-- TBD
+- ACP creation intentionally excludes recipe, recipe-deeplink, explicit
+  extension config, and extension-override paths. Those still use REST
+  `startAgent`.
+- Normal first prompts after ACP-created sessions use ACP `session/prompt`.
 
 ### 7. Cancellation Slice
 
-Detailed plan: `07-cancellation.md`
-
-- [ ] Add `cancelAcpSession`.
-- [ ] Replace REST `sessionCancel` with ACP `session/cancel`.
-- [ ] Track ACP active prompt state.
-- [ ] Make stop a no-op when there is no active prompt.
-- [ ] Clear active prompt refs on cancel.
-- [ ] Return UI to idle or cancelled state.
+- [x] Add `cancelAcpSession` / `acpCancelPrompt`.
+- [x] Replace REST `sessionCancel` with ACP `session/cancel` for active ACP
+  prompts.
+- [x] Track ACP active prompt state.
+- [x] Make stop a no-op when there is no active prompt.
+- [x] Clear active prompt refs on cancel.
+- [x] Return UI to idle or cancelled state.
 - [ ] Verify cancellation does not leave stale loading/thinking state.
 
 Notes:
 
-- TBD
-
-### 8. Remove Desktop REST Session Usage
-
-Detailed plan: `09-rest-cleanup.md`
-
-- [ ] Search for session REST imports in `ui/desktop/src`.
-- [ ] Remove replaced `sessionReply` usage.
-- [ ] Remove replaced `sessionCancel` usage.
-- [ ] Remove replaced `sessionEvents` usage.
-- [ ] Remove replaced `resumeAgent` usage.
-- [ ] Remove replaced `getSession` usage for migrated chat loading.
-- [ ] Remove replaced `startAgent` usage.
-- [ ] Drop unused `tokenState.{inputTokens, outputTokens,
-  accumulatedTotalTokens}` (gap doc: never read by the UI).
-- [ ] Update tests that mocked REST session APIs.
-- [ ] Keep unrelated REST APIs untouched.
-- [ ] Do not manually edit `ui/desktop/openapi.json`.
-
-Notes:
-
-- TBD
+- REST `sessionCancel` is still retained for REST/SSE active request reattach
+  paths.
 
 ## Verification Checklist
 
 Manual:
 
-- [ ] Load an existing session with plain text.
-- [ ] Send a prompt and receive streamed assistant text.
+- [x] Load an existing session with plain text.
+- [x] Send a prompt and receive streamed assistant text.
 - [ ] Cancel a running prompt.
-- [ ] Load an existing session with thinking content.
-- [ ] Load an existing session with tool calls.
-- [ ] Send a prompt that triggers tool approval.
-- [ ] Approve a tool request.
-- [ ] Reject a tool request.
-- [ ] Create a new session.
+- [x] Load an existing session with thinking content.
+- [x] Load an existing session with tool calls.
+- [x] Send a prompt that triggers tool approval.
+- [x] Approve a tool request.
+- [x] Reject a tool request.
+- [x] Create a new plain non-recipe session.
 - [ ] Navigate away from and back to an active session.
 - [ ] Navigate away from and back to a completed session.
 - [ ] Confirm session name updates still appear.
 
 Automated:
 
-- [ ] Router test for session-scoped dispatch.
-- [ ] Router test for multiple subscribers.
-- [ ] Router test for unsubscribe and double-unsubscribe.
-- [ ] Adapter test for text chunk accumulation.
-- [ ] Adapter test for thinking chunk conversion.
-- [ ] Adapter test for tool call conversion.
-- [ ] Adapter test for tool call update conversion.
-- [ ] Adapter test for usage update conversion.
-- [ ] Adapter test for session info update conversion.
-- [ ] Permission mapping test for approve.
-- [ ] Permission mapping test for reject.
-- [ ] Permission mapping test for cancel.
+- [x] Router test for session-scoped dispatch.
+- [x] Router test for multiple subscribers.
+- [x] Router test for unsubscribe and double-unsubscribe.
+- [x] Adapter test for text chunk accumulation.
+- [x] Adapter test for thinking chunk conversion.
+- [x] Adapter test for tool call conversion.
+- [x] Adapter test for tool call update conversion.
+- [x] Adapter test for usage update conversion.
+- [x] Adapter test for session info update conversion.
+- [x] Permission mapping test for approve.
+- [x] Permission mapping test for reject.
+- [x] Permission mapping test for cancel.
 
 ## Blockers
 
@@ -390,11 +375,13 @@ Track work that should not block the first ACP session migration PR.
 - [ ] Decide whether ACP should support extension override inputs during session creation.
 - [ ] Replace any remaining REST session metadata refresh with ACP metadata APIs.
 - [ ] Review reattach semantics for prompts that continue while the view is remounted.
+- [ ] Make recipe prompt application ACP-native and remove REST
+  `updateFromSession` from loaded ACP sessions.
+- [ ] Migrate or explicitly retain REST edit/fork `overrideConversation`.
 - [ ] Document final `goosed` bridge removal requirements once desktop session/chat is ACP-backed.
 - [ ] Add broader integration tests after the adapter and hook migration settle.
 - [ ] Trim unused `TokenState` fields (`inputTokens`, `outputTokens`,
   `accumulatedTotalTokens`) once REST is removed — they're never read by the
   UI.
 - [ ] Unify session-list token count vs schedule detail view on
-  `accumulated_total_tokens` (see
-  `ui/desktop/spike-doc/session-list-token-count-inconsistency.md`).
+  `accumulated_total_tokens`.
