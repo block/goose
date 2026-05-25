@@ -15,7 +15,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
+import { RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
 import { NewSchedulePayload, ScheduleModal } from './ScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
@@ -39,7 +39,6 @@ const i18n = defineMessages({
   scheduler: { id: 'schedulesView.scheduler', defaultMessage: 'Scheduler' },
   refreshing: { id: 'schedulesView.refreshing', defaultMessage: 'Refreshing...' },
   refresh: { id: 'schedulesView.refresh', defaultMessage: 'Refresh' },
-  createSchedule: { id: 'schedulesView.createSchedule', defaultMessage: 'Create Schedule' },
   description: { id: 'schedulesView.description', defaultMessage: 'Create and manage scheduled tasks to run workflows automatically at specified times.' },
   errorPrefix: { id: 'schedulesView.errorPrefix', defaultMessage: 'Error: {error}' },
   noSchedules: { id: 'schedulesView.noSchedules', defaultMessage: 'No schedules yet' },
@@ -494,17 +493,6 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                   >
                     <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                     {isRefreshing ? intl.formatMessage(i18n.refreshing) : intl.formatMessage(i18n.refresh)}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setSubmitApiError(null);
-                      setIsModalOpen(true);
-                    }}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {intl.formatMessage(i18n.createSchedule)}
                   </Button>
                 </div>
               </div>

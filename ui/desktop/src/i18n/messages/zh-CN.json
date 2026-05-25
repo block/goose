@@ -3533,9 +3533,6 @@
   "schedulesView.confirmDelete": {
     "defaultMessage": "确定要删除计划“{id}”吗？"
   },
-  "schedulesView.createSchedule": {
-    "defaultMessage": "创建计划"
-  },
   "schedulesView.description": {
     "defaultMessage": "创建和管理定时任务，在指定时间自动运行工作流。"
   },

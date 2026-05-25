@@ -3584,9 +3584,6 @@
   "schedulesView.confirmDelete": {
     "defaultMessage": "Remove schedule \"{id}\"? The workflow will be kept."
   },
-  "schedulesView.createSchedule": {
-    "defaultMessage": "Create Schedule"
-  },
   "schedulesView.description": {
     "defaultMessage": "Create and manage scheduled tasks to run workflows automatically at specified times."
   },
