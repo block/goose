@@ -5,9 +5,6 @@ import {
   ExternalLink,
   Github,
   Loader2,
-  MessageSquare,
-  Plug,
-  Workflow,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -63,26 +60,6 @@ const i18n = defineMessages({
     id: 'copilotConnectors.disconnectHint',
     defaultMessage:
       'Opens the GitHub App settings so you can uninstall. After you uninstall on GitHub, this side disconnects automatically.',
-  },
-  slackTitle: {
-    id: 'copilotConnectors.slackTitle',
-    defaultMessage: 'Slack',
-  },
-  slackDescription: {
-    id: 'copilotConnectors.slackDescription',
-    defaultMessage: 'Ask @goose-copilot questions or trigger reviews from a Slack channel.',
-  },
-  linearTitle: {
-    id: 'copilotConnectors.linearTitle',
-    defaultMessage: 'Linear',
-  },
-  linearDescription: {
-    id: 'copilotConnectors.linearDescription',
-    defaultMessage: 'Mention @goose-copilot on issues and let it open PRs to address them.',
-  },
-  comingSoon: {
-    id: 'copilotConnectors.comingSoon',
-    defaultMessage: 'Coming soon',
   },
 });
 
@@ -214,50 +191,6 @@ export default function CopilotConnectors({
           )}
         </CardContent>
       </Card>
-
-      <ConnectorPlaceholder
-        icon={<MessageSquare className="h-5 w-5 mt-0.5 shrink-0" />}
-        title={intl.formatMessage(i18n.slackTitle)}
-        description={intl.formatMessage(i18n.slackDescription)}
-        comingSoon={intl.formatMessage(i18n.comingSoon)}
-      />
-      <ConnectorPlaceholder
-        icon={<Workflow className="h-5 w-5 mt-0.5 shrink-0" />}
-        title={intl.formatMessage(i18n.linearTitle)}
-        description={intl.formatMessage(i18n.linearDescription)}
-        comingSoon={intl.formatMessage(i18n.comingSoon)}
-      />
     </div>
-  );
-}
-
-function ConnectorPlaceholder({
-  title,
-  description,
-  comingSoon,
-  icon,
-}: {
-  title: string;
-  description: string;
-  comingSoon: string;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <Card className="rounded-lg opacity-70">
-      <CardHeader className="pb-0">
-        <div className="flex items-start gap-3">
-          {icon ?? <Plug className="h-5 w-5 mt-0.5 shrink-0" />}
-          <div className="flex-1">
-            <CardTitle className="mb-1 flex items-center gap-2">
-              {title}
-              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-background-secondary text-text-secondary">
-                {comingSoon}
-              </span>
-            </CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-    </Card>
   );
 }

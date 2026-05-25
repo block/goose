@@ -413,9 +413,6 @@
   "copilotConnectors.awaitingInstallHint": {
     "defaultMessage": "已在浏览器中打开 GitHub。选择要审查的仓库，然后点击 Install & Authorize。"
   },
-  "copilotConnectors.comingSoon": {
-    "defaultMessage": "即将推出"
-  },
   "copilotConnectors.connectedLabel": {
     "defaultMessage": "已连接 — 安装 ID {id}"
   },
@@ -434,12 +431,6 @@
   "copilotConnectors.installAction": {
     "defaultMessage": "连接 GitHub"
   },
-  "copilotConnectors.linearDescription": {
-    "defaultMessage": "在 issue 中 @goose-copilot，让它打开 PR 来处理。"
-  },
-  "copilotConnectors.linearTitle": {
-    "defaultMessage": "Linear"
-  },
   "copilotConnectors.manageAction": {
     "defaultMessage": "在 GitHub 上管理"
   },
@@ -448,12 +439,6 @@
   },
   "copilotConnectors.setupFailed": {
     "defaultMessage": "连接 Goose Copilot 失败"
-  },
-  "copilotConnectors.slackDescription": {
-    "defaultMessage": "在 Slack 频道中向 @goose-copilot 提问或触发审查。"
-  },
-  "copilotConnectors.slackTitle": {
-    "defaultMessage": "Slack"
   },
   "copilotGeneral.customInstructionsDescription": {
     "defaultMessage": "附加到每次审查提示的自由格式规则。用于引导机器人关注团队真正在意的内容。"

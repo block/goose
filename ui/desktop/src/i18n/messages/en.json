@@ -473,9 +473,6 @@
   "copilotConnectors.awaitingInstallHint": {
     "defaultMessage": "A browser tab just opened to GitHub. Pick the repos you want reviewed and click Install & Authorize."
   },
-  "copilotConnectors.comingSoon": {
-    "defaultMessage": "Coming soon"
-  },
   "copilotConnectors.connectedLabel": {
     "defaultMessage": "Connected — installation {id}"
   },
@@ -494,12 +491,6 @@
   "copilotConnectors.installAction": {
     "defaultMessage": "Connect GitHub"
   },
-  "copilotConnectors.linearDescription": {
-    "defaultMessage": "Mention @goose-copilot on issues and let it open PRs to address them."
-  },
-  "copilotConnectors.linearTitle": {
-    "defaultMessage": "Linear"
-  },
   "copilotConnectors.manageAction": {
     "defaultMessage": "Manage on GitHub"
   },
@@ -508,12 +499,6 @@
   },
   "copilotConnectors.setupFailed": {
     "defaultMessage": "Failed to connect Goose Copilot"
-  },
-  "copilotConnectors.slackDescription": {
-    "defaultMessage": "Ask @goose-copilot questions or trigger reviews from a Slack channel."
-  },
-  "copilotConnectors.slackTitle": {
-    "defaultMessage": "Slack"
   },
   "copilotGeneral.customInstructionsDescription": {
     "defaultMessage": "Free-form rules appended to every review prompt. Use them to nudge the bot toward what your team actually cares about."
