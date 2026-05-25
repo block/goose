@@ -80,9 +80,16 @@ export default function ExtensionItem({
   // Bundled extensions and builtins are not editable
   // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
 
+  // ApeCloud fork carve-out: the `apemind` bundled extension ships with placeholder URL/token
+  // that the user MUST be able to edit from the UI before enabling.
+  const isApeMindBundled =
+    'bundled' in extension && extension.bundled && extension.name === 'apemind';
+
   // allow configuration editing if extension is not a builtin/bundled extension AND isStatic = false
   const editable =
-    !(extension.type === 'builtin' || ('bundled' in extension && extension.bundled)) && !isStatic;
+    (!(extension.type === 'builtin' || ('bundled' in extension && extension.bundled)) ||
+      isApeMindBundled) &&
+    !isStatic;
 
   return (
     <Card

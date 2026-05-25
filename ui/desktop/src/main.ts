@@ -180,17 +180,35 @@ async function seedDefaultRecipes(): Promise<void> {
     ? path.join(process.resourcesPath, 'default-recipes')
     : path.join(__dirname, '..', 'default-recipes');
   const destDir = path.join(os.homedir(), '.config', 'goose', 'recipes');
+  const hashesDir = path.join(app.getPath('userData'), 'recipe_hashes');
 
   if (!fsSync.existsSync(sourceRoot)) return;
 
   await fs.mkdir(destDir, { recursive: true });
+  await fs.mkdir(hashesDir, { recursive: true });
   const entries = await fs.readdir(sourceRoot);
   for (const entry of entries) {
     if (!entry.endsWith('.yaml') && !entry.endsWith('.yml')) continue;
+    const sourcePath = path.join(sourceRoot, entry);
     const destPath = path.join(destDir, entry);
-    if (fsSync.existsSync(destPath)) continue;
-    await fs.copyFile(path.join(sourceRoot, entry), destPath);
-    log.info(`[seedDefaultRecipes] seeded ${entry} → ${destPath}`);
+
+    if (!fsSync.existsSync(destPath)) {
+      await fs.copyFile(sourcePath, destPath);
+      log.info(`[seedDefaultRecipes] seeded ${entry} → ${destPath}`);
+    }
+
+    try {
+      const yamlContent = await fs.readFile(sourcePath, 'utf-8');
+      const parsed = yaml.parse(yamlContent);
+      const hash = crypto.createHash('sha256').update(JSON.stringify(parsed)).digest('hex');
+      const hashFile = path.join(hashesDir, `${hash}.hash`);
+      if (!fsSync.existsSync(hashFile)) {
+        await fs.writeFile(hashFile, new Date().toISOString());
+        log.info(`[seedDefaultRecipes] pre-trusted hash for ${entry} → ${hash}`);
+      }
+    } catch (err) {
+      log.warn(`[seedDefaultRecipes] failed to pre-trust ${entry}:`, err);
+    }
   }
 }
 
