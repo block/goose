@@ -2815,11 +2815,13 @@ mod tests {
 
         // The MCP handshake will fail against the stub server. We only care that
         // the outgoing HTTP request carried the custom header.
+        // Use a name that cannot collide with real keychain entries and won't
+        // trigger the proactive OAuth path against a dev machine's stored credentials.
         let _ = create_streamable_http_client(
             &mock_server.uri(),
             None,
             &headers,
-            "test-ext",
+            "__unit_test_custom_headers_forwarded__",
             None,
             provider,
             "goose-test".to_string(),
