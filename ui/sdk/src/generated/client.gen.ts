@@ -40,7 +40,7 @@ import type {
   DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
-  ElicitationRespondRequest,
+  ElicitationRespondRequest_unstable,
   ExportSessionRequest_unstable,
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
@@ -503,10 +503,10 @@ export class GooseExtClient {
     ) as ImportSessionResponse_unstable;
   }
 
-  async gooseElicitationRespond(
-    params: ElicitationRespondRequest,
+  async elicitationRespond_unstable(
+    params: ElicitationRespondRequest_unstable,
   ): Promise<void> {
-    await this.conn.extMethod("_goose/elicitation/respond", params);
+    await this.conn.extMethod("_goose/unstable/elicitation/respond", params);
   }
 
   async sessionProjectUpdate_unstable(

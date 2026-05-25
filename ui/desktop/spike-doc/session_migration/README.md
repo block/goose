@@ -273,7 +273,7 @@ Done for active ACP sessions:
   `sessionUpdate: "interaction_update"` and `interaction.type: "elicitation"`
   when an elicitation is pending.
 - Desktop renders the form from `interaction.requestedSchema`.
-- Desktop submits through `_goose/elicitation/respond` with `sessionId`,
+- Desktop submits through `_goose/unstable/elicitation/respond` with `sessionId`,
   `elicitationId`, and `userData`.
 - Server submits to `ActionRequiredManager`, persists the hidden response
   message, and emits `interaction.state: "submitted"`.

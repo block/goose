@@ -1810,7 +1810,7 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
     },
-    "ElicitationRespondRequest": {
+    "ElicitationRespondRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1829,7 +1829,7 @@
       ],
       "description": "Submit a response for a pending MCP elicitation in an active session.",
       "x-side": "agent",
-      "x-method": "_goose/elicitation/respond"
+      "x-method": "_goose/unstable/elicitation/respond"
     },
     "UpdateSessionProjectRequest_unstable": {
       "type": "object",
@@ -3128,11 +3128,11 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ElicitationRespondRequest"
+                      "$ref": "#/$defs/ElicitationRespondRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/elicitation/respond",
-                  "title": "ElicitationRespondRequest"
+                  "description": "Params for _goose/unstable/elicitation/respond",
+                  "title": "ElicitationRespondRequest_unstable"
                 },
                 {
                   "allOf": [

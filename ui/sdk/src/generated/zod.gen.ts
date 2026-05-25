@@ -726,7 +726,7 @@ export const zImportSessionResponse_unstable = z.object({
 /**
  * Submit a response for a pending MCP elicitation in an active session.
  */
-export const zElicitationRespondRequest = z.object({
+export const zElicitationRespondRequest_unstable = z.object({
     sessionId: z.string(),
     elicitationId: z.string(),
     userData: z.unknown().optional().default(null)
@@ -1180,7 +1180,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
-            zElicitationRespondRequest,
+            zElicitationRespondRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
             zArchiveSessionRequest_unstable,

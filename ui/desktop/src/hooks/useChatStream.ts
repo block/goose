@@ -1209,7 +1209,7 @@ export function useChatStream({
 
         if (shouldUseAcp) {
           const client = await getAcpClient();
-          await client.goose.GooseElicitationRespond({
+          await client.goose.elicitationRespond_unstable({
             sessionId,
             elicitationId,
             userData,

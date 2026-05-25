@@ -176,8 +176,8 @@
       "responseType": "ImportSessionResponse_unstable"
     },
     {
-      "method": "_goose/elicitation/respond",
-      "requestType": "ElicitationRespondRequest",
+      "method": "_goose/unstable/elicitation/respond",
+      "requestType": "ElicitationRespondRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {
