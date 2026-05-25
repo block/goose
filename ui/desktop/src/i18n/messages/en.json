@@ -3809,9 +3809,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} messages"
-  },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Session sharing has already been configured"
   },
@@ -3934,9 +3931,6 @@
   },
   "sessions.error.tryAgain": {
     "defaultMessage": "Try Again"
-  },
-  "sessions.extensions": {
-    "defaultMessage": "Extensions:"
   },
   "sessions.import": {
     "defaultMessage": "Import Session"
