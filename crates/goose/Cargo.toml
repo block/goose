@@ -246,6 +246,7 @@ bytes = { workspace = true }
 http = { workspace = true }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 insta = { version = "1", default-features = false }
+dtor = { version = "1.0.3", default-features = false, features = ["proc_macro"] }
 
 [[example]]
 name = "agent"
