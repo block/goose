@@ -18,6 +18,7 @@ use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, response_to_streaming_message};
+use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -132,7 +133,9 @@ impl Provider for OpenAiCompatibleProvider {
 
 // Re-exported from the dedicated `http_status` module — these helpers are
 // format-agnostic and used across all provider families.
-pub use super::http_status::{handle_response, handle_status, map_http_error_to_provider_error};
+pub use super::http_status::{
+    handle_response, handle_status, map_http_error_to_provider_error, sanitize_url,
+};
 
 // Legacy alias kept for callers that haven't migrated their import path yet.
 pub use super::http_status::handle_response as handle_response_openai_compat;
@@ -154,6 +157,29 @@ pub fn stream_openai_compat(
             let (message, usage) = message.map_err(|e|
                 e.downcast::<ProviderError>()
                     .unwrap_or_else(|e| ProviderError::RequestFailed(format!("Stream decode error: {e}")))
+            )?;
+            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+            yield (message, usage);
+        }
+    }))
+}
+
+pub fn stream_responses_compat(
+    response: Response,
+    mut log: RequestLog,
+) -> Result<MessageStream, ProviderError> {
+    let stream = response.bytes_stream().map_err(std::io::Error::other);
+
+    Ok(Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(Error::from);
+
+        let message_stream = responses_api_to_streaming_message(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {e}"))
             )?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
@@ -220,7 +246,7 @@ mod tests {
         payload: Option<Value>,
         expected_variant: &str,
     ) {
-        let err = map_http_error_to_provider_error(status, payload);
+        let err = map_http_error_to_provider_error(status, payload, "http://test/endpoint");
         let actual = err.telemetry_type();
         let expected_telemetry = match expected_variant {
             "CreditsExhausted" => "credits_exhausted",

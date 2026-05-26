@@ -17,6 +17,7 @@ use futures::future::BoxFuture;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
+use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
@@ -98,7 +99,8 @@ impl BedrockProvider {
         };
 
         // Use load_defaults() which supports AWS SSO, profiles, and environment variables
-        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
+        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .http_client(ReqwestHttpClient::new());
 
         if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
             if !profile_name.is_empty() {
@@ -232,15 +234,7 @@ impl BedrockProvider {
         let visible_messages: Vec<&Message> =
             messages.iter().filter(|m| m.is_agent_visible()).collect();
 
-        // Cache the earliest messages (not most recent) because prompt caching
-        // requires exact prefix matching — caching recent messages would shift
-        // positions each turn, causing misses.
-        const MESSAGE_CACHE_BUDGET: usize = 3;
-        let cache_count = if enable_caching {
-            visible_messages.len().min(MESSAGE_CACHE_BUDGET)
-        } else {
-            0
-        };
+        let last_idx = visible_messages.len().saturating_sub(1);
 
         let mut request = self
             .client
@@ -251,7 +245,9 @@ impl BedrockProvider {
                 visible_messages
                     .iter()
                     .enumerate()
-                    .map(|(idx, m)| to_bedrock_message_with_caching(m, idx < cache_count))
+                    .map(|(idx, m)| {
+                        to_bedrock_message_with_caching(m, enable_caching && idx == last_idx)
+                    })
                     .collect::<Result<_>>()?,
             ));
 

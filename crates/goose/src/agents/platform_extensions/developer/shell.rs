@@ -47,6 +47,42 @@ fn flatpak_spawn_process() -> std::process::Command {
     command
 }
 
+#[cfg(not(windows))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UnixShellFlavor {
+    Posix,
+    Nushell,
+}
+
+#[cfg(not(windows))]
+fn unix_shell_flavor(shell: &str) -> UnixShellFlavor {
+    let name = std::path::Path::new(shell)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(shell)
+        .to_ascii_lowercase();
+
+    match name.as_str() {
+        "nu" | "nushell" => UnixShellFlavor::Nushell,
+        _ => UnixShellFlavor::Posix,
+    }
+}
+
+#[cfg(not(windows))]
+fn unix_login_shell_command_args(shell: &str) -> [&'static str; 4] {
+    let probe = match unix_shell_flavor(shell) {
+        UnixShellFlavor::Nushell => "print ($env.PATH | str join (char esep))",
+        UnixShellFlavor::Posix => "echo $PATH",
+    };
+
+    ["-l", "-i", "-c", probe]
+}
+
+#[cfg(not(windows))]
+fn unix_shell_command_args(command_line: &str) -> [&str; 2] {
+    ["-c", command_line]
+}
+
 /// Resolve the preferred Unix shell for command execution, respecting GOOSE_SHELL.
 ///
 /// Auto-detected shells are returned as basenames (e.g. `"bash"`) so that
@@ -166,27 +202,35 @@ pub struct ShellOutput {
 /// source the user's profile and recover the full PATH.
 #[cfg(not(windows))]
 fn resolve_login_shell_path() -> Option<String> {
-    let shell = unix_shell();
+    use process_wrap::std::{CommandWrap, ProcessSession};
 
-    let mut child = if is_flatpak() {
-        flatpak_spawn_process()
-            .args([&shell, "-l", "-i", "-c", "echo $PATH"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok()?
+    let shell = unix_shell();
+    let login_args = unix_login_shell_command_args(&shell);
+
+    // Build the command, varying only the flatpak vs direct invocation.
+    let mut cmd = if is_flatpak() {
+        let mut c = flatpak_spawn_process();
+        c.arg(&shell).args(login_args);
+        CommandWrap::from(c)
     } else {
-        std::process::Command::new(&shell)
-            .args(["-l", "-i", "-c", "echo $PATH"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok()?
+        let mut c = std::process::Command::new(&shell);
+        c.args(login_args);
+        CommandWrap::from(c)
     };
 
-    let mut stdout = child.stdout.take()?;
+    cmd.command_mut()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    // Spawn in a new session so that bash's interactive job-control setup
+    // (TIOCSPGRP) cannot steal the terminal foreground from goose, which
+    // would cause goose to receive SIGTTIN and be suspended on startup.
+    cmd.wrap(ProcessSession);
+
+    let mut child = cmd.spawn().ok()?;
+
+    let mut stdout = child.stdout().take()?;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = Vec::new();
@@ -197,7 +241,11 @@ fn resolve_login_shell_path() -> Option<String> {
     });
 
     match rx.recv_timeout(Duration::from_secs(5)) {
-        Ok(buf) if child.wait().is_ok_and(|s| s.success()) => {
+        Ok(buf)
+            if child
+                .wait()
+                .is_ok_and(|s: std::process::ExitStatus| s.success()) =>
+        {
             // Take the last non-empty line — interactive shells may emit
             // extra output from profile scripts before our echo.
             String::from_utf8_lossy(&buf)
@@ -209,7 +257,6 @@ fn resolve_login_shell_path() -> Option<String> {
         }
         _ => {
             let _ = child.kill();
-            let _ = child.wait();
             None
         }
     }
@@ -237,7 +284,6 @@ impl LoginPath {
         }
     }
 
-    #[cfg(test)]
     fn resolved(value: Option<String>) -> Self {
         let cell = OnceCell::new();
         let _ = cell.set(value.map(Arc::from));
@@ -273,12 +319,16 @@ pub struct ShellTool {
 }
 
 impl ShellTool {
-    pub fn new() -> std::io::Result<Self> {
+    pub fn new(use_login_shell_path: bool) -> std::io::Result<Self> {
         Ok(Self {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
             #[cfg(not(windows))]
-            login_path: LoginPath::spawn(),
+            login_path: if use_login_shell_path {
+                LoginPath::spawn()
+            } else {
+                LoginPath::resolved(None)
+            },
         })
     }
 
@@ -587,11 +637,13 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.arg(format!("--env=PATH={}", path));
             }
-            command.arg(&shell).arg("-c").arg(command_line);
+            command
+                .arg(&shell)
+                .args(unix_shell_command_args(command_line));
             command
         } else {
             let mut command = tokio::process::Command::new(shell);
-            command.arg("-c").arg(command_line);
+            command.args(unix_shell_command_args(command_line));
             if let Some(path) = working_dir {
                 command.current_dir(path);
             }
@@ -800,6 +852,37 @@ mod tests {
         let observed = std::fs::canonicalize(extract_text(&result)).unwrap();
         let expected = std::fs::canonicalize(dir.path()).unwrap();
         assert_eq!(observed, expected);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unix_shell_flavor_detects_nushell_names() {
+        assert_eq!(unix_shell_flavor("nu"), UnixShellFlavor::Nushell);
+        assert_eq!(unix_shell_flavor("nushell"), UnixShellFlavor::Nushell);
+        assert_eq!(
+            unix_shell_flavor("/etc/profiles/per-user/can/bin/nu"),
+            UnixShellFlavor::Nushell
+        );
+        assert_eq!(unix_shell_flavor("/bin/bash"), UnixShellFlavor::Posix);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unix_login_shell_command_args_use_nushell_probe() {
+        assert_eq!(
+            unix_login_shell_command_args("nu"),
+            ["-l", "-i", "-c", "print ($env.PATH | str join (char esep))"]
+        );
+        assert_eq!(
+            unix_login_shell_command_args("/bin/bash"),
+            ["-l", "-i", "-c", "echo $PATH"]
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unix_shell_command_args_wrap_commands_for_execution() {
+        assert_eq!(unix_shell_command_args("ls -la"), ["-c", "ls -la"]);
     }
 
     #[test]

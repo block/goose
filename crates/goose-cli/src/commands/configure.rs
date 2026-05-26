@@ -23,19 +23,25 @@ use goose::model::ModelConfig;
 #[cfg(feature = "telemetry")]
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
-use goose::providers::chatgpt_codex::reasoning_levels_for_model;
-use goose::providers::formats::anthropic::supports_adaptive_thinking;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::io::IsTerminal;
 
 // useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
 pub async fn handle_configure() -> anyhow::Result<()> {
+    if !std::io::stdin().is_terminal() {
+        anyhow::bail!(
+            "goose configure requires an interactive terminal.\n\
+             If you installed via 'curl ... | bash', run 'goose configure' separately after installation."
+        );
+    }
+
     let config = Config::global();
 
     if !config.exists() {
@@ -730,15 +736,13 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
-    let models_res = {
-        let temp_model_config =
-            ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
-        let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
-        retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models().await
-        })
-        .await
-    };
+    let temp_model_config =
+        ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
+    let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
+    let models_res = retry_operation(&RetryConfig::default(), || async {
+        temp_provider.fetch_recommended_models().await
+    })
+    .await;
     spin.stop(style("Model fetch complete").green());
 
     // Select a model: on fetch error show styled error and abort; if models available, show list; otherwise free-text input
@@ -758,78 +762,24 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     };
 
-    if model.to_lowercase().starts_with("gemini-3") {
-        let thinking_level: &str = cliclack::select("Select thinking level for Gemini 3:")
-            .item("low", "Low - Better latency, lighter reasoning", "")
-            .item("high", "High - Deeper reasoning, higher latency", "")
-            .interact()?;
-        config.set_gemini3_thinking_level(thinking_level)?;
-    }
+    {
+        let supports_thinking = match temp_provider.fetch_model_info(&model).await {
+            Ok(model_info) => model_info.reasoning,
+            Err(_) => goose::model::ModelConfig::new(&model)
+                .map(|c| c.is_reasoning_model())
+                .unwrap_or(false),
+        };
 
-    if model.to_lowercase().starts_with("claude-") {
-        let supports_adaptive = supports_adaptive_thinking(&model);
-
-        let mut thinking_select = cliclack::select("Select extended thinking mode for Claude:");
-        if supports_adaptive {
-            thinking_select = thinking_select.item(
-                "adaptive",
-                "Adaptive - Claude decides when and how much to think (recommended)",
-                "",
-            );
-        }
-        thinking_select = thinking_select
-            .item("enabled", "Enabled - Fixed token budget for thinking", "")
-            .item("disabled", "Disabled - No extended thinking", "");
-        if supports_adaptive {
-            thinking_select = thinking_select.initial_value("adaptive");
-        } else {
-            thinking_select = thinking_select.initial_value("disabled");
-        }
-        let thinking_type: &str = thinking_select.interact()?;
-        config.set_claude_thinking_type(thinking_type)?;
-
-        if thinking_type == "adaptive" {
-            let effort: &str = cliclack::select("Select adaptive thinking effort level:")
-                .item("low", "Low - Minimal thinking, fastest responses", "")
+        if supports_thinking {
+            let effort: &str = cliclack::select("Select thinking effort:")
+                .item("off", "Off - No extended thinking", "")
+                .item("low", "Low - Better latency, lighter reasoning", "")
                 .item("medium", "Medium - Moderate thinking", "")
-                .item("high", "High - Deep reasoning (default)", "")
-                .item(
-                    "max",
-                    "Max - No constraints on thinking depth (Opus 4.6 only)",
-                    "",
-                )
-                .initial_value("high")
+                .item("high", "High - Deep reasoning", "")
+                .item("max", "Max - No constraints on thinking depth", "")
+                .initial_value("off")
                 .interact()?;
-            config.set_claude_thinking_effort(effort)?;
-        } else if thinking_type == "enabled" {
-            let budget: String = cliclack::input("Enter thinking budget (tokens):")
-                .default_input("16000")
-                .validate(|input: &String| match input.parse::<i32>() {
-                    Ok(n) if n > 0 => Ok(()),
-                    _ => Err("Please enter a valid positive number"),
-                })
-                .interact()?;
-            config.set_claude_thinking_budget(budget.parse::<i32>()?)?;
-        }
-    }
-
-    if provider_name == "chatgpt_codex" {
-        let valid_levels = reasoning_levels_for_model(&model);
-        if !valid_levels.is_empty() {
-            let mut select = cliclack::select("Select reasoning effort level:");
-            for &level in valid_levels {
-                let description = match level {
-                    "low" => "Low - Fast responses with lighter reasoning",
-                    "medium" => "Medium - Balances speed and reasoning depth for everyday tasks",
-                    "high" => "High - Greater reasoning depth for complex problems",
-                    "xhigh" => "Extra High - Extra high reasoning depth for complex problems",
-                    _ => "",
-                };
-                select = select.item(level, description, "");
-            }
-            select = select.initial_value("medium");
-            let effort: &str = select.interact()?;
-            config.set_chatgpt_codex_reasoning_effort(effort.to_string())?;
+            config.set_goose_thinking_effort(effort)?;
         }
     }
 
@@ -845,8 +795,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     match test_provider_configuration(provider_name, &model, toolshim_enabled, toolshim_model).await
     {
         Ok(()) => {
-            config.set_goose_provider(provider_name)?;
-            config.set_goose_model(&model)?;
+            goose::config::set_active_provider(config, provider_name, &model)?;
             print_config_file_saved()?;
             Ok(true)
         }
@@ -1110,7 +1059,7 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
 
     let timeout = prompt_extension_timeout()?;
 
-    let mut parts = crate::session::split_quoted(&command_str)?;
+    let mut parts = goose::utils::split_command_args(&command_str)?;
     let cmd = if parts.is_empty() {
         String::new()
     } else {
@@ -2005,6 +1954,7 @@ fn collect_custom_headers() -> anyhow::Result<Option<std::collections::HashMap<S
 }
 
 fn add_provider() -> anyhow::Result<()> {
+    let config = Config::global();
     let provider_type = cliclack::select("What type of API is this?")
         .item(
             "openai_compatible",
@@ -2089,18 +2039,34 @@ fn add_provider() -> anyhow::Result<()> {
 
     let headers = collect_custom_headers()?;
 
-    create_custom_provider(CreateCustomProviderParams {
+    let provider_config = create_custom_provider(CreateCustomProviderParams {
         engine: provider_type.to_string(),
         display_name: display_name.clone(),
         api_url,
-        api_key,
+        api_key: requires_auth.then_some(api_key),
         models,
         supports_streaming: Some(supports_streaming),
         headers,
         requires_auth,
         catalog_provider_id: None,
         base_path,
+        preserves_thinking: None,
     })?;
+
+    if !provider_config.models.is_empty() {
+        let model_items: Vec<_> = provider_config
+            .models
+            .iter()
+            .map(|m| (m.name.as_str(), m.name.as_str(), ""))
+            .collect();
+        if let Ok(model) = cliclack::select("Which model should be the default?")
+            .items(&model_items)
+            .interact()
+        {
+            config.set_goose_provider(&provider_config.name)?;
+            config.set_goose_model(model)?;
+        }
+    }
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
     Ok(())

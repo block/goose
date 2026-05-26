@@ -57,19 +57,21 @@ fn developer_instructions() -> &'static str {
             and file sizes. When you need to search, prefer rg which correctly respects gitignored
             content. Then use cat or sed to gather the context you need, always reading before editing.
             Use write and edit to efficiently make changes. Test and verify as appropriate.
+
+            When running Python scripts or commands, always use `python3` instead of `python`.
         "}
     }
 }
 
 impl DeveloperClient {
-    pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
+    pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Developer"))
             .with_instructions(developer_instructions());
 
         Ok(Self {
             info,
-            shell_tool: Arc::new(ShellTool::new()?),
+            shell_tool: Arc::new(ShellTool::new(context.use_login_shell_path)?),
             edit_tools: Arc::new(EditTools::new()),
             tree_tool: Arc::new(TreeTool::new()),
         })
@@ -238,6 +240,7 @@ mod tests {
             extension_manager: None,
             session_manager: Arc::new(SessionManager::new(data_dir)),
             session: None,
+            use_login_shell_path: false,
         }
     }
 

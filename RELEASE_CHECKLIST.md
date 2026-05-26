@@ -17,7 +17,7 @@ Make a copy of this document for each version and check off as steps are verifie
 
 ### Provider Testing
 
-- [ ] Run `./scripts/test_providers.sh` locally from the release branch and verify all providers/models work
+- [ ] Run `cd ui/desktop && pnpm run test:integration:providers` locally from the release branch and verify all providers/models work
 - [ ] Launch goose, click reset providers, choose databricks and a model
 
 ### Starting Conversations
@@ -35,7 +35,7 @@ Test various ways to start a conversation:
   - [ ] Ask "what is your working directory?"
   - [ ] Response should match the new directory
 - [ ] Open a new window, click chat in left side for new chat
-- [ ] Click "create a tamagotchi game" in popular chat topics to test developer extension
+- [ ] Type "create a tamagotchi game" in the chat input to test developer extension
 
 ### Recipes
 

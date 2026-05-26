@@ -1,7 +1,7 @@
 use super::base::Usage;
 use super::errors::GoogleErrorCode;
 use crate::config::paths::Paths;
-use crate::model::ModelConfig;
+use crate::model::{ModelConfig, ThinkingEffort};
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
 use base64::Engine;
@@ -149,13 +149,14 @@ fn parse_google_retry_delay(payload: &Value) -> Option<Duration> {
 /// - `Err(ProviderError)`: Describes the failure reason.
 pub async fn handle_response_google_compat(response: Response) -> Result<Value, ProviderError> {
     let status = response.status();
+    let url = super::http_status::sanitize_url(response.url().as_str());
     let payload: Option<Value> = response.json().await.ok();
     let final_status = get_google_final_status(status, payload.as_ref());
 
     match final_status {
         StatusCode::OK =>  payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+            Err(ProviderError::Authentication(format!("Authentication failed for {url}. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", final_status, payload )))
         }
         StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
@@ -172,7 +173,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
+            Err(ProviderError::RequestFailed(format!("Request failed with status {} at {url}. Message: {}", final_status, error_msg)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             let retry_delay = payload.as_ref().and_then(parse_google_retry_delay);
@@ -182,13 +183,13 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             })
         }
         _ if final_status.is_server_error() => Err(ProviderError::ServerError(
-            format_server_error_message(final_status, payload.as_ref()),
+            format!("Server error ({}) at {url}: {}", final_status, format_server_error_message(final_status, payload.as_ref())),
         )),
         _ => {
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}", final_status)))
+            Err(ProviderError::RequestFailed(format!("Request failed with status {} at {url}", final_status)))
         }
     }
 }
@@ -235,6 +236,49 @@ pub fn extract_reasoning_effort(model_name: &str) -> (String, Option<String>) {
     }
 
     (model_name.to_string(), None)
+}
+
+pub fn openai_reasoning_effort_for_thinking(
+    model_name: &str,
+    effort: ThinkingEffort,
+) -> Option<String> {
+    if effort == ThinkingEffort::Off {
+        return Some("none".to_string());
+    }
+
+    let supported = openai_reasoning_efforts_for_model(model_name);
+    let preferred: &[&str] = match effort {
+        ThinkingEffort::Off => unreachable!(),
+        ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
+        ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
+        ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
+        ThinkingEffort::Max => &["xhigh", "high", "medium", "low"],
+    };
+
+    preferred
+        .iter()
+        .find(|level| supported.contains(level))
+        .map(|level| (*level).to_string())
+}
+
+fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
+    let normalized = model_name.to_ascii_lowercase();
+
+    if normalized.contains("gpt-5") {
+        if normalized.contains("-pro") || normalized.contains("/pro") {
+            &["high"]
+        } else if normalized.contains("gpt-5.4")
+            || normalized.contains("gpt-5-4")
+            || normalized.contains("gpt-5.5")
+            || normalized.contains("gpt-5-5")
+        {
+            &["low", "medium", "high", "xhigh"]
+        } else {
+            &["low", "medium", "high"]
+        }
+    } else {
+        &["low", "medium", "high"]
+    }
 }
 
 pub fn sanitize_function_name(name: &str) -> String {
@@ -479,7 +523,7 @@ impl Drop for RequestLog {
 
 /// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.
 /// This function first attempts to parse the input string as-is. If that fails,
-/// it applies control character escaping and tries again.
+/// it applies control character escaping and truncated JSON repair and tries again.
 ///
 /// This approach preserves valid JSON like `{"key1": "value1",\n"key2": "value"}`
 /// (which contains a literal \n but is perfectly valid JSON) while still fixing
@@ -490,11 +534,69 @@ pub fn safely_parse_json(s: &str) -> Result<serde_json::Value, serde_json::Error
     match serde_json::from_str(s) {
         Ok(value) => Ok(value),
         Err(_) => {
-            // If that fails, try with control character escaping
-            let escaped = json_escape_control_chars_in_string(s);
-            serde_json::from_str(&escaped)
+            for candidate in [
+                repair_truncated_json(s),
+                json_escape_control_chars_in_string(s),
+            ] {
+                if let Ok(value) = serde_json::from_str(&candidate) {
+                    return Ok(value);
+                }
+            }
+
+            let repaired = repair_truncated_json(&json_escape_control_chars_in_string(s));
+            serde_json::from_str(&repaired)
         }
     }
+}
+
+fn repair_truncated_json(s: &str) -> String {
+    let mut repaired = String::with_capacity(s.len() + 8);
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut closers = Vec::new();
+
+    for c in s.chars() {
+        repaired.push(c);
+
+        if in_string {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+
+            match c {
+                '\\' => escape_next = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+
+        match c {
+            '"' => in_string = true,
+            '{' => closers.push('}'),
+            '[' => closers.push(']'),
+            '}' | ']' => {
+                if closers.last() == Some(&c) {
+                    closers.pop();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if in_string {
+        if escape_next {
+            repaired.push('\\');
+        }
+        repaired.push('"');
+    }
+
+    while let Some(closer) = closers.pop() {
+        repaired.push(closer);
+    }
+
+    repaired
 }
 
 /// Helper to escape control characters in a string that is supposed to be a JSON document.
@@ -809,9 +911,16 @@ mod tests {
         let result = safely_parse_json(good_json).unwrap();
         assert_eq!(result["test"], "value");
 
-        // Test completely invalid JSON that can't be fixed
-        let broken_json = r#"{"key": "unclosed_string"#;
-        assert!(safely_parse_json(broken_json).is_err());
+        // Test truncated JSON with unclosed string, object, and array
+        let truncated_json = r#"{"key": "unclosed_string","nested": {"items": [1, 2, 3"#;
+        let result = safely_parse_json(truncated_json).unwrap();
+        assert_eq!(result["key"], "unclosed_string");
+        assert_eq!(result["nested"]["items"], json!([1, 2, 3]));
+
+        // Test dangling backslash at end of a truncated string
+        let dangling_escape_json = String::from(r#"{"path":"abc\"#);
+        let result = safely_parse_json(&dangling_escape_json).unwrap();
+        assert_eq!(result["path"], "abc\\");
 
         // Test empty object
         let empty_json = "{}";

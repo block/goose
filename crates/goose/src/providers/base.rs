@@ -4,6 +4,11 @@ use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
+/// Default HTTP timeout for all provider API calls.
+/// Long-running model inference can take several minutes, so we allow up to 10 minutes
+/// before giving up. Individual providers may override this via their own config key.
+pub const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
+
 use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::inventory::{default_inventory_identity, InventoryIdentityInput};
@@ -21,9 +26,280 @@ use utoipa::ToSchema;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::ops::{Add, AddAssign};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::LazyLock;
 use std::sync::Mutex;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct FilterOut {
+    pub content: String,
+    pub thinking: String,
+}
+
+pub struct ThinkFilter {
+    buffer: String,
+    inside_think: bool,
+    think_depth: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ThinkTag {
+    Open,
+    Close,
+    // `<think/>` is XML-legal but carries no reasoning payload. Treat it as a
+    // no-op so we don't flip `inside_think` forever and swallow the rest of
+    // the stream into the thinking bucket.
+    SelfClosing,
+}
+
+enum BufferEvent {
+    Tag {
+        pos: usize,
+        end: usize,
+        kind: ThinkTag,
+    },
+    Partial(usize),
+}
+
+impl ThinkFilter {
+    pub fn new() -> Self {
+        Self {
+            buffer: String::new(),
+            inside_think: false,
+            think_depth: 0,
+        }
+    }
+
+    pub fn push(&mut self, chunk: &str) -> FilterOut {
+        self.buffer.push_str(chunk);
+        self.process_buffer()
+    }
+
+    pub fn finish(mut self) -> FilterOut {
+        let mut out = self.process_buffer();
+        if !self.buffer.is_empty() {
+            if self.inside_think {
+                out.thinking.push_str(&self.buffer);
+            } else {
+                out.content.push_str(&self.buffer);
+            }
+            self.buffer.clear();
+        }
+        out
+    }
+
+    fn process_buffer(&mut self) -> FilterOut {
+        let mut out = FilterOut::default();
+
+        loop {
+            match next_buffer_event(&self.buffer, self.inside_think) {
+                Some(BufferEvent::Tag { pos, end, kind }) => {
+                    if pos > 0 {
+                        let prefix = self.buffer.get(..pos).unwrap_or_default().to_string();
+                        if self.inside_think {
+                            out.thinking.push_str(&prefix);
+                        } else {
+                            out.content.push_str(&prefix);
+                        }
+                    }
+
+                    self.buffer.drain(..end);
+
+                    match kind {
+                        ThinkTag::Open => {
+                            self.think_depth += 1;
+                            self.inside_think = true;
+                        }
+                        ThinkTag::Close => {
+                            self.think_depth = self.think_depth.saturating_sub(1);
+                            self.inside_think = self.think_depth > 0;
+                        }
+                        ThinkTag::SelfClosing => {}
+                    }
+                }
+                Some(BufferEvent::Partial(pos)) => {
+                    if pos > 0 {
+                        let prefix = self.buffer.get(..pos).unwrap_or_default().to_string();
+                        if self.inside_think {
+                            out.thinking.push_str(&prefix);
+                        } else {
+                            out.content.push_str(&prefix);
+                        }
+                        self.buffer.drain(..pos);
+                    }
+                    break;
+                }
+                None => {
+                    if !self.buffer.is_empty() {
+                        if self.inside_think {
+                            out.thinking.push_str(&self.buffer);
+                        } else {
+                            out.content.push_str(&self.buffer);
+                        }
+                        self.buffer.clear();
+                    }
+                    break;
+                }
+            }
+        }
+
+        out
+    }
+}
+
+impl Default for ThinkFilter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn split_think_blocks(text: &str) -> (String, String) {
+    let mut filter = ThinkFilter::new();
+    let mut out = filter.push(text);
+    let final_out = filter.finish();
+    out.content.push_str(&final_out.content);
+    out.thinking.push_str(&final_out.thinking);
+    (out.content, out.thinking)
+}
+
+fn next_buffer_event(buffer: &str, inside_think: bool) -> Option<BufferEvent> {
+    let mut search_from = 0;
+
+    while let Some(rel_pos) = buffer.get(search_from..).and_then(|rest| rest.find('<')) {
+        let pos = search_from + rel_pos;
+        let suffix = buffer.get(pos..).unwrap_or_default();
+
+        if let Some((kind, end)) = parse_think_tag(buffer, pos) {
+            if inside_think || matches!(kind, ThinkTag::Open | ThinkTag::SelfClosing) {
+                return Some(BufferEvent::Tag { pos, end, kind });
+            }
+        } else if !contains_unquoted_gt(suffix) && is_possible_partial_think_tag(suffix) {
+            return Some(BufferEvent::Partial(pos));
+        }
+
+        search_from = pos + 1;
+    }
+
+    None
+}
+
+fn parse_think_tag(buffer: &str, start: usize) -> Option<(ThinkTag, usize)> {
+    let bytes = buffer.as_bytes();
+    if bytes.get(start) != Some(&b'<') {
+        return None;
+    }
+
+    let mut idx = start + 1;
+    let is_close = if bytes.get(idx) == Some(&b'/') {
+        idx += 1;
+        true
+    } else {
+        false
+    };
+
+    let name_start = idx;
+    while bytes.get(idx).is_some_and(u8::is_ascii_alphabetic) {
+        idx += 1;
+    }
+
+    if idx == name_start {
+        return None;
+    }
+
+    let name = buffer.get(name_start..idx).unwrap_or_default();
+    let is_think = name.eq_ignore_ascii_case("think") || name.eq_ignore_ascii_case("thinking");
+    if !is_think {
+        return None;
+    }
+
+    if is_close {
+        while bytes.get(idx).is_some_and(u8::is_ascii_whitespace) {
+            idx += 1;
+        }
+        if bytes.get(idx) == Some(&b'>') {
+            return Some((ThinkTag::Close, idx + 1));
+        }
+        return None;
+    }
+
+    // Require a real tag boundary immediately after the name (>, /, or whitespace).
+    // Without this, `<thinking-mode>` or `<thinking123>` would be classified as a
+    // think tag and stripped from normal content.
+    let valid_open_boundary = match bytes.get(idx) {
+        Some(&b) => b == b'>' || b == b'/' || b.is_ascii_whitespace(),
+        None => false,
+    };
+    if !valid_open_boundary {
+        return None;
+    }
+
+    let mut quote: Option<u8> = None;
+    let mut last_non_ws: Option<u8> = None;
+    while let Some(&byte) = bytes.get(idx) {
+        match quote {
+            Some(quote_byte) => {
+                if byte == quote_byte {
+                    quote = None;
+                }
+            }
+            None if matches!(byte, b'"' | b'\'') => {
+                quote = Some(byte);
+                last_non_ws = Some(byte);
+            }
+            None if byte == b'>' => {
+                let kind = if last_non_ws == Some(b'/') {
+                    ThinkTag::SelfClosing
+                } else {
+                    ThinkTag::Open
+                };
+                return Some((kind, idx + 1));
+            }
+            None if !byte.is_ascii_whitespace() => {
+                last_non_ws = Some(byte);
+            }
+            None => {}
+        }
+        idx += 1;
+    }
+
+    None
+}
+
+fn is_possible_partial_think_tag(suffix: &str) -> bool {
+    if contains_unquoted_gt(suffix) {
+        return false;
+    }
+
+    // Allow a trailing `/` so a chunk boundary that lands between `<think` and
+    // `>` in a self-closing `<think/>` (or `<thinking/>`) is still recognised
+    // as a partial tag and buffered until the `>` arrives in the next chunk.
+    static OPEN_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?is)^<(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)(?:\s.*|/)?$").unwrap()
+    });
+    static CLOSE_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?is)^</(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)(?:\s*)?$").unwrap()
+    });
+
+    OPEN_RE.is_match(suffix) || CLOSE_RE.is_match(suffix)
+}
+
+fn contains_unquoted_gt(text: &str) -> bool {
+    let mut quote: Option<u8> = None;
+    for &byte in text.as_bytes() {
+        match quote {
+            Some(quote_byte) => {
+                if byte == quote_byte {
+                    quote = None;
+                }
+            }
+            None if matches!(byte, b'"' | b'\'') => quote = Some(byte),
+            None if byte == b'>' => return true,
+            None => {}
+        }
+    }
+    false
+}
 
 fn strip_xml_tags(text: &str) -> String {
     static BLOCK_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -109,6 +385,9 @@ pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
 pub struct ModelInfo {
     /// The name of the model
     pub name: String,
+    /// The underlying model resolved from provider metadata, when the configured model is an alias or endpoint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_model: Option<String>,
     /// The maximum context length this model supports
     pub context_limit: usize,
     /// Cost per token for input in USD (optional)
@@ -119,6 +398,9 @@ pub struct ModelInfo {
     pub currency: Option<String>,
     /// Whether this model supports cache control
     pub supports_cache_control: Option<bool>,
+    /// Whether this model supports reasoning/thinking controls
+    #[serde(default)]
+    pub reasoning: bool,
 }
 
 impl ModelInfo {
@@ -126,11 +408,13 @@ impl ModelInfo {
     pub fn new(name: impl Into<String>, context_limit: usize) -> Self {
         Self {
             name: name.into(),
+            resolved_model: None,
             context_limit,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            reasoning: false,
         }
     }
 
@@ -143,12 +427,41 @@ impl ModelInfo {
     ) -> Self {
         Self {
             name: name.into(),
+            resolved_model: None,
             context_limit,
             input_token_cost: Some(input_cost),
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
             supports_cache_control: None,
+            reasoning: false,
         }
+    }
+}
+
+fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> ModelInfo {
+    let registry = CanonicalModelRegistry::bundled().ok();
+    let canonical = registry.as_ref().and_then(|registry| {
+        let canonical_id = map_to_canonical_model(provider_name, model_name, registry)?;
+        let (provider, model) = canonical_id.split_once('/')?;
+        registry.get(provider, model)
+    });
+
+    let reasoning = canonical
+        .as_ref()
+        .and_then(|model| model.reasoning)
+        .unwrap_or_else(|| ModelConfig::new_or_fail(model_name).is_reasoning_model());
+
+    ModelInfo {
+        name: model_name.to_string(),
+        resolved_model: None,
+        context_limit: ModelConfig::new_or_fail(model_name)
+            .with_canonical_limits(provider_name)
+            .context_limit(),
+        input_token_cost: None,
+        output_token_cost: None,
+        currency: None,
+        supports_cache_control: None,
+        reasoning,
     }
 }
 
@@ -202,16 +515,7 @@ impl ProviderMetadata {
             default_model: default_model.to_string(),
             known_models: model_names
                 .iter()
-                .map(|&model_name| ModelInfo {
-                    name: model_name.to_string(),
-                    context_limit: ModelConfig::new_or_fail(model_name)
-                        .with_canonical_limits(name)
-                        .context_limit(),
-                    input_token_cost: None,
-                    output_token_cost: None,
-                    currency: None,
-                    supports_cache_control: None,
-                })
+                .map(|&model_name| model_info_for_provider_model(name, model_name))
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
@@ -491,6 +795,10 @@ impl Usage {
     }
 }
 
+pub(crate) fn current_working_dir() -> PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
 pub trait ProviderDef: Send + Sync {
     type Provider: Provider + 'static;
 
@@ -504,6 +812,19 @@ pub trait ProviderDef: Send + Sync {
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized;
+
+    fn from_env_with_working_dir(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+        _working_dir: PathBuf,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
+    where
+        Self: Sized,
+    {
+        // ACP subprocess providers must override this so session cwd is preserved.
+        // Non-subprocess providers can rely on the default because cwd is irrelevant.
+        Self::from_env(model, extensions)
+    }
 
     fn supports_inventory_refresh() -> bool
     where
@@ -624,6 +945,19 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    async fn fetch_supported_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        Ok(self
+            .fetch_supported_models()
+            .await?
+            .iter()
+            .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))
+            .collect())
+    }
+
+    async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
+        Ok(model_info_for_provider_model(self.get_name(), model_name))
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         false
     }
@@ -689,6 +1023,15 @@ pub trait Provider: Send + Sync {
         }
     }
 
+    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        Ok(self
+            .fetch_recommended_models()
+            .await?
+            .iter()
+            .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))
+            .collect())
+    }
+
     async fn map_to_canonical_model(
         &self,
         provider_model: &str,
@@ -731,14 +1074,42 @@ pub trait Provider: Send + Sync {
         ))
     }
 
-    /// Returns the first 3 user messages as strings for session naming
+    /// Returns the first 3 user messages as strings for session naming,
+    /// filtering out assistant-only content (e.g. preprompt blocks).
     fn get_initial_user_messages(&self, messages: &Conversation) -> Vec<String> {
         messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
             .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
-            .map(|m| m.as_concat_text())
+            .map(|m| {
+                m.content
+                    .iter()
+                    .filter_map(|c| c.filter_for_audience(rmcp::model::Role::User))
+                    .filter_map(|c| c.as_text().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
             .collect()
+    }
+
+    /// Extracts preprompt context (assistant-audience blocks) from the first user message.
+    /// These are content blocks visible to the assistant but not the user.
+    fn get_preprompt_context(&self, messages: &Conversation) -> String {
+        messages
+            .iter()
+            .filter(|m| m.role == rmcp::model::Role::User)
+            .take(1)
+            .flat_map(|m| m.content.iter())
+            .filter_map(|c| {
+                // If this block is NOT visible to the user, it's preprompt/assistant-only content
+                if c.filter_for_audience(rmcp::model::Role::User).is_none() {
+                    c.as_text().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Generate a session name/description based on the conversation history
@@ -749,6 +1120,7 @@ pub trait Provider: Send + Sync {
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
+        let preprompt_context = self.get_preprompt_context(messages);
         let system = crate::prompt_template::render_template(
             "session_name.md",
             &std::collections::HashMap::<String, String>::new(),
@@ -758,8 +1130,19 @@ pub trait Provider: Send + Sync {
         use super::cli_common::{
             SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX,
         };
+
+        let preprompt_section = if preprompt_context.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "---BEGIN BACKGROUND CONTEXT (for understanding only, do NOT base the title on this)---\n{}\n---END BACKGROUND CONTEXT---\n\n",
+                preprompt_context
+            )
+        };
+
         let user_text = format!(
-            "{}\n{}\n{}\n\n{}",
+            "{}{}\n{}\n{}\n\n{}",
+            preprompt_section,
             SESSION_NAME_BEGIN_MARKER,
             context.join("\n"),
             SESSION_NAME_END_MARKER,
@@ -921,6 +1304,265 @@ mod tests {
             strip_xml_tags("<think>\nline1\nline2\n</think>result"),
             "result"
         );
+    }
+
+    #[test]
+    fn test_split_think_blocks_extracts_inline_reasoning() {
+        assert_eq!(
+            split_think_blocks("<think>x</think>y"),
+            ("y".to_string(), "x".to_string())
+        );
+    }
+
+    #[test]
+    fn test_split_think_blocks_is_case_insensitive() {
+        assert_eq!(
+            split_think_blocks("<THINK>x</think>y"),
+            ("y".to_string(), "x".to_string())
+        );
+    }
+
+    #[test]
+    fn test_split_think_blocks_handles_multiple_blocks() {
+        assert_eq!(
+            split_think_blocks("<think>a</think>b<think>c</think>d"),
+            ("bd".to_string(), "ac".to_string())
+        );
+    }
+
+    #[test]
+    fn test_split_think_blocks_without_tags() {
+        assert_eq!(
+            split_think_blocks("plain content"),
+            ("plain content".to_string(), String::new())
+        );
+    }
+
+    #[test]
+    fn test_split_think_blocks_handles_attributes() {
+        assert_eq!(
+            split_think_blocks(r#"<think class="x">a</think>b"#),
+            ("b".to_string(), "a".to_string())
+        );
+    }
+
+    #[test]
+    fn test_split_think_blocks_handles_quoted_gt_in_self_closing_attributes() {
+        for input in [
+            r#"<think data="a>b"/>Visible"#,
+            "<think data='a>b'/>Visible",
+        ] {
+            assert_eq!(
+                split_think_blocks(input),
+                ("Visible".to_string(), String::new()),
+                "mismatch for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_split_think_blocks_handles_quoted_gt_in_open_attributes() {
+        assert_eq!(
+            split_think_blocks(r#"<think data="a>b">Hidden</think>Visible"#),
+            ("Visible".to_string(), "Hidden".to_string())
+        );
+    }
+
+    #[test]
+    fn test_split_think_blocks_handles_thinking_variant() {
+        assert_eq!(
+            split_think_blocks("<thinking>a</thinking>b"),
+            ("b".to_string(), "a".to_string())
+        );
+    }
+
+    #[test]
+    fn test_think_filter_streaming_across_partial_tags() {
+        let mut filter = ThinkFilter::new();
+        let mut out = FilterOut::default();
+
+        for chunk in ["<thi", "nk>x</thi", "nk>y"] {
+            let partial = filter.push(chunk);
+            out.content.push_str(&partial.content);
+            out.thinking.push_str(&partial.thinking);
+        }
+
+        let final_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert_eq!(out.content, "y");
+        assert_eq!(out.thinking, "x");
+    }
+
+    #[test]
+    fn test_think_filter_preserves_non_think_tags() {
+        let mut filter = ThinkFilter::new();
+        let mut out = filter.push("<table>");
+        let final_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert_eq!(out.content, "<table>");
+        assert!(out.thinking.is_empty());
+    }
+
+    #[test]
+    fn test_think_filter_finish_treats_unterminated_think_as_thinking() {
+        let mut filter = ThinkFilter::new();
+        let mut out = filter.push("<think>unfinished");
+        let final_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert!(out.content.is_empty());
+        assert_eq!(out.thinking, "unfinished");
+    }
+
+    #[test]
+    fn test_think_filter_preserves_tags_with_think_prefix() {
+        for input in [
+            "<thinking-mode>hello</thinking-mode>",
+            "<thinking123>payload</thinking123>",
+            "<thinker>note</thinker>",
+        ] {
+            let mut filter = ThinkFilter::new();
+            let mut out = filter.push(input);
+            let final_out = filter.finish();
+            out.content.push_str(&final_out.content);
+            out.thinking.push_str(&final_out.thinking);
+
+            assert_eq!(out.content, input, "content mismatch for {input:?}");
+            assert!(
+                out.thinking.is_empty(),
+                "unexpected thinking for {input:?}: {:?}",
+                out.thinking
+            );
+        }
+    }
+
+    #[test]
+    fn test_think_filter_accepts_think_with_attributes() {
+        let mut filter = ThinkFilter::new();
+        let mut out = filter.push("<think data-source=\"x\">hidden</think>visible");
+        let final_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert_eq!(out.content, "visible");
+        assert_eq!(out.thinking, "hidden");
+    }
+
+    #[test]
+    fn test_think_filter_treats_self_closing_as_noop() {
+        // `<think/>` carries no reasoning payload. It must not flip the filter
+        // into "inside_think" mode, and the tag itself must not leak into
+        // visible content.
+        for input in [
+            "before <think/> after",
+            "before <think /> after",
+            "before <thinking/> after",
+            "before <think data-source=\"x\"/> after",
+        ] {
+            let mut filter = ThinkFilter::new();
+            let mut out = filter.push(input);
+            let final_out = filter.finish();
+            out.content.push_str(&final_out.content);
+            out.thinking.push_str(&final_out.thinking);
+
+            assert_eq!(
+                out.content, "before  after",
+                "content mismatch for {input:?}"
+            );
+            assert!(
+                out.thinking.is_empty(),
+                "unexpected thinking for {input:?}: {:?}",
+                out.thinking
+            );
+        }
+    }
+
+    #[test]
+    fn test_think_filter_self_closing_does_not_swallow_following_content() {
+        // Regression: a self-closing `<think/>` used to be classified as an
+        // Open tag, which incremented think_depth and routed everything after
+        // it into the thinking bucket for the rest of the stream.
+        let mut filter = ThinkFilter::new();
+        let mut out = filter.push("<think/>visible chunk 1");
+        let final_out = filter.push("visible chunk 2");
+        let tail_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+        out.content.push_str(&tail_out.content);
+        out.thinking.push_str(&tail_out.thinking);
+
+        assert_eq!(out.content, "visible chunk 1visible chunk 2");
+        assert!(out.thinking.is_empty());
+    }
+
+    #[test]
+    fn test_think_filter_streaming_across_self_closing_boundary() {
+        // Regression: a chunk boundary between `<think` and `>` in a
+        // self-closing `<think/>` used to fall out of the partial-tag regex
+        // (which only allowed `<think<ws>...`), so the `<think/` prefix leaked
+        // into visible content before the `>` arrived.
+        for (a, b) in [
+            ("before <think/", "> after"),
+            ("before <thinking/", "> after"),
+            ("head <think ", "/> tail"),
+        ] {
+            let mut filter = ThinkFilter::new();
+            let mut out = filter.push(a);
+            let second = filter.push(b);
+            let final_out = filter.finish();
+            out.content.push_str(&second.content);
+            out.content.push_str(&final_out.content);
+            out.thinking.push_str(&second.thinking);
+            out.thinking.push_str(&final_out.thinking);
+
+            assert!(
+                !out.content.contains('<'),
+                "partial tag leaked into content for ({a:?}, {b:?}): {:?}",
+                out.content
+            );
+            assert!(
+                out.thinking.is_empty(),
+                "unexpected thinking for ({a:?}, {b:?}): {:?}",
+                out.thinking
+            );
+        }
+    }
+
+    #[test]
+    fn test_think_filter_streaming_across_quoted_attribute_boundary() {
+        let mut filter = ThinkFilter::new();
+        let mut out = filter.push(r#"<think data="a>b"#);
+        assert!(out.content.is_empty());
+        assert!(out.thinking.is_empty());
+
+        let second = filter.push(r#""/>Visible"#);
+        let final_out = filter.finish();
+        out.content.push_str(&second.content);
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&second.thinking);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert_eq!(out.content, "Visible");
+        assert!(out.thinking.is_empty());
+    }
+
+    #[test]
+    fn test_think_filter_self_closing_inside_open_block_closes_nothing() {
+        // `<think/>` inside an open `<think>` block is still a no-op: depth
+        // should stay at 1 until the real `</think>` arrives.
+        let mut filter = ThinkFilter::new();
+        let mut out = filter.push("before <think>hidden1 <think/> hidden2</think>visible");
+        let final_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert_eq!(out.content, "before visible");
+        assert_eq!(out.thinking, "hidden1  hidden2");
     }
 
     #[test]
@@ -1142,33 +1784,39 @@ mod tests {
         // Test direct ModelInfo creation
         let info = ModelInfo {
             name: "test-model".to_string(),
+            resolved_model: None,
             context_limit: 1000,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            reasoning: false,
         };
         assert_eq!(info.context_limit, 1000);
 
         // Test equality
         let info2 = ModelInfo {
             name: "test-model".to_string(),
+            resolved_model: None,
             context_limit: 1000,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            reasoning: false,
         };
         assert_eq!(info, info2);
 
         // Test inequality
         let info3 = ModelInfo {
             name: "test-model".to_string(),
+            resolved_model: None,
             context_limit: 2000,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            reasoning: false,
         };
         assert_ne!(info, info3);
     }

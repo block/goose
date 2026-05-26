@@ -2,9 +2,13 @@ pub mod configure;
 pub mod doctor;
 pub mod gateway;
 pub mod info;
+pub mod plugin;
 pub mod project;
 pub mod recipe;
+pub mod review;
 pub mod schedule;
 pub mod session;
 pub mod term;
+pub mod tui;
+#[cfg(feature = "update")]
 pub mod update;

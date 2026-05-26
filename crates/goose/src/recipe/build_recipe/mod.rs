@@ -75,46 +75,6 @@ where
     Ok(recipe)
 }
 
-pub fn build_recipe_from_template_with_positional_params<F>(
-    recipe_content: String,
-    recipe_dir: &Path,
-    params: Vec<String>,
-    user_prompt_fn: Option<F>,
-) -> Result<Recipe, RecipeError>
-where
-    F: Fn(&str, &str) -> Result<String, anyhow::Error>,
-{
-    let recipe_dir_str = recipe_dir.display().to_string();
-
-    let recipe_parameters =
-        validate_recipe_template_from_content(&recipe_content, Some(recipe_dir_str.clone()))
-            .map_err(|source| RecipeError::Invalid { source })?
-            .parameters;
-
-    let param_pairs: Vec<(String, String)> = if let Some(recipe_params) = &recipe_parameters {
-        let required_count = recipe_params.iter().filter(|p| p.default.is_none()).count();
-        if params.len() < required_count {
-            let required_keys: Vec<String> = recipe_params
-                .iter()
-                .filter(|p| p.default.is_none())
-                .map(|p| p.key.clone())
-                .collect();
-            return Err(RecipeError::MissingParams {
-                parameters: required_keys,
-            });
-        }
-        recipe_params
-            .iter()
-            .zip(params.iter())
-            .map(|(rp, p)| (rp.key.clone(), p.clone()))
-            .collect()
-    } else {
-        vec![]
-    };
-
-    build_recipe_from_template(recipe_content, recipe_dir, param_pairs, user_prompt_fn)
-}
-
 pub fn apply_values_to_parameters<F>(
     user_params: &[(String, String)],
     recipe_parameters: Option<Vec<RecipeParameter>>,
@@ -131,23 +91,28 @@ where
     );
     let mut missing_params: Vec<String> = Vec::new();
     for param in recipe_parameters.unwrap_or_default() {
-        if !param_map.contains_key(&param.key) {
+        let raw_value = if let Some(v) = param_map.get(&param.key) {
+            Some(v.clone())
+        } else {
             match (&param.default, &param.requirement) {
-                (Some(default), _) => param_map.insert(param.key.clone(), default.clone()),
-                (None, RecipeParameterRequirement::UserPrompt) if user_prompt_fn.is_some() => {
-                    let input_value =
-                        user_prompt_fn.as_ref().unwrap()(&param.key, &param.description)?;
-                    param_map.insert(param.key.clone(), input_value)
-                }
-                _ => {
-                    missing_params.push(param.key.clone());
-                    None
-                }
-            };
-        } else if matches!(param.input_type, RecipeParameterInputType::File) {
-            let file_path = param_map.get(&param.key).unwrap();
-            let file_content = read_parameter_file_content(file_path)?;
-            param_map.insert(param.key.clone(), file_content);
+                (Some(default), _) => Some(default.clone()),
+                (None, RecipeParameterRequirement::UserPrompt) if user_prompt_fn.is_some() => Some(
+                    user_prompt_fn.as_ref().unwrap()(&param.key, &param.description)?,
+                ),
+                _ => None,
+            }
+        };
+
+        match raw_value {
+            Some(value) => {
+                let final_value = if matches!(param.input_type, RecipeParameterInputType::File) {
+                    read_parameter_file_content(&value)?
+                } else {
+                    value
+                };
+                param_map.insert(param.key.clone(), final_value);
+            }
+            None => missing_params.push(param.key.clone()),
         }
     }
     Ok((param_map, missing_params))
@@ -168,7 +133,14 @@ pub fn resolve_sub_recipe_path(
         });
     }
 
-    Ok(path.display().to_string())
+    let canonical = path.canonicalize().map_err(|e| RecipeError::Invalid {
+        source: anyhow::anyhow!(
+            "Failed to resolve sub-recipe path {}: {}",
+            path.display(),
+            e
+        ),
+    })?;
+    Ok(canonical.display().to_string())
 }
 
 #[cfg(test)]
