@@ -109,9 +109,8 @@ fn truncate_bytes(s: &str, max_bytes: usize) -> String {
     while end > 0 && !s.is_char_boundary(end) {
         end -= 1;
     }
-    let mut out = s[..end].to_string();
-    out.push_str("\n…[truncated]");
-    out
+    let prefix = s.get(..end).unwrap_or("");
+    format!("{prefix}\n…[truncated]")
 }
 
 async fn fetch_comment_context(req: &CopilotCommentRequest) -> Result<CommentContext> {
