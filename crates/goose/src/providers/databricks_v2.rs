@@ -32,6 +32,7 @@ use crate::providers::retry::{
 use rmcp::model::Tool;
 
 const DATABRICKS_V2_PROVIDER_NAME: &str = "databricks_v2";
+const DATABRICKS_V2_LIST_ENDPOINTS_PATH: &str = "api/ai-gateway/v2/endpoints";
 pub const DATABRICKS_V2_DEFAULT_MODEL: &str = "databricks-gpt-5-5";
 pub const DATABRICKS_V2_KNOWN_MODELS: &[&str] =
     &["databricks-gpt-5-5", "databricks-claude-opus-4-7"];
@@ -184,6 +185,30 @@ impl DatabricksV2Provider {
         model_name.contains("claude")
     }
 
+    fn parse_list_endpoints_response(json: &Value) -> Result<Vec<String>, ProviderError> {
+        let endpoints = json
+            .get("endpoints")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed(
+                    "Unexpected response format from Databricks AI Gateway endpoints API"
+                        .to_string(),
+                )
+            })?;
+
+        let mut models: Vec<String> = endpoints
+            .iter()
+            .filter_map(|endpoint| {
+                endpoint
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
+            .collect();
+        models.sort();
+        Ok(models)
+    }
+
     async fn stream_openai_responses(
         &self,
         model_config: &ModelConfig,
@@ -327,7 +352,7 @@ impl ProviderDef for DatabricksV2Provider {
     }
 
     fn supports_inventory_refresh() -> bool {
-        false
+        true
     }
 }
 
@@ -382,11 +407,31 @@ impl Provider for DatabricksV2Provider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // Replace this static list with the Databricks AI Gateway list endpoint once available.
-        Ok(DATABRICKS_V2_KNOWN_MODELS
-            .iter()
-            .map(|model| model.to_string())
-            .collect())
+        let response = self
+            .api_client
+            .response_get(None, DATABRICKS_V2_LIST_ENDPOINTS_PATH)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!(
+                    "Failed to fetch Databricks AI Gateway endpoints: {e}"
+                ))
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let detail = response.text().await.unwrap_or_default();
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch Databricks AI Gateway endpoints: {status} {detail}"
+            )));
+        }
+
+        let json: Value = response.json().await.map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to parse Databricks AI Gateway endpoints response: {e}"
+            ))
+        })?;
+
+        Self::parse_list_endpoints_response(&json)
     }
 }
 
@@ -404,7 +449,7 @@ mod tests {
             );
         }
 
-        for model in ["databricks-claude-opus-4-7"] {
+        for model in ["databricks-claude-opus-4-7", "databricks-claude-sonnet-4-6"] {
             assert_eq!(
                 DatabricksV2Provider::route_for_model(model),
                 DatabricksV2Route::AnthropicMessages,
@@ -416,5 +461,39 @@ mod tests {
             DatabricksV2Provider::route_for_model("custom-model"),
             DatabricksV2Route::MlflowChatCompletions
         );
+    }
+
+    #[test]
+    fn parses_list_endpoints_response() {
+        let json = serde_json::json!({
+            "endpoints": [
+                {"name": "databricks-claude-opus-4-7"},
+                {"name": "databricks-gpt-5-5"},
+                {"name": "custom-model"}
+            ]
+        });
+
+        let models = DatabricksV2Provider::parse_list_endpoints_response(&json).unwrap();
+
+        assert_eq!(
+            models,
+            vec![
+                "custom-model".to_string(),
+                "databricks-claude-opus-4-7".to_string(),
+                "databricks-gpt-5-5".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn errors_when_list_endpoints_response_has_no_endpoints_array() {
+        let json = serde_json::json!({"data": []});
+
+        let error = DatabricksV2Provider::parse_list_endpoints_response(&json).unwrap_err();
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+        assert!(error
+            .to_string()
+            .contains("Unexpected response format from Databricks AI Gateway endpoints API"));
     }
 }
