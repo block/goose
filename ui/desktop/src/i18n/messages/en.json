@@ -2672,11 +2672,11 @@
   "navigation.itemApps": {
     "defaultMessage": "Apps"
   },
-  "navigation.itemExtensions": {
-    "defaultMessage": "Extensions"
-  },
   "navigation.itemCopilot": {
     "defaultMessage": "Copilot"
+  },
+  "navigation.itemExtensions": {
+    "defaultMessage": "Extensions"
   },
   "navigation.itemHome": {
     "defaultMessage": "New Chat"
