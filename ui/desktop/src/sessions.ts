@@ -9,6 +9,7 @@ import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
 import { acpNewSession, acpNewSessionToSession } from './acp/sessions';
+import { setSessionCwdHint } from './hooks/useChatStream';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -18,6 +19,8 @@ export function shouldShowNewChatTitle(session: Session): boolean {
 }
 
 export function resumeSession(session: Session, setView: setViewType) {
+  setSessionCwdHint(session.id, session.working_dir);
+
   const eventDetail = {
     sessionId: session.id,
     initialMessage: undefined,
@@ -100,6 +103,7 @@ export async function startNewSession(
   }
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
+  setSessionCwdHint(session.id, session.working_dir);
   window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
 
   const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;

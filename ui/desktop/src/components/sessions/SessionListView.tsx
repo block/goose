@@ -51,6 +51,7 @@ import {
   sessionInfoToListItem,
   SessionListItem,
 } from '../../acp/sessions';
+import { seedSessionCwdHints, useSessionCwdChangeListener } from '../../hooks/useChatStream';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 const i18n = defineMessages({
@@ -347,6 +348,19 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     useEffect(() => {
       loadSessions();
     }, [loadSessions]);
+
+    useEffect(() => {
+      seedSessionCwdHints(sessions);
+    }, [sessions]);
+
+    useSessionCwdChangeListener((detail) => {
+      setSessions((prev) => {
+        if (!prev.some((s) => s.id === detail.sessionId)) return prev;
+        return prev.map((s) =>
+          s.id === detail.sessionId ? { ...s, workingDir: detail.newCwd } : s
+        );
+      });
+    });
 
     // Hide Nostr sharing when tunnel is disabled (restricted/enterprise bundles)
     useEffect(() => {

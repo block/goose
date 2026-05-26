@@ -57,6 +57,37 @@ const resultsCache = new Map<
   { messages: Message[]; session: Session; acpConfigOptions?: SessionConfigOption[] | null }
 >();
 
+const sessionCwdHints = new Map<string, string>();
+
+export function setSessionCwdHint(sessionId: string, cwd: string): void {
+  sessionCwdHints.set(sessionId, cwd);
+}
+
+export function getSessionCwdHint(sessionId: string): string | undefined {
+  return sessionCwdHints.get(sessionId);
+}
+
+export function seedSessionCwdHints(items: Array<{ id: string; workingDir: string }>): void {
+  for (const s of items) {
+    sessionCwdHints.set(s.id, s.workingDir);
+  }
+}
+
+export function useSessionCwdChangeListener(
+  handler: (detail: { sessionId: string; newCwd: string }) => void
+): void {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+  useEffect(() => {
+    const wrap = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId: string; newCwd: string }>).detail;
+      if (detail) handlerRef.current(detail);
+    };
+    window.addEventListener(AppEvents.SESSION_CWD_CHANGED, wrap);
+    return () => window.removeEventListener(AppEvents.SESSION_CWD_CHANGED, wrap);
+  }, []);
+}
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
@@ -124,7 +155,8 @@ type StreamAction =
   | { type: 'RESET_FOR_NEW_SESSION' }
   | { type: 'START_STREAMING' }
   | { type: 'STREAM_ERROR'; payload: string }
-  | { type: 'STREAM_FINISH'; payload?: string };
+  | { type: 'STREAM_FINISH'; payload?: string }
+  | { type: 'SET_SESSION_CWD'; payload: string };
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -182,10 +214,14 @@ function acpPermissionOptionId(
 
 function createAcpLoadSessionSnapshot(sessionId: string): Session {
   const now = new Date().toISOString();
+  const workingDir =
+    sessionCwdHints.get(sessionId) ??
+    resultsCache.get(sessionId)?.session.working_dir ??
+    getInitialWorkingDir();
   return {
     id: sessionId,
     name: DEFAULT_CHAT_TITLE,
-    working_dir: getInitialWorkingDir(),
+    working_dir: workingDir,
     created_at: now,
     updated_at: now,
     message_count: 0,
@@ -354,6 +390,13 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         ...state,
         sessionLoadError: action.payload,
         chatState: ChatState.Idle,
+      };
+
+    case 'SET_SESSION_CWD':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: { ...state.session, working_dir: action.payload },
       };
 
     default:
@@ -641,8 +684,14 @@ export function useChatStream({
         messages: state.messages,
         acpConfigOptions: state.acpConfigOptions,
       });
+      sessionCwdHints.set(sessionId, state.session.working_dir);
     }
   }, [sessionId, state.session, state.messages, state.acpConfigOptions]);
+
+  useSessionCwdChangeListener((detail) => {
+    if (!sessionId || detail.sessionId !== sessionId) return;
+    dispatch({ type: 'SET_SESSION_CWD', payload: detail.newCwd });
+  });
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {

@@ -13,6 +13,7 @@ import {
   sessionInfoToListItem,
   SessionListItem,
 } from '../acp/sessions';
+import { seedSessionCwdHints, useSessionCwdChangeListener } from './useChatStream';
 
 const MAX_RECENT_SESSIONS = 5;
 
@@ -78,6 +79,19 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   useEffect(() => {
     sessionsRef.current = recentSessions;
   }, [recentSessions]);
+
+  useEffect(() => {
+    seedSessionCwdHints(recentSessions);
+  }, [recentSessions]);
+
+  useSessionCwdChangeListener((detail) => {
+    setRecentSessions((prev) => {
+      if (!prev.some((s) => s.id === detail.sessionId)) return prev;
+      return prev.map((s) =>
+        s.id === detail.sessionId ? { ...s, workingDir: detail.newCwd } : s
+      );
+    });
+  });
 
   useEffect(() => {
     if (currentSessionId) {

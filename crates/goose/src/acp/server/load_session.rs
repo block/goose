@@ -417,11 +417,13 @@ impl GooseAcpAgent {
             ));
         }
 
+        validate_absolute_cwd(&args.cwd)?;
+
         let session_id_str = args.session_id.0.to_string();
         let sid = sid_short(&session_id_str);
         let t_start = std::time::Instant::now();
 
-        let session = self
+        let mut session = self
             .session_manager
             .get_session(&session_id_str, true)
             .await
@@ -432,9 +434,15 @@ impl GooseAcpAgent {
 
         let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
 
-        // TODO: Lifei to think about the rule below later
-        // `args.cwd` is intentionally ignored: loadSession is a read.
-        // Use `_goose/unstable/session/working-dir/update` for explicit changes.
+        if args.cwd != session.working_dir {
+            self.session_manager
+                .update(&session_id_str)
+                .working_dir(args.cwd.clone())
+                .apply()
+                .await
+                .internal_err()?;
+            session.working_dir = args.cwd.clone();
+        }
 
         let resolved = resolve_provider_and_model(&self.config_dir, &session).await;
 
