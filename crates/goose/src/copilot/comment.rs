@@ -101,6 +101,19 @@ const MAX_CONTEXT_BODY_BYTES: usize = 8 * 1024;
 const MAX_PRIOR_COMMENTS: usize = 20;
 const MAX_PRIOR_COMMENT_BYTES: usize = 1500;
 
+fn truncate_bytes(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    let mut out = s[..end].to_string();
+    out.push_str("\n…[truncated]");
+    out
+}
+
 async fn fetch_comment_context(req: &CopilotCommentRequest) -> Result<CommentContext> {
     #[derive(Deserialize)]
     struct IssueResponse {
@@ -130,8 +143,7 @@ async fn fetch_comment_context(req: &CopilotCommentRequest) -> Result<CommentCon
 
     let mut body = issue.body.unwrap_or_default();
     if body.len() > MAX_CONTEXT_BODY_BYTES {
-        body.truncate(MAX_CONTEXT_BODY_BYTES);
-        body.push_str("\n…[truncated]");
+        body = truncate_bytes(&body, MAX_CONTEXT_BODY_BYTES);
     }
 
     let is_pr = issue.pull_request.is_some();
@@ -212,11 +224,12 @@ async fn fetch_prior_comments(
     Ok(raw
         .into_iter()
         .map(|c| {
-            let mut body = c.body.unwrap_or_default();
-            if body.len() > MAX_PRIOR_COMMENT_BYTES {
-                body.truncate(MAX_PRIOR_COMMENT_BYTES);
-                body.push_str("\n…[truncated]");
-            }
+            let body = c.body.unwrap_or_default();
+            let body = if body.len() > MAX_PRIOR_COMMENT_BYTES {
+                truncate_bytes(&body, MAX_PRIOR_COMMENT_BYTES)
+            } else {
+                body
+            };
             let location = match (c.path, c.line) {
                 (Some(p), Some(l)) => Some(format!("{p}:{l}")),
                 (Some(p), None) => Some(p),
@@ -284,6 +297,10 @@ fn build_comment_prompt(
     } else if req.is_pr {
         "- The repo owner has DISABLED commit push for this bot. Tell the commenter\n  \
          what you would change, but don't expect your edits to land on the PR."
+    } else if prefs.allow_open_new_prs {
+        "- This is an issue, not a PR. Make edits in the working directory; your\n  \
+         changes will be committed on a new branch and opened as a pull request\n  \
+         after you finish — do NOT run `git commit` or `git push` yourself."
     } else {
         "- This is an issue, not a PR — there is no branch to push to. Reply with\n  \
          analysis, suggestions, or code samples in the comment itself."
@@ -520,4 +537,17 @@ async fn create_branch_and_open_pr_if_changed(
         url: html_url,
         files: changed,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_bytes_splits_on_char_boundary() {
+        let s = "あ".repeat(600);
+        let out = truncate_bytes(&s, 1500);
+        assert!(out.ends_with("…[truncated]"));
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
 }
