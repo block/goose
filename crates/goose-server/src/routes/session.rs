@@ -9,12 +9,11 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
 use goose::session::session_manager::{SessionInsights, SessionType};
-use goose::session::{EnabledExtensionsState, Session};
+use goose::session::Session;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -570,47 +569,6 @@ async fn fork_session(
     }))
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionExtensionsResponse {
-    extensions: Vec<ExtensionConfig>,
-}
-
-#[utoipa::path(
-    get,
-    path = "/sessions/{session_id}/extensions",
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session extensions retrieved successfully", body = SessionExtensionsResponse),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn get_session_extensions(
-    State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
-) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
-    let session = state
-        .session_manager()
-        .get_session(&session_id, false)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let extensions = EnabledExtensionsState::extensions_or_default(
-        Some(&session.extension_data),
-        goose::config::Config::global(),
-    );
-
-    Ok(Json(SessionExtensionsResponse { extensions }))
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -637,10 +595,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             put(update_session_user_recipe_values),
         )
         .route("/sessions/{session_id}/fork", post(fork_session))
-        .route(
-            "/sessions/{session_id}/extensions",
-            get(get_session_extensions),
-        )
         .with_state(state)
 }
 #[derive(Deserialize, ToSchema)]
