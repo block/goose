@@ -50,6 +50,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "zhipu" => "zhipuai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
+        "cloudflare" => "cloudflare-workers-ai",
         _ => provider,
     }
 }

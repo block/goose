@@ -16,6 +16,7 @@ use super::{
     chatgpt_codex::ChatGptCodexProvider,
     claude_acp::ClaudeAcpProvider,
     claude_code::ClaudeCodeProvider,
+    cloudflare::CloudflareProvider,
     codex::CodexProvider,
     codex_acp::CodexAcpProvider,
     copilot_acp::CopilotAcpProvider,
@@ -63,6 +64,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<ChatGptCodexProvider>(true);
         registry.register::<ClaudeAcpProvider>(false);
         registry.register::<ClaudeCodeProvider>(true);
+        registry.register::<CloudflareProvider>(false);
         registry.register::<CodexAcpProvider>(false);
         registry.register::<CopilotAcpProvider>(false);
         registry.register::<CodexProvider>(true);
