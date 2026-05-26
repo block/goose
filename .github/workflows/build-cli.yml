@@ -4,7 +4,8 @@
 #  - canary.yml
 #
 # Platform Build Strategy:
-#  - Linux standard: Uses native Ubuntu 22.04 runners to keep glibc compatibility with Ubuntu 22.04 LTS
+#  - Linux x86_64 standard: Builds inside manylinux_2_28 container for glibc 2.28+ compat
+#  - Linux aarch64 standard: Uses native Ubuntu 22.04 ARM runners (glibc 2.35)
 #  - Linux Vulkan: Uses native Ubuntu 24.04 runners for newer Vulkan headers/tooling
 #  - Linux musl: Uses native Ubuntu 22.04 runners with reduced features for musl compatibility
 #  - macOS: Uses native macOS runners for each architecture
