@@ -132,67 +132,103 @@ impl Provider for CloudflareProvider {
     /// Endpoint: `/client/v4/accounts/{account_id}/ai/models/search`. We filter to
     /// `task: "Text Generation"` models — embedding, image, audio, and classification
     /// models won't work through the chat completion path.
+    ///
+    /// Iterates pages using Cloudflare's `result_info.total_pages` metadata so
+    /// accounts with more than 100 matching models don't get a truncated list.
+    /// Capped at MAX_PAGES (50 = 5000 models) as a safety bound.
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // The OpenAI-compat base URL ends in `/ai/v1`. Models live at `/ai/models/search`,
-        // one level up. Resolve relative to the base URL by going up a segment.
-        let response = self
-            .api_client
-            .request(None, "../models/search?per_page=100")
-            .response_get()
-            .await
-            .map_err(|e| {
+        const MAX_PAGES: u32 = 50;
+        let mut models: Vec<String> = Vec::new();
+        let mut page: u32 = 1;
+
+        loop {
+            // The OpenAI-compat base URL ends in `/ai/v1`. Models live at
+            // `/ai/models/search`, one level up. Resolve relative to the base URL
+            // by going up a segment.
+            let path = format!("../models/search?per_page=100&page={}", page);
+            let response = self
+                .api_client
+                .request(None, &path)
+                .response_get()
+                .await
+                .map_err(|e| {
+                    ProviderError::RequestFailed(format!(
+                        "Failed to fetch models from Cloudflare API (page {}): {}",
+                        page, e
+                    ))
+                })?;
+
+            let json: serde_json::Value = response.json().await.map_err(|e| {
                 ProviderError::RequestFailed(format!(
-                    "Failed to fetch models from Cloudflare API: {}",
-                    e
+                    "Failed to parse Cloudflare models response as JSON (page {}): {}",
+                    page, e
                 ))
             })?;
 
-        let json: serde_json::Value = response.json().await.map_err(|e| {
-            ProviderError::RequestFailed(format!(
-                "Failed to parse Cloudflare models response as JSON: {}",
-                e
-            ))
-        })?;
-
-        if let Some(errors) = json.get("errors").and_then(|v| v.as_array()) {
-            if !errors.is_empty() {
-                let msg = errors
-                    .iter()
-                    .filter_map(|e| e.get("message").and_then(|v| v.as_str()))
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                return Err(ProviderError::RequestFailed(format!(
-                    "Cloudflare API returned errors: {}",
-                    msg
-                )));
+            if let Some(errors) = json.get("errors").and_then(|v| v.as_array()) {
+                if !errors.is_empty() {
+                    let msg = errors
+                        .iter()
+                        .filter_map(|e| e.get("message").and_then(|v| v.as_str()))
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Cloudflare API returned errors (page {}): {}",
+                        page, msg
+                    )));
+                }
             }
-        }
 
-        let result = json
-            .get("result")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                ProviderError::RequestFailed("Missing 'result' array in Cloudflare response".into())
-            })?;
+            let result = json
+                .get("result")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| {
+                    ProviderError::RequestFailed(
+                        "Missing 'result' array in Cloudflare response".into(),
+                    )
+                })?;
 
-        let mut models: Vec<String> = result
-            .iter()
-            .filter_map(|model| {
-                let name = model.get("name").and_then(|v| v.as_str())?;
+            // Defensive: stop early if the page is empty.
+            if result.is_empty() {
+                break;
+            }
+
+            for model in result {
+                let name = match model.get("name").and_then(|v| v.as_str()) {
+                    Some(n) => n,
+                    None => continue,
+                };
                 let task_name = model
                     .get("task")
                     .and_then(|t| t.get("name"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 if task_name == "Text Generation" {
-                    Some(name.to_string())
-                } else {
-                    None
+                    models.push(name.to_string());
                 }
-            })
-            .collect();
+            }
 
+            // Standard Cloudflare API pagination: result_info.total_pages.
+            // If the field is absent (older or short response), assume single page.
+            let total_pages = json
+                .get("result_info")
+                .and_then(|ri| ri.get("total_pages"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(1) as u32;
+
+            if page >= total_pages {
+                break;
+            }
+
+            page += 1;
+            if page > MAX_PAGES {
+                break;
+            }
+        }
+
+        // Sort + dedup defensively against duplicates across pages.
         models.sort();
+        models.dedup();
         Ok(models)
     }
 
@@ -236,7 +272,7 @@ impl Provider for CloudflareProvider {
 mod tests {
     use super::*;
     use serde_json::json;
-    use wiremock::matchers::{header, method, path};
+    use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn make_provider_with_server(server_uri: &str, account_id: &str) -> CloudflareProvider {
@@ -423,6 +459,87 @@ mod tests {
         assert!(
             err.to_string().contains("Authentication error"),
             "error should surface API message; got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_supported_models_paginates_across_pages() {
+        // Cloudflare's models/search returns a paginated result_info.total_pages.
+        // This test verifies we follow pagination and merge results from all pages —
+        // accounts with >100 matching models would otherwise get a truncated list.
+        let server = MockServer::start().await;
+        let account_id = "abc123";
+        let path_str = format!("/client/v4/accounts/{}/ai/models/search", account_id);
+
+        // Page 1 of 3 — two text-generation models + one to-filter
+        Mock::given(method("GET"))
+            .and(path(path_str.clone()))
+            .and(query_param("page", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result": [
+                    { "name": "@cf/openai/gpt-oss-20b", "task": { "name": "Text Generation" } },
+                    { "name": "@cf/baai/bge-base-en-v1.5", "task": { "name": "Text Embeddings" } },
+                    { "name": "@cf/meta/llama-4-scout-17b-16e-instruct", "task": { "name": "Text Generation" } }
+                ],
+                "result_info": { "page": 1, "per_page": 100, "total_pages": 3, "count": 3, "total_count": 7 },
+                "success": true,
+                "errors": [],
+                "messages": []
+            })))
+            .mount(&server)
+            .await;
+
+        // Page 2 of 3 — two more text-generation models
+        Mock::given(method("GET"))
+            .and(path(path_str.clone()))
+            .and(query_param("page", "2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result": [
+                    { "name": "@cf/nvidia/nemotron-3-120b-a12b", "task": { "name": "Text Generation" } },
+                    { "name": "@cf/qwen/qwen3-30b-a3b-fp8", "task": { "name": "Text Generation" } }
+                ],
+                "result_info": { "page": 2, "per_page": 100, "total_pages": 3, "count": 2, "total_count": 7 },
+                "success": true,
+                "errors": [],
+                "messages": []
+            })))
+            .mount(&server)
+            .await;
+
+        // Page 3 of 3 — one more text-generation, one image (to-filter)
+        Mock::given(method("GET"))
+            .and(path(path_str.clone()))
+            .and(query_param("page", "3"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result": [
+                    { "name": "@cf/google/gemma-4-26b-a4b-it", "task": { "name": "Text Generation" } },
+                    { "name": "@cf/black-forest-labs/flux-1-schnell", "task": { "name": "Text-to-Image" } }
+                ],
+                "result_info": { "page": 3, "per_page": 100, "total_pages": 3, "count": 2, "total_count": 7 },
+                "success": true,
+                "errors": [],
+                "messages": []
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_server(&server.uri(), account_id);
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("paginated fetch should succeed");
+
+        // All 5 text-generation models across 3 pages, sorted alphabetically.
+        // Embedding + Text-to-Image filtered out by task name.
+        assert_eq!(
+            models,
+            vec![
+                "@cf/google/gemma-4-26b-a4b-it".to_string(),
+                "@cf/meta/llama-4-scout-17b-16e-instruct".to_string(),
+                "@cf/nvidia/nemotron-3-120b-a12b".to_string(),
+                "@cf/openai/gpt-oss-20b".to_string(),
+                "@cf/qwen/qwen3-30b-a3b-fp8".to_string(),
+            ]
         );
     }
 }
