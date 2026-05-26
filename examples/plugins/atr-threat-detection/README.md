@@ -1,6 +1,6 @@
 # atr-threat-detection
 
-Blocks tool calls that match [Agent Threat Rules (ATR)](https://github.com/Agent-Threat-Rule/agent-threat-rules) — 425 detection rules covering prompt injection, tool poisoning, credential exfiltration, and 9 other AI agent attack categories.
+Blocks tool calls that match [Agent Threat Rules (ATR)](https://github.com/Agent-Threat-Rule/agent-threat-rules) — 427 detection rules covering prompt injection, tool poisoning, credential exfiltration, and 9 other AI agent attack categories.
 
 Uses the `PreToolUse` hook introduced in goose PR #9304. A tool call is blocked (exit code 2) when ATR finds a critical or high severity match in the tool input. Any scanner error allows the call through — a broken guard must never block legitimate work.
 
@@ -13,13 +13,13 @@ pip install pyatr
 ## Installation
 
 ```
-goose plugin add /path/to/examples/plugins/atr-threat-detection
+goose plugin install /path/to/examples/plugins/atr-threat-detection
 ```
 
 Or install directly from the ATR repo:
 
 ```
-goose plugin add https://github.com/Agent-Threat-Rule/agent-threat-rules/tree/main/integrations/goose
+goose plugin install https://github.com/Agent-Threat-Rule/agent-threat-rules/tree/main/integrations/goose
 ```
 
 ## What gets blocked
