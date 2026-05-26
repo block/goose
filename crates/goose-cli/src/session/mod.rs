@@ -834,16 +834,18 @@ impl CliSession {
             return Ok(());
         }
 
-        if model_name == current_model_name {
+        let new_model_config =
+            build_switched_model_config(&current_provider_name, model_name, &current_model_config)?;
+
+        if new_model_config.model_name == current_model_config.model_name
+            && new_model_config.thinking_effort() == current_model_config.thinking_effort()
+        {
             output::goose_mode_message(&format!(
                 "Session already using model '{}' for provider '{}'",
                 current_model_name, current_provider_name
             ));
             return Ok(());
         }
-
-        let new_model_config =
-            build_switched_model_config(&current_provider_name, model_name, &current_model_config)?;
 
         let extensions = self.agent.get_extension_configs().await;
         let new_provider =
@@ -2346,6 +2348,31 @@ mod tests {
         assert_eq!(switched.temperature, Some(0.25));
         assert!(switched.toolshim);
         assert_eq!(switched.toolshim_model.as_deref(), Some("qwen2.5-coder"));
+    }
+
+    #[test]
+    fn test_build_switched_model_config_detects_effort_suffix_change() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+        ]);
+
+        let current =
+            goose::model::ModelConfig::new_or_fail("gpt-5.4-high").with_canonical_limits("openai");
+        assert_eq!(current.model_name, "gpt-5.4");
+        assert_eq!(
+            current.thinking_effort(),
+            Some(goose::model::ThinkingEffort::High)
+        );
+
+        let switched = build_switched_model_config("openai", "gpt-5.4", &current).unwrap();
+
+        assert_eq!(switched.model_name, current.model_name);
+        assert_ne!(switched.thinking_effort(), current.thinking_effort());
     }
 
     #[test]
