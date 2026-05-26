@@ -188,7 +188,9 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
                 disabled={isDirectoryChooserOpen}
               >
                 <FolderDot className="mr-1" size={16} />
-                <div className="max-w-[200px] truncate [direction:rtl]">{workingDir}</div>
+                <div className="max-w-[200px] truncate">
+                  {workingDir.replace(/\/+$/, '').split('/').pop() || workingDir}
+                </div>
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>

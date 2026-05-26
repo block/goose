@@ -17,6 +17,7 @@ use futures::future::BoxFuture;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
+use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
@@ -98,7 +99,8 @@ impl BedrockProvider {
         };
 
         // Use load_defaults() which supports AWS SSO, profiles, and environment variables
-        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
+        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .http_client(ReqwestHttpClient::new());
 
         if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
             if !profile_name.is_empty() {

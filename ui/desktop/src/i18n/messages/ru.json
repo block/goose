@@ -11,9 +11,6 @@
   "announcementModal.gotIt": {
     "defaultMessage": "Понятно!"
   },
-  "appLayout.closeNavigation": {
-    "defaultMessage": "Закрыть навигацию"
-  },
   "appLayout.openNavigation": {
     "defaultMessage": "Открыть навигацию"
   },
@@ -119,24 +116,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose завершил задачу."
   },
-  "chatHistorySearch.keyboardHintMac": {
-    "defaultMessage": "⌘K"
-  },
-  "chatHistorySearch.keyboardHintOther": {
-    "defaultMessage": "Ctrl+K"
-  },
-  "chatHistorySearch.messageCount": {
-    "defaultMessage": "{count, plural, one {# сообщение} few {# сообщения} many {# сообщений} other {# сообщения}}"
-  },
-  "chatHistorySearch.noResults": {
-    "defaultMessage": "Чаты не найдены"
-  },
-  "chatHistorySearch.searchError": {
-    "defaultMessage": "Поиск не удался"
-  },
-  "chatHistorySearch.searchPlaceholder": {
-    "defaultMessage": "Поиск чатов…"
-  },
   "chatInput.contextWindow": {
     "defaultMessage": "Контекстное окно"
   },
@@ -191,12 +170,6 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Ожидание сохранения изображений..."
   },
-  "chatSessionsDropdown.newChat": {
-    "defaultMessage": "Новый чат"
-  },
-  "chatSessionsDropdown.showAll": {
-    "defaultMessage": "Показать все"
-  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Настройте как Goose взаимодействует с инструментами и расширениями"
   },
@@ -208,9 +181,6 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Стили ответов"
-  },
-  "condensedRenderer.newChat": {
-    "defaultMessage": "Новый чат"
   },
   "configSettings.configReset": {
     "defaultMessage": "Конфигурация сброшена"
@@ -1391,63 +1361,6 @@
   "goosehintsSection.title": {
     "defaultMessage": "Подсказки проекта (.goosehints)"
   },
-  "greeting.readyToBuild": {
-    "defaultMessage": "Готовы создать что-то потрясающее?"
-  },
-  "greeting.readyToCreateGreat": {
-    "defaultMessage": "Готовы создать что-то отличное?"
-  },
-  "greeting.readyToGetStarted": {
-    "defaultMessage": "Готовы начать?"
-  },
-  "greeting.whatCanBeAchieved": {
-    "defaultMessage": "Чего можно достичь?"
-  },
-  "greeting.whatCanBeBuilt": {
-    "defaultMessage": "Что можно построить сегодня?"
-  },
-  "greeting.whatNeedsToBeDone": {
-    "defaultMessage": "Что нужно сделать?"
-  },
-  "greeting.whatProgress": {
-    "defaultMessage": "Какой процесс можно начать?"
-  },
-  "greeting.whatProjectNeedsAttention": {
-    "defaultMessage": "Какой проект требует внимания?"
-  },
-  "greeting.whatProjectReadyToBegin": {
-    "defaultMessage": "Какой проект готов к работе?"
-  },
-  "greeting.whatShallWeCreate": {
-    "defaultMessage": "Что создадим сегодня?"
-  },
-  "greeting.whatTaskAwaits": {
-    "defaultMessage": "Какая задача ждет?"
-  },
-  "greeting.whatToAccomplish": {
-    "defaultMessage": "Чего вы хотите достичь?"
-  },
-  "greeting.whatToExplore": {
-    "defaultMessage": "Что вы хотите изучить?"
-  },
-  "greeting.whatToTackle": {
-    "defaultMessage": "За что хотите взяться?"
-  },
-  "greeting.whatToWorkOn": {
-    "defaultMessage": "Над чем хотите поработать?"
-  },
-  "greeting.whatsNextChallenge": {
-    "defaultMessage": "Какой следующий вызов?"
-  },
-  "greeting.whatsOnYourMind": {
-    "defaultMessage": "Что у вас на уме?"
-  },
-  "greeting.whatsTheMission": {
-    "defaultMessage": "Какая сегодня миссия?"
-  },
-  "greeting.whatsThePlan": {
-    "defaultMessage": "Какой план на сегодня?"
-  },
   "groupedExtensionLoadingToast.askGoose": {
     "defaultMessage": "Спросить goose"
   },
@@ -1507,6 +1420,15 @@
   },
   "headersSection.value": {
     "defaultMessage": "Значение"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "Добрый день"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "Добрый вечер"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "Доброе утро"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Скачать"
@@ -2402,77 +2324,41 @@
   "modelsSection.resetTitle": {
     "defaultMessage": "Сбросить провайдера и модель"
   },
-  "navigationCustomization.dragInstructions": {
-    "defaultMessage": "Перетащите для изменения порядка, нажмите значок глаза, чтобы показать/скрыть элементы"
-  },
-  "navigationCustomization.hideItem": {
-    "defaultMessage": "Скрыть элемент"
-  },
-  "navigationCustomization.itemApps": {
+  "navigation.itemApps": {
     "defaultMessage": "Приложения"
   },
-  "navigationCustomization.itemChat": {
-    "defaultMessage": "Чат"
-  },
-  "navigationCustomization.itemExtensions": {
+  "navigation.itemExtensions": {
     "defaultMessage": "Расширения"
   },
-  "navigationCustomization.itemHome": {
-    "defaultMessage": "Главная"
+  "navigation.itemHome": {
+    "defaultMessage": "Новый чат"
   },
-  "navigationCustomization.itemRecipes": {
+  "navigation.itemRecipes": {
     "defaultMessage": "Рецепты"
   },
-  "navigationCustomization.itemScheduler": {
+  "navigation.itemScheduler": {
     "defaultMessage": "Планировщик"
   },
-  "navigationCustomization.itemSettings": {
+  "navigation.itemSessions": {
+    "defaultMessage": "История сеансов"
+  },
+  "navigation.itemSettings": {
     "defaultMessage": "Настройки"
   },
-  "navigationCustomization.itemSkills": {
+  "navigation.itemSkills": {
     "defaultMessage": "Навыки"
   },
-  "navigationCustomization.resetToDefaults": {
-    "defaultMessage": "Сбросить к значениям по умолчанию"
+  "navigationPanel.chats": {
+    "defaultMessage": "Чаты"
   },
-  "navigationCustomization.showItem": {
-    "defaultMessage": "Показать элемент"
+  "navigationPanel.collapseSidebar": {
+    "defaultMessage": "Свернуть боковую панель"
   },
-  "navigationModeSelector.overlayDescription": {
-    "defaultMessage": "Полноэкранное всплывающее окно"
+  "navigationPanel.noChats": {
+    "defaultMessage": "Нет недавних чатов"
   },
-  "navigationModeSelector.overlayLabel": {
-    "defaultMessage": "Всплывающее окно"
-  },
-  "navigationModeSelector.pushDescription": {
-    "defaultMessage": "Навигация сдвигает содержимое"
-  },
-  "navigationModeSelector.pushLabel": {
-    "defaultMessage": "Сдвиг"
-  },
-  "navigationPositionSelector.bottomLabel": {
-    "defaultMessage": "Снизу"
-  },
-  "navigationPositionSelector.leftLabel": {
-    "defaultMessage": "Слева"
-  },
-  "navigationPositionSelector.rightLabel": {
-    "defaultMessage": "Справа"
-  },
-  "navigationPositionSelector.topLabel": {
-    "defaultMessage": "Сверху"
-  },
-  "navigationStyleSelector.listDescription": {
-    "defaultMessage": "Классический компактный вид"
-  },
-  "navigationStyleSelector.listLabel": {
-    "defaultMessage": "Список"
-  },
-  "navigationStyleSelector.tileDescription": {
-    "defaultMessage": "Увеличенный плиточный вид"
-  },
-  "navigationStyleSelector.tileLabel": {
-    "defaultMessage": "Плитка"
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "Безымянный сеанс"
   },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "Сервер может запускаться или быть временно недоступен."
@@ -4016,33 +3902,6 @@
   "sessions.toast.updated": {
     "defaultMessage": "Описание сеанса успешно обновлено"
   },
-  "sessionsInsights.failedToLoad": {
-    "defaultMessage": "Не удалось загрузить аналитику"
-  },
-  "sessionsInsights.noRecentChats": {
-    "defaultMessage": "Недавние сеансы чата не найдены."
-  },
-  "sessionsInsights.recentChats": {
-    "defaultMessage": "Недавние чаты"
-  },
-  "sessionsInsights.seeAll": {
-    "defaultMessage": "Показать все"
-  },
-  "sessionsInsights.totalSessions": {
-    "defaultMessage": "Всего сеансов"
-  },
-  "sessionsInsights.totalTokens": {
-    "defaultMessage": "Всего токенов"
-  },
-  "sessionsList.showAll": {
-    "defaultMessage": "Показать все"
-  },
-  "sessionsList.startNewChat": {
-    "defaultMessage": "Начать новый чат"
-  },
-  "sessionsList.untitledSession": {
-    "defaultMessage": "Безымянный сеанс"
-  },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "Не удалось загрузить сведения о сеансе. Повторите попытку позже."
   },
@@ -4087,24 +3946,6 @@
   },
   "settings.menuBarIcon.title": {
     "defaultMessage": "Значок строки меню"
-  },
-  "settings.navigation.customize": {
-    "defaultMessage": "Настроить элементы"
-  },
-  "settings.navigation.description": {
-    "defaultMessage": "Настройте макет и поведение навигации"
-  },
-  "settings.navigation.mode": {
-    "defaultMessage": "Режим"
-  },
-  "settings.navigation.position": {
-    "defaultMessage": "Положение"
-  },
-  "settings.navigation.style": {
-    "defaultMessage": "Стиль"
-  },
-  "settings.navigation.title": {
-    "defaultMessage": "Навигация"
   },
   "settings.notifications.configGuide": {
     "defaultMessage": "Руководство по настройке"
