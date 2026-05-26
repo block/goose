@@ -54,7 +54,14 @@ pub const CHECK_TIMEOUT_SECS: u64 = 5 * 60;
 
 /// One review finding emitted by a check or by the main correctness
 /// pass.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// The optional `round` and `agreement` fields are populated only when
+/// the debate orchestrator (see [`super::debate`]) ran, and are
+/// serialized with `skip_serializing_if = "Option::is_none"` so the
+/// JSONL shape consumed by upstream parsers (the `gooseFinding` struct
+/// in squareup/agents' `review_goose.go`) stays byte-for-byte identical
+/// for single-model runs.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Finding {
     pub severity: String,
     pub path: String,
@@ -62,6 +69,15 @@ pub struct Finding {
     pub line_end: i64,
     pub summary: String,
     pub check: String,
+    /// Round number this finding was last kept in (1..=rounds). Set by
+    /// the debate orchestrator; absent on single-model runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round: Option<u32>,
+    /// Anonymized debater labels (e.g. ["A","C"]) that kept this
+    /// finding in the final debate round. Set by the debate
+    /// orchestrator; absent on single-model runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agreement: Option<Vec<String>>,
 }
 
 /// Schema the check subprocess is required to emit.
@@ -71,17 +87,17 @@ struct FindingsResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct RawFinding {
+pub(super) struct RawFinding {
     #[serde(default)]
-    severity: Option<String>,
+    pub(super) severity: Option<String>,
     #[serde(default)]
-    path: Option<String>,
+    pub(super) path: Option<String>,
     #[serde(default)]
-    line_start: Option<i64>,
+    pub(super) line_start: Option<i64>,
     #[serde(default)]
-    line_end: Option<i64>,
+    pub(super) line_end: Option<i64>,
     #[serde(default)]
-    summary: Option<String>,
+    pub(super) summary: Option<String>,
 }
 
 /// Run all discovered checks concurrently as `goose run` subprocesses.
@@ -215,6 +231,7 @@ async fn run_single_check_subprocess(
             line_end: r.line_end.unwrap_or(0),
             summary: r.summary.unwrap_or_default(),
             check: check.name.clone(),
+            ..Finding::default()
         })
         .collect())
 }
@@ -224,7 +241,7 @@ async fn run_single_check_subprocess(
 /// by the per-check and per-file main-pass orchestrators so both get
 /// the same robust JSON extraction, timeout handling, and error
 /// reporting.
-async fn run_subprocess_for_findings(
+pub(super) async fn run_subprocess_for_findings(
     prompt: &str,
     label: &str,
     provider: Option<&str>,
@@ -369,6 +386,7 @@ pub async fn run_main_pass_in_parallel(
                         line_end: r.line_end.unwrap_or(0),
                         summary: r.summary.unwrap_or_default(),
                         check: "main".to_string(),
+                        ..Finding::default()
                     })
                     .collect();
                 if !quiet {

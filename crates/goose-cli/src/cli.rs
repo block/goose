@@ -1106,6 +1106,29 @@ enum Command {
         /// `--severity low` to surface every finding.
         #[arg(long = "severity", value_name = "LEVEL", default_value = "medium")]
         severity: String,
+
+        /// Run the main correctness pass through a multi-model debate
+        /// instead of a single model. Format:
+        /// `provider/model,provider/model,...` (≥2 entries). Each
+        /// debater is assigned an opaque label (A, B, C, ...) before
+        /// being shown its peers' findings. Inspired by
+        /// <https://milvus.io/blog/ai-code-review-gets-better-when-models-debate-claude-vs-gemini-vs-codex-vs-qwen-vs-minimax.md>.
+        #[arg(long = "debate-models", value_name = "LIST")]
+        debate_models: Option<String>,
+
+        /// Number of debate rounds, including round 1 (the
+        /// independent pass). Rounds ≥ 2 cross-pollinate each
+        /// debater's prior findings to its peers. Capped at 5 to
+        /// keep the cost ceiling predictable. Default 2.
+        #[arg(long = "debate-rounds", value_name = "N", default_value = "2")]
+        debate_rounds: u32,
+
+        /// Minimum number of debaters that must keep a finding in the
+        /// final round for it to be emitted. Default 1 emits the
+        /// union of all debaters' findings; raise to `ceil(N/2)` for
+        /// majority agreement.
+        #[arg(long = "debate-min-agreement", value_name = "K", default_value = "1")]
+        debate_min_agreement: usize,
     },
 
     #[command(
@@ -2132,8 +2155,24 @@ pub async fn cli() -> anyhow::Result<()> {
             checks_only,
             summary_only,
             severity,
+            debate_models,
+            debate_rounds,
+            debate_min_agreement,
         }) => {
+            use crate::commands::review::debate::{parse_debaters, DebateOptions};
             use crate::commands::review::{handle_review, ReviewOptions};
+            // Hard-cap rounds at 5 (matches Milvus's setup); silently
+            // clamping here keeps the cost ceiling predictable even if
+            // someone passes `--debate-rounds 50`. Anything below 1 is
+            // nonsensical; bump to 1.
+            let debate = match debate_models {
+                Some(spec) => Some(DebateOptions {
+                    debaters: parse_debaters(&spec)?,
+                    rounds: debate_rounds.clamp(1, 5),
+                    min_agreement: debate_min_agreement.max(1),
+                }),
+                None => None,
+            };
             handle_review(ReviewOptions {
                 range,
                 prompt_file: prompt,
@@ -2151,6 +2190,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 checks_only,
                 summary_only,
                 severity,
+                debate,
             })
             .await
         }

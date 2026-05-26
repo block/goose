@@ -7,6 +7,7 @@ use crate::session::{build_session, SessionBuilderConfig};
 
 use goose::checks::{discover, DiscoveredReview};
 
+use super::debate::{run_debate_review, DebateOptions};
 use super::orchestrator::{
     emit_findings, run_checks_in_parallel, run_main_pass_in_parallel, Severity,
 };
@@ -64,6 +65,12 @@ pub struct ReviewOptions {
     /// `medium`, matching Amp's CLI behavior of hiding `low` from
     /// the review output.
     pub severity: String,
+    /// When `Some`, run the multi-model debate orchestrator instead of
+    /// the single-model main pass. The standard checks pass still
+    /// runs alongside (debate covers the main correctness pass only
+    /// for now). When `None`, behavior is unchanged from the
+    /// pre-debate orchestrator.
+    pub debate: Option<DebateOptions>,
 }
 
 /// Entry point for the `goose review` subcommand.
@@ -135,6 +142,13 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
         None => DEFAULT_REVIEW_PROMPT.to_string(),
     };
 
+    // Debate has no legacy single-prompt path; it inherently relies
+    // on the per-(file,debater) subprocess fan-out from
+    // `orchestrator::run_subprocess_for_findings`. Reject the
+    // combination up front instead of silently dropping `--debate-*`.
+    if opts.debate.is_some() && opts.no_orchestrate {
+        bail!("--debate-models is incompatible with --no-orchestrate");
+    }
     let use_orchestrator = !opts.no_orchestrate;
 
     // Reviewer instructions are also injected into every per-file
@@ -225,6 +239,8 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     let main_findings_fut = async {
         if opts.checks_only {
             Vec::new()
+        } else if let Some(debate) = opts.debate.as_ref() {
+            run_debate_review(&diff, &base_prompt, &opts, debate).await
         } else {
             run_main_pass_in_parallel(&diff, &base_prompt, &opts).await
         }
