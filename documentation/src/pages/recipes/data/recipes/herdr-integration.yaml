@@ -1,0 +1,82 @@
+version: 1.0.0
+title: Herdr Terminal Multiplexer Integration
+description: Sets up goose with herdr terminal multiplexer so goose's state (working/blocked/idle) is visible in the herdr sidebar.
+author:
+  contact: modib
+
+activities:
+  - Detect herdr and goose installations
+  - Install the herdr wrapper script
+  - Install the herdr state-reporting skill
+  - Verify the integration
+
+instructions: |
+  You are helping a user set up goose with herdr for agent state reporting.
+  Herdr is a terminal multiplexer (like tmux) that shows AI agent state in its sidebar.
+
+  The integration consists of:
+  1. A wrapper script that replaces the `goose` binary to report start/exit states
+  2. A skill that teaches goose to self-report working/blocked/idle during sessions
+
+  ## Step-by-step
+
+  ### 1. Check prerequisites
+  - Verify herdr is installed: `which herdr` or check `~/.config/herdr/`
+  - Verify goose is installed: `which goose`
+  - If either is missing, ask the user to install it first and stop
+
+  ### 2. Install the integration
+  Run these commands:
+
+  ```bash
+  # Clone the integration
+  git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup
+
+  # Run the installer
+  bash /tmp/herdr-setup/plugins/herdr/install.sh
+  ```
+
+  After install.sh completes, verify:
+  - `~/.local/bin/goose` exists and is a script (not the original binary)
+  - `~/.local/bin/goose-original` exists (backup of original binary)
+  - `~/.agents/skills/herdr/SKILL.md` exists
+  - `~/.agents/plugins/herdr/herdr_report.py` exists
+
+  ### 3. Verify the integration
+  Ask the user to:
+  - Start a herdr pane: `herdr`
+  - Run goose inside it and confirm goose appears in the herdr sidebar
+  - State should show as idle when waiting and working when processing
+
+  ### 4. Clean up
+  Remove the temporary clone:
+  ```bash
+  rm -rf /tmp/herdr-setup
+  ```
+
+  ## Caveats
+  - The wrapper only activates when goose runs inside a herdr pane (HERDR_ENV=1)
+  - Outside herdr, goose works exactly as before
+  - The original binary is preserved as goose-original
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: For running shell commands, checking installations, and file system access
+
+prompt: |
+  Help the user set up goose with herdr terminal multiplexer.
+
+  First, check that both herdr (`which herdr`) and goose (`which goose`) are installed.
+  If either is missing, tell the user and stop.
+
+  Then:
+  1. Clone the integration: `git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup`
+  2. Run the installer: `bash /tmp/herdr-setup/plugins/herdr/install.sh`
+  3. Verify everything is in place
+  4. Clean up: `rm -rf /tmp/herdr-setup`
+
+  Tell the user when it's done and how to test it.
