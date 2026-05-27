@@ -13,34 +13,21 @@ import {
 } from '@agentclientprotocol/sdk';
 import packageJson from '../../package.json';
 import { createWebSocketStream } from './createWebSocketStream';
+import { createSessionScopedNotificationRouter } from './sessionScopedNotificationRouter';
 
 let clientPromise: Promise<GooseClient> | null = null;
 let resolvedClient: GooseClient | null = null;
-let notificationHandler: AcpNotificationHandler | null = null;
-let gooseSessionNotificationHandler: AcpGooseSessionNotificationHandler | null = null;
 let permissionHandler: AcpPermissionHandler | null = null;
 
-export interface AcpNotificationHandler {
-  handleSessionNotification(notification: SessionNotification): Promise<void>;
-}
+const sessionRouter = createSessionScopedNotificationRouter<SessionNotification>();
+const gooseSessionRouter = createSessionScopedNotificationRouter<GooseSessionNotification>();
 
-export interface AcpGooseSessionNotificationHandler {
-  handleGooseSessionNotification(notification: GooseSessionNotification): Promise<void>;
-}
+export const subscribeToAcpSession = sessionRouter.subscribe;
+export const subscribeToAcpGooseSession = gooseSessionRouter.subscribe;
 
 export type AcpPermissionHandler = (
   request: RequestPermissionRequest
 ) => Promise<RequestPermissionResponse>;
-
-export function setAcpNotificationHandler(handler: AcpNotificationHandler | null): void {
-  notificationHandler = handler;
-}
-
-export function setAcpGooseSessionNotificationHandler(
-  handler: AcpGooseSessionNotificationHandler | null
-): void {
-  gooseSessionNotificationHandler = handler;
-}
 
 export function setAcpPermissionHandler(handler: AcpPermissionHandler | null): void {
   permissionHandler = handler;
@@ -60,12 +47,8 @@ function createClientCallbacks(): () => GooseClientCallbacks {
         },
       };
     },
-    sessionUpdate: async (notification) => {
-      await notificationHandler?.handleSessionNotification(notification);
-    },
-    unstable_sessionUpdate: async (notification) => {
-      await gooseSessionNotificationHandler?.handleGooseSessionNotification(notification);
-    },
+    sessionUpdate: sessionRouter.route,
+    unstable_sessionUpdate: gooseSessionRouter.route,
   });
 }
 

@@ -1,8 +1,8 @@
-export type SessionScopedNotificationListener<TNotification> = (
+type SessionScopedNotificationListener<TNotification> = (
   notification: TNotification
 ) => Promise<void> | void;
 
-export interface SessionScopedNotificationRouter<TNotification> {
+interface SessionScopedNotificationRouter<TNotification> {
   route(notification: TNotification): Promise<void>;
   subscribe(
     sessionId: string,

@@ -47,10 +47,11 @@ import {
 } from '../acp/sessionNotificationAdapter';
 import { type AcpCreditsExhaustedError, parseAcpCreditsExhaustedError } from '../acp/errors';
 import {
+  getAcpClient,
+  setAcpPermissionHandler,
   subscribeToAcpGooseSession,
   subscribeToAcpSession,
-} from '../acp/sessionNotificationRouter';
-import { getAcpClient, setAcpPermissionHandler } from '../acp/acpConnection';
+} from '../acp/acpConnection';
 
 const resultsCache = new Map<
   string,
