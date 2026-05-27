@@ -2595,7 +2595,7 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/dictation/models/select"
     },
-    "GooseSessionNotification": {
+    "GooseSessionNotification_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -2611,7 +2611,7 @@
       ],
       "description": "Goose-custom session update notification — a parallel to ACP's\n`session/update` carrying goose-specific update variants.",
       "x-side": "agent",
-      "x-method": "_goose/session/update"
+      "x-method": "_goose/unstable/session/update"
     },
     "GooseSessionUpdate": {
       "oneOf": [
@@ -3666,11 +3666,11 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GooseSessionNotification"
+                      "$ref": "#/$defs/GooseSessionNotification_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/update",
-                  "title": "GooseSessionNotification"
+                  "description": "Params for _goose/unstable/session/update",
+                  "title": "GooseSessionNotification_unstable"
                 }
               ]
             },

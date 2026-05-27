@@ -1069,7 +1069,7 @@ export type DictationModelSelectRequest_unstable = {
  * Goose-custom session update notification — a parallel to ACP's
  * `session/update` carrying goose-specific update variants.
  */
-export type GooseSessionNotification = {
+export type GooseSessionNotification_unstable = {
     sessionId: string;
     update: GooseSessionUpdate;
 };
@@ -1154,7 +1154,7 @@ export type ExtResponse = {
 
 export type ExtNotification = {
     method: string;
-    params?: GooseSessionNotification | {
+    params?: GooseSessionNotification_unstable | {
         [key: string]: unknown;
     } | null;
 };

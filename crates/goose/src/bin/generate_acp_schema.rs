@@ -118,10 +118,11 @@ fn main() {
 
     for n in &notifications {
         if let Some(name) = &n.params_type_name {
+            let generated_name = generated_type_name(name, &unstable_type_names);
             notification_variants.push(json!({
-                "allOf": [{ "$ref": format!("#/$defs/{name}") }],
+                "allOf": [{ "$ref": format!("#/$defs/{generated_name}") }],
                 "description": format!("Params for {}", n.method),
-                "title": name,
+                "title": generated_name,
             }));
         }
     }
@@ -261,7 +262,10 @@ fn main() {
         .map(|n| {
             json!({
                 "method": &n.method,
-                "paramsType": n.params_type_name,
+                "paramsType": n
+                    .params_type_name
+                    .as_ref()
+                    .map(|name| generated_type_name(name, &unstable_type_names)),
             })
         })
         .collect();

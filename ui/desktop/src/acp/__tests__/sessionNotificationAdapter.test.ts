@@ -1,4 +1,4 @@
-import type { GooseSessionNotification } from '@aaif/goose-sdk';
+import type { GooseSessionNotification_unstable as GooseSessionNotification } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../api';

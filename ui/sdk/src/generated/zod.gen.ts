@@ -1135,7 +1135,7 @@ export const zGooseSessionUpdate = z.union([
  * Goose-custom session update notification — a parallel to ACP's
  * `session/update` carrying goose-specific update variants.
  */
-export const zGooseSessionNotification = z.object({
+export const zGooseSessionNotification_unstable = z.object({
     sessionId: z.string(),
     update: zGooseSessionUpdate
 });
@@ -1264,7 +1264,7 @@ export const zExtResponse = z.union([
 export const zExtNotification = z.object({
     method: z.string(),
     params: z.union([
-        zGooseSessionNotification,
+        zGooseSessionNotification_unstable,
         z.union([
             z.record(z.unknown()),
             z.null()

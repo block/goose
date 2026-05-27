@@ -1,6 +1,5 @@
 import {
   ClientSideConnection,
-  type Client,
   type Stream,
   type InitializeRequest,
   type InitializeResponse,
@@ -26,19 +25,28 @@ import {
   type SetSessionModelRequest,
   type SetSessionModelResponse,
 } from "@agentclientprotocol/sdk";
-import { GooseExtClient } from "./generated/client.gen.js";
+import {
+  GooseExtClient,
+  installGooseExtNotificationDispatcher,
+  type GooseClientCallbacks,
+} from "./generated/client.gen.js";
 import { createHttpStream } from "./http-stream.js";
 
 export class GooseClient {
   private conn: ClientSideConnection;
   private ext: GooseExtClient;
 
-  constructor(toClient: () => Client, streamOrUrl: Stream | string) {
+  constructor(
+    toClient: () => GooseClientCallbacks,
+    streamOrUrl: Stream | string,
+  ) {
     const stream =
       typeof streamOrUrl === "string"
         ? createHttpStream(streamOrUrl)
         : streamOrUrl;
-    this.conn = new ClientSideConnection(toClient, stream);
+    const toAcpClient = () =>
+      installGooseExtNotificationDispatcher(toClient());
+    this.conn = new ClientSideConnection(toAcpClient, stream);
     this.ext = new GooseExtClient(this.conn);
   }
 

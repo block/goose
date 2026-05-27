@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Goose-custom session update notification — a parallel to ACP's
 /// `session/update` carrying goose-specific update variants.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcNotification)]
-#[notification(method = "_goose/session/update")]
+#[notification(method = "_goose/unstable/session/update")]
 #[serde(rename_all = "camelCase")]
 pub struct GooseSessionNotification {
     pub session_id: String,

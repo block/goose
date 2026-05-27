@@ -283,8 +283,8 @@
   ],
   "notifications": [
     {
-      "method": "_goose/session/update",
-      "paramsType": "GooseSessionNotification"
+      "method": "_goose/unstable/session/update",
+      "paramsType": "GooseSessionNotification_unstable"
     }
   ]
 }

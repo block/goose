@@ -1,8 +1,8 @@
 import {
   DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
   GooseClient,
-  type Client,
-  type GooseSessionNotification,
+  type GooseClientCallbacks,
+  type GooseSessionNotification_unstable as GooseSessionNotification,
   type GooseInitializeRequest,
 } from '@aaif/goose-sdk';
 import {
@@ -46,7 +46,7 @@ export function setAcpPermissionHandler(handler: AcpPermissionHandler | null): v
   permissionHandler = handler;
 }
 
-function createClientCallbacks(): () => Client {
+function createClientCallbacks(): () => GooseClientCallbacks {
   return () => ({
     requestPermission: async (request) => {
       if (permissionHandler) {
@@ -63,39 +63,10 @@ function createClientCallbacks(): () => Client {
     sessionUpdate: async (notification) => {
       await notificationHandler?.handleSessionNotification(notification);
     },
-    extNotification: async (method, params) => {
-      if (method !== '_goose/session/update') {
-        return;
-      }
-
-      const notification = parseGooseSessionNotification(params);
-      if (notification) {
-        await gooseSessionNotificationHandler?.handleGooseSessionNotification(notification);
-      }
+    unstable_sessionUpdate: async (notification) => {
+      await gooseSessionNotificationHandler?.handleGooseSessionNotification(notification);
     },
   });
-}
-
-function parseGooseSessionNotification(
-  params: Record<string, unknown>
-): GooseSessionNotification | null {
-  if (typeof params.sessionId !== 'string' || !isRecord(params.update)) {
-    return null;
-  }
-
-  if (
-    params.update.sessionUpdate !== 'usage_update' &&
-    params.update.sessionUpdate !== 'status_message' &&
-    params.update.sessionUpdate !== 'interaction_update'
-  ) {
-    return null;
-  }
-
-  return params as GooseSessionNotification;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function monitorConnection(client: GooseClient): void {

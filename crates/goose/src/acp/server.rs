@@ -2822,7 +2822,7 @@ impl GooseAcpAgent {
             cx.send_notification(updates.custom)?;
             // Legacy ACP notification — emitted alongside the custom one for
             // backwards compatibility. Remove once all known clients have
-            // migrated to `_goose/session/update`.
+            // migrated to `_goose/unstable/session/update`.
             cx.send_notification(SessionNotification::new(
                 acp_session_id.clone(),
                 SessionUpdate::UsageUpdate(updates.legacy),
@@ -3143,7 +3143,7 @@ impl GooseAcpAgent {
         cx.send_notification(updates.custom)?;
         // Legacy ACP notification — emitted alongside the custom one for
         // backwards compatibility. Remove once all known clients have
-        // migrated to `_goose/session/update`.
+        // migrated to `_goose/unstable/session/update`.
         cx.send_notification(SessionNotification::new(
             args.session_id.clone(),
             SessionUpdate::UsageUpdate(updates.legacy),

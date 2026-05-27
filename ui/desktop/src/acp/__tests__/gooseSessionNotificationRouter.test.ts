@@ -1,4 +1,4 @@
-import type { GooseSessionNotification } from '@aaif/goose-sdk';
+import type { GooseSessionNotification_unstable as GooseSessionNotification } from '@aaif/goose-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setAcpGooseSessionNotificationHandler } from '../acpConnection';
 import {

@@ -1,4 +1,4 @@
-import type { GooseSessionNotification } from '@aaif/goose-sdk';
+import type { GooseSessionNotification_unstable as GooseSessionNotification } from '@aaif/goose-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
 import {
   type AcpGooseSessionNotificationHandler,
