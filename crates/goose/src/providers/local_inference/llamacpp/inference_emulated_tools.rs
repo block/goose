@@ -299,6 +299,66 @@ impl StreamingEmulatorParser {
     }
 }
 
+struct StopSuffixTrimmer {
+    pending: String,
+    stops: Vec<String>,
+}
+
+impl StopSuffixTrimmer {
+    fn new(stops: &[String]) -> Self {
+        Self {
+            pending: String::new(),
+            stops: stops
+                .iter()
+                .filter(|stop| !stop.is_empty())
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn push(&mut self, chunk: &str) -> (String, bool) {
+        if self.stops.is_empty() {
+            return (chunk.to_string(), false);
+        }
+
+        self.pending.push_str(chunk);
+
+        if let Some(stop) = self
+            .stops
+            .iter()
+            .filter(|stop| self.pending.ends_with(stop.as_str()))
+            .max_by_key(|stop| stop.len())
+        {
+            let emit_len = self.pending.len() - stop.len();
+            let emit = self.pending[..emit_len].to_string();
+            self.pending.clear();
+            return (emit, true);
+        }
+
+        let hold_len = self
+            .pending
+            .char_indices()
+            .map(|(idx, _)| idx)
+            .chain(std::iter::once(self.pending.len()))
+            .filter(|idx| {
+                let suffix = &self.pending[*idx..];
+                self.stops.iter().any(|stop| stop.starts_with(suffix))
+            })
+            .map(|idx| self.pending.len() - idx)
+            .max()
+            .unwrap_or(0);
+
+        let emit_len = self.pending.len() - hold_len;
+        let emit = self.pending[..emit_len].to_string();
+        self.pending = self.pending[emit_len..].to_string();
+        (emit, false)
+    }
+
+    fn finish(&mut self) -> String {
+        std::mem::take(&mut self.pending)
+    }
+}
+
 fn send_emulator_action(
     action: &EmulatorAction,
     message_id: &str,
@@ -368,9 +428,11 @@ pub(super) fn generate_with_emulated_tools(
         ctx.settings.enable_thinking,
         &template_result.generation_prompt,
     );
+    let mut stop_trimmer = StopSuffixTrimmer::new(&template_result.additional_stops);
     let mut generated_text = String::new();
     let mut tool_call_emitted = false;
     let mut send_failed = false;
+    let mut stop_string_emitted = false;
 
     let output_token_count = generation_loop(
         &ctx.loaded.model,
@@ -381,7 +443,8 @@ pub(super) fn generate_with_emulated_tools(
         |piece| {
             generated_text.push_str(piece);
             let filtered = output_filter.push_text(piece);
-            let actions = emulator_parser.process_chunk(&filtered.content);
+            let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+            let actions = emulator_parser.process_chunk(&content);
             for action in actions {
                 match send_emulator_action(&action, message_id, tx) {
                     Ok(is_tool) => {
@@ -397,11 +460,13 @@ pub(super) fn generate_with_emulated_tools(
             }
             if tool_call_emitted {
                 Ok(TokenAction::Stop)
-            } else if template_result
-                .additional_stops
-                .iter()
-                .any(|stop| generated_text.ends_with(stop))
+            } else if stop_seen
+                || template_result
+                    .additional_stops
+                    .iter()
+                    .any(|stop| generated_text.ends_with(stop))
             {
+                stop_string_emitted = true;
                 Ok(TokenAction::Stop)
             } else {
                 Ok(TokenAction::Continue)
@@ -416,8 +481,18 @@ pub(super) fn generate_with_emulated_tools(
             message.id = Some(message_id.to_string());
             send_failed = tx.blocking_send(Ok((Some(message), None))).is_err();
         }
-        if !send_failed && !filtered.content.is_empty() {
-            for action in emulator_parser.process_chunk(&filtered.content) {
+        if !send_failed {
+            let content = if stop_string_emitted {
+                String::new()
+            } else {
+                let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+                let mut content = content;
+                if !stop_seen {
+                    content.push_str(&stop_trimmer.finish());
+                }
+                content
+            };
+            for action in emulator_parser.process_chunk(&content) {
                 if send_emulator_action(&action, message_id, tx).is_err() {
                     send_failed = true;
                     break;
@@ -463,6 +538,27 @@ mod tests {
 
     fn parse_all(input: &str, code_mode: bool) -> Vec<EmulatorAction> {
         parse_chunks(&[input], code_mode)
+    }
+
+    fn trim_chunks(chunks: &[&str], stops: &[String]) -> (String, bool) {
+        let mut trimmer = StopSuffixTrimmer::new(stops);
+        let mut output = String::new();
+        let mut stopped = false;
+
+        for chunk in chunks {
+            let (content, stop_seen) = trimmer.push(chunk);
+            output.push_str(&content);
+            if stop_seen {
+                stopped = true;
+                break;
+            }
+        }
+
+        if !stopped {
+            output.push_str(&trimmer.finish());
+        }
+
+        (output, stopped)
     }
 
     fn parse_with_seeded_thinking(
@@ -519,6 +615,24 @@ mod tests {
             EmulatorAction::ShellCommand(_) => "ShellCommand",
             EmulatorAction::ExecuteCode(_) => "ExecuteCode",
         }
+    }
+
+    #[test]
+    fn stop_suffix_trimmer_strips_split_stop() {
+        let stops = vec!["<|eom_id|>".to_string()];
+        let (content, stopped) = trim_chunks(&["The answer", "<|e", "om_id|>"], &stops);
+
+        assert!(stopped);
+        assert_eq!(content, "The answer");
+    }
+
+    #[test]
+    fn stop_suffix_trimmer_flushes_partial_non_stop() {
+        let stops = vec!["<|eom_id|>".to_string()];
+        let (content, stopped) = trim_chunks(&["Use the <", " symbol"], &stops);
+
+        assert!(!stopped);
+        assert_eq!(content, "Use the < symbol");
     }
 
     #[test]
