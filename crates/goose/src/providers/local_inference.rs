@@ -134,16 +134,12 @@ pub(super) struct ResolvedModelPaths {
 
 /// Resolve model path, context limit, settings, and mmproj path for a model ID from the registry.
 fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
-    use crate::providers::local_inference::local_model_registry::{
-        default_settings_for_model, get_registry,
-    };
+    use crate::providers::local_inference::local_model_registry::get_registry;
 
     if let Ok(registry) = get_registry().lock() {
         if let Some(entry) = registry.get_model(model_id) {
             let ctx = entry.settings.context_size.unwrap_or(0) as usize;
             let mut settings = entry.settings.clone();
-            let defaults = default_settings_for_model(model_id);
-            settings.vision_capable = defaults.vision_capable;
             settings.mmproj_size_bytes = entry.mmproj_size_bytes;
             let mmproj_path = entry.mmproj_path.as_ref().filter(|p| p.exists()).cloned();
             return Some(ResolvedModelPaths {

@@ -139,23 +139,6 @@ impl Default for ModelSettings {
     }
 }
 
-/// HuggingFace repo + filename for multimodal projection weights (vision encoder).
-pub struct MmprojSpec {
-    pub repo: &'static str,
-    pub filename: &'static str,
-}
-
-impl MmprojSpec {
-    /// Local path for this mmproj, namespaced by repo to avoid collisions
-    /// between different models that use the same filename.
-    pub fn local_path(&self) -> std::path::PathBuf {
-        let repo_name = self.repo.split('/').next_back().unwrap_or(self.repo);
-        Paths::in_data_dir("models")
-            .join(repo_name)
-            .join(self.filename)
-    }
-}
-
 pub struct FeaturedModel {
     /// HuggingFace spec in "author/repo-GGUF:quantization" format.
     pub spec: &'static str,
@@ -182,31 +165,17 @@ pub const FEATURED_MODELS: &[FeaturedModel] = &[
     },
 ];
 
-const KNOWN_MMPROJ_SPECS: &[MmprojSpec] = &[
-    MmprojSpec {
-        repo: "unsloth/gemma-4-E4B-it-GGUF",
-        filename: "mmproj-BF16.gguf",
-    },
-    MmprojSpec {
-        repo: "unsloth/gemma-4-26B-A4B-it-GGUF",
-        filename: "mmproj-BF16.gguf",
-    },
-];
-
-pub fn default_settings_for_model(model_id: &str) -> ModelSettings {
+pub fn default_settings_for_model(_model_id: &str) -> ModelSettings {
     ModelSettings {
-        vision_capable: known_mmproj_spec(model_id).is_some(),
         ..ModelSettings::default()
     }
 }
 
-/// Look up the `MmprojSpec` for a model by its model ID.
-pub fn known_mmproj_spec(model_id: &str) -> Option<&'static MmprojSpec> {
-    let model_repo = model_id.split(':').next().unwrap_or(model_id);
-    KNOWN_MMPROJ_SPECS.iter().find(|mmproj| {
-        let spec_repo = mmproj.repo.split(':').next().unwrap_or(mmproj.repo);
-        spec_repo == model_repo
-    })
+/// Local path for an mmproj file, namespaced by repo to avoid collisions
+/// between different models that use the same filename.
+pub fn mmproj_local_path(repo_id: &str, filename: &str) -> PathBuf {
+    let repo_name = repo_id.split('/').next_back().unwrap_or(repo_id);
+    Paths::in_data_dir("models").join(repo_name).join(filename)
 }
 
 /// Check if a model ID corresponds to a featured model.
@@ -260,29 +229,26 @@ pub struct LocalModelEntry {
     #[serde(default)]
     pub mmproj_size_bytes: u64,
     #[serde(default)]
+    pub mmproj_checked: bool,
+    #[serde(default)]
     pub shard_files: Vec<ShardFile>,
 }
 
 impl LocalModelEntry {
-    /// Populate mmproj metadata and vision settings when this model's repo has
-    /// a known vision encoder.
-    pub fn enrich_with_known_mmproj(&mut self) {
-        if let Some(mmproj) = known_mmproj_spec(&self.id) {
-            let path = mmproj.local_path();
-            if self.mmproj_path.as_ref() != Some(&path) {
-                self.mmproj_path = Some(path.clone());
-                self.mmproj_source_url = Some(format!(
-                    "https://huggingface.co/{}/resolve/main/{}",
-                    mmproj.repo, mmproj.filename
-                ));
-            }
+    pub fn refresh_mmproj_metadata(&mut self) {
+        self.settings.vision_capable = self.mmproj_path.is_some();
+        if let Some(path) = &self.mmproj_path {
+            self.mmproj_checked = true;
             self.settings.vision_capable = true;
             if self.mmproj_size_bytes == 0 || self.settings.mmproj_size_bytes == 0 {
-                if let Ok(meta) = std::fs::metadata(&path) {
+                if let Ok(meta) = std::fs::metadata(path) {
                     self.mmproj_size_bytes = meta.len();
                     self.settings.mmproj_size_bytes = meta.len();
                 }
             }
+        } else {
+            self.mmproj_size_bytes = 0;
+            self.settings.mmproj_size_bytes = 0;
         }
     }
 
@@ -431,7 +397,7 @@ impl LocalModelRegistry {
 
         for mut entry in featured_entries {
             if !self.models.iter().any(|m| m.id == entry.id) {
-                entry.enrich_with_known_mmproj();
+                entry.refresh_mmproj_metadata();
                 self.models.push(entry);
                 changed = true;
             }
@@ -450,7 +416,7 @@ impl LocalModelRegistry {
     }
 
     pub fn add_model(&mut self, mut entry: LocalModelEntry) -> Result<()> {
-        entry.enrich_with_known_mmproj();
+        entry.refresh_mmproj_metadata();
         if let Some(existing) = self.models.iter_mut().find(|m| m.id == entry.id) {
             *existing = entry;
         } else {

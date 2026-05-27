@@ -14,9 +14,9 @@ use goose::download_manager::{get_download_manager, DownloadProgress};
 use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfQuantVariant};
 use goose::providers::local_inference::{
     available_inference_memory_bytes, builtin_chat_template_names,
-    hf_models::{resolve_model_spec, resolve_model_spec_full, HfGgufFile},
+    hf_models::{resolve_model_spec_full, HfGgufFile},
     local_model_registry::{
-        default_settings_for_model, get_registry, is_featured_model, known_mmproj_spec,
+        default_settings_for_model, get_registry, is_featured_model, mmproj_local_path,
         model_id_from_repo, LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
         ModelSettings, ShardFile, FEATURED_MODELS,
     },
@@ -79,27 +79,18 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
                 .lock()
                 .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
             if let Some(existing) = registry.get_model(&model_id) {
-                let mmproj = known_mmproj_spec(&model_id);
-                let needs_backfill = existing.mmproj_path.is_none() && mmproj.is_some();
-                let needs_download = existing.is_downloaded()
-                    && mmproj.is_some()
-                    && !existing.mmproj_path.as_ref().is_some_and(|p| p.exists());
-
-                if needs_download {
-                    if let Some(mmproj) = mmproj {
-                        let path = mmproj.local_path();
-                        let url = format!(
-                            "https://huggingface.co/{}/resolve/main/{}",
-                            mmproj.repo, mmproj.filename
-                        );
-                        mmproj_downloads_needed.push((model_id.clone(), url, path));
+                if let Some(path) = &existing.mmproj_path {
+                    if existing.is_downloaded() && !path.exists() {
+                        if let Some(url) = &existing.mmproj_source_url {
+                            mmproj_downloads_needed.push((
+                                model_id.clone(),
+                                url.clone(),
+                                path.clone(),
+                            ));
+                        }
                     }
-                }
-
-                if !needs_backfill {
                     continue;
                 }
-                // Fall through to resolve for backfill
             }
         }
 
@@ -111,36 +102,45 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
         });
     }
 
-    let resolved: Vec<(PendingResolve, HfGgufFile)> =
+    let resolved: Vec<(PendingResolve, HfGgufFile, Option<HfGgufFile>)> =
         join_all(to_resolve.into_iter().map(|pending| async move {
-            let hf_file = match resolve_model_spec(pending.spec).await {
-                Ok((_repo, file)) => file,
+            let (hf_file, mmproj) = match resolve_model_spec_full(pending.spec).await {
+                Ok((_repo, resolved)) => (resolved.files[0].clone(), resolved.mmproj),
                 Err(_) => {
                     let filename = format!(
                         "{}-{}.gguf",
                         pending.repo_id.split('/').next_back().unwrap_or("model"),
                         pending.quantization
                     );
-                    HfGgufFile {
-                        filename: filename.clone(),
-                        size_bytes: 0,
-                        quantization: pending.quantization.to_string(),
-                        download_url: format!(
-                            "https://huggingface.co/{}/resolve/main/{}",
-                            pending.repo_id, filename
-                        ),
-                    }
+                    (
+                        HfGgufFile {
+                            filename: filename.clone(),
+                            size_bytes: 0,
+                            quantization: pending.quantization.to_string(),
+                            download_url: format!(
+                                "https://huggingface.co/{}/resolve/main/{}",
+                                pending.repo_id, filename
+                            ),
+                        },
+                        None,
+                    )
                 }
             };
-            (pending, hf_file)
+            (pending, hf_file, mmproj)
         }))
         .await;
 
     let entries_to_add: Vec<LocalModelEntry> = resolved
         .into_iter()
-        .map(|(pending, hf_file)| {
+        .map(|(pending, hf_file, mmproj)| {
             let local_path = Paths::in_data_dir("models").join(&hf_file.filename);
             let settings = default_settings_for_model(&pending.model_id);
+            let mmproj_path = mmproj
+                .as_ref()
+                .map(|mmproj| mmproj_local_path(&pending.repo_id, &mmproj.filename));
+            let mmproj_source_url = mmproj.as_ref().map(|mmproj| mmproj.download_url.clone());
+            let mmproj_size_bytes = mmproj.as_ref().map_or(0, |mmproj| mmproj.size_bytes);
+            let mmproj_checked = mmproj.is_some();
             LocalModelEntry {
                 id: pending.model_id,
                 repo_id: pending.repo_id,
@@ -150,9 +150,10 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
                 source_url: hf_file.download_url,
                 settings,
                 size_bytes: hf_file.size_bytes,
-                mmproj_path: None,
-                mmproj_source_url: None,
-                mmproj_size_bytes: 0,
+                mmproj_path,
+                mmproj_source_url,
+                mmproj_size_bytes,
+                mmproj_checked,
                 shard_files: vec![],
             }
         })
@@ -166,20 +167,80 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
         if !entries_to_add.is_empty() {
             registry.sync_with_featured(entries_to_add);
         }
+    }
 
-        // Backfill mmproj data for all registry models and collect any
-        // needed mmproj downloads for models already on disk.
+    let to_backfill: Vec<(String, String, String)> = {
+        let registry = get_registry()
+            .lock()
+            .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
+
+        registry
+            .list_models()
+            .iter()
+            .filter(|model| model.is_downloaded())
+            .filter(|model| model.mmproj_path.is_none())
+            .filter(|model| !model.mmproj_checked)
+            .map(|model| {
+                (
+                    model.id.clone(),
+                    model.repo_id.clone(),
+                    model.quantization.clone(),
+                )
+            })
+            .collect()
+    };
+
+    let mmproj_backfills: Vec<(String, String, Option<Option<HfGgufFile>>)> = join_all(
+        to_backfill
+            .into_iter()
+            .map(|(id, repo_id, quantization)| async move {
+                let spec = format!("{repo_id}:{quantization}");
+                let mmproj = resolve_model_spec_full(&spec)
+                    .await
+                    .ok()
+                    .map(|(_, resolved)| resolved.mmproj);
+                (id, repo_id, mmproj)
+            }),
+    )
+    .await;
+
+    {
+        let mut registry = get_registry()
+            .lock()
+            .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
+
+        for (model_id, repo_id, mmproj_result) in mmproj_backfills {
+            if let Some(model) = registry
+                .list_models_mut()
+                .iter_mut()
+                .find(|model| model.id == model_id)
+            {
+                let Some(mmproj) = mmproj_result else {
+                    continue;
+                };
+
+                model.mmproj_checked = true;
+                if let Some(mmproj) = mmproj {
+                    model.mmproj_path = Some(mmproj_local_path(&repo_id, &mmproj.filename));
+                    model.mmproj_source_url = Some(mmproj.download_url);
+                    model.mmproj_size_bytes = mmproj.size_bytes;
+                }
+                model.refresh_mmproj_metadata();
+            }
+        }
+
         for model in registry.list_models_mut() {
-            model.enrich_with_known_mmproj();
+            model.refresh_mmproj_metadata();
             if model.is_downloaded() {
-                if let Some(mmproj) = known_mmproj_spec(&model.id) {
-                    let path = mmproj.local_path();
+                if let Some(path) = &model.mmproj_path {
                     if !path.exists() {
-                        let url = format!(
-                            "https://huggingface.co/{}/resolve/main/{}",
-                            mmproj.repo, mmproj.filename
-                        );
-                        mmproj_downloads_needed.push((model.id.clone(), url, path));
+                        if let Some(url) = &model.mmproj_source_url {
+                            mmproj_downloads_needed.push((
+                                model.id.clone(),
+                                url.clone(),
+                                path.clone(),
+                            ));
+                        }
                     }
                 }
             }
@@ -432,6 +493,20 @@ pub async fn download_hf_model(
         vec![]
     };
 
+    let mmproj_path = resolved
+        .mmproj
+        .as_ref()
+        .map(|mmproj| mmproj_local_path(&repo_id, &mmproj.filename));
+    let mmproj_source_url = resolved
+        .mmproj
+        .as_ref()
+        .map(|mmproj| mmproj.download_url.clone());
+    let mmproj_size_bytes = resolved
+        .mmproj
+        .as_ref()
+        .map_or(0, |mmproj| mmproj.size_bytes);
+    let mmproj_checked = true;
+
     let entry = LocalModelEntry {
         id: model_id.clone(),
         repo_id,
@@ -441,13 +516,13 @@ pub async fn download_hf_model(
         source_url: first_file.download_url.clone(),
         settings: default_settings_for_model(&model_id),
         size_bytes: resolved.total_size,
-        mmproj_path: None,
-        mmproj_source_url: None,
-        mmproj_size_bytes: 0,
+        mmproj_path,
+        mmproj_source_url,
+        mmproj_size_bytes,
+        mmproj_checked,
         shard_files: shard_files.clone(),
     };
 
-    // add_model enriches the entry with mmproj metadata from the featured table
     let mmproj_path = {
         let mut registry = get_registry()
             .lock()

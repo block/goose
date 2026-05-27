@@ -1816,7 +1816,7 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::{
-        get_registry, model_id_from_repo, LocalModelEntry,
+        get_registry, mmproj_local_path, model_id_from_repo, LocalModelEntry,
     };
 
     match command {
@@ -1853,10 +1853,28 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
         }
         LocalModelsCommand::Download { spec } => {
             println!("Resolving {}...", spec);
-            let (repo_id, file) = hf_models::resolve_model_spec(&spec).await?;
+            let (repo_id, resolved) = hf_models::resolve_model_spec_full(&spec).await?;
+            if resolved.files.len() > 1 {
+                anyhow::bail!(
+                    "Model '{}' is sharded ({} files) — download it from the desktop UI",
+                    spec,
+                    resolved.files.len()
+                );
+            }
+            let mmproj = resolved.mmproj;
+            let file = resolved.files.into_iter().next().unwrap();
             let model_id = model_id_from_repo(&repo_id, &file.quantization);
             let local_path =
                 goose::config::paths::Paths::in_data_dir("models").join(&file.filename);
+            let mmproj_path = mmproj
+                .as_ref()
+                .map(|mmproj| mmproj_local_path(&repo_id, &mmproj.filename));
+            let mmproj_source_url = mmproj.as_ref().map(|mmproj| mmproj.download_url.clone());
+            let mmproj_size_bytes = mmproj.as_ref().map_or(0, |mmproj| mmproj.size_bytes);
+            let mut download_files = vec![(file.download_url.clone(), local_path.clone())];
+            if let Some(mmproj) = mmproj {
+                download_files.push((mmproj.download_url, mmproj_path.clone().unwrap()));
+            }
 
             println!(
                 "Downloading {} ({})...",
@@ -1881,9 +1899,10 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 source_url: file.download_url.clone(),
                 settings: Default::default(),
                 size_bytes: file.size_bytes,
-                mmproj_path: None,
-                mmproj_source_url: None,
-                mmproj_size_bytes: 0,
+                mmproj_path,
+                mmproj_source_url,
+                mmproj_size_bytes,
+                mmproj_checked: true,
                 shard_files: vec![],
             };
 
@@ -1897,10 +1916,10 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             // Download
             let manager = goose::download_manager::get_download_manager();
             manager
-                .download_model(
+                .download_model_sharded(
                     format!("{}-model", model_id),
-                    file.download_url,
-                    local_path,
+                    download_files,
+                    file.size_bytes + mmproj_size_bytes,
                     None,
                 )
                 .await?;
