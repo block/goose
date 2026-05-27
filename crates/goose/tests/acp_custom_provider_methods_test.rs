@@ -56,7 +56,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let catalog = send_custom(
             conn.cx(),
-            "_goose/providers/catalog/list",
+            "_goose/unstable/providers/catalog/list",
             serde_json::json!({ "format": "openai" }),
         )
         .await
@@ -68,13 +68,13 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         assert!(
             catalog_providers
                 .iter()
-                .any(|provider| provider.get("providerId") == Some(&serde_json::json!("zai"))),
-            "OpenAI-compatible catalog should include z.ai"
+                .any(|provider| provider.get("providerId") == Some(&serde_json::json!("opencode"))),
+            "OpenAI-compatible catalog should include OpenCode Zen"
         );
 
         let setup_catalog = send_custom(
             conn.cx(),
-            "_goose/providers/setup/catalog/list",
+            "_goose/unstable/providers/setup/catalog/list",
             serde_json::json!({}),
         )
         .await
@@ -137,7 +137,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let template = send_custom(
             conn.cx(),
-            "_goose/providers/catalog/template",
+            "_goose/unstable/providers/catalog/template",
             serde_json::json!({ "providerId": "zai" }),
         )
         .await
@@ -156,7 +156,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let configured_status = send_custom(
             conn.cx(),
-            "_goose/providers/config/status",
+            "_goose/unstable/providers/config/status",
             serde_json::json!({ "providerIds": ["xai"] }),
         )
         .await
@@ -172,7 +172,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let configured_read = send_custom(
             conn.cx(),
-            "_goose/providers/config/read",
+            "_goose/unstable/providers/config/read",
             serde_json::json!({ "providerId": "xai" }),
         )
         .await
@@ -194,7 +194,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let non_oauth_auth = send_custom(
             conn.cx(),
-            "_goose/providers/config/authenticate",
+            "_goose/unstable/providers/config/authenticate",
             serde_json::json!({ "providerId": "xai" }),
         )
         .await;
@@ -210,7 +210,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let created = send_custom(
             conn.cx(),
-            "_goose/providers/custom/create",
+            "_goose/unstable/providers/custom/create",
             serde_json::json!({
                 "engine": "openai_compatible",
                 "displayName": "Stark ACP Provider",
@@ -268,6 +268,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         assert_eq!(saved_provider.name, provider_id);
         assert_eq!(saved_provider.display_name, "Stark ACP Provider");
         assert_eq!(saved_provider.base_url, "https://stark.example/v1");
+        assert!(saved_provider.preserves_thinking);
         assert_eq!(
             saved_provider
                 .models
@@ -291,7 +292,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let read = send_custom(
             conn.cx(),
-            "_goose/providers/custom/read",
+            "_goose/unstable/providers/custom/read",
             serde_json::json!({ "providerId": provider_id }),
         )
         .await
@@ -314,12 +315,13 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "basePath": "v1/chat/completions",
                 "apiKeyEnv": "CUSTOM_STARK_ACP_PROVIDER_API_KEY",
                 "apiKeySet": true,
+                "preservesThinking": true,
             }))
         );
 
         let inventory = send_custom(
             conn.cx(),
-            "_goose/providers/list",
+            "_goose/unstable/providers/list",
             serde_json::json!({ "providerIds": [provider_id] }),
         )
         .await
@@ -335,7 +337,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let updated = send_custom(
             conn.cx(),
-            "_goose/providers/custom/update",
+            "_goose/unstable/providers/custom/update",
             serde_json::json!({
                 "providerId": provider_id,
                 "engine": "openai",
@@ -346,7 +348,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "supportsStreaming": false,
                 "headers": {},
                 "requiresAuth": true,
-                "catalogProviderId": "zai"
+                "catalogProviderId": "zai",
+                "preservesThinking": false
             }),
         )
         .await
@@ -377,6 +380,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         );
         assert_eq!(updated_provider.base_path, None);
         assert_eq!(updated_provider.headers, None);
+        assert!(!updated_provider.preserves_thinking);
         assert_eq!(
             updated_provider
                 .models
@@ -388,7 +392,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let auth_disabled = send_custom(
             conn.cx(),
-            "_goose/providers/custom/update",
+            "_goose/unstable/providers/custom/update",
             serde_json::json!({
                 "providerId": provider_id,
                 "engine": "openai_compatible",
@@ -417,6 +421,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 .expect("no-auth provider should remain core-compatible");
         assert!(!no_auth_provider.requires_auth);
         assert_eq!(no_auth_provider.api_key_env, "");
+        assert!(!no_auth_provider.preserves_thinking);
         assert!(
             matches!(
                 Config::global().get_secret::<String>("CUSTOM_STARK_ACP_PROVIDER_API_KEY"),
@@ -427,7 +432,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let auth_reenabled_without_key = send_custom(
             conn.cx(),
-            "_goose/providers/custom/update",
+            "_goose/unstable/providers/custom/update",
             serde_json::json!({
                 "providerId": provider_id,
                 "engine": "openai_compatible",
@@ -459,7 +464,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let deleted = send_custom(
             conn.cx(),
-            "_goose/providers/custom/delete",
+            "_goose/unstable/providers/custom/delete",
             serde_json::json!({ "providerId": provider_id }),
         )
         .await
@@ -489,7 +494,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let deleted_status = send_custom(
             conn.cx(),
-            "_goose/providers/config/status",
+            "_goose/unstable/providers/config/status",
             serde_json::json!({ "providerIds": [provider_id] }),
         )
         .await
@@ -513,7 +518,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         ] {
             let read = send_custom(
                 conn.cx(),
-                "_goose/providers/custom/read",
+                "_goose/unstable/providers/custom/read",
                 serde_json::json!({ "providerId": invalid_id }),
             )
             .await;
@@ -565,7 +570,12 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 payload_obj.insert(key.clone(), value.clone());
             }
 
-            let result = send_custom(conn.cx(), "_goose/providers/custom/create", payload).await;
+            let result = send_custom(
+                conn.cx(),
+                "_goose/unstable/providers/custom/create",
+                payload,
+            )
+            .await;
             assert!(result.is_err(), "{name} should be rejected");
         }
 
@@ -575,7 +585,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let shared = send_custom(
             conn.cx(),
-            "_goose/providers/custom/create",
+            "_goose/unstable/providers/custom/create",
             serde_json::json!({
                 "engine": "openai_compatible",
                 "displayName": "Shared Secret Test",
@@ -608,7 +618,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         send_custom(
             conn.cx(),
-            "_goose/providers/custom/update",
+            "_goose/unstable/providers/custom/update",
             serde_json::json!({
                 "providerId": shared_id,
                 "engine": "openai_compatible",
@@ -630,7 +640,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         let shared_delete = send_custom(
             conn.cx(),
-            "_goose/providers/custom/create",
+            "_goose/unstable/providers/custom/create",
             serde_json::json!({
                 "engine": "openai_compatible",
                 "displayName": "Shared Secret Delete",
@@ -663,7 +673,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
 
         send_custom(
             conn.cx(),
-            "_goose/providers/custom/delete",
+            "_goose/unstable/providers/custom/delete",
             serde_json::json!({ "providerId": shared_delete_id }),
         )
         .await

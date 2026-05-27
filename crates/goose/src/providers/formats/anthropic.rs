@@ -1,6 +1,6 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::ModelConfig;
+use crate::model::{ModelConfig, ThinkingEffort};
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{convert_image, ImageFormat};
@@ -37,7 +37,35 @@ macro_rules! string_enum {
 }
 
 string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabled => "disabled" });
-string_enum!(ThinkingEffort { Low => "low", Medium => "medium", High => "high", Max => "max" });
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AnthropicFormatOptions {
+    pub preserve_unsigned_thinking: bool,
+    pub preserve_thinking_context: bool,
+}
+
+impl AnthropicFormatOptions {
+    fn for_model(self, model_config: &ModelConfig) -> Self {
+        let preserve_thinking_context = model_config
+            .get_config_param::<bool>(
+                "preserve_thinking_context",
+                "ANTHROPIC_PRESERVE_THINKING_CONTEXT",
+            )
+            .unwrap_or(self.preserve_thinking_context);
+        let preserve_unsigned_thinking = model_config
+            .get_config_param::<bool>(
+                "preserve_unsigned_thinking",
+                "ANTHROPIC_PRESERVE_UNSIGNED_THINKING",
+            )
+            .unwrap_or(self.preserve_unsigned_thinking)
+            || preserve_thinking_context;
+
+        Self {
+            preserve_unsigned_thinking,
+            preserve_thinking_context,
+        }
+    }
+}
 
 pub fn supports_adaptive_thinking(model_name: &str) -> bool {
     let lower = model_name.to_lowercase();
@@ -51,33 +79,16 @@ pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
     }
 
     let is_adaptive_model = supports_adaptive_thinking(&model_config.model_name);
+    let effort = model_config.thinking_effort();
 
-    if let Some(s) =
-        model_config.get_config_param::<String>("thinking_type", "CLAUDE_THINKING_TYPE")
-    {
-        let tt = s.parse::<ThinkingType>().unwrap_or_else(|e| {
-            tracing::warn!("{e}");
-            ThinkingType::Disabled
-        });
-        if tt == ThinkingType::Adaptive && !is_adaptive_model {
-            tracing::warn!(
-                "Adaptive thinking not supported for {}, disabling thinking",
-                model_config.model_name
-            );
-            return ThinkingType::Disabled;
-        }
-        return tt;
+    if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
+        return ThinkingType::Enabled;
     }
 
-    if is_adaptive_model {
-        ThinkingType::Adaptive
-    } else if std::env::var("CLAUDE_THINKING_ENABLED").is_ok() {
-        tracing::warn!(
-            "CLAUDE_THINKING_ENABLED is deprecated, use CLAUDE_THINKING_TYPE=enabled instead"
-        );
-        ThinkingType::Enabled
-    } else {
-        ThinkingType::Disabled
+    match effort.unwrap_or(ThinkingEffort::Off) {
+        ThinkingEffort::Off => ThinkingType::Disabled,
+        _ if is_adaptive_model => ThinkingType::Adaptive,
+        _ => ThinkingType::Enabled,
     }
 }
 
@@ -107,8 +118,30 @@ const EVENT_CONTENT_BLOCK_START: &str = "content_block_start";
 const EVENT_CONTENT_BLOCK_DELTA: &str = "content_block_delta";
 const EVENT_CONTENT_BLOCK_STOP: &str = "content_block_stop";
 
+/// Coerce a tool call's optional arguments into the JSON value Anthropic
+/// expects for the `input` field of a `tool_use` content block.
+///
+/// Anthropic's Messages API requires `input` to be an object. When the
+/// internal `CallToolRequestParams::arguments` is `None` (which happens for
+/// parameterless tools, tool calls round-tripped from disk, or calls created
+/// via `CallToolRequestParams::new` without `.with_arguments(...)`) the
+/// `json!` macro would otherwise serialize it as JSON `null` and the API
+/// rejects the next replay of the tool_use block with a 400 error:
+/// `messages.<N>.content.<M>.tool_use.input: Input should be an object.`
+/// See issue #9287.
+fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
+    Value::Object(arguments.unwrap_or_default())
+}
+
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
+    format_messages_with_options(messages, AnthropicFormatOptions::default())
+}
+
+fn format_messages_with_options(
+    messages: &[Message],
+    options: AnthropicFormatOptions,
+) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
 
     for message in messages {
@@ -135,7 +168,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
                                 NAME_FIELD: tool_call.name,
-                                INPUT_FIELD: tool_call.arguments
+                                INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                             }));
                         }
                         Err(_tool_error) => {
@@ -195,6 +228,11 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             THINKING_TYPE: thinking.thinking,
                             SIGNATURE_FIELD: thinking.signature
                         }));
+                    } else if options.preserve_unsigned_thinking && !thinking.thinking.is_empty() {
+                        content.push(json!({
+                            TYPE_FIELD: THINKING_TYPE,
+                            THINKING_TYPE: thinking.thinking
+                        }));
                     }
                 }
                 MessageContent::RedactedThinking(redacted) => {
@@ -212,7 +250,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
                             NAME_FIELD: tool_call.name,
-                            INPUT_FIELD: tool_call.arguments
+                            INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                         }));
                     }
                 }
@@ -354,7 +392,7 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                 let signature = block
                     .get(SIGNATURE_FIELD)
                     .and_then(|s| s.as_str())
-                    .ok_or_else(|| anyhow!("Missing thinking signature"))?;
+                    .unwrap_or_default();
                 message = message.with_thinking(thinking, signature);
             }
             Some(REDACTED_THINKING_TYPE) => {
@@ -469,16 +507,53 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 }
 
 pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
-    match model_config.get_config_param::<String>("effort", "CLAUDE_THINKING_EFFORT") {
-        Some(s) => s.parse().unwrap_or_else(|e| {
-            tracing::warn!("{e}, defaulting to 'high'");
-            ThinkingEffort::High
-        }),
-        None => ThinkingEffort::High,
+    model_config
+        .thinking_effort()
+        .unwrap_or(ThinkingEffort::High)
+}
+
+pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
+    if let Some(request_param) = model_config
+        .request_params
+        .as_ref()
+        .and_then(|params| params.get("budget_tokens"))
+        .and_then(|v| serde_json::from_value::<i32>(v.clone()).ok())
+    {
+        return request_param.max(1024);
+    }
+
+    if let Some(budget) = legacy_thinking_budget_tokens() {
+        return budget;
+    }
+
+    let effort = model_config
+        .thinking_effort()
+        .unwrap_or(ThinkingEffort::High);
+    match effort {
+        ThinkingEffort::Off => 1024,
+        ThinkingEffort::Low => 4000,
+        ThinkingEffort::Medium => 10000,
+        ThinkingEffort::High => 16000,
+        ThinkingEffort::Max => 32000,
     }
 }
 
-fn apply_thinking_config(payload: &mut Value, model_config: &ModelConfig, max_tokens: i32) {
+fn legacy_thinking_budget_tokens() -> Option<i32> {
+    let config = crate::config::Config::global();
+    for key in ["ANTHROPIC_THINKING_BUDGET", "CLAUDE_THINKING_BUDGET"] {
+        if let Ok(budget) = config.get_param::<i32>(key) {
+            return Some(budget.max(1024));
+        }
+    }
+    None
+}
+
+fn apply_thinking_config(
+    payload: &mut Value,
+    model_config: &ModelConfig,
+    max_tokens: i32,
+    options: AnthropicFormatOptions,
+) {
     let obj = payload.as_object_mut().unwrap();
     match thinking_type(model_config) {
         ThinkingType::Adaptive => {
@@ -487,10 +562,7 @@ fn apply_thinking_config(payload: &mut Value, model_config: &ModelConfig, max_to
             obj.insert("output_config".to_string(), json!({"effort": effort}));
         }
         ThinkingType::Enabled => {
-            let budget_tokens = model_config
-                .get_config_param::<i32>("budget_tokens", "CLAUDE_THINKING_BUDGET")
-                .unwrap_or(16000)
-                .max(1024);
+            let budget_tokens = thinking_budget_tokens(model_config);
 
             obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
             obj.insert(
@@ -503,6 +575,24 @@ fn apply_thinking_config(payload: &mut Value, model_config: &ModelConfig, max_to
         }
         ThinkingType::Disabled => {}
     }
+
+    if options.preserve_thinking_context {
+        if !obj.contains_key("thinking") {
+            let budget_tokens = thinking_budget_tokens(model_config);
+            obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
+            obj.insert(
+                "thinking".to_string(),
+                json!({
+                    "type": "enabled",
+                    "budget_tokens": budget_tokens
+                }),
+            );
+        }
+
+        if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
+            thinking.insert("clear_thinking".to_string(), json!(false));
+        }
+    }
 }
 
 /// Create a complete request payload for Anthropic's API
@@ -512,7 +602,24 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let anthropic_messages = format_messages(messages);
+    create_request_with_options(
+        model_config,
+        system,
+        messages,
+        tools,
+        AnthropicFormatOptions::default(),
+    )
+}
+
+pub fn create_request_with_options(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
+    let options = options.for_model(model_config);
+    let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);
     let system_spec = format_system(system);
 
@@ -548,7 +655,7 @@ pub fn create_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    apply_thinking_config(&mut payload, model_config, max_tokens);
+    apply_thinking_config(&mut payload, model_config, max_tokens, options);
 
     Ok(payload)
 }
@@ -655,8 +762,16 @@ where
                             }
                             Some(THINKING_TYPE) => {
                                 thinking = Some(ThinkingState {
-                                    text: String::new(),
-                                    signature: String::new(),
+                                    text: content_block
+                                        .get(THINKING_TYPE)
+                                        .and_then(|t| t.as_str())
+                                        .unwrap_or_default()
+                                        .to_string(),
+                                    signature: content_block
+                                        .get(SIGNATURE_FIELD)
+                                        .and_then(|s| s.as_str())
+                                        .unwrap_or_default()
+                                        .to_string(),
                                 });
                             }
                             Some(REDACTED_THINKING_TYPE) => {
@@ -895,6 +1010,36 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_unsigned_thinking_response() -> Result<()> {
+        let response = json!({
+            "id": "msg_123",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "thinking",
+                "thinking": "internal reasoning"
+            }],
+            "model": "glm-4.7",
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 12,
+                "output_tokens": 15
+            }
+        });
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(thinking.thinking, "internal reasoning");
+            assert_eq!(thinking.signature, "");
+        } else {
+            panic!("Expected Thinking content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_message_to_anthropic_spec() {
         let messages = vec![
             Message::user().with_text("Hello"),
@@ -927,6 +1072,29 @@ mod tests {
         assert_eq!(spec[0]["role"], "assistant");
         assert_eq!(spec[0]["content"][0]["type"], "text");
         assert_eq!(spec[0]["content"][0]["text"], "Hi there");
+    }
+
+    #[test]
+    fn test_message_to_anthropic_spec_preserves_unsigned_thinking_when_enabled() {
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_text("Hi there"),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            AnthropicFormatOptions {
+                preserve_unsigned_thinking: true,
+                preserve_thinking_context: false,
+            },
+        );
+
+        assert_eq!(spec.len(), 2);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"][0]["type"], "thinking");
+        assert_eq!(spec[0]["content"][0]["thinking"], "internal");
+        assert!(spec[0]["content"][0].get("signature").is_none());
+        assert_eq!(spec[1]["content"][0]["text"], "Hi there");
     }
 
     #[test]
@@ -1020,14 +1188,14 @@ mod tests {
 
     #[test]
     fn test_create_request_adaptive_thinking_for_46_models() -> Result<()> {
-        let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", Some("adaptive")),
-            ("CLAUDE_THINKING_EFFORT", Some("high")),
-            ("CLAUDE_THINKING_ENABLED", None::<&str>),
-        ]);
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
 
         let mut config = cfg("claude-opus-4-6");
         config.max_tokens = Some(4096);
+        config.request_params = Some(params);
         let messages = vec![Message::user().with_text("Hello")];
         let payload = create_request(&config, "system", &messages, &[])?;
 
@@ -1041,26 +1209,20 @@ mod tests {
     #[test]
     fn test_create_request_enabled_thinking_with_budget() -> Result<()> {
         let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
-            ("CLAUDE_THINKING_EFFORT", None::<&str>),
-            ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
         ]);
 
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_type".to_string(), json!("enabled"));
-        params.insert("budget_tokens".to_string(), json!(10000));
-
-        let mut config = cfg("claude-3-7-sonnet-20250219");
+        let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
         config.max_tokens = Some(4096);
-        config.request_params = Some(params);
 
         let messages = vec![Message::user().with_text("Hello")];
         let payload = create_request(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
-        assert_eq!(payload["thinking"]["budget_tokens"], 10000);
-        assert_eq!(payload["max_tokens"], 4096 + 10000);
+        let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
+        assert!(budget > 0);
+        assert_eq!(payload["max_tokens"], 4096 + budget);
 
         Ok(())
     }
@@ -1068,16 +1230,88 @@ mod tests {
     #[test]
     fn test_create_request_disabled_thinking_no_thinking_field() -> Result<()> {
         let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
-            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
         ]);
 
-        let config = cfg("claude-sonnet-4-20250514");
+        let config = cfg_with_effort("claude-sonnet-4-20250514", "off");
         let messages = vec![Message::user().with_text("Hello")];
         let payload = create_request(&config, "system", &messages, &[])?;
 
         assert!(payload.get("thinking").is_none());
         assert!(payload.get("output_config").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_preserves_thinking_context_for_compatible_models() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
+            ("CLAUDE_THINKING_BUDGET", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
+        ]);
+
+        let mut config = cfg("glm-4.7");
+        config.max_tokens = Some(4096);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_with_options(
+            &config,
+            "system",
+            &messages,
+            &[],
+            AnthropicFormatOptions {
+                preserve_unsigned_thinking: true,
+                preserve_thinking_context: true,
+            },
+        )?;
+
+        assert_eq!(payload["thinking"]["type"], "enabled");
+        assert_eq!(payload["thinking"]["budget_tokens"], 16000);
+        assert_eq!(payload["thinking"]["clear_thinking"], false);
+        assert_eq!(payload["max_tokens"], 4096 + 16000);
+        assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
+        assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
+        assert!(payload["messages"][0]["content"][0]
+            .get("signature")
+            .is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_model_params_enable_preserved_thinking_context() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
+            ("CLAUDE_THINKING_BUDGET", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
+        ]);
+
+        let mut params = std::collections::HashMap::new();
+        params.insert("preserve_thinking_context".to_string(), json!(true));
+
+        let mut config = cfg("glm-4.7");
+        config.request_params = Some(params);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["clear_thinking"], false);
+        assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
+        assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
 
         Ok(())
     }
@@ -1207,6 +1441,59 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_args_to_input_value_returns_empty_object_for_none() {
+        let value = args_to_input_value(None);
+        assert!(value.is_object(), "expected JSON object, got {value:?}");
+        assert_eq!(value, json!({}));
+        assert!(!value.is_null());
+    }
+
+    #[test]
+    fn test_args_to_input_value_preserves_existing_args() {
+        let args = object!({"query": "rust"});
+        let value = args_to_input_value(Some(args));
+        assert_eq!(value, json!({"query": "rust"}));
+    }
+
+    #[test]
+    fn test_parameterless_tool_request_serializes_input_as_empty_object() {
+        // Regression test for #9287: when arguments is None (parameterless
+        // MCP tool, session reload, or provider switching) the `input` field
+        // must serialize as `{}` so the Anthropic API does not reject the
+        // replayed tool_use block with a 400 error.
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("list_things"))),
+            Message::user()
+                .with_tool_response("tool_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let input = &spec[0]["content"][0]["input"];
+        assert!(input.is_object(), "expected object, got {input:?}");
+        assert!(!input.is_null());
+        assert_eq!(input, &json!({}));
+    }
+
+    #[test]
+    fn test_parameterless_frontend_tool_request_serializes_input_as_empty_object() {
+        // Same regression as above, but exercises the FrontendToolRequest
+        // branch which is reached for UI-originated tool calls.
+        let messages = vec![Message::assistant().with_frontend_tool_request(
+            "frontend_tool_1",
+            Ok(CallToolRequestParams::new("list_things")),
+        )];
+
+        let spec = format_messages(&messages);
+
+        let input = &spec[0]["content"][0]["input"];
+        assert!(input.is_object(), "expected object, got {input:?}");
+        assert!(!input.is_null());
+        assert_eq!(input, &json!({}));
+    }
+
     fn cfg(name: &str) -> ModelConfig {
         ModelConfig {
             model_name: name.to_string(),
@@ -1214,9 +1501,9 @@ mod tests {
         }
     }
 
-    fn cfg_with_thinking(name: &str, tt: &str) -> ModelConfig {
+    fn cfg_with_effort(name: &str, effort: &str) -> ModelConfig {
         let mut params = std::collections::HashMap::new();
-        params.insert("thinking_type".to_string(), json!(tt));
+        params.insert("thinking_effort".to_string(), json!(effort));
         ModelConfig {
             model_name: name.to_string(),
             request_params: Some(params),
@@ -1225,50 +1512,61 @@ mod tests {
     }
 
     #[test]
-    fn test_thinking_type_explicit_params() {
+    fn test_thinking_type_from_effort() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        // Adaptive model with effort → adaptive
         assert_eq!(
-            thinking_type(&cfg_with_thinking("claude-opus-4-6", "adaptive")),
+            thinking_type(&cfg_with_effort("claude-opus-4-6", "high")),
             ThinkingType::Adaptive
         );
+        // Adaptive model with off → disabled
         assert_eq!(
-            thinking_type(&cfg_with_thinking("claude-opus-4-6", "disabled")),
+            thinking_type(&cfg_with_effort("claude-opus-4-6", "off")),
             ThinkingType::Disabled
         );
+        // Non-adaptive Claude with effort → enabled
         assert_eq!(
-            thinking_type(&cfg_with_thinking("claude-3-7-sonnet-20250219", "enabled")),
+            thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "high")),
             ThinkingType::Enabled
         );
+        // Non-adaptive Claude with off → disabled
         assert_eq!(
-            thinking_type(&cfg_with_thinking("claude-3-7-sonnet-20250219", "adaptive")),
+            thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
             ThinkingType::Disabled
         );
-        assert_eq!(
-            thinking_type(&cfg_with_thinking("claude-opus-4-6", "adapttive")),
-            ThinkingType::Disabled
-        );
+    }
+
+    #[test]
+    fn test_thinking_budget_uses_legacy_env() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("ANTHROPIC_THINKING_BUDGET", Some("8192")),
+            ("CLAUDE_THINKING_BUDGET", None::<&str>),
+        ]);
+        let config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
+        assert_eq!(thinking_budget_tokens(&config), 8192);
     }
 
     #[test]
     fn test_thinking_type_non_claude_always_disabled() {
-        assert_eq!(thinking_type(&cfg("gpt-4o")), ThinkingType::Disabled);
         assert_eq!(
-            thinking_type(&cfg_with_thinking("gpt-4o", "enabled")),
+            thinking_type(&cfg_with_effort("gpt-4o", "off")),
+            ThinkingType::Disabled
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("gpt-4o", "high")),
             ThinkingType::Disabled
         );
     }
 
     #[test]
-    fn test_thinking_type_env_var_override() {
-        let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", Some("adaptive")),
-            ("CLAUDE_THINKING_ENABLED", None::<&str>),
-        ]);
+    fn test_thinking_type_off_means_disabled() {
         assert_eq!(
-            thinking_type(&cfg("claude-opus-4-6")),
-            ThinkingType::Adaptive
+            thinking_type(&cfg_with_effort("claude-opus-4-6", "off")),
+            ThinkingType::Disabled
         );
         assert_eq!(
-            thinking_type(&cfg("claude-3-7-sonnet-20250219")),
+            thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
             ThinkingType::Disabled
         );
     }
@@ -1351,6 +1649,26 @@ mod tests {
         assert_eq!(parts.thinking[0].0, "Let me analyze this problem.");
         assert_eq!(parts.thinking[0].1, "sig_abc123");
         assert_eq!(parts.text, vec!["Here is the answer."]);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_thinking_from_start_block_without_signature() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"Initial reasoning "}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"continues."}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.thinking.len(), 1);
+        assert_eq!(parts.thinking[0].0, "Initial reasoning continues.");
+        assert_eq!(parts.thinking[0].1, "");
     }
 
     #[tokio::test]

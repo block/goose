@@ -377,7 +377,13 @@ impl MessageContent {
                     metadata: res.metadata.clone(),
                 }))
             }
-            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => None,
+            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => {
+                if audience == Role::Assistant {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
             _ => Some(self.clone()),
         }
     }
@@ -641,14 +647,25 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
-/// Metadata for message visibility
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct InferenceMetadata {
+    pub provider: String,
+    pub requested_model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_model: Option<String>,
+}
+
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+/// Metadata for message visibility and model inference details
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
     /// Whether the message should be visible to the user in the UI
     pub user_visible: bool,
     /// Whether the message should be included in the agent's context window
     pub agent_visible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference: Option<InferenceMetadata>,
 }
 
 impl Default for MessageMetadata {
@@ -656,6 +673,7 @@ impl Default for MessageMetadata {
         MessageMetadata {
             user_visible: true,
             agent_visible: true,
+            inference: None,
         }
     }
 }
@@ -666,6 +684,7 @@ impl MessageMetadata {
         MessageMetadata {
             user_visible: false,
             agent_visible: true,
+            ..Default::default()
         }
     }
 
@@ -674,6 +693,7 @@ impl MessageMetadata {
         MessageMetadata {
             user_visible: true,
             agent_visible: false,
+            ..Default::default()
         }
     }
 
@@ -682,6 +702,7 @@ impl MessageMetadata {
         MessageMetadata {
             user_visible: false,
             agent_visible: false,
+            ..Default::default()
         }
     }
 
@@ -715,6 +736,11 @@ impl MessageMetadata {
             user_visible: true,
             ..self
         }
+    }
+
+    pub fn with_inference(mut self, inference: InferenceMetadata) -> Self {
+        self.inference = Some(inference);
+        self
     }
 }
 
@@ -996,6 +1022,19 @@ impl Message {
         self
     }
 
+    pub fn with_inference(mut self, inference: InferenceMetadata) -> Self {
+        self.metadata = self.metadata.with_inference(inference);
+        self
+    }
+
+    pub fn with_inference_if_assistant(self, inference: InferenceMetadata) -> Self {
+        if self.role == Role::Assistant && self.metadata.inference.is_none() {
+            self.with_inference(inference)
+        } else {
+            self
+        }
+    }
+
     pub fn user_only(mut self) -> Self {
         self.metadata.user_visible = true;
         self.metadata.agent_visible = false;
@@ -1026,6 +1065,7 @@ pub struct TokenState {
     pub accumulated_input_tokens: i32,
     pub accumulated_output_tokens: i32,
     pub accumulated_total_tokens: i32,
+    pub accumulated_cost: Option<f64>,
 }
 
 #[cfg(test)]
@@ -1191,6 +1231,25 @@ mod tests {
         };
         assert_eq!(thinking.thinking, "step by step");
         assert!(thinking.signature.is_empty());
+    }
+
+    #[test]
+    fn test_agent_visible_content_preserves_thinking_for_provider() {
+        let message = Message::assistant()
+            .with_thinking("internal reasoning", "sig")
+            .with_redacted_thinking("redacted")
+            .with_text("final answer");
+
+        let provider_message = message.agent_visible_content();
+        assert_eq!(provider_message.content.len(), 3);
+        assert!(matches!(
+            provider_message.content[0],
+            MessageContent::Thinking(_)
+        ));
+        assert!(matches!(
+            provider_message.content[1],
+            MessageContent::RedactedThinking(_)
+        ));
     }
 
     #[test]

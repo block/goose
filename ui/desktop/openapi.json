@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.33.0"
+    "version": "1.35.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -116,14 +116,45 @@
           "401": {
             "description": "Unauthorized - invalid secret key"
           },
+          "403": {
+            "description": "Forbidden - tool is not app-visible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "424": {
-            "description": "Agent not initialized"
+            "description": "Frontend tool execution requires the frontend host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1338,6 +1369,56 @@
         }
       }
     },
+    "/config/providers/{name}/model-info": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_model_info",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., openai)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderModelInfoQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model metadata fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider, provider not configured, or authentication error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers/{name}/models": {
       "get": {
         "tags": [
@@ -1363,7 +1444,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "$ref": "#/components/schemas/ModelInfo"
                   }
                 }
               }
@@ -3124,6 +3205,50 @@
         ]
       }
     },
+    "/sessions/import/nostr": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "import_session_nostr",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSessionNostrRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Nostr shared session imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid Nostr share link"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/insights": {
       "get": {
         "tags": [
@@ -3617,6 +3742,61 @@
           },
           "400": {
             "description": "Bad request - Name too long (max 200 characters)"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/share/nostr": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "share_session_nostr",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareSessionNostrRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session shared to Nostr successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareSessionNostrResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -4561,6 +4741,7 @@
           },
           "dynamic_models": {
             "type": "boolean",
+            "description": "Controls whether `fetch_supported_models` calls the provider's `/v1/models`\nendpoint or returns the static `models` list directly.\n\n- `Some(false)` + non-empty `models`: return the static list; no API call.\nConstruction fails if `models` is empty.\n- `Some(true)` or `None`: try the API; fall back to `models` on 404.",
             "nullable": true
           },
           "engine": {
@@ -4596,6 +4777,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "preserves_thinking": {
+            "type": "boolean"
           },
           "requires_auth": {
             "type": "boolean"
@@ -5603,6 +5787,17 @@
           }
         }
       },
+      "ImportSessionNostrRequest": {
+        "type": "object",
+        "required": [
+          "deeplink"
+        ],
+        "properties": {
+          "deeplink": {
+            "type": "string"
+          }
+        }
+      },
       "ImportSessionRequest": {
         "type": "object",
         "required": [
@@ -5611,6 +5806,25 @@
         "properties": {
           "json": {
             "type": "string"
+          }
+        }
+      },
+      "InferenceMetadata": {
+        "type": "object",
+        "required": [
+          "provider",
+          "requestedModel"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "requestedModel": {
+            "type": "string"
+          },
+          "resolvedModel": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6209,7 +6423,7 @@
       },
       "MessageMetadata": {
         "type": "object",
-        "description": "Metadata for message visibility",
+        "description": "Metadata for message visibility and model inference details",
         "required": [
           "userVisible",
           "agentVisible"
@@ -6218,6 +6432,14 @@
           "agentVisible": {
             "type": "boolean",
             "description": "Whether the message should be included in the agent's context window"
+          },
+          "inference": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InferenceMetadata"
+              }
+            ],
+            "nullable": true
           },
           "userVisible": {
             "type": "boolean",
@@ -6398,6 +6620,15 @@
             "description": "Cost per token for output in USD (optional)",
             "nullable": true
           },
+          "reasoning": {
+            "type": "boolean",
+            "description": "Whether this model supports reasoning/thinking controls"
+          },
+          "resolved_model": {
+            "type": "string",
+            "description": "The underlying model resolved from provider metadata, when the configured model is an alias or endpoint.",
+            "nullable": true
+          },
           "supports_cache_control": {
             "type": "boolean",
             "description": "Whether this model supports cache control",
@@ -6411,6 +6642,7 @@
           "provider",
           "model",
           "context_limit",
+          "reasoning",
           "currency"
         ],
         "properties": {
@@ -6451,6 +6683,9 @@
           },
           "provider": {
             "type": "string"
+          },
+          "reasoning": {
+            "type": "boolean"
           }
         }
       },
@@ -6762,6 +6997,10 @@
           },
           "provider_type": {
             "$ref": "#/components/schemas/ProviderType"
+          },
+          "saved_model": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6831,6 +7070,17 @@
               "type": "string"
             },
             "description": "step-by-step instructions for set up providers eg: api key"
+          }
+        }
+      },
+      "ProviderModelInfoQuery": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
           }
         }
       },
@@ -7690,12 +7940,33 @@
             "format": "date-time",
             "nullable": true
           },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          },
           "paused": {
             "type": "boolean"
           },
           "process_start_time": {
             "type": "string",
             "format": "date-time",
+            "nullable": true
+          },
+          "recipe_base_dir": {
+            "type": "string",
+            "description": "Original directory of the recipe file before it was copied to scheduled_recipes/.\nPreserved so that relative paths (sub-recipes, template includes) resolve correctly\nagainst the source tree rather than the scheduler's internal storage directory.",
             "nullable": true
           },
           "source": {
@@ -7715,6 +7986,11 @@
           "message_count"
         ],
         "properties": {
+          "accumulated_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
           "accumulated_input_tokens": {
             "type": "integer",
             "format": "int32",
@@ -8062,6 +8338,43 @@
           }
         }
       },
+      "ShareSessionNostrRequest": {
+        "type": "object",
+        "properties": {
+          "relays": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ShareSessionNostrResponse": {
+        "type": "object",
+        "required": [
+          "deeplink",
+          "nevent",
+          "eventId",
+          "relays"
+        ],
+        "properties": {
+          "deeplink": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "nevent": {
+            "type": "string"
+          },
+          "relays": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SlashCommand": {
         "type": "object",
         "required": [
@@ -8371,6 +8684,16 @@
           }
         }
       },
+      "ThinkingEffort": {
+        "type": "string",
+        "enum": [
+          "off",
+          "low",
+          "medium",
+          "high",
+          "max"
+        ]
+      },
       "TokenState": {
         "type": "object",
         "required": [
@@ -8382,6 +8705,11 @@
           "accumulatedTotalTokens"
         ],
         "properties": {
+          "accumulatedCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
           "accumulatedInputTokens": {
             "type": "integer",
             "format": "int32"
@@ -8745,6 +9073,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "preserves_thinking": {
+            "type": "boolean",
+            "nullable": true
           },
           "requires_auth": {
             "type": "boolean"

@@ -65,6 +65,10 @@ struct JsonOutput {
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonMetadata {
     total_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_tokens: Option<i32>,
     status: String,
 }
 
@@ -84,6 +88,10 @@ enum StreamEvent {
     },
     Complete {
         total_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        output_tokens: Option<i32>,
     },
 }
 
@@ -231,36 +239,6 @@ pub async fn classify_planner_response(
     }
 }
 
-pub fn split_quoted(input: &str) -> Result<Vec<String>> {
-    let mut parts = Vec::new();
-    let mut current = String::new();
-    let mut in_double_quote = false;
-    let mut in_single_quote = false;
-
-    for c in input.chars() {
-        match c {
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            c if c.is_whitespace() && !in_double_quote && !in_single_quote => {
-                if !current.is_empty() {
-                    parts.push(std::mem::take(&mut current));
-                }
-            }
-            _ => current.push(c),
-        }
-    }
-
-    if in_double_quote || in_single_quote {
-        return Err(anyhow::anyhow!("Unmatched quote in command"));
-    }
-
-    if !current.is_empty() {
-        parts.push(current);
-    }
-
-    Ok(parts)
-}
-
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -303,7 +281,7 @@ impl CliSession {
     /// Parse a stdio extension command string into an ExtensionConfig
     /// Format: "ENV1=val1 ENV2=val2 command args..."
     pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
-        let mut parts = split_quoted(extension_command)?;
+        let mut parts = goose::utils::split_command_args(extension_command)?;
         let mut envs = HashMap::new();
 
         while let Some(part) = parts.first() {
@@ -500,6 +478,28 @@ impl CliSession {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
+        self.agent
+            .emit_hook(goose::hooks::HookEvent::SessionStart, &self.session_id)
+            .await;
+
+        let result = self.run_interactive(prompt).await;
+
+        self.agent
+            .emit_hook(goose::hooks::HookEvent::SessionEnd, &self.session_id)
+            .await;
+
+        if result.is_ok() {
+            println!(
+                "\n  {} {}",
+                console::style("●").red(),
+                console::style(format!("session closed · {}", &self.session_id)).dim()
+            );
+        }
+
+        result
+    }
+
+    async fn run_interactive(&mut self, prompt: Option<String>) -> Result<()> {
         if let Some(prompt) = prompt {
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default(), true)
@@ -535,12 +535,6 @@ impl CliSession {
             self.handle_input(input, &history_manager, &mut editor, &conversation_strings)
                 .await?;
         }
-
-        println!(
-            "\n  {} {}",
-            console::style("●").red(),
-            console::style(format!("session closed · {}", &self.session_id)).dim()
-        );
 
         Ok(())
     }
@@ -907,6 +901,7 @@ impl CliSession {
 
     async fn handle_list_skills(&mut self) -> Result<()> {
         use comfy_table::{presets, Cell, ContentArrangement, Table};
+        use goose::custom_requests::SourceType;
         use goose::skills::list_installed_skills;
         let cwd = std::env::current_dir().unwrap_or_default();
         let skills = list_installed_skills(Some(&cwd));
@@ -919,13 +914,24 @@ impl CliSession {
         let mut table = Table::new();
         table.set_content_arrangement(ContentArrangement::Dynamic);
         table.load_preset(presets::ASCII_FULL);
-        table.set_header(vec!["Skill", "Description"]);
+        table.set_header(vec!["Skill", "Location", "Description"]);
 
         let mut sorted_skills = skills;
         sorted_skills.sort_by(|a, b| a.name.cmp(&b.name));
 
         for skill in &sorted_skills {
-            table.add_row(vec![Cell::new(&skill.name), Cell::new(&skill.description)]);
+            let location = if skill.source_type == SourceType::BuiltinSkill {
+                "built-in"
+            } else if skill.global {
+                "global"
+            } else {
+                "project"
+            };
+            table.add_row(vec![
+                Cell::new(&skill.name),
+                Cell::new(location),
+                Cell::new(&skill.description),
+            ]);
         }
 
         println!("{table}");
@@ -1044,9 +1050,17 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
+        self.agent
+            .emit_hook(goose::hooks::HookEvent::SessionStart, &self.session_id)
+            .await;
         let message = Message::user().with_text(&prompt);
-        self.process_message(message, CancellationToken::default(), false)
-            .await?;
+        let result = self
+            .process_message(message, CancellationToken::default(), false)
+            .await;
+        self.agent
+            .emit_hook(goose::hooks::HookEvent::SessionEnd, &self.session_id)
+            .await;
+        result?;
         Ok(())
     }
 
@@ -1265,11 +1279,15 @@ impl CliSession {
                 .await
             {
                 Ok(session) => JsonMetadata {
-                    total_tokens: session.total_tokens,
+                    total_tokens: session.accumulated_total_tokens.or(session.total_tokens),
+                    input_tokens: session.accumulated_input_tokens.or(session.input_tokens),
+                    output_tokens: session.accumulated_output_tokens.or(session.output_tokens),
                     status: "completed".to_string(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
+                    input_tokens: None,
+                    output_tokens: None,
                     status: "completed".to_string(),
                 },
             };
@@ -1279,15 +1297,26 @@ impl CliSession {
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let total_tokens = self
+            let session = self
                 .agent
                 .config
                 .session_manager
                 .get_session(&self.session_id, false)
                 .await
-                .ok()
-                .and_then(|s| s.total_tokens);
-            emit_stream_event(&StreamEvent::Complete { total_tokens });
+                .ok();
+            let (total_tokens, input_tokens, output_tokens) = match session {
+                Some(s) => (
+                    s.accumulated_total_tokens.or(s.total_tokens),
+                    s.accumulated_input_tokens.or(s.input_tokens),
+                    s.accumulated_output_tokens.or(s.output_tokens),
+                ),
+                None => (None, None, None),
+            };
+            emit_stream_event(&StreamEvent::Complete {
+                total_tokens,
+                input_tokens,
+                output_tokens,
+            });
         } else {
             println!();
         }
@@ -1442,10 +1471,9 @@ impl CliSession {
             .await
     }
 
-    // Get the session's total token usage
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_session().await?;
-        Ok(metadata.total_tokens)
+        Ok(metadata.accumulated_total_tokens)
     }
 
     /// Display enhanced context usage with session totals
@@ -2192,20 +2220,20 @@ mod tests {
     }
 
     #[test]
-    fn test_split_quoted_windows_paths() {
+    fn test_split_command_args_windows_paths() {
         assert_eq!(
-            split_quoted(r"C:\tools\mcp.exe --arg value").unwrap(),
+            goose::utils::split_command_args(r"C:\tools\mcp.exe --arg value").unwrap(),
             vec![r"C:\tools\mcp.exe", "--arg", "value"]
         );
         assert_eq!(
-            split_quoted(r#""C:\Program Files\server\mcp.exe" --arg"#).unwrap(),
+            goose::utils::split_command_args(r#""C:\Program Files\server\mcp.exe" --arg"#).unwrap(),
             vec![r"C:\Program Files\server\mcp.exe", "--arg"]
         );
     }
 
     #[test]
-    fn test_split_quoted_unmatched_quote() {
-        assert!(split_quoted(r#""unmatched"#).is_err());
+    fn test_split_command_args_unmatched_quote() {
+        assert!(goose::utils::split_command_args(r#""unmatched"#).is_err());
     }
 
     #[test_case(

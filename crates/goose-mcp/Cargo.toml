@@ -36,7 +36,7 @@ include_dir = { workspace = true }
 once_cell = { workspace = true }
 lopdf = "0.40.0"
 docx-rs = "0.4.20"
-image = { version = "0.24.9", features = ["jpeg"] }
+image = { version = "0.25.10", features = ["jpeg"] }
 umya-spreadsheet = "2.2.3"
 shell-words = { workspace = true }
 process-wrap = { version = "9.1.0", features = ["std"] }

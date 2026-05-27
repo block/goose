@@ -56,30 +56,8 @@ impl SkillsClient {
             .map(|s| s.working_dir.clone())
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
-        let mut instructions = String::new();
-        if context.session.is_some() {
-            let sources = discover_skills(Some(&working_dir));
-            let mut skills: Vec<&SourceEntry> = sources
-                .iter()
-                .filter(|s| {
-                    s.source_type == SourceType::Skill || s.source_type == SourceType::BuiltinSkill
-                })
-                .collect();
-            skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
-
-            if !skills.is_empty() {
-                instructions.push_str(
-                    "\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:",
-                );
-                for skill in &skills {
-                    instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
-                }
-            }
-        }
-
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Skills"))
-            .with_instructions(instructions);
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Skills"));
 
         Ok(Self {
             info,
@@ -647,6 +625,10 @@ impl McpClientTrait for SkillsClient {
                 "name": {
                     "type": "string",
                     "description": "Name of the skill to load. Use \"skill-name/path\" to load a supporting file. For MCP skills with a name collision, use the \"<server>__<name>\" form shown in your system instructions. Do NOT pass a URI here — use the read_resource tool (on the extensionmanager) if you only have a URI."
+                },
+                "args": {
+                    "type": "string",
+                    "description": "Optional arguments to provide when loading the skill."
                 }
             }
         });
@@ -657,6 +639,7 @@ impl McpClientTrait for SkillsClient {
              Skills are listed in your system instructions (both local skills and skills from connected MCP servers). When you need to use one, load it first to get the detailed instructions.\n\n\
              Examples:\n\
              - load_skill(name: \"gdrive\") → Loads the gdrive skill instructions\n\
+             - load_skill(name: \"my-skill\", args: \"the arguments for the skill\") → Loads a skill with arguments\n\
              - load_skill(name: \"my-skill/template.md\") → Loads a supporting file\n\
              - load_skill(name: \"github__pull-requests\") → Disambiguates a collision between two servers\n\n\
              Use read_resource (from the extensionmanager) if you only have a raw URI. Do NOT pass skill URIs to file-reading, writing, editing, or shell tools — those operate on filesystem paths."
@@ -736,6 +719,10 @@ impl McpClientTrait for SkillsClient {
                 "Missing required parameter: name",
             )]));
         }
+        let args = arguments
+            .as_ref()
+            .and_then(|args| args.get("args"))
+            .and_then(|v| v.as_str());
 
         // Reject raw URIs — they go through `read_resource` (a separate
         // tool) rather than `load_skill`. Shares `looks_like_uri` with
@@ -751,11 +738,32 @@ impl McpClientTrait for SkillsClient {
         let skills = discover_skills(Some(&self.working_dir));
 
         if let Some(skill) = skills.iter().find(|s| s.name == skill_name) {
+            let content = if let Some(a) = args {
+                match super::apply_skill_arguments(
+                    &skill.content,
+                    a,
+                    &super::skill_argument_names(skill),
+                ) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        return Ok(CallToolResult::error(vec![Content::text(format!(
+                            "Failed to parse skill arguments: {}",
+                            e
+                        ))]));
+                    }
+                }
+            } else {
+                skill.content.clone()
+            };
+
             let mut output = format!(
-                "# Loaded Skill: {} ({})\n\n{}\n",
+                "# Loaded Skill: {} ({})\n\n## {} ({})\n\n{}\n\n### Content\n\n{}\n",
                 skill.name,
                 skill.source_type,
-                skill.to_load_text()
+                skill.name,
+                skill.source_type,
+                skill.description,
+                content,
             );
 
             if !skill.supporting_files.is_empty() {
@@ -933,6 +941,29 @@ impl McpClientTrait for SkillsClient {
         Some(&self.info)
     }
 
+    fn get_instructions(&self) -> Option<String> {
+        let sources = discover_skills(Some(&self.working_dir));
+        let mut skills: Vec<&SourceEntry> = sources
+            .iter()
+            .filter(|s| {
+                s.source_type == SourceType::Skill || s.source_type == SourceType::BuiltinSkill
+            })
+            .collect();
+        skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
+
+        if skills.is_empty() {
+            return None;
+        }
+
+        let mut instructions = String::from(
+            "\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:",
+        );
+        for skill in &skills {
+            instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
+        }
+        Some(instructions)
+    }
+
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
         let (_tx, rx) = mpsc::channel(1);
         rx
@@ -980,6 +1011,7 @@ mod tests {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             session: Some(session),
+            use_login_shell_path: false,
         })
         .unwrap();
 
@@ -1006,6 +1038,7 @@ mod tests {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             session: None,
+            use_login_shell_path: false,
         })
         .unwrap();
 

@@ -143,7 +143,7 @@ pub async fn compact_messages(
             // This is the most recent message and we're preserving it by adding a fresh copy
             MessageMetadata::invisible()
         } else {
-            msg.metadata.with_agent_invisible()
+            msg.metadata.clone().with_agent_invisible()
         };
         let updated_msg = msg.clone().with_metadata(updated_metadata);
         final_messages.push(updated_msg);
@@ -533,13 +533,17 @@ pub fn maybe_summarize_tool_pairs(
     conversation: Conversation,
     cutoff: usize,
     protect_last_n: usize,
-) -> JoinHandle<Vec<(Message, String)>> {
-    tokio::spawn(async move {
-        if !tool_pair_summarization_enabled() || provider.manages_own_context() {
-            return Vec::new();
-        }
+) -> Option<JoinHandle<Vec<(Message, String)>>> {
+    if !tool_pair_summarization_enabled() || provider.manages_own_context() {
+        return None;
+    }
 
-        let tool_ids = tool_ids_to_summarize(&conversation, cutoff, protect_last_n);
+    let tool_ids = tool_ids_to_summarize(&conversation, cutoff, protect_last_n);
+    if tool_ids.is_empty() {
+        return None;
+    }
+
+    Some(tokio::spawn(async move {
         let mut results = Vec::new();
         for tool_id in tool_ids {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
@@ -551,7 +555,7 @@ pub fn maybe_summarize_tool_pairs(
             }
         }
         results
-    })
+    }))
 }
 
 #[cfg(test)]

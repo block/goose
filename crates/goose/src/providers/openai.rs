@@ -1,31 +1,28 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::formats::openai::{
+    create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
+};
 use super::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message,
-    responses_api_to_streaming_message, ResponsesApiResponse,
+    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
 use super::inventory::{config_secret_value, InventoryIdentityInput};
 use super::openai_compatible::{
-    handle_response_openai_compat, handle_status, stream_openai_compat,
+    handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
 };
 use super::retry::ProviderRetry;
 use super::utils::ImageFormat;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
 use std::collections::HashMap;
-use std::io;
-use tokio::pin;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
@@ -123,7 +120,9 @@ pub struct OpenAiProvider {
     supports_streaming: bool,
     name: String,
     custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
+    preserve_thinking_context: bool,
 }
 
 impl OpenAiProvider {
@@ -229,7 +228,9 @@ impl OpenAiProvider {
 
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
+        let timeout_secs: u64 = config
+            .get_param("OPENAI_TIMEOUT")
+            .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
 
         let auth = match api_key {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
@@ -273,7 +274,9 @@ impl OpenAiProvider {
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
             custom_models: None,
+            dynamic_models: None,
             skip_canonical_filtering: false,
+            preserve_thinking_context: !is_openai,
         })
     }
 
@@ -289,7 +292,56 @@ impl OpenAiProvider {
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
             custom_models: None,
+            dynamic_models: None,
             skip_canonical_filtering: false,
+            preserve_thinking_context: false,
+        }
+    }
+
+    /// Resolve the API key from a declarative provider config.
+    ///
+    /// Returns `Some(key)` if a key is found, `None` if the key is optional/missing,
+    /// or an error if the key is required but missing/unreadable.
+    ///
+    /// The `get_secret` closure is used to look up the secret by key name. This allows
+    /// testing without depending on `Config::global()`.
+    pub fn resolve_api_key(
+        config: &DeclarativeProviderConfig,
+        get_secret: &dyn Fn(&str) -> Result<String, crate::config::ConfigError>,
+    ) -> Result<Option<String>> {
+        if config.api_key_env.is_empty() {
+            return Ok(None);
+        }
+
+        match get_secret(&config.api_key_env) {
+            Ok(key) => Ok(Some(key)),
+            Err(e) => {
+                use crate::config::ConfigError;
+                match e {
+                    ConfigError::NotFound(_) => {
+                        if config.requires_auth {
+                            anyhow::bail!(
+                                "Required API key {} is not set. Configure it via `goose configure` or set the {} environment variable.",
+                                config.api_key_env,
+                                config.api_key_env
+                            );
+                        }
+                        Ok(None)
+                    }
+                    other => {
+                        if config.requires_auth {
+                            anyhow::bail!("Failed to read {}: {}", config.api_key_env, other);
+                        } else {
+                            tracing::warn!(
+                                "Failed to read optional API key {}: {}. Proceeding without authentication.",
+                                config.api_key_env,
+                                other
+                            );
+                            Ok(None)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -297,23 +349,28 @@ impl OpenAiProvider {
         model: ModelConfig,
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
-        let global_config = crate::config::Config::global();
-
-        let api_key: Option<String> = if config.requires_auth && !config.api_key_env.is_empty() {
-            Some(global_config.get_secret::<String>(&config.api_key_env).map_err(|e| {
-                use crate::config::ConfigError;
-                match e {
-                    ConfigError::NotFound(_) => anyhow::anyhow!(
-                        "Required API key {} is not set. Configure it via `goose configure` or set the {} environment variable.",
-                        config.api_key_env,
-                        config.api_key_env
-                    ),
-                    other => anyhow::anyhow!("Failed to read {}: {}", config.api_key_env, other),
-                }
-            })?)
+        let custom_models = if !config.models.is_empty() {
+            Some(
+                config
+                    .models
+                    .iter()
+                    .map(|m| m.name.clone())
+                    .collect::<Vec<String>>(),
+            )
         } else {
             None
         };
+
+        if config.dynamic_models == Some(false) && custom_models.is_none() {
+            return Err(anyhow::anyhow!(
+                "Provider '{}' has dynamic_models: false but no static models listed; \
+                 at least one entry in `models` is required.",
+                config.name
+            ));
+        }
+
+        let global_config = crate::config::Config::global();
+        let api_key = Self::resolve_api_key(&config, &|key| global_config.get_secret(key))?;
 
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
@@ -334,7 +391,9 @@ impl OpenAiProvider {
             Self::derive_base_path(url.path())
         };
 
-        let timeout_secs = config.timeout_seconds.unwrap_or(600);
+        let timeout_secs = config
+            .timeout_seconds
+            .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
 
         let auth = match api_key {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
@@ -354,12 +413,6 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        let custom_models = if !config.models.is_empty() {
-            Some(config.models.iter().map(|m| m.name.clone()).collect())
-        } else {
-            None
-        };
-
         let model = if let Some(ref fast_model_name) = config.fast_model {
             model.with_fast(fast_model_name, &config.name)?
         } else {
@@ -376,7 +429,9 @@ impl OpenAiProvider {
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
             custom_models,
+            dynamic_models: config.dynamic_models,
             skip_canonical_filtering: config.skip_canonical_filtering,
+            preserve_thinking_context: config.preserves_thinking,
         })
     }
 
@@ -456,21 +511,49 @@ impl OpenAiProvider {
         "lmstudio",
         "mistral",
         "moonshot",
+        "nearai",
         "ovhcloud",
     ];
 
-    fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
-        if !Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
-            return payload;
-        }
+    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
 
+    fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
         if let Some(obj) = payload.as_object_mut() {
-            if let Some(value) = obj.remove("max_completion_tokens") {
-                obj.entry("max_tokens").or_insert(value);
+            if Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
+                if let Some(value) = obj.remove("max_completion_tokens") {
+                    obj.entry("max_tokens").or_insert(value);
+                }
+            }
+
+            if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
+                let model_name = obj.get("model").and_then(|model| model.as_str());
+                if !model_name.is_some_and(Self::is_responses_model) {
+                    obj.remove("reasoning_effort");
+                }
+
+                if let Some(messages) = obj.get_mut("messages").and_then(|m| m.as_array_mut()) {
+                    for message in messages {
+                        if message
+                            .get("role")
+                            .and_then(|role| role.as_str())
+                            .is_some_and(|role| role == "developer")
+                        {
+                            message["role"] = serde_json::Value::String("system".to_string());
+                        }
+                    }
+                }
             }
         }
 
         payload
+    }
+
+    fn should_use_responses_api_for_provider(&self, model_name: &str) -> bool {
+        if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
+            return false;
+        }
+
+        Self::should_use_responses_api(model_name, &self.base_path)
     }
 
     fn map_base_path(base_path: &str, target: &str, fallback: &str) -> String {
@@ -651,6 +734,9 @@ impl Provider for OpenAiProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
+            if self.dynamic_models == Some(false) {
+                return Ok(custom_models.clone());
+            }
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
                 Err(e) if e.is_endpoint_not_found() => {
@@ -690,7 +776,7 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        if Self::should_use_responses_api(&model_config.model_name, &self.base_path) {
+        if self.should_use_responses_api_for_provider(&model_config.model_name) {
             let mut payload = create_responses_request(model_config, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
 
@@ -719,20 +805,7 @@ impl Provider for OpenAiProvider {
                 })?;
 
             if self.supports_streaming {
-                let stream = response.bytes_stream().map_err(io::Error::other);
-
-                Ok(Box::pin(try_stream! {
-                    let stream_reader = StreamReader::new(stream);
-                    let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-                    let message_stream = responses_api_to_streaming_message(framed);
-                    pin!(message_stream);
-                    while let Some(message) = message_stream.next().await {
-                        let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                        log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                        yield (message, usage);
-                    }
-                }))
+                stream_responses_compat(response, log)
             } else {
                 let json: serde_json::Value = response.json().await.map_err(|e| {
                     ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
@@ -759,13 +832,16 @@ impl Provider for OpenAiProvider {
                 Ok(super::base::stream_from_single_message(message, usage))
             }
         } else {
-            let payload = create_request(
+            let payload = create_request_with_options(
                 model_config,
                 system,
                 messages,
                 tools,
                 &ImageFormat::OpenAi,
                 self.supports_streaming,
+                OpenAiFormatOptions {
+                    preserve_thinking_context: self.preserve_thinking_context,
+                },
             )?;
             let payload = self.sanitize_request_for_compat(payload);
             let mut log = RequestLog::start(model_config, &payload)?;
@@ -898,7 +974,9 @@ mod tests {
             supports_streaming: true,
             name: name.to_string(),
             custom_models: None,
+            dynamic_models: None,
             skip_canonical_filtering: false,
+            preserve_thinking_context: false,
         }
     }
 
@@ -977,6 +1055,61 @@ mod tests {
 
         let result = provider.sanitize_request_for_compat(payload.clone());
         assert_eq!(result, payload);
+    }
+
+    #[test]
+    fn sanitize_nearai_reasoning_chat_params() {
+        let provider = make_provider("nearai");
+        let payload = json!({
+            "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+            "messages": [
+                {
+                    "role": "developer",
+                    "content": "system instructions"
+                },
+                {
+                    "role": "user",
+                    "content": "hello"
+                }
+            ],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert!(!obj.contains_key("reasoning_effort"));
+        assert!(!obj.contains_key("max_completion_tokens"));
+        assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
+        assert_eq!(obj["messages"][0]["role"], "system");
+        assert_eq!(obj["messages"][1]["role"], "user");
+    }
+
+    #[test]
+    fn sanitize_nearai_preserves_openai_reasoning_effort() {
+        let provider = make_provider("nearai");
+        let payload = json!({
+            "model": "openai/gpt-5",
+            "messages": [],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 16384
+        });
+
+        let result = provider.sanitize_request_for_compat(payload);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
+        assert!(!obj.contains_key("max_completion_tokens"));
+        assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
+    }
+
+    #[test]
+    fn nearai_uses_chat_completions_for_openai_reasoning_models() {
+        let provider = make_provider("nearai");
+
+        assert!(!provider.should_use_responses_api_for_provider("openai/gpt-5"));
+        assert!(!provider.should_use_responses_api_for_provider("openai/o3"));
     }
 
     #[test]
@@ -1117,5 +1250,173 @@ mod tests {
             "gpt-5-codex",
             "chat/completions"
         ));
+    }
+
+    // ── dynamic_models behavior ─────────────────────────────────────────────
+
+    use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn make_provider_with_server(
+        server_uri: &str,
+        custom_models: Option<Vec<String>>,
+        dynamic_models: Option<bool>,
+    ) -> OpenAiProvider {
+        OpenAiProvider {
+            api_client: ApiClient::new(server_uri.to_string(), AuthMethod::NoAuth).unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            organization: None,
+            project: None,
+            model: ModelConfig::new_or_fail("test-model"),
+            custom_headers: None,
+            supports_streaming: true,
+            name: "custom_test".to_string(),
+            custom_models,
+            dynamic_models,
+            skip_canonical_filtering: false,
+            preserve_thinking_context: false,
+        }
+    }
+
+    fn base_declarative_config(
+        models: Vec<ModelInfo>,
+        dynamic_models: Option<bool>,
+    ) -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "custom_test".to_string(),
+            engine: ProviderEngine::OpenAI,
+            display_name: "Custom Test".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: "http://localhost:1".to_string(),
+            models,
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: Some(true),
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models,
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_static_only_skips_api() {
+        // Any request to the mock returns 500 — if the fix calls the API, the test fails.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_server(
+            &server.uri(),
+            Some(vec!["m1".to_string(), "m2".to_string()]),
+            Some(false),
+        );
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, vec!["m1".to_string(), "m2".to_string()]);
+    }
+
+    #[test]
+    fn from_custom_config_rejects_static_only_without_models() {
+        let config = base_declarative_config(vec![], Some(false));
+        let err =
+            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("test-model"), config)
+                .expect_err(
+                    "expected construction error for dynamic_models: false with empty models",
+                );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("dynamic_models: false"),
+            "error message should mention dynamic_models: false; got: {msg}"
+        );
+    }
+
+    // ── resolve_api_key tests ──────────────────────────────────────────────
+
+    fn config_with_key(api_key_env: &str, requires_auth: bool) -> DeclarativeProviderConfig {
+        let mut config = base_declarative_config(vec![], None);
+        config.api_key_env = api_key_env.to_string();
+        config.requires_auth = requires_auth;
+        config
+    }
+
+    #[test]
+    fn resolve_api_key_empty_env_returns_none() {
+        let config = config_with_key("", true);
+        assert_eq!(
+            OpenAiProvider::resolve_api_key(&config, &|_| unreachable!()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_api_key_missing_with_requires_auth_bails() {
+        let config = config_with_key("MY_KEY", true);
+        let err = OpenAiProvider::resolve_api_key(&config, &|_| {
+            Err(crate::config::ConfigError::NotFound("x".into()))
+        })
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("MY_KEY"),
+            "error should mention the key name; got: {err}"
+        );
+    }
+
+    #[test]
+    fn resolve_api_key_missing_without_requires_auth_returns_none() {
+        let config = config_with_key("MY_KEY", false);
+        assert_eq!(
+            OpenAiProvider::resolve_api_key(&config, &|_| Err(
+                crate::config::ConfigError::NotFound("x".into())
+            ))
+            .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_api_key_present_returns_value() {
+        let config = config_with_key("MY_KEY", true);
+        assert_eq!(
+            OpenAiProvider::resolve_api_key(&config, &|_| Ok("secret".into())).unwrap(),
+            Some("secret".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_api_key_other_error_bails_when_required() {
+        let config = config_with_key("MY_KEY", true);
+        let err = OpenAiProvider::resolve_api_key(&config, &|_| {
+            Err(crate::config::ConfigError::KeyringError("ring fail".into()))
+        })
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("MY_KEY"),
+            "error should mention the key name; got: {err}"
+        );
+    }
+
+    #[test]
+    fn resolve_api_key_other_error_warns_and_returns_none_when_optional() {
+        let config = config_with_key("MY_KEY", false);
+        assert_eq!(
+            OpenAiProvider::resolve_api_key(&config, &|_| Err(
+                crate::config::ConfigError::KeyringError("ring fail".into())
+            ))
+            .unwrap(),
+            None
+        );
     }
 }

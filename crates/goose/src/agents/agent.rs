@@ -22,20 +22,20 @@ use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
 };
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::platform_extensions::summon::discover_filesystem_sources;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
+use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
-    ToolRequest,
+    ActionRequiredData, InferenceMetadata, Message, MessageContent, ProviderMetadata,
+    SystemNotificationType, ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -66,6 +66,38 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+const DEFAULT_FRONTEND_INSTRUCTIONS: &str =
+    "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ToolCategory {
+    Shell,
+    Read,
+    Write,
+    Other,
+}
+
+fn categorize_tool(tool_name: &str) -> ToolCategory {
+    let local = tool_name.rsplit("__").next().unwrap_or(tool_name);
+    match local {
+        "shell" | "bash" | "exec" | "run" => ToolCategory::Shell,
+        "read" | "view" | "cat" | "read_file" => ToolCategory::Read,
+        "write" | "edit" | "patch" | "write_file" | "edit_file" => ToolCategory::Write,
+        _ => ToolCategory::Other,
+    }
+}
+
+fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
+    let obj = input.as_object()?;
+    for k in keys {
+        if let Some(s) = obj.get(*k).and_then(|v| v.as_str()) {
+            if !s.is_empty() {
+                return Some(s.to_string());
+            }
+        }
+    }
+    None
+}
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -117,6 +149,7 @@ pub struct AgentConfig {
     pub goose_platform: GoosePlatform,
     pub mcp_host_info: Option<GooseMcpHostInfo>,
     pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
+    pub use_login_shell_path: Option<bool>,
 }
 
 impl AgentConfig {
@@ -137,6 +170,7 @@ impl AgentConfig {
             goose_platform,
             mcp_host_info: None,
             session_name_update_tx: None,
+            use_login_shell_path: None,
         }
     }
 
@@ -152,6 +186,11 @@ impl AgentConfig {
         self.session_name_update_tx = tx;
         self
     }
+
+    pub fn with_use_login_shell_path(mut self, use_login_shell_path: bool) -> Self {
+        self.use_login_shell_path = Some(use_login_shell_path);
+        self
+    }
 }
 
 /// The main goose Agent
@@ -162,6 +201,7 @@ pub struct Agent {
 
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
+    pub(super) frontend_extensions: Mutex<HashMap<String, ExtensionConfig>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -171,7 +211,10 @@ pub struct Agent {
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) hook_manager: crate::hooks::HookManager,
     container: Mutex<Option<Container>>,
+    goal: Mutex<Option<String>>,
+    grind: Mutex<Option<String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -260,6 +303,9 @@ impl Agent {
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
+        let use_login_shell_path = config
+            .use_login_shell_path
+            .unwrap_or(matches!(goose_platform, GoosePlatform::GooseDesktop));
         Self {
             provider: provider.clone(),
             config,
@@ -269,8 +315,10 @@ impl Agent {
                 session_manager,
                 client_name,
                 capabilities,
+                use_login_shell_path,
             )),
             final_output_tool: Arc::new(Mutex::new(None)),
+            frontend_extensions: Mutex::new(HashMap::new()),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -282,7 +330,149 @@ impl Agent {
                 permission_manager,
                 provider.clone(),
             ),
+            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
             container: Mutex::new(None),
+            goal: Mutex::new(None),
+            grind: Mutex::new(None),
+        }
+    }
+
+    /// Emit a lifecycle hook event with no extra context. Useful for events
+    /// that have no matcher (e.g. `SessionStart`, `SessionEnd`).
+    pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) {
+        if !self.hook_manager.has_hooks(event) {
+            return;
+        }
+        self.hook_manager
+            .emit(event, crate::hooks::HookContext::new(event, session_id))
+            .await;
+    }
+
+    async fn emit_pre_tool_extended_hooks(
+        &self,
+        tool_name: &str,
+        tool_input: Option<&Value>,
+        session: &Session,
+    ) {
+        let working_dir = session.working_dir.to_string_lossy().to_string();
+        match categorize_tool(tool_name) {
+            ToolCategory::Shell => {
+                if let Some(cmd) = tool_input.and_then(|v| extract_string_arg(v, &["command"])) {
+                    self.emit_with_matcher(
+                        crate::hooks::HookEvent::BeforeShellExecution,
+                        &session.id,
+                        &cmd,
+                        tool_name,
+                        tool_input.cloned(),
+                        &working_dir,
+                    )
+                    .await;
+                }
+            }
+            ToolCategory::Read => {
+                if let Some(path) =
+                    tool_input.and_then(|v| extract_string_arg(v, &["path", "file", "file_path"]))
+                {
+                    self.emit_with_matcher(
+                        crate::hooks::HookEvent::BeforeReadFile,
+                        &session.id,
+                        &path,
+                        tool_name,
+                        tool_input.cloned(),
+                        &working_dir,
+                    )
+                    .await;
+                }
+            }
+            ToolCategory::Write | ToolCategory::Other => {}
+        }
+    }
+
+    async fn emit_with_matcher(
+        &self,
+        event: crate::hooks::HookEvent,
+        session_id: &str,
+        matcher_context: &str,
+        tool_name: &str,
+        tool_input: Option<Value>,
+        working_dir: &str,
+    ) {
+        if !self.hook_manager.has_hooks(event) {
+            return;
+        }
+        let mut ctx = crate::hooks::HookContext::new(event, session_id)
+            .with_tool(tool_name.to_string(), tool_input)
+            .with_working_dir(working_dir.to_string());
+        ctx.matcher_context = Some(matcher_context.to_string());
+        self.hook_manager.emit(event, ctx).await;
+    }
+
+    fn with_post_tool_hook(
+        &self,
+        result: ToolCallResult,
+        tool_call: &CallToolRequestParams,
+        session: &Session,
+    ) -> ToolCallResult {
+        let hook_manager = self.hook_manager.clone();
+        let session_id = session.id.clone();
+        let working_dir = session.working_dir.to_string_lossy().to_string();
+        let tool_name = tool_call.name.to_string();
+        let tool_input = tool_call
+            .arguments
+            .as_ref()
+            .map(|a| serde_json::Value::Object(a.clone()));
+        let category = categorize_tool(&tool_name);
+
+        let fut = async move {
+            let processed_result =
+                super::large_response_handler::process_tool_response(result.result.await);
+            let event = match &processed_result {
+                Ok(call_result) if call_result.is_error != Some(true) => {
+                    crate::hooks::HookEvent::PostToolUse
+                }
+                _ => crate::hooks::HookEvent::PostToolUseFailure,
+            };
+
+            if hook_manager.has_hooks(event) {
+                let ctx = crate::hooks::HookContext::new(event, &session_id)
+                    .with_tool(tool_name.clone(), tool_input.clone())
+                    .with_working_dir(working_dir.clone());
+                hook_manager.emit(event, ctx).await;
+            }
+
+            if event == crate::hooks::HookEvent::PostToolUse {
+                let extended = match category {
+                    ToolCategory::Shell => Some((
+                        crate::hooks::HookEvent::AfterShellExecution,
+                        tool_input
+                            .as_ref()
+                            .and_then(|v| extract_string_arg(v, &["command"])),
+                    )),
+                    ToolCategory::Write => Some((
+                        crate::hooks::HookEvent::AfterFileEdit,
+                        tool_input
+                            .as_ref()
+                            .and_then(|v| extract_string_arg(v, &["path", "file", "file_path"])),
+                    )),
+                    _ => None,
+                };
+                if let Some((ext_event, Some(matcher))) = extended {
+                    if hook_manager.has_hooks(ext_event) {
+                        let mut ctx = crate::hooks::HookContext::new(ext_event, &session_id)
+                            .with_tool(tool_name, tool_input)
+                            .with_working_dir(working_dir);
+                        ctx.matcher_context = Some(matcher);
+                        hook_manager.emit(ext_event, ctx).await;
+                    }
+                }
+            }
+
+            processed_result
+        };
+
+        ToolCallResult {
+            notification_stream: result.notification_stream,
+            result: Box::new(fut.boxed()),
         }
     }
 
@@ -400,16 +590,9 @@ impl Agent {
         }
         let initial_messages = conversation.messages().clone();
 
-        let (tools, toolshim_tools, mut system_prompt) = self
+        let (tools, toolshim_tools, system_prompt) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
-
-        if let Some(instructions) = self.resolve_at_mention(&conversation, working_dir) {
-            system_prompt = format!(
-                "{}\n\n# Instructions from active agent:\n\n{}",
-                system_prompt, instructions
-            );
-        }
 
         let goose_mode = *self.current_goose_mode.lock().await;
 
@@ -442,30 +625,6 @@ impl Agent {
             tool_call_cut_off,
             initial_messages,
         })
-    }
-
-    fn resolve_at_mention(
-        &self,
-        conversation: &Conversation,
-        working_dir: &std::path::Path,
-    ) -> Option<String> {
-        let last_message = conversation.messages().last()?;
-        if last_message.role == rmcp::model::Role::User {
-            let after_at = last_message
-                .as_concat_text()
-                .trim()
-                .strip_prefix('@')?
-                .to_lowercase();
-
-            for source in discover_filesystem_sources(working_dir) {
-                let name = source.name.to_lowercase();
-                let is_match = after_at == name || after_at.starts_with(&format!("{} ", name));
-                if is_match && !source.content.is_empty() {
-                    return Some(source.content.clone());
-                }
-            }
-        }
-        None
     }
 
     async fn categorize_tools(
@@ -572,6 +731,111 @@ impl Agent {
         self.frontend_tools.lock().await.get(name).cloned()
     }
 
+    async fn frontend_extension_configs(&self) -> Vec<ExtensionConfig> {
+        let mut configs = self
+            .frontend_extensions
+            .lock()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        configs.sort_by_key(|config| config.key());
+        configs
+    }
+
+    async fn frontend_tools_for_extension(&self, extension_name: Option<&str>) -> Vec<Tool> {
+        let requested_extension = extension_name.map(name_to_key);
+
+        self.frontend_extension_configs()
+            .await
+            .into_iter()
+            .filter_map(|config| {
+                let include = requested_extension
+                    .as_ref()
+                    .is_none_or(|name| *name == config.key());
+
+                match config {
+                    ExtensionConfig::Frontend { tools, .. } if include => Some(tools),
+                    _ => None,
+                }
+            })
+            .flatten()
+            .collect()
+    }
+
+    async fn rebuild_frontend_derived_state(&self, extensions: &HashMap<String, ExtensionConfig>) {
+        let multiple = extensions.len() > 1;
+        let mut tools = HashMap::new();
+        let mut instructions = Vec::new();
+
+        for config in extensions.values() {
+            if let ExtensionConfig::Frontend {
+                name,
+                tools: ext_tools,
+                instructions: ext_instructions,
+                ..
+            } = config
+            {
+                for tool in ext_tools {
+                    let tool_name = tool.name.to_string();
+                    tools.insert(
+                        tool_name.clone(),
+                        FrontendTool {
+                            name: tool_name,
+                            tool: tool.clone(),
+                        },
+                    );
+                }
+
+                let text = ext_instructions
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_FRONTEND_INSTRUCTIONS.to_string());
+                instructions.push(if multiple {
+                    format!("{name}: {text}")
+                } else {
+                    text
+                });
+            }
+        }
+
+        *self.frontend_tools.lock().await = tools;
+        *self.frontend_instructions.lock().await = if instructions.is_empty() {
+            None
+        } else {
+            Some(instructions.join("\n\n"))
+        };
+    }
+
+    async fn insert_frontend_extension(&self, extension: ExtensionConfig) {
+        let mut extensions = self.frontend_extensions.lock().await;
+        extensions.insert(extension.key(), extension);
+        self.rebuild_frontend_derived_state(&extensions).await;
+    }
+
+    async fn remove_frontend_extension(&self, name: &str) {
+        let mut extensions = self.frontend_extensions.lock().await;
+        extensions.remove(&name_to_key(name));
+        self.rebuild_frontend_derived_state(&extensions).await;
+    }
+
+    async fn extension_configs_for_persistence(&self) -> Vec<ExtensionConfig> {
+        let mut extension_configs = self.extension_manager.get_extension_configs().await;
+        extension_configs.extend(self.frontend_extension_configs().await);
+        extension_configs
+    }
+
+    pub(crate) async fn total_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
+
+        (
+            extension_count + self.frontend_extensions.lock().await.len(),
+            tool_count + self.frontend_tools.lock().await.len(),
+        )
+    }
+
     pub async fn add_final_output_tool(&self, response: Response) {
         let mut final_output_tool = self.final_output_tool.lock().await;
         let created_final_output_tool = FinalOutputTool::new(response);
@@ -613,22 +877,77 @@ impl Agent {
             .await
             .record_tool_arguments(&tool_call.arguments, &session.working_dir);
 
+        if self
+            .hook_manager
+            .has_hooks(crate::hooks::HookEvent::PreToolUse)
+        {
+            let ctx =
+                crate::hooks::HookContext::new(crate::hooks::HookEvent::PreToolUse, &session.id)
+                    .with_tool(
+                        tool_call.name.to_string(),
+                        tool_call
+                            .arguments
+                            .as_ref()
+                            .map(|a| serde_json::Value::Object(a.clone())),
+                    )
+                    .with_working_dir(session.working_dir.to_string_lossy().to_string());
+            if let crate::hooks::HookDecision::Deny { reason, plugin } = self
+                .hook_manager
+                .emit_blocking(crate::hooks::HookEvent::PreToolUse, ctx)
+                .await
+            {
+                return (
+                    request_id,
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!(
+                            "Tool call denied by policy hook `{plugin}`: {reason}. \
+                             Do not retry; this is a policy denial, not a transient failure."
+                        ),
+                        None,
+                    )),
+                );
+            }
+        }
+
+        let tool_input_for_extended = tool_call
+            .arguments
+            .as_ref()
+            .map(|a| serde_json::Value::Object(a.clone()));
+        self.emit_pre_tool_extended_hooks(
+            &tool_call.name,
+            tool_input_for_extended.as_ref(),
+            session,
+        )
+        .await;
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
+                .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
             let wrapped_result = result.map(CallToolResult::success);
-            return (request_id, Ok(ToolCallResult::from(wrapped_result)));
+            return (
+                request_id,
+                Ok(self.with_post_tool_hook(
+                    ToolCallResult::from(wrapped_result),
+                    &tool_call,
+                    session,
+                )),
+            );
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
             return if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
-                (request_id, Ok(result))
+                (
+                    request_id,
+                    Ok(self.with_post_tool_hook(result, &tool_call, session)),
+                )
             } else {
                 (
                     request_id,
@@ -680,23 +999,15 @@ impl Agent {
 
         (
             request_id,
-            Ok(ToolCallResult {
-                notification_stream: result.notification_stream,
-                result: Box::new(
-                    result
-                        .result
-                        .map(super::large_response_handler::process_tool_response),
-                ),
-            }),
+            Ok(self.with_post_tool_hook(result, &tool_call, session)),
         )
     }
 
     /// Save current extension state to session metadata
     /// Should be called after any extension add/remove operation
     pub async fn save_extension_state(&self, session: &SessionConfig) -> Result<()> {
-        let extension_configs = self.extension_manager.get_extension_configs().await;
-
-        let extensions_state = EnabledExtensionsState::new(extension_configs);
+        let extensions_state =
+            EnabledExtensionsState::new(self.extension_configs_for_persistence().await);
 
         let session_manager = self.config.session_manager.clone();
         let mut session_data = session_manager.get_session(&session.id, false).await?;
@@ -717,8 +1028,8 @@ impl Agent {
 
     /// Save current extension state to session by session_id
     pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
-        let extension_configs = self.extension_manager.get_extension_configs().await;
-        let extensions_state = EnabledExtensionsState::new(extension_configs);
+        let extensions_state =
+            EnabledExtensionsState::new(self.extension_configs_for_persistence().await);
 
         let session_manager = self.config.session_manager.clone();
         let session = session_manager.get_session(session_id, false).await?;
@@ -922,30 +1233,8 @@ impl Agent {
         let working_dir = Some(session.working_dir);
 
         match &extension {
-            ExtensionConfig::Frontend {
-                tools,
-                instructions,
-                ..
-            } => {
-                // For frontend tools, just store them in the frontend_tools map
-                let mut frontend_tools = self.frontend_tools.lock().await;
-                for tool in tools {
-                    let frontend_tool = FrontendTool {
-                        name: tool.name.to_string(),
-                        tool: tool.clone(),
-                    };
-                    frontend_tools.insert(tool.name.to_string(), frontend_tool);
-                }
-                // Store instructions if provided, using "frontend" as the key
-                let mut frontend_instructions = self.frontend_instructions.lock().await;
-                if let Some(instructions) = instructions {
-                    *frontend_instructions = Some(instructions.clone());
-                } else {
-                    // Default frontend instructions if none provided
-                    *frontend_instructions = Some(
-                        "The following tools are provided directly by the frontend and will be executed by the frontend when called.".to_string(),
-                    );
-                }
+            ExtensionConfig::Frontend { .. } => {
+                self.insert_frontend_extension(extension.clone()).await;
             }
             _ => {
                 let container = self.container.lock().await;
@@ -970,6 +1259,11 @@ impl Agent {
             .await
             .unwrap_or_default();
 
+        prefixed_tools.extend(
+            self.frontend_tools_for_extension(extension_name.as_deref())
+                .await,
+        );
+
         if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
             && self.config.scheduler_service.is_some()
         {
@@ -987,6 +1281,7 @@ impl Agent {
 
     pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
+        self.remove_frontend_extension(name).await;
 
         // Persist extension state after successful removal
         self.persist_extension_state(session_id)
@@ -1000,14 +1295,22 @@ impl Agent {
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
-        self.extension_manager
+        let mut extensions = self
+            .extension_manager
             .list_extensions()
             .await
-            .expect("Failed to list extensions")
+            .expect("Failed to list extensions");
+        extensions.extend(
+            self.frontend_extension_configs()
+                .await
+                .into_iter()
+                .map(|config| config.name()),
+        );
+        extensions
     }
 
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
-        self.extension_manager.get_extension_configs().await
+        self.extension_configs_for_persistence().await
     }
 
     /// Handle a confirmation response for a tool request
@@ -1086,15 +1389,18 @@ impl Agent {
 
         let message_text = user_message.as_concat_text();
 
-        // Track custom slash command usage (don't track command name for privacy)
-        if message_text.trim().starts_with('/') {
-            let command = message_text.split_whitespace().next();
-            if let Some(cmd) = command {
-                if crate::slash_commands::get_recipe_for_command(cmd).is_some() {
-                    #[cfg(feature = "telemetry")]
-                    crate::posthog::emit_custom_slash_command_used();
-                }
-            }
+        if self
+            .hook_manager
+            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+        {
+            let ctx = crate::hooks::HookContext::new(
+                crate::hooks::HookEvent::UserPromptSubmit,
+                &session_config.id,
+            )
+            .with_message(message_text.clone());
+            self.hook_manager
+                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                .await;
         }
 
         let command_result = self
@@ -1280,9 +1586,22 @@ impl Agent {
         self.reset_retry_attempts().await;
 
         let provider = self.provider().await?;
+        let provider_name = provider.get_name().to_string();
+        let requested_model = provider.get_model_config().model_name;
+        let inference = provider
+            .fetch_model_info(&requested_model)
+            .await
+            .ok()
+            .and_then(|model_info| model_info.resolved_model)
+            .map(|resolved_model| InferenceMetadata {
+                provider: provider_name,
+                requested_model,
+                resolved_model: Some(resolved_model),
+            });
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
+            let provider = provider.clone();
             let manager_for_spawn = session_manager.clone();
             let session_name_update_tx = self.config.session_name_update_tx.clone();
             tokio::spawn(async move {
@@ -1313,7 +1632,7 @@ impl Agent {
             .count();
 
         let working_dir = session.working_dir.clone();
-        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", session.id = %session_config.id);
+        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", trace_output = tracing::field::Empty, session.id = %session_config.id);
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
@@ -1323,6 +1642,8 @@ impl Agent {
             });
             let mut compaction_attempts = 0;
             let mut last_assistant_text = String::new();
+            let mut goal_check_pending = false;
+            let mut tool_pair_summarization_done = false;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1369,13 +1690,17 @@ impl Agent {
                     .count()
                     .saturating_sub(pre_turn_tool_count);
 
-                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
-                    self.provider().await?,
-                    session_config.id.clone(),
-                    conversation.clone(),
-                    tool_call_cut_off,
-                    current_turn_tool_count,
-                );
+                let tool_pair_summarization_task = if tool_pair_summarization_done {
+                    None
+                } else {
+                    crate::context_mgmt::maybe_summarize_tool_pairs(
+                        self.provider().await?,
+                        session_config.id.clone(),
+                        conversation.clone(),
+                        tool_call_cut_off,
+                        current_turn_tool_count,
+                    )
+                };
 
                 let mut no_tools_called = true;
                 let mut messages_to_add = Conversation::default();
@@ -1413,6 +1738,17 @@ impl Agent {
                                         surfaced_thinking_in_turn,
                                     )
                                     .await;
+
+                                let filtered_response = if let Some(inference) = inference.as_ref() {
+                                    filtered_response.with_inference(inference.clone())
+                                } else {
+                                    filtered_response
+                                };
+                                let response = if let Some(inference) = inference.as_ref() {
+                                    response.with_inference(inference.clone())
+                                } else {
+                                    response
+                                };
 
                                 surfaced_thinking_in_turn |= filtered_response.content.iter().any(
                                     |content| {
@@ -1668,6 +2004,8 @@ impl Agent {
                                 }
 
                                 no_tools_called = false;
+                                // Agent is actively working — re-check goal when it next finishes
+                                goal_check_pending = false;
                             }
                         }
                         #[allow(unused_variables)]
@@ -1818,7 +2156,46 @@ impl Agent {
                         None if did_recovery_compact_this_iteration => {
                             // continue from last user message after recovery compact
                         }
+                        None if self.goal.lock().await.is_some() && !goal_check_pending => {
+                            goal_check_pending = true;
+                            let goal = self.goal.lock().await.clone().unwrap();
+                            let nudge = format!(
+                                "Before finishing, check whether the following goal has been fully met:\n\n\
+                                 **Goal:** {goal}\n\n\
+                                 If not, continue working toward it."
+                            );
+                            let message = Message::user().with_text(&nudge)
+                                .with_visibility(false, true);
+                            messages_to_add.push(message);
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    format!("Goal: {goal}"),
+                                )
+                            );
+                        }
+
+                        None if self.grind.lock().await.is_some() => {
+                            let grind = self.grind.lock().await.clone().unwrap();
+                            let nudge = format!(
+                                "Keep working. The grind goal is not yet complete:\n\n\
+                                 **Goal:** {grind}\n\n\
+                                 Continue until it is fully done."
+                            );
+                            let message = Message::user().with_text(&nudge)
+                                .with_visibility(false, true);
+                            messages_to_add.push(message);
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    format!("Grind: {grind}"),
+                                )
+                            );
+                        }
+
                         None => {
+                            self.set_goal(None).await;
+                            self.set_grind(None).await;
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
                                 Ok(should_retry) => {
                                     if should_retry {
@@ -1845,40 +2222,51 @@ impl Agent {
                 }
 
                 if is_token_cancelled(&cancel_token) {
-                    tool_pair_summarization_task.abort();
+                    if let Some(ref task) = tool_pair_summarization_task {
+                        task.abort();
+                    }
                 }
 
-                if let Ok(summaries) = tool_pair_summarization_task.await {
-                    let mut updated_messages = conversation.messages().clone();
-
-                    for (summary_msg, tool_id) in summaries {
-                        let matching: Vec<&mut Message> = updated_messages
-                            .iter_mut()
-                            .filter(|msg| {
-                                msg.id.is_some() && msg.content.iter().any(|c| match c {
-                                    MessageContent::ToolRequest(req) => req.id == tool_id,
-                                    MessageContent::ToolResponse(resp) => resp.id == tool_id,
-                                    _ => false,
+                if let Some(task) = tool_pair_summarization_task {
+                    tool_pair_summarization_done = true;
+                    if let Ok(summaries) = task.await {
+                        for (summary_msg, tool_id) in summaries {
+                            let matching_ids: Vec<String> = conversation.messages()
+                                .iter()
+                                .filter(|msg| {
+                                    msg.id.is_some() && msg.content.iter().any(|c| match c {
+                                        MessageContent::ToolRequest(req) => req.id == tool_id,
+                                        MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                        _ => false,
+                                    })
                                 })
-                            })
-                            .collect();
+                                .filter_map(|msg| msg.id.clone())
+                                .collect();
 
-                        if matching.len() == 2 {
-                            for msg in matching {
-                                let id = msg.id.as_ref().unwrap();
-                                msg.metadata = msg.metadata.with_agent_invisible();
-                                SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
-                                    metadata.with_agent_invisible()
-                                }).await?;
+                            if matching_ids.len() == 2 {
+                                for id in &matching_ids {
+                                    SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                        metadata.with_agent_invisible()
+                                    }).await?;
+                                }
+                                session_manager.add_message(&session_config.id, &summary_msg).await?;
+                            } else {
+                                warn!("Expected a tool request/reply pair, but found {} matching messages",
+                                    matching_ids.len());
                             }
-                            messages_to_add.push(summary_msg);
-                        } else {
-                            warn!("Expected a tool request/reply pair, but found {} matching messages",
-                                matching.len());
                         }
                     }
-                    conversation = Conversation::new_unvalidated(updated_messages);
                 }
+
+                let messages_to_add = if let Some(ref inference) = inference {
+                    Conversation::new_unvalidated(
+                        messages_to_add
+                            .into_iter()
+                            .map(|message| message.with_inference_if_assistant(inference.clone())),
+                    )
+                } else {
+                    messages_to_add
+                };
 
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
@@ -1892,8 +2280,10 @@ impl Agent {
             }
 
             if !last_assistant_text.is_empty() {
-                tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
+                tracing::Span::current().record("trace_output", last_assistant_text.as_str());
             }
+
+            self.emit_hook(crate::hooks::HookEvent::Stop, &session_config.id).await;
         }.instrument(reply_stream_span));
         Ok(inner)
     }
@@ -1901,6 +2291,22 @@ impl Agent {
     pub async fn extend_system_prompt(&self, key: String, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.add_system_prompt_extra(key, instruction);
+    }
+
+    pub async fn set_goal(&self, goal: Option<String>) {
+        *self.goal.lock().await = goal;
+    }
+
+    pub async fn get_goal(&self) -> Option<String> {
+        self.goal.lock().await.clone()
+    }
+
+    pub async fn set_grind(&self, goal: Option<String>) {
+        *self.grind.lock().await = goal;
+    }
+
+    pub async fn get_grind(&self) -> Option<String> {
+        self.grind.lock().await.clone()
     }
 
     pub async fn update_provider(
@@ -2146,10 +2552,7 @@ impl Agent {
             .get_extensions_info(session_id, &session.working_dir)
             .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-        let (extension_count, tool_count) = self
-            .extension_manager
-            .get_extension_and_tool_counts(session_id)
-            .await;
+        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -2558,5 +2961,35 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn categorize_tool_recognizes_conventional_names() {
+        assert_eq!(categorize_tool("developer__shell"), ToolCategory::Shell);
+        assert_eq!(categorize_tool("filesystem__write"), ToolCategory::Write);
+        assert_eq!(categorize_tool("filesystem__edit"), ToolCategory::Write);
+        assert_eq!(categorize_tool("filesystem__read"), ToolCategory::Read);
+        assert_eq!(categorize_tool("filesystem__view"), ToolCategory::Read);
+        assert_eq!(categorize_tool("filesystem__cat"), ToolCategory::Read);
+        assert_eq!(categorize_tool("scheduler__list"), ToolCategory::Other);
+        assert_eq!(categorize_tool("shell"), ToolCategory::Shell);
+    }
+
+    #[test]
+    fn extract_string_arg_picks_first_present_key() {
+        let input = serde_json::json!({ "file_path": "/tmp/a.txt", "path": "/tmp/b.txt" });
+        assert_eq!(
+            extract_string_arg(&input, &["path", "file", "file_path"]).as_deref(),
+            Some("/tmp/b.txt")
+        );
+        let input = serde_json::json!({ "file_path": "/tmp/a.txt" });
+        assert_eq!(
+            extract_string_arg(&input, &["path", "file", "file_path"]).as_deref(),
+            Some("/tmp/a.txt")
+        );
+        let input = serde_json::json!({ "other": 1 });
+        assert!(extract_string_arg(&input, &["path"]).is_none());
+        let input = serde_json::json!({ "path": "" });
+        assert!(extract_string_arg(&input, &["path"]).is_none());
     }
 }

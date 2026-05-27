@@ -5,10 +5,15 @@ use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 pub type ProviderConstructor = Arc<
-    dyn Fn(ModelConfig, Vec<ExtensionConfig>) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
+    dyn Fn(
+            ModelConfig,
+            Vec<ExtensionConfig>,
+            Option<PathBuf>,
+        ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
 >;
@@ -60,7 +65,7 @@ impl ProviderEntry {
                 .metadata
                 .known_models
                 .iter()
-                .find(|m| m.name == model.model_name && m.context_limit > 0)
+                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
             {
                 model.context_limit = Some(info.context_limit);
             }
@@ -75,7 +80,7 @@ impl ProviderEntry {
     ) -> Result<Arc<dyn Provider>> {
         let default_model = &self.metadata.default_model;
         let model_config = self.normalize_model_config(ModelConfig::new(default_model.as_str())?);
-        (self.constructor)(model_config, extensions).await
+        (self.constructor)(model_config, extensions, None).await
     }
 
     pub async fn create(
@@ -84,7 +89,17 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
         let model = self.normalize_model_config(model);
-        (self.constructor)(model, extensions).await
+        (self.constructor)(model, extensions, None).await
+    }
+
+    pub async fn create_with_working_dir(
+        &self,
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+        working_dir: PathBuf,
+    ) -> Result<Arc<dyn Provider>> {
+        let model = self.normalize_model_config(model);
+        (self.constructor)(model, extensions, Some(working_dir)).await
     }
 }
 
@@ -111,9 +126,14 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|model, extensions| {
+                constructor: Arc::new(|model, extensions, working_dir| {
                     Box::pin(async move {
-                        let provider = F::from_env(model, extensions).await?;
+                        let provider = match working_dir {
+                            Some(working_dir) => {
+                                F::from_env_with_working_dir(model, extensions, working_dir).await?
+                            }
+                            None => F::from_env(model, extensions).await?,
+                        };
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
@@ -157,17 +177,25 @@ impl ProviderRegistry {
             .iter()
             .map(|m| ModelInfo {
                 name: m.name.clone(),
+                resolved_model: None,
                 context_limit: m.context_limit,
                 input_token_cost: m.input_token_cost,
                 output_token_cost: m.output_token_cost,
                 currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
+                reasoning: m.reasoning,
             })
             .collect();
 
         let mut config_keys = if provider_type == ProviderType::Declarative {
-            if config.requires_auth && !config.api_key_env.is_empty() {
-                vec![ConfigKey::new(&config.api_key_env, true, true, None, true)]
+            if !config.api_key_env.is_empty() {
+                vec![ConfigKey::new(
+                    &config.api_key_env,
+                    config.requires_auth,
+                    true,
+                    None,
+                    true,
+                )]
             } else {
                 Vec::new()
             }
@@ -220,7 +248,7 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |model, _extensions| {
+                constructor: Arc::new(move |model, _extensions, _working_dir| {
                     let result = constructor(model);
                     Box::pin(async move {
                         let provider = result?;

@@ -2,6 +2,8 @@ const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
 
+const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
+
 let cfg = {
   asar: true,
   extraResource: ['src/bin', 'src/images'],
@@ -92,9 +94,9 @@ module.exports = {
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
-          depends: ['libvulkan1'],
           icon: 'src/images/icon.png',
           prefix: '/opt',
+          ...(isLinuxVulkanBuild ? { depends: ['libvulkan1'] } : {}),
         },
       },
     },
@@ -108,9 +110,9 @@ module.exports = {
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
-          requires: ['vulkan-loader'],
           icon: 'src/images/icon.png',
           prefix: '/opt',
+          ...(isLinuxVulkanBuild ? { requires: ['vulkan-loader'] } : {}),
           fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
         },
       },

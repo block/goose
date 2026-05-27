@@ -16,7 +16,10 @@ use url::Url;
 
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
@@ -24,7 +27,7 @@ use crate::providers::formats::gcpvertexai::{
     DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
-use crate::providers::openai_compatible::map_http_error_to_provider_error;
+use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
@@ -33,8 +36,6 @@ use rmcp::model::Tool;
 const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
 /// Base URL for GCP Vertex AI documentation
 const GCP_VERTEX_AI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";
-/// Default timeout for API requests in seconds
-const DEFAULT_TIMEOUT_SECS: u64 = 600;
 /// Default initial interval for retry (in milliseconds)
 const DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 5000;
 /// Default maximum number of retries
@@ -171,7 +172,7 @@ impl GcpVertexAIProvider {
         let host = Self::build_host_url(&location);
 
         let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;
 
         let auth = GcpAuth::new().await?;
@@ -358,9 +359,10 @@ impl GcpVertexAIProvider {
                     "Authentication failed with status: {status}"
                 )));
             } else {
+                let url = sanitize_url(response.url().as_str());
                 let response_text = response.text().await.unwrap_or_default();
                 let payload = serde_json::from_str::<Value>(&response_text).ok();
-                return Err(map_http_error_to_provider_error(status, payload));
+                return Err(map_http_error_to_provider_error(status, payload, &url));
             }
         }
     }

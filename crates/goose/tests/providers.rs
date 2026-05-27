@@ -90,10 +90,9 @@ impl TestReport {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref TEST_REPORT: Arc<TestReport> = TestReport::new();
-    static ref ENV_LOCK: Mutex<()> = Mutex::new(());
-}
+static TEST_REPORT: std::sync::LazyLock<Arc<TestReport>> =
+    std::sync::LazyLock::new(TestReport::new);
+static ENV_LOCK: std::sync::LazyLock<Mutex<()>> = std::sync::LazyLock::new(|| Mutex::new(()));
 
 struct ProviderFixture {
     name: String,
@@ -918,7 +917,7 @@ async fn test_copilot_acp_provider() -> Result<()> {
         .await
 }
 
-#[ctor::dtor]
+#[dtor::dtor(unsafe)]
 fn print_test_report() {
     TEST_REPORT.print_summary();
 }
