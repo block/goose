@@ -315,6 +315,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_alibaba_declarative_provider_registry_wiring() {
+        let alibaba = get_from_registry("alibaba")
+            .await
+            .expect("alibaba provider should be registered");
+        let meta = alibaba.metadata();
+
+        assert_eq!(alibaba.provider_type(), ProviderType::Declarative);
+        assert!(alibaba.supports_inventory_refresh());
+        assert_eq!(meta.display_name, "Alibaba (Qwen)");
+        assert_eq!(meta.default_model, "qwen3.7-max");
+        assert_eq!(
+            meta.model_doc_link,
+            "https://www.alibabacloud.com/help/en/model-studio/models"
+        );
+        assert!(!meta.setup_steps.is_empty());
+
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "DASHSCOPE_API_KEY")
+            .expect("DASHSCOPE_API_KEY config key should exist");
+        assert!(api_key.required, "DASHSCOPE_API_KEY should be required");
+        assert!(api_key.secret, "DASHSCOPE_API_KEY should be secret");
+        assert!(api_key.primary, "DASHSCOPE_API_KEY should be primary");
+    }
+
+    #[tokio::test]
     async fn test_openai_compatible_providers_config_keys() {
         let providers_list = providers().await;
         let required_api_key_cases = vec![
