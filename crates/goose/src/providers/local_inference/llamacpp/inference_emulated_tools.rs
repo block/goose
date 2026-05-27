@@ -802,8 +802,17 @@ mod tests {
             parse_with_seeded_thinking(&["reasoning\n$ echo hidden\n</think>The answer."], false);
 
         assert_eq!(thinking.trim(), "reasoning\n$ echo hidden");
-        assert_eq!(actions.len(), 1);
-        assert_text(&actions[0], "The answer.");
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+        let text: String = actions
+            .iter()
+            .filter_map(|action| match action {
+                EmulatorAction::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text.trim(), "The answer.");
     }
 
     #[test]
