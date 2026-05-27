@@ -104,6 +104,10 @@ fn should_use_native_tool_calling(
         }
 }
 
+fn should_render_openai_messages(use_emulator: bool, use_jinja: bool) -> bool {
+    !use_emulator || use_jinja
+}
+
 pub(super) struct LlamaCppBackend {
     backend: LlamaBackend,
 }
@@ -314,10 +318,9 @@ impl LocalInferenceBackend for LlamaCppBackend {
             }
         }
 
-        let oai_messages_json = Some(build_openai_messages_json(
-            &system_prompt,
-            effective_messages,
-        ));
+        let oai_messages_json =
+            should_render_openai_messages(use_emulator, request.settings.use_jinja)
+                .then(|| build_openai_messages_json(&system_prompt, effective_messages));
 
         if !images.is_empty() && loaded.mtmd_ctx.is_none() {
             loaded.mtmd_ctx = Self::init_mtmd_context(
@@ -489,5 +492,13 @@ mod tests {
             false,
             true
         ));
+    }
+
+    #[test]
+    fn emulator_preserves_legacy_history_by_default() {
+        assert!(!should_render_openai_messages(true, false));
+        assert!(should_render_openai_messages(true, true));
+        assert!(should_render_openai_messages(false, false));
+        assert!(should_render_openai_messages(false, true));
     }
 }
