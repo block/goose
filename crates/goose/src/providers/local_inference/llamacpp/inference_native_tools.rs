@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use super::super::finalize_usage;
 use super::inference_engine::{
-    generation_loop, prepare_generation, GenerationContext, ThinkingOutputFilter, TokenAction,
+    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer,
+    ThinkingOutputFilter, TokenAction,
 };
 
 pub(super) fn generate_with_native_tools(
@@ -25,6 +26,8 @@ pub(super) fn generate_with_native_tools(
     let message_id = ctx.message_id;
     let tx = ctx.tx;
     let mut generated_text = String::new();
+    let mut stop_trimmer = StopSuffixTrimmer::new(&template_result.additional_stops);
+    let mut stop_string_emitted = false;
 
     // Initialize streaming parser — handles thinking tokens, tool calls, etc.
     let mut stream_parser = template_result.streaming_state_oaicompat().map_err(|e| {
@@ -55,6 +58,7 @@ pub(super) fn generate_with_native_tools(
         effective_ctx,
         |piece| {
             generated_text.push_str(piece);
+            let mut stop_seen = false;
 
             // Feed the new piece to the streaming parser
             match stream_parser.update(piece, true) {
@@ -79,9 +83,10 @@ pub(super) fn generate_with_native_tools(
                             if let Some(content) = delta.get("content").and_then(|v| v.as_str()) {
                                 if !content.is_empty() {
                                     let filtered = output_filter.push_text(content);
-                                    if !filtered.content.is_empty() {
-                                        let mut msg =
-                                            Message::assistant().with_text(filtered.content);
+                                    let (content, seen) = stop_trimmer.push(&filtered.content);
+                                    stop_seen |= seen;
+                                    if !content.is_empty() {
+                                        let mut msg = Message::assistant().with_text(content);
                                         msg.id = Some(message_id.to_string());
                                         if tx.blocking_send(Ok((Some(msg), None))).is_err() {
                                             return Ok(TokenAction::Stop);
@@ -103,8 +108,10 @@ pub(super) fn generate_with_native_tools(
                 Err(e) => {
                     tracing::warn!("Streaming parser error: {}", e);
                     let filtered = output_filter.push_text(piece);
-                    if !filtered.content.is_empty() {
-                        let mut msg = Message::assistant().with_text(filtered.content);
+                    let (content, seen) = stop_trimmer.push(&filtered.content);
+                    stop_seen |= seen;
+                    if !content.is_empty() {
+                        let mut msg = Message::assistant().with_text(content);
                         msg.id = Some(message_id.to_string());
                         if tx.blocking_send(Ok((Some(msg), None))).is_err() {
                             return Ok(TokenAction::Stop);
@@ -113,11 +120,13 @@ pub(super) fn generate_with_native_tools(
                 }
             }
 
-            let should_stop = template_result
-                .additional_stops
-                .iter()
-                .any(|stop| generated_text.ends_with(stop));
+            let should_stop = stop_seen
+                || template_result
+                    .additional_stops
+                    .iter()
+                    .any(|stop| generated_text.ends_with(stop));
             if should_stop {
+                stop_string_emitted = true;
                 Ok(TokenAction::Stop)
             } else {
                 Ok(TokenAction::Continue)
@@ -139,8 +148,10 @@ pub(super) fn generate_with_native_tools(
                 if let Some(content) = delta.get("content").and_then(|v| v.as_str()) {
                     if !content.is_empty() {
                         let filtered = output_filter.push_text(content);
-                        if !filtered.content.is_empty() {
-                            let mut msg = Message::assistant().with_text(filtered.content);
+                        let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+                        stop_string_emitted |= stop_seen;
+                        if !content.is_empty() {
+                            let mut msg = Message::assistant().with_text(content);
                             msg.id = Some(message_id.to_string());
                             let _ = tx.blocking_send(Ok((Some(msg), None)));
                         }
@@ -161,8 +172,18 @@ pub(super) fn generate_with_native_tools(
         msg.id = Some(message_id.to_string());
         let _ = tx.blocking_send(Ok((Some(msg), None)));
     }
-    if !filtered.content.is_empty() {
-        let mut msg = Message::assistant().with_text(filtered.content);
+    let content = if stop_string_emitted {
+        String::new()
+    } else {
+        let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+        let mut content = content;
+        if !stop_seen {
+            content.push_str(&stop_trimmer.finish());
+        }
+        content
+    };
+    if !content.is_empty() {
+        let mut msg = Message::assistant().with_text(content);
         msg.id = Some(message_id.to_string());
         let _ = tx.blocking_send(Ok((Some(msg), None)));
     }
