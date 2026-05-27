@@ -51,8 +51,9 @@ pub enum ChatTemplate {
     #[serde(alias = "auto")]
     #[default]
     Embedded,
-    #[serde(rename = "chatml")]
-    ChatMl,
+    Builtin {
+        name: String,
+    },
     CustomInline {
         template: String,
     },

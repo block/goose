@@ -2201,17 +2201,23 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Включить оптимизацию flash attention"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Встроенный шаблон"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Введите имя встроенного шаблона llama.cpp, например chatml"
+  },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Шаблон чата"
   },
-  "modelSettingsPanel.chatTemplateChatMl": {
-    "defaultMessage": "ChatML"
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Встроенный"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "Пользовательский inline"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "Использовать встроенные метаданные GGUF, ChatML или inline-шаблон Jinja"
+    "defaultMessage": "Использовать встроенные метаданные GGUF, встроенный шаблон llama.cpp или inline-шаблон Jinja"
   },
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "Встроенный"

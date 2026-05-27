@@ -183,9 +183,9 @@ fn missing_chat_template_error(
 
     ProviderError::ExecutionError(format!(
         "Model {model_id} does not contain GGUF tokenizer.chat_template metadata required for {context}.{architecture}{tool_use_note} \
-         Goose cannot safely infer the correct prompt format from architecture alone. Configure a \
-         custom inline chat template containing the full Jinja template source, or use a GGUF that \
-         includes tokenizer.chat_template metadata."
+         Goose cannot safely infer the correct prompt format from architecture alone. Select a \
+         llama.cpp built-in chat template name, configure a custom inline chat template containing \
+         the full Jinja template source, or use a GGUF that includes tokenizer.chat_template metadata."
     ))
 }
 
@@ -199,25 +199,35 @@ fn load_chat_templates(
             tool_use: model.chat_template(Some("tool_use")).ok(),
             force_default: false,
         }),
-        ChatTemplate::ChatMl => LlamaChatTemplate::new("chatml")
-            .map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to create ChatML chat template: {e}"))
-            })
-            .map(|template| LoadedChatTemplates {
-                default: Some(template),
-                tool_use: None,
-                force_default: true,
-            }),
+        ChatTemplate::Builtin { name } => {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
+                return Err(ProviderError::ExecutionError(
+                    "Built-in chat template name is empty. Enter a llama.cpp built-in template name such as 'chatml', or use embedded chat template metadata.".to_string(),
+                ));
+            }
+            LlamaChatTemplate::new(trimmed)
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Built-in chat template name contains an invalid NUL byte: {e}"
+                    ))
+                })
+                .map(|template| LoadedChatTemplates {
+                    default: Some(template),
+                    tool_use: None,
+                    force_default: true,
+                })
+        }
         ChatTemplate::CustomInline { template } => {
             let trimmed = template.trim();
             if trimmed.is_empty() {
                 return Err(ProviderError::ExecutionError(
-                    "Custom inline chat template is empty. Paste the full Jinja chat template source, or use embedded chat template metadata.".to_string(),
+                    "Custom inline chat template is empty. Paste the full Jinja chat template source, use a llama.cpp built-in template name, or use embedded chat template metadata.".to_string(),
                 ));
             }
             if trimmed == "chatml" || is_legacy_builtin_template_name(trimmed) {
                 return Err(ProviderError::ExecutionError(format!(
-                    "Custom inline chat template is set to '{trimmed}', which is a llama.cpp template name rather than Jinja template source. Paste the full Jinja chat template source instead, or select ChatML explicitly if ChatML is intended."
+                    "Custom inline chat template is set to '{trimmed}', which is a llama.cpp template name rather than Jinja template source. Paste the full Jinja chat template source instead, or select Built-in and enter '{trimmed}' if that built-in template is intended."
                 )));
             }
             LlamaChatTemplate::new(template)

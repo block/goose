@@ -2183,17 +2183,23 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "Prompt processing batch"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Built-in template"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Enter a llama.cpp built-in template name, e.g. chatml"
+  },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Chat template"
   },
-  "modelSettingsPanel.chatTemplateChatMl": {
-    "defaultMessage": "ChatML"
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Built-in"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "Custom inline"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "Use embedded GGUF metadata, ChatML, or an inline Jinja template"
+    "defaultMessage": "Use embedded GGUF metadata, a llama.cpp built-in template, or inline Jinja"
   },
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "Embedded"

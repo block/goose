@@ -512,7 +512,7 @@ pub(super) fn prepare_generation<'model>(
                 Ok(r) => r,
                 Err(compact_err) => {
                     return Err(ProviderError::ExecutionError(format!(
-                        "Failed to apply chat template with llama.cpp's Jinja renderer. This usually means the model's chat template is missing, invalid, or incompatible with the current message shape. Configure a custom inline chat template containing the full Jinja template source, or use a GGUF with valid tokenizer.chat_template metadata. Full tools error: {e}; compact tools error: {compact_err}"
+                        "Failed to apply chat template with llama.cpp's Jinja renderer. This usually means the selected built-in template name does not exist, the embedded or custom template is invalid, or the template is incompatible with the current message shape. Select a valid llama.cpp built-in template name, configure a custom inline Jinja template, or use a GGUF with valid tokenizer.chat_template metadata. Full tools error: {e}; compact tools error: {compact_err}"
                     )));
                 }
             }

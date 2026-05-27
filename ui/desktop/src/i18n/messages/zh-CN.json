@@ -2150,17 +2150,23 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "启用 Flash Attention 优化"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "内置模板"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "输入 llama.cpp 内置模板名称，例如 chatml"
+  },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "聊天模板"
   },
-  "modelSettingsPanel.chatTemplateChatMl": {
-    "defaultMessage": "ChatML"
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "内置"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "自定义内联"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "使用嵌入式 GGUF 元数据、ChatML 或内联 Jinja 模板"
+    "defaultMessage": "使用嵌入式 GGUF 元数据、llama.cpp 内置模板或内联 Jinja 模板"
   },
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "嵌入式"

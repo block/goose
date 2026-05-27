@@ -187,19 +187,27 @@ const i18n = defineMessages({
   },
   chatTemplateDescription: {
     id: 'modelSettingsPanel.chatTemplateDescription',
-    defaultMessage: 'Use embedded GGUF metadata, ChatML, or an inline Jinja template',
+    defaultMessage: 'Use embedded GGUF metadata, a llama.cpp built-in template, or inline Jinja',
   },
   chatTemplateEmbedded: {
     id: 'modelSettingsPanel.chatTemplateEmbedded',
     defaultMessage: 'Embedded',
   },
-  chatTemplateChatMl: {
-    id: 'modelSettingsPanel.chatTemplateChatMl',
-    defaultMessage: 'ChatML',
+  chatTemplateBuiltin: {
+    id: 'modelSettingsPanel.chatTemplateBuiltin',
+    defaultMessage: 'Built-in',
   },
   chatTemplateCustomInline: {
     id: 'modelSettingsPanel.chatTemplateCustomInline',
     defaultMessage: 'Custom inline',
+  },
+  builtinChatTemplate: {
+    id: 'modelSettingsPanel.builtinChatTemplate',
+    defaultMessage: 'Built-in template',
+  },
+  builtinChatTemplateDescription: {
+    id: 'modelSettingsPanel.builtinChatTemplateDescription',
+    defaultMessage: 'Enter a llama.cpp built-in template name, e.g. chatml',
   },
   customChatTemplate: {
     id: 'modelSettingsPanel.customChatTemplate',
@@ -236,7 +244,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
 };
 
 type SamplingType = SamplingConfig['type'];
-type ChatTemplateMode = 'embedded' | 'chatml' | 'custom_inline';
+type ChatTemplateMode = 'embedded' | 'builtin' | 'custom_inline';
 
 function NumberField({
   label,
@@ -280,6 +288,38 @@ function NumberField({
         min={min}
         max={max}
         step={step}
+      />
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  description,
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+}: {
+  label: string;
+  description?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-text-default">{label}</label>
+      {description && <span className="text-xs text-text-muted">{description}</span>}
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        spellCheck={false}
+        className="w-full rounded border border-border-subtle bg-background-default px-2 py-1 font-mono text-xs text-text-default"
       />
     </div>
   );
@@ -373,6 +413,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const intl = useIntl();
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
   const [chatTemplateDraft, setChatTemplateDraft] = useState('');
+  const [builtinTemplateDraft, setBuiltinTemplateDraft] = useState('chatml');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -404,6 +445,9 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     } else {
       setChatTemplateDraft('');
     }
+    if (chatTemplate?.type === 'builtin') {
+      setBuiltinTemplateDraft(chatTemplate.name ?? 'chatml');
+    }
   }, [settings.chat_template]);
 
   const save = async (updated: ModelSettings) => {
@@ -429,16 +473,26 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const chatTemplateMode: ChatTemplateMode =
     chatTemplate.type === 'custom_inline'
       ? 'custom_inline'
-      : chatTemplate.type === 'chatml'
-        ? 'chatml'
+      : chatTemplate.type === 'builtin'
+        ? 'builtin'
         : 'embedded';
 
   const setChatTemplateMode = (mode: ChatTemplateMode) => {
-    const next: ChatTemplate =
-      mode === 'custom_inline'
-        ? { type: 'custom_inline', template: chatTemplateDraft }
-        : { type: mode };
+    let next: ChatTemplate;
+    if (mode === 'custom_inline') {
+      next = { type: 'custom_inline', template: chatTemplateDraft };
+    } else if (mode === 'builtin') {
+      next = { type: 'builtin', name: builtinTemplateDraft.trim() || 'chatml' };
+    } else {
+      next = { type: 'embedded' };
+    }
     updateField('chat_template', next);
+  };
+
+  const saveBuiltinTemplateDraft = () => {
+    if (chatTemplateMode === 'builtin') {
+      updateField('chat_template', { type: 'builtin', name: builtinTemplateDraft.trim() });
+    }
   };
 
   const saveChatTemplateDraft = () => {
@@ -706,7 +760,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           value={chatTemplateMode}
           options={[
             { value: 'embedded', label: intl.formatMessage(i18n.chatTemplateEmbedded) },
-            { value: 'chatml', label: intl.formatMessage(i18n.chatTemplateChatMl) },
+            { value: 'builtin', label: intl.formatMessage(i18n.chatTemplateBuiltin) },
             {
               value: 'custom_inline',
               label: intl.formatMessage(i18n.chatTemplateCustomInline),
@@ -714,6 +768,16 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           ]}
           onChange={setChatTemplateMode}
         />
+        {chatTemplateMode === 'builtin' && (
+          <TextField
+            label={intl.formatMessage(i18n.builtinChatTemplate)}
+            description={intl.formatMessage(i18n.builtinChatTemplateDescription)}
+            value={builtinTemplateDraft}
+            onChange={setBuiltinTemplateDraft}
+            onBlur={saveBuiltinTemplateDraft}
+            placeholder="chatml"
+          />
+        )}
         {chatTemplateMode === 'custom_inline' && (
           <TextAreaField
             label={intl.formatMessage(i18n.customChatTemplate)}

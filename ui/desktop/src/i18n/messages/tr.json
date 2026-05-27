@@ -2279,17 +2279,23 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Flaş dikkati optimizasyonunu etkinleştir"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Yerleşik şablon"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Bir llama.cpp yerleşik şablon adı girin, ör. chatml"
+  },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Sohbet şablonu"
   },
-  "modelSettingsPanel.chatTemplateChatMl": {
-    "defaultMessage": "ChatML"
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Yerleşik"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "Özel satır içi"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "Gömülü GGUF meta verilerini, ChatML'yi veya satır içi Jinja şablonunu kullan"
+    "defaultMessage": "Gömülü GGUF meta verilerini, llama.cpp yerleşik şablonunu veya satır içi Jinja şablonunu kullan"
   },
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "Gömülü"
