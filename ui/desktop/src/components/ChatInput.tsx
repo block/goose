@@ -202,8 +202,6 @@ interface ChatInputProps {
   sessionModel?: string | null;
   sessionProvider?: string | null;
   sessionLoaded?: boolean;
-  acpConfigOptions?: SessionConfigOption[] | null;
-  onAcpConfigOptionsChange?: (configOptions: SessionConfigOption[] | null | undefined) => void;
   latestInference?: Message['metadata']['inference'] | null;
 }
 
@@ -235,8 +233,6 @@ export default function ChatInput({
   sessionModel,
   sessionProvider,
   sessionLoaded,
-  acpConfigOptions,
-  onAcpConfigOptionsChange,
   latestInference,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -1652,13 +1648,6 @@ export default function ChatInput({
               totalTokens={totalTokens || 0}
               tokenLimit={tokenLimit}
               alerts={alerts}
-            />
-
-            {/* Right: mode selector */}
-            <BottomMenuModeSelection
-              sessionId={sessionId}
-              acpConfigOptions={acpConfigOptions}
-              onAcpConfigOptionsChange={onAcpConfigOptionsChange}
             />
 
             {/* Right: extension selector */}

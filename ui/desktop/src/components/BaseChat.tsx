@@ -115,8 +115,6 @@ export default function BaseChat({
     sessionLoadError,
     setRecipeUserParams,
     tokenState,
-    acpConfigOptions,
-    setAcpConfigOptions,
     notifications: toolCallNotifications,
     onMessageUpdate,
     onAcpPermissionDecision,
@@ -525,8 +523,6 @@ export default function BaseChat({
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}
-            acpConfigOptions={acpConfigOptions}
-            onAcpConfigOptionsChange={setAcpConfigOptions}
             latestInference={latestInference}
             {...customChatInputProps}
           />
