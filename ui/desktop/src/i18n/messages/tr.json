@@ -2279,6 +2279,21 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Flaş dikkati optimizasyonunu etkinleştir"
   },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Araç çağırma"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Otomatik"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Yerel modellerin yerel veya emüle araç çağırmayı nasıl seçeceğini belirleyin"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Emüle etmeye zorla"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Yereli zorla"
+  },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "Frekans cezası"
   },
@@ -2308,12 +2323,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "Yerel araç çağrısı"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "Kabuk komutu emülatörü yerine modelin yerleşik araç çağrısı formatını kullanın. Araç çağırmayı güvenilir şekilde destekleyen büyük modeller için etkinleştirin."
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "Performans"
@@ -2365,9 +2374,6 @@
   },
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "Nesil için CPU iş parçacıkları"
-  },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Takım Çağırma"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "En İyi K"

@@ -1,3 +1,4 @@
+use crate::providers::base::{FilterOut, ThinkFilter};
 use crate::providers::errors::ProviderError;
 use crate::providers::local_inference::backend::LocalInferenceBackend;
 use crate::providers::local_inference::local_model_registry::ModelSettings;
@@ -5,8 +6,11 @@ use crate::providers::local_inference::multimodal::ExtractedImage;
 use crate::providers::utils::RequestLog;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::model::{
+    AddBos, ChatTemplateResult, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
+};
 use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdInputText};
+use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use std::num::NonZeroU32;
 
@@ -31,6 +35,93 @@ pub(super) struct LoadedModel {
     pub template: LlamaChatTemplate,
     /// Multimodal context for vision models. None for text-only models.
     pub mtmd_ctx: Option<MtmdContext>,
+}
+
+pub(super) struct PreparedGeneration<'model> {
+    pub template_result: ChatTemplateResult,
+    pub llama_ctx: llama_cpp_2::context::LlamaContext<'model>,
+    pub prompt_token_count: usize,
+    pub effective_ctx: usize,
+}
+
+pub(super) struct ThinkingOutputFilter {
+    enabled: bool,
+    saw_structured_reasoning: bool,
+    think_filter: ThinkFilter,
+    pending_inline_thinking: String,
+    accumulated_thinking: String,
+}
+
+impl ThinkingOutputFilter {
+    pub(super) fn new(enable_thinking: bool, generation_prompt: &str) -> Self {
+        let mut think_filter = ThinkFilter::new();
+        if enable_thinking && !generation_prompt.is_empty() {
+            let _ = think_filter.push(generation_prompt);
+        }
+
+        Self {
+            enabled: enable_thinking,
+            saw_structured_reasoning: false,
+            think_filter,
+            pending_inline_thinking: String::new(),
+            accumulated_thinking: String::new(),
+        }
+    }
+
+    pub(super) fn push_structured_reasoning(&mut self, reasoning: &str) -> Option<String> {
+        if reasoning.is_empty() {
+            return None;
+        }
+
+        self.saw_structured_reasoning = true;
+        self.pending_inline_thinking.clear();
+        self.think_filter = ThinkFilter::new();
+        self.accumulated_thinking.push_str(reasoning);
+        Some(reasoning.to_string())
+    }
+
+    pub(super) fn push_text(&mut self, text: &str) -> FilterOut {
+        if !self.enabled {
+            return FilterOut {
+                content: text.to_string(),
+                thinking: String::new(),
+            };
+        }
+
+        let mut filtered = self.think_filter.push(text);
+        if self.saw_structured_reasoning {
+            filtered.thinking.clear();
+        } else if !filtered.thinking.is_empty() {
+            self.pending_inline_thinking.push_str(&filtered.thinking);
+            filtered.thinking.clear();
+        }
+        filtered
+    }
+
+    pub(super) fn finish(&mut self) -> FilterOut {
+        let mut filtered = if self.enabled && !self.saw_structured_reasoning {
+            std::mem::take(&mut self.think_filter).finish()
+        } else {
+            FilterOut::default()
+        };
+
+        if !self.saw_structured_reasoning {
+            let mut thinking = std::mem::take(&mut self.pending_inline_thinking);
+            thinking.push_str(&filtered.thinking);
+            if !thinking.is_empty() {
+                self.accumulated_thinking.push_str(&thinking);
+            }
+            filtered.thinking = thinking;
+        } else {
+            filtered.thinking.clear();
+        }
+
+        filtered
+    }
+
+    pub(super) fn accumulated_thinking(&self) -> &str {
+        &self.accumulated_thinking
+    }
 }
 
 /// Estimate the maximum context length that can fit in available accelerator/CPU
@@ -347,6 +438,141 @@ pub(super) fn create_and_prefill_multimodal<'model>(
         .map_err(|e| ProviderError::ExecutionError(format!("Multimodal eval failed: {e}")))?;
 
     Ok((llama_ctx, prompt_token_count, effective_ctx))
+}
+
+pub(super) fn prepare_generation<'model>(
+    ctx: &mut GenerationContext<'model>,
+    oai_messages_json: Option<&str>,
+    full_tools_json: Option<&str>,
+    compact_tools_json: Option<&str>,
+) -> Result<PreparedGeneration<'model>, ProviderError> {
+    let apply_template = |tools: Option<&str>| {
+        if let Some(messages_json) = oai_messages_json {
+            let params = OpenAIChatTemplateParams {
+                messages_json,
+                tools_json: tools,
+                tool_choice: None,
+                json_schema: None,
+                grammar: None,
+                reasoning_format: if ctx.settings.enable_thinking {
+                    Some("auto")
+                } else {
+                    None
+                },
+                chat_template_kwargs: None,
+                add_generation_prompt: true,
+                use_jinja: true,
+                parallel_tool_calls: false,
+                enable_thinking: ctx.settings.enable_thinking,
+                add_bos: false,
+                add_eos: false,
+                parse_tool_calls: true,
+            };
+            ctx.loaded
+                .model
+                .apply_chat_template_oaicompat(&ctx.loaded.template, &params)
+        } else {
+            ctx.loaded.model.apply_chat_template_with_tools_oaicompat(
+                &ctx.loaded.template,
+                ctx.chat_messages,
+                tools,
+                None,
+                true,
+            )
+        }
+    };
+
+    let apply_legacy_template = |tools: Option<&str>| {
+        ctx.loaded.model.apply_chat_template_with_tools_oaicompat(
+            &ctx.loaded.template,
+            ctx.chat_messages,
+            tools,
+            None,
+            true,
+        )
+    };
+
+    let min_generation_headroom = 512;
+    let n_ctx_train = ctx.loaded.model.n_ctx_train() as usize;
+    let mmproj_overhead = if ctx.loaded.mtmd_ctx.is_some() {
+        ctx.settings.mmproj_size_bytes
+    } else {
+        0
+    };
+    let memory_max_ctx =
+        estimate_max_context_for_memory(&ctx.loaded.model, ctx.backend, mmproj_overhead);
+    let cap = context_cap(ctx.settings, ctx.context_limit, n_ctx_train, memory_max_ctx);
+    let token_budget = cap.saturating_sub(min_generation_headroom);
+    let estimated_image_tokens = ctx.images.len() * ctx.settings.image_token_estimate;
+
+    let template_result = match apply_template(full_tools_json) {
+        Ok(r) => {
+            let token_count = ctx
+                .loaded
+                .model
+                .str_to_token(&r.prompt, AddBos::Never)
+                .map(|t| t.len())
+                .unwrap_or(0);
+            if token_count + estimated_image_tokens > token_budget {
+                apply_template(compact_tools_json).unwrap_or(r)
+            } else {
+                r
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Failed to apply llama.cpp OpenAI-compatible chat template; falling back to legacy template"
+            );
+            match apply_template(compact_tools_json) {
+                Ok(r) => r,
+                Err(compact_err) => apply_legacy_template(compact_tools_json).map_err(|legacy_err| {
+                    ProviderError::ExecutionError(format!(
+                        "Failed to apply chat template: {compact_err}; legacy fallback also failed: {legacy_err}"
+                    ))
+                })?,
+            }
+        }
+    };
+
+    let _ = ctx.log.write(
+        &serde_json::json!({"applied_prompt": &template_result.prompt}),
+        None,
+    );
+
+    let (llama_ctx, prompt_token_count, effective_ctx) = if !ctx.images.is_empty() {
+        create_and_prefill_multimodal(
+            ctx.loaded,
+            ctx.backend,
+            &template_result.prompt,
+            ctx.images,
+            ctx.context_limit,
+            ctx.settings,
+        )?
+    } else {
+        let tokens = ctx
+            .loaded
+            .model
+            .str_to_token(&template_result.prompt, AddBos::Never)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        let (ptc, ectx) = validate_and_compute_context(
+            ctx.loaded,
+            ctx.backend,
+            tokens.len(),
+            ctx.context_limit,
+            ctx.settings,
+        )?;
+        let lctx =
+            create_and_prefill_context(ctx.loaded, ctx.backend, &tokens, ectx, ctx.settings)?;
+        (lctx, ptc, ectx)
+    };
+
+    Ok(PreparedGeneration {
+        template_result,
+        llama_ctx,
+        prompt_token_count,
+        effective_ctx,
+    })
 }
 
 /// Action to take after processing a generated token piece.

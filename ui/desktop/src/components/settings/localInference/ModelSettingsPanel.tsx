@@ -7,6 +7,7 @@ import {
   updateModelSettings,
   type ModelSettings,
   type SamplingConfig,
+  type ToolCallingMode,
 } from '../../../api';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -161,16 +162,23 @@ const i18n = defineMessages({
   },
   toolCalling: {
     id: 'modelSettingsPanel.toolCalling',
-    defaultMessage: 'Tool Calling',
+    defaultMessage: 'Tool calling',
   },
-  nativeToolCalling: {
-    id: 'modelSettingsPanel.nativeToolCalling',
-    defaultMessage: 'Native tool calling',
+  toolCallingDescription: {
+    id: 'modelSettingsPanel.toolCallingDescription',
+    defaultMessage: 'Choose how local models select native or emulated tool calling',
   },
-  nativeToolCallingDescription: {
-    id: 'modelSettingsPanel.nativeToolCallingDescription',
-    defaultMessage:
-      "Use the model's built-in tool-call format instead of the shell-command emulator. Enable for large models that reliably support tool calling.",
+  toolCallingAuto: {
+    id: 'modelSettingsPanel.toolCallingAuto',
+    defaultMessage: 'Auto',
+  },
+  toolCallingForceNative: {
+    id: 'modelSettingsPanel.toolCallingForceNative',
+    defaultMessage: 'Force native',
+  },
+  toolCallingForceEmulated: {
+    id: 'modelSettingsPanel.toolCallingForceEmulated',
+    defaultMessage: 'Force emulated',
   },
 });
 
@@ -194,7 +202,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
   use_mlock: false,
   flash_attention: null,
   n_threads: null,
-  native_tool_calling: false,
+  tool_calling: 'auto',
 };
 
 type SamplingType = SamplingConfig['type'];
@@ -311,7 +319,9 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const load = useCallback(async () => {
     try {
       const res = await getModelSettings({ path: { model_id: modelId } });
-      if (res.data) setSettings(res.data);
+      if (res.data) {
+        setSettings({ ...res.data, tool_calling: res.data.tool_calling ?? 'auto' });
+      }
     } catch {
       // use defaults
     } finally {
@@ -585,15 +595,16 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           ]}
           onChange={(v) => updateField('flash_attention', v === 'auto' ? null : v === 'on')}
         />
-      </div>
-      {/* Tool Calling */}
-      <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">{intl.formatMessage(i18n.toolCalling)}</h5>
-        <ToggleField
-          label={intl.formatMessage(i18n.nativeToolCalling)}
-          description={intl.formatMessage(i18n.nativeToolCallingDescription)}
-          value={settings.native_tool_calling ?? false}
-          onChange={(v) => updateField('native_tool_calling', v)}
+        <SelectField<ToolCallingMode>
+          label={intl.formatMessage(i18n.toolCalling)}
+          description={intl.formatMessage(i18n.toolCallingDescription)}
+          value={settings.tool_calling ?? 'auto'}
+          options={[
+            { value: 'auto', label: intl.formatMessage(i18n.toolCallingAuto) },
+            { value: 'force_native', label: intl.formatMessage(i18n.toolCallingForceNative) },
+            { value: 'force_emulated', label: intl.formatMessage(i18n.toolCallingForceEmulated) },
+          ]}
+          onChange={(v) => updateField('tool_calling', v)}
         />
       </div>
     </div>

@@ -16,7 +16,7 @@ use goose::providers::local_inference::{
     available_inference_memory_bytes,
     hf_models::{resolve_model_spec, resolve_model_spec_full, HfGgufFile},
     local_model_registry::{
-        default_settings_for_model, featured_mmproj_spec, get_registry, is_featured_model,
+        default_settings_for_model, get_registry, is_featured_model, known_mmproj_spec,
         model_id_from_repo, LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
         ModelSettings, ShardFile, FEATURED_MODELS,
     },
@@ -79,13 +79,14 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
                 .lock()
                 .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
             if let Some(existing) = registry.get_model(&model_id) {
-                let needs_backfill = existing.mmproj_path.is_none() && featured.mmproj.is_some();
+                let mmproj = known_mmproj_spec(&model_id);
+                let needs_backfill = existing.mmproj_path.is_none() && mmproj.is_some();
                 let needs_download = existing.is_downloaded()
-                    && featured.mmproj.is_some()
+                    && mmproj.is_some()
                     && !existing.mmproj_path.as_ref().is_some_and(|p| p.exists());
 
                 if needs_download {
-                    if let Some(mmproj) = featured.mmproj.as_ref() {
+                    if let Some(mmproj) = mmproj {
                         let path = mmproj.local_path();
                         let url = format!(
                             "https://huggingface.co/{}/resolve/main/{}",
@@ -169,9 +170,9 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
         // Backfill mmproj data for all registry models and collect any
         // needed mmproj downloads for models already on disk.
         for model in registry.list_models_mut() {
-            model.enrich_with_featured_mmproj();
+            model.enrich_with_known_mmproj();
             if model.is_downloaded() {
-                if let Some(mmproj) = featured_mmproj_spec(&model.id) {
+                if let Some(mmproj) = known_mmproj_spec(&model.id) {
                     let path = mmproj.local_path();
                     if !path.exists() {
                         let url = format!(

@@ -880,16 +880,16 @@ export type ModelSettings = {
     n_batch?: number | null;
     n_gpu_layers?: number | null;
     n_threads?: number | null;
-    native_tool_calling?: boolean;
     presence_penalty?: number;
     repeat_last_n?: number;
     repeat_penalty?: number;
     sampling?: SamplingConfig;
+    tool_calling?: ToolCallingMode;
     use_jinja?: boolean;
     use_mlock?: boolean;
     /**
      * Whether this model architecture supports vision input.
-     * Derived from the featured model table, not user-configurable.
+     * Derived from associated mmproj metadata, not user-configurable.
      */
     vision_capable?: boolean;
 };
@@ -1543,6 +1543,8 @@ export type ToolAnnotations = {
     readOnlyHint?: boolean;
     title?: string;
 };
+
+export type ToolCallingMode = 'auto' | 'force_native' | 'force_emulated';
 
 export type ToolConfirmationRequest = {
     arguments: JsonObject;

@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::model::{ChatTemplateResult, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOptions};
 use rmcp::model::Role;
 
@@ -22,6 +23,7 @@ use crate::providers::formats::openai::format_tools;
 use crate::providers::local_inference::backend::{
     BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
 };
+use crate::providers::local_inference::local_model_registry::{ModelSettings, ToolCallingMode};
 use crate::providers::local_inference::multimodal::ExtractedImage;
 use crate::providers::local_inference::tool_parsing::compact_tools_json;
 use crate::providers::local_inference::{
@@ -31,6 +33,76 @@ use crate::providers::local_inference::{
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
 
 const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
+
+fn template_result_supports_native_tool_calling(result: &ChatTemplateResult) -> bool {
+    result.parse_tool_calls
+        && result
+            .parser
+            .as_deref()
+            .is_some_and(|parser| !parser.trim().is_empty())
+}
+
+fn supports_native_tool_calling(
+    loaded: &LoadedModel,
+    settings: &ModelSettings,
+    oai_messages_json: &str,
+    tools_json: Option<&str>,
+) -> bool {
+    let Some(tools_json) = tools_json.filter(|tools| !tools.trim().is_empty()) else {
+        return false;
+    };
+
+    // llama.cpp exposes common_chat_templates_get_caps in C++, but llama-cpp-2
+    // 0.1.146 does not bind it yet. Replace this dry-run with that capability
+    // map once it is available through the Rust wrapper.
+    let params = OpenAIChatTemplateParams {
+        messages_json: oai_messages_json,
+        tools_json: Some(tools_json),
+        tool_choice: None,
+        json_schema: None,
+        grammar: None,
+        reasoning_format: if settings.enable_thinking {
+            Some("auto")
+        } else {
+            None
+        },
+        chat_template_kwargs: None,
+        add_generation_prompt: true,
+        use_jinja: true,
+        parallel_tool_calls: false,
+        enable_thinking: settings.enable_thinking,
+        add_bos: false,
+        add_eos: false,
+        parse_tool_calls: true,
+    };
+
+    match loaded
+        .model
+        .apply_chat_template_oaicompat(&loaded.template, &params)
+    {
+        Ok(result) => template_result_supports_native_tool_calling(&result),
+        Err(e) => {
+            tracing::debug!(
+                error = %e,
+                "llama.cpp chat template dry-run did not support native tool calling"
+            );
+            false
+        }
+    }
+}
+
+fn should_use_native_tool_calling(
+    mode: ToolCallingMode,
+    has_tools: bool,
+    template_supports_native: bool,
+) -> bool {
+    has_tools
+        && match mode {
+            ToolCallingMode::Auto => template_supports_native,
+            ToolCallingMode::ForceNative => true,
+            ToolCallingMode::ForceEmulated => false,
+        }
+}
 
 pub(super) struct LlamaCppBackend {
     backend: LlamaBackend,
@@ -174,14 +246,6 @@ impl LocalInferenceBackend for LlamaCppBackend {
                 ProviderError::ExecutionError("Loaded model backend mismatch".to_string())
             })?;
 
-        let native_tool_calling = request.settings.native_tool_calling;
-        let use_emulator = !native_tool_calling && !request.tools.is_empty();
-        let system_prompt = if use_emulator {
-            load_tiny_model_prompt()
-        } else {
-            request.system.to_string()
-        };
-
         let has_vision = request.resolved_model.mmproj_path.is_some();
         let marker = llama_cpp_2::mtmd::mtmd_default_marker();
         let (images, vision_messages): (Vec<ExtractedImage>, Option<Vec<_>>) = if has_vision {
@@ -192,6 +256,38 @@ impl LocalInferenceBackend for LlamaCppBackend {
             (Vec::new(), None)
         };
         let effective_messages = vision_messages.as_deref().unwrap_or(request.messages);
+
+        let code_mode_enabled = request.tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
+        let (full_tools_json, compact_tools) = if !request.tools.is_empty() {
+            let full = format_tools(request.tools)
+                .ok()
+                .and_then(|spec| serde_json::to_string(&spec).ok());
+            let compact = compact_tools_json(request.tools);
+            (full, compact)
+        } else {
+            (None, None)
+        };
+
+        let template_supports_native =
+            matches!(request.settings.tool_calling, ToolCallingMode::Auto)
+                && supports_native_tool_calling(
+                    loaded,
+                    request.settings,
+                    &build_openai_messages_json(request.system, effective_messages),
+                    full_tools_json.as_deref(),
+                );
+        let native_tool_calling = should_use_native_tool_calling(
+            request.settings.tool_calling,
+            !request.tools.is_empty(),
+            template_supports_native,
+        );
+        let use_emulator = !native_tool_calling && !request.tools.is_empty();
+        let system_prompt = if use_emulator {
+            let tool_desc = build_emulator_tool_description(request.tools, code_mode_enabled);
+            format!("{}{}", load_tiny_model_prompt(), tool_desc)
+        } else {
+            request.system.to_string()
+        };
 
         let mut chat_messages =
             vec![
@@ -204,19 +300,6 @@ impl LocalInferenceBackend for LlamaCppBackend {
                     },
                 )?,
             ];
-
-        let code_mode_enabled = request.tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
-
-        if use_emulator && !request.tools.is_empty() {
-            let tool_desc = build_emulator_tool_description(request.tools, code_mode_enabled);
-            chat_messages = vec![LlamaChatMessage::new(
-                "system".to_string(),
-                format!("{}{}", system_prompt, tool_desc),
-            )
-            .map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to create system message: {}", e))
-            })?];
-        }
 
         for msg in effective_messages {
             let role = match msg.role {
@@ -231,24 +314,10 @@ impl LocalInferenceBackend for LlamaCppBackend {
             }
         }
 
-        let (full_tools_json, compact_tools) = if !use_emulator && !request.tools.is_empty() {
-            let full = format_tools(request.tools)
-                .ok()
-                .and_then(|spec| serde_json::to_string(&spec).ok());
-            let compact = compact_tools_json(request.tools);
-            (full, compact)
-        } else {
-            (None, None)
-        };
-
-        let oai_messages_json = if request.settings.use_jinja || native_tool_calling {
-            Some(build_openai_messages_json(
-                &system_prompt,
-                effective_messages,
-            ))
-        } else {
-            None
-        };
+        let oai_messages_json = Some(build_openai_messages_json(
+            &system_prompt,
+            effective_messages,
+        ));
 
         if !images.is_empty() && loaded.mtmd_ctx.is_none() {
             loaded.mtmd_ctx = Self::init_mtmd_context(
@@ -272,7 +341,11 @@ impl LocalInferenceBackend for LlamaCppBackend {
         };
 
         if use_emulator {
-            generate_with_emulated_tools(&mut gen_ctx, code_mode_enabled)
+            generate_with_emulated_tools(
+                &mut gen_ctx,
+                code_mode_enabled,
+                oai_messages_json.as_deref(),
+            )
         } else {
             generate_with_native_tools(
                 &mut gen_ctx,
@@ -351,5 +424,70 @@ fn log_inference_backend_devices() {
             memory_free_bytes = device.memory_free as u64,
             "Non-CPU llama.cpp backend device detected for local inference"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn template_result(parser: Option<&str>, parse_tool_calls: bool) -> ChatTemplateResult {
+        ChatTemplateResult {
+            prompt: String::new(),
+            grammar: None,
+            grammar_lazy: false,
+            grammar_triggers: Vec::new(),
+            preserved_tokens: Vec::new(),
+            additional_stops: Vec::new(),
+            chat_format: 0,
+            parser: parser.map(str::to_string),
+            generation_prompt: String::new(),
+            parse_tool_calls,
+        }
+    }
+
+    #[test]
+    fn native_tool_calling_requires_generated_parser() {
+        assert!(template_result_supports_native_tool_calling(
+            &template_result(Some("parser"), true)
+        ));
+        assert!(!template_result_supports_native_tool_calling(
+            &template_result(None, true)
+        ));
+        assert!(!template_result_supports_native_tool_calling(
+            &template_result(Some("parser"), false)
+        ));
+        assert!(!template_result_supports_native_tool_calling(
+            &template_result(Some("   "), true)
+        ));
+    }
+
+    #[test]
+    fn tool_calling_mode_controls_path_selection() {
+        assert!(should_use_native_tool_calling(
+            ToolCallingMode::Auto,
+            true,
+            true
+        ));
+        assert!(!should_use_native_tool_calling(
+            ToolCallingMode::Auto,
+            true,
+            false
+        ));
+        assert!(should_use_native_tool_calling(
+            ToolCallingMode::ForceNative,
+            true,
+            false
+        ));
+        assert!(!should_use_native_tool_calling(
+            ToolCallingMode::ForceEmulated,
+            true,
+            true
+        ));
+        assert!(!should_use_native_tool_calling(
+            ToolCallingMode::ForceNative,
+            false,
+            true
+        ));
     }
 }

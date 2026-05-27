@@ -36,6 +36,20 @@ impl Default for SamplingConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolCallingMode {
+    Auto,
+    ForceNative,
+    ForceEmulated,
+}
+
+impl Default for ToolCallingMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelSettings {
     pub context_size: Option<u32>,
@@ -57,13 +71,13 @@ pub struct ModelSettings {
     pub flash_attention: Option<bool>,
     pub n_threads: Option<i32>,
     #[serde(default)]
-    pub native_tool_calling: bool,
+    pub tool_calling: ToolCallingMode,
     #[serde(default)]
     pub use_jinja: bool,
     #[serde(default = "default_true")]
     pub enable_thinking: bool,
     /// Whether this model architecture supports vision input.
-    /// Derived from the featured model table, not user-configurable.
+    /// Derived from associated mmproj metadata, not user-configurable.
     #[serde(default)]
     pub vision_capable: bool,
     /// Estimated tokens per image for budget planning before mtmd tokenization.
@@ -106,7 +120,7 @@ impl Default for ModelSettings {
             use_mlock: false,
             flash_attention: None,
             n_threads: None,
-            native_tool_calling: false,
+            tool_calling: ToolCallingMode::Auto,
             use_jinja: false,
             enable_thinking: true,
             vision_capable: false,
@@ -136,79 +150,53 @@ impl MmprojSpec {
 pub struct FeaturedModel {
     /// HuggingFace spec in "author/repo-GGUF:quantization" format.
     pub spec: &'static str,
-    /// Whether this model's GGUF template supports native tool calling via llama.cpp.
-    pub native_tool_calling: bool,
-    /// Multimodal projection weights spec. None for text-only models.
-    pub mmproj: Option<MmprojSpec>,
 }
 
 pub const FEATURED_MODELS: &[FeaturedModel] = &[
     FeaturedModel {
         spec: "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "unsloth/gemma-4-E4B-it-GGUF:Q4_K_M",
-        native_tool_calling: true,
-        mmproj: Some(MmprojSpec {
-            repo: "unsloth/gemma-4-E4B-it-GGUF",
-            filename: "mmproj-BF16.gguf",
-        }),
     },
     FeaturedModel {
         spec: "unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M",
-        native_tool_calling: true,
-        mmproj: Some(MmprojSpec {
-            repo: "unsloth/gemma-4-26B-A4B-it-GGUF",
-            filename: "mmproj-BF16.gguf",
-        }),
+    },
+];
+
+const KNOWN_MMPROJ_SPECS: &[MmprojSpec] = &[
+    MmprojSpec {
+        repo: "unsloth/gemma-4-E4B-it-GGUF",
+        filename: "mmproj-BF16.gguf",
+    },
+    MmprojSpec {
+        repo: "unsloth/gemma-4-26B-A4B-it-GGUF",
+        filename: "mmproj-BF16.gguf",
     },
 ];
 
 pub fn default_settings_for_model(model_id: &str) -> ModelSettings {
-    use super::hf_models::parse_model_spec;
-    let model_repo = model_id.split(':').next().unwrap_or(model_id);
-    let featured = FEATURED_MODELS.iter().find(|m| {
-        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
-            repo_id == model_repo
-        } else {
-            false
-        }
-    });
     ModelSettings {
-        native_tool_calling: featured.is_some_and(|m| m.native_tool_calling),
-        vision_capable: featured.is_some_and(|m| m.mmproj.is_some()),
+        vision_capable: known_mmproj_spec(model_id).is_some(),
         ..ModelSettings::default()
     }
 }
 
-/// Look up the `MmprojSpec` for a featured model by its model ID.
-pub fn featured_mmproj_spec(model_id: &str) -> Option<&'static MmprojSpec> {
-    use super::hf_models::parse_model_spec;
+/// Look up the `MmprojSpec` for a model by its model ID.
+pub fn known_mmproj_spec(model_id: &str) -> Option<&'static MmprojSpec> {
     let model_repo = model_id.split(':').next().unwrap_or(model_id);
-    FEATURED_MODELS.iter().find_map(|m| {
-        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
-            if repo_id == model_repo {
-                return m.mmproj.as_ref();
-            }
-        }
-        None
+    KNOWN_MMPROJ_SPECS.iter().find(|mmproj| {
+        let spec_repo = mmproj.repo.split(':').next().unwrap_or(mmproj.repo);
+        spec_repo == model_repo
     })
 }
 
@@ -267,10 +255,10 @@ pub struct LocalModelEntry {
 }
 
 impl LocalModelEntry {
-    /// Populate mmproj metadata and vision settings from the featured model
-    /// table if this model's repo has a known vision encoder.
-    pub fn enrich_with_featured_mmproj(&mut self) {
-        if let Some(mmproj) = featured_mmproj_spec(&self.id) {
+    /// Populate mmproj metadata and vision settings when this model's repo has
+    /// a known vision encoder.
+    pub fn enrich_with_known_mmproj(&mut self) {
+        if let Some(mmproj) = known_mmproj_spec(&self.id) {
             let path = mmproj.local_path();
             if self.mmproj_path.as_ref() != Some(&path) {
                 self.mmproj_path = Some(path.clone());
@@ -287,8 +275,6 @@ impl LocalModelEntry {
                 }
             }
         }
-        let defaults = default_settings_for_model(&self.id);
-        self.settings.native_tool_calling = defaults.native_tool_calling;
     }
 
     pub fn is_downloaded(&self) -> bool {
@@ -436,7 +422,7 @@ impl LocalModelRegistry {
 
         for mut entry in featured_entries {
             if !self.models.iter().any(|m| m.id == entry.id) {
-                entry.enrich_with_featured_mmproj();
+                entry.enrich_with_known_mmproj();
                 self.models.push(entry);
                 changed = true;
             }
@@ -455,7 +441,7 @@ impl LocalModelRegistry {
     }
 
     pub fn add_model(&mut self, mut entry: LocalModelEntry) -> Result<()> {
-        entry.enrich_with_featured_mmproj();
+        entry.enrich_with_known_mmproj();
         if let Some(existing) = self.models.iter_mut().find(|m| m.id == entry.id) {
             *existing = entry;
         } else {

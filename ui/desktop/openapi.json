@@ -6766,9 +6766,6 @@
             "format": "int32",
             "nullable": true
           },
-          "native_tool_calling": {
-            "type": "boolean"
-          },
           "presence_penalty": {
             "type": "number",
             "format": "float"
@@ -6784,6 +6781,9 @@
           "sampling": {
             "$ref": "#/components/schemas/SamplingConfig"
           },
+          "tool_calling": {
+            "$ref": "#/components/schemas/ToolCallingMode"
+          },
           "use_jinja": {
             "type": "boolean"
           },
@@ -6792,7 +6792,7 @@
           },
           "vision_capable": {
             "type": "boolean",
-            "description": "Whether this model architecture supports vision input.\nDerived from the featured model table, not user-configurable."
+            "description": "Whether this model architecture supports vision input.\nDerived from associated mmproj metadata, not user-configurable."
           }
         }
       },
@@ -8796,6 +8796,14 @@
             "type": "string"
           }
         }
+      },
+      "ToolCallingMode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "force_native",
+          "force_emulated"
+        ]
       },
       "ToolConfirmationRequest": {
         "type": "object",

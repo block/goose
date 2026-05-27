@@ -2201,6 +2201,21 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Enable flash attention optimization"
   },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Tool calling"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Choose how local models select native or emulated tool calling"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Force emulated"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Force native"
+  },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "Frequency penalty"
   },
@@ -2230,12 +2245,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "Native tool calling"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "Use the model's built-in tool-call format instead of the shell-command emulator. Enable for large models that reliably support tool calling."
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "Performance"
@@ -2287,9 +2296,6 @@
   },
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "CPU threads for generation"
-  },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Tool Calling"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
