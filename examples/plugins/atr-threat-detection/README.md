@@ -1,6 +1,6 @@
 # atr-threat-detection
 
-Blocks tool calls that match [Agent Threat Rules (ATR)](https://github.com/Agent-Threat-Rule/agent-threat-rules) — 427 detection rules covering prompt injection, tool poisoning, credential exfiltration, and 9 other AI agent attack categories.
+Blocks tool calls that match [Agent Threat Rules (ATR)](https://github.com/Agent-Threat-Rule/agent-threat-rules) — 433 detection rules covering prompt injection, tool poisoning, credential exfiltration, and 9 other AI agent attack categories.
 
 Uses the `PreToolUse` hook introduced in goose PR #9304. A tool call is blocked (exit code 2) when ATR finds a critical or high severity match in the tool input. Any scanner error allows the call through — a broken guard must never block legitimate work.
 
