@@ -334,7 +334,7 @@ fn truncate_to_token_budget(
             mid -= 1;
         }
 
-        let candidate = &text[..mid];
+        let candidate = text.get(..mid).unwrap_or_default();
         if token_counter.count_tokens(candidate) <= content_budget {
             best = mid;
             low = mid.saturating_add(1);
@@ -348,7 +348,7 @@ fn truncate_to_token_budget(
     if best == 0 {
         String::new()
     } else {
-        format!("{}{}", &text[..best], notice)
+        format!("{}{}", text.get(..best).unwrap_or_default(), notice)
     }
 }
 
@@ -860,12 +860,12 @@ mod tests {
 
         let mut messages = Vec::new();
         for i in 0..20 {
-            messages.push(Message::user().with_text(&format!(
+            messages.push(Message::user().with_text(format!(
                 "large non-tool user message {} {}",
                 i,
                 "word ".repeat(1000)
             )));
-            messages.push(Message::assistant().with_text(&format!(
+            messages.push(Message::assistant().with_text(format!(
                 "large non-tool assistant message {} {}",
                 i,
                 "reply ".repeat(1000)
@@ -887,10 +887,10 @@ mod tests {
         let token_counter = crate::token_counter::create_token_counter()
             .await
             .expect("token counter should be available");
-        let messages = vec![
-            Message::user().with_text(&format!("oldest {}", "old ".repeat(1000))),
-            Message::assistant().with_text(&format!("middle {}", "middle ".repeat(1000))),
-            Message::user().with_text(&format!("newest {}", "new ".repeat(1000))),
+        let messages = [
+            Message::user().with_text(format!("oldest {}", "old ".repeat(1000))),
+            Message::assistant().with_text(format!("middle {}", "middle ".repeat(1000))),
+            Message::user().with_text(format!("newest {}", "new ".repeat(1000))),
         ];
         let message_refs = messages.iter().collect::<Vec<_>>();
 
