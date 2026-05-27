@@ -11,8 +11,6 @@ import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
-import type { SessionConfigOption } from '@agentclientprotocol/sdk';
-import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
