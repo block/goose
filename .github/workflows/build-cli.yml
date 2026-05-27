@@ -4,8 +4,7 @@
 #  - canary.yml
 #
 # Platform Build Strategy:
-#  - Linux x86_64 standard: Builds inside manylinux_2_28 container for glibc 2.28+ compat
-#  - Linux aarch64 standard: Uses native Ubuntu 22.04 ARM runners (glibc 2.35)
+#  - Linux standard (x86_64 + aarch64): Builds inside manylinux_2_28 container for glibc 2.28+ compat
 #  - Linux Vulkan: Uses native Ubuntu 24.04 runners for newer Vulkan headers/tooling
 #  - Linux musl: Uses native Ubuntu 22.04 runners with reduced features for musl compatibility
 #  - macOS: Uses native macOS runners for each architecture
@@ -46,6 +45,8 @@ jobs:
             architecture: aarch64
             target-suffix: unknown-linux-gnu
             build-on: ubuntu-22.04-arm
+            # Pinned by digest for reproducible builds; bump explicitly when newer manylinux_2_28 images ship.
+            container: quay.io/pypa/manylinux_2_28_aarch64@sha256:8b5f2b4e8c072ae5aefeb659f22c03e1ff46e6a82f154b6c904b106c87e65ff7
             variant: standard
           - platform: linux
             architecture: x86_64
