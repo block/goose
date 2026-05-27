@@ -65,3 +65,6 @@ pub use init::{
     refresh_custom_providers,
 };
 pub use retry::{retry_operation, RetryConfig};
+
+#[cfg(all(test, feature = "local-inference"))]
+mod local_inference_tests;

@@ -27,6 +27,115 @@ use std::sync::{Arc, Mutex as StdMutex, Weak};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+pub(super) const DEFAULT_FALLBACK_CHAT_TEMPLATE: &str = "chatml";
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub(super) enum ChatTemplateFallbackWarning {
+    KnownArchitecture,
+    Gemma4Unsupported,
+    UnknownArchitecture,
+    MissingArchitecture,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(super) struct BuiltInChatTemplateFallback<'a> {
+    pub template_name: &'static str,
+    pub architecture: Option<&'a str>,
+    pub warning: ChatTemplateFallbackWarning,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(super) enum ChatTemplateSelection<'a, T> {
+    Embedded(T),
+    BuiltIn(BuiltInChatTemplateFallback<'a>),
+}
+
+fn template_for_known_architecture(
+    arch: &str,
+) -> Option<(&'static str, ChatTemplateFallbackWarning)> {
+    match arch {
+        "gemma" | "gemma2" | "gemma3" => {
+            Some(("gemma", ChatTemplateFallbackWarning::KnownArchitecture))
+        }
+        "gemma4" => Some(("gemma", ChatTemplateFallbackWarning::Gemma4Unsupported)),
+        "llama" | "llama2" => Some(("llama2", ChatTemplateFallbackWarning::KnownArchitecture)),
+        "llama3" => Some(("llama3", ChatTemplateFallbackWarning::KnownArchitecture)),
+        "qwen2" => Some(("chatml", ChatTemplateFallbackWarning::KnownArchitecture)),
+        "phi3" => Some(("phi3", ChatTemplateFallbackWarning::KnownArchitecture)),
+        _ => None,
+    }
+}
+
+pub(super) fn select_chat_template<'a, T, E>(
+    embedded: Result<T, E>,
+    architecture: Option<&'a str>,
+) -> ChatTemplateSelection<'a, T> {
+    if let Ok(t) = embedded {
+        return ChatTemplateSelection::Embedded(t);
+    }
+
+    // Use trimmed (case-preserving) slice as the "original" we expose, and a
+    // lowercase copy for matching only.
+    let trimmed = architecture.map(|a| a.trim()).filter(|s| !s.is_empty());
+    let normalized = trimmed.map(|a| a.to_lowercase());
+
+    let fallback = match (trimmed, normalized.as_deref()) {
+        (None, _) => BuiltInChatTemplateFallback {
+            template_name: DEFAULT_FALLBACK_CHAT_TEMPLATE,
+            architecture: None,
+            warning: ChatTemplateFallbackWarning::MissingArchitecture,
+        },
+        (Some(orig), Some(lower)) => match template_for_known_architecture(lower) {
+            Some((template, warning)) => BuiltInChatTemplateFallback {
+                template_name: template,
+                architecture: Some(orig),
+                warning,
+            },
+            None => BuiltInChatTemplateFallback {
+                template_name: DEFAULT_FALLBACK_CHAT_TEMPLATE,
+                architecture: Some(orig),
+                warning: ChatTemplateFallbackWarning::UnknownArchitecture,
+            },
+        },
+        (Some(_), None) => unreachable!(),
+    };
+
+    ChatTemplateSelection::BuiltIn(fallback)
+}
+
+pub(super) fn log_chat_template_fallback(fallback: &BuiltInChatTemplateFallback<'_>) {
+    use tracing::{info, warn};
+    match fallback.warning {
+        ChatTemplateFallbackWarning::KnownArchitecture => {
+            info!(
+                architecture = ?fallback.architecture,
+                template = fallback.template_name,
+                "No embedded chat template; falling back to known-architecture template"
+            );
+        }
+        ChatTemplateFallbackWarning::Gemma4Unsupported => {
+            warn!(
+                architecture = ?fallback.architecture,
+                template = fallback.template_name,
+                "Gemma4 not yet supported by llama.cpp; falling back to gemma template"
+            );
+        }
+        ChatTemplateFallbackWarning::UnknownArchitecture => {
+            warn!(
+                architecture = ?fallback.architecture,
+                template = fallback.template_name,
+                "Unknown architecture; falling back to chatml chat template"
+            );
+        }
+        ChatTemplateFallbackWarning::MissingArchitecture => {
+            warn!(
+                template = fallback.template_name,
+                "No architecture in model metadata; falling back to chatml chat template"
+            );
+        }
+    }
+}
+
 type ModelSlot = Arc<Mutex<Option<Box<dyn BackendLoadedModel>>>>;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -214,7 +323,9 @@ fn strip_image_parts_from_messages(messages: &mut [Value]) {
         }
     }
     if stripped {
-        tracing::warn!("Stripped image content parts from messages — vision encoder not available for this model");
+        tracing::warn!(
+            "Stripped image content parts from messages — vision encoder not available for this model"
+        );
     }
 }
 

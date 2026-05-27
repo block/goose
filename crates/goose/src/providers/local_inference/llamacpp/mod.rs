@@ -25,7 +25,8 @@ use crate::providers::local_inference::backend::{
 use crate::providers::local_inference::multimodal::ExtractedImage;
 use crate::providers::local_inference::tool_parsing::compact_tools_json;
 use crate::providers::local_inference::{
-    build_openai_messages_json, extract_text_content, ResolvedModelPaths,
+    build_openai_messages_json, extract_text_content, log_chat_template_fallback,
+    select_chat_template, ChatTemplateSelection, ResolvedModelPaths,
 };
 
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
@@ -134,18 +135,20 @@ impl LocalInferenceBackend for LlamaCppBackend {
         let model = LlamaModel::load_from_file(&self.backend, model_path, &params)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-        let template = match model.chat_template(None) {
-            Ok(t) => t,
-            Err(_) => {
-                tracing::warn!("Model has no embedded chat template, falling back to chatml");
-                LlamaChatTemplate::new("chatml").map_err(|e| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to create fallback chat template: {}",
-                        e
-                    ))
-                })?
-            }
-        };
+        let architecture = model.meta_val_str("general.architecture").ok();
+        let template =
+            match select_chat_template(model.chat_template(None), architecture.as_deref()) {
+                ChatTemplateSelection::Embedded(template) => template,
+                ChatTemplateSelection::BuiltIn(fallback) => {
+                    log_chat_template_fallback(&fallback);
+                    LlamaChatTemplate::new(fallback.template_name).map_err(|e| {
+                        ProviderError::ExecutionError(format!(
+                            "Failed to create fallback chat template: {}",
+                            e
+                        ))
+                    })?
+                }
+            };
 
         let mtmd_ctx = Self::init_mtmd_context(&model, &resolved.mmproj_path, settings);
 
