@@ -430,20 +430,33 @@ impl LocalInferenceBackend for LlamaCppBackend {
         let has_native_tool_payload = full_tools_json
             .as_deref()
             .is_some_and(|tools| !tools.trim().is_empty());
-        let has_tool_use_template = loaded.templates.tool_use.is_some();
         let template_supports_native =
-            matches!(request.settings.tool_calling, ToolCallingMode::Auto)
+            if matches!(request.settings.tool_calling, ToolCallingMode::Auto)
                 && has_native_tool_payload
-                && (has_tool_use_template
-                    || loaded.templates.default.as_ref().is_some_and(|template| {
+            {
+                let messages_json = build_openai_messages_json(request.system, effective_messages);
+                if let Some(template) = loaded.templates.tool_use.as_ref() {
+                    supports_native_tool_calling(
+                        loaded,
+                        request.settings,
+                        template,
+                        &messages_json,
+                        full_tools_json.as_deref(),
+                    )
+                } else {
+                    loaded.templates.default.as_ref().is_some_and(|template| {
                         supports_native_tool_calling(
                             loaded,
                             request.settings,
                             template,
-                            &build_openai_messages_json(request.system, effective_messages),
+                            &messages_json,
                             full_tools_json.as_deref(),
                         )
-                    }));
+                    })
+                }
+            } else {
+                false
+            };
         let native_tool_calling = should_use_native_tool_calling(
             request.settings.tool_calling,
             !request.tools.is_empty(),
