@@ -2283,7 +2283,7 @@
     "defaultMessage": "Yerleşik şablon"
   },
   "modelSettingsPanel.builtinChatTemplateDescription": {
-    "defaultMessage": "Bir llama.cpp yerleşik şablon adı girin, ör. chatml"
+    "defaultMessage": "Bir llama.cpp yerleşik şablon adı seçin"
   },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Sohbet şablonu"

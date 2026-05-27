@@ -2187,7 +2187,7 @@
     "defaultMessage": "Built-in template"
   },
   "modelSettingsPanel.builtinChatTemplateDescription": {
-    "defaultMessage": "Enter a llama.cpp built-in template name, e.g. chatml"
+    "defaultMessage": "Select a llama.cpp built-in template name"
   },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Chat template"

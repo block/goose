@@ -1993,6 +1993,29 @@
         }
       }
     },
+    "/local-inference/chat-templates/builtin": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "list_builtin_chat_templates",
+        "responses": {
+          "200": {
+            "description": "llama.cpp built-in chat template names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/local-inference/download": {
       "post": {
         "tags": [

@@ -13,7 +13,7 @@ use goose::config::paths::Paths;
 use goose::download_manager::{get_download_manager, DownloadProgress};
 use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfQuantVariant};
 use goose::providers::local_inference::{
-    available_inference_memory_bytes,
+    available_inference_memory_bytes, builtin_chat_template_names,
     hf_models::{resolve_model_spec, resolve_model_spec_full, HfGgufFile},
     local_model_registry::{
         default_settings_for_model, get_registry, is_featured_model, known_mmproj_spec,
@@ -650,6 +650,17 @@ pub async fn update_model_settings(
     Ok(Json(settings))
 }
 
+#[utoipa::path(
+    get,
+    path = "/local-inference/chat-templates/builtin",
+    responses(
+        (status = 200, description = "llama.cpp built-in chat template names", body = Vec<String>)
+    )
+)]
+pub async fn list_builtin_chat_templates() -> Json<Vec<String>> {
+    Json(builtin_chat_template_names())
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     let registered_paths: std::collections::HashSet<std::path::PathBuf> = get_registry()
         .lock()
@@ -673,6 +684,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/local-inference/models", get(list_local_models))
         .route("/local-inference/sync-featured", post(sync_featured_models))
         .route("/local-inference/search", get(search_hf_models))
+        .route(
+            "/local-inference/chat-templates/builtin",
+            get(list_builtin_chat_templates),
+        )
         .route(
             "/local-inference/repo/{author}/{repo}/files",
             get(get_repo_files),

@@ -4497,6 +4497,7 @@ dependencies = [
  "keyring",
  "libc",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "lru",
  "minijinja",
  "mockall",

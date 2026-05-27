@@ -25,6 +25,7 @@ local-inference = [
     "dep:candle-nn",
     "dep:candle-transformers",
     "dep:llama-cpp-2",
+    "dep:llama-cpp-sys-2",
     "dep:tokenizers",
     "dep:symphonia",
     "dep:rubato",
@@ -213,6 +214,7 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 # They are just here to pin the version, and can be removed if PCTX updates temporal_rs
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
+llama-cpp-sys-2 = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }

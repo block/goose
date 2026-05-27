@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
 import {
   getModelSettings,
+  listBuiltinChatTemplates,
   updateModelSettings,
   type ChatTemplate,
   type ModelSettings,
@@ -207,7 +208,7 @@ const i18n = defineMessages({
   },
   builtinChatTemplateDescription: {
     id: 'modelSettingsPanel.builtinChatTemplateDescription',
-    defaultMessage: 'Enter a llama.cpp built-in template name, e.g. chatml',
+    defaultMessage: 'Select a llama.cpp built-in template name',
   },
   customChatTemplate: {
     id: 'modelSettingsPanel.customChatTemplate',
@@ -288,38 +289,6 @@ function NumberField({
         min={min}
         max={max}
         step={step}
-      />
-    </div>
-  );
-}
-
-function TextField({
-  label,
-  description,
-  value,
-  onChange,
-  onBlur,
-  placeholder,
-}: {
-  label: string;
-  description?: string;
-  value: string;
-  onChange: (v: string) => void;
-  onBlur: () => void;
-  placeholder?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-text-default">{label}</label>
-      {description && <span className="text-xs text-text-muted">{description}</span>}
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        spellCheck={false}
-        className="w-full rounded border border-border-subtle bg-background-default px-2 py-1 font-mono text-xs text-text-default"
       />
     </div>
   );
@@ -414,17 +383,24 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
   const [chatTemplateDraft, setChatTemplateDraft] = useState('');
   const [builtinTemplateDraft, setBuiltinTemplateDraft] = useState('chatml');
+  const [builtinTemplateOptions, setBuiltinTemplateOptions] = useState<string[]>(['chatml']);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const res = await getModelSettings({ path: { model_id: modelId } });
-      if (res.data) {
+      const [settingsResult, builtinsResult] = await Promise.allSettled([
+        getModelSettings({ path: { model_id: modelId } }),
+        listBuiltinChatTemplates(),
+      ]);
+      if (builtinsResult.status === 'fulfilled' && builtinsResult.value.data?.length) {
+        setBuiltinTemplateOptions(builtinsResult.value.data);
+      }
+      if (settingsResult.status === 'fulfilled' && settingsResult.value.data) {
         setSettings({
-          ...res.data,
-          tool_calling: res.data.tool_calling ?? 'auto',
-          chat_template: res.data.chat_template ?? { type: 'embedded' },
+          ...settingsResult.value.data,
+          tool_calling: settingsResult.value.data.tool_calling ?? 'auto',
+          chat_template: settingsResult.value.data.chat_template ?? { type: 'embedded' },
         });
       }
     } catch {
@@ -482,16 +458,17 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     if (mode === 'custom_inline') {
       next = { type: 'custom_inline', template: chatTemplateDraft };
     } else if (mode === 'builtin') {
-      next = { type: 'builtin', name: builtinTemplateDraft.trim() || 'chatml' };
+      next = { type: 'builtin', name: builtinTemplateDraft.trim() || builtinTemplateOptions[0] || 'chatml' };
     } else {
       next = { type: 'embedded' };
     }
     updateField('chat_template', next);
   };
 
-  const saveBuiltinTemplateDraft = () => {
+  const setBuiltinTemplateName = (name: string) => {
+    setBuiltinTemplateDraft(name);
     if (chatTemplateMode === 'builtin') {
-      updateField('chat_template', { type: 'builtin', name: builtinTemplateDraft.trim() });
+      updateField('chat_template', { type: 'builtin', name });
     }
   };
 
@@ -523,6 +500,10 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const updateSampling = (partial: Partial<SamplingConfig>) => {
     save({ ...settings, sampling: { ...settings.sampling!, ...partial } as SamplingConfig });
   };
+
+  const visibleBuiltinTemplateOptions = builtinTemplateOptions.includes(builtinTemplateDraft)
+    ? builtinTemplateOptions
+    : [builtinTemplateDraft, ...builtinTemplateOptions].filter(Boolean);
 
   if (loading) {
     return <div className="py-2 text-xs text-text-muted">{intl.formatMessage(i18n.loadingSettings)}</div>;
@@ -769,13 +750,15 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           onChange={setChatTemplateMode}
         />
         {chatTemplateMode === 'builtin' && (
-          <TextField
+          <SelectField<string>
             label={intl.formatMessage(i18n.builtinChatTemplate)}
             description={intl.formatMessage(i18n.builtinChatTemplateDescription)}
             value={builtinTemplateDraft}
-            onChange={setBuiltinTemplateDraft}
-            onBlur={saveBuiltinTemplateDraft}
-            placeholder="chatml"
+            options={visibleBuiltinTemplateOptions.map((template) => ({
+              value: template,
+              label: template,
+            }))}
+            onChange={setBuiltinTemplateName}
           />
         )}
         {chatTemplateMode === 'custom_inline' && (

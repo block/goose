@@ -56,6 +56,10 @@ pub struct InferenceRuntime {
     backends: HashMap<&'static str, Arc<dyn LocalInferenceBackend>>,
 }
 
+pub fn builtin_chat_template_names() -> Vec<String> {
+    llamacpp::builtin_chat_template_names()
+}
+
 /// Global weak reference used to share a single `InferenceRuntime` across
 /// all providers and server routes. Only a `Weak` is stored — strong `Arc`s
 /// live in providers and `AppState`. When all strong refs drop (normal

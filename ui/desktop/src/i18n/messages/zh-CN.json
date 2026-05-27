@@ -2154,7 +2154,7 @@
     "defaultMessage": "内置模板"
   },
   "modelSettingsPanel.builtinChatTemplateDescription": {
-    "defaultMessage": "输入 llama.cpp 内置模板名称，例如 chatml"
+    "defaultMessage": "选择 llama.cpp 内置模板名称"
   },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "聊天模板"

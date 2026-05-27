@@ -683,6 +683,7 @@ pub struct ApiDoc;
         super::routes::local_inference::list_local_models,
         super::routes::local_inference::sync_featured_models,
         super::routes::local_inference::search_hf_models,
+        super::routes::local_inference::list_builtin_chat_templates,
         super::routes::local_inference::get_repo_files,
         super::routes::local_inference::download_hf_model,
         super::routes::local_inference::get_local_model_download_progress,

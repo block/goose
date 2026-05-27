@@ -2205,7 +2205,7 @@
     "defaultMessage": "Встроенный шаблон"
   },
   "modelSettingsPanel.builtinChatTemplateDescription": {
-    "defaultMessage": "Введите имя встроенного шаблона llama.cpp, например chatml"
+    "defaultMessage": "Выберите имя встроенного шаблона llama.cpp"
   },
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Шаблон чата"

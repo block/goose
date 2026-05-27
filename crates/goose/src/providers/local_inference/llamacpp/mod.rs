@@ -3,6 +3,7 @@ mod inference_engine;
 mod inference_native_tools;
 
 use std::any::Any;
+use std::ffi::CStr;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -34,6 +35,30 @@ use crate::providers::local_inference::{
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
 
 const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
+
+pub(super) fn builtin_chat_template_names() -> Vec<String> {
+    let count = unsafe { llama_cpp_sys_2::llama_chat_builtin_templates(std::ptr::null_mut(), 0) };
+    if count <= 0 {
+        return Vec::new();
+    }
+
+    let mut templates = vec![std::ptr::null(); count as usize];
+    let written = unsafe {
+        llama_cpp_sys_2::llama_chat_builtin_templates(templates.as_mut_ptr(), templates.len())
+    };
+    templates.truncate(written.max(0) as usize);
+
+    templates
+        .into_iter()
+        .filter(|ptr| !ptr.is_null())
+        .filter_map(|ptr| {
+            unsafe { CStr::from_ptr(ptr) }
+                .to_str()
+                .ok()
+                .map(str::to_string)
+        })
+        .collect()
+}
 
 fn template_result_supports_native_tool_calling(result: &ChatTemplateResult) -> bool {
     result.parse_tool_calls
