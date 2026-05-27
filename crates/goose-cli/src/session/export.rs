@@ -353,7 +353,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                         message
                     ));
                 }
-                ActionRequiredData::ElicitationResponse { id, user_data } => {
+                ActionRequiredData::ElicitationResponse { id, user_data, .. } => {
                     md.push_str(&format!(
                         "**Action Required** (elicitation_response): {}\n```json\n{}\n```\n\n",
                         id,

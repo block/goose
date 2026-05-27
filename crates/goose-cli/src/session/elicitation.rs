@@ -1,12 +1,15 @@
 use console::style;
+use rmcp::model::ElicitationAction;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{self, BufRead, IsTerminal, Write};
 
-pub fn collect_elicitation_input(
-    message: &str,
-    schema: &Value,
-) -> io::Result<Option<HashMap<String, Value>>> {
+pub struct ElicitationInput {
+    pub action: ElicitationAction,
+    pub user_data: HashMap<String, Value>,
+}
+
+pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<ElicitationInput> {
     if !message.is_empty() {
         println!("\n{}", style(message).cyan());
     }
@@ -24,9 +27,18 @@ pub fn collect_elicitation_input(
                 "Approve?"
             };
             return match cliclack::confirm(prompt).initial_value(true).interact() {
-                Ok(true) => Ok(Some(HashMap::new())),
-                Ok(false) => Ok(None),
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(None),
+                Ok(true) => Ok(ElicitationInput {
+                    action: ElicitationAction::Accept,
+                    user_data: HashMap::new(),
+                }),
+                Ok(false) => Ok(ElicitationInput {
+                    action: ElicitationAction::Decline,
+                    user_data: HashMap::new(),
+                }),
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(ElicitationInput {
+                    action: ElicitationAction::Cancel,
+                    user_data: HashMap::new(),
+                }),
                 Err(e) => Err(e),
             };
         }
@@ -65,7 +77,12 @@ pub fn collect_elicitation_input(
                 Ok(v) => {
                     data.insert(name.clone(), Value::Bool(v));
                 }
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => return Ok(None),
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {
+                    return Ok(ElicitationInput {
+                        action: ElicitationAction::Cancel,
+                        user_data: HashMap::new(),
+                    });
+                }
                 Err(e) => return Err(e),
             }
             continue;
@@ -93,7 +110,10 @@ pub fn collect_elicitation_input(
 
         // Handle Ctrl+C / EOF for cancellation
         if input.is_none() {
-            return Ok(None);
+            return Ok(ElicitationInput {
+                action: ElicitationAction::Cancel,
+                user_data: HashMap::new(),
+            });
         }
         let input = input.unwrap();
 
@@ -114,12 +134,18 @@ pub fn collect_elicitation_input(
                 "{}",
                 style(format!("Required field '{}' is missing", name)).red()
             );
-            return Ok(None);
+            return Ok(ElicitationInput {
+                action: ElicitationAction::Decline,
+                user_data: HashMap::new(),
+            });
         }
     }
 
     println!();
-    Ok(Some(data))
+    Ok(ElicitationInput {
+        action: ElicitationAction::Accept,
+        user_data: data,
+    })
 }
 
 fn read_line() -> io::Result<Option<String>> {

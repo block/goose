@@ -4101,6 +4101,9 @@
               "actionType"
             ],
             "properties": {
+              "action": {
+                "type": "string"
+              },
               "actionType": {
                 "type": "string",
                 "enum": [

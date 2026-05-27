@@ -1363,17 +1363,20 @@ impl Agent {
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
-                if let ActionRequiredData::ElicitationResponse { id, user_data } =
-                    &action_required.data
+                if let ActionRequiredData::ElicitationResponse {
+                    id,
+                    user_data,
+                    action,
+                } = &action_required.data
                 {
                     // Surface stale/cancelled/timed-out elicitations as a hard
                     // error so callers (e.g. the HTTP handler) can propagate
                     // failure to the client instead of silently reporting
                     // success while the blocked tool call stays unblocked.
-                    // The success path returns an empty stream; an Err here
-                    // makes the contract: Ok(empty) on accept, Err on reject.
+                    // The success path returns an empty stream after the MCP
+                    // server receives the user's accept/decline/cancel action.
                     ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone())
+                        .submit_response(id.clone(), user_data.clone(), action.clone())
                         .await
                         .map_err(|e| {
                             error!("Failed to submit elicitation response: {}", e);
