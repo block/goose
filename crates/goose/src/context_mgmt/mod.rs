@@ -18,7 +18,18 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+const MAX_AUTO_COMPACTION_THRESHOLD: f64 = 0.9;
+const MAX_COMPACTION_HISTORY_TOKENS: usize = 20_000;
+const MIN_COMPACTION_HISTORY_TOKENS: usize = 1_000;
 const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
+
+fn effective_auto_compaction_threshold(threshold: f64) -> Option<f64> {
+    if threshold <= 0.0 || threshold >= 1.0 {
+        None
+    } else {
+        Some(threshold.min(MAX_AUTO_COMPACTION_THRESHOLD))
+    }
+}
 
 fn tool_pair_summarization_enabled() -> bool {
     Config::global()
@@ -221,11 +232,8 @@ pub async fn check_if_compaction_needed(
 
     let usage_ratio = current_tokens as f64 / context_limit as f64;
 
-    let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        false // Auto-compact is disabled.
-    } else {
-        usage_ratio > threshold
-    };
+    let needs_compaction = effective_auto_compaction_threshold(threshold)
+        .is_some_and(|effective_threshold| usage_ratio > effective_threshold);
     Ok(needs_compaction)
 }
 
@@ -279,6 +287,102 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
         .collect()
 }
 
+fn compaction_history_token_budgets(context_limit: usize) -> Vec<usize> {
+    let initial_budget = MAX_COMPACTION_HISTORY_TOKENS.min(context_limit.saturating_mul(7) / 10);
+    if initial_budget == 0 {
+        return vec![1];
+    }
+
+    let mut budgets = vec![initial_budget];
+    let mut next_budget = initial_budget / 2;
+
+    while next_budget >= MIN_COMPACTION_HISTORY_TOKENS {
+        budgets.push(next_budget);
+        next_budget /= 2;
+    }
+
+    if initial_budget > MIN_COMPACTION_HISTORY_TOKENS {
+        budgets.push(MIN_COMPACTION_HISTORY_TOKENS);
+    }
+
+    budgets.dedup();
+    budgets
+}
+
+fn truncate_to_token_budget(
+    text: &str,
+    token_budget: usize,
+    token_counter: &crate::token_counter::TokenCounter,
+) -> String {
+    if token_budget == 0 {
+        return String::new();
+    }
+
+    let notice = "\n[truncated to fit compaction context]";
+    let content_budget = token_budget.saturating_sub(token_counter.count_tokens(notice));
+    if content_budget == 0 {
+        return String::new();
+    }
+
+    let mut low = 0;
+    let mut high = text.len();
+    let mut best = 0;
+
+    while low <= high {
+        let mut mid = low + (high - low) / 2;
+        while mid > 0 && !text.is_char_boundary(mid) {
+            mid -= 1;
+        }
+
+        let candidate = &text[..mid];
+        if token_counter.count_tokens(candidate) <= content_budget {
+            best = mid;
+            low = mid.saturating_add(1);
+        } else if mid == 0 {
+            break;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    if best == 0 {
+        String::new()
+    } else {
+        format!("{}{}", &text[..best], notice)
+    }
+}
+
+fn build_bounded_compaction_text(
+    messages: &[&Message],
+    max_tokens: usize,
+    token_counter: &crate::token_counter::TokenCounter,
+) -> String {
+    let mut remaining_tokens = max_tokens;
+    let mut selected = Vec::new();
+
+    for msg in messages.iter().rev() {
+        let formatted = format_message_for_compacting(msg);
+        let token_count = token_counter.count_tokens(&formatted);
+
+        if token_count <= remaining_tokens {
+            selected.push(formatted);
+            remaining_tokens -= token_count;
+            continue;
+        }
+
+        if remaining_tokens > 0 {
+            let truncated = truncate_to_token_budget(&formatted, remaining_tokens, token_counter);
+            if !truncated.is_empty() {
+                selected.push(truncated);
+            }
+        }
+        break;
+    }
+
+    selected.reverse();
+    selected.join("\n")
+}
+
 async fn do_compact(
     provider: &dyn Provider,
     session_id: &str,
@@ -290,59 +394,62 @@ async fn do_compact(
         .map(|msg| msg.agent_visible_content())
         .collect();
 
-    // Try progressively removing more tool response messages from the middle to reduce context length
+    // Try progressively removing tool responses and shrinking non-tool history so the
+    // summarization request has headroom even when the reported context limit is optimistic.
     let removal_percentages = [0, 10, 20, 50, 100];
+    let history_token_budgets =
+        compaction_history_token_budgets(provider.get_model_config().context_limit());
+    let token_counter = create_token_counter()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 
-    for (attempt, &remove_percent) in removal_percentages.iter().enumerate() {
+    for &remove_percent in removal_percentages.iter() {
         let filtered_messages = filter_tool_responses(&agent_visible_messages, remove_percent);
 
-        let messages_text = filtered_messages
-            .iter()
-            .map(|&msg| format_message_for_compacting(msg))
-            .collect::<Vec<_>>()
-            .join("\n");
+        for &history_token_budget in history_token_budgets.iter() {
+            let messages_text = build_bounded_compaction_text(
+                &filtered_messages,
+                history_token_budget,
+                &token_counter,
+            );
 
-        let context = SummarizeContext {
-            messages: messages_text,
-        };
+            let context = SummarizeContext {
+                messages: messages_text,
+            };
 
-        let system_prompt = render_template("compaction.md", &context)?;
+            let system_prompt = render_template("compaction.md", &context)?;
 
-        let user_message = Message::user()
-            .with_text("Please summarize the conversation history provided in the system prompt.");
-        let summarization_request = vec![user_message];
+            let user_message = Message::user().with_text(
+                "Please summarize the conversation history provided in the system prompt.",
+            );
+            let summarization_request = vec![user_message];
 
-        match provider
-            .complete_fast(session_id, &system_prompt, &summarization_request, &[])
-            .await
-        {
-            Ok((mut response, mut provider_usage)) => {
-                response.role = Role::User;
+            match provider
+                .complete_fast(session_id, &system_prompt, &summarization_request, &[])
+                .await
+            {
+                Ok((mut response, mut provider_usage)) => {
+                    response.role = Role::User;
 
-                provider_usage
-                    .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+                    provider_usage
+                        .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-                return Ok((response, provider_usage));
-            }
-            Err(e) => {
-                if matches!(e, ProviderError::ContextLengthExceeded(_)) {
-                    if attempt < removal_percentages.len() - 1 {
-                        continue;
-                    } else {
-                        return Err(anyhow::anyhow!(
-                            "Failed to compact: context limit exceeded even after removing all tool responses"
-                        ));
-                    }
+                    return Ok((response, provider_usage));
                 }
-                return Err(e.into());
+                Err(e) => {
+                    if matches!(e, ProviderError::ContextLengthExceeded(_)) {
+                        continue;
+                    }
+                    return Err(e.into());
+                }
             }
         }
     }
 
     Err(anyhow::anyhow!(
-        "Unexpected: exhausted all attempts without returning"
+        "Failed to compact: context limit exceeded after trimming compaction input"
     ))
 }
 
@@ -596,6 +703,7 @@ mod tests {
         message: Message,
         config: ModelConfig,
         max_tool_responses: Option<usize>,
+        max_system_tokens: Option<usize>,
     }
 
     impl MockProvider {
@@ -614,11 +722,17 @@ mod tests {
                     reasoning: None,
                 },
                 max_tool_responses: None,
+                max_system_tokens: None,
             }
         }
 
         fn with_max_tool_responses(mut self, max: usize) -> Self {
             self.max_tool_responses = Some(max);
+            self
+        }
+
+        fn with_max_system_tokens(mut self, max: usize) -> Self {
+            self.max_system_tokens = Some(max);
             self
         }
     }
@@ -633,10 +747,24 @@ mod tests {
             &self,
             _model_config: &ModelConfig,
             _session_id: &str,
-            _system: &str,
+            system: &str,
             messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
+            if let Some(max) = self.max_system_tokens {
+                let token_counter = crate::token_counter::create_token_counter()
+                    .await
+                    .map_err(ProviderError::UsageError)?;
+                let system_tokens = token_counter.count_tokens(system);
+
+                if system_tokens > max {
+                    return Err(ProviderError::ContextLengthExceeded(format!(
+                        "System prompt too large: {} > {}",
+                        system_tokens, max
+                    )));
+                }
+            }
+
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
                 let tool_response_count = messages
@@ -723,6 +851,67 @@ mod tests {
             "Should succeed with progressive removal: {:?}",
             result.err()
         );
+    }
+
+    #[tokio::test]
+    async fn test_compaction_bounds_non_tool_history_on_context_exceeded() {
+        let response_message = Message::assistant().with_text("<mock summary>");
+        let provider = MockProvider::new(response_message, 20_000).with_max_system_tokens(3_000);
+
+        let mut messages = Vec::new();
+        for i in 0..20 {
+            messages.push(Message::user().with_text(&format!(
+                "large non-tool user message {} {}",
+                i,
+                "word ".repeat(1000)
+            )));
+            messages.push(Message::assistant().with_text(&format!(
+                "large non-tool assistant message {} {}",
+                i,
+                "reply ".repeat(1000)
+            )));
+        }
+
+        let conversation = Conversation::new_unvalidated(messages);
+        let result = compact_messages(&provider, "test-session-id", &conversation, false).await;
+
+        assert!(
+            result.is_ok(),
+            "Should shrink non-tool history until compaction fits: {:?}",
+            result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_bounded_compaction_text_prefers_recent_messages() {
+        let token_counter = crate::token_counter::create_token_counter()
+            .await
+            .expect("token counter should be available");
+        let messages = vec![
+            Message::user().with_text(&format!("oldest {}", "old ".repeat(1000))),
+            Message::assistant().with_text(&format!("middle {}", "middle ".repeat(1000))),
+            Message::user().with_text(&format!("newest {}", "new ".repeat(1000))),
+        ];
+        let message_refs = messages.iter().collect::<Vec<_>>();
+
+        let bounded_text = build_bounded_compaction_text(&message_refs, 300, &token_counter);
+
+        assert!(
+            bounded_text.contains("newest"),
+            "Most recent content should be retained"
+        );
+        assert!(
+            !bounded_text.contains("oldest"),
+            "Oldest content should be dropped first"
+        );
+    }
+
+    #[test]
+    fn test_auto_compaction_threshold_keeps_headroom() {
+        assert_eq!(effective_auto_compaction_threshold(0.8), Some(0.8));
+        assert_eq!(effective_auto_compaction_threshold(0.95), Some(0.9));
+        assert_eq!(effective_auto_compaction_threshold(0.0), None);
+        assert_eq!(effective_auto_compaction_threshold(1.0), None);
     }
 
     #[test]
