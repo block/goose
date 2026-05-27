@@ -330,8 +330,8 @@ impl StopSuffixTrimmer {
             .max_by_key(|stop| stop.len())
         {
             let emit_len = self.pending.len() - stop.len();
-            let emit = self.pending[..emit_len].to_string();
-            self.pending.clear();
+            let _stop = self.pending.split_off(emit_len);
+            let emit = std::mem::take(&mut self.pending);
             return (emit, true);
         }
 
@@ -341,16 +341,17 @@ impl StopSuffixTrimmer {
             .map(|(idx, _)| idx)
             .chain(std::iter::once(self.pending.len()))
             .filter(|idx| {
-                let suffix = &self.pending[*idx..];
-                self.stops.iter().any(|stop| stop.starts_with(suffix))
+                self.pending
+                    .get(*idx..)
+                    .is_some_and(|suffix| self.stops.iter().any(|stop| stop.starts_with(suffix)))
             })
             .map(|idx| self.pending.len() - idx)
             .max()
             .unwrap_or(0);
 
         let emit_len = self.pending.len() - hold_len;
-        let emit = self.pending[..emit_len].to_string();
-        self.pending = self.pending[emit_len..].to_string();
+        let keep = self.pending.split_off(emit_len);
+        let emit = std::mem::replace(&mut self.pending, keep);
         (emit, false)
     }
 

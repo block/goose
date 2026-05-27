@@ -36,36 +36,26 @@ impl Default for SamplingConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolCallingMode {
+    #[default]
     Auto,
     ForceNative,
     ForceEmulated,
 }
 
-impl Default for ToolCallingMode {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatTemplate {
     #[serde(alias = "auto")]
+    #[default]
     Embedded,
     #[serde(rename = "chatml")]
     ChatMl,
     CustomInline {
         template: String,
     },
-}
-
-impl Default for ChatTemplate {
-    fn default() -> Self {
-        Self::Embedded
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
