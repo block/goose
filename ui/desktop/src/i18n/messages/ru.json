@@ -2201,6 +2201,24 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Включить оптимизацию flash attention"
   },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Шаблон чата"
+  },
+  "modelSettingsPanel.chatTemplateAuto": {
+    "defaultMessage": "Авто"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Пользовательский inline"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "Использовать метаданные GGUF или inline-шаблон Jinja"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Пользовательский шаблон чата"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Вставьте полный исходный код шаблона Jinja"
+  },
   "modelSettingsPanel.toolCalling": {
     "defaultMessage": "Вызов инструментов"
   },

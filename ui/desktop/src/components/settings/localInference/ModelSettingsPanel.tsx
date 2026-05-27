@@ -5,6 +5,7 @@ import { Switch } from '../../ui/switch';
 import {
   getModelSettings,
   updateModelSettings,
+  type ChatTemplate,
   type ModelSettings,
   type SamplingConfig,
   type ToolCallingMode,
@@ -180,6 +181,30 @@ const i18n = defineMessages({
     id: 'modelSettingsPanel.toolCallingForceEmulated',
     defaultMessage: 'Force emulated',
   },
+  chatTemplate: {
+    id: 'modelSettingsPanel.chatTemplate',
+    defaultMessage: 'Chat template',
+  },
+  chatTemplateDescription: {
+    id: 'modelSettingsPanel.chatTemplateDescription',
+    defaultMessage: 'Use GGUF metadata or provide an inline Jinja template',
+  },
+  chatTemplateAuto: {
+    id: 'modelSettingsPanel.chatTemplateAuto',
+    defaultMessage: 'Auto',
+  },
+  chatTemplateCustomInline: {
+    id: 'modelSettingsPanel.chatTemplateCustomInline',
+    defaultMessage: 'Custom inline',
+  },
+  customChatTemplate: {
+    id: 'modelSettingsPanel.customChatTemplate',
+    defaultMessage: 'Custom chat template',
+  },
+  customChatTemplateDescription: {
+    id: 'modelSettingsPanel.customChatTemplateDescription',
+    defaultMessage: 'Paste the full Jinja chat template source',
+  },
 });
 
 const DEFAULT_SETTINGS: ModelSettings = {
@@ -203,9 +228,11 @@ const DEFAULT_SETTINGS: ModelSettings = {
   flash_attention: null,
   n_threads: null,
   tool_calling: 'auto',
+  chat_template: { type: 'auto' },
 };
 
 type SamplingType = SamplingConfig['type'];
+type ChatTemplateMode = 'auto' | 'custom_inline';
 
 function NumberField({
   label,
@@ -310,9 +337,38 @@ function SelectField<T extends string>({
   );
 }
 
+function TextAreaField({
+  label,
+  description,
+  value,
+  onChange,
+  onBlur,
+}: {
+  label: string;
+  description?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-text-default">{label}</label>
+      {description && <span className="text-xs text-text-muted">{description}</span>}
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        spellCheck={false}
+        className="min-h-32 rounded border border-border-subtle bg-background-default px-2 py-1 font-mono text-xs text-text-default"
+      />
+    </div>
+  );
+}
+
 export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const intl = useIntl();
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
+  const [chatTemplateDraft, setChatTemplateDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -320,7 +376,11 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     try {
       const res = await getModelSettings({ path: { model_id: modelId } });
       if (res.data) {
-        setSettings({ ...res.data, tool_calling: res.data.tool_calling ?? 'auto' });
+        setSettings({
+          ...res.data,
+          tool_calling: res.data.tool_calling ?? 'auto',
+          chat_template: res.data.chat_template ?? { type: 'auto' },
+        });
       }
     } catch {
       // use defaults
@@ -332,6 +392,15 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const chatTemplate = settings.chat_template;
+    if (chatTemplate?.type === 'custom_inline') {
+      setChatTemplateDraft(chatTemplate.template ?? '');
+    } else {
+      setChatTemplateDraft('');
+    }
+  }, [settings.chat_template]);
 
   const save = async (updated: ModelSettings) => {
     setSettings(updated);
@@ -352,6 +421,23 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   };
 
   const samplingType: SamplingType = settings.sampling?.type ?? 'Temperature';
+  const chatTemplate = settings.chat_template ?? { type: 'auto' };
+  const chatTemplateMode: ChatTemplateMode =
+    chatTemplate.type === 'custom_inline' ? 'custom_inline' : 'auto';
+
+  const setChatTemplateMode = (mode: ChatTemplateMode) => {
+    const next: ChatTemplate =
+      mode === 'custom_inline'
+        ? { type: 'custom_inline', template: chatTemplateDraft }
+        : { type: 'auto' };
+    updateField('chat_template', next);
+  };
+
+  const saveChatTemplateDraft = () => {
+    if (chatTemplateMode === 'custom_inline') {
+      updateField('chat_template', { type: 'custom_inline', template: chatTemplateDraft });
+    }
+  };
 
   const setSamplingType = (type: SamplingType) => {
     let sampling: SamplingConfig;
@@ -606,6 +692,28 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           ]}
           onChange={(v) => updateField('tool_calling', v)}
         />
+        <SelectField<ChatTemplateMode>
+          label={intl.formatMessage(i18n.chatTemplate)}
+          description={intl.formatMessage(i18n.chatTemplateDescription)}
+          value={chatTemplateMode}
+          options={[
+            { value: 'auto', label: intl.formatMessage(i18n.chatTemplateAuto) },
+            {
+              value: 'custom_inline',
+              label: intl.formatMessage(i18n.chatTemplateCustomInline),
+            },
+          ]}
+          onChange={setChatTemplateMode}
+        />
+        {chatTemplateMode === 'custom_inline' && (
+          <TextAreaField
+            label={intl.formatMessage(i18n.customChatTemplate)}
+            description={intl.formatMessage(i18n.customChatTemplateDescription)}
+            value={chatTemplateDraft}
+            onChange={setChatTemplateDraft}
+            onBlur={saveChatTemplateDraft}
+          />
+        )}
       </div>
     </div>
   );

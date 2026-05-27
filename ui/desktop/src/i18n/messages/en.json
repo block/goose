@@ -2183,6 +2183,18 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "Prompt processing batch"
   },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Chat template"
+  },
+  "modelSettingsPanel.chatTemplateAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Custom inline"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "Use GGUF metadata or provide an inline Jinja template"
+  },
   "modelSettingsPanel.contextAndGeneration": {
     "defaultMessage": "Context & Generation"
   },
@@ -2191,6 +2203,12 @@
   },
   "modelSettingsPanel.contextSizeDescription": {
     "defaultMessage": "Max context window (0 = model default)"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Custom chat template"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Paste the full Jinja chat template source"
   },
   "modelSettingsPanel.etaLearningRate": {
     "defaultMessage": "Eta (learning rate)"

@@ -2279,6 +2279,24 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Flaş dikkati optimizasyonunu etkinleştir"
   },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Sohbet şablonu"
+  },
+  "modelSettingsPanel.chatTemplateAuto": {
+    "defaultMessage": "Otomatik"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Özel satır içi"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "GGUF meta verilerini kullan veya satır içi Jinja şablonu sağla"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Özel sohbet şablonu"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Tam Jinja sohbet şablonu kaynağını yapıştır"
+  },
   "modelSettingsPanel.toolCalling": {
     "defaultMessage": "Araç çağırma"
   },

@@ -4260,6 +4260,45 @@
           }
         }
       },
+      "ChatTemplate": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "auto"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "template",
+              "type"
+            ],
+            "properties": {
+              "template": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "custom_inline"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
       "CheckProviderRequest": {
         "type": "object",
         "required": [
@@ -6716,6 +6755,9 @@
       "ModelSettings": {
         "type": "object",
         "properties": {
+          "chat_template": {
+            "$ref": "#/components/schemas/ChatTemplate"
+          },
           "context_size": {
             "type": "integer",
             "format": "int32",
@@ -6783,9 +6825,6 @@
           },
           "tool_calling": {
             "$ref": "#/components/schemas/ToolCallingMode"
-          },
-          "use_jinja": {
-            "type": "boolean"
           },
           "use_mlock": {
             "type": "boolean"

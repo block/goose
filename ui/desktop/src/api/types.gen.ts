@@ -76,6 +76,13 @@ export type ChatRequest = {
     user_message: Message;
 };
 
+export type ChatTemplate = {
+    type: 'auto';
+} | {
+    template: string;
+    type: 'custom_inline';
+};
+
 export type CheckProviderRequest = {
     provider: string;
 };
@@ -863,6 +870,7 @@ export type ModelInfoResponse = {
 };
 
 export type ModelSettings = {
+    chat_template?: ChatTemplate;
     context_size?: number | null;
     enable_thinking?: boolean;
     flash_attention?: boolean | null;
@@ -885,7 +893,6 @@ export type ModelSettings = {
     repeat_penalty?: number;
     sampling?: SamplingConfig;
     tool_calling?: ToolCallingMode;
-    use_jinja?: boolean;
     use_mlock?: boolean;
     /**
      * Whether this model architecture supports vision input.

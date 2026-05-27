@@ -2150,6 +2150,24 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "启用 Flash Attention 优化"
   },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "聊天模板"
+  },
+  "modelSettingsPanel.chatTemplateAuto": {
+    "defaultMessage": "自动"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "自定义内联"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "使用 GGUF 元数据或提供内联 Jinja 模板"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "自定义聊天模板"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "粘贴完整的 Jinja 聊天模板源码"
+  },
   "modelSettingsPanel.toolCalling": {
     "defaultMessage": "工具调用"
   },
