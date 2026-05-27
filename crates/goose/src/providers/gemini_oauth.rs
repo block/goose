@@ -531,7 +531,7 @@ fn html_success() -> String {
 }
 
 fn html_error(error: &str) -> String {
-    let safe_error = v_htmlescape::escape(error).to_string();
+    let safe_error = v_htmlescape::escape_fmt(error);
     format!(
         r#"<!doctype html>
 <html>
