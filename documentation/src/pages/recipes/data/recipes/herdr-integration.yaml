@@ -33,7 +33,7 @@ instructions: |
   git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup
 
   # Run the installer
-  bash /tmp/herdr-setup/plugins/herdr/install.sh
+  bash /tmp/herdr-setup/goose/plugins/herdr/install.sh
   ```
 
   After install.sh completes, verify:
@@ -75,7 +75,7 @@ prompt: |
 
   Then:
   1. Clone the integration: `git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup`
-  2. Run the installer: `bash /tmp/herdr-setup/plugins/herdr/install.sh`
+  2. Run the installer: `bash /tmp/herdr-setup/goose/plugins/herdr/install.sh`
   3. Verify everything is in place
   4. Clean up: `rm -rf /tmp/herdr-setup`
 
