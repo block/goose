@@ -12,6 +12,7 @@ import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import type { SessionConfigOption } from '@agentclientprotocol/sdk';
+import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
@@ -1653,10 +1654,15 @@ export default function ChatInput({
               alerts={alerts}
             />
 
+            {/* Right: mode selector */}
+            <BottomMenuModeSelection
+              sessionId={sessionId}
+              acpConfigOptions={acpConfigOptions}
+              onAcpConfigOptionsChange={onAcpConfigOptionsChange}
+            />
+
             {/* Right: extension selector */}
-            <BottomMenuExtensionSelection sessionId={sessionId} 
-            acpConfigOptions={acpConfigOptions}
-            onAcpConfigOptionsChange={onAcpConfigOptionsChange}/>
+            <BottomMenuExtensionSelection sessionId={sessionId} />
 
             {/* Right: diagnostics */}
             {sessionId && (

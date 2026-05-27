@@ -4,7 +4,8 @@ import { ChevronDown, ChevronRight, PanelLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
-import { useNavigationSessions, getSessionDisplayName } from '../../hooks/useNavigationSessions';
+import { useNavigationSessions } from '../../hooks/useNavigationSessions';
+import type { SessionListItem } from '../../acp/sessions';
 import {
   NAV_ITEMS,
   SETTINGS_NAV_ITEM,
@@ -15,7 +16,7 @@ import { AppEvents } from '../../constants/events';
 import { Goose } from '../icons/Goose';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
-import { updateSessionName, type Session } from '../../api';
+import { updateSessionName } from '../../api';
 import { cn } from '../../utils';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -75,7 +76,7 @@ const NavRow: React.FC<NavRowProps> = ({ item, active, onClick }) => {
 };
 
 interface SessionRowProps {
-  session: Session;
+  session: SessionListItem;
   active: boolean;
   status: SessionStatus | undefined;
   onClick: () => void;
@@ -99,7 +100,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
       )}
     >
       <InlineEditText
-        value={getSessionDisplayName(session)}
+        value={session.name}
         onSave={async (newName) => {
           await updateSessionName({
             path: { session_id: session.id },
