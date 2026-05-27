@@ -187,11 +187,15 @@ const i18n = defineMessages({
   },
   chatTemplateDescription: {
     id: 'modelSettingsPanel.chatTemplateDescription',
-    defaultMessage: 'Use GGUF metadata or provide an inline Jinja template',
+    defaultMessage: 'Use embedded GGUF metadata, ChatML, or an inline Jinja template',
   },
-  chatTemplateAuto: {
-    id: 'modelSettingsPanel.chatTemplateAuto',
-    defaultMessage: 'Auto',
+  chatTemplateEmbedded: {
+    id: 'modelSettingsPanel.chatTemplateEmbedded',
+    defaultMessage: 'Embedded',
+  },
+  chatTemplateChatMl: {
+    id: 'modelSettingsPanel.chatTemplateChatMl',
+    defaultMessage: 'ChatML',
   },
   chatTemplateCustomInline: {
     id: 'modelSettingsPanel.chatTemplateCustomInline',
@@ -228,11 +232,11 @@ const DEFAULT_SETTINGS: ModelSettings = {
   flash_attention: null,
   n_threads: null,
   tool_calling: 'auto',
-  chat_template: { type: 'auto' },
+  chat_template: { type: 'embedded' },
 };
 
 type SamplingType = SamplingConfig['type'];
-type ChatTemplateMode = 'auto' | 'custom_inline';
+type ChatTemplateMode = 'embedded' | 'chatml' | 'custom_inline';
 
 function NumberField({
   label,
@@ -379,7 +383,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         setSettings({
           ...res.data,
           tool_calling: res.data.tool_calling ?? 'auto',
-          chat_template: res.data.chat_template ?? { type: 'auto' },
+          chat_template: res.data.chat_template ?? { type: 'embedded' },
         });
       }
     } catch {
@@ -421,15 +425,19 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   };
 
   const samplingType: SamplingType = settings.sampling?.type ?? 'Temperature';
-  const chatTemplate = settings.chat_template ?? { type: 'auto' };
+  const chatTemplate = settings.chat_template ?? { type: 'embedded' };
   const chatTemplateMode: ChatTemplateMode =
-    chatTemplate.type === 'custom_inline' ? 'custom_inline' : 'auto';
+    chatTemplate.type === 'custom_inline'
+      ? 'custom_inline'
+      : chatTemplate.type === 'chatml'
+        ? 'chatml'
+        : 'embedded';
 
   const setChatTemplateMode = (mode: ChatTemplateMode) => {
     const next: ChatTemplate =
       mode === 'custom_inline'
         ? { type: 'custom_inline', template: chatTemplateDraft }
-        : { type: 'auto' };
+        : { type: mode };
     updateField('chat_template', next);
   };
 
@@ -697,7 +705,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           description={intl.formatMessage(i18n.chatTemplateDescription)}
           value={chatTemplateMode}
           options={[
-            { value: 'auto', label: intl.formatMessage(i18n.chatTemplateAuto) },
+            { value: 'embedded', label: intl.formatMessage(i18n.chatTemplateEmbedded) },
+            { value: 'chatml', label: intl.formatMessage(i18n.chatTemplateChatMl) },
             {
               value: 'custom_inline',
               label: intl.formatMessage(i18n.chatTemplateCustomInline),

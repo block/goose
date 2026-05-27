@@ -77,7 +77,9 @@ export type ChatRequest = {
 };
 
 export type ChatTemplate = {
-    type: 'auto';
+    type: 'embedded';
+} | {
+    type: 'chatml';
 } | {
     template: string;
     type: 'custom_inline';

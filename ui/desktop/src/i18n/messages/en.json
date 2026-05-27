@@ -2186,14 +2186,17 @@
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Chat template"
   },
-  "modelSettingsPanel.chatTemplateAuto": {
-    "defaultMessage": "Auto"
+  "modelSettingsPanel.chatTemplateChatMl": {
+    "defaultMessage": "ChatML"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "Custom inline"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "Use GGUF metadata or provide an inline Jinja template"
+    "defaultMessage": "Use embedded GGUF metadata, ChatML, or an inline Jinja template"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Embedded"
   },
   "modelSettingsPanel.contextAndGeneration": {
     "defaultMessage": "Context & Generation"

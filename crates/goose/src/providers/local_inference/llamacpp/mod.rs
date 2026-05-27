@@ -194,21 +194,30 @@ fn load_chat_templates(
     settings: &ModelSettings,
 ) -> Result<LoadedChatTemplates, ProviderError> {
     match &settings.chat_template {
-        ChatTemplate::Auto => Ok(LoadedChatTemplates {
+        ChatTemplate::Embedded => Ok(LoadedChatTemplates {
             default: model.chat_template(None).ok(),
             tool_use: model.chat_template(Some("tool_use")).ok(),
-            custom_inline: false,
+            force_default: false,
         }),
+        ChatTemplate::ChatMl => LlamaChatTemplate::new("chatml")
+            .map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to create ChatML chat template: {e}"))
+            })
+            .map(|template| LoadedChatTemplates {
+                default: Some(template),
+                tool_use: None,
+                force_default: true,
+            }),
         ChatTemplate::CustomInline { template } => {
             let trimmed = template.trim();
             if trimmed.is_empty() {
                 return Err(ProviderError::ExecutionError(
-                    "Custom inline chat template is empty. Paste the full Jinja chat template source, or use automatic chat template selection.".to_string(),
+                    "Custom inline chat template is empty. Paste the full Jinja chat template source, or use embedded chat template metadata.".to_string(),
                 ));
             }
-            if trimmed != "chatml" && is_legacy_builtin_template_name(trimmed) {
+            if trimmed == "chatml" || is_legacy_builtin_template_name(trimmed) {
                 return Err(ProviderError::ExecutionError(format!(
-                    "Custom inline chat template is set to '{trimmed}', which is a llama.cpp legacy built-in template name rather than Jinja template source. Paste the full Jinja chat template source instead, or use 'chatml' explicitly if ChatML is intended."
+                    "Custom inline chat template is set to '{trimmed}', which is a llama.cpp template name rather than Jinja template source. Paste the full Jinja chat template source instead, or select ChatML explicitly if ChatML is intended."
                 )));
             }
             LlamaChatTemplate::new(template)
@@ -220,7 +229,7 @@ fn load_chat_templates(
                 .map(|template| LoadedChatTemplates {
                     default: Some(template),
                     tool_use: None,
-                    custom_inline: true,
+                    force_default: true,
                 })
         }
     }
@@ -233,10 +242,10 @@ fn select_generation_template<'a>(
     native_tool_calling: bool,
     has_tools: bool,
 ) -> Result<&'a LlamaChatTemplate, ProviderError> {
-    if templates.custom_inline {
+    if templates.force_default {
         return templates.default.as_ref().ok_or_else(|| {
             ProviderError::ExecutionError(
-                "Custom inline chat template was not loaded correctly".to_string(),
+                "Configured chat template was not loaded correctly".to_string(),
             )
         });
     }
@@ -634,7 +643,7 @@ mod tests {
     fn rejects_legacy_builtin_names_as_inline_templates() {
         assert!(is_legacy_builtin_template_name("gemma"));
         assert!(is_legacy_builtin_template_name("llama3"));
-        assert!(is_legacy_builtin_template_name("chatml"));
+        assert!(!is_legacy_builtin_template_name("chatml"));
         assert!(!is_legacy_builtin_template_name(
             "{% for message in messages %}{{ message.content }}{% endfor %}"
         ));

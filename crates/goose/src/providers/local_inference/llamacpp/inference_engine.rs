@@ -38,7 +38,7 @@ pub(super) struct LoadedModel {
 pub(super) struct LoadedChatTemplates {
     pub default: Option<LlamaChatTemplate>,
     pub tool_use: Option<LlamaChatTemplate>,
-    pub custom_inline: bool,
+    pub force_default: bool,
 }
 
 pub(super) struct PreparedGeneration<'model> {

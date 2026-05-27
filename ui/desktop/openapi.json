@@ -4271,7 +4271,21 @@
               "type": {
                 "type": "string",
                 "enum": [
-                  "auto"
+                  "embedded"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chatml"
                 ]
               }
             }

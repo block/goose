@@ -2282,14 +2282,17 @@
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Sohbet şablonu"
   },
-  "modelSettingsPanel.chatTemplateAuto": {
-    "defaultMessage": "Otomatik"
+  "modelSettingsPanel.chatTemplateChatMl": {
+    "defaultMessage": "ChatML"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "Özel satır içi"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "GGUF meta verilerini kullan veya satır içi Jinja şablonu sağla"
+    "defaultMessage": "Gömülü GGUF meta verilerini, ChatML'yi veya satır içi Jinja şablonunu kullan"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Gömülü"
   },
   "modelSettingsPanel.customChatTemplate": {
     "defaultMessage": "Özel sohbet şablonu"

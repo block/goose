@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use backend::{BackendLoadedModel, LocalInferenceBackend};
 use futures::future::BoxFuture;
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
+use local_model_registry::ChatTemplate;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -33,13 +34,19 @@ type ModelSlot = Arc<Mutex<Option<Box<dyn BackendLoadedModel>>>>;
 struct ModelCacheKey {
     backend_id: &'static str,
     model_id: String,
+    chat_template: ChatTemplate,
 }
 
 impl ModelCacheKey {
-    fn new(backend_id: &'static str, model_id: impl Into<String>) -> Self {
+    fn new(
+        backend_id: &'static str,
+        model_id: impl Into<String>,
+        chat_template: ChatTemplate,
+    ) -> Self {
         Self {
             backend_id,
             model_id: model_id.into(),
+            chat_template,
         }
     }
 }
@@ -434,7 +441,11 @@ impl Provider for LocalInferenceProvider {
         let backend = self.runtime.backend_for_model(&resolved)?;
         let model_context_limit = resolved.context_limit;
         let model_settings = resolved.settings.clone();
-        let cache_key = ModelCacheKey::new(backend.id(), model_config.model_name.clone());
+        let cache_key = ModelCacheKey::new(
+            backend.id(),
+            model_config.model_name.clone(),
+            model_settings.chat_template.clone(),
+        );
         let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
 
         // Ensure model is loaded — unload any other models first to free memory.

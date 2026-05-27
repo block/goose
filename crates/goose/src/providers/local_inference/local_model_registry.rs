@@ -50,16 +50,21 @@ impl Default for ToolCallingMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatTemplate {
-    Auto,
-    CustomInline { template: String },
+    #[serde(alias = "auto")]
+    Embedded,
+    #[serde(rename = "chatml")]
+    ChatMl,
+    CustomInline {
+        template: String,
+    },
 }
 
 impl Default for ChatTemplate {
     fn default() -> Self {
-        Self::Auto
+        Self::Embedded
     }
 }
 
@@ -134,7 +139,7 @@ impl Default for ModelSettings {
             flash_attention: None,
             n_threads: None,
             tool_calling: ToolCallingMode::Auto,
-            chat_template: ChatTemplate::Auto,
+            chat_template: ChatTemplate::Embedded,
             enable_thinking: true,
             vision_capable: false,
             image_token_estimate: default_image_token_estimate(),

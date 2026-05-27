@@ -2204,14 +2204,17 @@
   "modelSettingsPanel.chatTemplate": {
     "defaultMessage": "Шаблон чата"
   },
-  "modelSettingsPanel.chatTemplateAuto": {
-    "defaultMessage": "Авто"
+  "modelSettingsPanel.chatTemplateChatMl": {
+    "defaultMessage": "ChatML"
   },
   "modelSettingsPanel.chatTemplateCustomInline": {
     "defaultMessage": "Пользовательский inline"
   },
   "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "Использовать метаданные GGUF или inline-шаблон Jinja"
+    "defaultMessage": "Использовать встроенные метаданные GGUF, ChatML или inline-шаблон Jinja"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Встроенный"
   },
   "modelSettingsPanel.customChatTemplate": {
     "defaultMessage": "Пользовательский шаблон чата"
