@@ -6,9 +6,7 @@ use crate::providers::local_inference::multimodal::ExtractedImage;
 use crate::providers::utils::RequestLog;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::{
-    AddBos, ChatTemplateResult, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
-};
+use llama_cpp_2::model::{AddBos, ChatTemplateResult, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdInputText};
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
@@ -20,7 +18,7 @@ use super::LlamaCppBackend;
 pub(super) struct GenerationContext<'a> {
     pub loaded: &'a LoadedModel,
     pub backend: &'a LlamaCppBackend,
-    pub chat_messages: &'a [LlamaChatMessage],
+    pub template: &'a LlamaChatTemplate,
     pub settings: &'a ModelSettings,
     pub context_limit: usize,
     pub model_name: String,
@@ -32,9 +30,15 @@ pub(super) struct GenerationContext<'a> {
 
 pub(super) struct LoadedModel {
     pub model: LlamaModel,
-    pub template: LlamaChatTemplate,
+    pub templates: LoadedChatTemplates,
     /// Multimodal context for vision models. None for text-only models.
     pub mtmd_ctx: Option<MtmdContext>,
+}
+
+pub(super) struct LoadedChatTemplates {
+    pub default: Option<LlamaChatTemplate>,
+    pub tool_use: Option<LlamaChatTemplate>,
+    pub custom_inline: bool,
 }
 
 pub(super) struct PreparedGeneration<'model> {
@@ -442,54 +446,34 @@ pub(super) fn create_and_prefill_multimodal<'model>(
 
 pub(super) fn prepare_generation<'model>(
     ctx: &mut GenerationContext<'model>,
-    oai_messages_json: Option<&str>,
+    oai_messages_json: &str,
     full_tools_json: Option<&str>,
     compact_tools_json: Option<&str>,
 ) -> Result<PreparedGeneration<'model>, ProviderError> {
     let apply_template = |tools: Option<&str>| {
-        if let Some(messages_json) = oai_messages_json {
-            let params = OpenAIChatTemplateParams {
-                messages_json,
-                tools_json: tools,
-                tool_choice: None,
-                json_schema: None,
-                grammar: None,
-                reasoning_format: if ctx.settings.enable_thinking {
-                    Some("auto")
-                } else {
-                    None
-                },
-                chat_template_kwargs: None,
-                add_generation_prompt: true,
-                use_jinja: true,
-                parallel_tool_calls: false,
-                enable_thinking: ctx.settings.enable_thinking,
-                add_bos: false,
-                add_eos: false,
-                parse_tool_calls: true,
-            };
-            ctx.loaded
-                .model
-                .apply_chat_template_oaicompat(&ctx.loaded.template, &params)
-        } else {
-            ctx.loaded.model.apply_chat_template_with_tools_oaicompat(
-                &ctx.loaded.template,
-                ctx.chat_messages,
-                tools,
-                None,
-                true,
-            )
-        }
-    };
-
-    let apply_legacy_template = |tools: Option<&str>| {
-        ctx.loaded.model.apply_chat_template_with_tools_oaicompat(
-            &ctx.loaded.template,
-            ctx.chat_messages,
-            tools,
-            None,
-            true,
-        )
+        let params = OpenAIChatTemplateParams {
+            messages_json: oai_messages_json,
+            tools_json: tools,
+            tool_choice: None,
+            json_schema: None,
+            grammar: None,
+            reasoning_format: if ctx.settings.enable_thinking {
+                Some("auto")
+            } else {
+                None
+            },
+            chat_template_kwargs: None,
+            add_generation_prompt: true,
+            use_jinja: true,
+            parallel_tool_calls: false,
+            enable_thinking: ctx.settings.enable_thinking,
+            add_bos: false,
+            add_eos: false,
+            parse_tool_calls: true,
+        };
+        ctx.loaded
+            .model
+            .apply_chat_template_oaicompat(ctx.template, &params)
     };
 
     let min_generation_headroom = 512;
@@ -522,15 +506,15 @@ pub(super) fn prepare_generation<'model>(
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "Failed to apply llama.cpp OpenAI-compatible chat template; falling back to legacy template"
+                "Failed to apply llama.cpp OpenAI-compatible chat template"
             );
             match apply_template(compact_tools_json) {
                 Ok(r) => r,
-                Err(compact_err) => apply_legacy_template(compact_tools_json).map_err(|legacy_err| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to apply chat template: {compact_err}; legacy fallback also failed: {legacy_err}"
-                    ))
-                })?,
+                Err(compact_err) => {
+                    return Err(ProviderError::ExecutionError(format!(
+                        "Failed to apply chat template with llama.cpp's Jinja renderer. This usually means the model's chat template is missing, invalid, or incompatible with the current message shape. Configure a custom inline chat template containing the full Jinja template source, or use a GGUF with valid tokenizer.chat_template metadata. Full tools error: {e}; compact tools error: {compact_err}"
+                    )));
+                }
             }
         }
     };

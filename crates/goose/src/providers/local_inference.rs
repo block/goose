@@ -191,6 +191,22 @@ fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
+fn build_openai_text_messages_json(system: &str, messages: &[Message]) -> String {
+    let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
+    arr.extend(messages.iter().filter_map(|m| {
+        let content = extract_text_content(m);
+        if content.trim().is_empty() {
+            return None;
+        }
+        let role = match m.role {
+            rmcp::model::Role::User => "user",
+            rmcp::model::Role::Assistant => "assistant",
+        };
+        Some(json!({"role": role, "content": content}))
+    }));
+    serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
+}
+
 /// Remove `image_url` content parts from OpenAI-format messages JSON, replacing
 /// each with a text note. This prevents an FFI crash in llama.cpp which does not
 /// accept `image_url` content-part types.
@@ -473,8 +489,8 @@ impl Provider for LocalInferenceProvider {
             }).collect::<Vec<_>>(),
             "tools": tools.iter().map(|t| &t.name).collect::<Vec<_>>(),
             "settings": {
-                "use_jinja": settings.use_jinja,
                 "tool_calling": settings.tool_calling,
+                "chat_template": settings.chat_template,
                 "context_size": settings.context_size,
                 "sampling": settings.sampling,
             },

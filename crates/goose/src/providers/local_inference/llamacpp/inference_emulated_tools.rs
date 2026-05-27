@@ -353,7 +353,7 @@ fn send_emulator_action(
 pub(super) fn generate_with_emulated_tools(
     ctx: &mut GenerationContext<'_>,
     code_mode_enabled: bool,
-    oai_messages_json: Option<&str>,
+    oai_messages_json: &str,
 ) -> Result<(), ProviderError> {
     let prepared = prepare_generation(ctx, oai_messages_json, None, None)?;
     let template_result = prepared.template_result;

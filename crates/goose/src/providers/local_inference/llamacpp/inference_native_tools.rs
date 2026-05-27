@@ -12,16 +12,11 @@ use super::inference_engine::{
 
 pub(super) fn generate_with_native_tools(
     ctx: &mut GenerationContext<'_>,
-    oai_messages_json: &Option<String>,
+    oai_messages_json: &str,
     full_tools_json: Option<&str>,
     compact_tools: Option<&str>,
 ) -> Result<(), ProviderError> {
-    let prepared = prepare_generation(
-        ctx,
-        oai_messages_json.as_deref(),
-        full_tools_json,
-        compact_tools,
-    )?;
+    let prepared = prepare_generation(ctx, oai_messages_json, full_tools_json, compact_tools)?;
     let template_result = prepared.template_result;
     let mut llama_ctx = prepared.llama_ctx;
     let prompt_token_count = prepared.prompt_token_count;

@@ -701,6 +701,7 @@ pub struct ApiDoc;
         goose::providers::local_inference::hf_models::HfQuantVariant,
         super::routes::local_inference::RepoVariantsResponse,
         goose::providers::local_inference::local_model_registry::ModelSettings,
+        goose::providers::local_inference::local_model_registry::ChatTemplate,
         goose::providers::local_inference::local_model_registry::SamplingConfig,
         goose::providers::local_inference::local_model_registry::ToolCallingMode,
     ))

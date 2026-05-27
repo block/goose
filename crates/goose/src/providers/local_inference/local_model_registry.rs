@@ -50,6 +50,19 @@ impl Default for ToolCallingMode {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ChatTemplate {
+    Auto,
+    CustomInline { template: String },
+}
+
+impl Default for ChatTemplate {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelSettings {
     pub context_size: Option<u32>,
@@ -73,7 +86,7 @@ pub struct ModelSettings {
     #[serde(default)]
     pub tool_calling: ToolCallingMode,
     #[serde(default)]
-    pub use_jinja: bool,
+    pub chat_template: ChatTemplate,
     #[serde(default = "default_true")]
     pub enable_thinking: bool,
     /// Whether this model architecture supports vision input.
@@ -121,7 +134,7 @@ impl Default for ModelSettings {
             flash_attention: None,
             n_threads: None,
             tool_calling: ToolCallingMode::Auto,
-            use_jinja: false,
+            chat_template: ChatTemplate::Auto,
             enable_thinking: true,
             vision_capable: false,
             image_token_estimate: default_image_token_estimate(),
