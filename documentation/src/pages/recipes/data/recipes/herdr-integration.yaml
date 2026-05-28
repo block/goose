@@ -31,7 +31,7 @@ instructions: |
   ```bash
   HERDR_SETUP=$(mktemp -d) && \
   git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && \
-  git -C "$HERDR_SETUP" checkout v1.0.0 && \
+  git -C "$HERDR_SETUP" checkout bfe921c7608861c58ea37aac981b32eb3032915e && \
   bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh
   ```
 
@@ -73,7 +73,7 @@ prompt: |
   If either is missing, tell the user and stop.
 
   Then:
-  1. Create a fresh temp dir, clone, pin to tag, and run the installer (each step must succeed before the next runs): `HERDR_SETUP=$(mktemp -d) && git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && git -C "$HERDR_SETUP" checkout v1.0.0 && bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh`
+  1. Create a fresh temp dir, clone, pin to tag, and run the installer (each step must succeed before the next runs): `HERDR_SETUP=$(mktemp -d) && git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && git -C "$HERDR_SETUP" checkout bfe921c7608861c58ea37aac981b32eb3032915e && bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh`
   2. Verify everything is in place
   3. Clean up: `rm -rf "$HERDR_SETUP"`
 
