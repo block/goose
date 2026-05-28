@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::slash_commands::{recipe_slash_command, skill_slash_command};
+use crate::traits::{SessionContextProvider, SessionUpdate};
 
 use super::Agent;
 
@@ -164,13 +165,15 @@ impl Agent {
             .replace_conversation(session_id, &Conversation::default())
             .await?;
 
-        manager
-            .update(session_id)
-            .total_tokens(Some(0))
-            .input_tokens(Some(0))
-            .output_tokens(Some(0))
-            .apply()
-            .await?;
+        SessionContextProvider::apply_update(
+            manager.as_ref(),
+            session_id,
+            SessionUpdate::default()
+                .total_tokens(Some(0))
+                .input_tokens(Some(0))
+                .output_tokens(Some(0)),
+        )
+        .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
             SystemNotificationType::InlineMessage,

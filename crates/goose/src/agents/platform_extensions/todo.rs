@@ -3,6 +3,7 @@ use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
 use crate::session::extension_data;
 use crate::session::extension_data::ExtensionState;
+use crate::traits::{SessionContextProvider, SessionUpdate};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -89,11 +90,12 @@ impl TodoClient {
                     .to_extension_data(&mut session.extension_data)
                     .is_ok()
                 {
-                    match manager
-                        .update(session_id)
-                        .extension_data(session.extension_data)
-                        .apply()
-                        .await
+                    match SessionContextProvider::apply_update(
+                        manager.as_ref(),
+                        session_id,
+                        SessionUpdate::default().extension_data(session.extension_data),
+                    )
+                    .await
                     {
                         Ok(_) => Ok(vec![Content::text(format!(
                             "Updated ({} chars)",

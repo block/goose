@@ -53,6 +53,7 @@ use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
+use crate::traits::{SessionContextProvider, SessionUpdate};
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
@@ -1017,11 +1018,12 @@ impl Agent {
             return Err(anyhow!("Extension state serialization failed: {}", e));
         }
 
-        session_manager
-            .update(&session.id)
-            .extension_data(session_data.extension_data)
-            .apply()
-            .await?;
+        SessionContextProvider::apply_update(
+            session_manager.as_ref(),
+            &session.id,
+            SessionUpdate::default().extension_data(session_data.extension_data),
+        )
+        .await?;
 
         Ok(())
     }
@@ -1039,11 +1041,12 @@ impl Agent {
             .to_extension_data(&mut extension_data)
             .map_err(|e| anyhow!("Failed to serialize extension state: {}", e))?;
 
-        session_manager
-            .update(session_id)
-            .extension_data(extension_data)
-            .apply()
-            .await?;
+        SessionContextProvider::apply_update(
+            session_manager.as_ref(),
+            session_id,
+            SessionUpdate::default().extension_data(extension_data),
+        )
+        .await?;
 
         Ok(())
     }
@@ -2320,15 +2323,15 @@ impl Agent {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider);
 
-        self.config
-            .session_manager
-            .clone()
-            .update(session_id)
-            .provider_name(&provider_name)
-            .model_config(model_config)
-            .apply()
-            .await
-            .context("Failed to persist provider config to session")
+        SessionContextProvider::apply_update(
+            self.config.session_manager.as_ref(),
+            session_id,
+            SessionUpdate::default()
+                .provider_name(&provider_name)
+                .model_config(model_config),
+        )
+        .await
+        .context("Failed to persist provider config to session")
     }
 
     pub async fn update_goose_mode(&self, mode: GooseMode, session_id: &str) -> Result<()> {
@@ -2339,14 +2342,13 @@ impl Agent {
                 .map_err(|e| anyhow::anyhow!("Provider rejected mode update: {e}"))?;
         }
         *self.current_goose_mode.lock().await = mode;
-        self.config
-            .session_manager
-            .clone()
-            .update(session_id)
-            .goose_mode(mode)
-            .apply()
-            .await
-            .context("Failed to persist goose_mode to session")
+        SessionContextProvider::apply_update(
+            self.config.session_manager.as_ref(),
+            session_id,
+            SessionUpdate::default().goose_mode(mode),
+        )
+        .await
+        .context("Failed to persist goose_mode to session")
     }
 
     pub async fn goose_mode(&self) -> GooseMode {
@@ -2430,14 +2432,14 @@ impl Agent {
                 )
             })?;
 
-            if let Err(e) = self
-                .config
-                .session_manager
-                .update(&session.id)
-                .provider_name(&fallback_provider_name)
-                .model_config(fallback_model_config)
-                .apply()
-                .await
+            if let Err(e) = SessionContextProvider::apply_update(
+                self.config.session_manager.as_ref(),
+                &session.id,
+                SessionUpdate::default()
+                    .provider_name(&fallback_provider_name)
+                    .model_config(fallback_model_config),
+            )
+            .await
             {
                 tracing::warn!("Failed to update session provider: {}", e);
             }

@@ -20,6 +20,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
+use crate::traits::{SessionContextProvider, SessionUpdate};
 use rmcp::model::Tool;
 use tracing::warn;
 
@@ -545,18 +546,20 @@ impl Agent {
             )
         };
 
-        manager
-            .update(session_id)
-            .schedule_id(schedule_id)
-            .total_tokens(current_total)
-            .input_tokens(current_input)
-            .output_tokens(current_output)
-            .accumulated_total_tokens(accumulated_total)
-            .accumulated_input_tokens(accumulated_input)
-            .accumulated_output_tokens(accumulated_output)
-            .accumulated_cost(accumulated_cost)
-            .apply()
-            .await?;
+        SessionContextProvider::apply_update(
+            manager.as_ref(),
+            session_id,
+            SessionUpdate::default()
+                .schedule_id(schedule_id)
+                .total_tokens(current_total)
+                .input_tokens(current_input)
+                .output_tokens(current_output)
+                .accumulated_total_tokens(accumulated_total)
+                .accumulated_input_tokens(accumulated_input)
+                .accumulated_output_tokens(accumulated_output)
+                .accumulated_cost(accumulated_cost),
+        )
+        .await?;
 
         Ok(())
     }
