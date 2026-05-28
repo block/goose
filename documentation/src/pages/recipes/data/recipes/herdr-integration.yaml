@@ -29,8 +29,9 @@ instructions: |
   Run these commands:
 
   ```bash
-  # Clone the integration
+  # Clone the integration at the reviewed tag
   git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup
+  git -C /tmp/herdr-setup checkout v1.0.0
 
   # Run the installer
   bash /tmp/herdr-setup/goose/plugins/herdr/install.sh
@@ -75,8 +76,9 @@ prompt: |
 
   Then:
   1. Clone the integration: `git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup`
-  2. Run the installer: `bash /tmp/herdr-setup/goose/plugins/herdr/install.sh`
-  3. Verify everything is in place
-  4. Clean up: `rm -rf /tmp/herdr-setup`
+  2. Pin to the reviewed tag: `git -C /tmp/herdr-setup checkout v1.0.0`
+  3. Run the installer: `bash /tmp/herdr-setup/goose/plugins/herdr/install.sh`
+  4. Verify everything is in place
+  5. Clean up: `rm -rf /tmp/herdr-setup`
 
   Tell the user when it's done and how to test it.
