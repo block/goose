@@ -181,12 +181,14 @@ async function seedDefaultRecipes(): Promise<void> {
     : path.join(__dirname, '..', 'default-recipes');
   const destDir = path.join(os.homedir(), '.config', 'goose', 'recipes');
   const hashesDir = path.join(app.getPath('userData'), 'recipe_hashes');
+  const bundledTitlesFile = path.join(app.getPath('userData'), 'bundled-recipe-titles.json');
 
   if (!fsSync.existsSync(sourceRoot)) return;
 
   await fs.mkdir(destDir, { recursive: true });
   await fs.mkdir(hashesDir, { recursive: true });
   const entries = await fs.readdir(sourceRoot);
+  const bundledTitles: Array<{ title: string; description: string }> = [];
   for (const entry of entries) {
     if (!entry.endsWith('.yaml') && !entry.endsWith('.yml')) continue;
     const sourcePath = path.join(sourceRoot, entry);
@@ -200,6 +202,14 @@ async function seedDefaultRecipes(): Promise<void> {
     try {
       const yamlContent = await fs.readFile(sourcePath, 'utf-8');
       const parsed = yaml.parse(yamlContent);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof parsed.title === 'string' &&
+        typeof parsed.description === 'string'
+      ) {
+        bundledTitles.push({ title: parsed.title, description: parsed.description });
+      }
       const hash = crypto.createHash('sha256').update(JSON.stringify(parsed)).digest('hex');
       const hashFile = path.join(hashesDir, `${hash}.hash`);
       if (!fsSync.existsSync(hashFile)) {
@@ -209,6 +219,13 @@ async function seedDefaultRecipes(): Promise<void> {
     } catch (err) {
       log.warn(`[seedDefaultRecipes] failed to pre-trust ${entry}:`, err);
     }
+  }
+
+  try {
+    await fs.writeFile(bundledTitlesFile, JSON.stringify(bundledTitles, null, 2));
+    log.info(`[seedDefaultRecipes] wrote bundled-recipe-titles.json with ${bundledTitles.length} titles`);
+  } catch (err) {
+    log.warn(`[seedDefaultRecipes] failed to write bundled-recipe-titles.json:`, err);
   }
 }
 

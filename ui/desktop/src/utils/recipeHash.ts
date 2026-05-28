@@ -1,5 +1,6 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'crypto';
 
@@ -16,6 +17,29 @@ async function getRecipeHashesDir(): Promise<string> {
   return hashesDir;
 }
 
+function isBundledRecipeByTitleAndDescription(recipe: unknown): boolean {
+  if (typeof recipe !== 'object' || recipe === null) return false;
+  const title = (recipe as { title?: unknown }).title;
+  const description = (recipe as { description?: unknown }).description;
+  if (typeof title !== 'string' || typeof description !== 'string') return false;
+  try {
+    const listFile = path.join(app.getPath('userData'), 'bundled-recipe-titles.json');
+    if (!fsSync.existsSync(listFile)) return false;
+    const raw = fsSync.readFileSync(listFile, 'utf-8');
+    const items: unknown = JSON.parse(raw);
+    if (!Array.isArray(items)) return false;
+    return items.some(
+      (it) =>
+        it != null &&
+        typeof it === 'object' &&
+        (it as { title?: unknown }).title === title &&
+        (it as { description?: unknown }).description === description
+    );
+  } catch {
+    return false;
+  }
+}
+
 ipcMain.handle('has-accepted-recipe-before', async (_event, recipe) => {
   const hash = calculateRecipeHash(recipe);
   const hashFile = path.join(await getRecipeHashesDir(), `${hash}.hash`);
@@ -24,7 +48,7 @@ ipcMain.handle('has-accepted-recipe-before', async (_event, recipe) => {
     return true;
   } catch (err) {
     if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT') {
-      return false;
+      return isBundledRecipeByTitleAndDescription(recipe);
     }
     throw err;
   }
