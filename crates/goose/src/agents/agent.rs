@@ -99,6 +99,19 @@ fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
     None
 }
 
+/// Ensure a tool request message sorts before its response.
+///
+/// The response placeholder is created before tool execution begins, so it can
+/// carry an earlier (or equal) `created` timestamp than the request message,
+/// which is built afterward. Session history is ordered by `created`, so without
+/// this the tool request would sort after its own response. Backdate the request
+/// when needed so request-before-response ordering is preserved.
+fn ensure_request_precedes_response(request: &mut Message, response: &Message) {
+    if request.created >= response.created {
+        request.created = response.created.saturating_sub(1);
+    }
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -1982,10 +1995,14 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
+                                        ensure_request_precedes_response(
+                                            &mut request_msg,
+                                            &final_response,
+                                        );
+                                        messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
@@ -2991,5 +3008,36 @@ mod tests {
         assert!(extract_string_arg(&input, &["path"]).is_none());
         let input = serde_json::json!({ "path": "" });
         assert!(extract_string_arg(&input, &["path"]).is_none());
+    }
+
+    #[test]
+    fn ensure_request_precedes_response_backdates_when_not_earlier() {
+        let mut response = Message::user().with_generated_id();
+        response.created = 100;
+
+        // Equal timestamps (tool finished within the same second): the request
+        // must move strictly before the response so it does not sort after it.
+        let mut request = Message::assistant().with_generated_id();
+        request.created = 100;
+        ensure_request_precedes_response(&mut request, &response);
+        assert!(request.created < response.created);
+
+        // Later request timestamp (tool execution took a while): same outcome.
+        let mut request = Message::assistant().with_generated_id();
+        request.created = 150;
+        ensure_request_precedes_response(&mut request, &response);
+        assert!(request.created < response.created);
+    }
+
+    #[test]
+    fn ensure_request_precedes_response_leaves_earlier_request_untouched() {
+        let mut request = Message::assistant().with_generated_id();
+        request.created = 50;
+        let mut response = Message::user().with_generated_id();
+        response.created = 100;
+
+        ensure_request_precedes_response(&mut request, &response);
+
+        assert_eq!(request.created, 50);
     }
 }
