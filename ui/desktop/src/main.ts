@@ -47,6 +47,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
+import { calculateStableRecipeHash } from './utils/stableRecipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
 import * as mesh from './mesh';
@@ -210,7 +211,7 @@ async function seedDefaultRecipes(): Promise<void> {
       ) {
         bundledTitles.push({ title: parsed.title, description: parsed.description });
       }
-      const hash = crypto.createHash('sha256').update(JSON.stringify(parsed)).digest('hex');
+      const hash = calculateStableRecipeHash(parsed);
       const hashFile = path.join(hashesDir, `${hash}.hash`);
       if (!fsSync.existsSync(hashFile)) {
         await fs.writeFile(hashFile, new Date().toISOString());
