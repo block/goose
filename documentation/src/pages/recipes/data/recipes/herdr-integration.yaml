@@ -29,12 +29,13 @@ instructions: |
   Run these commands:
 
   ```bash
-  # Clone the integration at the reviewed tag
-  git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup
-  git -C /tmp/herdr-setup checkout v1.0.0
+  # Create a fresh temporary directory and clone the integration at the reviewed tag
+  HERDR_SETUP=$(mktemp -d)
+  git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP"
+  git -C "$HERDR_SETUP" checkout v1.0.0
 
   # Run the installer
-  bash /tmp/herdr-setup/goose/plugins/herdr/install.sh
+  bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh
   ```
 
   After install.sh completes, verify:
@@ -52,7 +53,7 @@ instructions: |
   ### 4. Clean up
   Remove the temporary clone:
   ```bash
-  rm -rf /tmp/herdr-setup
+  rm -rf "$HERDR_SETUP"
   ```
 
   ## Caveats
@@ -75,10 +76,10 @@ prompt: |
   If either is missing, tell the user and stop.
 
   Then:
-  1. Clone the integration: `git clone https://github.com/modib/agent-toolkit.git /tmp/herdr-setup`
-  2. Pin to the reviewed tag: `git -C /tmp/herdr-setup checkout v1.0.0`
-  3. Run the installer: `bash /tmp/herdr-setup/goose/plugins/herdr/install.sh`
+  1. Create a fresh temp dir with `HERDR_SETUP=$(mktemp -d)` and clone the integration: `git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP"`
+  2. Pin to the reviewed tag: `git -C "$HERDR_SETUP" checkout v1.0.0`
+  3. Run the installer: `bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh`
   4. Verify everything is in place
-  5. Clean up: `rm -rf /tmp/herdr-setup`
+  5. Clean up: `rm -rf "$HERDR_SETUP"`
 
   Tell the user when it's done and how to test it.
