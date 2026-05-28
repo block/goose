@@ -1985,11 +1985,7 @@ impl Agent {
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
-                                        // Ensure the tool request timestamp precedes the tool response
-                                        // timestamp. The response placeholder is created before tools
-                                        // execute, so its timestamp can be earlier than the request
-                                        // message built here — which causes the DB to return them out
-                                        // of order and triggers a Claude API 400 error.
+                                        // Response placeholder is created before tools run, so clamp request to avoid inverted ordering.
                                         if request_msg.created > final_response.created {
                                             request_msg.created = final_response.created;
                                         }
