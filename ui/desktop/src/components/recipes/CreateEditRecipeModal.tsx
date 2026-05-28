@@ -339,6 +339,7 @@ export default function CreateEditRecipeModal({
   // Generate deeplink whenever recipe configuration changes
   useEffect(() => {
     let isCancelled = false;
+    const abortController = new AbortController();
 
     const generateLink = async () => {
       if (
@@ -353,11 +354,14 @@ export default function CreateEditRecipeModal({
       setIsGeneratingDeeplink(true);
       try {
         const currentRecipe = getCurrentRecipe();
-        const link = await generateDeepLink(currentRecipe);
+        const link = await generateDeepLink(currentRecipe, abortController.signal);
         if (!isCancelled) {
           setDeeplink(link);
         }
       } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
         console.error('Failed to generate deeplink:', error);
         if (!isCancelled) {
           setDeeplink('Error generating deeplink');
@@ -369,10 +373,12 @@ export default function CreateEditRecipeModal({
       }
     };
 
-    generateLink();
+    const timeoutId = window.setTimeout(generateLink, 500);
 
     return () => {
       isCancelled = true;
+      abortController.abort();
+      window.clearTimeout(timeoutId);
     };
   }, [
     title,

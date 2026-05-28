@@ -15,10 +15,13 @@ export type Recipe = import('../api').Recipe & {
   isScheduledExecution?: boolean;
 };
 
-export async function encodeRecipe(recipe: Recipe): Promise<string> {
+type ApiSignal = Parameters<typeof apiEncodeRecipe>[0]['signal'];
+
+export async function encodeRecipe(recipe: Recipe, signal?: ApiSignal): Promise<string> {
   try {
     const response = await apiEncodeRecipe({
       body: { recipe },
+      signal,
     });
 
     if (!response.data) {
@@ -71,8 +74,8 @@ export async function scanRecipe(recipe: Recipe): Promise<{ has_security_warning
   }
 }
 
-export async function generateDeepLink(recipe: Recipe): Promise<string> {
-  const encoded = await encodeRecipe(recipe);
+export async function generateDeepLink(recipe: Recipe, signal?: ApiSignal): Promise<string> {
+  const encoded = await encodeRecipe(recipe, signal);
   return `goose://recipe?config=${encoded}`;
 }
 
