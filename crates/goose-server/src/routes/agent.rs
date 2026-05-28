@@ -708,7 +708,9 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
+    #[cfg(feature = "telemetry")]
     let extension_name = request.config.name();
+
     let agent = state.get_agent(request.session_id.clone()).await?;
 
     agent

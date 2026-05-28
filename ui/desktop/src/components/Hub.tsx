@@ -1,47 +1,70 @@
-import { AppEvents } from '../constants/events';
 /**
  * Hub Component
  *
- * The Hub is the main landing page and entry point for the Goose Desktop application.
- * It serves as the welcome screen where users can start new conversations.
- *
- * Key Responsibilities:
- * - Displays SessionInsights to show session statistics and recent chats
- * - Provides a ChatInput for users to start new conversations
- * - Creates a new session and navigates to Pair with the session ID
- * - Shows loading state while session is being created
- *
- * Navigation Flow:
- * Hub (input submission) → Create Session → Pair (with session ID and initial message)
+ * The empty-chat landing screen. Visually it's "Pair with no messages yet" —
+ * a large time + greeting above a centered, narrower ChatInput. Submitting
+ * creates a session and navigates to /pair so the rest of the chat lifecycle
+ * lives there.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { SessionInsights } from './sessions/SessionsInsights';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { defineMessages, useIntl } from '../i18n';
+import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
+import { ChatInputCard } from './ChatInputCard';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { useConfig } from './ConfigContext';
 import {
-  getExtensionConfigsWithOverrides,
   clearExtensionOverrides,
+  getExtensionConfigsWithOverrides,
 } from '../store/extensionOverrides';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
 import { UserInput } from '../types/message';
 
+const i18n = defineMessages({
+  goodMorning: { id: 'hub.goodMorning', defaultMessage: 'Good morning' },
+  goodAfternoon: { id: 'hub.goodAfternoon', defaultMessage: 'Good afternoon' },
+  goodEvening: { id: 'hub.goodEvening', defaultMessage: 'Good evening' },
+});
+
+function useClock(): { time: string; meridiem: string; hour: number } {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const hour = now.getHours();
+  const minutes = now.getMinutes();
+  const meridiem = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = ((hour + 11) % 12) + 1;
+  const time = `${displayHour}:${String(minutes).padStart(2, '0')}`;
+  return { time, meridiem, hour };
+}
+
 export default function Hub({
   setView,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
+  const intl = useIntl();
   const { extensionsList } = useConfig();
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { time, meridiem, hour } = useClock();
 
-  // rAF is more reliable than autoFocus across async render boundaries (Suspense, OnboardingGuard, etc.)
+  const greeting = useMemo(() => {
+    if (hour < 12) return intl.formatMessage(i18n.goodMorning);
+    if (hour < 18) return intl.formatMessage(i18n.goodAfternoon);
+    return intl.formatMessage(i18n.goodEvening);
+  }, [intl, hour]);
+
+  // rAF is more reliable than autoFocus across async render boundaries.
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
       inputRef.current?.focus();
@@ -51,67 +74,74 @@ export default function Hub({
 
   const handleSubmit = async (input: UserInput) => {
     const { msg: userMessage, images } = input;
-    if ((images.length > 0 || userMessage.trim()) && !isCreatingSession) {
-      const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
-      clearExtensionOverrides();
-      setIsCreatingSession(true);
+    if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
 
-      try {
-        const session = await createSession(workingDir, {
-          extensionConfigs,
-          allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
-        });
+    const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
+    clearExtensionOverrides();
+    setIsCreatingSession(true);
 
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
-        window.dispatchEvent(
-          new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-            detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
-          })
-        );
+    try {
+      const session = await createSession(workingDir, {
+        extensionConfigs,
+        allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
+      });
 
-        setView('pair', {
-          disableAnimation: true,
-          resumeSessionId: session.id,
-          initialMessage: { msg: userMessage, images },
-        });
-      } catch (error) {
-        console.error('Failed to create session:', error);
-        setIsCreatingSession(false);
-      }
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+          detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
+        })
+      );
+
+      setView('pair', {
+        disableAnimation: true,
+        resumeSessionId: session.id,
+        initialMessage: { msg: userMessage, images },
+      });
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      setIsCreatingSession(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background-secondary">
-      <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
-        <SessionInsights />
-        {isCreatingSession && (
-          <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-            <LoadingGoose chatState={ChatState.LoadingConversation} />
-          </div>
-        )}
+    <div className="flex flex-col h-full min-h-0 items-center justify-center px-6 relative">
+      <div className="w-full max-w-2xl">
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-6xl font-light text-text-primary tracking-tight tabular-nums">
+            {time}
+          </span>
+          <span className="text-2xl font-light text-text-secondary">{meridiem}</span>
+        </div>
+        <p className="text-xl text-text-secondary mb-6">{greeting}</p>
+
+        <ChatInputCard>
+          <ChatInput
+            sessionId={null}
+            handleSubmit={handleSubmit}
+            chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
+            onStop={() => {}}
+            initialValue=""
+            setView={setView}
+            totalTokens={0}
+            accumulatedInputTokens={0}
+            accumulatedOutputTokens={0}
+            droppedFiles={[]}
+            onFilesProcessed={() => {}}
+            messages={[]}
+            disableAnimation={false}
+            toolCount={0}
+            onWorkingDirChange={setWorkingDir}
+            inputRef={inputRef}
+          />
+        </ChatInputCard>
       </div>
 
-      <div className="flex-shrink-0 max-h-[50vh] min-h-0 overflow-hidden flex flex-col">
-        <ChatInput
-          sessionId={null}
-          handleSubmit={handleSubmit}
-          chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
-          onStop={() => {}}
-          initialValue=""
-          setView={setView}
-          totalTokens={0}
-          accumulatedInputTokens={0}
-          accumulatedOutputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          disableAnimation={false}
-          toolCount={0}
-          onWorkingDirChange={setWorkingDir}
-          inputRef={inputRef}
-        />
-      </div>
+      {isCreatingSession && (
+        <div className="absolute bottom-4 left-4 z-20 pointer-events-none">
+          <LoadingGoose chatState={ChatState.LoadingConversation} />
+        </div>
+      )}
     </div>
   );
 }

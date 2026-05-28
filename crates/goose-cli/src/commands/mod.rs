@@ -10,4 +10,5 @@ pub mod schedule;
 pub mod session;
 pub mod term;
 pub mod tui;
+#[cfg(feature = "update")]
 pub mod update;
