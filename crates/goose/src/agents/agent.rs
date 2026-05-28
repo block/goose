@@ -1644,6 +1644,7 @@ impl Agent {
             let mut last_assistant_text = String::new();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
+            let mut stop_hook_handled_for_exit = false;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2258,7 +2259,7 @@ impl Agent {
                     }
                 }
 
-                let messages_to_add = if let Some(ref inference) = inference {
+                let mut messages_to_add = if let Some(ref inference) = inference {
                     Conversation::new_unvalidated(
                         messages_to_add
                             .into_iter()
@@ -2267,6 +2268,43 @@ impl Agent {
                 } else {
                     messages_to_add
                 };
+
+                if exit_chat {
+                    let ctx = crate::hooks::HookContext::new(
+                        crate::hooks::HookEvent::Stop,
+                        &session_config.id,
+                    );
+                    match self
+                        .hook_manager
+                        .emit_blocking(crate::hooks::HookEvent::Stop, ctx)
+                        .await
+                    {
+                        crate::hooks::HookDecision::Allow => {
+                            stop_hook_handled_for_exit = true;
+                        }
+                        crate::hooks::HookDecision::Deny { reason, plugin } => {
+                            let nudge = format!(
+                                "Stop hook `{plugin}` blocked ending this turn:
+
+{reason}
+
+Address this policy hook denial before trying to stop again."
+                            );
+                            messages_to_add.push(
+                                Message::user()
+                                    .with_text(nudge)
+                                    .with_visibility(false, true),
+                            );
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    format!("Stop hook `{plugin}` blocked ending this turn."),
+                                )
+                            );
+                            exit_chat = false;
+                        }
+                    }
+                }
 
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
@@ -2283,7 +2321,9 @@ impl Agent {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
             }
 
-            self.emit_hook(crate::hooks::HookEvent::Stop, &session_config.id).await;
+            if !stop_hook_handled_for_exit {
+                self.emit_hook(crate::hooks::HookEvent::Stop, &session_config.id).await;
+            }
         }.instrument(reply_stream_span));
         Ok(inner)
     }

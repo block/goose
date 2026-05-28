@@ -621,6 +621,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stop_hook_emit_blocking_returns_denial() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"printf '%s' '{\"decision\":\"block\",\"reason\":\"say something first\"}'"}]}]}}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let decision = mgr
+            .emit_blocking(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+
+        assert_eq!(
+            decision,
+            HookDecision::Deny {
+                reason: "say something first".into(),
+                plugin: "p".into(),
+            }
+        );
+    }
+
+    #[tokio::test]
     async fn matcher_filters_by_tool_name() {
         let tmp = tempfile::tempdir().unwrap();
         let marker = tmp.path().join("ran.txt");
