@@ -4640,6 +4640,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-embed"
+version = "1.36.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "goose",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "goose-mcp"
 version = "1.36.0"
 dependencies = [

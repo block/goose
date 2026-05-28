@@ -1,0 +1,25 @@
+[package]
+name = "goose-embed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Embeddable Rust SDK for the goose AI agent. Build your own Rust program that runs goose's agent loop with custom providers, extensions, recipes, and skills."
+
+[lints]
+workspace = true
+
+[dependencies]
+goose = { path = "../goose" }
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
