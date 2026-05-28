@@ -4262,7 +4262,16 @@ export type GetSessionData = {
          */
         session_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Maximum number of messages to return, counting back from the most recent.
+         */
+        limit?: number | null;
+        /**
+         * Number of most-recent messages to skip before applying the limit.
+         */
+        offset?: number | null;
+    };
     url: '/sessions/{session_id}';
 };
 

@@ -1,7 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
 use crate::state::AppState;
-use axum::extract::{DefaultBodyLimit, State};
+use axum::extract::{DefaultBodyLimit, Query, State};
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
@@ -91,6 +92,38 @@ pub struct ForkResponse {
 
 const MAX_NAME_LENGTH: usize = 200;
 
+#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+pub struct MessagePaginationQuery {
+    /// Maximum number of messages to return, counting back from the most recent.
+    limit: Option<usize>,
+    /// Number of most-recent messages to skip before applying the limit.
+    offset: Option<usize>,
+}
+
+impl MessagePaginationQuery {
+    fn is_empty(&self) -> bool {
+        self.limit.is_none() && self.offset.is_none()
+    }
+}
+
+/// Returns the slice of `messages` selected by `offset`/`limit`, counting from the
+/// most recent message. The returned messages stay in chronological order.
+fn paginate_messages<T: Clone>(
+    messages: &[T],
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Vec<T> {
+    let total = messages.len();
+    let offset = offset.unwrap_or(0).min(total);
+    let end = total - offset;
+    let start = match limit {
+        Some(limit) => end.saturating_sub(limit),
+        None => 0,
+    };
+    messages[start..end].to_vec()
+}
+
 #[utoipa::path(
     get,
     path = "/sessions",
@@ -120,7 +153,8 @@ async fn list_sessions(
     get,
     path = "/sessions/{session_id}",
     params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
+        ("session_id" = String, Path, description = "Unique identifier for the session"),
+        MessagePaginationQuery
     ),
     responses(
         (status = 200, description = "Session history retrieved successfully", body = Session),
@@ -136,12 +170,21 @@ async fn list_sessions(
 async fn get_session(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
+    Query(pagination): Query<MessagePaginationQuery>,
 ) -> Result<Json<Session>, StatusCode> {
-    let session = state
+    let mut session = state
         .session_manager()
         .get_session(&session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    if !pagination.is_empty() {
+        if let Some(conversation) = session.conversation.take() {
+            let paginated =
+                paginate_messages(conversation.messages(), pagination.limit, pagination.offset);
+            session.conversation = Some(Conversation::new_unvalidated(paginated));
+        }
+    }
 
     Ok(Json(session))
 }
@@ -670,4 +713,37 @@ async fn search_sessions(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(sessions))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paginate_returns_full_history_when_no_limit() {
+        let messages = vec![1, 2, 3, 4, 5];
+        assert_eq!(paginate_messages(&messages, None, None), messages);
+    }
+
+    #[test]
+    fn paginate_returns_most_recent_with_limit() {
+        let messages = vec![1, 2, 3, 4, 5];
+        assert_eq!(paginate_messages(&messages, Some(2), None), vec![4, 5]);
+    }
+
+    #[test]
+    fn paginate_offset_pages_backwards() {
+        let messages = vec![1, 2, 3, 4, 5];
+        assert_eq!(paginate_messages(&messages, Some(2), Some(2)), vec![2, 3]);
+    }
+
+    #[test]
+    fn paginate_clamps_oversized_limit_and_offset() {
+        let messages = vec![1, 2, 3];
+        assert_eq!(paginate_messages(&messages, Some(10), None), vec![1, 2, 3]);
+        assert_eq!(
+            paginate_messages(&messages, None, Some(10)),
+            Vec::<i32>::new()
+        );
+    }
 }
