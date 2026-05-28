@@ -29,12 +29,9 @@ instructions: |
   Run these commands:
 
   ```bash
-  # Create a fresh temporary directory and clone the integration at the reviewed tag
-  HERDR_SETUP=$(mktemp -d)
-  git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP"
-  git -C "$HERDR_SETUP" checkout v1.0.0
-
-  # Run the installer
+  HERDR_SETUP=$(mktemp -d) && \
+  git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && \
+  git -C "$HERDR_SETUP" checkout v1.0.0 && \
   bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh
   ```
 
@@ -76,10 +73,8 @@ prompt: |
   If either is missing, tell the user and stop.
 
   Then:
-  1. Create a fresh temp dir with `HERDR_SETUP=$(mktemp -d)` and clone the integration: `git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP"`
-  2. Pin to the reviewed tag: `git -C "$HERDR_SETUP" checkout v1.0.0`
-  3. Run the installer: `bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh`
-  4. Verify everything is in place
-  5. Clean up: `rm -rf "$HERDR_SETUP"`
+  1. Create a fresh temp dir, clone, pin to tag, and run the installer (each step must succeed before the next runs): `HERDR_SETUP=$(mktemp -d) && git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && git -C "$HERDR_SETUP" checkout v1.0.0 && bash "$HERDR_SETUP"/goose/plugins/herdr/install.sh`
+  2. Verify everything is in place
+  3. Clean up: `rm -rf "$HERDR_SETUP"`
 
   Tell the user when it's done and how to test it.
