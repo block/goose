@@ -1,0 +1,90 @@
+version: 1.0.0
+title: Code-Shield Security Analysis Integration
+description: Sets up goose with code-shield security analysis and code remediation skills. Goose gains the ability to run security scans, audit dependencies, model threats, and remediate vulnerabilities.
+author:
+  contact: modib
+
+activities:
+  - Install semgrep (security scanner)
+  - Install code-shield security skills
+  - Verify the integration
+
+instructions: |
+  You are helping a user set up goose with code-shield security analysis skills.
+  Code-Shield provides a fully automated security pipeline including:
+
+  1. **run-security-scanner** — Scans source files for vulnerabilities using semgrep
+  2. **scan-dependencies** — Checks packages for known vulnerabilities before use
+  3. **determine-threat-model** — Builds a threat model for the repository
+  4. **create-security-implementation-plan** — Plans security verification steps
+  5. **run-poc** — Reasons through exploit scenarios to verify fixes
+  6. **generate-security-audit-report** — Produces comprehensive security audit reports
+  7. **mandatory-secure-web-skills** — Enforces secure coding standards
+  8. **code-shield-persona** — Orchestrates the entire fix lifecycle
+
+  ## Step-by-step
+
+  ### 1. Check prerequisites
+  - Verify python3 and pip are installed: `python3 --version && pip3 --version`
+  - If either is missing, ask the user to install Python 3 first and stop
+
+  ### 2. Install the integration
+  Run these commands:
+
+  ```bash
+  HERDR_SETUP=$(mktemp -d) && \
+  git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && \
+  git -C "$HERDR_SETUP" checkout v1.0.0 && \
+  bash "$HERDR_SETUP"/goose/plugins/code-shield/install.sh
+  ```
+
+  The installer will:
+  - Copy all 8 code-shield skills to `~/.agents/skills/code-shield/`
+  - Install semgrep via pip if not already present
+
+  After install.sh completes, verify:
+  - `~/.agents/skills/code-shield/run-security-scanner/SKILL.md` exists
+  - `~/.agents/skills/code-shield/scan-dependencies/SKILL.md` exists
+  - `~/.agents/skills/code-shield/determine-threat-model/SKILL.md` exists
+  - `~/.agents/skills/code-shield/create-security-implementation-plan/SKILL.md` exists
+  - `~/.agents/skills/code-shield/run-poc/SKILL.md` exists
+  - `~/.agents/skills/code-shield/generate-security-audit-report/SKILL.md` exists
+  - `~/.agents/skills/code-shield/mandatory-secure-web-skills/SKILL.md` exists
+  - `~/.agents/skills/code-shield/code-shield-persona/SKILL.md` exists
+  - `semgrep --version` works
+
+  ### 3. Verify the integration
+  Ask the user to:
+  - Start goose and run a security scan: invoke the `code-shield-persona` skill
+  - Use `run-security-scanner` on a test file to confirm semgrep works
+
+  ### 4. Clean up
+  Remove the temporary clone:
+  ```bash
+  rm -rf "$HERDR_SETUP"
+  ```
+
+  ## Caveats
+  - Semgrep is an open-source static analysis tool; it finds common vulnerability patterns but may produce false positives
+  - Dependency scanning uses the project's native package manager audit tools (npm audit, pip-audit, cargo audit, etc.)
+  - Threat modeling and PoC verification are prompt-based — they reason through security scenarios without executing code
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    description: For running shell commands, checking installations, and file system access
+
+prompt: |
+  Help the user set up goose with code-shield security analysis skills.
+
+  First, check that python3 and pip are installed. If either is missing, tell the user and stop.
+
+  Then:
+  1. Create a fresh temp dir, clone, pin to tag, and run the installer (each step must succeed before the next runs): `HERDR_SETUP=$(mktemp -d) && git clone https://github.com/modib/agent-toolkit.git "$HERDR_SETUP" && git -C "$HERDR_SETUP" checkout v1.0.0 && bash "$HERDR_SETUP"/goose/plugins/code-shield/install.sh`
+  2. Verify all 8 skills exist under `~/.agents/skills/code-shield/` and semgrep is installed
+  3. Clean up: `rm -rf "$HERDR_SETUP"`
+
+  Tell the user when it's done and how to use the code-shield skills.
