@@ -33,6 +33,8 @@ import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import apeCloudLogo from '../images/logo.png';
 
+const RECIPE_TRUST_WARNINGS_ENABLED = false;
+
 const i18n = defineMessages({
   failedToLoadSession: {
     id: 'baseChat.failedToLoadSession',
@@ -128,7 +130,8 @@ export default function BaseChat({
     return initialMessage;
   }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
 
-  const canAutoSubmit = !recipe || hasNotAcceptedRecipe === false;
+  const canAutoSubmit =
+    !recipe || !RECIPE_TRUST_WARNINGS_ENABLED || hasNotAcceptedRecipe === false;
 
   useAutoSubmit({
     sessionId,
@@ -205,6 +208,12 @@ export default function BaseChat({
   }, [messages]);
 
   useEffect(() => {
+    if (!RECIPE_TRUST_WARNINGS_ENABLED) {
+      setHasNotAcceptedRecipe(false);
+      setHasRecipeSecurityWarnings(false);
+      return;
+    }
+
     if (!recipe || !isActiveSession) return;
 
     (async () => {
@@ -503,7 +512,7 @@ export default function BaseChat({
             messages={messages}
             disableAnimation={disableAnimation}
             recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
+            recipeAccepted={!RECIPE_TRUST_WARNINGS_ENABLED || !hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
             sessionModel={sessionModel}
@@ -515,7 +524,7 @@ export default function BaseChat({
         </div>
       </MainPanelLayout>
 
-      {recipe && isActiveSession && (
+      {RECIPE_TRUST_WARNINGS_ENABLED && recipe && isActiveSession && (
         <RecipeWarningModal
           isOpen={!!hasNotAcceptedRecipe}
           onConfirm={() => handleRecipeAccept(true)}
