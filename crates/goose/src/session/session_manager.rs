@@ -2019,6 +2019,74 @@ fn merge_tool_meta(
     serde_json::Value::Object(base)
 }
 
+#[async_trait::async_trait]
+impl crate::traits::SessionContextProvider for SessionManager {
+    async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
+        SessionManager::get_session(self, id, include_messages).await
+    }
+
+    async fn create_session(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+        goose_mode: GooseMode,
+    ) -> Result<Session> {
+        SessionManager::create_session(self, working_dir, name, session_type, goose_mode).await
+    }
+
+    async fn add_message(&self, id: &str, message: &Message) -> Result<()> {
+        SessionManager::add_message(self, id, message).await
+    }
+
+    async fn replace_conversation(&self, id: &str, conversation: &Conversation) -> Result<()> {
+        SessionManager::replace_conversation(self, id, conversation).await
+    }
+
+    async fn apply_update(&self, id: &str, update: crate::traits::SessionUpdate) -> Result<()> {
+        let mut builder = self.update(id);
+        if let Some(data) = update.extension_data {
+            builder = builder.extension_data(data);
+        }
+        if let Some(name) = update.provider_name {
+            builder = builder.provider_name(name);
+        }
+        if update.clear_model_config {
+            builder = builder.clear_model_config();
+        } else if let Some(model_config) = update.model_config {
+            builder = builder.model_config(model_config);
+        }
+        if let Some(mode) = update.goose_mode {
+            builder = builder.goose_mode(mode);
+        }
+        if let Some(tokens) = update.total_tokens {
+            builder = builder.total_tokens(tokens);
+        }
+        if let Some(tokens) = update.input_tokens {
+            builder = builder.input_tokens(tokens);
+        }
+        if let Some(tokens) = update.output_tokens {
+            builder = builder.output_tokens(tokens);
+        }
+        if let Some(tokens) = update.accumulated_total_tokens {
+            builder = builder.accumulated_total_tokens(tokens);
+        }
+        if let Some(tokens) = update.accumulated_input_tokens {
+            builder = builder.accumulated_input_tokens(tokens);
+        }
+        if let Some(tokens) = update.accumulated_output_tokens {
+            builder = builder.accumulated_output_tokens(tokens);
+        }
+        if let Some(cost) = update.accumulated_cost {
+            builder = builder.accumulated_cost(cost);
+        }
+        if let Some(id) = update.schedule_id {
+            builder = builder.schedule_id(id);
+        }
+        builder.apply().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

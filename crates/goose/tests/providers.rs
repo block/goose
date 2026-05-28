@@ -161,6 +161,7 @@ impl ProviderTestConfig {
         self
     }
 
+    #[allow(dead_code)] // used only by aws-providers gated tests
     fn clear_env(mut self, vars: &'static [&'static str]) -> Self {
         self.clear_env = vars;
         self
