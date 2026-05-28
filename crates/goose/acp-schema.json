@@ -568,6 +568,40 @@
       ],
       "description": "A single model in provider inventory."
     },
+    "ProviderSupportedModelsListRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerId"
+      ],
+      "description": "List the raw model identifiers returned by a provider's live supported-models API.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/supported-models/list"
+    },
+    "ProviderSupportedModelsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "providerId",
+        "models"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/supported-models/list"
+    },
     "ProviderCatalogListRequest_unstable": {
       "type": "object",
       "properties": {
@@ -2758,6 +2792,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ProviderSupportedModelsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/supported-models/list",
+                  "title": "ProviderSupportedModelsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/ProviderCatalogListRequest_unstable"
                     }
                   ],
@@ -3218,6 +3261,14 @@
                         }
                       ],
                       "title": "ListProvidersResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ProviderSupportedModelsListResponse_unstable"
+                        }
+                      ],
+                      "title": "ProviderSupportedModelsListResponse_unstable"
                     },
                     {
                       "allOf": [

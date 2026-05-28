@@ -82,6 +82,8 @@ import type {
   ProviderConfigStatusResponse_unstable,
   ProviderSetupCatalogListRequest_unstable,
   ProviderSetupCatalogListResponse_unstable,
+  ProviderSupportedModelsListRequest_unstable,
+  ProviderSupportedModelsListResponse_unstable,
   ReadResourceRequest_unstable,
   ReadResourceResponse_unstable,
   RefreshProviderInventoryRequest_unstable,
@@ -127,6 +129,7 @@ import {
   zProviderConfigReadResponse_unstable,
   zProviderConfigStatusResponse_unstable,
   zProviderSetupCatalogListResponse_unstable,
+  zProviderSupportedModelsListResponse_unstable,
   zReadResourceResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
   zUpdateSourceResponse_unstable,
@@ -258,6 +261,18 @@ export class GooseExtClient {
     return zListProvidersResponse_unstable.parse(
       raw,
     ) as ListProvidersResponse_unstable;
+  }
+
+  async providersSupportedModelsList_unstable(
+    params: ProviderSupportedModelsListRequest_unstable,
+  ): Promise<ProviderSupportedModelsListResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/providers/supported-models/list",
+      params,
+    );
+    return zProviderSupportedModelsListResponse_unstable.parse(
+      raw,
+    ) as ProviderSupportedModelsListResponse_unstable;
   }
 
   async providersCatalogList_unstable(

@@ -71,6 +71,11 @@
       "responseType": "ListProvidersResponse_unstable"
     },
     {
+      "method": "_goose/unstable/providers/supported-models/list",
+      "requestType": "ProviderSupportedModelsListRequest_unstable",
+      "responseType": "ProviderSupportedModelsListResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/providers/catalog/list",
       "requestType": "ProviderCatalogListRequest_unstable",
       "responseType": "ProviderCatalogListResponse_unstable"

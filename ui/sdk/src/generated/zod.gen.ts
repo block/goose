@@ -243,6 +243,18 @@ export const zListProvidersResponse_unstable = z.object({
 });
 
 /**
+ * List the raw model identifiers returned by a provider's live supported-models API.
+ */
+export const zProviderSupportedModelsListRequest_unstable = z.object({
+    providerId: z.string()
+});
+
+export const zProviderSupportedModelsListResponse_unstable = z.object({
+    providerId: z.string(),
+    models: z.array(z.string())
+});
+
+/**
  * List custom-provider catalog entries. Omit `format` to list all formats.
  */
 export const zProviderCatalogListRequest_unstable = z.object({
@@ -1095,6 +1107,7 @@ export const zExtRequest = z.object({
             zToggleConfigExtensionRequest_unstable,
             zGetSessionExtensionsRequest_unstable,
             zListProvidersRequest_unstable,
+            zProviderSupportedModelsListRequest_unstable,
             zProviderCatalogListRequest_unstable,
             zProviderSetupCatalogListRequest_unstable,
             zProviderCatalogTemplateRequest_unstable,
@@ -1157,6 +1170,7 @@ export const zExtResponse = z.union([
                 zGetExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
                 zListProvidersResponse_unstable,
+                zProviderSupportedModelsListResponse_unstable,
                 zProviderCatalogListResponse_unstable,
                 zProviderSetupCatalogListResponse_unstable,
                 zProviderCatalogTemplateResponse_unstable,

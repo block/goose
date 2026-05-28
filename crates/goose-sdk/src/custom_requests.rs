@@ -1122,6 +1122,24 @@ pub struct ListProvidersResponse {
     pub entries: Vec<ProviderInventoryEntryDto>,
 }
 
+/// List the raw model identifiers returned by a provider's live supported-models API.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/supported-models/list",
+    response = ProviderSupportedModelsListResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSupportedModelsListRequest {
+    pub provider_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSupportedModelsListResponse {
+    pub provider_id: String,
+    pub models: Vec<String>,
+}
+
 /// Trigger a background refresh of provider inventories.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
