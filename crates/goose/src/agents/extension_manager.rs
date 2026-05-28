@@ -41,14 +41,14 @@ use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::oauth::GOOSE_USER_AGENT;
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
+use crate::traits::OAuthProvider;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Meta,
     Prompt, Resource, ResourceContents, ServerInfo, Tool,
 };
-use rmcp::transport::auth::{AuthClient, CredentialStore};
 use schemars::_private::NoSerialize;
 use serde_json::Value;
 
@@ -140,6 +140,7 @@ pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: PlatformExtensionContext,
     provider: SharedProvider,
+    oauth_provider: Arc<dyn crate::traits::OAuthProvider>,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
     client_name: String,
@@ -502,48 +503,6 @@ pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>
     result
 }
 
-const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
-    reqwest::header::HeaderValue::from_static(concat!("goose/", env!("CARGO_PKG_VERSION")));
-
-#[allow(clippy::too_many_arguments)]
-async fn connect_with_auth(
-    auth_manager: rmcp::transport::AuthorizationManager,
-    uri: &str,
-    timeout: Duration,
-    provider: SharedProvider,
-    client_name: String,
-    capabilities: GooseMcpClientCapabilities,
-    roots_dir: &std::path::Path,
-) -> ExtensionResult<Box<dyn McpClientTrait>> {
-    let mut auth_headers = HeaderMap::new();
-    auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
-    #[allow(unused_mut)]
-    let mut auth_client_builder = reqwest::Client::builder().default_headers(auth_headers);
-    #[cfg(target_os = "linux")]
-    {
-        auth_client_builder = auth_client_builder.tcp_user_timeout(Some(timeout));
-    }
-    let auth_http_client = auth_client_builder
-        .build()
-        .map_err(|_| ExtensionError::ConfigError("could not construct http client".to_string()))?;
-    let auth_client = AuthClient::new(auth_http_client, auth_manager);
-    let transport = StreamableHttpClientTransport::with_client(
-        auth_client,
-        StreamableHttpClientTransportConfig::with_uri(uri),
-    );
-    Ok(Box::new(
-        McpClient::connect(
-            transport,
-            timeout,
-            provider,
-            client_name,
-            capabilities,
-            roots_dir.to_path_buf(),
-        )
-        .await?,
-    ))
-}
-
 #[allow(clippy::too_many_arguments)]
 async fn create_streamable_http_client(
     uri: &str,
@@ -555,6 +514,7 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    oauth_provider: &dyn OAuthProvider,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -611,21 +571,20 @@ async fn create_streamable_http_client(
 
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
-    let credential_store = GooseCredentialStore::new(name.to_string());
-    if credential_store.load().await.is_ok_and(|c| c.is_some()) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
-            Ok(auth_manager) => {
-                return connect_with_auth(
-                    auth_manager,
-                    uri,
-                    timeout_duration,
-                    provider,
-                    client_name,
-                    capabilities,
-                    roots_dir,
-                )
-                .await;
-            }
+    if oauth_provider.has_stored_credentials(name).await {
+        match oauth_provider
+            .connect_authenticated(
+                name,
+                uri,
+                timeout_duration,
+                provider.clone(),
+                client_name.clone(),
+                capabilities.clone(),
+                roots_dir,
+            )
+            .await
+        {
+            Ok(client) => return Ok(client),
             Err(e) => {
                 warn!(
                     "[OAuth:{}] Proactive refresh failed: {}, falling back to unauthenticated attempt",
@@ -646,19 +605,19 @@ async fn create_streamable_http_client(
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
-            Ok(auth_manager) => {
-                connect_with_auth(
-                    auth_manager,
-                    uri,
-                    timeout_duration,
-                    provider,
-                    client_name,
-                    capabilities,
-                    roots_dir,
-                )
-                .await
-            }
+        match oauth_provider
+            .connect_authenticated(
+                name,
+                uri,
+                timeout_duration,
+                provider,
+                client_name,
+                capabilities,
+                roots_dir,
+            )
+            .await
+        {
+            Ok(client) => Ok(client),
             Err(_) => Ok(Box::new(client_res?)),
         }
     } else {
@@ -743,6 +702,24 @@ impl ExtensionManager {
         capabilities: ExtensionManagerCapabilities,
         use_login_shell_path: bool,
     ) -> Self {
+        Self::new_with_oauth_provider(
+            provider,
+            session_manager,
+            client_name,
+            capabilities,
+            use_login_shell_path,
+            Arc::new(crate::oauth::RuntimeOAuthProvider),
+        )
+    }
+
+    pub fn new_with_oauth_provider(
+        provider: SharedProvider,
+        session_manager: Arc<crate::session::SessionManager>,
+        client_name: String,
+        capabilities: ExtensionManagerCapabilities,
+        use_login_shell_path: bool,
+        oauth_provider: Arc<dyn crate::traits::OAuthProvider>,
+    ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
             context: PlatformExtensionContext {
@@ -752,6 +729,7 @@ impl ExtensionManager {
                 use_login_shell_path,
             },
             provider,
+            oauth_provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
             client_name,
@@ -858,6 +836,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    &*self.oauth_provider,
                 )
                 .await?
             }

@@ -1,6 +1,8 @@
 mod persist;
+pub mod runtime;
 
 pub use persist::GooseCredentialStore;
+pub use runtime::{RuntimeOAuthProvider, GOOSE_USER_AGENT};
 
 use axum::extract::{Query, State};
 use axum::response::Html;
