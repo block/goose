@@ -1982,10 +1982,18 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
+                                        // Ensure the tool request timestamp precedes the tool response
+                                        // timestamp. The response placeholder is created before tools
+                                        // execute, so its timestamp can be earlier than the request
+                                        // message built here — which causes the DB to return them out
+                                        // of order and triggers a Claude API 400 error.
+                                        if request_msg.created > final_response.created {
+                                            request_msg.created = final_response.created;
+                                        }
+                                        messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
