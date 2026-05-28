@@ -36,7 +36,7 @@
   {
     "id": "apify",
     "name": "Apify",
-    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store \u26a1",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
     "command": "npx -y @apify/actors-mcp-server",
     "link": "https://github.com/apify/apify-mcp-server",
     "installation_notes": "Install using npx. Requires an Apify API token.",
@@ -369,6 +369,28 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "goose-pentest-mcp",
+    "name": "Self-Pentest",
+    "description": "List targets, trigger scans, and manage findings against a self-hosted pentest backend.",
+    "command": "uvx goose-pentest-mcp",
+    "link": "https://github.com/turer73/goose-pentest-mcp",
+    "installation_notes": "Install using uvx (requires uv). HTTP-only extension: you supply a backend implementing BACKEND_CONTRACT.md (in the repo). A working FastAPI reference implementation is linked from the README.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "PENTEST_API_KEY",
+        "description": "X-Pentest-Key header value sent to your backend",
+        "required": true
+      },
+      {
+        "name": "PENTEST_API_BASE",
+        "description": "Base URL of your backend (e.g. https://pentest.example.com/api/v1/security)",
+        "required": true
+      }
+    ]
   },
   {
     "id": "gotoHuman-mcp",
@@ -837,7 +859,7 @@
   {
     "id": "cash-app",
     "name": "Cash App",
-    "description": "Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus with calories and allergen info, customize orders, and complete checkout\u2014all conversationally.",
+    "description": "Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus with calories and allergen info, customize orders, and complete checkout—all conversationally.",
     "type": "streamable-http",
     "url": "https://connect.squareup.com/v2/mcp/cash-app",
     "link": "",
