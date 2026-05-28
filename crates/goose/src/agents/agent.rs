@@ -99,6 +99,26 @@ fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
     None
 }
 
+fn stop_hook_denial_context_message(plugin: &str, reason: &str) -> Message {
+    let nudge = format!(
+        "Stop hook `{plugin}` blocked ending this turn:
+
+{reason}
+
+Address this policy hook denial before trying to stop again."
+    );
+    Message::user()
+        .with_text(nudge)
+        .with_visibility(false, true)
+}
+
+fn stop_hook_denial_notification(plugin: &str) -> Message {
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        format!("Stop hook `{plugin}` blocked ending this turn."),
+    )
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -1651,11 +1671,36 @@ impl Agent {
                     break;
                 }
 
-                {
-                    let guard = self.final_output_tool.lock().await;
-                    if let Some(ref output) = guard.as_ref().and_then(|fot| fot.final_output.clone()) {
-                        yield AgentEvent::Message(Message::assistant().with_text(output));
-                        break;
+                let final_output = {
+                    let mut guard = self.final_output_tool.lock().await;
+                    guard.as_mut().and_then(|fot| fot.final_output.take())
+                };
+                if let Some(output) = final_output {
+                    let message = Message::assistant().with_text(output);
+                    yield AgentEvent::Message(message.clone());
+                    session_manager.add_message(&session_config.id, &message).await?;
+                    conversation.push(message);
+
+                    let ctx = crate::hooks::HookContext::new(
+                        crate::hooks::HookEvent::Stop,
+                        &session_config.id,
+                    );
+                    match self
+                        .hook_manager
+                        .emit_blocking(crate::hooks::HookEvent::Stop, ctx)
+                        .await
+                    {
+                        crate::hooks::HookDecision::Allow => {
+                            stop_hook_handled_for_exit = true;
+                            break;
+                        }
+                        crate::hooks::HookDecision::Deny { reason, plugin } => {
+                            let message = stop_hook_denial_context_message(&plugin, &reason);
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message);
+                            yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            continue;
+                        }
                     }
                 }
 
@@ -1708,6 +1753,7 @@ impl Agent {
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
+                let mut pending_final_output: Option<String> = None;
 
                 // Track whether this provider turn has already emitted visible
                 // thinking so a later tool-call chunk can suppress replayed
@@ -2137,8 +2183,8 @@ impl Agent {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
-                        let guard = self.final_output_tool.lock().await;
-                        guard.as_ref().map(|fot| fot.final_output.clone())
+                        let mut guard = self.final_output_tool.lock().await;
+                        guard.as_mut().map(|fot| fot.final_output.take())
                     };
 
                     match final_output {
@@ -2149,9 +2195,7 @@ impl Agent {
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
-                            let message = Message::assistant().with_text(output);
-                            messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message);
+                            pending_final_output = Some(output);
                             exit_chat = true;
                         }
                         None if did_recovery_compact_this_iteration => {
@@ -2259,7 +2303,13 @@ impl Agent {
                     }
                 }
 
-                let mut messages_to_add = if let Some(ref inference) = inference {
+                if let Some(output) = pending_final_output.take() {
+                    let message = Message::assistant().with_text(output);
+                    messages_to_add.push(message.clone());
+                    yield AgentEvent::Message(message);
+                }
+
+                let messages_to_add = if let Some(ref inference) = inference {
                     Conversation::new_unvalidated(
                         messages_to_add
                             .into_iter()
@@ -2268,6 +2318,11 @@ impl Agent {
                 } else {
                     messages_to_add
                 };
+
+                for msg in &messages_to_add {
+                    session_manager.add_message(&session_config.id, msg).await?;
+                }
+                conversation.extend(messages_to_add);
 
                 if exit_chat {
                     let ctx = crate::hooks::HookContext::new(
@@ -2281,37 +2336,15 @@ impl Agent {
                     {
                         crate::hooks::HookDecision::Allow => {
                             stop_hook_handled_for_exit = true;
+                            break;
                         }
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
-                            let nudge = format!(
-                                "Stop hook `{plugin}` blocked ending this turn:
-
-{reason}
-
-Address this policy hook denial before trying to stop again."
-                            );
-                            messages_to_add.push(
-                                Message::user()
-                                    .with_text(nudge)
-                                    .with_visibility(false, true),
-                            );
-                            yield AgentEvent::Message(
-                                Message::assistant().with_system_notification(
-                                    SystemNotificationType::InlineMessage,
-                                    format!("Stop hook `{plugin}` blocked ending this turn."),
-                                )
-                            );
-                            exit_chat = false;
+                            let message = stop_hook_denial_context_message(&plugin, &reason);
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message);
+                            yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                         }
                     }
-                }
-
-                for msg in &messages_to_add {
-                    session_manager.add_message(&session_config.id, msg).await?;
-                }
-                conversation.extend(messages_to_add);
-                if exit_chat {
-                    break;
                 }
 
                 tokio::task::yield_now().await;
