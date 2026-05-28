@@ -856,12 +856,28 @@
   "is_builtin": false,
   "endorsed": false,
   "environmentVariables": [
-    {
-      "name": "RAPIDAPI_KEY",
-      "description": "RapidAPI key for the Scholar Sidekick API (free tier available)",
-      "required": true
-    }
-  ]
-}
-
+      {
+        "name": "RAPIDAPI_KEY",
+        "description": "RapidAPI key for the Scholar Sidekick API (free tier available)",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "agent-ready",
+    "name": "Agent Ready",
+    "description": "Scan any URL for AI agent-readability - Vercel spec, llms.txt, MCP cards, A2A, agents.json. 60 checks with fix guidance.",
+    "command": "npx -y agent-ready-mcp@latest",
+    "link": "https://github.com/mlava/agent-ready-mcp",
+    "installation_notes": "Requires an Agent Ready Pro API key. Sign up at https://agent-ready.dev, upgrade to Pro, then issue a key from https://agent-ready.dev/dashboard/api-keys and set AGENT_READY_API_KEY.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "AGENT_READY_API_KEY",
+        "description": "Agent Ready Pro API key (issued from the dashboard)",
+        "required": true
+      }
+    ]
+  }
 ]
