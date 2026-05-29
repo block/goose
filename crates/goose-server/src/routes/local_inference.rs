@@ -552,7 +552,20 @@ pub async fn download_hf_model(
         .await
         .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
     let download_id = format!("{}-model", model_id);
-    if get_download_manager().is_downloading(&download_id) {
+    let download_reserved = get_download_manager()
+        .reserve_download(DownloadProgress {
+            model_id: download_id,
+            status: DownloadStatus::Downloading,
+            bytes_downloaded: 0,
+            total_bytes: 0,
+            progress_percent: 0.0,
+            speed_bps: None,
+            eta_seconds: None,
+            error: None,
+            task_exited: false,
+        })
+        .map_err(|e| ErrorResponse::internal(format!("Download failed: {}", e)))?;
+    if !download_reserved {
         return Ok((StatusCode::ACCEPTED, Json(model_id)));
     }
 

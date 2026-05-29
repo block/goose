@@ -124,6 +124,24 @@ impl DownloadManager {
         }
     }
 
+    pub fn reserve_download(&self, progress: DownloadProgress) -> Result<bool> {
+        let mut downloads = self
+            .downloads
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
+
+        if let Some(existing) = downloads.get(&progress.model_id) {
+            if existing.status == DownloadStatus::Downloading
+                || (existing.status == DownloadStatus::Cancelled && !existing.task_exited)
+            {
+                return Ok(false);
+            }
+        }
+
+        downloads.insert(progress.model_id.clone(), progress);
+        Ok(true)
+    }
+
     pub fn update_progress(&self, model_id: &str, update: impl FnOnce(&mut DownloadProgress)) {
         if let Ok(mut downloads) = self.downloads.lock() {
             if let Some(progress) = downloads.get_mut(model_id) {

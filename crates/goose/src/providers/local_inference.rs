@@ -354,11 +354,10 @@ fn strip_info_messages(text: &str) -> String {
     let mut remaining = text;
     let mut output = String::new();
 
-    while let Some(start) = remaining.find("<info-msg>") {
-        output.push_str(&remaining[..start]);
-        let after_start = &remaining[start + "<info-msg>".len()..];
-        if let Some(end) = after_start.find("</info-msg>") {
-            remaining = &after_start[end + "</info-msg>".len()..];
+    while let Some((before, after_start)) = remaining.split_once("<info-msg>") {
+        output.push_str(before);
+        if let Some((_, after_end)) = after_start.split_once("</info-msg>") {
+            remaining = after_end;
         } else {
             remaining = "";
             break;
