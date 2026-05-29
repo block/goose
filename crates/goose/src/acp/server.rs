@@ -2849,6 +2849,21 @@ impl GooseAcpAgent {
                             update,
                         ))?;
                     }
+                    MessageContent::Image(image) => {
+                        let chunk = ContentChunk::new(ContentBlock::Image(ImageContent::new(
+                            image.data.clone(),
+                            image.mime_type.clone(),
+                        )))
+                        .meta(replay_message_meta(message));
+                        let update = match message.role {
+                            Role::User => SessionUpdate::UserMessageChunk(chunk),
+                            Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
+                        };
+                        cx.send_notification(SessionNotification::new(
+                            args.session_id.clone(),
+                            update,
+                        ))?;
+                    }
                     MessageContent::ToolRequest(tool_request) => {
                         // Replay-only: emit the ToolCall notification and
                         // stash the request for location extraction, but

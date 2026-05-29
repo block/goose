@@ -5,8 +5,8 @@
 #[path = "../acp_fixtures/mod.rs"]
 pub mod fixtures;
 use agent_client_protocol::schema::{
-    ListSessionsResponse, McpServer, McpServerHttp, ModelId, SessionInfo, SessionModeId,
-    ToolCallStatus, ToolKind,
+    ContentBlock, ListSessionsResponse, McpServer, McpServerHttp, ModelId, SessionInfo,
+    SessionModeId, SessionUpdate, ToolCallStatus, ToolKind,
 };
 use fixtures::{
     assert_notifications, Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision,
@@ -620,6 +620,51 @@ pub async fn run_load_session_mcp<C: Connection>() {
         .await
         .unwrap();
     assert_eq!(output.text, FAKE_CODE, "tool call failed in loaded session");
+}
+
+pub async fn run_load_session_replays_image_attachment<C: Connection>() {
+    let expected_session_id = C::expected_session_id();
+    let openai = OpenAiFixture::new(
+        vec![(
+            r#""type":"image_url""#.into(),
+            include_str!("../acp_test_data/openai_image_attachment.txt"),
+        )],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let mut conn = C::new(TestConnectionConfig::default(), openai).await;
+    let SessionData { mut session, .. } = conn.new_session().await.unwrap();
+    expected_session_id.set(&session.session_id().0);
+    let session_id = session.session_id().0.to_string();
+
+    let output = session
+        .prompt_with_image(
+            "Describe what you see in this image",
+            TEST_IMAGE_B64,
+            "image/png",
+            PermissionDecision::Cancel,
+        )
+        .await
+        .unwrap();
+    assert!(output.text.contains("Hello Goose!"));
+    session.session_updates();
+
+    let SessionData { session, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
+    let replayed_image = session
+        .session_updates()
+        .into_iter()
+        .find_map(|update| match update {
+            SessionUpdate::UserMessageChunk(chunk) => match chunk.content {
+                ContentBlock::Image(image) => Some(image),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("expected load_session to replay the user image attachment");
+
+    assert_eq!(replayed_image.data, TEST_IMAGE_B64);
+    assert_eq!(replayed_image.mime_type, "image/png");
 }
 
 pub async fn run_load_session_error<C: Connection>() {
