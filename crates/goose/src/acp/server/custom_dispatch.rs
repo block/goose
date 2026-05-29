@@ -59,6 +59,14 @@ impl GooseAcpAgent {
         self.on_update_working_dir(req).await
     }
 
+    #[custom_method(SetSessionSystemPromptRequest)]
+    async fn dispatch_set_session_system_prompt(
+        &self,
+        req: SetSessionSystemPromptRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_set_session_system_prompt(req).await
+    }
+
     #[custom_method(DeleteSessionRequest)]
     async fn dispatch_delete_session(
         &self,
@@ -112,6 +120,14 @@ impl GooseAcpAgent {
         req: ListProvidersRequest,
     ) -> Result<ListProvidersResponse, agent_client_protocol::Error> {
         self.on_list_providers(req).await
+    }
+
+    #[custom_method(ProviderSupportedModelsListRequest)]
+    async fn dispatch_list_provider_supported_models(
+        &self,
+        req: ProviderSupportedModelsListRequest,
+    ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
+        self.on_list_provider_supported_models(req).await
     }
 
     #[custom_method(ProviderCatalogListRequest)]

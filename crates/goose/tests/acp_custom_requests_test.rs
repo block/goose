@@ -21,6 +21,7 @@ struct MockProvider {
     name: String,
     model_config: ModelConfig,
     recommended_models: Vec<String>,
+    supported_models: Vec<String>,
 }
 
 #[async_trait::async_trait]
@@ -47,6 +48,10 @@ impl Provider for MockProvider {
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(self.recommended_models.clone())
     }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(self.supported_models.clone())
+    }
 }
 
 fn mock_provider_factory() -> AcpProviderFactory {
@@ -62,6 +67,7 @@ fn mock_provider_factory() -> AcpProviderFactory {
             Ok(Arc::new(MockProvider {
                 name: provider_name,
                 model_config,
+                supported_models: recommended_models.clone(),
                 recommended_models,
             }) as Arc<dyn Provider>)
         })
@@ -133,6 +139,7 @@ fn test_new_session_passes_cwd_to_provider_factory() {
                         name: provider_name,
                         model_config,
                         recommended_models: Vec::new(),
+                        supported_models: Vec::new(),
                     }) as Arc<dyn Provider>)
                 })
             },
@@ -180,6 +187,7 @@ fn test_load_session_passes_load_cwd_to_provider_factory() {
                         name: provider_name,
                         model_config,
                         recommended_models: Vec::new(),
+                        supported_models: Vec::new(),
                     }) as Arc<dyn Provider>)
                 })
             },
@@ -670,6 +678,55 @@ fn test_developer_fs_requests_use_acp_session_id() {
             seen_session_id.lock().unwrap().as_deref(),
             Some(acp_session_id.as_str()),
             "ACP read request should use the ACP session/thread ID",
+        );
+    });
+}
+
+#[test]
+fn test_custom_provider_supported_models_lists_raw_provider_models() {
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let provider_factory: AcpProviderFactory =
+            Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+                Box::pin(async move {
+                    Ok(Arc::new(MockProvider {
+                        name: provider_name,
+                        model_config,
+                        recommended_models: vec!["canonical-filtered-model".to_string()],
+                        supported_models: vec![
+                            "goose-claude-opus-4-8".to_string(),
+                            "raw-databricks-endpoint".to_string(),
+                        ],
+                    }) as Arc<dyn Provider>)
+                })
+            });
+        let conn = AcpServerConnection::new(
+            TestConnectionConfig {
+                provider_factory: Some(provider_factory),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        let response = send_custom(
+            conn.cx(),
+            "_goose/unstable/providers/supported-models/list",
+            serde_json::json!({ "providerId": "openai" }),
+        )
+        .await
+        .expect("provider supported models list should succeed");
+
+        assert_eq!(
+            response.get("providerId"),
+            Some(&serde_json::json!("openai"))
+        );
+        assert_eq!(
+            response.get("models"),
+            Some(&serde_json::json!([
+                "goose-claude-opus-4-8",
+                "raw-databricks-endpoint"
+            ]))
         );
     });
 }

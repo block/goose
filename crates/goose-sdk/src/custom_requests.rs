@@ -108,6 +108,37 @@ pub struct UpdateWorkingDirRequest {
     pub working_dir: String,
 }
 
+/// How a session system prompt update should be applied.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionSystemPromptMode {
+    /// Replace Goose's base system prompt with the provided text.
+    Set,
+    /// Append the provided text under Goose's "Additional Instructions" section.
+    #[default]
+    Append,
+}
+
+/// Set, append, or clear system prompt text for a session.
+///
+/// `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
+/// instruction under "Additional Instructions". Reusing a key replaces the
+/// previous value for that mode/key; sending empty text clears it.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/system-prompt/set",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSessionSystemPromptRequest {
+    pub session_id: String,
+    #[serde(default)]
+    pub mode: SessionSystemPromptMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    pub text: String,
+}
+
 /// Delete a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "session/delete", response = EmptyResponse)]
@@ -1089,6 +1120,24 @@ pub struct ListProvidersRequest {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct ListProvidersResponse {
     pub entries: Vec<ProviderInventoryEntryDto>,
+}
+
+/// List the raw model identifiers returned by a provider's live supported-models API.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/supported-models/list",
+    response = ProviderSupportedModelsListResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSupportedModelsListRequest {
+    pub provider_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSupportedModelsListResponse {
+    pub provider_id: String,
+    pub models: Vec<String>,
 }
 
 /// Trigger a background refresh of provider inventories.
