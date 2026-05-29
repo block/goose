@@ -14,6 +14,7 @@ import {
   searchHfModels,
   getRepoFiles,
   downloadHfModel,
+  type DownloadModelRequest,
   type HfModelInfo,
   type HfModelVariant,
 } from '../../../api';
@@ -26,7 +27,7 @@ const i18n = defineMessages({
   },
   searchPlaceholder: {
     id: 'huggingFaceModelSearch.searchPlaceholder',
-    defaultMessage: 'Search for local models...'
+    defaultMessage: 'Search for local models...',
   },
   loadingVariants: {
     id: 'huggingFaceModelSearch.loadingVariants',
@@ -93,7 +94,7 @@ interface RepoData {
 }
 
 interface Props {
-  onDownloadStarted: (modelId: string) => void;
+  onDownloadStarted: (modelId: string, request: DownloadModelRequest) => void;
   /** Model IDs (repo:quant) with an active download in progress */
   activeDownloadIds?: Set<string>;
   /** Model IDs (repo:quant) confirmed downloaded on disk */
@@ -238,17 +239,18 @@ export const HuggingFaceModelSearch = ({
 
   const startDownload = async (repoId: string, variant: HfModelVariant) => {
     const downloadKey = variant.download_id;
+    const request: DownloadModelRequest = {
+      spec: repoId,
+      backend_id: variant.backend_id,
+      variant_id: variant.variant_id,
+    };
     setDownloading((prev) => new Set(prev).add(downloadKey));
     try {
       const response = await downloadHfModel({
-        body: {
-          spec: repoId,
-          backend_id: variant.backend_id,
-          variant_id: variant.variant_id,
-        },
+        body: request,
       });
       if (response.data) {
-        onDownloadStarted(response.data);
+        onDownloadStarted(response.data, request);
       }
     } catch (e) {
       console.error('Download failed:', e);
@@ -335,7 +337,8 @@ export const HuggingFaceModelSearch = ({
                       const isActiveDownload = activeDownloadIds?.has(modelId) ?? false;
                       const isDownloaded = downloadedModelIds
                         ? downloadedModelIds.has(modelId)
-                        : downloadedVariants.has(modelId) || downloadedQuants.has(variant.variant_id);
+                        : downloadedVariants.has(modelId) ||
+                          downloadedQuants.has(variant.variant_id);
                       const tooLarge =
                         availableMemory > 0 && variant.size_bytes > availableMemory * 0.85;
                       const isSupported = variant.supported ?? true;
