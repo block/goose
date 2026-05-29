@@ -56,7 +56,7 @@ serde = { version = "1.0.228", default-features = false, features = ["derive", "
 serde_json = { version = "1.0.145", default-features = false, features = ["std"] }
 serde_yaml = { version = "0.9.32", default-features = false }
 shellexpand = { version = "3", default-features = false, features = ["base-0", "tilde"] }
-strum = { version = "0.27.1", default-features = false, features = ["derive", "std"] }
+strum = { version = "0.28.0", default-features = false, features = ["derive", "std"] }
 tempfile = { version = "3.10.1", default-features = false }
 thiserror = { version = "1.0.49", default-features = false }
 tokio = { version = "1.48", default-features = false }
