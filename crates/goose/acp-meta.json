@@ -31,6 +31,11 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/session/system-prompt/set",
+      "requestType": "SetSessionSystemPromptRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "session/delete",
       "requestType": "DeleteSessionRequest",
       "responseType": "EmptyResponse"

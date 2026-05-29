@@ -89,6 +89,7 @@ import type {
   RemoveConfigExtensionRequest_unstable,
   RemoveExtensionRequest_unstable,
   RenameSessionRequest_unstable,
+  SetSessionSystemPromptRequest_unstable,
   ToggleConfigExtensionRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
@@ -182,6 +183,15 @@ export class GooseExtClient {
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/session/working-dir/update",
+      params,
+    );
+  }
+
+  async sessionSystemPromptSet_unstable(
+    params: SetSessionSystemPromptRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/session/system-prompt/set",
       params,
     );
   }

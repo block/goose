@@ -167,6 +167,49 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/working-dir/update"
     },
+    "SetSessionSystemPromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/SessionSystemPromptMode",
+          "default": "append"
+        },
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "text"
+      ],
+      "description": "Set, append, or clear system prompt text for a session.\n\n`mode: \"set\"` replaces Goose's base system prompt. `mode: \"append\"` adds an\ninstruction under \"Additional Instructions\". Reusing a key replaces the\nprevious value for that mode/key; sending empty text clears it.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/system-prompt/set"
+    },
+    "SessionSystemPromptMode": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "set",
+          "description": "Replace Goose's base system prompt with the provided text."
+        },
+        {
+          "type": "string",
+          "const": "append",
+          "description": "Append the provided text under Goose's \"Additional Instructions\" section."
+        }
+      ],
+      "description": "How a session system prompt update should be applied."
+    },
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
@@ -2639,6 +2682,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/working-dir/update",
                   "title": "UpdateWorkingDirRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetSessionSystemPromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/system-prompt/set",
+                  "title": "SetSessionSystemPromptRequest_unstable"
                 },
                 {
                   "allOf": [
