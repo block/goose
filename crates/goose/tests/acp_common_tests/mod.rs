@@ -651,18 +651,24 @@ pub async fn run_load_session_replays_image_attachment<C: Connection>() {
     session.session_updates();
 
     let SessionData { session, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
-    let replayed_image = session
+    let replayed_images = session
         .session_updates()
         .into_iter()
-        .find_map(|update| match update {
+        .filter_map(|update| match update {
             SessionUpdate::UserMessageChunk(chunk) => match chunk.content {
                 ContentBlock::Image(image) => Some(image),
                 _ => None,
             },
             _ => None,
         })
-        .expect("expected load_session to replay the user image attachment");
+        .collect::<Vec<_>>();
 
+    assert_eq!(
+        replayed_images.len(),
+        1,
+        "expected load_session to replay the user image attachment exactly once"
+    );
+    let replayed_image = &replayed_images[0];
     assert_eq!(replayed_image.data, TEST_IMAGE_B64);
     assert_eq!(replayed_image.mime_type, "image/png");
 }
