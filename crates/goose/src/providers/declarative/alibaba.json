@@ -1,0 +1,60 @@
+{
+  "name": "alibaba",
+  "engine": "openai",
+  "display_name": "Alibaba (Qwen)",
+  "description": "Alibaba Qwen models via DashScope's OpenAI-compatible API.",
+  "api_key_env": "DASHSCOPE_API_KEY",
+  "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  "catalog_provider_id": "alibaba",
+  "dynamic_models": true,
+  "models": [
+    {
+      "name": "qwen3.7-max",
+      "context_limit": 262144
+    },
+    {
+      "name": "qwen3.7-max-preview",
+      "context_limit": 262144
+    },
+    {
+      "name": "qwen3.6-max-preview",
+      "context_limit": 262144
+    },
+    {
+      "name": "qwen3.6-plus",
+      "context_limit": 1000000
+    },
+    {
+      "name": "qwen3-max",
+      "context_limit": 262144
+    },
+    {
+      "name": "qwen-plus",
+      "context_limit": 1000000
+    },
+    {
+      "name": "qwen-turbo",
+      "context_limit": 1000000
+    },
+    {
+      "name": "qwen-flash",
+      "context_limit": 1000000
+    },
+    {
+      "name": "qwen3-coder-plus",
+      "context_limit": 1048576
+    },
+    {
+      "name": "qwen3-coder-flash",
+      "context_limit": 1000000
+    }
+  ],
+  "preserves_thinking": true,
+  "supports_streaming": true,
+  "model_doc_link": "https://www.alibabacloud.com/help/en/model-studio/models",
+  "setup_steps": [
+    "Sign in to https://modelstudio.console.alibabacloud.com (international) or https://bailian.console.aliyun.com (China)",
+    "Open API Keys in the left sidebar and create a new key",
+    "Copy the key and paste it above"
+  ]
+}

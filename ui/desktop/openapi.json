@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.35.0"
+    "version": "1.36.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -40,45 +40,6 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/agent/add_extension": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "agent_add_extension",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddExtensionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Extension added",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
           },
           "500": {
             "description": "Internal server error"
@@ -358,45 +319,6 @@
           },
           "404": {
             "description": "Resource not found"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/agent/remove_extension": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "agent_remove_extension",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RemoveExtensionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Extension removed",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
           },
           "424": {
             "description": "Agent not initialized"
@@ -970,102 +892,6 @@
           },
           "404": {
             "description": "Provider not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/config/extensions": {
-      "get": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "get_extensions",
-        "responses": {
-          "200": {
-            "description": "All extensions retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "add_extension",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExtensionQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Extension added or updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "422": {
-            "description": "Could not serialize config.yaml"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/config/extensions/{name}": {
-      "delete": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "remove_extension",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Extension removed successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Extension not found"
           },
           "500": {
             "description": "Internal server error"
@@ -1986,6 +1812,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/local-inference/chat-templates/builtin": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "list_builtin_chat_templates",
+        "responses": {
+          "200": {
+            "description": "llama.cpp built-in chat template names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -3596,51 +3445,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/extensions": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "get_session_extensions",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session extensions retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionExtensionsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/fork": {
       "post": {
         "tags": [
@@ -4118,21 +3922,6 @@
           "propertyName": "actionType"
         }
       },
-      "AddExtensionRequest": {
-        "type": "object",
-        "required": [
-          "session_id",
-          "config"
-        ],
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/ExtensionConfig"
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -4258,6 +4047,63 @@
           "user_message": {
             "$ref": "#/components/schemas/Message"
           }
+        }
+      },
+      "ChatTemplate": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "embedded"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "builtin"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "template",
+              "type"
+            ],
+            "properties": {
+              "template": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "custom_inline"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
         }
       },
       "CheckProviderRequest": {
@@ -5422,45 +5268,6 @@
           },
           "success": {
             "type": "boolean"
-          }
-        }
-      },
-      "ExtensionQuery": {
-        "type": "object",
-        "required": [
-          "name",
-          "config",
-          "enabled"
-        ],
-        "properties": {
-          "config": {
-            "$ref": "#/components/schemas/ExtensionConfig"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "ExtensionResponse": {
-        "type": "object",
-        "required": [
-          "extensions"
-        ],
-        "properties": {
-          "extensions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ExtensionEntry"
-            }
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       },
@@ -6716,6 +6523,9 @@
       "ModelSettings": {
         "type": "object",
         "properties": {
+          "chat_template": {
+            "$ref": "#/components/schemas/ChatTemplate"
+          },
           "context_size": {
             "type": "integer",
             "format": "int32",
@@ -6766,9 +6576,6 @@
             "format": "int32",
             "nullable": true
           },
-          "native_tool_calling": {
-            "type": "boolean"
-          },
           "presence_penalty": {
             "type": "number",
             "format": "float"
@@ -6784,15 +6591,15 @@
           "sampling": {
             "$ref": "#/components/schemas/SamplingConfig"
           },
-          "use_jinja": {
-            "type": "boolean"
+          "tool_calling": {
+            "$ref": "#/components/schemas/ToolCallingMode"
           },
           "use_mlock": {
             "type": "boolean"
           },
           "vision_capable": {
             "type": "boolean",
-            "description": "Whether this model architecture supports vision input.\nDerived from the featured model table, not user-configurable."
+            "description": "Whether this model architecture supports vision input.\nDerived from associated mmproj metadata, not user-configurable."
           }
         }
       },
@@ -7487,21 +7294,6 @@
           }
         }
       },
-      "RemoveExtensionRequest": {
-        "type": "object",
-        "required": [
-          "name",
-          "session_id"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
       "RepoVariantsResponse": {
         "type": "object",
         "required": [
@@ -8156,20 +7948,6 @@
           }
         }
       },
-      "SessionExtensionsResponse": {
-        "type": "object",
-        "required": [
-          "extensions"
-        ],
-        "properties": {
-          "extensions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ExtensionConfig"
-            }
-          }
-        }
-      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -8796,6 +8574,14 @@
             "type": "string"
           }
         }
+      },
+      "ToolCallingMode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "force_native",
+          "force_emulated"
+        ]
       },
       "ToolConfirmationRequest": {
         "type": "object",

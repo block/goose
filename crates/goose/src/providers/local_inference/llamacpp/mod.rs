@@ -3,34 +3,311 @@ mod inference_engine;
 mod inference_native_tools;
 
 use std::any::Any;
+use std::ffi::CStr;
 use std::path::PathBuf;
 
 use anyhow::Result;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::model::{ChatTemplateResult, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOptions};
-use rmcp::model::Role;
 
 use self::inference_emulated_tools::{
     build_emulator_tool_description, generate_with_emulated_tools, load_tiny_model_prompt,
 };
-use self::inference_engine::{GenerationContext, LoadedModel};
+use self::inference_engine::{GenerationContext, LoadedChatTemplates, LoadedModel};
 use self::inference_native_tools::generate_with_native_tools;
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai::format_tools;
 use crate::providers::local_inference::backend::{
     BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
 };
+use crate::providers::local_inference::local_model_registry::{
+    ChatTemplate, ModelSettings, ToolCallingMode,
+};
 use crate::providers::local_inference::multimodal::ExtractedImage;
 use crate::providers::local_inference::tool_parsing::compact_tools_json;
 use crate::providers::local_inference::{
-    build_openai_messages_json, extract_text_content, ResolvedModelPaths,
+    build_openai_messages_json, build_openai_text_messages_json, ResolvedModelPaths,
 };
 
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
 
 const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
+
+pub(super) fn builtin_chat_template_names() -> Vec<String> {
+    let count = unsafe { llama_cpp_sys_2::llama_chat_builtin_templates(std::ptr::null_mut(), 0) };
+    if count <= 0 {
+        return Vec::new();
+    }
+
+    let mut templates = vec![std::ptr::null(); count as usize];
+    let written = unsafe {
+        llama_cpp_sys_2::llama_chat_builtin_templates(templates.as_mut_ptr(), templates.len())
+    };
+    templates.truncate(written.max(0) as usize);
+
+    templates
+        .into_iter()
+        .filter(|ptr| !ptr.is_null())
+        .filter_map(|ptr| {
+            unsafe { CStr::from_ptr(ptr) }
+                .to_str()
+                .ok()
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+fn template_result_supports_native_tool_calling(result: &ChatTemplateResult) -> bool {
+    result.parse_tool_calls
+        && result
+            .parser
+            .as_deref()
+            .is_some_and(|parser| !parser.trim().is_empty())
+}
+
+fn supports_native_tool_calling(
+    loaded: &LoadedModel,
+    settings: &ModelSettings,
+    template: &LlamaChatTemplate,
+    oai_messages_json: &str,
+    tools_json: Option<&str>,
+) -> bool {
+    let Some(tools_json) = tools_json.filter(|tools| !tools.trim().is_empty()) else {
+        return false;
+    };
+
+    // llama.cpp exposes common_chat_templates_get_caps in C++, but llama-cpp-2
+    // 0.1.146 does not bind it yet. Replace this dry-run with that capability
+    // map once it is available through the Rust wrapper.
+    let params = OpenAIChatTemplateParams {
+        messages_json: oai_messages_json,
+        tools_json: Some(tools_json),
+        tool_choice: None,
+        json_schema: None,
+        grammar: None,
+        reasoning_format: if settings.enable_thinking {
+            Some("auto")
+        } else {
+            None
+        },
+        chat_template_kwargs: None,
+        add_generation_prompt: true,
+        use_jinja: true,
+        parallel_tool_calls: false,
+        enable_thinking: settings.enable_thinking,
+        add_bos: false,
+        add_eos: false,
+        parse_tool_calls: true,
+    };
+
+    match loaded
+        .model
+        .apply_chat_template_oaicompat(template, &params)
+    {
+        Ok(result) => template_result_supports_native_tool_calling(&result),
+        Err(e) => {
+            tracing::debug!(
+                error = %e,
+                "llama.cpp chat template dry-run did not support native tool calling"
+            );
+            false
+        }
+    }
+}
+
+fn should_use_native_tool_calling(
+    mode: ToolCallingMode,
+    has_tools: bool,
+    template_supports_native: bool,
+) -> bool {
+    has_tools
+        && match mode {
+            ToolCallingMode::Auto => template_supports_native,
+            ToolCallingMode::ForceNative => true,
+            ToolCallingMode::ForceEmulated => false,
+        }
+}
+
+fn is_legacy_builtin_template_name(template: &str) -> bool {
+    matches!(
+        template.trim(),
+        "bailing"
+            | "bailing-think"
+            | "bailing2"
+            | "chatglm3"
+            | "chatglm4"
+            | "command-r"
+            | "deepseek"
+            | "deepseek-ocr"
+            | "deepseek2"
+            | "deepseek3"
+            | "exaone-moe"
+            | "exaone3"
+            | "exaone4"
+            | "falcon3"
+            | "gemma"
+            | "gigachat"
+            | "glmedge"
+            | "gpt-oss"
+            | "granite"
+            | "granite-4.0"
+            | "grok-2"
+            | "hunyuan-dense"
+            | "hunyuan-moe"
+            | "hunyuan-ocr"
+            | "kimi-k2"
+            | "llama2"
+            | "llama2-sys"
+            | "llama2-sys-bos"
+            | "llama2-sys-strip"
+            | "llama3"
+            | "llama4"
+            | "megrez"
+            | "minicpm"
+            | "mistral-v1"
+            | "mistral-v3"
+            | "mistral-v3-tekken"
+            | "mistral-v7"
+            | "mistral-v7-tekken"
+            | "monarch"
+            | "openchat"
+            | "orion"
+            | "pangu-embedded"
+            | "phi3"
+            | "phi4"
+            | "rwkv-world"
+            | "seed_oss"
+            | "smolvlm"
+            | "solar-open"
+            | "vicuna"
+            | "vicuna-orca"
+            | "yandex"
+            | "zephyr"
+    )
+}
+
+fn missing_chat_template_error(
+    model_id: &str,
+    architecture: Option<&str>,
+    context: &str,
+    has_tool_use_template: bool,
+) -> ProviderError {
+    let architecture = architecture
+        .map(str::trim)
+        .filter(|arch| !arch.is_empty())
+        .map(|arch| format!(" Detected GGUF general.architecture={arch}."))
+        .unwrap_or_default();
+    let tool_use_note = if has_tool_use_template {
+        " A named tool_use chat template is present, but that template is only used for native tool calls with tools present."
+    } else {
+        ""
+    };
+
+    ProviderError::ExecutionError(format!(
+        "Model {model_id} does not contain GGUF tokenizer.chat_template metadata required for {context}.{architecture}{tool_use_note} \
+         Goose cannot safely infer the correct prompt format from architecture alone. Select a \
+         llama.cpp built-in chat template name, configure a custom inline chat template containing \
+         the full Jinja template source, or use a GGUF that includes tokenizer.chat_template metadata."
+    ))
+}
+
+fn load_chat_templates(
+    model: &LlamaModel,
+    settings: &ModelSettings,
+) -> Result<LoadedChatTemplates, ProviderError> {
+    match &settings.chat_template {
+        ChatTemplate::Embedded => Ok(LoadedChatTemplates {
+            default: model.chat_template(None).ok(),
+            tool_use: model.chat_template(Some("tool_use")).ok(),
+            force_default: false,
+        }),
+        ChatTemplate::Builtin { name } => {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
+                return Err(ProviderError::ExecutionError(
+                    "Built-in chat template name is empty. Enter a llama.cpp built-in template name such as 'chatml', or use embedded chat template metadata.".to_string(),
+                ));
+            }
+            LlamaChatTemplate::new(trimmed)
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Built-in chat template name contains an invalid NUL byte: {e}"
+                    ))
+                })
+                .map(|template| LoadedChatTemplates {
+                    default: Some(template),
+                    tool_use: None,
+                    force_default: true,
+                })
+        }
+        ChatTemplate::CustomInline { template } => {
+            let trimmed = template.trim();
+            if trimmed.is_empty() {
+                return Err(ProviderError::ExecutionError(
+                    "Custom inline chat template is empty. Paste the full Jinja chat template source, use a llama.cpp built-in template name, or use embedded chat template metadata.".to_string(),
+                ));
+            }
+            if trimmed == "chatml" || is_legacy_builtin_template_name(trimmed) {
+                return Err(ProviderError::ExecutionError(format!(
+                    "Custom inline chat template is set to '{trimmed}', which is a llama.cpp template name rather than Jinja template source. Paste the full Jinja chat template source instead, or select Built-in and enter '{trimmed}' if that built-in template is intended."
+                )));
+            }
+            LlamaChatTemplate::new(template)
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Custom inline chat template contains an invalid NUL byte: {e}"
+                    ))
+                })
+                .map(|template| LoadedChatTemplates {
+                    default: Some(template),
+                    tool_use: None,
+                    force_default: true,
+                })
+        }
+    }
+}
+
+fn select_generation_template<'a>(
+    model_id: &str,
+    model: &LlamaModel,
+    templates: &'a LoadedChatTemplates,
+    native_tool_calling: bool,
+    has_tools: bool,
+) -> Result<&'a LlamaChatTemplate, ProviderError> {
+    if templates.force_default {
+        return templates.default.as_ref().ok_or_else(|| {
+            ProviderError::ExecutionError(
+                "Configured chat template was not loaded correctly".to_string(),
+            )
+        });
+    }
+
+    if native_tool_calling && has_tools {
+        if let Some(template) = templates.tool_use.as_ref() {
+            return Ok(template);
+        }
+    }
+
+    templates.default.as_ref().ok_or_else(|| {
+        let architecture = model.meta_val_str("general.architecture").ok();
+        let context = if has_tools && native_tool_calling {
+            "native tool calling because no tool_use template is available"
+        } else if has_tools {
+            "emulated tool calling"
+        } else {
+            "chat without tools"
+        };
+        missing_chat_template_error(
+            model_id,
+            architecture.as_deref(),
+            context,
+            templates.tool_use.is_some(),
+        )
+    })
+}
 
 pub(super) struct LlamaCppBackend {
     backend: LlamaBackend,
@@ -134,18 +411,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
         let model = LlamaModel::load_from_file(&self.backend, model_path, &params)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-        let template = match model.chat_template(None) {
-            Ok(t) => t,
-            Err(_) => {
-                tracing::warn!("Model has no embedded chat template, falling back to chatml");
-                LlamaChatTemplate::new("chatml").map_err(|e| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to create fallback chat template: {}",
-                        e
-                    ))
-                })?
-            }
-        };
+        let templates = load_chat_templates(&model, settings)?;
 
         let mtmd_ctx = Self::init_mtmd_context(&model, &resolved.mmproj_path, settings);
 
@@ -157,7 +423,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
 
         Ok(Box::new(LoadedModel {
             model,
-            template,
+            templates,
             mtmd_ctx,
         }))
     }
@@ -174,14 +440,6 @@ impl LocalInferenceBackend for LlamaCppBackend {
                 ProviderError::ExecutionError("Loaded model backend mismatch".to_string())
             })?;
 
-        let native_tool_calling = request.settings.native_tool_calling;
-        let use_emulator = !native_tool_calling && !request.tools.is_empty();
-        let system_prompt = if use_emulator {
-            load_tiny_model_prompt()
-        } else {
-            request.system.to_string()
-        };
-
         let has_vision = request.resolved_model.mmproj_path.is_some();
         let marker = llama_cpp_2::mtmd::mtmd_default_marker();
         let (images, vision_messages): (Vec<ExtractedImage>, Option<Vec<_>>) = if has_vision {
@@ -193,45 +451,8 @@ impl LocalInferenceBackend for LlamaCppBackend {
         };
         let effective_messages = vision_messages.as_deref().unwrap_or(request.messages);
 
-        let mut chat_messages =
-            vec![
-                LlamaChatMessage::new("system".to_string(), system_prompt.clone()).map_err(
-                    |e| {
-                        ProviderError::ExecutionError(format!(
-                            "Failed to create system message: {}",
-                            e
-                        ))
-                    },
-                )?,
-            ];
-
         let code_mode_enabled = request.tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
-
-        if use_emulator && !request.tools.is_empty() {
-            let tool_desc = build_emulator_tool_description(request.tools, code_mode_enabled);
-            chat_messages = vec![LlamaChatMessage::new(
-                "system".to_string(),
-                format!("{}{}", system_prompt, tool_desc),
-            )
-            .map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to create system message: {}", e))
-            })?];
-        }
-
-        for msg in effective_messages {
-            let role = match msg.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            };
-            let content = extract_text_content(msg);
-            if !content.trim().is_empty() {
-                chat_messages.push(LlamaChatMessage::new(role.to_string(), content).map_err(
-                    |e| ProviderError::ExecutionError(format!("Failed to create message: {}", e)),
-                )?);
-            }
-        }
-
-        let (full_tools_json, compact_tools) = if !use_emulator && !request.tools.is_empty() {
+        let (full_tools_json, compact_tools) = if !request.tools.is_empty() {
             let full = format_tools(request.tools)
                 .ok()
                 .and_then(|spec| serde_json::to_string(&spec).ok());
@@ -241,13 +462,53 @@ impl LocalInferenceBackend for LlamaCppBackend {
             (None, None)
         };
 
-        let oai_messages_json = if request.settings.use_jinja || native_tool_calling {
-            Some(build_openai_messages_json(
-                &system_prompt,
-                effective_messages,
-            ))
+        let has_native_tool_payload = full_tools_json
+            .as_deref()
+            .is_some_and(|tools| !tools.trim().is_empty());
+        let template_supports_native =
+            if matches!(request.settings.tool_calling, ToolCallingMode::Auto)
+                && has_native_tool_payload
+            {
+                let messages_json = build_openai_messages_json(request.system, effective_messages);
+                if let Some(template) = loaded.templates.tool_use.as_ref() {
+                    supports_native_tool_calling(
+                        loaded,
+                        request.settings,
+                        template,
+                        &messages_json,
+                        full_tools_json.as_deref(),
+                    )
+                } else {
+                    loaded.templates.default.as_ref().is_some_and(|template| {
+                        supports_native_tool_calling(
+                            loaded,
+                            request.settings,
+                            template,
+                            &messages_json,
+                            full_tools_json.as_deref(),
+                        )
+                    })
+                }
+            } else {
+                false
+            };
+        let native_tool_calling = should_use_native_tool_calling(
+            request.settings.tool_calling,
+            !request.tools.is_empty(),
+            template_supports_native,
+        );
+        let use_emulator = !native_tool_calling && !request.tools.is_empty();
+        let system_prompt = if use_emulator {
+            let tool_desc = build_emulator_tool_description(request.tools, code_mode_enabled);
+            format!("{}{}", load_tiny_model_prompt(), tool_desc)
         } else {
-            None
+            request.system.to_string()
+        };
+
+        let oai_messages_json = if use_emulator {
+            build_openai_text_messages_json(&system_prompt, effective_messages)
+        } else {
+            build_openai_messages_json(&system_prompt, effective_messages)
         };
 
         if !images.is_empty() && loaded.mtmd_ctx.is_none() {
@@ -258,10 +519,18 @@ impl LocalInferenceBackend for LlamaCppBackend {
             );
         }
 
+        let template = select_generation_template(
+            &request.model_name,
+            &loaded.model,
+            &loaded.templates,
+            native_tool_calling,
+            !request.tools.is_empty(),
+        )?;
+
         let mut gen_ctx = GenerationContext {
             loaded,
             backend: self,
-            chat_messages: &chat_messages,
+            template,
             settings: request.settings,
             context_limit: request.context_limit,
             model_name: request.model_name,
@@ -272,7 +541,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
         };
 
         if use_emulator {
-            generate_with_emulated_tools(&mut gen_ctx, code_mode_enabled)
+            generate_with_emulated_tools(&mut gen_ctx, code_mode_enabled, &oai_messages_json)
         } else {
             generate_with_native_tools(
                 &mut gen_ctx,
@@ -351,5 +620,80 @@ fn log_inference_backend_devices() {
             memory_free_bytes = device.memory_free as u64,
             "Non-CPU llama.cpp backend device detected for local inference"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn template_result(parser: Option<&str>, parse_tool_calls: bool) -> ChatTemplateResult {
+        ChatTemplateResult {
+            prompt: String::new(),
+            grammar: None,
+            grammar_lazy: false,
+            grammar_triggers: Vec::new(),
+            preserved_tokens: Vec::new(),
+            additional_stops: Vec::new(),
+            chat_format: 0,
+            parser: parser.map(str::to_string),
+            generation_prompt: String::new(),
+            parse_tool_calls,
+        }
+    }
+
+    #[test]
+    fn native_tool_calling_requires_generated_parser() {
+        assert!(template_result_supports_native_tool_calling(
+            &template_result(Some("parser"), true)
+        ));
+        assert!(!template_result_supports_native_tool_calling(
+            &template_result(None, true)
+        ));
+        assert!(!template_result_supports_native_tool_calling(
+            &template_result(Some("parser"), false)
+        ));
+        assert!(!template_result_supports_native_tool_calling(
+            &template_result(Some("   "), true)
+        ));
+    }
+
+    #[test]
+    fn tool_calling_mode_controls_path_selection() {
+        assert!(should_use_native_tool_calling(
+            ToolCallingMode::Auto,
+            true,
+            true
+        ));
+        assert!(!should_use_native_tool_calling(
+            ToolCallingMode::Auto,
+            true,
+            false
+        ));
+        assert!(should_use_native_tool_calling(
+            ToolCallingMode::ForceNative,
+            true,
+            false
+        ));
+        assert!(!should_use_native_tool_calling(
+            ToolCallingMode::ForceEmulated,
+            true,
+            true
+        ));
+        assert!(!should_use_native_tool_calling(
+            ToolCallingMode::ForceNative,
+            false,
+            true
+        ));
+    }
+
+    #[test]
+    fn rejects_legacy_builtin_names_as_inline_templates() {
+        assert!(is_legacy_builtin_template_name("gemma"));
+        assert!(is_legacy_builtin_template_name("llama3"));
+        assert!(!is_legacy_builtin_template_name("chatml"));
+        assert!(!is_legacy_builtin_template_name(
+            "{% for message in messages %}{{ message.content }}{% endfor %}"
+        ));
     }
 }

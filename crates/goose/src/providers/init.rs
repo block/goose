@@ -21,6 +21,7 @@ use super::{
     copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
+    databricks_v2::DatabricksV2Provider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
     gemini_oauth::GeminiOAuthProvider,
@@ -68,6 +69,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);
+        registry.register::<DatabricksV2Provider>(false);
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
         registry.register::<GeminiOAuthProvider>(true);
@@ -94,6 +96,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
     registry.set_cleanup(
         "databricks",
         Arc::new(|| Box::pin(DatabricksProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "databricks_v2",
+        Arc::new(|| Box::pin(DatabricksV2Provider::cleanup())),
     );
     registry.set_cleanup(
         "kimi_code",
@@ -306,6 +312,33 @@ mod tests {
         assert!(api_key.required, "NEARAI_API_KEY should be required");
         assert!(api_key.secret, "NEARAI_API_KEY should be secret");
         assert!(api_key.primary, "NEARAI_API_KEY should be primary");
+    }
+
+    #[tokio::test]
+    async fn test_alibaba_declarative_provider_registry_wiring() {
+        let alibaba = get_from_registry("alibaba")
+            .await
+            .expect("alibaba provider should be registered");
+        let meta = alibaba.metadata();
+
+        assert_eq!(alibaba.provider_type(), ProviderType::Declarative);
+        assert!(alibaba.supports_inventory_refresh());
+        assert_eq!(meta.display_name, "Alibaba (Qwen)");
+        assert_eq!(meta.default_model, "qwen3.7-max");
+        assert_eq!(
+            meta.model_doc_link,
+            "https://www.alibabacloud.com/help/en/model-studio/models"
+        );
+        assert!(!meta.setup_steps.is_empty());
+
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "DASHSCOPE_API_KEY")
+            .expect("DASHSCOPE_API_KEY config key should exist");
+        assert!(api_key.required, "DASHSCOPE_API_KEY should be required");
+        assert!(api_key.secret, "DASHSCOPE_API_KEY should be secret");
+        assert!(api_key.primary, "DASHSCOPE_API_KEY should be primary");
     }
 
     #[tokio::test]

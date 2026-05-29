@@ -5,7 +5,9 @@ use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+#[cfg(feature = "local-inference")]
+use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 

@@ -472,6 +472,27 @@ impl SessionManager {
             .await
     }
 
+    pub async fn search_chat_sessions(
+        &self,
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<chrono::DateTime<chrono::Utc>>,
+        before_date: Option<chrono::DateTime<chrono::Utc>>,
+        exclude_session_id: Option<String>,
+        session_types: Vec<SessionType>,
+    ) -> Result<Vec<Session>> {
+        self.storage
+            .search_chat_sessions(
+                query,
+                limit,
+                after_date,
+                before_date,
+                exclude_session_id,
+                session_types,
+            )
+            .await
+    }
+
     pub async fn update_message_metadata<F>(id: &str, message_id: &str, f: F) -> Result<()>
     where
         F: FnOnce(
@@ -1845,6 +1866,41 @@ impl SessionStorage {
         .await
     }
 
+    async fn search_chat_sessions(
+        &self,
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<chrono::DateTime<chrono::Utc>>,
+        before_date: Option<chrono::DateTime<chrono::Utc>>,
+        exclude_session_id: Option<String>,
+        session_types: Vec<SessionType>,
+    ) -> Result<Vec<Session>> {
+        use crate::session::chat_history_search::ChatSessionSearch;
+
+        let pool = self.pool().await?;
+        let session_ids = ChatSessionSearch::new(
+            pool,
+            query,
+            limit,
+            after_date,
+            before_date,
+            exclude_session_id,
+            session_types,
+        )
+        .execute()
+        .await?;
+
+        let mut sessions = Vec::with_capacity(session_ids.len());
+        for session_id in session_ids {
+            match self.get_session(&session_id, false).await {
+                Ok(session) => sessions.push(session),
+                Err(err) if err.to_string() == "Session not found" => continue,
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(sessions)
+    }
+
     async fn update_message_metadata<F>(
         &self,
         session_id: &str,
@@ -2013,6 +2069,219 @@ mod tests {
                 .await
                 .unwrap();
         }
+    }
+
+    async fn add_message_at(sm: &SessionManager, session_id: &str, text: &str, timestamp: &str) {
+        sm.add_message(session_id, &Message::user().with_text(text))
+            .await
+            .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+        let timestamp_string = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE messages SET timestamp = ?, created_timestamp = ? WHERE id = (SELECT MAX(id) FROM messages WHERE session_id = ?)",
+        )
+        .bind(&timestamp_string)
+        .bind(timestamp.timestamp())
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn create_search_session(
+        sm: &SessionManager,
+        name: &str,
+        session_type: SessionType,
+        updated_at: &str,
+        messages: &[(&str, &str)],
+    ) -> String {
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/search-test"),
+                name.to_string(),
+                session_type,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        for (text, timestamp) in messages {
+            add_message_at(sm, &session.id, text, timestamp).await;
+        }
+        set_sessions_updated_at(sm, std::slice::from_ref(&session.id), updated_at).await;
+
+        session.id
+    }
+
+    #[tokio::test]
+    async fn test_search_chat_history_preserves_message_limited_behavior() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let _older_target = create_search_session(
+            &sm,
+            "Older target",
+            SessionType::User,
+            "2026-05-01T00:00:00Z",
+            &[(
+                "does Acme have an email address for John Doe",
+                "2026-05-01T00:00:00Z",
+            )],
+        )
+        .await;
+
+        let newer_noise = create_search_session(
+            &sm,
+            "Newer noise",
+            SessionType::User,
+            "2026-05-22T00:00:00Z",
+            &[
+                ("Acme person name looking for Acme", "2026-05-22T00:00:00Z"),
+                (
+                    "another Acme person name looking for Acme",
+                    "2026-05-22T00:01:00Z",
+                ),
+            ],
+        )
+        .await;
+
+        let results = sm
+            .search_chat_history("Acme", Some(2), None, None, None, vec![SessionType::User])
+            .await
+            .unwrap();
+
+        assert_eq!(results.results.len(), 1);
+        assert_eq!(results.results[0].session_id, newer_noise);
+        assert_eq!(results.results[0].messages.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_search_chat_sessions_limits_distinct_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let older_target = create_search_session(
+            &sm,
+            "Older target",
+            SessionType::User,
+            "2026-05-01T00:00:00Z",
+            &[(
+                "does Acme have an email address for John Doe",
+                "2026-05-01T00:00:00Z",
+            )],
+        )
+        .await;
+
+        let newer_noise = create_search_session(
+            &sm,
+            "Newer noise",
+            SessionType::User,
+            "2026-05-22T00:00:00Z",
+            &[
+                ("Acme person name looking for Acme", "2026-05-22T00:00:00Z"),
+                (
+                    "another Acme person name looking for Acme",
+                    "2026-05-22T00:01:00Z",
+                ),
+            ],
+        )
+        .await;
+
+        let results = sm
+            .search_chat_sessions("Acme", Some(2), None, None, None, vec![SessionType::User])
+            .await
+            .unwrap();
+        let ids = results
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec![newer_noise, older_target]);
+    }
+
+    #[tokio::test]
+    async fn test_search_chat_sessions_applies_all_filters() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let excluded = create_search_session(
+            &sm,
+            "Excluded user",
+            SessionType::User,
+            "2026-05-20T00:00:00Z",
+            &[("Acme John excluded session", "2026-05-15T00:00:00Z")],
+        )
+        .await;
+
+        let scheduled_target = create_search_session(
+            &sm,
+            "Scheduled target",
+            SessionType::Scheduled,
+            "2026-05-19T00:00:00Z",
+            &[(
+                "John appears in scheduled Acme work",
+                "2026-05-16T00:00:00Z",
+            )],
+        )
+        .await;
+
+        let user_target = create_search_session(
+            &sm,
+            "User target",
+            SessionType::User,
+            "2026-05-18T00:00:00Z",
+            &[(
+                "Acme has an email address question for John Doe",
+                "2026-05-14T00:00:00Z",
+            )],
+        )
+        .await;
+
+        let _before_window = create_search_session(
+            &sm,
+            "Before window",
+            SessionType::User,
+            "2026-05-17T00:00:00Z",
+            &[("Acme John before date window", "2026-05-09T00:00:00Z")],
+        )
+        .await;
+
+        let _wrong_type = create_search_session(
+            &sm,
+            "ACP target",
+            SessionType::Acp,
+            "2026-05-16T00:00:00Z",
+            &[("Acme John wrong session type", "2026-05-15T00:00:00Z")],
+        )
+        .await;
+
+        let after = chrono::DateTime::parse_from_rfc3339("2026-05-10T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let before = chrono::DateTime::parse_from_rfc3339("2026-05-17T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        let results = sm
+            .search_chat_sessions(
+                "Acme John",
+                Some(10),
+                Some(after),
+                Some(before),
+                Some(excluded),
+                vec![SessionType::User, SessionType::Scheduled],
+            )
+            .await
+            .unwrap();
+        let ids = results
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec![scheduled_target, user_target]);
     }
 
     async fn expected_session_list_ids(sm: &SessionManager, session_ids: &[String]) -> Vec<String> {

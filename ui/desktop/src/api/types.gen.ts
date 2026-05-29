@@ -25,11 +25,6 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
-export type AddExtensionRequest = {
-    config: ExtensionConfig;
-    session_id: string;
-};
-
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -74,6 +69,16 @@ export type ChatRequest = {
     recipe_version?: string | null;
     session_id: string;
     user_message: Message;
+};
+
+export type ChatTemplate = {
+    type: 'embedded';
+} | {
+    name: string;
+    type: 'builtin';
+} | {
+    template: string;
+    type: 'custom_inline';
 };
 
 export type CheckProviderRequest = {
@@ -483,17 +488,6 @@ export type ExtensionLoadResult = {
     success: boolean;
 };
 
-export type ExtensionQuery = {
-    config: ExtensionConfig;
-    enabled: boolean;
-    name: string;
-};
-
-export type ExtensionResponse = {
-    extensions: Array<ExtensionEntry>;
-    warnings?: Array<string>;
-};
-
 export type FeaturesResponse = {
     /**
      * Map of feature name to enabled status
@@ -863,6 +857,7 @@ export type ModelInfoResponse = {
 };
 
 export type ModelSettings = {
+    chat_template?: ChatTemplate;
     context_size?: number | null;
     enable_thinking?: boolean;
     flash_attention?: boolean | null;
@@ -880,16 +875,15 @@ export type ModelSettings = {
     n_batch?: number | null;
     n_gpu_layers?: number | null;
     n_threads?: number | null;
-    native_tool_calling?: boolean;
     presence_penalty?: number;
     repeat_last_n?: number;
     repeat_penalty?: number;
     sampling?: SamplingConfig;
-    use_jinja?: boolean;
+    tool_calling?: ToolCallingMode;
     use_mlock?: boolean;
     /**
      * Whether this model architecture supports vision input.
-     * Derived from the featured model table, not user-configurable.
+     * Derived from associated mmproj metadata, not user-configurable.
      */
     vision_capable?: boolean;
 };
@@ -1142,11 +1136,6 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
-export type RemoveExtensionRequest = {
-    name: string;
-    session_id: string;
-};
-
 export type RepoVariantsResponse = {
     available_memory_bytes: number;
     downloaded_quants: Array<string>;
@@ -1336,10 +1325,6 @@ export type SessionDisplayInfo = {
     scheduleId?: string | null;
     totalTokens?: number | null;
     workingDir: string;
-};
-
-export type SessionExtensionsResponse = {
-    extensions: Array<ExtensionConfig>;
 };
 
 export type SessionInsights = {
@@ -1543,6 +1528,8 @@ export type ToolAnnotations = {
     readOnlyHint?: boolean;
     title?: string;
 };
+
+export type ToolCallingMode = 'auto' | 'force_native' | 'force_emulated';
 
 export type ToolConfirmationRequest = {
     arguments: JsonObject;
@@ -1769,37 +1756,6 @@ export type ConfirmToolActionResponses = {
     200: unknown;
 };
 
-export type AgentAddExtensionData = {
-    body: AddExtensionRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/add_extension';
-};
-
-export type AgentAddExtensionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type AgentAddExtensionResponses = {
-    /**
-     * Extension added
-     */
-    200: string;
-};
-
-export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
-
 export type CallToolData = {
     body: CallToolRequest;
     path?: never;
@@ -1969,37 +1925,6 @@ export type ReadResourceResponses = {
 };
 
 export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
-
-export type AgentRemoveExtensionData = {
-    body: RemoveExtensionRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/remove_extension';
-};
-
-export type AgentRemoveExtensionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type AgentRemoveExtensionResponses = {
-    /**
-     * Extension removed
-     */
-    200: string;
-};
-
-export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type RestartAgentData = {
     body: RestartAgentRequest;
@@ -2435,89 +2360,6 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
-
-export type GetExtensionsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/config/extensions';
-};
-
-export type GetExtensionsErrors = {
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type GetExtensionsResponses = {
-    /**
-     * All extensions retrieved successfully
-     */
-    200: ExtensionResponse;
-};
-
-export type GetExtensionsResponse = GetExtensionsResponses[keyof GetExtensionsResponses];
-
-export type AddExtensionData = {
-    body: ExtensionQuery;
-    path?: never;
-    query?: never;
-    url: '/config/extensions';
-};
-
-export type AddExtensionErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-    /**
-     * Could not serialize config.yaml
-     */
-    422: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type AddExtensionResponses = {
-    /**
-     * Extension added or updated successfully
-     */
-    200: string;
-};
-
-export type AddExtensionResponse = AddExtensionResponses[keyof AddExtensionResponses];
-
-export type RemoveExtensionData = {
-    body?: never;
-    path: {
-        name: string;
-    };
-    query?: never;
-    url: '/config/extensions/{name}';
-};
-
-export type RemoveExtensionErrors = {
-    /**
-     * Extension not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type RemoveExtensionResponses = {
-    /**
-     * Extension removed successfully
-     */
-    200: string;
-};
-
-export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
 
 export type UpsertPermissionsData = {
     body: UpsertPermissionsQuery;
@@ -3240,6 +3082,22 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type ListBuiltinChatTemplatesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/local-inference/chat-templates/builtin';
+};
+
+export type ListBuiltinChatTemplatesResponses = {
+    /**
+     * llama.cpp built-in chat template names
+     */
+    200: Array<string>;
+};
+
+export type ListBuiltinChatTemplatesResponse = ListBuiltinChatTemplatesResponses[keyof ListBuiltinChatTemplatesResponses];
 
 export type DownloadHfModelData = {
     body: DownloadModelRequest;
@@ -4467,42 +4325,6 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
-
-export type GetSessionExtensionsData = {
-    body?: never;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/extensions';
-};
-
-export type GetSessionExtensionsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type GetSessionExtensionsResponses = {
-    /**
-     * Session extensions retrieved successfully
-     */
-    200: SessionExtensionsResponse;
-};
-
-export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
 
 export type ForkSessionData = {
     body: ForkRequest;

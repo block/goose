@@ -93,12 +93,13 @@ impl GooseAcpAgent {
         &self,
         req: RemoveConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let key = crate::config::extensions::name_to_key(&req.config_key);
         let keys = crate::config::extensions::get_all_extension_names();
-        if !keys.iter().any(|k| k == &req.config_key) {
+        if !keys.iter().any(|k| k == &key) {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data(format!("Extension '{}' not found", req.config_key)));
         }
-        crate::config::extensions::remove_extension(&req.config_key);
+        crate::config::extensions::remove_extension(&key);
         Ok(EmptyResponse {})
     }
 
@@ -106,12 +107,13 @@ impl GooseAcpAgent {
         &self,
         req: ToggleConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let key = crate::config::extensions::name_to_key(&req.config_key);
         let keys = crate::config::extensions::get_all_extension_names();
-        if !keys.iter().any(|k| k == &req.config_key) {
+        if !keys.iter().any(|k| k == &key) {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data(format!("Extension '{}' not found", req.config_key)));
         }
-        crate::config::extensions::set_extension_enabled(&req.config_key, req.enabled);
+        crate::config::extensions::set_extension_enabled(&key, req.enabled);
         Ok(EmptyResponse {})
     }
 

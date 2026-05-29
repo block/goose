@@ -36,12 +36,12 @@ function HeroSection() {
         </div>
         <div className={styles.heroStats}>
           <div className={styles.stat}>
-            <span className={styles.statNumber}>38k+</span>
+            <span className={styles.statNumber}>45k+</span>
             <span className={styles.statLabel}>GitHub stars</span>
           </div>
           <div className={styles.statDivider} />
           <div className={styles.stat}>
-            <span className={styles.statNumber}>400+</span>
+            <span className={styles.statNumber}>500+</span>
             <span className={styles.statLabel}>Contributors</span>
           </div>
           <div className={styles.statDivider} />
