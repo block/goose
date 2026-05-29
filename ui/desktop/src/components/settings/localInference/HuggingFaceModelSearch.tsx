@@ -236,12 +236,16 @@ export const HuggingFaceModelSearch = ({
     }
   };
 
-  const startDownload = async (variant: HfModelVariant) => {
-    const spec = variant.download_id;
-    setDownloading((prev) => new Set(prev).add(spec));
+  const startDownload = async (repoId: string, variant: HfModelVariant) => {
+    const downloadKey = variant.download_id;
+    setDownloading((prev) => new Set(prev).add(downloadKey));
     try {
       const response = await downloadHfModel({
-        body: { spec },
+        body: {
+          spec: repoId,
+          backend_id: variant.backend_id,
+          variant_id: variant.variant_id,
+        },
       });
       if (response.data) {
         onDownloadStarted(response.data);
@@ -251,7 +255,7 @@ export const HuggingFaceModelSearch = ({
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);
-        next.delete(spec);
+        next.delete(downloadKey);
         return next;
       });
     }
@@ -399,7 +403,7 @@ export const HuggingFaceModelSearch = ({
                               variant="outline"
                               size="sm"
                               disabled={isStarting || !isSupported}
-                              onClick={() => startDownload(variant)}
+                              onClick={() => startDownload(model.repo_id, variant)}
                             >
                               {isStarting ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />

@@ -1528,6 +1528,23 @@ fn mlx_variant_label(variant_id: &str) -> String {
     }
 }
 
+pub async fn resolve_local_model_selection(
+    repo_id: &str,
+    backend_id: &str,
+    variant_id: Option<&str>,
+) -> Result<ResolvedLocalModel> {
+    match backend_id {
+        MLX_BACKEND_ID => resolve_mlx_model(repo_id, variant_id.unwrap_or(MLX_VARIANT_ID)).await,
+        LLAMACPP_BACKEND_ID => {
+            let quantization = variant_id.ok_or_else(|| {
+                anyhow::anyhow!("llama.cpp model '{}' is missing a quantization", repo_id)
+            })?;
+            resolve_gguf_model(repo_id, quantization).await
+        }
+        _ => bail!("Unknown local inference backend '{}'", backend_id),
+    }
+}
+
 fn snapshot_root_for_file(
     path: &std::path::Path,
     repo_filename: &str,

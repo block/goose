@@ -1940,11 +1940,8 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
 
-            if let Some(entry) = registry.get_model(&id) {
-                for path in entry.all_local_paths() {
-                    std::fs::remove_file(path)?;
-                }
-                registry.remove_model(&id)?;
+            if registry.get_model(&id).is_some() {
+                registry.delete_model(&id)?;
                 println!("Deleted model: {}", id);
             } else {
                 println!("Model not found: {}", id);

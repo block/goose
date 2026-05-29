@@ -16,12 +16,13 @@ use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfModelVar
 use goose::providers::local_inference::{
     available_inference_memory_bytes, builtin_chat_template_names,
     hf_models::{
-        register_resolved_model, resolve_local_model_spec, resolve_model_spec, HfGgufFile,
+        register_resolved_model, resolve_local_model_selection, resolve_local_model_spec,
+        resolve_model_spec, HfGgufFile,
     },
     local_model_registry::{
-        default_settings_for_model, featured_mmproj_spec, get_registry, is_featured_model,
-        model_id_from_repo, LocalModelEntry, LocalModelStorage,
-        ModelDownloadStatus as RegistryDownloadStatus, ModelSettings, FEATURED_MODELS,
+        default_settings_for_model, featured_mmproj_spec, get_registry, model_id_from_repo,
+        LocalModelEntry, LocalModelStorage, ModelDownloadStatus as RegistryDownloadStatus,
+        ModelSettings, FEATURED_MODELS,
     },
     recommend_local_model,
 };
@@ -425,14 +426,65 @@ pub async fn get_repo_files(
 pub struct DownloadModelRequest {
     /// Model spec/download id like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M" or "google/gemma-4-31B-it"
     pub spec: String,
+    /// Optional backend id for callers selecting a concrete variant row.
+    pub backend_id: Option<String>,
+    /// Optional backend-specific variant id, such as a GGUF quantization or MLX dtype.
+    pub variant_id: Option<String>,
 }
 
-async fn local_model_id_from_spec(spec: &str) -> anyhow::Result<String> {
-    if let Ok((repo_id, quantization)) = hf_models::parse_model_spec(spec) {
+#[derive(Clone)]
+struct LocalModelSelection {
+    repo_id: String,
+    backend_id: String,
+    variant_id: Option<String>,
+}
+
+fn explicit_model_selection(
+    req: &DownloadModelRequest,
+) -> anyhow::Result<Option<LocalModelSelection>> {
+    if let Some(backend_id) = req.backend_id.as_deref() {
+        let (repo_id, parsed_variant_id) = hf_models::parse_model_spec(&req.spec)
+            .map(|(repo_id, quantization)| (repo_id, Some(quantization)))
+            .unwrap_or_else(|_| (req.spec.clone(), None));
+        let variant_id = req.variant_id.clone().or(parsed_variant_id);
+        match backend_id {
+            "mlx" | "llamacpp" => Ok(Some(LocalModelSelection {
+                repo_id,
+                backend_id: backend_id.to_string(),
+                variant_id,
+            })),
+            _ => anyhow::bail!("Unknown local inference backend '{}'", backend_id),
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+async fn local_model_id_from_request(
+    req: &DownloadModelRequest,
+    selection: Option<&LocalModelSelection>,
+) -> anyhow::Result<String> {
+    if let Some(selection) = selection {
+        return match selection.backend_id.as_str() {
+            "mlx" => Ok(selection.repo_id.clone()),
+            "llamacpp" => {
+                let quantization = selection.variant_id.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "llama.cpp model '{}' is missing a quantization",
+                        selection.repo_id
+                    )
+                })?;
+                Ok(model_id_from_repo(&selection.repo_id, quantization))
+            }
+            _ => anyhow::bail!("Unknown local inference backend '{}'", selection.backend_id),
+        };
+    }
+
+    if let Ok((repo_id, quantization)) = hf_models::parse_model_spec(&req.spec) {
         return Ok(model_id_from_repo(&repo_id, &quantization));
     }
 
-    let variants = hf_models::get_repo_local_variants(spec).await?;
+    let variants = hf_models::get_repo_local_variants(&req.spec).await?;
     let has_llamacpp = variants
         .iter()
         .any(|variant| variant.backend_id == "llamacpp");
@@ -441,11 +493,11 @@ async fn local_model_id_from_spec(spec: &str) -> anyhow::Result<String> {
         .filter(|variant| variant.backend_id == "mlx")
         .collect();
     if mlx_variants.len() == 1 && !has_llamacpp {
-        Ok(spec.to_string())
+        Ok(req.spec.clone())
     } else {
         anyhow::bail!(
             "Model spec '{}' is ambiguous; choose one of: {}",
-            spec,
+            req.spec,
             variants
                 .iter()
                 .map(|variant| variant.download_id.as_str())
@@ -494,7 +546,9 @@ fn mark_download_failed(model_id: &str, error: impl std::fmt::Display) {
 pub async fn download_hf_model(
     Json(req): Json<DownloadModelRequest>,
 ) -> Result<(StatusCode, Json<String>), ErrorResponse> {
-    let model_id = local_model_id_from_spec(&req.spec)
+    let selection = explicit_model_selection(&req)
+        .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
+    let model_id = local_model_id_from_request(&req, selection.as_ref())
         .await
         .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
     let download_id = format!("{}-model", model_id);
@@ -503,9 +557,20 @@ pub async fn download_hf_model(
     }
 
     let spec = req.spec.clone();
+    let selection_for_task = selection.clone();
     let model_id_for_task = model_id.clone();
     tokio::spawn(async move {
-        match resolve_local_model_spec(&spec).await {
+        let resolved = if let Some(selection) = selection_for_task {
+            resolve_local_model_selection(
+                &selection.repo_id,
+                &selection.backend_id,
+                selection.variant_id.as_deref(),
+            )
+            .await
+        } else {
+            resolve_local_model_spec(&spec).await
+        };
+        match resolved {
             Ok(resolved) => {
                 if let Err(error) = register_resolved_model(resolved, &spec) {
                     mark_download_failed(&model_id_for_task, error);
@@ -570,71 +635,15 @@ pub async fn cancel_local_model_download(
     )
 )]
 pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
-    let (all_paths, primary_path, mmproj_path, other_uses_mmproj) = {
-        let registry = get_registry()
-            .lock()
-            .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
-        let entry = registry
-            .get_model(&model_id)
-            .ok_or_else(|| ErrorResponse::not_found("Model not found"))?;
-        let paths: Vec<std::path::PathBuf> =
-            entry.all_local_paths().map(|p| p.to_path_buf()).collect();
-        let primary = entry.local_path.clone();
-        let mp = entry.mmproj_path.clone();
-        let shared = mp.as_ref().is_some_and(|target| {
-            registry.list_models().iter().any(|m| {
-                m.id != model_id && m.is_downloaded() && m.mmproj_path.as_ref() == Some(target)
-            })
-        });
-        (paths, primary, mp, shared)
-    };
-
-    for path in &all_paths {
-        if path.exists() {
-            tokio::fs::remove_file(path)
-                .await
-                .map_err(|e| ErrorResponse::internal(format!("Failed to delete: {}", e)))?;
-        }
-    }
-
-    // Clean up empty parent directories (e.g. BF16/ subdirectory)
-    if let Some(parent) = primary_path.parent() {
-        let models_dir = Paths::in_data_dir("models");
-        if parent != models_dir {
-            let _ = tokio::fs::remove_dir(parent).await;
-        }
-    }
-
-    if !other_uses_mmproj {
-        if let Some(mmproj) = mmproj_path {
-            if mmproj.exists() {
-                let _ = tokio::fs::remove_file(&mmproj).await;
-            }
-        }
-    }
-
     let mut registry = get_registry()
         .lock()
         .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
-    if is_featured_model(&model_id) {
-        if let Some(entry) = registry
-            .list_models_mut()
-            .iter_mut()
-            .find(|m| m.id == model_id)
-        {
-            entry.local_path = Paths::in_data_dir("models").join(&entry.filename);
-            entry.storage = LocalModelStorage::GooseManaged;
-            entry.size_bytes = 0;
-            entry.shard_files.clear();
-        }
-        registry
-            .save()
-            .map_err(|e| ErrorResponse::internal(format!("{}", e)))?;
-    } else {
-        registry
-            .remove_model(&model_id)
-            .map_err(|e| ErrorResponse::internal(format!("{}", e)))?;
+    if registry.get_model(&model_id).is_none() {
+        return Err(ErrorResponse::not_found("Model not found"));
     }
+    registry
+        .delete_model(&model_id)
+        .map_err(|e| ErrorResponse::internal(format!("{}", e)))?;
 
     Ok(StatusCode::OK)
 }

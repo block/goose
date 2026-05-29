@@ -544,6 +544,42 @@ impl LocalModelRegistry {
         self.save()
     }
 
+    pub fn delete_model(&mut self, id: &str) -> Result<()> {
+        let plan = self.deletion_plan(id)?;
+        delete_model_artifacts(&plan)?;
+
+        if is_featured_model(id) {
+            if let Some(entry) = self.models.iter_mut().find(|m| m.id == id) {
+                entry.local_path = Paths::in_data_dir("models").join(&entry.filename);
+                entry.storage = LocalModelStorage::GooseManaged;
+                entry.size_bytes = 0;
+                entry.shard_files.clear();
+            }
+            self.save()
+        } else {
+            self.remove_model(id)
+        }
+    }
+
+    fn deletion_plan(&self, id: &str) -> Result<ModelDeletionPlan> {
+        let entry = self
+            .get_model(id)
+            .ok_or_else(|| anyhow::anyhow!("Model not found: {}", id))?;
+        let mmproj_path = entry.mmproj_path.clone();
+        let other_uses_mmproj = mmproj_path.as_ref().is_some_and(|target| {
+            self.models
+                .iter()
+                .any(|m| m.id != id && m.is_downloaded() && m.mmproj_path.as_ref() == Some(target))
+        });
+
+        Ok(ModelDeletionPlan {
+            all_paths: entry.all_local_paths().map(|p| p.to_path_buf()).collect(),
+            primary_path: entry.local_path.clone(),
+            mmproj_path,
+            delete_mmproj: !other_uses_mmproj,
+        })
+    }
+
     pub fn get_model(&self, id: &str) -> Option<&LocalModelEntry> {
         self.models.iter().find(|m| m.id == id)
     }
@@ -573,6 +609,40 @@ impl LocalModelRegistry {
     pub fn list_models_mut(&mut self) -> &mut [LocalModelEntry] {
         &mut self.models
     }
+}
+
+struct ModelDeletionPlan {
+    all_paths: Vec<PathBuf>,
+    primary_path: PathBuf,
+    mmproj_path: Option<PathBuf>,
+    delete_mmproj: bool,
+}
+
+fn delete_model_artifacts(plan: &ModelDeletionPlan) -> Result<()> {
+    for path in &plan.all_paths {
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
+    }
+
+    if !plan.all_paths.is_empty() {
+        if let Some(parent) = plan.primary_path.parent() {
+            let models_dir = Paths::in_data_dir("models");
+            if parent != models_dir {
+                let _ = std::fs::remove_dir(parent);
+            }
+        }
+    }
+
+    if plan.delete_mmproj {
+        if let Some(mmproj) = &plan.mmproj_path {
+            if mmproj.exists() {
+                std::fs::remove_file(mmproj)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Generate a unique ID for a model from its repo_id and quantization.
