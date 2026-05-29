@@ -1665,6 +1665,7 @@ impl Agent {
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
             let mut stop_hook_handled_for_exit = false;
+            let mut retrying_after_stop_hook_denial = false;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1699,12 +1700,17 @@ impl Agent {
                             session_manager.add_message(&session_config.id, &message).await?;
                             conversation.push(message);
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            retrying_after_stop_hook_denial = true;
                             continue;
                         }
                     }
                 }
 
-                turns_taken += 1;
+                if retrying_after_stop_hook_denial {
+                    retrying_after_stop_hook_denial = false;
+                } else {
+                    turns_taken += 1;
+                }
                 if turns_taken > max_turns {
                     yield AgentEvent::Message(
                         Message::assistant().with_text(
@@ -2343,6 +2349,7 @@ impl Agent {
                             session_manager.add_message(&session_config.id, &message).await?;
                             conversation.push(message);
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            retrying_after_stop_hook_denial = true;
                         }
                     }
                 }
