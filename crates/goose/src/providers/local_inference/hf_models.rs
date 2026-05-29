@@ -732,6 +732,13 @@ pub fn parse_model_spec(spec: &str) -> Result<(String, String)> {
         bail!("Invalid repo_id '{}': expected format 'user/repo'", repo_id);
     }
 
+    if quant.is_empty() {
+        bail!(
+            "Invalid model spec '{}': expected format 'user/repo:quantization'",
+            spec
+        );
+    }
+
     Ok((repo_id.to_string(), quant.to_string()))
 }
 
@@ -969,6 +976,82 @@ mod tests {
     fn test_parse_model_spec_invalid() {
         assert!(parse_model_spec("no-colon").is_err());
         assert!(parse_model_spec("noslash:Q4_K_M").is_err());
+        assert!(parse_model_spec("owner/repo:").is_err());
+    }
+
+    #[test]
+    fn test_dedupe_models_merges_variants_for_same_repo() {
+        let repo_id = "mixed/repo".to_string();
+        let gguf_variant = HfModelVariant {
+            variant_id: "Q4_K_M".to_string(),
+            label: "Q4_K_M".to_string(),
+            backend_id: LLAMACPP_BACKEND_ID.to_string(),
+            format: GGUF_FORMAT.to_string(),
+            model_id: "mixed/repo:Q4_K_M".to_string(),
+            download_id: "mixed/repo:Q4_K_M".to_string(),
+            size_bytes: 4,
+            filename: Some("model-Q4_K_M.gguf".to_string()),
+            download_url: Some("https://example.test/model-Q4_K_M.gguf".to_string()),
+            description: "Medium".to_string(),
+            quality_rank: 45,
+            sharded: false,
+            supported: true,
+            unsupported_reason: None,
+        };
+        let mlx_variant = HfModelVariant {
+            variant_id: MLX_VARIANT_ID.to_string(),
+            label: "Default".to_string(),
+            backend_id: MLX_BACKEND_ID.to_string(),
+            format: MLX_FORMAT.to_string(),
+            model_id: repo_id.clone(),
+            download_id: repo_id.clone(),
+            size_bytes: 8,
+            filename: None,
+            download_url: None,
+            description: "MLX".to_string(),
+            quality_rank: 91,
+            sharded: true,
+            supported: true,
+            unsupported_reason: None,
+        };
+        let mut models = vec![
+            HfModelInfo {
+                repo_id: repo_id.clone(),
+                author: "mixed".to_string(),
+                model_name: "repo".to_string(),
+                downloads: 1,
+                gguf_files: vec![HfGgufFile {
+                    filename: "model-Q4_K_M.gguf".to_string(),
+                    size_bytes: 4,
+                    quantization: "Q4_K_M".to_string(),
+                    download_url: "https://example.test/model-Q4_K_M.gguf".to_string(),
+                }],
+                variants: vec![gguf_variant],
+            },
+            HfModelInfo {
+                repo_id,
+                author: "mixed".to_string(),
+                model_name: "repo".to_string(),
+                downloads: 2,
+                gguf_files: Vec::new(),
+                variants: vec![mlx_variant],
+            },
+        ];
+
+        dedupe_models(&mut models);
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].downloads, 2);
+        assert_eq!(models[0].gguf_files.len(), 1);
+        assert_eq!(models[0].variants.len(), 2);
+        assert!(models[0]
+            .variants
+            .iter()
+            .any(|variant| variant.backend_id == LLAMACPP_BACKEND_ID));
+        assert!(models[0]
+            .variants
+            .iter()
+            .any(|variant| variant.backend_id == MLX_BACKEND_ID));
     }
 
     #[test]
@@ -1486,8 +1569,45 @@ fn model_search_rank(query: &str, model: &HfModelInfo) -> u8 {
 }
 
 fn dedupe_models(models: &mut Vec<HfModelInfo>) {
-    let mut seen = std::collections::HashSet::new();
-    models.retain(|model| seen.insert(model.repo_id.clone()));
+    let mut merged: Vec<HfModelInfo> = Vec::with_capacity(models.len());
+    for model in std::mem::take(models) {
+        if let Some(existing) = merged
+            .iter_mut()
+            .find(|existing| existing.repo_id == model.repo_id)
+        {
+            merge_model_info(existing, model);
+        } else {
+            merged.push(model);
+        }
+    }
+    *models = merged;
+}
+
+fn merge_model_info(existing: &mut HfModelInfo, duplicate: HfModelInfo) {
+    existing.downloads = existing.downloads.max(duplicate.downloads);
+
+    let mut filenames: std::collections::HashSet<String> = existing
+        .gguf_files
+        .iter()
+        .map(|file| file.filename.clone())
+        .collect();
+    existing.gguf_files.extend(
+        duplicate
+            .gguf_files
+            .into_iter()
+            .filter(|file| filenames.insert(file.filename.clone())),
+    );
+
+    let mut variant_keys: std::collections::HashSet<(String, String)> = existing
+        .variants
+        .iter()
+        .map(|variant| (variant.backend_id.clone(), variant.variant_id.clone()))
+        .collect();
+    existing
+        .variants
+        .extend(duplicate.variants.into_iter().filter(|variant| {
+            variant_keys.insert((variant.backend_id.clone(), variant.variant_id.clone()))
+        }));
 }
 
 fn should_download_for_mlx(filename: &str) -> bool {
@@ -1605,6 +1725,12 @@ async fn download_gguf_to_hf_cache(
 }
 
 pub async fn resolve_local_model_spec(spec: &str) -> Result<ResolvedLocalModel> {
+    match parse_model_spec(spec) {
+        Ok((repo_id, quantization)) => return resolve_gguf_model(&repo_id, &quantization).await,
+        Err(error) if spec.contains(':') => return Err(error),
+        Err(_) => {}
+    }
+
     if looks_like_repo_id(spec) {
         let variants = get_repo_local_variants(spec).await?;
         let mlx_variants: Vec<_> = variants
