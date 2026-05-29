@@ -1981,6 +1981,15 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
+
+                                        // Stamp the tool request with the originating response's
+                                        // timestamp. Tool execution can cross a one-second boundary,
+                                        // and the response placeholder was created before execution
+                                        // began; without this the request would sort after its
+                                        // response in the session DB (ORDER BY created_timestamp, id)
+                                        // and the Claude API would reject the out-of-order tool_result.
+                                        request_msg.created = response.created;
+
                                         messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)

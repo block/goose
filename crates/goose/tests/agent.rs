@@ -493,6 +493,166 @@ mod tests {
             }
             Ok(())
         }
+
+        // Timestamp the assistant tool-request well in the past so that, if the agent
+        // re-stamps it with the wall clock after tool execution, the regression is
+        // unambiguous regardless of how long the tool actually takes.
+        const TOOL_REQUEST_CREATED: i64 = 1_700_000_000;
+
+        struct TimestampedToolProvider {}
+
+        impl TimestampedToolProvider {
+            fn new() -> Self {
+                Self {}
+            }
+        }
+
+        impl ProviderDef for TimestampedToolProvider {
+            type Provider = Self;
+
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock".to_string(),
+                    display_name: "Mock Provider".to_string(),
+                    description: "Mock provider for testing".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                }
+            }
+
+            fn from_env(
+                _model: ModelConfig,
+                _extensions: Vec<goose::config::ExtensionConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
+            }
+        }
+
+        #[async_trait]
+        impl Provider for TimestampedToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let tool_call = CallToolRequestParams::new("test_tool")
+                    .with_arguments(object!({"param": "value"}));
+                let mut message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
+                message.created = TOOL_REQUEST_CREATED;
+
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(5), Some(15)),
+                );
+
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-test"
+            }
+        }
+
+        // Regression test for #9461: a tool request (assistant/tool_use) must never be
+        // assigned a later created timestamp than its paired tool response
+        // (user/tool_result). The session DB returns messages ORDER BY
+        // created_timestamp, id, so an out-of-order pair makes the response sort ahead
+        // of the request and the Claude API rejects it with "unexpected tool_use_id in
+        // tool_result blocks".
+        #[tokio::test]
+        async fn test_tool_request_not_stamped_after_response() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(TimestampedToolProvider::new());
+            let user_message = Message::user().with_text("Hello");
+
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "tool-timestamp-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            agent.update_provider(provider, &session.id).await?;
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(1),
+                retry_config: None,
+            };
+
+            let reply_stream = agent.reply(user_message, session_config, None).await?;
+            tokio::pin!(reply_stream);
+
+            while let Some(response_result) = reply_stream.next().await {
+                match response_result {
+                    Ok(AgentEvent::Message(response)) => {
+                        if let Some(MessageContent::ActionRequired(action)) =
+                            response.content.first()
+                        {
+                            if let goose::conversation::message::ActionRequiredData::ToolConfirmation { id, .. } = &action.data {
+                                agent.handle_confirmation(
+                                    id.clone(),
+                                    goose::permission::PermissionConfirmation {
+                                        principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
+                                        permission: goose::permission::Permission::AllowOnce,
+                                    }
+                                ).await;
+                            }
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            let final_session = agent
+                .config
+                .session_manager
+                .get_session(&session.id, true)
+                .await?;
+            let conversation = final_session
+                .conversation
+                .expect("session should have a conversation");
+            let messages = conversation.messages();
+
+            let request = messages
+                .iter()
+                .find(|m| m.is_tool_call())
+                .expect("expected a persisted tool request");
+            let response = messages
+                .iter()
+                .find(|m| m.is_tool_response())
+                .expect("expected a persisted tool response");
+
+            assert_eq!(
+                request.created, TOOL_REQUEST_CREATED,
+                "tool request should keep the originating response timestamp, not be re-stamped after execution"
+            );
+            assert!(
+                request.created <= response.created,
+                "tool request ({}) must not be stamped after its tool response ({})",
+                request.created,
+                response.created
+            );
+
+            Ok(())
+        }
     }
 
     #[cfg(test)]
