@@ -531,10 +531,11 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-bedrockruntime"
-version = "1.131.0"
+version = "1.132.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e494025b4c578bfefd025aada69c51ab1db6b7589f61cb78ae681f3115269209"
+checksum = "41a2940faeb61f4f579a434bc3a546e9ab49a89596e94527d329281ef55fd44d"
 dependencies = [
+ "arc-swap",
  "aws-credential-types",
  "aws-runtime",
  "aws-sigv4",
@@ -558,10 +559,11 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-sagemakerruntime"
-version = "1.102.0"
+version = "1.103.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb969c5c411b21a4bca5b52e9f5492af20e927fd4c410f748a3996462eb295c5"
+checksum = "26e4e05bfaa264b088522b181bd2f0e1c78d0f4aef097ca7c51f4ae1a2bd4df2"
 dependencies = [
+ "arc-swap",
  "aws-credential-types",
  "aws-runtime",
  "aws-smithy-async",
@@ -3404,9 +3406,9 @@ checksum = "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1"
 
 [[package]]
 name = "dtor"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2137ce22f50d4c43ce098daf41c904cc700de1ce8bc2daf53ed4e702180a464"
+checksum = "e84c00697eca0d99ddc657698f9238f7426bac392c5ea859f5efdfdd2b719dd7"
 dependencies = [
  "linktime-proc-macro",
 ]
@@ -4510,7 +4512,7 @@ dependencies = [
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp 0.32.0",
  "opentelemetry-stdout",
- "opentelemetry_sdk 0.32.0",
+ "opentelemetry_sdk 0.32.1",
  "pastey",
  "pctx_code_mode",
  "pem",
@@ -5904,9 +5906,9 @@ dependencies = [
 
 [[package]]
 name = "linktime-proc-macro"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a44cd706ff0d503ee32b2071166510ca27e281228de10cd3aa8d35ff94560f81"
+checksum = "8c7b0a3383c2a1002d11349c92c85a666a5fb679e96c79d782cf0dbe557fd6ee"
 
 [[package]]
 name = "linux-keyutils"
@@ -6926,7 +6928,7 @@ dependencies = [
  "opentelemetry 0.32.0",
  "opentelemetry-http 0.32.0",
  "opentelemetry-proto 0.32.0",
- "opentelemetry_sdk 0.32.0",
+ "opentelemetry_sdk 0.32.1",
  "prost",
  "reqwest 0.13.4",
  "thiserror 2.0.18",
@@ -6952,7 +6954,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56d658ba1faf63f7b9c492cfbe6e0ec365440a16132d3270c1065f7b33f1b638"
 dependencies = [
  "opentelemetry 0.32.0",
- "opentelemetry_sdk 0.32.0",
+ "opentelemetry_sdk 0.32.1",
  "prost",
 ]
 
@@ -6964,7 +6966,7 @@ checksum = "a1b1c6a247d79091f0062a5f4bd058589525cf987a8d4c169440d9c1be72f0ad"
 dependencies = [
  "chrono",
  "opentelemetry 0.32.0",
- "opentelemetry_sdk 0.32.0",
+ "opentelemetry_sdk 0.32.1",
 ]
 
 [[package]]
@@ -6984,9 +6986,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry_sdk"
-version = "0.32.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368afaed344110f40b179bb8fbe54bc52d98f9bd2b281799ef32487c2650c956"
+checksum = "9b59f80e1ac4d5ff7a2db8fb6c80badb7f0f3f858211fba08dd9aaec750894f9"
 dependencies = [
  "futures-channel",
  "futures-executor",
@@ -9334,9 +9336,9 @@ dependencies = [
 
 [[package]]
 name = "socket2"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
+checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
@@ -11713,9 +11715,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.23.1"
+version = "1.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
+checksum = "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
