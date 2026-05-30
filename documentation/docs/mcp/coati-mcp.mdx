@@ -1,0 +1,76 @@
+---
+title: Coati Extension
+description: Add the Coati MCP Server as a goose extension for typed Linux system tools
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+
+This tutorial covers how to add the [Coati MCP Server](https://github.com/JuanMarchetto/coati) as a goose extension, giving goose a small set of safe, typed Linux system tools:
+
+- `exec` — run a program (arguments passed literally — no shell, no piping or redirection)
+- `read_file` — read a file up to a byte limit
+- `list_dir` — list a directory (non-recursive)
+- `query_logs` — fetch recent `journalctl` lines for a systemd unit (the unit name is allowlist-validated)
+- `explain_error` — package a failed command's output into a focused analysis prompt
+
+:::info Prerequisite
+Coati's MCP server is written in Rust. Install it once with [cargo](https://www.rust-lang.org/tools/install):
+```sh
+cargo install --git https://github.com/JuanMarchetto/coati --bin coati-mcp
+```
+This puts a `coati-mcp` binary on your `PATH`.
+:::
+
+## Configuration
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    <GooseDesktopInstaller
+      extensionId="coati"
+      extensionName="Coati"
+      description="Typed Linux system tools: exec, read_file, list_dir, query_logs, explain_error"
+      type="stdio"
+      command="coati-mcp"
+      args={[]}
+      timeout={300}
+    />
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Coati"
+      description="Typed Linux system tools: exec, read_file, list_dir, query_logs, explain_error"
+      type="stdio"
+      command="coati-mcp"
+      timeout={300}
+    />
+  </TabItem>
+</Tabs>
+
+:::tip Read-only mode
+Run the server as `coati-mcp --read-only` to expose only the inspection tools (`read_file`, `list_dir`, `query_logs`, `explain_error`) and disable program execution.
+:::
+
+## Example Usage
+
+Coati keeps the user in control: its `exec` tool runs programs directly (no shell, so there is no shell-injection surface), and goose asks you to approve a tool call before it runs. A natural use is diagnosing a misbehaving service.
+
+### goose Prompt
+
+> _Use Coati to read the last 50 log lines for `nginx.service` and tell me whether anything looks wrong._
+
+### goose Output
+
+:::note Desktop
+
+I called Coati's `query_logs` tool for `nginx.service`. The recent entries show:
+
+```
+nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)
+```
+
+The service is failing because port 80 is already taken by another process. Find the offending process with `sudo lsof -i :80`, stop it, then restart nginx. Review the commands before running them.
+
+:::
