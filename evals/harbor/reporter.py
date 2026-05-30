@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -69,6 +70,81 @@ def trial_token_totals(trial: TrialResult) -> tuple[int | None, int | None, floa
     return n_in, n_out, cost
 
 
+def _trial_dir(trial: TrialResult, job_dir: Path) -> Path:
+    return job_dir / trial.trial_name
+
+
+def trial_turns(trial: TrialResult, job_dir: Path) -> int | None:
+    """Number of agent turns in a trial.
+
+    Preferred source is ``agent/trajectory.json`` (harbor's standard format,
+    one entry per agent step). Falls back to parsing harness-specific logs
+    when the trajectory isn't present:
+
+      * goose stream-json: count messages with role=assistant
+      * pi log: count "turn_start" events
+    """
+    trial_dir = _trial_dir(trial, job_dir)
+    trajectory = trial_dir / "agent" / "trajectory.json"
+    if trajectory.is_file():
+        try:
+            data = json.loads(trajectory.read_text())
+        except json.JSONDecodeError:
+            data = None
+        steps = data.get("steps") if isinstance(data, dict) else None
+        if isinstance(steps, list):
+            return sum(1 for s in steps if isinstance(s, dict) and s.get("source") == "agent")
+
+    goose_log = trial_dir / "agent" / "goose.txt"
+    if goose_log.is_file():
+        # stream-json emits one `message` event per streamed chunk (sharing the
+        # same message.id for a single assistant turn). Dedupe by id so a turn
+        # that streamed 2000 tokens counts as 1, not 2000.
+        seen_ids: set[str] = set()
+        anon_chunks = 0
+        for line in goose_log.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("type") != "message":
+                continue
+            msg = obj.get("message", {})
+            if msg.get("role") != "assistant":
+                continue
+            mid = msg.get("id")
+            if mid:
+                seen_ids.add(mid)
+            else:
+                anon_chunks += 1
+        count = len(seen_ids) + anon_chunks
+        return count if count else None
+
+    pi_log = trial_dir / "agent" / "pi.txt"
+    if pi_log.is_file():
+        count = 0
+        for line in pi_log.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("type") == "turn_start":
+                count += 1
+        return count if count else None
+
+    return None
+
+
+def job_turn_totals(job: LoadedJob) -> int:
+    return sum((trial_turns(t, job.job_dir) or 0) for t in job.results)
+
+
 def job_token_totals(job: LoadedJob) -> tuple[int, int, float]:
     totals = [trial_token_totals(t) for t in job.results]
     return (
@@ -102,8 +178,16 @@ def trial_status(trial: TrialResult) -> str:
 
 
 def job_duration(job: LoadedJob) -> float | None:
+    """Total trial time, summed across all trials.
+
+    This unrolls parallelism: a 4-hour run with 4 concurrent workers reports
+    ~16h. We deliberately don't use elapsed job wall clock (min start → max
+    finish) because that conflates "how long the benchmark took" with "how
+    much concurrency I had on the host", making cross-run comparisons noisy.
+    The sum is a stable measure of total compute.
+    """
     durations = [d for d in (trial_duration(t) for t in job.results) if d is not None]
-    return max(durations) if durations else None
+    return sum(durations) if durations else None
 
 
 def job_model(job: LoadedJob) -> str:
@@ -176,6 +260,7 @@ def cmd_list(args: argparse.Namespace) -> int:
                 fmt_duration(job_duration(job)),
                 fmt_tokens(tok_in),
                 fmt_tokens(tok_out),
+                fmt_tokens(job_turn_totals(job)),
                 fmt_cost(cost),
                 breakdown,
             )
@@ -185,14 +270,14 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(f"No jobs found in {RUNS_DIR}")
         return 0
     print(
-        f"{'job_name':<40} {'model':<25} {'rate':>7} {'wall':>6} "
-        f"{'in':>7} {'out':>7} {'cost':>8} {'pass/fail/err/tout':>18}"
+        f"{'job_name':<40} {'model':<25} {'rate':>7} {'compute':>8} "
+        f"{'in':>7} {'out':>7} {'turns':>6} {'cost':>8} {'pass/fail/err/tout':>18}"
     )
-    print("-" * 124)
+    print("-" * 131)
     for row in rows:
         print(
-            f"{row[0]:<40} {row[1]:<25} {row[2]:>7} {row[3]:>6} "
-            f"{row[4]:>7} {row[5]:>7} {row[6]:>8} {row[7]:>18}"
+            f"{row[0]:<40} {row[1]:<25} {row[2]:>7} {row[3]:>8} "
+            f"{row[4]:>7} {row[5]:>7} {row[6]:>6} {row[7]:>8} {row[8]:>18}"
         )
     return 0
 
@@ -205,7 +290,7 @@ def cmd_show(args: argparse.Namespace) -> int:
     print(f"Job:          {job.job_name}")
     print(f"Model:        {job_model(job)}")
     print(f"Started:      {job.started_at}")
-    print(f"Wall clock:   {fmt_duration(job_duration(job))}")
+    print(f"Compute time: {fmt_duration(job_duration(job))}  (sum of trial durations)")
     print(f"Trials:       {total}")
     print(
         f"  pass={counts['pass']}  partial={counts['partial']}  fail={counts['fail']}  "
@@ -215,13 +300,14 @@ def cmd_show(args: argparse.Namespace) -> int:
         print(f"Pass rate:    {100 * counts['pass'] / total:.1f}%")
     total_in, total_out, total_cost = job_token_totals(job)
     print(f"Tokens:       in={fmt_tokens(total_in)}  out={fmt_tokens(total_out)}")
+    print(f"Turns:        {fmt_tokens(job_turn_totals(job))}")
     print(f"Cost:         {fmt_cost(total_cost)}")
     print()
     print(
         f"{'task':<45} {'status':<10} {'reward':>7} {'dur':>7} "
-        f"{'in':>7} {'out':>7} {'cost':>7}  error"
+        f"{'in':>7} {'out':>7} {'turns':>6} {'cost':>7}  error"
     )
-    print("-" * 130)
+    print("-" * 137)
     for trial in sorted(job.results, key=task_name):
         status = trial_status(trial)
         if args.status and status != args.status:
@@ -238,11 +324,14 @@ def cmd_show(args: argparse.Namespace) -> int:
         if len(err_str) > 50:
             err_str = err_str[:47] + "..."
         n_in, n_out, cost = trial_token_totals(trial)
+        turns = trial_turns(trial, job.job_dir)
+        turns_str = str(turns) if turns is not None else "-"
         print(
             f"{task_name(trial):<45} {status:<10} {reward_str:>7} "
             f"{fmt_duration(trial_duration(trial)):>7} "
             f"{fmt_tokens(n_in):>7} "
             f"{fmt_tokens(n_out):>7} "
+            f"{turns_str:>6} "
             f"{fmt_cost(cost):>7}  {err_str}"
         )
     return 0
@@ -267,6 +356,8 @@ def cmd_task(args: argparse.Namespace) -> int:
         print(f"Ended:        {trial.finished_at}")
         n_in, n_out, cost = trial_token_totals(trial)
         print(f"Tokens:       in={fmt_tokens(n_in)}  out={fmt_tokens(n_out)}")
+        turns = trial_turns(trial, job_dir)
+        print(f"Turns:        {turns if turns is not None else '-'}")
         print(f"Cost:         {fmt_cost(cost)}")
         error = trial_error(trial)
         if error is not None:
@@ -393,8 +484,10 @@ def cmd_compare(args: argparse.Namespace) -> int:
     b_in, b_out, b_cost = job_token_totals(job_b)
     print(f"{'tokens in':<18} {fmt_tokens(a_in):>10} {fmt_tokens(b_in):>10}")
     print(f"{'tokens out':<18} {fmt_tokens(a_out):>10} {fmt_tokens(b_out):>10}")
+    print(f"{'turns':<18} {fmt_tokens(job_turn_totals(job_a)):>10} "
+          f"{fmt_tokens(job_turn_totals(job_b)):>10}")
     print(f"{'cost':<18} {fmt_cost(a_cost):>10} {fmt_cost(b_cost):>10}")
-    print(f"{'wall clock':<18} {fmt_duration(job_duration(job_a)):>10} "
+    print(f"{'compute time':<18} {fmt_duration(job_duration(job_a)):>10} "
           f"{fmt_duration(job_duration(job_b)):>10}")
 
     if only_a or only_b:
