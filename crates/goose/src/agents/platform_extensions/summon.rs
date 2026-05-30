@@ -1,17 +1,17 @@
+use crate::agents::AgentConfig;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
-use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::subagent_handler::{OnMessageCallback, SubagentRunParams, run_subagent_task};
+use crate::agents::subagent_task_config::{DEFAULT_SUBAGENT_MAX_TURNS, TaskConfig};
 use crate::agents::tool_execution::ToolCallContext;
-use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::EnabledExtensionsState;
+use crate::recipe::{RECIPE_FILE_EXTENSIONS, Recipe, RecipeParameter, Settings};
 use crate::session::SessionType;
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -24,10 +24,10 @@ use rmcp::model::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -58,6 +58,7 @@ pub struct DelegateParams {
     pub model: Option<String>,
     pub temperature: Option<f32>,
     pub max_turns: Option<usize>,
+    pub working_dir: Option<String>,
     #[serde(default)]
     pub r#async: bool,
 }
@@ -533,6 +534,10 @@ impl SummonClient {
                     "type": "integer",
                     "minimum": 1,
                     "description": "Maximum turns for this delegate. Overrides recipe settings.max_turns and GOOSE_SUBAGENT_MAX_TURNS."
+                },
+                "working_dir": {
+                    "type": "string",
+                    "description": "Working directory for the delegate. Must be within the parent session's working directory. Defaults to the parent's working directory."
                 },
                 "async": {
                     "type": "boolean",
@@ -1096,7 +1101,7 @@ impl SummonClient {
             .context
             .session_manager
             .create_session(
-                working_dir,
+                task_config.parent_working_dir.clone(),
                 "Delegated task".to_string(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
@@ -1212,7 +1217,7 @@ impl SummonClient {
                 return Err(format!(
                     "Source '{}' has kind '{}' which cannot be delegated from summon",
                     source_name, source.source_type
-                ))
+                ));
             }
         };
 
@@ -1387,8 +1392,34 @@ impl SummonClient {
             );
         }
 
-        let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
-            .with_max_turns(Some(max_turns));
+        let effective_working_dir = if let Some(ref dir) = params.working_dir {
+            let requested = PathBuf::from(dir);
+            let resolved = if requested.is_absolute() {
+                requested
+            } else {
+                session.working_dir.join(&requested)
+            };
+            let canonical = resolved.canonicalize().map_err(|e| {
+                anyhow::anyhow!("working_dir '{}' could not be resolved: {}", dir, e)
+            })?;
+            let parent_canonical = session
+                .working_dir
+                .canonicalize()
+                .unwrap_or_else(|_| session.working_dir.clone());
+            if !canonical.starts_with(&parent_canonical) {
+                anyhow::bail!(
+                    "working_dir '{}' is outside the parent session directory",
+                    dir
+                );
+            }
+            canonical
+        } else {
+            session.working_dir.clone()
+        };
+
+        let task_config =
+            TaskConfig::new(provider, &session.id, &effective_working_dir, extensions)
+                .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1599,7 +1630,7 @@ impl SummonClient {
             .context
             .session_manager
             .create_session(
-                working_dir,
+                task_config.parent_working_dir.clone(),
                 description.clone(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
@@ -2428,11 +2459,13 @@ You review code."#;
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
 
-        assert!(!client
-            .completed_tasks
-            .lock()
-            .await
-            .contains_key("20260204_2"));
+        assert!(
+            !client
+                .completed_tasks
+                .lock()
+                .await
+                .contains_key("20260204_2")
+        );
 
         let result = client
             .handle_load_task_result("20260204_3", false)
@@ -2484,10 +2517,12 @@ You review code."#;
         assert!(text.contains("20260204_1"));
         assert!(text.contains("Cancellable task"));
         assert!(token.is_cancelled());
-        assert!(!client
-            .background_tasks
-            .lock()
-            .await
-            .contains_key("20260204_1"));
+        assert!(
+            !client
+                .background_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
     }
 }
