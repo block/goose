@@ -1370,6 +1370,18 @@ impl SummonClient {
             if filter.is_empty() {
                 extensions = Vec::new();
             } else {
+                let available_names: Vec<String> =
+                    extensions.iter().map(|ext| ext.name()).collect();
+                let unmatched: Vec<&String> = filter
+                    .iter()
+                    .filter(|name| !available_names.contains(name))
+                    .collect();
+                if !unmatched.is_empty() {
+                    warn!(
+                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        unmatched, available_names
+                    );
+                }
                 extensions.retain(|ext| filter.contains(&ext.name()));
             }
         }
