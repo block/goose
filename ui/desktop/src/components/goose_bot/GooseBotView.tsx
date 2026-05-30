@@ -1,0 +1,311 @@
+import { useCallback, useEffect, useState } from 'react';
+import {
+  AlertCircle,
+  BarChart3,
+  ExternalLink,
+  Info,
+  ListChecks,
+  Plug,
+  Settings as SettingsIcon,
+} from 'lucide-react';
+import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { ScrollArea } from '../ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Card, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
+import { getTunnelStatus } from '../../api/sdk.gen';
+import type { TunnelInfo } from '../../api/types.gen';
+import { defineMessages, useIntl } from '../../i18n';
+import GooseBotGeneral from './sections/GooseBotGeneral';
+import GooseBotCodeReview from './sections/GooseBotCodeReview';
+import GooseBotAnalytics from './sections/GooseBotAnalytics';
+import GooseBotConnectors from './sections/GooseBotConnectors';
+import { SaveIndicator } from './SaveIndicator';
+import { useGooseBotPrefs } from './useGooseBotPrefs';
+import { fetchGooseBotInstallId } from '../../utils/gooseBotSetup';
+
+const STORAGE_KEY = 'goose-bot:installation';
+
+export interface StoredInstall {
+  installationId: number;
+  enabledAt: string;
+}
+
+function loadStoredInstall(): StoredInstall | null {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as StoredInstall;
+  } catch {
+    return null;
+  }
+}
+
+const i18n = defineMessages({
+  pageTitle: {
+    id: 'gooseBotView.pageTitle',
+    defaultMessage: 'Goose Bot',
+  },
+  tabGeneral: {
+    id: 'gooseBotView.tabGeneral',
+    defaultMessage: 'General',
+  },
+  tabCodeReview: {
+    id: 'gooseBotView.tabCodeReview',
+    defaultMessage: 'Configure',
+  },
+  tabAnalytics: {
+    id: 'gooseBotView.tabAnalytics',
+    defaultMessage: 'Analytics',
+  },
+  tabConnectors: {
+    id: 'gooseBotView.tabConnectors',
+    defaultMessage: 'Connectors',
+  },
+  notConnectedBannerTitle: {
+    id: 'gooseBotView.notConnectedBannerTitle',
+    defaultMessage: 'Goose Bot is not connected yet',
+  },
+  notConnectedBannerBody: {
+    id: 'gooseBotView.notConnectedBannerBody',
+    defaultMessage:
+      'Connect the GitHub App in the Connectors tab to start receiving automated PR reviews.',
+  },
+  notConnectedBannerCta: {
+    id: 'gooseBotView.notConnectedBannerCta',
+    defaultMessage: 'Go to Connectors',
+  },
+  experimentalBannerTitle: {
+    id: 'gooseBotView.experimentalBannerTitle',
+    defaultMessage: 'Experimental feature',
+  },
+  experimentalBannerBody: {
+    id: 'gooseBotView.experimentalBannerBody',
+    defaultMessage:
+      "Goose Bot is in early access - we're gathering feedback. Share bug reports and ideas on",
+  },
+  experimentalBannerIssues: {
+    id: 'gooseBotView.experimentalBannerIssues',
+    defaultMessage: 'GitHub Issues',
+  },
+  experimentalBannerOr: {
+    id: 'gooseBotView.experimentalBannerOr',
+    defaultMessage: 'or',
+  },
+  experimentalBannerDiscord: {
+    id: 'gooseBotView.experimentalBannerDiscord',
+    defaultMessage: 'Discord',
+  },
+});
+
+export default function GooseBotView() {
+  const intl = useIntl();
+  const [activeTab, setActiveTab] = useState('general');
+  const [tunnelInfo, setTunnelInfo] = useState<TunnelInfo>({
+    state: 'idle',
+    url: '',
+    hostname: '',
+    secret: '',
+  });
+  const [stored, setStored] = useState<StoredInstall | null>(loadStoredInstall);
+  const {
+    prefs,
+    update: updatePrefs,
+    retry: retryPrefs,
+    clearInstall: clearGooseBotInstall,
+    syncState,
+  } = useGooseBotPrefs();
+
+  const refreshTunnel = useCallback(async () => {
+    try {
+      const { data } = await getTunnelStatus();
+      if (data) setTunnelInfo(data);
+    } catch (err) {
+      console.error('Failed to read tunnel status:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshTunnel();
+  }, [refreshTunnel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const installationId = await fetchGooseBotInstallId();
+        if (cancelled) return;
+        if (installationId != null) {
+          const record: StoredInstall = {
+            installationId,
+            enabledAt: stored?.enabledAt ?? new Date().toISOString(),
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+          setStored(record);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+          setStored(null);
+        }
+      } catch {
+        // goosed unreachable - keep existing localStorage hint
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync once on mount
+  }, []);
+
+  const handleInstallSaved = (record: StoredInstall) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+    setStored(record);
+    refreshTunnel();
+  };
+
+  const handleInstallCleared = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    clearGooseBotInstall();
+    setStored(null);
+  };
+
+  const isConnected = stored !== null && tunnelInfo.state === 'running';
+
+  return (
+    <MainPanelLayout>
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="bg-background-primary px-8 pb-8 pt-16">
+          <div className="flex flex-col page-transition">
+            <div className="flex justify-between items-center mb-1">
+              <h1 className="text-4xl font-light">{intl.formatMessage(i18n.pageTitle)}</h1>
+              <SaveIndicator syncState={syncState} onRetry={retryPrefs} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 relative px-6">
+          <div className="flex items-start gap-2 p-2 mb-3 mr-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+            <Info className="h-4 w-4 text-yellow-700 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-yellow-900 dark:text-yellow-200">
+              <strong>{intl.formatMessage(i18n.experimentalBannerTitle)}:</strong>{' '}
+              {intl.formatMessage(i18n.experimentalBannerBody)}{' '}
+              <button
+                type="button"
+                onClick={() =>
+                  window.electron.openExternal('https://github.com/block/goose/issues')
+                }
+                className="inline-flex items-center gap-1 underline hover:no-underline"
+              >
+                {intl.formatMessage(i18n.experimentalBannerIssues)}
+                <ExternalLink className="h-3 w-3" />
+              </button>{' '}
+              {intl.formatMessage(i18n.experimentalBannerOr)}{' '}
+              <button
+                type="button"
+                onClick={() => window.electron.openExternal('https://discord.gg/goose-oss')}
+                className="inline-flex items-center gap-1 underline hover:no-underline"
+              >
+                {intl.formatMessage(i18n.experimentalBannerDiscord)}
+                <ExternalLink className="h-3 w-3" />
+              </button>
+              .
+            </div>
+          </div>
+
+          {!isConnected && activeTab !== 'connectors' && (
+            <Card className="rounded-lg border-amber-300 dark:border-amber-800 mb-4 mr-4">
+              <CardContent className="pt-4 px-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-text-primary text-xs font-medium">
+                    {intl.formatMessage(i18n.notConnectedBannerTitle)}
+                  </p>
+                  <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                    {intl.formatMessage(i18n.notConnectedBannerBody)}
+                  </p>
+                </div>
+                <Button size="sm" variant="default" onClick={() => setActiveTab('connectors')}>
+                  {intl.formatMessage(i18n.notConnectedBannerCta)}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+            <div className="px-1">
+              <TabsList className="w-full mb-2 justify-start overflow-x-auto flex-nowrap">
+                <TabsTrigger
+                  value="general"
+                  className="flex gap-2"
+                  data-testid="goose-bot-general-tab"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  {intl.formatMessage(i18n.tabGeneral)}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="code-review"
+                  className="flex gap-2"
+                  data-testid="goose-bot-code-review-tab"
+                >
+                  <ListChecks className="h-4 w-4" />
+                  {intl.formatMessage(i18n.tabCodeReview)}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="analytics"
+                  className="flex gap-2"
+                  data-testid="goose-bot-analytics-tab"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  {intl.formatMessage(i18n.tabAnalytics)}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="connectors"
+                  className="flex gap-2"
+                  data-testid="goose-bot-connectors-tab"
+                >
+                  <Plug className="h-4 w-4" />
+                  {intl.formatMessage(i18n.tabConnectors)}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <ScrollArea className="flex-1 px-2">
+              <TabsContent
+                value="general"
+                className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+              >
+                <GooseBotGeneral prefs={prefs} onUpdate={updatePrefs} />
+              </TabsContent>
+
+              <TabsContent
+                value="code-review"
+                className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+              >
+                <GooseBotCodeReview prefs={prefs} onUpdate={updatePrefs} />
+              </TabsContent>
+
+              <TabsContent
+                value="analytics"
+                className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+              >
+                <GooseBotAnalytics enabled={prefs !== null} />
+              </TabsContent>
+
+              <TabsContent
+                value="connectors"
+                className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+              >
+                <GooseBotConnectors
+                  tunnelInfo={tunnelInfo}
+                  stored={stored}
+                  onInstallSaved={handleInstallSaved}
+                  onInstallCleared={handleInstallCleared}
+                  onRefreshTunnel={refreshTunnel}
+                />
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
+        </div>
+      </div>
+    </MainPanelLayout>
+  );
+}

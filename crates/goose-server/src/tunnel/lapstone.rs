@@ -27,7 +27,7 @@ fn secure_compare(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
-/// Only Copilot endpoints may be reached through the public tunnel.
+/// Only Goose Bot endpoints may be reached through the public tunnel.
 fn tunnel_path_allowed(path: &str) -> bool {
     let path = path.split('?').next().unwrap_or(path);
     if path.contains("..") {
@@ -35,7 +35,7 @@ fn tunnel_path_allowed(path: &str) -> bool {
     }
     matches!(
         path,
-        "/copilot/review" | "/copilot/comment" | "/copilot/status"
+        "/goose-bot/review" | "/goose-bot/comment" | "/goose-bot/status"
     )
 }
 
@@ -659,19 +659,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tunnel_path_allowed_accepts_copilot_routes() {
-        assert!(tunnel_path_allowed("/copilot/review"));
-        assert!(tunnel_path_allowed("/copilot/comment"));
-        assert!(tunnel_path_allowed("/copilot/status"));
-        assert!(tunnel_path_allowed("/copilot/status?x=1"));
+    fn tunnel_path_allowed_accepts_goose_bot_routes() {
+        assert!(tunnel_path_allowed("/goose-bot/review"));
+        assert!(tunnel_path_allowed("/goose-bot/comment"));
+        assert!(tunnel_path_allowed("/goose-bot/status"));
+        assert!(tunnel_path_allowed("/goose-bot/status?x=1"));
     }
 
     #[test]
     fn tunnel_path_allowed_rejects_other_paths() {
         assert!(!tunnel_path_allowed("/config"));
         assert!(!tunnel_path_allowed("/agent/start"));
-        assert!(!tunnel_path_allowed("/copilot/../config"));
-        assert!(!tunnel_path_allowed("/copilot/setup"));
+        assert!(!tunnel_path_allowed("/goose-bot/../config"));
+        assert!(!tunnel_path_allowed("/goose-bot/setup"));
     }
 
     #[test]

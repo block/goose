@@ -45,7 +45,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
-import CopilotView from './components/copilot/CopilotView';
+import GooseBotView from './components/goose_bot/GooseBotView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
@@ -214,8 +214,8 @@ const SkillsRoute = () => {
   return <SkillsView />;
 };
 
-const CopilotRoute = () => {
-  return <CopilotView />;
+const GooseBotRoute = () => {
+  return <GooseBotView />;
 };
 
 const PermissionRoute = () => {
@@ -701,7 +701,7 @@ export function AppInner() {
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="skills" element={<SkillsRoute />} />
-              <Route path="copilot" element={<CopilotRoute />} />
+              <Route path="goose-bot" element={<GooseBotRoute />} />
               <Route
                 path="shared-session"
                 element={

@@ -294,45 +294,6 @@ export const upsertConfig = <ThrowOnError extends boolean = false>(options: Opti
 
 export const validateConfig = <ThrowOnError extends boolean = false>(options?: Options<ValidateConfigData, ThrowOnError>) => (options?.client ?? client).get<ValidateConfigResponses, ValidateConfigErrors, ThrowOnError>({ url: '/config/validate', ...options });
 
-export const getAnalytics = <ThrowOnError extends boolean = false>(options?: Options<GetAnalyticsData, ThrowOnError>) => (options?.client ?? client).get<GetAnalyticsResponses, GetAnalyticsErrors, ThrowOnError>({ url: '/copilot/analytics', ...options });
-
-export const comment = <ThrowOnError extends boolean = false>(options: Options<CommentData, ThrowOnError>) => (options.client ?? client).post<CommentResponses, CommentErrors, ThrowOnError>({
-    url: '/copilot/comment',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-export const getPrefs = <ThrowOnError extends boolean = false>(options?: Options<GetPrefsData, ThrowOnError>) => (options?.client ?? client).get<GetPrefsResponses, GetPrefsErrors, ThrowOnError>({ url: '/copilot/prefs', ...options });
-
-export const putPrefs = <ThrowOnError extends boolean = false>(options: Options<PutPrefsData, ThrowOnError>) => (options.client ?? client).put<PutPrefsResponses, PutPrefsErrors, ThrowOnError>({
-    url: '/copilot/prefs',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-export const getRepos = <ThrowOnError extends boolean = false>(options?: Options<GetReposData, ThrowOnError>) => (options?.client ?? client).get<GetReposResponses, GetReposErrors, ThrowOnError>({ url: '/copilot/repos', ...options });
-
-export const review = <ThrowOnError extends boolean = false>(options: Options<ReviewData, ThrowOnError>) => (options.client ?? client).post<ReviewResponses, ReviewErrors, ThrowOnError>({
-    url: '/copilot/review',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-export const disconnect = <ThrowOnError extends boolean = false>(options?: Options<DisconnectData, ThrowOnError>) => (options?.client ?? client).delete<DisconnectResponses, DisconnectErrors, ThrowOnError>({ url: '/copilot/setup', ...options });
-
-export const setup = <ThrowOnError extends boolean = false>(options?: Options<SetupData, ThrowOnError>) => (options?.client ?? client).post<SetupResponses, SetupErrors, ThrowOnError>({ url: '/copilot/setup', ...options });
-
-export const getStatus = <ThrowOnError extends boolean = false>(options?: Options<GetStatusData, ThrowOnError>) => (options?.client ?? client).get<GetStatusResponses, unknown, ThrowOnError>({ url: '/copilot/status', ...options });
-
 export const diagnostics = <ThrowOnError extends boolean = false>(options: Options<DiagnosticsData, ThrowOnError>) => (options.client ?? client).get<DiagnosticsResponses, DiagnosticsErrors, ThrowOnError>({ url: '/diagnostics/{session_id}', ...options });
 
 export const getDictationConfig = <ThrowOnError extends boolean = false>(options?: Options<GetDictationConfigData, ThrowOnError>) => (options?.client ?? client).get<GetDictationConfigResponses, unknown, ThrowOnError>({ url: '/dictation/config', ...options });
@@ -357,6 +318,45 @@ export const transcribeDictation = <ThrowOnError extends boolean = false>(option
 });
 
 export const getFeatures = <ThrowOnError extends boolean = false>(options?: Options<GetFeaturesData, ThrowOnError>) => (options?.client ?? client).get<GetFeaturesResponses, unknown, ThrowOnError>({ url: '/features', ...options });
+
+export const getAnalytics = <ThrowOnError extends boolean = false>(options?: Options<GetAnalyticsData, ThrowOnError>) => (options?.client ?? client).get<GetAnalyticsResponses, GetAnalyticsErrors, ThrowOnError>({ url: '/goose-bot/analytics', ...options });
+
+export const comment = <ThrowOnError extends boolean = false>(options: Options<CommentData, ThrowOnError>) => (options.client ?? client).post<CommentResponses, CommentErrors, ThrowOnError>({
+    url: '/goose-bot/comment',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getPrefs = <ThrowOnError extends boolean = false>(options?: Options<GetPrefsData, ThrowOnError>) => (options?.client ?? client).get<GetPrefsResponses, GetPrefsErrors, ThrowOnError>({ url: '/goose-bot/prefs', ...options });
+
+export const putPrefs = <ThrowOnError extends boolean = false>(options: Options<PutPrefsData, ThrowOnError>) => (options.client ?? client).put<PutPrefsResponses, PutPrefsErrors, ThrowOnError>({
+    url: '/goose-bot/prefs',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getRepos = <ThrowOnError extends boolean = false>(options?: Options<GetReposData, ThrowOnError>) => (options?.client ?? client).get<GetReposResponses, GetReposErrors, ThrowOnError>({ url: '/goose-bot/repos', ...options });
+
+export const review = <ThrowOnError extends boolean = false>(options: Options<ReviewData, ThrowOnError>) => (options.client ?? client).post<ReviewResponses, ReviewErrors, ThrowOnError>({
+    url: '/goose-bot/review',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const disconnect = <ThrowOnError extends boolean = false>(options?: Options<DisconnectData, ThrowOnError>) => (options?.client ?? client).delete<DisconnectResponses, DisconnectErrors, ThrowOnError>({ url: '/goose-bot/setup', ...options });
+
+export const setup = <ThrowOnError extends boolean = false>(options?: Options<SetupData, ThrowOnError>) => (options?.client ?? client).post<SetupResponses, SetupErrors, ThrowOnError>({ url: '/goose-bot/setup', ...options });
+
+export const getStatus = <ThrowOnError extends boolean = false>(options?: Options<GetStatusData, ThrowOnError>) => (options?.client ?? client).get<GetStatusResponses, unknown, ThrowOnError>({ url: '/goose-bot/status', ...options });
 
 export const startNanogptSetup = <ThrowOnError extends boolean = false>(options?: Options<StartNanogptSetupData, ThrowOnError>) => (options?.client ?? client).post<StartNanogptSetupResponses, unknown, ThrowOnError>({ url: '/handle_nanogpt', ...options });
 

@@ -173,98 +173,6 @@ export type ContentBlock = ({
 
 export type Conversation = Array<Message>;
 
-export type CopilotAnalytics = {
-    commits_pushed?: number;
-    issues_handled?: number;
-    prs_reviewed?: number;
-};
-
-export type CopilotCommentRequest = {
-    comment_body: string;
-    comment_id?: number | null;
-    commenter: string;
-    github_token: string;
-    head_ref?: string;
-    head_repo?: string;
-    /**
-     * Omitted in older switchboard payloads (treated as PR); current switchboard always sends this.
-     */
-    is_pr?: boolean;
-    pr_number: number;
-    pr_url: string;
-    repo: string;
-};
-
-export type CopilotDisconnectResponse = {
-    disconnected: boolean;
-};
-
-export type CopilotPrefs = {
-    allow_act_on_issues?: boolean;
-    allow_commit_on_fix?: boolean;
-    allow_open_new_prs?: boolean;
-    auto_review_on_pr_open?: boolean;
-    custom_instructions?: string;
-    review_model?: string | null;
-    review_model_choice?: ReviewModelChoice;
-    review_output_style?: ReviewOutputStyle;
-    review_provider?: string | null;
-    review_severity?: ReviewSeverity;
-    schema_version?: number;
-    specific_users_allowlist?: Array<string>;
-    trigger_permission?: TriggerPermission;
-    trigger_preference?: TriggerPreference;
-};
-
-export type CopilotPrefsRequest = {
-    prefs: CopilotPrefs;
-};
-
-export type CopilotPrefsResponse = {
-    prefs: CopilotPrefs;
-    switchboard_error?: string | null;
-    switchboard_synced: boolean;
-};
-
-export type CopilotRepo = {
-    archived?: boolean;
-    default_branch?: string;
-    full_name: string;
-    html_url?: string;
-    id: number;
-    name: string;
-    owner: string;
-    visibility?: RepoVisibility;
-};
-
-export type CopilotReposResponse = {
-    repos: Array<CopilotRepo>;
-    total_count: number;
-    truncated?: boolean;
-};
-
-export type CopilotReviewRequest = {
-    check_run_id?: number | null;
-    comment_id?: number | null;
-    github_token: string;
-    head_sha: string;
-    pr_number: number;
-    pr_url: string;
-    repo: string;
-};
-
-export type CopilotReviewResponse = {
-    accepted: boolean;
-};
-
-export type CopilotSetupResponse = {
-    installation_id: number;
-};
-
-export type CopilotStatusResponse = {
-    installation_id?: number | null;
-};
-
 export type CreateCustomProviderResponse = {
     provider_name: string;
 };
@@ -630,6 +538,98 @@ export type GetToolsQuery = {
 export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServers?: Array<string>;
     prd?: string | null;
+};
+
+export type GooseBotAnalytics = {
+    commits_pushed?: number;
+    issues_handled?: number;
+    prs_reviewed?: number;
+};
+
+export type GooseBotCommentRequest = {
+    comment_body: string;
+    comment_id?: number | null;
+    commenter: string;
+    github_token: string;
+    head_ref?: string;
+    head_repo?: string;
+    /**
+     * Omitted in older switchboard payloads (treated as PR); current switchboard always sends this.
+     */
+    is_pr?: boolean;
+    pr_number: number;
+    pr_url: string;
+    repo: string;
+};
+
+export type GooseBotDisconnectResponse = {
+    disconnected: boolean;
+};
+
+export type GooseBotPrefs = {
+    allow_act_on_issues?: boolean;
+    allow_commit_on_fix?: boolean;
+    allow_open_new_prs?: boolean;
+    auto_review_on_pr_open?: boolean;
+    custom_instructions?: string;
+    review_model?: string | null;
+    review_model_choice?: ReviewModelChoice;
+    review_output_style?: ReviewOutputStyle;
+    review_provider?: string | null;
+    review_severity?: ReviewSeverity;
+    schema_version?: number;
+    specific_users_allowlist?: Array<string>;
+    trigger_permission?: TriggerPermission;
+    trigger_preference?: TriggerPreference;
+};
+
+export type GooseBotPrefsRequest = {
+    prefs: GooseBotPrefs;
+};
+
+export type GooseBotPrefsResponse = {
+    prefs: GooseBotPrefs;
+    switchboard_error?: string | null;
+    switchboard_synced: boolean;
+};
+
+export type GooseBotRepo = {
+    archived?: boolean;
+    default_branch?: string;
+    full_name: string;
+    html_url?: string;
+    id: number;
+    name: string;
+    owner: string;
+    visibility?: RepoVisibility;
+};
+
+export type GooseBotReposResponse = {
+    repos: Array<GooseBotRepo>;
+    total_count: number;
+    truncated?: boolean;
+};
+
+export type GooseBotReviewRequest = {
+    check_run_id?: number | null;
+    comment_id?: number | null;
+    github_token: string;
+    head_sha: string;
+    pr_number: number;
+    pr_url: string;
+    repo: string;
+};
+
+export type GooseBotReviewResponse = {
+    accepted: boolean;
+};
+
+export type GooseBotSetupResponse = {
+    installation_id: number;
+};
+
+export type GooseBotStatusResponse = {
+    installation_id?: number | null;
 };
 
 export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
@@ -3173,218 +3173,6 @@ export type ValidateConfigResponses = {
 
 export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
 
-export type GetAnalyticsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/copilot/analytics';
-};
-
-export type GetAnalyticsErrors = {
-    /**
-     * Setup not completed
-     */
-    412: unknown;
-};
-
-export type GetAnalyticsResponses = {
-    /**
-     * Per-install analytics rollups
-     */
-    200: CopilotAnalytics;
-};
-
-export type GetAnalyticsResponse = GetAnalyticsResponses[keyof GetAnalyticsResponses];
-
-export type CommentData = {
-    body: CopilotCommentRequest;
-    path?: never;
-    query?: never;
-    url: '/copilot/comment';
-};
-
-export type CommentErrors = {
-    /**
-     * Internal error
-     */
-    500: unknown;
-};
-
-export type CommentResponses = {
-    /**
-     * Comment accepted, replying in background
-     */
-    200: CopilotReviewResponse;
-};
-
-export type CommentResponse = CommentResponses[keyof CommentResponses];
-
-export type GetPrefsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/copilot/prefs';
-};
-
-export type GetPrefsErrors = {
-    /**
-     * Internal error
-     */
-    500: unknown;
-};
-
-export type GetPrefsResponses = {
-    /**
-     * Current Copilot preferences
-     */
-    200: CopilotPrefs;
-};
-
-export type GetPrefsResponse = GetPrefsResponses[keyof GetPrefsResponses];
-
-export type PutPrefsData = {
-    body: CopilotPrefsRequest;
-    path?: never;
-    query?: never;
-    url: '/copilot/prefs';
-};
-
-export type PutPrefsErrors = {
-    /**
-     * Validation error
-     */
-    400: unknown;
-    /**
-     * Internal error
-     */
-    500: unknown;
-};
-
-export type PutPrefsResponses = {
-    /**
-     * Preferences saved
-     */
-    200: CopilotPrefsResponse;
-};
-
-export type PutPrefsResponse = PutPrefsResponses[keyof PutPrefsResponses];
-
-export type GetReposData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/copilot/repos';
-};
-
-export type GetReposErrors = {
-    /**
-     * Setup not completed
-     */
-    412: unknown;
-    /**
-     * Switchboard / GitHub error
-     */
-    502: unknown;
-};
-
-export type GetReposResponses = {
-    /**
-     * Repos accessible to the installation
-     */
-    200: CopilotReposResponse;
-};
-
-export type GetReposResponse = GetReposResponses[keyof GetReposResponses];
-
-export type ReviewData = {
-    body: CopilotReviewRequest;
-    path?: never;
-    query?: never;
-    url: '/copilot/review';
-};
-
-export type ReviewErrors = {
-    /**
-     * Internal error
-     */
-    500: unknown;
-};
-
-export type ReviewResponses = {
-    /**
-     * Review accepted, running in background
-     */
-    200: CopilotReviewResponse;
-};
-
-export type ReviewResponse = ReviewResponses[keyof ReviewResponses];
-
-export type DisconnectData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/copilot/setup';
-};
-
-export type DisconnectErrors = {
-    /**
-     * Internal error
-     */
-    500: unknown;
-};
-
-export type DisconnectResponses = {
-    /**
-     * Local install cleared and switchboard registration removed
-     */
-    200: CopilotDisconnectResponse;
-};
-
-export type DisconnectResponse = DisconnectResponses[keyof DisconnectResponses];
-
-export type SetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/copilot/setup';
-};
-
-export type SetupErrors = {
-    /**
-     * Install timed out
-     */
-    408: unknown;
-    /**
-     * Internal error
-     */
-    500: unknown;
-};
-
-export type SetupResponses = {
-    /**
-     * Goose Copilot connected
-     */
-    200: CopilotSetupResponse;
-};
-
-export type SetupResponse2 = SetupResponses[keyof SetupResponses];
-
-export type GetStatusData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/copilot/status';
-};
-
-export type GetStatusResponses = {
-    /**
-     * Cached GitHub App installation id
-     */
-    200: CopilotStatusResponse;
-};
-
-export type GetStatusResponse = GetStatusResponses[keyof GetStatusResponses];
-
 export type DiagnosticsData = {
     body?: never;
     path: {
@@ -3616,6 +3404,218 @@ export type GetFeaturesResponses = {
 };
 
 export type GetFeaturesResponse = GetFeaturesResponses[keyof GetFeaturesResponses];
+
+export type GetAnalyticsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/analytics';
+};
+
+export type GetAnalyticsErrors = {
+    /**
+     * Setup not completed
+     */
+    412: unknown;
+};
+
+export type GetAnalyticsResponses = {
+    /**
+     * Per-install analytics rollups
+     */
+    200: GooseBotAnalytics;
+};
+
+export type GetAnalyticsResponse = GetAnalyticsResponses[keyof GetAnalyticsResponses];
+
+export type CommentData = {
+    body: GooseBotCommentRequest;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/comment';
+};
+
+export type CommentErrors = {
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type CommentResponses = {
+    /**
+     * Comment accepted, replying in background
+     */
+    200: GooseBotReviewResponse;
+};
+
+export type CommentResponse = CommentResponses[keyof CommentResponses];
+
+export type GetPrefsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/prefs';
+};
+
+export type GetPrefsErrors = {
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type GetPrefsResponses = {
+    /**
+     * Current Goose Bot preferences
+     */
+    200: GooseBotPrefs;
+};
+
+export type GetPrefsResponse = GetPrefsResponses[keyof GetPrefsResponses];
+
+export type PutPrefsData = {
+    body: GooseBotPrefsRequest;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/prefs';
+};
+
+export type PutPrefsErrors = {
+    /**
+     * Validation error
+     */
+    400: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type PutPrefsResponses = {
+    /**
+     * Preferences saved
+     */
+    200: GooseBotPrefsResponse;
+};
+
+export type PutPrefsResponse = PutPrefsResponses[keyof PutPrefsResponses];
+
+export type GetReposData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/repos';
+};
+
+export type GetReposErrors = {
+    /**
+     * Setup not completed
+     */
+    412: unknown;
+    /**
+     * Switchboard / GitHub error
+     */
+    502: unknown;
+};
+
+export type GetReposResponses = {
+    /**
+     * Repos accessible to the installation
+     */
+    200: GooseBotReposResponse;
+};
+
+export type GetReposResponse = GetReposResponses[keyof GetReposResponses];
+
+export type ReviewData = {
+    body: GooseBotReviewRequest;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/review';
+};
+
+export type ReviewErrors = {
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type ReviewResponses = {
+    /**
+     * Review accepted, running in background
+     */
+    200: GooseBotReviewResponse;
+};
+
+export type ReviewResponse = ReviewResponses[keyof ReviewResponses];
+
+export type DisconnectData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/setup';
+};
+
+export type DisconnectErrors = {
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type DisconnectResponses = {
+    /**
+     * Local install cleared and switchboard registration removed
+     */
+    200: GooseBotDisconnectResponse;
+};
+
+export type DisconnectResponse = DisconnectResponses[keyof DisconnectResponses];
+
+export type SetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/setup';
+};
+
+export type SetupErrors = {
+    /**
+     * Install timed out
+     */
+    408: unknown;
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type SetupResponses = {
+    /**
+     * Goose Bot connected
+     */
+    200: GooseBotSetupResponse;
+};
+
+export type SetupResponse2 = SetupResponses[keyof SetupResponses];
+
+export type GetStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/goose-bot/status';
+};
+
+export type GetStatusResponses = {
+    /**
+     * Cached GitHub App installation id
+     */
+    200: GooseBotStatusResponse;
+};
+
+export type GetStatusResponse = GetStatusResponses[keyof GetStatusResponses];
 
 export type StartNanogptSetupData = {
     body?: never;
