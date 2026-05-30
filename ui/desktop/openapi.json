@@ -2185,6 +2185,9 @@
           "408": {
             "description": "Install timed out"
           },
+          "409": {
+            "description": "GitHub App is not installed"
+          },
           "500": {
             "description": "Internal error"
           }

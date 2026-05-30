@@ -46,6 +46,17 @@ impl GooseBotInstallFlow {
         self
     }
 
+    pub fn app_install_url(&self) -> String {
+        format!(
+            "https://github.com/apps/{}/installations/new?state={}",
+            APP_SLUG, self.state
+        )
+    }
+
+    pub fn open_app_install_url(&self) {
+        let _ = webbrowser::open(&self.app_install_url());
+    }
+
     pub fn install_url(&self) -> String {
         if let Some(client_id) = &self.oauth_client_id {
             return format!(
@@ -55,11 +66,7 @@ impl GooseBotInstallFlow {
                 urlencoding::encode(&Self::callback_url())
             );
         }
-        // Fallback: legacy install URL - only works on first install.
-        format!(
-            "https://github.com/apps/{}/installations/new?state={}",
-            APP_SLUG, self.state
-        )
+        self.app_install_url()
     }
 
     pub fn callback_url() -> String {

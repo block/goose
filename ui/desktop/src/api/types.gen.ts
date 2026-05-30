@@ -3587,6 +3587,10 @@ export type SetupErrors = {
      */
     408: unknown;
     /**
+     * GitHub App is not installed
+     */
+    409: unknown;
+    /**
      * Internal error
      */
     500: unknown;

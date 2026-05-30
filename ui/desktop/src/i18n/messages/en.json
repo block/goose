@@ -335,240 +335,6 @@
   "conversationLimitsDropdown.maxTurnsDescription": {
     "defaultMessage": "Maximum agent turns before Goose asks for user input"
   },
-  "gooseBotAnalytics.commitsPushed": {
-    "defaultMessage": "Commits pushed"
-  },
-  "gooseBotAnalytics.issuesHandled": {
-    "defaultMessage": "Issues handled"
-  },
-  "gooseBotAnalytics.loadFailed": {
-    "defaultMessage": "Could not load analytics"
-  },
-  "gooseBotAnalytics.prsReviewed": {
-    "defaultMessage": "PRs reviewed"
-  },
-  "gooseBotAnalytics.retry": {
-    "defaultMessage": "Retry"
-  },
-  "gooseBotCodeReview.allowCommitHelper": {
-    "defaultMessage": "When someone asks @aaif-goose-bot to fix issues, push the resulting changes to the PR branch as aaif-goose-bot[bot]."
-  },
-  "gooseBotCodeReview.allowCommitLabel": {
-    "defaultMessage": "Allow pushing commits to PR branches"
-  },
-  "gooseBotCodeReview.allowIssuesHelper": {
-    "defaultMessage": "Let @aaif-goose-bot answer questions and draft PRs from issue comments, not just from inside pull requests."
-  },
-  "gooseBotCodeReview.allowIssuesLabel": {
-    "defaultMessage": "Respond to mentions on issues"
-  },
-  "gooseBotCodeReview.allowNewPrsHelper": {
-    "defaultMessage": "When someone @-mentions the bot on a plain issue and asks for a fix, push the changes on a fresh branch and open a PR linked back to the issue."
-  },
-  "gooseBotCodeReview.allowNewPrsLabel": {
-    "defaultMessage": "Open new pull requests for issue fixes"
-  },
-  "gooseBotCodeReview.allowlistHelper": {
-    "defaultMessage": "One GitHub username per line. Only listed users can mention the bot."
-  },
-  "gooseBotCodeReview.allowlistLabel": {
-    "defaultMessage": "Allowlist"
-  },
-  "gooseBotCodeReview.allowlistPlaceholder": {
-    "defaultMessage": "octocat"
-  },
-  "gooseBotCodeReview.autoReviewHelper": {
-    "defaultMessage": "All your pull requests in a Goose Bot-enabled repository will be automatically reviewed."
-  },
-  "gooseBotCodeReview.autoReviewLabel": {
-    "defaultMessage": "Personal auto review preferences"
-  },
-  "gooseBotCodeReview.hideArchived": {
-    "defaultMessage": "Hide archived repositories"
-  },
-  "gooseBotCodeReview.outputStyleHelper": {
-    "defaultMessage": "How findings are posted back to the pull request."
-  },
-  "gooseBotCodeReview.outputStyleLabel": {
-    "defaultMessage": "Review output style"
-  },
-  "gooseBotCodeReview.permissionsDescription": {
-    "defaultMessage": "Control who can interact with @aaif-goose-bot and what it is allowed to do."
-  },
-  "gooseBotCodeReview.permissionsTitle": {
-    "defaultMessage": "Permissions"
-  },
-  "gooseBotCodeReview.repoColBranch": {
-    "defaultMessage": "Default branch"
-  },
-  "gooseBotCodeReview.repoColRepo": {
-    "defaultMessage": "Repository"
-  },
-  "gooseBotCodeReview.repoColVisibility": {
-    "defaultMessage": "Visibility"
-  },
-  "gooseBotCodeReview.repoCount": {
-    "defaultMessage": "{shown,plural,one{# repository accessible} other{# repositories accessible}}"
-  },
-  "gooseBotCodeReview.repoEmptyConnected": {
-    "defaultMessage": "Per-repo overrides are coming soon - the bot uses your personal defaults for every connected repo for now."
-  },
-  "gooseBotCodeReview.repoError": {
-    "defaultMessage": "Could not load repositories"
-  },
-  "gooseBotCodeReview.repoLoading": {
-    "defaultMessage": "Loading repositories..."
-  },
-  "gooseBotCodeReview.repoNoMatch": {
-    "defaultMessage": "No repositories match your search."
-  },
-  "gooseBotCodeReview.repoPrefsTitle": {
-    "defaultMessage": "Repository preferences"
-  },
-  "gooseBotCodeReview.repoRetry": {
-    "defaultMessage": "Retry"
-  },
-  "gooseBotCodeReview.repoSearchPlaceholder": {
-    "defaultMessage": "Search repos or enter a GitHub org/repo"
-  },
-  "gooseBotCodeReview.repoTruncated": {
-    "defaultMessage": "Showing first {shown} of {total} - others omitted."
-  },
-  "gooseBotCodeReview.reviewDescription": {
-    "defaultMessage": "Configure when and how Goose Bot reviews pull requests."
-  },
-  "gooseBotCodeReview.reviewModelHelper": {
-    "defaultMessage": "Which model the review orchestrator uses. Defaults to the model goose is configured with."
-  },
-  "gooseBotCodeReview.reviewModelLabel": {
-    "defaultMessage": "Review model"
-  },
-  "gooseBotCodeReview.reviewTitle": {
-    "defaultMessage": "Code review"
-  },
-  "gooseBotCodeReview.setupBlurb": {
-    "defaultMessage": "When code review is on, Goose Bot automatically reviews pull requests and leaves inline suggestions. Mention @aaif-goose-bot in any PR comment to ask a question, request a manual review, or apply fixes."
-  },
-  "gooseBotCodeReview.severityHelper": {
-    "defaultMessage": "Findings below this rank are dropped from the review. Higher = quieter."
-  },
-  "gooseBotCodeReview.severityLabel": {
-    "defaultMessage": "Minimum severity to surface"
-  },
-  "gooseBotCodeReview.triggerHelper": {
-    "defaultMessage": "Choose when Goose Bot should automatically review your pull requests."
-  },
-  "gooseBotCodeReview.triggerLabel": {
-    "defaultMessage": "Personal review trigger preference"
-  },
-  "gooseBotCodeReview.triggerPermissionHelper": {
-    "defaultMessage": "Restrict who can @mention the bot to request reviews, fixes, or replies."
-  },
-  "gooseBotCodeReview.triggerPermissionLabel": {
-    "defaultMessage": "Who can trigger Goose Bot"
-  },
-  "gooseBotConnectors.awaitingInstall": {
-    "defaultMessage": "Finish installing on GitHub in your browser..."
-  },
-  "gooseBotConnectors.awaitingInstallHint": {
-    "defaultMessage": "A browser tab just opened to GitHub. Pick the repos you want reviewed and click Install & Authorize."
-  },
-  "gooseBotConnectors.connectedLabel": {
-    "defaultMessage": "Connected - installation {id}"
-  },
-  "gooseBotConnectors.disconnectAction": {
-    "defaultMessage": "Disconnect"
-  },
-  "gooseBotConnectors.disconnectHint": {
-    "defaultMessage": "Opens the GitHub App settings so you can uninstall. After you uninstall on GitHub, this side disconnects automatically."
-  },
-  "gooseBotConnectors.githubDescription": {
-    "defaultMessage": "Install the Goose Bot GitHub App on the repos you want auto-reviewed."
-  },
-  "gooseBotConnectors.githubTitle": {
-    "defaultMessage": "GitHub"
-  },
-  "gooseBotConnectors.installAction": {
-    "defaultMessage": "Connect GitHub"
-  },
-  "gooseBotConnectors.manageAction": {
-    "defaultMessage": "Manage on GitHub"
-  },
-  "gooseBotConnectors.notConnected": {
-    "defaultMessage": "Not connected"
-  },
-  "gooseBotConnectors.setupFailed": {
-    "defaultMessage": "Failed to connect Goose Bot"
-  },
-  "gooseBotGeneral.customInstructionsDescription": {
-    "defaultMessage": "Free-form rules appended to every review prompt. Use them to nudge the bot toward what your team actually cares about."
-  },
-  "gooseBotGeneral.customInstructionsHelper": {
-    "defaultMessage": "These instructions are appended verbatim to the system prompt the review orchestrator sends to the model."
-  },
-  "gooseBotGeneral.customInstructionsPlaceholder": {
-    "defaultMessage": "Example: Don't flag TODO comments. Be strict on missing tests. Treat any change under crates/goose/src/security/ as critical."
-  },
-  "gooseBotGeneral.customInstructionsTitle": {
-    "defaultMessage": "Custom instructions"
-  },
-  "gooseBotSaveIndicator.failed": {
-    "defaultMessage": "Couldn't save"
-  },
-  "gooseBotSaveIndicator.loading": {
-    "defaultMessage": "Loading..."
-  },
-  "gooseBotSaveIndicator.retry": {
-    "defaultMessage": "Retry"
-  },
-  "gooseBotSaveIndicator.saved": {
-    "defaultMessage": "Saved"
-  },
-  "gooseBotSaveIndicator.savedPending": {
-    "defaultMessage": "Saved locally - webhook sync pending"
-  },
-  "gooseBotSaveIndicator.syncing": {
-    "defaultMessage": "Saving..."
-  },
-  "gooseBotView.experimentalBannerBody": {
-    "defaultMessage": "Goose Bot is in early access - we're gathering feedback. Share bug reports and ideas on"
-  },
-  "gooseBotView.experimentalBannerDiscord": {
-    "defaultMessage": "Discord"
-  },
-  "gooseBotView.experimentalBannerIssues": {
-    "defaultMessage": "GitHub Issues"
-  },
-  "gooseBotView.experimentalBannerOr": {
-    "defaultMessage": "or"
-  },
-  "gooseBotView.experimentalBannerTitle": {
-    "defaultMessage": "Experimental feature"
-  },
-  "gooseBotView.notConnectedBannerBody": {
-    "defaultMessage": "Connect the GitHub App in the Connectors tab to start receiving automated PR reviews."
-  },
-  "gooseBotView.notConnectedBannerCta": {
-    "defaultMessage": "Go to Connectors"
-  },
-  "gooseBotView.notConnectedBannerTitle": {
-    "defaultMessage": "Goose Bot is not connected yet"
-  },
-  "gooseBotView.pageTitle": {
-    "defaultMessage": "Goose Bot"
-  },
-  "gooseBotView.tabAnalytics": {
-    "defaultMessage": "Analytics"
-  },
-  "gooseBotView.tabCodeReview": {
-    "defaultMessage": "Configure"
-  },
-  "gooseBotView.tabConnectors": {
-    "defaultMessage": "Connectors"
-  },
-  "gooseBotView.tabGeneral": {
-    "defaultMessage": "General"
-  },
   "costTracker.costUnavailable": {
     "defaultMessage": "Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)"
   },
@@ -1200,7 +966,7 @@
     "defaultMessage": "Voice Dictation Provider"
   },
   "dirSwitcher.chooseDirectory": {
-    "defaultMessage": "Choose directory..."
+    "defaultMessage": "Choose directory…"
   },
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Current directory"
@@ -1536,7 +1302,7 @@
     "defaultMessage": "An unexpected error occurred during setup."
   },
   "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Open @BotFather on your phone, send /newbot, and follow the prompts to name your bot. BotFather will reply with an API token - paste it below."
+    "defaultMessage": "Open @BotFather on your phone, send /newbot, and follow the prompts to name your bot. BotFather will reply with an API token — paste it below."
   },
   "gatewaySettings.close": {
     "defaultMessage": "Close"
@@ -1594,6 +1360,240 @@
   },
   "gatewaySettings.telegram": {
     "defaultMessage": "Telegram"
+  },
+  "gooseBotAnalytics.commitsPushed": {
+    "defaultMessage": "Commits pushed"
+  },
+  "gooseBotAnalytics.issuesHandled": {
+    "defaultMessage": "Issues handled"
+  },
+  "gooseBotAnalytics.loadFailed": {
+    "defaultMessage": "Could not load analytics"
+  },
+  "gooseBotAnalytics.prsReviewed": {
+    "defaultMessage": "PRs reviewed"
+  },
+  "gooseBotAnalytics.retry": {
+    "defaultMessage": "Retry"
+  },
+  "gooseBotCodeReview.allowCommitHelper": {
+    "defaultMessage": "When someone asks @aaif-goose-bot to fix issues, push the resulting changes to the PR branch as aaif-goose-bot[bot]."
+  },
+  "gooseBotCodeReview.allowCommitLabel": {
+    "defaultMessage": "Allow pushing commits to PR branches"
+  },
+  "gooseBotCodeReview.allowIssuesHelper": {
+    "defaultMessage": "Let @aaif-goose-bot answer questions and draft PRs from issue comments, not just from inside pull requests."
+  },
+  "gooseBotCodeReview.allowIssuesLabel": {
+    "defaultMessage": "Respond to mentions on issues"
+  },
+  "gooseBotCodeReview.allowNewPrsHelper": {
+    "defaultMessage": "When someone @-mentions the bot on a plain issue and asks for a fix, push the changes on a fresh branch and open a PR linked back to the issue."
+  },
+  "gooseBotCodeReview.allowNewPrsLabel": {
+    "defaultMessage": "Open new pull requests for issue fixes"
+  },
+  "gooseBotCodeReview.allowlistHelper": {
+    "defaultMessage": "One GitHub username per line. Only listed users can mention the bot."
+  },
+  "gooseBotCodeReview.allowlistLabel": {
+    "defaultMessage": "Allowlist"
+  },
+  "gooseBotCodeReview.allowlistPlaceholder": {
+    "defaultMessage": "octocat"
+  },
+  "gooseBotCodeReview.autoReviewHelper": {
+    "defaultMessage": "All your pull requests in a Goose Bot-enabled repository will be automatically reviewed."
+  },
+  "gooseBotCodeReview.autoReviewLabel": {
+    "defaultMessage": "Personal auto review preferences"
+  },
+  "gooseBotCodeReview.hideArchived": {
+    "defaultMessage": "Hide archived repositories"
+  },
+  "gooseBotCodeReview.outputStyleHelper": {
+    "defaultMessage": "How findings are posted back to the pull request."
+  },
+  "gooseBotCodeReview.outputStyleLabel": {
+    "defaultMessage": "Review output style"
+  },
+  "gooseBotCodeReview.permissionsDescription": {
+    "defaultMessage": "Control who can interact with @aaif-goose-bot and what it is allowed to do."
+  },
+  "gooseBotCodeReview.permissionsTitle": {
+    "defaultMessage": "Permissions"
+  },
+  "gooseBotCodeReview.repoColBranch": {
+    "defaultMessage": "Default branch"
+  },
+  "gooseBotCodeReview.repoColRepo": {
+    "defaultMessage": "Repository"
+  },
+  "gooseBotCodeReview.repoColVisibility": {
+    "defaultMessage": "Visibility"
+  },
+  "gooseBotCodeReview.repoCount": {
+    "defaultMessage": "{shown,plural,one{# repository accessible} other{# repositories accessible}}"
+  },
+  "gooseBotCodeReview.repoEmptyConnected": {
+    "defaultMessage": "Per-repo overrides are coming soon - the bot uses your personal defaults for every connected repo for now."
+  },
+  "gooseBotCodeReview.repoError": {
+    "defaultMessage": "Could not load repositories"
+  },
+  "gooseBotCodeReview.repoLoading": {
+    "defaultMessage": "Loading repositories..."
+  },
+  "gooseBotCodeReview.repoNoMatch": {
+    "defaultMessage": "No repositories match your search."
+  },
+  "gooseBotCodeReview.repoPrefsTitle": {
+    "defaultMessage": "Repository preferences"
+  },
+  "gooseBotCodeReview.repoRetry": {
+    "defaultMessage": "Retry"
+  },
+  "gooseBotCodeReview.repoSearchPlaceholder": {
+    "defaultMessage": "Search repos or enter a GitHub org/repo"
+  },
+  "gooseBotCodeReview.repoTruncated": {
+    "defaultMessage": "Showing first {shown} of {total} - others omitted."
+  },
+  "gooseBotCodeReview.reviewDescription": {
+    "defaultMessage": "Configure when and how Goose Bot reviews pull requests."
+  },
+  "gooseBotCodeReview.reviewModelHelper": {
+    "defaultMessage": "Which model the review orchestrator uses. Defaults to the model goose is configured with."
+  },
+  "gooseBotCodeReview.reviewModelLabel": {
+    "defaultMessage": "Review model"
+  },
+  "gooseBotCodeReview.reviewTitle": {
+    "defaultMessage": "Code review"
+  },
+  "gooseBotCodeReview.setupBlurb": {
+    "defaultMessage": "When code review is on, Goose Bot automatically reviews pull requests and leaves inline suggestions. Mention @aaif-goose-bot in any PR comment to ask a question, request a manual review, or apply fixes."
+  },
+  "gooseBotCodeReview.severityHelper": {
+    "defaultMessage": "Findings below this rank are dropped from the review. Higher = quieter."
+  },
+  "gooseBotCodeReview.severityLabel": {
+    "defaultMessage": "Minimum severity to surface"
+  },
+  "gooseBotCodeReview.triggerHelper": {
+    "defaultMessage": "Choose when Goose Bot should automatically review your pull requests."
+  },
+  "gooseBotCodeReview.triggerLabel": {
+    "defaultMessage": "Personal review trigger preference"
+  },
+  "gooseBotCodeReview.triggerPermissionHelper": {
+    "defaultMessage": "Restrict who can @mention the bot to request reviews, fixes, or replies."
+  },
+  "gooseBotCodeReview.triggerPermissionLabel": {
+    "defaultMessage": "Who can trigger Goose Bot"
+  },
+  "gooseBotConnectors.awaitingInstall": {
+    "defaultMessage": "Finish installing on GitHub in your browser..."
+  },
+  "gooseBotConnectors.awaitingInstallHint": {
+    "defaultMessage": "A browser tab just opened to GitHub. Pick the repos you want reviewed and click Install & Authorize."
+  },
+  "gooseBotConnectors.connectedLabel": {
+    "defaultMessage": "Connected - installation {id}"
+  },
+  "gooseBotConnectors.disconnectAction": {
+    "defaultMessage": "Disconnect"
+  },
+  "gooseBotConnectors.disconnectHint": {
+    "defaultMessage": "Opens the GitHub App settings so you can uninstall. After you uninstall on GitHub, this side disconnects automatically."
+  },
+  "gooseBotConnectors.githubDescription": {
+    "defaultMessage": "Install the Goose Bot GitHub App on the repos you want auto-reviewed."
+  },
+  "gooseBotConnectors.githubTitle": {
+    "defaultMessage": "GitHub"
+  },
+  "gooseBotConnectors.installAction": {
+    "defaultMessage": "Connect GitHub"
+  },
+  "gooseBotConnectors.manageAction": {
+    "defaultMessage": "Manage on GitHub"
+  },
+  "gooseBotConnectors.notConnected": {
+    "defaultMessage": "Not connected"
+  },
+  "gooseBotConnectors.setupFailed": {
+    "defaultMessage": "Failed to connect Goose Bot"
+  },
+  "gooseBotGeneral.customInstructionsDescription": {
+    "defaultMessage": "Free-form rules appended to every review prompt. Use them to nudge the bot toward what your team actually cares about."
+  },
+  "gooseBotGeneral.customInstructionsHelper": {
+    "defaultMessage": "These instructions are appended verbatim to the system prompt the review orchestrator sends to the model."
+  },
+  "gooseBotGeneral.customInstructionsPlaceholder": {
+    "defaultMessage": "Example: Don't flag TODO comments. Be strict on missing tests. Treat any change under crates/goose/src/security/ as critical."
+  },
+  "gooseBotGeneral.customInstructionsTitle": {
+    "defaultMessage": "Custom instructions"
+  },
+  "gooseBotSaveIndicator.failed": {
+    "defaultMessage": "Couldn't save"
+  },
+  "gooseBotSaveIndicator.loading": {
+    "defaultMessage": "Loading..."
+  },
+  "gooseBotSaveIndicator.retry": {
+    "defaultMessage": "Retry"
+  },
+  "gooseBotSaveIndicator.saved": {
+    "defaultMessage": "Saved"
+  },
+  "gooseBotSaveIndicator.savedPending": {
+    "defaultMessage": "Saved locally - webhook sync pending"
+  },
+  "gooseBotSaveIndicator.syncing": {
+    "defaultMessage": "Saving..."
+  },
+  "gooseBotView.experimentalBannerBody": {
+    "defaultMessage": "Goose Bot is in early access - we're gathering feedback. Share bug reports and ideas on"
+  },
+  "gooseBotView.experimentalBannerDiscord": {
+    "defaultMessage": "Discord"
+  },
+  "gooseBotView.experimentalBannerIssues": {
+    "defaultMessage": "GitHub Issues"
+  },
+  "gooseBotView.experimentalBannerOr": {
+    "defaultMessage": "or"
+  },
+  "gooseBotView.experimentalBannerTitle": {
+    "defaultMessage": "Experimental feature"
+  },
+  "gooseBotView.notConnectedBannerBody": {
+    "defaultMessage": "Connect the GitHub App in the Connectors tab to start receiving automated PR reviews."
+  },
+  "gooseBotView.notConnectedBannerCta": {
+    "defaultMessage": "Go to Connectors"
+  },
+  "gooseBotView.notConnectedBannerTitle": {
+    "defaultMessage": "Goose Bot is not connected yet"
+  },
+  "gooseBotView.pageTitle": {
+    "defaultMessage": "Goose Bot"
+  },
+  "gooseBotView.tabAnalytics": {
+    "defaultMessage": "Analytics"
+  },
+  "gooseBotView.tabCodeReview": {
+    "defaultMessage": "Configure"
+  },
+  "gooseBotView.tabConnectors": {
+    "defaultMessage": "Connectors"
+  },
+  "gooseBotView.tabGeneral": {
+    "defaultMessage": "General"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
@@ -1731,7 +1731,7 @@
     "defaultMessage": "Downloaded"
   },
   "huggingFaceModelSearch.downloading": {
-    "defaultMessage": "Downloading..."
+    "defaultMessage": "Downloading…"
   },
   "huggingFaceModelSearch.loadingVariants": {
     "defaultMessage": "Loading variants..."
@@ -2073,7 +2073,7 @@
     "defaultMessage": "goose is compacting the conversation..."
   },
   "loadingGoose.idle": {
-    "defaultMessage": "goose is working on it..."
+    "defaultMessage": "goose is working on it…"
   },
   "loadingGoose.loadingConversation": {
     "defaultMessage": "loading conversation..."
@@ -2082,13 +2082,13 @@
     "defaultMessage": "restarting session..."
   },
   "loadingGoose.streaming": {
-    "defaultMessage": "goose is working on it..."
+    "defaultMessage": "goose is working on it…"
   },
   "loadingGoose.thinking": {
-    "defaultMessage": "goose is thinking..."
+    "defaultMessage": "goose is thinking…"
   },
   "loadingGoose.waiting": {
-    "defaultMessage": "goose is waiting..."
+    "defaultMessage": "goose is waiting…"
   },
   "localInferenceSettings.deleteConfirm": {
     "defaultMessage": "Delete this model? You can re-download it later."
@@ -2145,7 +2145,7 @@
     "defaultMessage": "Vision"
   },
   "localInferenceSettings.visionEncoderDownloading": {
-    "defaultMessage": "Vision encoder downloading..."
+    "defaultMessage": "Vision encoder downloading…"
   },
   "localInferenceSettings.visionEncoderNotDownloaded": {
     "defaultMessage": "Vision encoder not downloaded"
@@ -2655,7 +2655,7 @@
     "defaultMessage": "Local Model Settings"
   },
   "modelsBottomBar.localModelSettingsTitle": {
-    "defaultMessage": "Local Model Settings - {modelName}"
+    "defaultMessage": "Local Model Settings — {modelName}"
   },
   "modelsBottomBar.resolvedModel": {
     "defaultMessage": "Resolved model"
@@ -2672,11 +2672,11 @@
   "navigation.itemApps": {
     "defaultMessage": "Apps"
   },
-  "navigation.itemGooseBot": {
-    "defaultMessage": "Code Review"
-  },
   "navigation.itemExtensions": {
     "defaultMessage": "Extensions"
+  },
+  "navigation.itemGooseBot": {
+    "defaultMessage": "Code Review"
   },
   "navigation.itemHome": {
     "defaultMessage": "New Chat"
@@ -2925,7 +2925,7 @@
     "defaultMessage": "Loading messages... ({renderedCount}/{totalCount})"
   },
   "progressiveMessageList.modelChanged": {
-    "defaultMessage": "Model changed: {previousModel} > {currentModel}"
+    "defaultMessage": "Model changed: {previousModel} → {currentModel}"
   },
   "progressiveMessageList.searchHint": {
     "defaultMessage": "Press Cmd/Ctrl+F to load all messages immediately for search"
@@ -3339,7 +3339,7 @@
     "defaultMessage": "Failed to fetch models. Please try again later."
   },
   "recipeModelSelector.loadingModels": {
-    "defaultMessage": "Loading models..."
+    "defaultMessage": "Loading models…"
   },
   "recipeModelSelector.modelHint": {
     "defaultMessage": "Leave empty to use the default model for the selected provider"
@@ -4065,7 +4065,7 @@
     "defaultMessage": "Connection timed out. The server may be slow or unreachable."
   },
   "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "Session sharing is configured but fully opt-in - your sessions are only shared when you explicitly click the share button."
+    "defaultMessage": "Session sharing is configured but fully opt-in — your sessions are only shared when you explicitly click the share button."
   },
   "sessionSharingSection.descriptionDefault": {
     "defaultMessage": "You can enable session sharing to share your sessions with others."
@@ -4581,7 +4581,7 @@
     "defaultMessage": "Cancel"
   },
   "switchModelModal.checkProviderConfig": {
-    "defaultMessage": "Check your provider configuration in Settings > Providers"
+    "defaultMessage": "Check your provider configuration in Settings → Providers"
   },
   "switchModelModal.chooseModel": {
     "defaultMessage": "Choose a model:"
@@ -4629,10 +4629,10 @@
     "defaultMessage": "Go to Settings"
   },
   "switchModelModal.loadingModels": {
-    "defaultMessage": "Loading models..."
+    "defaultMessage": "Loading models…"
   },
   "switchModelModal.localModelsDescription": {
-    "defaultMessage": "To use local inference, you need to download a model to your computer first. Go to Settings > Models to manage local models."
+    "defaultMessage": "To use local inference, you need to download a model to your computer first. Go to Settings → Models to manage local models."
   },
   "switchModelModal.localModelsTitle": {
     "defaultMessage": "Local models need to be downloaded first"
@@ -4953,7 +4953,7 @@
     "defaultMessage": "Update available!"
   },
   "updateSection.versionAvailable": {
-    "defaultMessage": "> {version} available"
+    "defaultMessage": "→ {version} available"
   },
   "updateSection.versionIsAvailable": {
     "defaultMessage": "Version {version} is available"

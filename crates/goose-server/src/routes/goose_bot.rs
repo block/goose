@@ -1,9 +1,10 @@
 //! GooseBot HTTP routes - thin handlers over `goose::goose_bot`.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use axum::{
     extract::State,
+    http::StatusCode,
     response::Json,
     routing::{get, post},
     Router,
@@ -20,9 +21,13 @@ use goose::goose_bot::{
     GooseBotSetupResponse, GooseBotStatusResponse, InstallCredentials, RegisterInstallRequest,
     TunnelSnapshot, INSTALLATION_ID_CONFIG_KEY,
 };
+use tokio::time::sleep;
 
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
+
+const TUNNEL_READY_ATTEMPTS: usize = 20;
+const TUNNEL_READY_DELAY: Duration = Duration::from_millis(500);
 
 async fn tunnel_snapshot(state: &AppState) -> TunnelSnapshot {
     let info = state.tunnel_manager.get_info().await;
@@ -32,11 +37,47 @@ async fn tunnel_snapshot(state: &AppState) -> TunnelSnapshot {
     }
 }
 
+async fn wait_for_tunnel_ready(url: &str, secret: &str) -> Result<(), ErrorResponse> {
+    let endpoint = format!("{}/goose-bot/status", url.trim_end_matches('/'));
+    let client = reqwest::Client::new();
+    let mut last_error = "tunnel status probe did not run".to_string();
+
+    for attempt in 0..TUNNEL_READY_ATTEMPTS {
+        match client
+            .get(&endpoint)
+            .header("X-Secret-Key", secret)
+            .send()
+            .await
+        {
+            Ok(res) if res.status().is_success() => return Ok(()),
+            Ok(res) => {
+                last_error = format!("tunnel status returned {}", res.status());
+            }
+            Err(e) => {
+                last_error = format!("tunnel status probe failed: {e}");
+            }
+        }
+
+        if attempt + 1 < TUNNEL_READY_ATTEMPTS {
+            sleep(TUNNEL_READY_DELAY).await;
+        }
+    }
+
+    Err(ErrorResponse::internal(format!(
+        "tunnel did not become reachable: {last_error}"
+    )))
+}
+
+fn app_not_installed_error(message: &str) -> bool {
+    message.contains("not installed on any account")
+}
+
 #[utoipa::path(
     post,
     path = "/goose-bot/setup",
     responses(
         (status = 200, description = "Goose Bot connected", body = GooseBotSetupResponse),
+        (status = 409, description = "GitHub App is not installed"),
         (status = 408, description = "Install timed out"),
         (status = 500, description = "Internal error"),
     ),
@@ -69,14 +110,27 @@ async fn setup(
         .ok_or_else(|| ErrorResponse::internal("tunnel URL is missing the agent id".to_string()))?;
     let tunnel_secret = tunnel_info.secret.clone();
 
+    wait_for_tunnel_ready(&tunnel_info.url, &tunnel_secret).await?;
+
     let installation_id = register_installation(RegisterInstallRequest {
         oauth_code: callback.oauth_code,
         agent_id,
-        tunnel_secret,
-        tunnel_url: tunnel_info.url,
+        tunnel_secret: tunnel_secret.clone(),
+        tunnel_url: tunnel_info.url.clone(),
     })
     .await
-    .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    .map_err(|e| {
+        let message = e.to_string();
+        if app_not_installed_error(&message) {
+            flow.open_app_install_url();
+            ErrorResponse {
+                message: "Goose Bot GitHub App is not installed yet. Install it in the browser window that just opened, then retry Connect GitHub.".to_string(),
+                status: StatusCode::CONFLICT,
+            }
+        } else {
+            ErrorResponse::internal(message)
+        }
+    })?;
 
     let _ = Config::global().set_param(
         INSTALLATION_ID_CONFIG_KEY,
@@ -84,7 +138,7 @@ async fn setup(
     );
     let creds = InstallCredentials {
         installation_id,
-        tunnel_secret: tunnel_info.secret,
+        tunnel_secret,
     };
     let _ = forward_routing_prefs(&creds, &load_prefs().routing_subset()).await;
 
