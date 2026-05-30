@@ -79,6 +79,7 @@ pub struct CompletedTask {
     pub result: Result<String, String>,
     pub turns_taken: u32,
     pub duration: Duration,
+    pub completed_at: Instant,
 }
 
 #[derive(Debug, Deserialize)]
@@ -399,6 +400,14 @@ fn max_background_tasks() -> usize {
     Config::global()
         .get_param::<usize>("GOOSE_MAX_BACKGROUND_TASKS")
         .unwrap_or(5)
+}
+
+/// TTL for uncollected completed tasks before eviction (default: 10 minutes)
+fn completed_task_ttl() -> Duration {
+    let secs = Config::global()
+        .get_param::<u64>("GOOSE_COMPLETED_TASK_TTL_SECS")
+        .unwrap_or(600);
+    Duration::from_secs(secs)
 }
 
 fn is_session_id(s: &str) -> bool {
@@ -1536,9 +1545,20 @@ impl SummonClient {
                     result,
                     turns_taken,
                     duration,
+                    completed_at: Instant::now(),
                 },
             );
         }
+
+        // Evict uncollected completed tasks older than the TTL
+        let ttl = completed_task_ttl();
+        completed.retain(|id, task| {
+            let expired = task.completed_at.elapsed() > ttl;
+            if expired {
+                info!("Evicting stale completed task {} (uncollected for {:?})", id, ttl);
+            }
+            !expired
+        });
     }
 
     fn get_task_description(params: &DelegateParams) -> String {
@@ -2387,6 +2407,7 @@ You review code."#;
                     result: Ok("Task completed successfully with output".to_string()),
                     turns_taken: 5,
                     duration: Duration::from_secs(60),
+                    completed_at: Instant::now(),
                 },
             );
             completed.insert(
@@ -2397,6 +2418,7 @@ You review code."#;
                     result: Err("Something went wrong".to_string()),
                     turns_taken: 3,
                     duration: Duration::from_secs(30),
+                    completed_at: Instant::now(),
                 },
             );
         }
