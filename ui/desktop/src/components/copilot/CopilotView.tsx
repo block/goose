@@ -44,7 +44,7 @@ function loadStoredInstall(): StoredInstall | null {
 const i18n = defineMessages({
   pageTitle: {
     id: 'copilotView.pageTitle',
-    defaultMessage: 'Goose Copilot',
+    defaultMessage: 'Goose Bot',
   },
   tabGeneral: {
     id: 'copilotView.tabGeneral',
@@ -52,7 +52,7 @@ const i18n = defineMessages({
   },
   tabCodeReview: {
     id: 'copilotView.tabCodeReview',
-    defaultMessage: 'Code review',
+    defaultMessage: 'Configure',
   },
   tabAnalytics: {
     id: 'copilotView.tabAnalytics',
@@ -64,7 +64,7 @@ const i18n = defineMessages({
   },
   notConnectedBannerTitle: {
     id: 'copilotView.notConnectedBannerTitle',
-    defaultMessage: 'Goose Copilot is not connected yet',
+    defaultMessage: 'Goose Bot is not connected yet',
   },
   notConnectedBannerBody: {
     id: 'copilotView.notConnectedBannerBody',
@@ -82,7 +82,7 @@ const i18n = defineMessages({
   experimentalBannerBody: {
     id: 'copilotView.experimentalBannerBody',
     defaultMessage:
-      "Goose Copilot is in early access — we're gathering feedback. Share bug reports and ideas on",
+      "Goose Bot is in early access — we're gathering feedback. Share bug reports and ideas on",
   },
   experimentalBannerIssues: {
     id: 'copilotView.experimentalBannerIssues',

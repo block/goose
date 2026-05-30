@@ -37,7 +37,7 @@ const i18n = defineMessages({
   setupBlurb: {
     id: 'copilotCodeReview.setupBlurb',
     defaultMessage:
-      'When code review is on, Goose Copilot automatically reviews pull requests and leaves inline suggestions. Mention @goose-copilot in any PR comment to ask a question, request a manual review, or apply fixes.',
+      'When code review is on, Goose Bot automatically reviews pull requests and leaves inline suggestions. Mention @goose-copilot in any PR comment to ask a question, request a manual review, or apply fixes.',
   },
   reviewTitle: {
     id: 'copilotCodeReview.reviewTitle',
@@ -45,7 +45,7 @@ const i18n = defineMessages({
   },
   reviewDescription: {
     id: 'copilotCodeReview.reviewDescription',
-    defaultMessage: 'Configure when and how Goose Copilot reviews pull requests.',
+    defaultMessage: 'Configure when and how Goose Bot reviews pull requests.',
   },
   autoReviewLabel: {
     id: 'copilotCodeReview.autoReviewLabel',
@@ -54,7 +54,7 @@ const i18n = defineMessages({
   autoReviewHelper: {
     id: 'copilotCodeReview.autoReviewHelper',
     defaultMessage:
-      'All your pull requests in a Goose Copilot-enabled repository will be automatically reviewed.',
+      'All your pull requests in a Goose Bot-enabled repository will be automatically reviewed.',
   },
   triggerLabel: {
     id: 'copilotCodeReview.triggerLabel',
@@ -62,7 +62,7 @@ const i18n = defineMessages({
   },
   triggerHelper: {
     id: 'copilotCodeReview.triggerHelper',
-    defaultMessage: 'Choose when Goose Copilot should automatically review your pull requests.',
+    defaultMessage: 'Choose when Goose Bot should automatically review your pull requests.',
   },
   outputStyleLabel: {
     id: 'copilotCodeReview.outputStyleLabel',
@@ -100,7 +100,7 @@ const i18n = defineMessages({
   },
   triggerPermissionLabel: {
     id: 'copilotCodeReview.triggerPermissionLabel',
-    defaultMessage: 'Who can trigger Goose Copilot',
+    defaultMessage: 'Who can trigger Goose Bot',
   },
   triggerPermissionHelper: {
     id: 'copilotCodeReview.triggerPermissionHelper',

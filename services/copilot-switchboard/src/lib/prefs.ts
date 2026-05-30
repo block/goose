@@ -22,7 +22,7 @@ export interface RoutingPrefs {
 
 export const DEFAULT_ROUTING_PREFS: RoutingPrefs = {
   schema_version: CURRENT_SCHEMA_VERSION,
-  auto_review_on_pr_open: true,
+  auto_review_on_pr_open: false,
   trigger_preference: 'pr-open',
   trigger_permission: 'anyone',
   allow_act_on_issues: false,

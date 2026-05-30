@@ -378,7 +378,7 @@
     "defaultMessage": "octocat"
   },
   "copilotCodeReview.autoReviewHelper": {
-    "defaultMessage": "All your pull requests in a Goose Copilot-enabled repository will be automatically reviewed."
+    "defaultMessage": "All your pull requests in a Goose Bot-enabled repository will be automatically reviewed."
   },
   "copilotCodeReview.autoReviewLabel": {
     "defaultMessage": "Personal auto review preferences"
@@ -435,7 +435,7 @@
     "defaultMessage": "Showing first {shown} of {total} — others omitted."
   },
   "copilotCodeReview.reviewDescription": {
-    "defaultMessage": "Configure when and how Goose Copilot reviews pull requests."
+    "defaultMessage": "Configure when and how Goose Bot reviews pull requests."
   },
   "copilotCodeReview.reviewModelHelper": {
     "defaultMessage": "Which model the review orchestrator uses. Defaults to the model goose is configured with."
@@ -447,7 +447,7 @@
     "defaultMessage": "Code review"
   },
   "copilotCodeReview.setupBlurb": {
-    "defaultMessage": "When code review is on, Goose Copilot automatically reviews pull requests and leaves inline suggestions. Mention @goose-copilot in any PR comment to ask a question, request a manual review, or apply fixes."
+    "defaultMessage": "When code review is on, Goose Bot automatically reviews pull requests and leaves inline suggestions. Mention @goose-copilot in any PR comment to ask a question, request a manual review, or apply fixes."
   },
   "copilotCodeReview.severityHelper": {
     "defaultMessage": "Findings below this rank are dropped from the review. Higher = quieter."
@@ -456,7 +456,7 @@
     "defaultMessage": "Minimum severity to surface"
   },
   "copilotCodeReview.triggerHelper": {
-    "defaultMessage": "Choose when Goose Copilot should automatically review your pull requests."
+    "defaultMessage": "Choose when Goose Bot should automatically review your pull requests."
   },
   "copilotCodeReview.triggerLabel": {
     "defaultMessage": "Personal review trigger preference"
@@ -465,7 +465,7 @@
     "defaultMessage": "Restrict who can @mention the bot to request reviews, fixes, or replies."
   },
   "copilotCodeReview.triggerPermissionLabel": {
-    "defaultMessage": "Who can trigger Goose Copilot"
+    "defaultMessage": "Who can trigger Goose Bot"
   },
   "copilotConnectors.awaitingInstall": {
     "defaultMessage": "Finish installing on GitHub in your browser…"
@@ -483,7 +483,7 @@
     "defaultMessage": "Opens the GitHub App settings so you can uninstall. After you uninstall on GitHub, this side disconnects automatically."
   },
   "copilotConnectors.githubDescription": {
-    "defaultMessage": "Install the Goose Copilot GitHub App on the repos you want auto-reviewed."
+    "defaultMessage": "Install the Goose Bot GitHub App on the repos you want auto-reviewed."
   },
   "copilotConnectors.githubTitle": {
     "defaultMessage": "GitHub"
@@ -498,7 +498,7 @@
     "defaultMessage": "Not connected"
   },
   "copilotConnectors.setupFailed": {
-    "defaultMessage": "Failed to connect Goose Copilot"
+    "defaultMessage": "Failed to connect Goose Bot"
   },
   "copilotGeneral.customInstructionsDescription": {
     "defaultMessage": "Free-form rules appended to every review prompt. Use them to nudge the bot toward what your team actually cares about."
@@ -531,7 +531,7 @@
     "defaultMessage": "Saving…"
   },
   "copilotView.experimentalBannerBody": {
-    "defaultMessage": "Goose Copilot is in early access — we're gathering feedback. Share bug reports and ideas on"
+    "defaultMessage": "Goose Bot is in early access — we're gathering feedback. Share bug reports and ideas on"
   },
   "copilotView.experimentalBannerDiscord": {
     "defaultMessage": "Discord"
@@ -552,16 +552,16 @@
     "defaultMessage": "Go to Connectors"
   },
   "copilotView.notConnectedBannerTitle": {
-    "defaultMessage": "Goose Copilot is not connected yet"
+    "defaultMessage": "Goose Bot is not connected yet"
   },
   "copilotView.pageTitle": {
-    "defaultMessage": "Goose Copilot"
+    "defaultMessage": "Goose Bot"
   },
   "copilotView.tabAnalytics": {
     "defaultMessage": "Analytics"
   },
   "copilotView.tabCodeReview": {
-    "defaultMessage": "Code review"
+    "defaultMessage": "Configure"
   },
   "copilotView.tabConnectors": {
     "defaultMessage": "Connectors"
@@ -2673,7 +2673,7 @@
     "defaultMessage": "Apps"
   },
   "navigation.itemCopilot": {
-    "defaultMessage": "Copilot"
+    "defaultMessage": "Code Review"
   },
   "navigation.itemExtensions": {
     "defaultMessage": "Extensions"

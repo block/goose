@@ -318,7 +318,7 @@
     "defaultMessage": "octocat"
   },
   "copilotCodeReview.autoReviewHelper": {
-    "defaultMessage": "在已启用 Goose Copilot 的仓库中，你的所有 pull request 都会自动被审查。"
+    "defaultMessage": "在已启用 Goose Bot 的仓库中，你的所有 pull request 都会自动被审查。"
   },
   "copilotCodeReview.autoReviewLabel": {
     "defaultMessage": "个人自动审查偏好"
@@ -375,7 +375,7 @@
     "defaultMessage": "显示前 {shown} 个，共 {total} 个 — 其余已省略。"
   },
   "copilotCodeReview.reviewDescription": {
-    "defaultMessage": "配置 Goose Copilot 何时以及如何审查 pull request。"
+    "defaultMessage": "配置 Goose Bot 何时以及如何审查 pull request。"
   },
   "copilotCodeReview.reviewModelHelper": {
     "defaultMessage": "审查编排器使用的模型。默认为 goose 配置的模型。"
@@ -387,7 +387,7 @@
     "defaultMessage": "代码审查"
   },
   "copilotCodeReview.setupBlurb": {
-    "defaultMessage": "开启代码审查后，Goose Copilot 会自动审查 pull request 并留下行内建议。在任何 PR 评论中 @goose-copilot 即可提问、请求手动审查或应用修复。"
+    "defaultMessage": "开启代码审查后，Goose Bot 会自动审查 pull request 并留下行内建议。在任何 PR 评论中 @goose-copilot 即可提问、请求手动审查或应用修复。"
   },
   "copilotCodeReview.severityHelper": {
     "defaultMessage": "低于此级别的发现项不会出现在审查中。数值越高，输出越少。"
@@ -396,7 +396,7 @@
     "defaultMessage": "最低展示严重级别"
   },
   "copilotCodeReview.triggerHelper": {
-    "defaultMessage": "选择 Goose Copilot 应何时自动审查你的 pull request。"
+    "defaultMessage": "选择 Goose Bot 应何时自动审查你的 pull request。"
   },
   "copilotCodeReview.triggerLabel": {
     "defaultMessage": "个人审查触发偏好"
@@ -405,7 +405,7 @@
     "defaultMessage": "限制谁可以 @ 机器人以请求审查、修复或回复。"
   },
   "copilotCodeReview.triggerPermissionLabel": {
-    "defaultMessage": "谁可以触发 Goose Copilot"
+    "defaultMessage": "谁可以触发 Goose Bot"
   },
   "copilotConnectors.awaitingInstall": {
     "defaultMessage": "请在浏览器中完成 GitHub 安装…"
@@ -423,7 +423,7 @@
     "defaultMessage": "打开 GitHub App 设置以便卸载。在 GitHub 上卸载后，此端会自动断开。"
   },
   "copilotConnectors.githubDescription": {
-    "defaultMessage": "在你希望自动审查的仓库上安装 Goose Copilot GitHub App。"
+    "defaultMessage": "在你希望自动审查的仓库上安装 Goose Bot GitHub App。"
   },
   "copilotConnectors.githubTitle": {
     "defaultMessage": "GitHub"
@@ -438,7 +438,7 @@
     "defaultMessage": "未连接"
   },
   "copilotConnectors.setupFailed": {
-    "defaultMessage": "连接 Goose Copilot 失败"
+    "defaultMessage": "连接 Goose Bot 失败"
   },
   "copilotGeneral.customInstructionsDescription": {
     "defaultMessage": "附加到每次审查提示的自由格式规则。用于引导机器人关注团队真正在意的内容。"
@@ -477,16 +477,16 @@
     "defaultMessage": "前往连接器"
   },
   "copilotView.notConnectedBannerTitle": {
-    "defaultMessage": "尚未连接 Goose Copilot"
+    "defaultMessage": "尚未连接 Goose Bot"
   },
   "copilotView.pageTitle": {
-    "defaultMessage": "Goose Copilot"
+    "defaultMessage": "Goose Bot"
   },
   "copilotView.tabAnalytics": {
     "defaultMessage": "分析"
   },
   "copilotView.tabCodeReview": {
-    "defaultMessage": "代码审查"
+    "defaultMessage": "Configure"
   },
   "copilotView.tabConnectors": {
     "defaultMessage": "连接器"
@@ -2532,7 +2532,7 @@
     "defaultMessage": "扩展"
   },
   "navigation.itemCopilot": {
-    "defaultMessage": "Copilot"
+    "defaultMessage": "Code Review"
   },
   "navigation.itemHome": {
     "defaultMessage": "新对话"

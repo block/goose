@@ -21,7 +21,7 @@ const i18n = defineMessages({
   },
   githubDescription: {
     id: 'copilotConnectors.githubDescription',
-    defaultMessage: 'Install the Goose Copilot GitHub App on the repos you want auto-reviewed.',
+    defaultMessage: 'Install the Goose Bot GitHub App on the repos you want auto-reviewed.',
   },
   installAction: {
     id: 'copilotConnectors.installAction',
@@ -54,7 +54,7 @@ const i18n = defineMessages({
   },
   setupFailed: {
     id: 'copilotConnectors.setupFailed',
-    defaultMessage: 'Failed to connect Goose Copilot',
+    defaultMessage: 'Failed to connect Goose Bot',
   },
   disconnectHint: {
     id: 'copilotConnectors.disconnectHint',

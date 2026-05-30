@@ -71,7 +71,7 @@ pub struct CopilotPrefs {
     #[serde(default = "default_schema_version")]
     pub schema_version: u32,
 
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub auto_review_on_pr_open: bool,
     #[serde(default)]
     pub trigger_preference: TriggerPreference,
@@ -104,15 +104,11 @@ fn default_schema_version() -> u32 {
     SCHEMA_VERSION
 }
 
-fn default_true() -> bool {
-    true
-}
-
 impl Default for CopilotPrefs {
     fn default() -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
-            auto_review_on_pr_open: true,
+            auto_review_on_pr_open: false,
             trigger_preference: TriggerPreference::default(),
             trigger_permission: TriggerPermission::default(),
             allow_act_on_issues: false,
