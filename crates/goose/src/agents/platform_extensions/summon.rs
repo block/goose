@@ -1,17 +1,17 @@
+use crate::agents::AgentConfig;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
-use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::subagent_handler::{OnMessageCallback, SubagentRunParams, run_subagent_task};
+use crate::agents::subagent_task_config::{DEFAULT_SUBAGENT_MAX_TURNS, TaskConfig};
 use crate::agents::tool_execution::ToolCallContext;
-use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::EnabledExtensionsState;
+use crate::recipe::{RECIPE_FILE_EXTENSIONS, Recipe, RecipeParameter, Settings};
 use crate::session::SessionType;
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -24,10 +24,10 @@ use rmcp::model::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -475,6 +475,11 @@ impl SummonClient {
                     "type": "boolean",
                     "default": false,
                     "description": "For running background tasks: cancel and return output."
+                },
+                "peek": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "For running background tasks: check progress without blocking. Returns turn count, idle time, and recent tool activity."
                 }
             }
         });
@@ -485,11 +490,13 @@ impl SummonClient {
              Call with no arguments to list all available sources (subrecipes, recipes, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
-             To cancel a running task: load(source: \"task_id\", cancel: true) stops and returns output.\n\n\
+             To cancel a running task: load(source: \"task_id\", cancel: true) stops and returns output.\n\
+             To check progress: load(source: \"task_id\", peek: true) returns status without blocking.\n\n\
              Examples:\n\
              - load() → Lists available sources\n\
              - load(source: \"deploy\") → Loads the deploy recipe\n\
-             - load(source: \"20260219_1\") → Waits for background task, then returns result"
+             - load(source: \"20260219_1\") → Waits for background task, then returns result\n\
+             - load(source: \"20260219_1\", peek: true) → Check task progress without waiting"
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
@@ -765,6 +772,12 @@ impl SummonClient {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        let peek = arguments
+            .as_ref()
+            .and_then(|args| args.get("peek"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let working_dir = self.get_working_dir(session_id).await;
 
         if source_name.is_none() {
@@ -777,7 +790,7 @@ impl SummonClient {
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            let content = self.handle_load_task_result(name, cancel).await?;
+            let content = self.handle_load_task_result(name, cancel, peek).await?;
             let mut meta = Meta::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
@@ -795,6 +808,7 @@ impl SummonClient {
         &self,
         task_id: &str,
         cancel: bool,
+        peek: bool,
     ) -> Result<Vec<Content>, String> {
         let mut completed = self.completed_tasks.lock().await;
 
@@ -828,6 +842,35 @@ impl SummonClient {
 
         let mut running = self.background_tasks.lock().await;
         if running.contains_key(task_id) {
+            if peek {
+                let task = running.get(task_id).unwrap();
+                let elapsed = task.started_at.elapsed();
+                let turns_taken = task.turns.load(Ordering::Relaxed);
+                let now = current_epoch_millis();
+                let idle_ms = now.saturating_sub(task.last_activity.load(Ordering::Relaxed));
+                let description = task.description.clone();
+
+                let buffered_count = task.notification_buffer.lock().await.len();
+
+                drop(running);
+
+                let mut output = format!(
+                    "# Background Task Status: {}\n\n**Task:** {}\n**Status:** ⏳ Running\n**Elapsed:** {}\n**Turns taken:** {}\n**Idle:** {}\n**Buffered tool calls:** {}",
+                    task_id,
+                    description,
+                    round_duration(elapsed),
+                    turns_taken,
+                    round_duration(Duration::from_millis(idle_ms)),
+                    buffered_count,
+                );
+
+                if buffered_count == 0 && turns_taken == 0 {
+                    output.push_str("\n\n_Task is initialising (no tool activity yet)._");
+                }
+
+                return Ok(vec![Content::text(output)]);
+            }
+
             if cancel {
                 let task = running.remove(task_id).unwrap();
                 drop(running);
@@ -1212,7 +1255,7 @@ impl SummonClient {
                 return Err(format!(
                     "Source '{}' has kind '{}' which cannot be delegated from summon",
                     source_name, source.source_type
-                ))
+                ));
             }
         };
 
@@ -2315,7 +2358,9 @@ You review code."#;
         let client = SummonClient::new(create_test_context()).unwrap();
         let temp_dir = TempDir::new().unwrap();
 
-        let result = client.handle_load_task_result("20260204_999", false).await;
+        let result = client
+            .handle_load_task_result("20260204_999", false, false)
+            .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
@@ -2357,7 +2402,7 @@ You review code."#;
         let mut subscriber = client.subscribe().await;
 
         let result = client
-            .handle_load_task_result("20260204_1", false)
+            .handle_load_task_result("20260204_1", false, false)
             .await
             .expect("load should wait and return result");
         let text = extract_text(&result[0]);
@@ -2417,7 +2462,7 @@ You review code."#;
         assert!(discovery_text.contains("20260204_3"));
 
         let result = client
-            .handle_load_task_result("20260204_2", false)
+            .handle_load_task_result("20260204_2", false, false)
             .await
             .unwrap();
         let text = extract_text(&result[0]);
@@ -2428,21 +2473,25 @@ You review code."#;
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
 
-        assert!(!client
-            .completed_tasks
-            .lock()
-            .await
-            .contains_key("20260204_2"));
+        assert!(
+            !client
+                .completed_tasks
+                .lock()
+                .await
+                .contains_key("20260204_2")
+        );
 
         let result = client
-            .handle_load_task_result("20260204_3", false)
+            .handle_load_task_result("20260204_3", false, false)
             .await
             .unwrap();
         let text = extract_text(&result[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
 
-        let result = client.handle_load_task_result("20260204_3", false).await;
+        let result = client
+            .handle_load_task_result("20260204_3", false, false)
+            .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
@@ -2476,7 +2525,7 @@ You review code."#;
         }
 
         let result = client
-            .handle_load_task_result("20260204_1", true)
+            .handle_load_task_result("20260204_1", true, false)
             .await
             .unwrap();
         let text = extract_text(&result[0]);
@@ -2484,10 +2533,95 @@ You review code."#;
         assert!(text.contains("20260204_1"));
         assert!(text.contains("Cancellable task"));
         assert!(token.is_cancelled());
-        assert!(!client
-            .background_tasks
-            .lock()
+        assert!(
+            !client
+                .background_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_peek_running_task() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        {
+            let mut running = client.background_tasks.lock().await;
+            running.insert(
+                "20260204_1".to_string(),
+                BackgroundTask {
+                    id: "20260204_1".to_string(),
+                    description: "Long running analysis".to_string(),
+                    started_at: Instant::now(),
+                    turns: Arc::new(AtomicU32::new(7)),
+                    last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
+                    handle: tokio::spawn(async {
+                        tokio::time::sleep(Duration::from_secs(1000)).await;
+                        Ok("eventual result".to_string())
+                    }),
+                    cancellation_token: CancellationToken::new(),
+                    notification_buffer: Arc::new(Mutex::new(Vec::new())),
+                },
+            );
+        }
+
+        // Peek should return status without removing the task
+        let result = client
+            .handle_load_task_result("20260204_1", false, true)
             .await
-            .contains_key("20260204_1"));
+            .unwrap();
+        let text = extract_text(&result[0]);
+        assert!(text.contains("Running"));
+        assert!(text.contains("Long running analysis"));
+        assert!(text.contains("7")); // turns taken
+
+        // Task should still be in background_tasks (not consumed)
+        assert!(
+            client
+                .background_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_peek_nonexistent_task() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let result = client
+            .handle_load_task_result("20260204_999", false, true)
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_peek_completed_task_returns_result() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        {
+            let mut completed = client.completed_tasks.lock().await;
+            completed.insert(
+                "20260204_1".to_string(),
+                CompletedTask {
+                    id: "20260204_1".to_string(),
+                    description: "Finished task".to_string(),
+                    result: Ok("final output".to_string()),
+                    turns_taken: 4,
+                    duration: Duration::from_secs(30),
+                },
+            );
+        }
+
+        // Peek on a completed task should return the full result (same as non-peek)
+        let result = client
+            .handle_load_task_result("20260204_1", false, true)
+            .await
+            .unwrap();
+        let text = extract_text(&result[0]);
+        assert!(text.contains("Completed"));
+        assert!(text.contains("final output"));
     }
 }
