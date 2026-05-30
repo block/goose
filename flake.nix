@@ -135,5 +135,13 @@
           '';
         };
       }
-    );
+    )
+    // {
+      # Home Manager module exposing `programs.goose` for declarative
+      # configuration of the goose CLI (and, when available, Goose Desktop).
+      homeManagerModules = rec {
+        goose = import ./nix/goose {inherit self;};
+        default = goose;
+      };
+    };
 }
