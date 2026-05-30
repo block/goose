@@ -1,17 +1,17 @@
+use crate::agents::AgentConfig;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
-use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::subagent_handler::{OnMessageCallback, SubagentRunParams, run_subagent_task};
+use crate::agents::subagent_task_config::{DEFAULT_SUBAGENT_MAX_TURNS, TaskConfig};
 use crate::agents::tool_execution::ToolCallContext;
-use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::EnabledExtensionsState;
+use crate::recipe::{RECIPE_FILE_EXTENSIONS, Recipe, RecipeParameter, Settings};
 use crate::session::SessionType;
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -24,10 +24,10 @@ use rmcp::model::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -79,6 +79,14 @@ pub struct CompletedTask {
     pub result: Result<String, String>,
     pub turns_taken: u32,
     pub duration: Duration,
+}
+
+/// Result from handle_load_task_result with structured metadata for the caller
+struct TaskLoadResult {
+    content: Vec<Content>,
+    status: &'static str,
+    turns: Option<u32>,
+    duration_secs: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -777,13 +785,29 @@ impl SummonClient {
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            let content = self.handle_load_task_result(name, cancel).await?;
+            let task_result = self.handle_load_task_result(name, cancel).await?;
             let mut meta = Meta::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(name.to_string()),
             );
-            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
+            meta.0.insert(
+                "task_status".to_string(),
+                serde_json::Value::String(task_result.status.to_string()),
+            );
+            if let Some(turns) = task_result.turns {
+                meta.0.insert(
+                    "turns_taken".to_string(),
+                    serde_json::Value::Number(turns.into()),
+                );
+            }
+            if let Some(secs) = task_result.duration_secs {
+                meta.0.insert(
+                    "duration_secs".to_string(),
+                    serde_json::Value::Number(secs.into()),
+                );
+            }
+            return Ok(CallToolResult::success(task_result.content).with_meta(Some(meta)));
         }
 
         self.handle_load_source(session_id, name, &working_dir)
@@ -795,33 +819,42 @@ impl SummonClient {
         &self,
         task_id: &str,
         cancel: bool,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<TaskLoadResult, String> {
         let mut completed = self.completed_tasks.lock().await;
 
         if let Some(task) = completed.remove(task_id) {
-            let status = if task.result.is_ok() {
-                "✓ Completed"
-            } else {
-                "✗ Failed"
+            let status_key = match &task.result {
+                Ok(_) => "completed",
+                Err(e) if e.starts_with("Task panicked:") => "panicked",
+                Err(_) => "failed",
+            };
+            let status = match status_key {
+                "completed" => "✓ Completed",
+                "panicked" => "✗ Panicked",
+                _ => "✗ Failed",
             };
             let output = match task.result {
                 Ok(output) => output,
                 Err(error) => format!("Error: {}", error),
             };
-
-            return Ok(vec![Content::text(format!(
-                "# Background Task Result: {}\n\n\
-                 **Task:** {}\n\
-                 **Status:** {}\n\
-                 **Duration:** {} ({} turns)\n\n\
-                 ## Output\n\n{}",
-                task_id,
-                task.description,
-                status,
-                round_duration(task.duration),
-                task.turns_taken,
-                output
-            ))]);
+            return Ok(TaskLoadResult {
+                content: vec![Content::text(format!(
+                    "# Background Task Result: {}\n\n\
+                     **Task:** {}\n\
+                     **Status:** {}\n\
+                     **Duration:** {} ({} turns)\n\n\
+                     ## Output\n\n{}",
+                    task_id,
+                    task.description,
+                    status,
+                    round_duration(task.duration),
+                    task.turns_taken,
+                    output
+                ))],
+                status: status_key,
+                turns: Some(task.turns_taken),
+                duration_secs: Some(task.duration.as_secs()),
+            });
         }
 
         drop(completed);
@@ -852,18 +885,23 @@ impl SummonClient {
                     }
                 };
 
-                return Ok(vec![Content::text(format!(
-                    "# Background Task Result: {}\n\n\
-                     **Task:** {}\n\
-                     **Status:** ⊘ Cancelled\n\
-                     **Duration:** {} ({} turns)\n\n\
-                     ## Output\n\n{}",
-                    task_id,
-                    task.description,
-                    round_duration(duration),
-                    turns_taken,
-                    output
-                ))]);
+                return Ok(TaskLoadResult {
+                    content: vec![Content::text(format!(
+                        "# Background Task Result: {}\n\n\
+                         **Task:** {}\n\
+                         **Status:** ⊘ Cancelled\n\
+                         **Duration:** {} ({} turns)\n\n\
+                         ## Output\n\n{}",
+                        task_id,
+                        task.description,
+                        round_duration(duration),
+                        turns_taken,
+                        output
+                    ))],
+                    status: "cancelled",
+                    turns: Some(turns_taken),
+                    duration_secs: Some(duration.as_secs()),
+                });
             }
 
             // Wait for the running task to complete, keeping the tool call
@@ -886,24 +924,37 @@ impl SummonClient {
 
             tokio::select! {
                 result = &mut task.handle => {
-                    let output = match result {
-                        Ok(Ok(s)) => s,
-                        Ok(Err(e)) => format!("Error: {}", e),
-                        Err(e) => format!("Task panicked: {}", e),
+                    let (output, status_key) = match result {
+                        Ok(Ok(s)) => (s, "completed"),
+                        Ok(Err(e)) => (format!("Error: {}", e), "failed"),
+                        Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
 
-                    return Ok(vec![Content::text(format!(
-                        "# Background Task Result: {}\n\n\
-                         **Task:** {}\n\
-                         **Status:** ✓ Completed\n\
-                         **Duration:** {} ({} turns)\n\n\
-                         ## Output\n\n{}",
-                        task_id,
-                        task.description,
-                        round_duration(task.started_at.elapsed()),
-                        task.turns.load(Ordering::Relaxed),
-                        output
-                    ))]);
+                    let turns_taken = task.turns.load(Ordering::Relaxed);
+                    let elapsed = task.started_at.elapsed();
+                    let status_display = match status_key {
+                        "completed" => "✓ Completed",
+                        "panicked" => "✗ Panicked",
+                        _ => "✗ Failed",
+                    };
+                    return Ok(TaskLoadResult {
+                        content: vec![Content::text(format!(
+                            "# Background Task Result: {}\n\n\
+                             **Task:** {}\n\
+                             **Status:** {}\n\
+                             **Duration:** {} ({} turns)\n\n\
+                             ## Output\n\n{}",
+                            task_id,
+                            task.description,
+                            status_display,
+                            round_duration(elapsed),
+                            turns_taken,
+                            output
+                        ))],
+                        status: status_key,
+                        turns: Some(turns_taken),
+                        duration_secs: Some(elapsed.as_secs()),
+                    });
                 }
                 _ = tokio::time::sleep(Duration::from_secs(300)) => {
                     self.background_tasks.lock().await.insert(task_id.to_string(), task);
@@ -1212,7 +1263,7 @@ impl SummonClient {
                 return Err(format!(
                     "Source '{}' has kind '{}' which cannot be delegated from summon",
                     source_name, source.source_type
-                ))
+                ));
             }
         };
 
@@ -2360,7 +2411,7 @@ You review code."#;
             .handle_load_task_result("20260204_1", false)
             .await
             .expect("load should wait and return result");
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Completed"));
         assert!(text.contains("done"));
 
@@ -2420,7 +2471,7 @@ You review code."#;
             .handle_load_task_result("20260204_2", false)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("20260204_2"));
         assert!(text.contains("Successful task"));
         assert!(text.contains("✓ Completed"));
@@ -2428,17 +2479,19 @@ You review code."#;
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
 
-        assert!(!client
-            .completed_tasks
-            .lock()
-            .await
-            .contains_key("20260204_2"));
+        assert!(
+            !client
+                .completed_tasks
+                .lock()
+                .await
+                .contains_key("20260204_2")
+        );
 
         let result = client
             .handle_load_task_result("20260204_3", false)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
 
@@ -2479,15 +2532,17 @@ You review code."#;
             .handle_load_task_result("20260204_1", true)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Cancelled"));
         assert!(text.contains("20260204_1"));
         assert!(text.contains("Cancellable task"));
         assert!(token.is_cancelled());
-        assert!(!client
-            .background_tasks
-            .lock()
-            .await
-            .contains_key("20260204_1"));
+        assert!(
+            !client
+                .background_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
     }
 }
