@@ -82,6 +82,7 @@ pub struct CompletedTask {
 }
 
 /// Result from handle_load_task_result with structured metadata for the caller
+#[derive(Debug)]
 struct TaskLoadResult {
     content: Vec<Content>,
     status: &'static str,
