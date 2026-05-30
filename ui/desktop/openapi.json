@@ -5022,6 +5022,9 @@
           "head_ref": {
             "type": "string"
           },
+          "head_repo": {
+            "type": "string"
+          },
           "is_pr": {
             "type": "boolean",
             "description": "Omitted in older switchboard payloads (treated as PR); current switchboard always sends this."

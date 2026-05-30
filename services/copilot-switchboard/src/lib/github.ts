@@ -216,16 +216,21 @@ export async function getPullRequestHead(
   fullName: string,
   prNumber: number,
   token: string
-): Promise<{ sha: string; ref: string; htmlUrl: string }> {
+): Promise<{ sha: string; ref: string; repoFullName: string; htmlUrl: string }> {
   const res = await fetch(`${API}/repos/${fullName}/pulls/${prNumber}`, {
     headers: ghHeaders(token),
   });
   if (!res.ok) throw await ghError(res, `Failed to load PR #${prNumber}`);
   const data = (await res.json()) as {
-    head: { sha: string; ref: string };
+    head: { sha: string; ref: string; repo: { full_name: string } | null };
     html_url: string;
   };
-  return { sha: data.head.sha, ref: data.head.ref, htmlUrl: data.html_url };
+  return {
+    sha: data.head.sha,
+    ref: data.head.ref,
+    repoFullName: data.head.repo?.full_name ?? '',
+    htmlUrl: data.html_url,
+  };
 }
 
 export async function createCheckRun(

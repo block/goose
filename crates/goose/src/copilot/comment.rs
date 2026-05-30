@@ -43,13 +43,17 @@ enum PushOutcome {
     OpenedPr { url: String, files: usize },
 }
 
+fn can_push_to_pr_head(req: &CopilotCommentRequest) -> bool {
+    req.head_repo.is_empty() || req.head_repo == req.repo
+}
+
 async fn decide_push_path(
     req: &CopilotCommentRequest,
     prefs: &CopilotPrefs,
     workdir: &Path,
 ) -> Result<PushOutcome> {
     if req.is_pr {
-        if !prefs.allow_commit_on_fix {
+        if !prefs.allow_commit_on_fix || !can_push_to_pr_head(req) {
             return Ok(PushOutcome::Disabled);
         }
         return match commit_and_push_if_changed(req, workdir).await? {
@@ -289,13 +293,14 @@ fn build_comment_prompt(
     } else {
         "repository's default branch"
     };
-    let commit_clause = if req.is_pr && prefs.allow_commit_on_fix {
+    let commit_clause = if req.is_pr && prefs.allow_commit_on_fix && can_push_to_pr_head(req) {
         "- Any files you change will be automatically committed and pushed to\n  \
          the PR branch after you finish — do NOT run `git commit` or `git push`\n  \
          yourself."
     } else if req.is_pr {
         "- The repo owner has DISABLED commit push for this bot. Tell the commenter\n  \
-         what you would change, but don't expect your edits to land on the PR."
+         what you would change, but don't expect your edits to land on the PR.\n  \
+         Fork-based PRs are treated as commit-push-disabled."
     } else if prefs.allow_open_new_prs {
         "- This is an issue, not a PR. Make edits in the working directory; your\n  \
          changes will be committed on a new branch and opened as a pull request\n  \
@@ -548,5 +553,30 @@ mod tests {
         let out = truncate_bytes(&s, 1500);
         assert!(out.ends_with("…[truncated]"));
         assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn pr_head_push_requires_same_repo_when_head_repo_is_known() {
+        let mut req: CopilotCommentRequest = serde_json::from_str(
+            r#"{
+                "github_token": "t",
+                "repo": "owner/repo",
+                "pr_number": 1,
+                "pr_url": "https://github.com/owner/repo/pull/1",
+                "comment_body": "fix it",
+                "commenter": "u",
+                "head_ref": "feature",
+                "head_repo": "owner/repo",
+                "is_pr": true
+            }"#,
+        )
+        .unwrap();
+        assert!(can_push_to_pr_head(&req));
+
+        req.head_repo = "contributor/repo".into();
+        assert!(!can_push_to_pr_head(&req));
+
+        req.head_repo.clear();
+        assert!(can_push_to_pr_head(&req));
     }
 }

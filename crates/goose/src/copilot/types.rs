@@ -47,6 +47,8 @@ pub struct CopilotCommentRequest {
     #[serde(default)]
     pub head_ref: String,
     #[serde(default)]
+    pub head_repo: String,
+    #[serde(default)]
     pub comment_id: Option<u64>,
     /// Omitted in older switchboard payloads (treated as PR); current switchboard always sends this.
     #[serde(default = "is_pr_absent_legacy_default")]

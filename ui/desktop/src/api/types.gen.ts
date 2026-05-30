@@ -185,6 +185,7 @@ export type CopilotCommentRequest = {
     commenter: string;
     github_token: string;
     head_ref?: string;
+    head_repo?: string;
     /**
      * Omitted in older switchboard payloads (treated as PR); current switchboard always sends this.
      */

@@ -25,6 +25,7 @@ export interface TunnelCommentParams {
   commenter: string;
   commentId: number;
   isPr: boolean;
+  headRepo: string;
 }
 
 export interface TunnelRunResult {
@@ -119,6 +120,7 @@ export async function runCommentViaTunnel(
     pr_number: params.prNumber,
     head_sha: params.headSha,
     head_ref: params.headRef,
+    head_repo: params.headRepo,
     pr_url: params.prUrl,
     comment_body: params.commentBody,
     commenter: params.commenter,

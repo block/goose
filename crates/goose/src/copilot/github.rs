@@ -179,6 +179,33 @@ pub async fn complete_check_run(
     Ok(())
 }
 
+pub async fn complete_check_run_failure(
+    req: &CopilotReviewRequest,
+    check_run_id: u64,
+    detail: &str,
+) -> Result<()> {
+    let detail_short: String = detail.chars().take(500).collect();
+    let url = format!(
+        "https://api.github.com/repos/{}/check-runs/{}",
+        req.repo, check_run_id
+    );
+    client()
+        .patch(&url)
+        .header("Authorization", format!("token {}", req.github_token))
+        .json(&serde_json::json!({
+            "status": "completed",
+            "conclusion": "neutral",
+            "output": {
+                "title": "Goose Copilot review failed",
+                "summary": detail_short,
+            },
+        }))
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
+}
+
 pub async fn post_comment_reaction(
     repo: &str,
     comment_id: u64,

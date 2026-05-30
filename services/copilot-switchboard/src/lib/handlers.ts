@@ -78,6 +78,17 @@ export async function handleRegister(req: RegisterRequest, env: Env): Promise<Re
     return jsonError(resolution.status, resolution.error);
   }
 
+  const existing = await loadInstall(env, resolution.installationId);
+  if (
+    existing &&
+    (existing.agentId !== req.agent_id || existing.tunnelSecret !== req.tunnel_secret)
+  ) {
+    return jsonError(
+      409,
+      'installation is already registered; disconnect the existing Goose before reconnecting'
+    );
+  }
+
   await saveInstall(env, {
     installationId: resolution.installationId,
     agentId: req.agent_id,
@@ -345,6 +356,7 @@ export async function handleIssueComment(payload: IssueCommentEvent, env: Env): 
 
   let headSha: string;
   let headRef: string;
+  let headRepo: string;
   let contextUrl: string;
   if (isPr) {
     const pr = await getPullRequestHead(
@@ -354,11 +366,13 @@ export async function handleIssueComment(payload: IssueCommentEvent, env: Env): 
     );
     headSha = pr.sha;
     headRef = pr.ref;
+    headRepo = pr.repoFullName;
     contextUrl = pr.htmlUrl;
   } else {
     const branch = payload.repository.default_branch;
     headSha = await getBranchHeadSha(payload.repository.full_name, branch, token);
     headRef = '';
+    headRepo = payload.repository.full_name;
     contextUrl = payload.issue.html_url;
   }
 
@@ -390,6 +404,7 @@ export async function handleIssueComment(payload: IssueCommentEvent, env: Env): 
     prNumber: payload.issue.number,
     headSha,
     headRef,
+    headRepo,
     prUrl: contextUrl,
     commentBody: payload.comment.body,
     commenter: payload.comment.user.login,
@@ -406,6 +421,7 @@ async function triggerComment(opts: {
   prNumber: number;
   headSha: string;
   headRef: string;
+  headRepo: string;
   prUrl: string;
   commentBody: string;
   commenter: string;
@@ -439,6 +455,7 @@ async function triggerComment(opts: {
       prNumber: opts.prNumber,
       headSha: opts.headSha,
       headRef: opts.headRef,
+      headRepo: opts.headRepo,
       prUrl: opts.prUrl,
       commentBody,
       commenter,
