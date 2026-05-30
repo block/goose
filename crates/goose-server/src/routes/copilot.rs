@@ -67,11 +67,12 @@ async fn setup(
     let tunnel_info = state.tunnel_manager.get_info().await;
     let agent_id = extract_agent_id(&tunnel_info.url)
         .ok_or_else(|| ErrorResponse::internal("tunnel URL is missing the agent id".to_string()))?;
+    let tunnel_secret = tunnel_info.secret.clone();
 
     let installation_id = register_installation(RegisterInstallRequest {
         oauth_code: callback.oauth_code,
         agent_id,
-        tunnel_secret: tunnel_info.secret,
+        tunnel_secret,
         tunnel_url: tunnel_info.url,
     })
     .await

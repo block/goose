@@ -309,7 +309,7 @@ export async function handleInstallation(payload: InstallationEvent, env: Env): 
 }
 
 export async function handlePullRequest(payload: PullRequestEvent, env: Env): Promise<void> {
-  if (!['opened', 'synchronize', 'reopened'].includes(payload.action)) return;
+  if (!['opened', 'synchronize', 'reopened', 'ready_for_review'].includes(payload.action)) return;
   if (payload.pull_request.draft) return;
 
   const routing = await loadRoutingPrefs(env, payload.installation.id);

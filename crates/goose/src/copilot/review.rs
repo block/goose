@@ -75,14 +75,13 @@ pub fn build_review_payload(
     let comments: Vec<serde_json::Value> = if include_inline {
         findings
             .iter()
-            .filter(|f| !f.path.is_empty())
+            .filter(|f| !f.path.is_empty() && f.line_start > 0)
             .map(|f| {
                 let line = if f.line_end > 0 {
                     f.line_end
                 } else {
                     f.line_start
                 };
-                let line = line.max(1);
                 let mut body = format!(
                     "**{}** ({}) — {}",
                     f.severity.to_ascii_uppercase(),
@@ -99,12 +98,17 @@ pub fn build_review_payload(
                     body.push_str(code);
                     body.push_str("\n```");
                 }
-                serde_json::json!({
+                let mut comment = serde_json::json!({
                     "path": f.path,
                     "line": line,
                     "side": "RIGHT",
                     "body": body,
-                })
+                });
+                if f.line_end > f.line_start {
+                    comment["start_line"] = serde_json::json!(f.line_start);
+                    comment["start_side"] = serde_json::json!("RIGHT");
+                }
+                comment
             })
             .collect()
     } else {
@@ -244,6 +248,47 @@ mod tests {
         let payload = build_review_payload(sample_ctx(), &findings, &ReviewOutputStyle::Both);
         let body = payload["comments"][0]["body"].as_str().unwrap();
         assert!(body.contains("```suggestion\ndef add_tag(tag, tags=None):\n```"));
+    }
+
+    #[test]
+    fn build_review_payload_inline_drops_unmapped_lines() {
+        let findings = vec![Finding {
+            severity: "medium".into(),
+            path: "a.py".into(),
+            line_start: 0,
+            line_end: 0,
+            summary: "repo-level issue".into(),
+            check: "main".into(),
+            suggestion: None,
+        }];
+        let payload = build_review_payload(sample_ctx(), &findings, &ReviewOutputStyle::Both);
+        assert!(payload["comments"].as_array().unwrap().is_empty());
+        assert!(payload["body"]
+            .as_str()
+            .unwrap()
+            .contains("repo-level issue"));
+    }
+
+    #[test]
+    fn build_review_payload_inline_marks_multiline_ranges() {
+        let findings = vec![Finding {
+            severity: "medium".into(),
+            path: "a.py".into(),
+            line_start: 4,
+            line_end: 6,
+            summary: "replace range".into(),
+            check: "main".into(),
+            suggestion: Some("line_a()\nline_b()\nline_c()".into()),
+        }];
+        let payload = build_review_payload(sample_ctx(), &findings, &ReviewOutputStyle::Both);
+        let comment = &payload["comments"][0];
+        assert_eq!(comment["line"], 6);
+        assert_eq!(comment["start_line"], 4);
+        assert_eq!(comment["start_side"], "RIGHT");
+        assert!(comment["body"]
+            .as_str()
+            .unwrap()
+            .contains("```suggestion\nline_a()\nline_b()\nline_c()\n```"));
     }
 
     #[test]

@@ -65,7 +65,8 @@ function b64urlBytes(bytes: Uint8Array): string {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function pemToPkcs8(pem: string): ArrayBuffer {
+function pemToPkcs8(pem: string): Uint8Array {
+  const label = pem.match(/-----BEGIN ([A-Z ]+)-----/)?.[1];
   const stripped = pem
     .replace(/-----BEGIN [A-Z ]+-----/, '')
     .replace(/-----END [A-Z ]+-----/, '')
@@ -73,7 +74,50 @@ function pemToPkcs8(pem: string): ArrayBuffer {
   const bin = atob(stripped);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  return buf.buffer;
+  if (label === 'PRIVATE KEY') {
+    return buf;
+  }
+  if (label === 'RSA PRIVATE KEY') {
+    return wrapPkcs1AsPkcs8(buf);
+  }
+  throw new Error('GITHUB_APP_PRIVATE_KEY must be a PEM private key');
+}
+
+function wrapPkcs1AsPkcs8(pkcs1: Uint8Array): Uint8Array {
+  const version = new Uint8Array([0x02, 0x01, 0x00]);
+  const rsaEncryption = new Uint8Array([
+    0x30, 0x0d,
+    0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01,
+    0x05, 0x00,
+  ]);
+  const privateKey = der(0x04, pkcs1);
+  return der(0x30, concat(version, rsaEncryption, privateKey));
+}
+
+function der(tag: number, value: Uint8Array): Uint8Array {
+  return concat(new Uint8Array([tag]), derLength(value.length), value);
+}
+
+function derLength(length: number): Uint8Array {
+  if (length < 0x80) return new Uint8Array([length]);
+  const bytes: number[] = [];
+  let remaining = length;
+  while (remaining > 0) {
+    bytes.unshift(remaining & 0xff);
+    remaining >>= 8;
+  }
+  return new Uint8Array([0x80 | bytes.length, ...bytes]);
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
 }
 
 const installationTokenCache = new Map<number, { token: string; expiresAt: number }>();
