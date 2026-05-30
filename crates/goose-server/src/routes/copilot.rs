@@ -17,8 +17,8 @@ use goose::copilot::{
     run_comment_reply, run_review, save_prefs, AnalyticsEvent, CopilotAnalytics,
     CopilotCommentRequest, CopilotDisconnectResponse, CopilotPrefs, CopilotPrefsRequest,
     CopilotPrefsResponse, CopilotReposResponse, CopilotReviewRequest, CopilotReviewResponse,
-    CopilotSetupResponse, CopilotStatusResponse, RegisterInstallRequest, TunnelSnapshot,
-    INSTALLATION_ID_CONFIG_KEY,
+    CopilotSetupResponse, CopilotStatusResponse, InstallCredentials, RegisterInstallRequest,
+    TunnelSnapshot, INSTALLATION_ID_CONFIG_KEY,
 };
 
 use crate::routes::errors::ErrorResponse;
@@ -81,6 +81,11 @@ async fn setup(
         INSTALLATION_ID_CONFIG_KEY,
         serde_json::json!(installation_id),
     );
+    let creds = InstallCredentials {
+        installation_id,
+        tunnel_secret: tunnel_info.secret,
+    };
+    let _ = forward_routing_prefs(&creds, &load_prefs().routing_subset()).await;
 
     Ok(Json(CopilotSetupResponse { installation_id }))
 }

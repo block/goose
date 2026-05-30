@@ -30,25 +30,33 @@ export async function loadInstallByAgent(
     const id = Number.parseInt(idRaw, 10);
     if (Number.isFinite(id)) {
       const direct = await loadInstall(env, id);
-      if (direct) return direct;
+      if (direct?.agentId === agentId) return direct;
     }
   }
 
   // Pre-reverse-index installs: scan primary keys and backfill agent:<id>.
-  const list = await env.INSTALL_REGISTRY.list({ prefix: 'install:', limit: 1000 });
-  for (const item of list.keys) {
-    const raw = await env.INSTALL_REGISTRY.get(item.name);
-    if (!raw) continue;
-    let record: InstallRecord;
-    try {
-      record = JSON.parse(raw) as InstallRecord;
-    } catch {
-      continue;
+  let cursor: string | undefined;
+  do {
+    const list = await env.INSTALL_REGISTRY.list({
+      prefix: 'install:',
+      limit: 1000,
+      cursor,
+    });
+    for (const item of list.keys) {
+      const raw = await env.INSTALL_REGISTRY.get(item.name);
+      if (!raw) continue;
+      let record: InstallRecord;
+      try {
+        record = JSON.parse(raw) as InstallRecord;
+      } catch {
+        continue;
+      }
+      if (record.agentId !== agentId) continue;
+      await env.INSTALL_REGISTRY.put(agentKey(agentId), String(record.installationId));
+      return record;
     }
-    if (record.agentId !== agentId) continue;
-    await env.INSTALL_REGISTRY.put(agentKey(agentId), String(record.installationId));
-    return record;
-  }
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
   return null;
 }
 

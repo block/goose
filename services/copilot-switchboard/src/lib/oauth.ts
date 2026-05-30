@@ -73,8 +73,16 @@ export async function exchangeCodeAndResolve(opts: {
         'Goose Copilot is not installed on any account this user can access. Install the GitHub App first.',
     };
   }
-  // Pick the first matching installation. Most users have exactly one
-  // (their personal account). Multi-org users will be revisited later.
+  if (mine.length > 1) {
+    const accounts = mine
+      .map((i) => i.account?.login)
+      .filter((login): login is string => Boolean(login));
+    return {
+      ok: false,
+      status: 409,
+      error: `Goose Copilot is installed on multiple accounts (${accounts.join(', ')}). Install it on one account or reconnect after narrowing installation access.`,
+    };
+  }
   const chosen = mine[0];
   return {
     ok: true,

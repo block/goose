@@ -32,8 +32,8 @@ pub use store::{
 pub use switchboard::{
     disconnect_install, extract_agent_id, fetch_analytics, fetch_oauth_client_id, fetch_repos,
     forward_routing_prefs, register_installation, report_analytics_event,
-    resolve_install_credentials, unregister_installation, RegisterInstallRequest, TunnelSnapshot,
-    INSTALLATION_ID_CONFIG_KEY, SWITCHBOARD_URL_ENV,
+    resolve_install_credentials, unregister_installation, InstallCredentials,
+    RegisterInstallRequest, TunnelSnapshot, INSTALLATION_ID_CONFIG_KEY, SWITCHBOARD_URL_ENV,
 };
 pub use types::{
     CopilotCommentRequest, CopilotDisconnectResponse, CopilotPrefsRequest, CopilotPrefsResponse,

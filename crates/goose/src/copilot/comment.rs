@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Stdio;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Result};
 use serde::Deserialize;
@@ -186,23 +187,36 @@ async fn fetch_prior_comments(
         #[serde(default)]
         line: Option<u64>,
     }
-    async fn get_page(url: &str, token: &str) -> Result<Vec<RawComment>> {
-        let res = client()
-            .get(url)
-            .header("Authorization", format!("token {token}"))
-            .send()
-            .await?;
-        if !res.status().is_success() {
-            bail!("GET {url} -> {}", res.status());
+    async fn get_pages(url: &str, token: &str) -> Result<Vec<RawComment>> {
+        let mut out = Vec::new();
+        let mut page = 1;
+        loop {
+            let separator = if url.contains('?') { '&' } else { '?' };
+            let page_url = format!("{url}{separator}page={page}");
+            let res = client()
+                .get(&page_url)
+                .header("Authorization", format!("token {token}"))
+                .send()
+                .await?;
+            if !res.status().is_success() {
+                bail!("GET {page_url} -> {}", res.status());
+            }
+            let mut comments: Vec<RawComment> = res.json().await?;
+            let count = comments.len();
+            out.append(&mut comments);
+            if count < 100 {
+                break;
+            }
+            page += 1;
         }
-        res.json().await.map_err(Into::into)
+        Ok(out)
     }
 
     let issue_url = format!(
         "https://api.github.com/repos/{}/issues/{}/comments?per_page=100",
         req.repo, req.pr_number
     );
-    let mut raw = get_page(&issue_url, &req.github_token)
+    let mut raw = get_pages(&issue_url, &req.github_token)
         .await
         .unwrap_or_default();
     if is_pr {
@@ -210,7 +224,7 @@ async fn fetch_prior_comments(
             "https://api.github.com/repos/{}/pulls/{}/comments?per_page=100",
             req.repo, req.pr_number
         );
-        if let Ok(mut more) = get_page(&pr_url, &req.github_token).await {
+        if let Ok(mut more) = get_pages(&pr_url, &req.github_token).await {
             raw.append(&mut more);
         }
     }
@@ -497,7 +511,11 @@ async fn create_branch_and_open_pr_if_changed(
         bail!("could not determine default branch from clone");
     }
 
-    let branch = format!("goose-copilot/issue-{}", req.pr_number);
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let branch = format!("goose-copilot/issue-{}-{suffix}", req.pr_number);
     git_run(workdir, &["checkout", "--quiet", "-b", &branch]).await?;
     git_run(workdir, &["add", "-A"]).await?;
     let commit_msg = format!(

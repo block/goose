@@ -65,18 +65,23 @@ pub async fn resolve_install_credentials(tunnel: TunnelSnapshot) -> Result<Insta
     } else {
         tunnel.secret
     };
-    let agent_id = extract_agent_id(&tunnel.url)
-        .context("tunnel URL is missing the agent id; complete setup first")?;
+    let cached = Config::global()
+        .get_param::<u64>(INSTALLATION_ID_CONFIG_KEY)
+        .ok();
+    let agent_id = extract_agent_id(&tunnel.url);
 
-    if let Ok(cached) = Config::global().get_param::<u64>(INSTALLATION_ID_CONFIG_KEY) {
-        return Ok(InstallCredentials {
-            installation_id: cached,
-            tunnel_secret,
-        });
-    }
+    let resolved = match agent_id {
+        Some(agent_id) => {
+            let resolved = resolve_install_id(&agent_id, &tunnel_secret).await?;
+            if cached != Some(resolved) {
+                let _ = Config::global()
+                    .set_param(INSTALLATION_ID_CONFIG_KEY, serde_json::json!(resolved));
+            }
+            resolved
+        }
+        None => cached.context("tunnel URL is missing the agent id; complete setup first")?,
+    };
 
-    let resolved = resolve_install_id(&agent_id, &tunnel_secret).await?;
-    let _ = Config::global().set_param(INSTALLATION_ID_CONFIG_KEY, serde_json::json!(resolved));
     Ok(InstallCredentials {
         installation_id: resolved,
         tunnel_secret,

@@ -19,6 +19,8 @@ pub struct InstallCallback {
     pub oauth_code: String,
 }
 
+pub type InstallCallbackResult = std::result::Result<InstallCallback, String>;
+
 pub struct CopilotInstallFlow {
     state: String,
     server_shutdown_tx: Option<oneshot::Sender<()>>,
@@ -65,26 +67,48 @@ impl CopilotInstallFlow {
     }
 
     pub async fn complete_flow(&mut self) -> Result<InstallCallback> {
+        let cb_rx = self.start_callback_server().await?;
         let _ = webbrowser::open(&self.install_url());
-        self.await_callback().await
+        Self::wait_for_callback(cb_rx).await
     }
 
     pub async fn await_callback(&mut self) -> Result<InstallCallback> {
-        let (cb_tx, cb_rx) = oneshot::channel::<InstallCallback>();
+        let cb_rx = self.start_callback_server().await?;
+        Self::wait_for_callback(cb_rx).await
+    }
+
+    async fn start_callback_server(&mut self) -> Result<oneshot::Receiver<InstallCallbackResult>> {
+        let (cb_tx, cb_rx) = oneshot::channel::<InstallCallbackResult>();
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let (ready_tx, ready_rx) = oneshot::channel::<Result<()>>();
         self.server_shutdown_tx = Some(shutdown_tx);
 
         let expected_state = self.state.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                server::run_callback_server(cb_tx, shutdown_rx, expected_state, CALLBACK_PORT).await
+            if let Err(e) = server::run_callback_server(
+                cb_tx,
+                shutdown_rx,
+                ready_tx,
+                expected_state,
+                CALLBACK_PORT,
+            )
+            .await
             {
                 tracing::error!("[copilot-install] callback server error: {}", e);
             }
         });
+        ready_rx
+            .await
+            .map_err(|_| anyhow!("install callback server failed to start"))??;
+        Ok(cb_rx)
+    }
 
+    async fn wait_for_callback(
+        cb_rx: oneshot::Receiver<InstallCallbackResult>,
+    ) -> Result<InstallCallback> {
         match timeout(INSTALL_TIMEOUT, cb_rx).await {
-            Ok(Ok(cb)) => Ok(cb),
+            Ok(Ok(Ok(cb))) => Ok(cb),
+            Ok(Ok(Err(e))) => Err(anyhow!(e)),
             Ok(Err(_)) => Err(anyhow!("install callback channel closed unexpectedly")),
             Err(_) => Err(anyhow!("install timeout - please try again")),
         }
