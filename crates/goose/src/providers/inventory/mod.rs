@@ -4,6 +4,7 @@ use super::catalog::ProviderSetupCategory;
 use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::config::Config;
 use crate::session::session_manager::SessionStorage;
+use crate::utils::bytes_to_hex;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -126,7 +127,7 @@ impl InventoryIdentityInput {
         Ok(InventoryIdentity {
             provider_id,
             provider_family,
-            inventory_key: format!("{digest:x}"),
+            inventory_key: bytes_to_hex(digest),
         })
     }
 }

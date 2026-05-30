@@ -73,6 +73,7 @@ winapi = { workspace = true }
 default = [
     "code-mode",
     "local-inference",
+    "tui",
     "aws-providers",
     "telemetry",
     "nostr",
@@ -90,8 +91,9 @@ telemetry = ["goose/telemetry"]
 nostr = ["goose/nostr"]
 otel = ["goose/otel"]
 system-keyring = ["goose/system-keyring"]
+tui = []
 update = ["dep:sigstore-verify"]
-portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
+portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel", "tui"]
 # disables the update command
 disable-update = []
 rustls-tls = [
@@ -108,6 +110,7 @@ native-tls = [
 ]
 
 [dev-dependencies]
+env-lock.workspace = true
 tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true }

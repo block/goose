@@ -66,8 +66,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-const DEFAULT_FRONTEND_INSTRUCTIONS: &str =
-    "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
+const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ToolCategory {
@@ -2293,6 +2292,11 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(key, instruction);
     }
 
+    pub async fn remove_system_prompt_extra(&self, key: &str) {
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.remove_system_prompt_extra(key);
+    }
+
     pub async fn set_goal(&self, goal: Option<String>) {
         *self.goal.lock().await = goal;
     }
@@ -2461,6 +2465,11 @@ impl Agent {
     pub async fn override_system_prompt(&self, template: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.set_system_prompt_override(template);
+    }
+
+    pub async fn clear_system_prompt_override(&self) {
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.clear_system_prompt_override();
     }
 
     pub async fn list_extension_prompts(&self, session_id: &str) -> HashMap<String, Vec<Prompt>> {

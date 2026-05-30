@@ -53,6 +53,15 @@ impl std::fmt::Debug for AcpServerSession {
 }
 
 impl AcpServerSession {
+    pub fn session_updates(&self) -> Vec<SessionUpdate> {
+        self.updates
+            .lock()
+            .unwrap()
+            .drain(..)
+            .map(|n| n.update)
+            .collect()
+    }
+
     async fn send_prompt(
         &mut self,
         content: Vec<ContentBlock>,
@@ -464,15 +473,12 @@ impl Session for AcpServerSession {
         self._work_dir.path().to_path_buf()
     }
 
+    fn session_updates(&self) -> Vec<SessionUpdate> {
+        AcpServerSession::session_updates(self)
+    }
+
     fn notifications(&self) -> Vec<super::Notification> {
-        let updates: Vec<_> = self
-            .updates
-            .lock()
-            .unwrap()
-            .drain(..)
-            .map(|n| n.update)
-            .collect();
-        super::to_notifications(&updates)
+        super::to_notifications(&self.session_updates())
     }
 
     async fn prompt(

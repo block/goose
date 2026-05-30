@@ -2150,6 +2150,48 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "启用 Flash Attention 优化"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "内置模板"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "选择 llama.cpp 内置模板名称"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "聊天模板"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "内置"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "自定义内联"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "使用嵌入式 GGUF 元数据、llama.cpp 内置模板或内联 Jinja 模板"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "嵌入式"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "自定义聊天模板"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "粘贴完整的 Jinja 聊天模板源码"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "工具调用"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "自动"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "选择本地模型如何使用原生或模拟工具调用"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "强制模拟"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "强制原生"
+  },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "频率惩罚"
   },
@@ -2179,12 +2221,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "原生工具调用"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "使用模型内置的工具调用格式，而不是 shell 命令模拟器。对可靠支持工具调用的大模型建议启用。"
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "性能"
@@ -2236,9 +2272,6 @@
   },
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "用于生成的 CPU 线程数"
-  },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "工具调用"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"

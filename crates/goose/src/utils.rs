@@ -1,6 +1,23 @@
 use tokio_util::sync::CancellationToken;
 use unicode_normalization::UnicodeNormalization;
 
+/// Encode bytes as a lowercase hexadecimal string.
+///
+/// This avoids relying on digest output types implementing `LowerHex`, which
+/// changed in sha2 0.11.
+pub fn bytes_to_hex(bytes: impl AsRef<[u8]>) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let bytes = bytes.as_ref();
+    let mut output = String::with_capacity(bytes.len() * 2);
+
+    for &byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+
+    output
+}
+
 /// Check if a character is in the Unicode Tags Block range (U+E0000-U+E007F)
 /// These characters are invisible and can be used for steganographic attacks
 fn is_in_unicode_tag_range(c: char) -> bool {
@@ -82,6 +99,13 @@ pub fn split_command_args(input: &str) -> anyhow::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bytes_to_hex() {
+        assert_eq!(bytes_to_hex([]), "");
+        assert_eq!(bytes_to_hex([0x00, 0x0f, 0x10, 0xab, 0xff]), "000f10abff");
+        assert_eq!(bytes_to_hex(b"hello world"), "68656c6c6f20776f726c64");
+    }
 
     #[test]
     fn test_contains_unicode_tags() {

@@ -2279,6 +2279,48 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Flaş dikkati optimizasyonunu etkinleştir"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Yerleşik şablon"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Bir llama.cpp yerleşik şablon adı seçin"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Sohbet şablonu"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Yerleşik"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Özel satır içi"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "Gömülü GGUF meta verilerini, llama.cpp yerleşik şablonunu veya satır içi Jinja şablonunu kullan"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Gömülü"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Özel sohbet şablonu"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Tam Jinja sohbet şablonu kaynağını yapıştır"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Araç çağırma"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Otomatik"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Yerel modellerin yerel veya emüle araç çağırmayı nasıl seçeceğini belirleyin"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Emüle etmeye zorla"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Yereli zorla"
+  },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "Frekans cezası"
   },
@@ -2308,12 +2350,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "Yerel araç çağrısı"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "Kabuk komutu emülatörü yerine modelin yerleşik araç çağrısı formatını kullanın. Araç çağırmayı güvenilir şekilde destekleyen büyük modeller için etkinleştirin."
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "Performans"
@@ -2365,9 +2401,6 @@
   },
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "Nesil için CPU iş parçacıkları"
-  },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Takım Çağırma"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "En İyi K"

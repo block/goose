@@ -34,6 +34,47 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
+    pub(super) async fn on_set_session_system_prompt(
+        &self,
+        req: SetSessionSystemPromptRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+
+        let agent = self.get_session_agent_provider_ready(session_id).await?;
+        match req.mode {
+            SessionSystemPromptMode::Set => {
+                if req.text.trim().is_empty() {
+                    agent.clear_system_prompt_override().await;
+                } else {
+                    agent.override_system_prompt(req.text).await;
+                }
+            }
+            SessionSystemPromptMode::Append => {
+                let key = req
+                    .key
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|key| !key.is_empty())
+                    .ok_or_else(|| {
+                        agent_client_protocol::Error::invalid_params()
+                            .data("key cannot be empty for append mode")
+                    })?;
+                if req.text.trim().is_empty() {
+                    agent.remove_system_prompt_extra(key).await;
+                } else {
+                    agent.extend_system_prompt(key.to_string(), req.text).await;
+                }
+            }
+        }
+
+        Ok(EmptyResponse {})
+    }
+
     pub(super) async fn on_delete_session(
         &self,
         req: DeleteSessionRequest,

@@ -562,6 +562,9 @@ pub trait Connection: Sized {
 pub trait Session: std::fmt::Debug {
     fn session_id(&self) -> &agent_client_protocol::schema::SessionId;
     fn work_dir(&self) -> std::path::PathBuf;
+    /// Drains and returns raw session updates collected by the fixture.
+    fn session_updates(&self) -> Vec<SessionUpdate>;
+    /// Drains and returns simplified notifications collected by the fixture.
     fn notifications(&self) -> Vec<Notification>;
     async fn prompt(
         &mut self,
