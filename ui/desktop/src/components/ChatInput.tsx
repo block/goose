@@ -1,46 +1,42 @@
-import { AppEvents } from '../constants/events';
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowUp, Bug, ScrollText } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
-import { Button } from './ui/button';
-import type { View } from '../utils/navigationUtils';
-import Stop from './ui/Stop';
-import { Attach, Close, Microphone } from './icons';
-import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
-import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { DirSwitcher } from './bottom_menu/DirSwitcher';
-import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
-import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
-import { cn } from '../utils';
-import { AlertType, useAlerts } from './alerts';
-import { useConfig } from './ConfigContext';
-import { useModelAndProvider } from './ModelAndProviderContext';
-import { useAudioRecorder } from '../hooks/useAudioRecorder';
-import { toastError } from '../toasts';
-import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
-import { COST_TRACKING_ENABLED } from '../updates';
-import { CostTracker } from './bottom_menu/CostTracker';
-import { ContextWindowIndicator } from './bottom_menu/ContextWindowIndicator';
-import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
-import { Recipe } from '../recipe';
-import { MessageQueue, QueuedMessage } from './MessageQueue';
-import { detectInterruption } from '../utils/interruptionDetector';
-import { DiagnosticsModal } from './ui/Diagnostics';
-import { getSession, Message } from '../api';
-import { getInitialWorkingDir } from '../utils/workingDir';
-import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
-import {
-  trackFileAttached,
-  trackVoiceDictation,
-  trackDiagnosticsOpened,
-} from '../utils/analytics';
-import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
-import { UserInput, ImageData } from '../types/message';
-import { compressImageDataUrl } from '../utils/conversionUtils';
-import { fetchCanonicalModelInfo } from '../utils/canonical';
-import { defineMessages, useIntl } from '../i18n';
+import { ArrowUp, Bug, ScrollText } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TurndownService from 'turndown';
+import { getSession, Message } from '../api';
+import { AppEvents } from '../constants/events';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
+import { defineMessages, useIntl } from '../i18n';
+import { Recipe } from '../recipe';
+import { toastError, toastService } from '../toasts';
+import { ChatState } from '../types/chatState';
+import { ImageData, UserInput } from '../types/message';
+import { COST_TRACKING_ENABLED } from '../updates';
+import { cn } from '../utils';
+import { trackDiagnosticsOpened, trackFileAttached, trackVoiceDictation } from '../utils/analytics';
+import { fetchCanonicalModelInfo } from '../utils/canonical';
+import { compressImageDataUrl } from '../utils/conversionUtils';
+import { detectInterruption } from '../utils/interruptionDetector';
+import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
+import { LocalMessageStorage } from '../utils/localMessageStorage';
+import type { View } from '../utils/navigationUtils';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import { AlertType, useAlerts } from './alerts';
+import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
+import { ContextWindowIndicator } from './bottom_menu/ContextWindowIndicator';
+import { CostTracker } from './bottom_menu/CostTracker';
+import { DirSwitcher } from './bottom_menu/DirSwitcher';
+import { useConfig } from './ConfigContext';
+import { Attach, Close, Microphone } from './icons';
+import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
+import { MessageQueue, QueuedMessage } from './MessageQueue';
+import { useModelAndProvider } from './ModelAndProviderContext';
+import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
+import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
+import { Button } from './ui/button';
+import { DiagnosticsModal } from './ui/Diagnostics';
+import Stop from './ui/Stop';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -51,9 +47,7 @@ const turndown = new TurndownService({
 turndown.addRule('complexLinks', {
   filter: (node) => {
     return (
-      node.nodeName === 'A' &&
-      !!node.getAttribute('href') &&
-      /\n/.test(node.textContent || '')
+      node.nodeName === 'A' && !!node.getAttribute('href') && /\n/.test(node.textContent || '')
     );
   },
   replacement: (content, node) => {
@@ -903,6 +897,15 @@ export default function ChatInput({
     const newImages: PastedImage[] = [];
 
     for (const file of imageFiles) {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension && ['heic', 'heif'].includes(extension)) {
+        toastService.error({
+          title: 'Error',
+          msg: 'Unsupported image format',
+        });
+        return;
+      }
+
       const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
       // Add the image with loading state
@@ -1234,6 +1237,15 @@ export default function ChatInput({
     const isImage = file.type.startsWith('image/');
 
     if (isImage) {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension && ['heic', 'heif'].includes(extension)) {
+        toastService.error({
+          title: 'Error',
+          msg: 'Unsupported image format',
+        });
+        return;
+      }
+
       trackFileAttached('file');
 
       if (pastedImages.length >= MAX_IMAGES_PER_MESSAGE) {
@@ -1588,10 +1600,7 @@ export default function ChatInput({
           extensions, diagnostics, attach, mic, send. When the bar is narrow
           (e.g. on a small window), the secondary controls drop out so the
           model selector + send button always stay visible. */}
-      <div
-        ref={bottomBarRef}
-        className="flex flex-row items-center gap-2 px-3 py-2 relative"
-      >
+      <div ref={bottomBarRef} className="flex flex-row items-center gap-2 px-3 py-2 relative">
         {/* Left: model selector */}
         <Tooltip>
           <div>
@@ -1804,7 +1813,6 @@ export default function ChatInput({
           }
           workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
         />
-
       </div>
     </div>
   );
