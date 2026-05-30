@@ -7,7 +7,7 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
@@ -105,6 +105,11 @@
             license = licenses.asl20;  # Maps from "Apache-2.0" in Cargo.toml
             mainProgram = "goose";
           };
+        };
+
+        # Goose Desktop (Electron UI + the `goosed` backend). Linux x86_64 only.
+        packages.goose-desktop = pkgs.callPackage ./nix/goose-desktop {
+          gooseSrc = self;
         };
 
         devShells.default = pkgs.mkShell {
