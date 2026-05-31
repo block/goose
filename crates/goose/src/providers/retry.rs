@@ -1,7 +1,10 @@
 use super::errors::ProviderError;
 use crate::providers::base::Provider;
 use async_trait::async_trait;
+use std::env;
+use std::fmt::Display;
 use std::future::Future;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -9,6 +12,11 @@ pub const DEFAULT_MAX_RETRIES: usize = 3;
 pub const DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 1000;
 pub const DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
 pub const DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 30_000;
+
+const GOOSE_LLM_MAX_RETRIES: &str = "GOOSE_LLM_MAX_RETRIES";
+const GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS: &str = "GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS";
+const GOOSE_LLM_BACKOFF_MULTIPLIER: &str = "GOOSE_LLM_BACKOFF_MULTIPLIER";
+const GOOSE_LLM_MAX_RETRY_INTERVAL_MS: &str = "GOOSE_LLM_MAX_RETRY_INTERVAL_MS";
 
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
@@ -27,17 +35,41 @@ pub struct RetryConfig {
 
 impl Default for RetryConfig {
     fn default() -> Self {
-        Self {
-            max_retries: DEFAULT_MAX_RETRIES,
-            initial_interval_ms: DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-            backoff_multiplier: DEFAULT_BACKOFF_MULTIPLIER,
-            max_interval_ms: DEFAULT_MAX_RETRY_INTERVAL_MS,
-            transient_only: false,
-        }
+        Self::from_env()
     }
 }
 
 impl RetryConfig {
+    pub fn from_env() -> Self {
+        Self {
+            max_retries: read_retry_env(
+                GOOSE_LLM_MAX_RETRIES,
+                DEFAULT_MAX_RETRIES,
+                |value| value > 0,
+                "a positive integer",
+            ),
+            initial_interval_ms: read_retry_env(
+                GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS,
+                DEFAULT_INITIAL_RETRY_INTERVAL_MS,
+                |value| value > 0,
+                "a positive integer",
+            ),
+            backoff_multiplier: read_retry_env(
+                GOOSE_LLM_BACKOFF_MULTIPLIER,
+                DEFAULT_BACKOFF_MULTIPLIER,
+                |value| value.is_finite() && value >= 1.0,
+                "a finite number greater than or equal to 1",
+            ),
+            max_interval_ms: read_retry_env(
+                GOOSE_LLM_MAX_RETRY_INTERVAL_MS,
+                DEFAULT_MAX_RETRY_INTERVAL_MS,
+                |value| value > 0,
+                "a positive integer",
+            ),
+            transient_only: false,
+        }
+    }
+
     pub fn new(
         max_retries: usize,
         initial_interval_ms: u64,
@@ -78,6 +110,40 @@ impl RetryConfig {
             (capped_delay_ms as f64 * jitter_factor_to_avoid_thundering_herd) as u64;
 
         Duration::from_millis(jitter_delay_ms)
+    }
+}
+
+fn read_retry_env<T, F>(name: &str, default: T, is_valid: F, expected: &str) -> T
+where
+    T: Copy + Display + FromStr,
+    F: Fn(T) -> bool,
+{
+    let value = match env::var(name) {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => return default,
+        Err(error) => {
+            tracing::warn!(
+                env_var = name,
+                error = %error,
+                default = %default,
+                "Ignoring invalid retry environment variable"
+            );
+            return default;
+        }
+    };
+
+    match value.parse::<T>() {
+        Ok(parsed) if is_valid(parsed) => parsed,
+        _ => {
+            tracing::warn!(
+                env_var = name,
+                value = %value,
+                expected,
+                default = %default,
+                "Ignoring invalid retry environment variable"
+            );
+            default
+        }
     }
 }
 
@@ -246,6 +312,71 @@ impl<P: Provider> ProviderRetry for P {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn lock_retry_env(
+        max_retries: Option<&'static str>,
+        initial_interval_ms: Option<&'static str>,
+        backoff_multiplier: Option<&'static str>,
+        max_interval_ms: Option<&'static str>,
+    ) -> env_lock::EnvGuard<'static> {
+        env_lock::lock_env([
+            (GOOSE_LLM_MAX_RETRIES, max_retries),
+            (GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS, initial_interval_ms),
+            (GOOSE_LLM_BACKOFF_MULTIPLIER, backoff_multiplier),
+            (GOOSE_LLM_MAX_RETRY_INTERVAL_MS, max_interval_ms),
+        ])
+    }
+
+    #[test]
+    fn default_config_uses_hardcoded_defaults_without_env() {
+        let _guard = lock_retry_env(None, None, None, None);
+        let config = RetryConfig::default();
+
+        assert_eq!(config.max_retries, DEFAULT_MAX_RETRIES);
+        assert_eq!(
+            config.initial_interval_ms,
+            DEFAULT_INITIAL_RETRY_INTERVAL_MS
+        );
+        assert_eq!(config.backoff_multiplier, DEFAULT_BACKOFF_MULTIPLIER);
+        assert_eq!(config.max_interval_ms, DEFAULT_MAX_RETRY_INTERVAL_MS);
+        assert!(!config.transient_only);
+    }
+
+    #[test]
+    fn default_config_uses_llm_retry_env_overrides() {
+        let _guard = lock_retry_env(Some("8"), Some("250"), Some("1.5"), Some("60000"));
+        let config = RetryConfig::default();
+
+        assert_eq!(config.max_retries, 8);
+        assert_eq!(config.initial_interval_ms, 250);
+        assert_eq!(config.backoff_multiplier, 1.5);
+        assert_eq!(config.max_interval_ms, 60_000);
+    }
+
+    #[test]
+    fn default_config_ignores_invalid_llm_retry_env_overrides() {
+        let _guard = lock_retry_env(Some("0"), Some("not-a-number"), Some("NaN"), Some("0"));
+        let config = RetryConfig::default();
+
+        assert_eq!(config.max_retries, DEFAULT_MAX_RETRIES);
+        assert_eq!(
+            config.initial_interval_ms,
+            DEFAULT_INITIAL_RETRY_INTERVAL_MS
+        );
+        assert_eq!(config.backoff_multiplier, DEFAULT_BACKOFF_MULTIPLIER);
+        assert_eq!(config.max_interval_ms, DEFAULT_MAX_RETRY_INTERVAL_MS);
+    }
+
+    #[test]
+    fn explicit_config_ignores_llm_retry_env_overrides() {
+        let _guard = lock_retry_env(Some("8"), Some("250"), Some("1.5"), Some("60000"));
+        let config = RetryConfig::new(1, 2, 3.0, 4);
+
+        assert_eq!(config.max_retries, 1);
+        assert_eq!(config.initial_interval_ms, 2);
+        assert_eq!(config.backoff_multiplier, 3.0);
+        assert_eq!(config.max_interval_ms, 4);
+    }
 
     #[test]
     fn default_config_retries_request_failed() {

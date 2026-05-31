@@ -185,7 +185,27 @@ export GOOSE_PLANNER_MODEL="gpt-4"
 
 ### Provider Retries
 
-Configurable retry parameters for LLM providers. 
+Configurable retry parameters for LLM providers.
+
+#### Universal LLM Provider Defaults
+
+These `GOOSE_` variables configure the shared retry defaults used by providers that do not define their own retry settings. Provider-specific retry variables, such as the Bedrock and Databricks variables below, take precedence for those providers.
+
+| Variable | Purpose | Default |
+|---------------------|-------------|---------|
+| `GOOSE_LLM_MAX_RETRIES` | The max number of retry attempts before giving up | 3 |
+| `GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS` | How long to wait (in milliseconds) before the first retry | 1000 |
+| `GOOSE_LLM_BACKOFF_MULTIPLIER` | The factor by which the retry interval increases after each attempt | 2 (doubles every time) |
+| `GOOSE_LLM_MAX_RETRY_INTERVAL_MS` | The cap on the retry interval in milliseconds | 30000 |
+
+**Examples**
+
+```bash
+export GOOSE_LLM_MAX_RETRIES=5                    # 5 retry attempts
+export GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS=500    # start with 0.5 second before first retry
+export GOOSE_LLM_BACKOFF_MULTIPLIER=2             # each retry waits 2x longer than the previous
+export GOOSE_LLM_MAX_RETRY_INTERVAL_MS=60000      # cap the maximum retry delay at 1 min
+```
 
 #### AWS Bedrock
 
