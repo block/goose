@@ -306,7 +306,14 @@ impl DatabricksV2Provider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = anthropic::create_request(model_config, system, messages, tools)?;
+        let is_subagent =
+            crate::session::session_manager::SessionManager::is_subagent(session_id).await;
+        let options = anthropic::AnthropicFormatOptions {
+            skip_cache_control: is_subagent,
+            ..Default::default()
+        };
+        let mut payload =
+            anthropic::create_request_with_options(model_config, system, messages, tools, options)?;
         payload["stream"] = Value::Bool(true);
         let mut log = RequestLog::start(model_config, &payload)?;
 

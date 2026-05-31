@@ -376,6 +376,18 @@ impl SessionManager {
         }
     }
 
+    /// Returns `true` when the given session_id belongs to a `SubAgent` session.
+    /// Returns `false` for all other session types and when the session cannot be
+    /// looked up (e.g. the id is a synthetic test value that does not exist in the
+    /// database).
+    pub async fn is_subagent(session_id: &str) -> bool {
+        let storage = Arc::clone(&SESSION_STORAGE);
+        match storage.get_session(session_id, false).await {
+            Ok(session) => session.session_type == SessionType::SubAgent,
+            Err(_) => false,
+        }
+    }
+
     pub fn storage(&self) -> &Arc<SessionStorage> {
         &self.storage
     }

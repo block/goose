@@ -669,6 +669,8 @@ impl Provider for DatabricksProvider {
                 model_config
             };
 
+            let is_subagent =
+                crate::session::session_manager::SessionManager::is_subagent(session_id).await;
             let mut payload = create_request_for_provider(
                 DATABRICKS_PROVIDER_NAME,
                 request_model_config,
@@ -676,6 +678,7 @@ impl Provider for DatabricksProvider {
                 messages,
                 tools,
                 &self.image_format,
+                is_subagent,
             )?;
             payload
                 .as_object_mut()

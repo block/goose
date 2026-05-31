@@ -47,6 +47,10 @@ string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabl
 pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
+    /// When `true`, `cache_control` is not added to messages, tools, or the
+    /// system prompt.  Set this for SubAgent sessions, which are one-shot and
+    /// would never benefit from cache reads.
+    pub skip_cache_control: bool,
 }
 
 impl AnthropicFormatOptions {
@@ -68,6 +72,7 @@ impl AnthropicFormatOptions {
         Self {
             preserve_unsigned_thinking,
             preserve_thinking_context,
+            skip_cache_control: self.skip_cache_control,
         }
     }
 }
@@ -308,26 +313,28 @@ fn format_messages_with_options(
         }));
     }
 
-    // Add "cache_control" to the last and second-to-last "user" messages.
-    // During each turn, we mark the final message with cache_control so the conversation can be
-    // incrementally cached. The second-to-last user message is also marked for caching with the
-    // cache_control parameter, so that this checkpoint can read from the previous cache.
-    let mut user_count = 0;
-    for message in anthropic_messages.iter_mut().rev() {
-        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
-            if let Some(content) = message.get_mut(CONTENT_FIELD) {
-                if let Some(content_array) = content.as_array_mut() {
-                    if let Some(last_content) = content_array.last_mut() {
-                        last_content.as_object_mut().unwrap().insert(
-                            CACHE_CONTROL_FIELD.to_string(),
-                            json!({ TYPE_FIELD: "ephemeral" }),
-                        );
+    if !options.skip_cache_control {
+        // Add "cache_control" to the last and second-to-last "user" messages.
+        // During each turn, we mark the final message with cache_control so the conversation can be
+        // incrementally cached. The second-to-last user message is also marked for caching with the
+        // cache_control parameter, so that this checkpoint can read from the previous cache.
+        let mut user_count = 0;
+        for message in anthropic_messages.iter_mut().rev() {
+            if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
+                if let Some(content) = message.get_mut(CONTENT_FIELD) {
+                    if let Some(content_array) = content.as_array_mut() {
+                        if let Some(last_content) = content_array.last_mut() {
+                            last_content.as_object_mut().unwrap().insert(
+                                CACHE_CONTROL_FIELD.to_string(),
+                                json!({ TYPE_FIELD: "ephemeral" }),
+                            );
+                        }
                     }
                 }
-            }
-            user_count += 1;
-            if user_count >= 2 {
-                break;
+                user_count += 1;
+                if user_count >= 2 {
+                    break;
+                }
             }
         }
     }
@@ -346,6 +353,10 @@ fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObj
 
 /// Convert internal Tool format to Anthropic's API tool specification
 pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
+    format_tools_with_options(tools, AnthropicFormatOptions::default())
+}
+
+fn format_tools_with_options(tools: &[Tool], options: AnthropicFormatOptions) -> Vec<Value> {
     let mut unique_tools = HashSet::new();
     let mut tool_specs = Vec::new();
 
@@ -359,13 +370,15 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
         }
     }
 
-    // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-    // will be cached as a single prefix.
-    if let Some(last_tool) = tool_specs.last_mut() {
-        last_tool.as_object_mut().unwrap().insert(
-            CACHE_CONTROL_FIELD.to_string(),
-            json!({ TYPE_FIELD: "ephemeral" }),
-        );
+    if !options.skip_cache_control {
+        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
+        // will be cached as a single prefix.
+        if let Some(last_tool) = tool_specs.last_mut() {
+            last_tool.as_object_mut().unwrap().insert(
+                CACHE_CONTROL_FIELD.to_string(),
+                json!({ TYPE_FIELD: "ephemeral" }),
+            );
+        }
     }
 
     tool_specs
@@ -373,11 +386,22 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 
 /// Convert system message to Anthropic's API system specification
 pub fn format_system(system: &str) -> Value {
-    json!([{
-        TYPE_FIELD: TEXT_TYPE,
-        TEXT_TYPE: system,
-        CACHE_CONTROL_FIELD: { TYPE_FIELD: "ephemeral" }
-    }])
+    format_system_with_options(system, AnthropicFormatOptions::default())
+}
+
+fn format_system_with_options(system: &str, options: AnthropicFormatOptions) -> Value {
+    if options.skip_cache_control {
+        json!([{
+            TYPE_FIELD: TEXT_TYPE,
+            TEXT_TYPE: system
+        }])
+    } else {
+        json!([{
+            TYPE_FIELD: TEXT_TYPE,
+            TEXT_TYPE: system,
+            CACHE_CONTROL_FIELD: { TYPE_FIELD: "ephemeral" }
+        }])
+    }
 }
 
 /// Convert Anthropic's API response to internal Message format
@@ -677,8 +701,8 @@ pub fn create_request_with_options_for_provider(
 ) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
-    let tool_specs = format_tools(tools);
-    let system_spec = format_system(system);
+    let tool_specs = format_tools_with_options(tools, options);
+    let system_spec = format_system_with_options(system, options);
 
     if anthropic_messages.is_empty() {
         return Err(anyhow!("No valid messages to send to Anthropic API"));
@@ -1173,6 +1197,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: false,
+                skip_cache_control: false,
             },
         );
 
@@ -1357,6 +1382,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
+                skip_cache_control: false,
             },
         )?;
 
@@ -1946,5 +1972,124 @@ mod tests {
             parts.text[0]
         );
         assert!(parts.text[0].contains("context_window"));
+    }
+
+    #[test]
+    fn test_skip_cache_control_omits_cache_control_from_messages() {
+        let messages = vec![
+            Message::user().with_text("First"),
+            Message::assistant().with_text("Reply"),
+            Message::user().with_text("Second"),
+        ];
+        let opts = AnthropicFormatOptions {
+            skip_cache_control: true,
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, opts);
+        for msg in &spec {
+            if let Some(content) = msg.get("content").and_then(|c| c.as_array()) {
+                for block in content {
+                    assert!(
+                        block.get("cache_control").is_none(),
+                        "unexpected cache_control in block: {block}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_skip_cache_control_omits_cache_control_from_tools() {
+        let tool = Tool::new(
+            "my_tool",
+            "does stuff",
+            object!({"type": "object"}),
+        );
+        let opts = AnthropicFormatOptions {
+            skip_cache_control: true,
+            ..Default::default()
+        };
+        let specs = format_tools_with_options(&[tool], opts);
+        for spec in &specs {
+            assert!(
+                spec.get("cache_control").is_none(),
+                "unexpected cache_control in tool spec: {spec}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_skip_cache_control_omits_cache_control_from_system() {
+        let opts = AnthropicFormatOptions {
+            skip_cache_control: true,
+            ..Default::default()
+        };
+        let system = format_system_with_options("Be helpful.", opts);
+        let blocks = system.as_array().unwrap();
+        for block in blocks {
+            assert!(
+                block.get("cache_control").is_none(),
+                "unexpected cache_control in system block: {block}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_default_options_includes_cache_control_in_messages() {
+        let messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi"),
+            Message::user().with_text("How are you?"),
+        ];
+        let spec = format_messages_with_options(&messages, AnthropicFormatOptions::default());
+        let user_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!(USER_ROLE)))
+            .collect();
+        let last = user_msgs.last().unwrap();
+        let last_block = last["content"].as_array().unwrap().last().unwrap();
+        assert!(
+            last_block.get("cache_control").is_some(),
+            "expected cache_control on last user message"
+        );
+    }
+
+    #[test]
+    fn test_skip_cache_control_via_create_request_with_options() -> Result<()> {
+        let config = cfg("claude-sonnet-4-5");
+        let messages = vec![Message::user().with_text("Hello")];
+        let tool = Tool::new(
+            "my_tool",
+            "does stuff",
+            object!({"type": "object"}),
+        );
+        let opts = AnthropicFormatOptions {
+            skip_cache_control: true,
+            ..Default::default()
+        };
+        let payload = create_request_with_options(&config, "Be helpful.", &messages, &[tool], opts)?;
+
+        // No cache_control in system
+        let system = &payload["system"];
+        let system_blocks = system.as_array().unwrap();
+        for block in system_blocks {
+            assert!(block.get("cache_control").is_none());
+        }
+
+        // No cache_control in messages
+        for msg in payload["messages"].as_array().unwrap() {
+            if let Some(content) = msg.get("content").and_then(|c| c.as_array()) {
+                for block in content {
+                    assert!(block.get("cache_control").is_none());
+                }
+            }
+        }
+
+        // No cache_control in tools
+        for tool_spec in payload["tools"].as_array().unwrap() {
+            assert!(tool_spec.get("cache_control").is_none());
+        }
+
+        Ok(())
     }
 }

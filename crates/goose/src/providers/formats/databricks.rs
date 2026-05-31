@@ -594,6 +594,7 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
     image_format: &ImageFormat,
+    is_subagent: bool,
 ) -> anyhow::Result<Value, Error> {
     create_request_for_provider(
         DATABRICKS_PROVIDER_NAME,
@@ -602,6 +603,7 @@ pub fn create_request(
         messages,
         tools,
         image_format,
+        is_subagent,
     )
 }
 
@@ -612,6 +614,7 @@ pub fn create_request_for_provider(
     messages: &[Message],
     tools: &[Tool],
     image_format: &ImageFormat,
+    is_subagent: bool,
 ) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
@@ -689,8 +692,9 @@ pub fn create_request_for_provider(
         );
     }
 
-    // Apply cache control for Claude models to enable prompt caching
-    if is_claude_model(&model_config.model_name) {
+    // Apply cache control for Claude models to enable prompt caching.
+    // Skipped for SubAgent sessions, which are one-shot and would never read back the cache.
+    if is_claude_model(&model_config.model_name) && !is_subagent {
         apply_cache_control_for_claude(&mut payload);
     }
 
@@ -1069,7 +1073,7 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         let obj = request.as_object().unwrap();
         let expected = json!({
             "model": "gpt-4o",
@@ -1104,7 +1108,7 @@ mod tests {
             request_params: Some(params),
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         assert_eq!(request["reasoning_effort"], "high");
         Ok(())
     }
@@ -1124,7 +1128,7 @@ mod tests {
             request_params: Some(params),
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         assert_eq!(request["reasoning_effort"], "none");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
@@ -1145,7 +1149,7 @@ mod tests {
             request_params: Some(params),
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         assert_eq!(request["reasoning_effort"], "high");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
@@ -1164,7 +1168,7 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         assert_eq!(request["model"], "o3");
         assert_eq!(request["reasoning_effort"], "xhigh");
         Ok(())
@@ -1183,7 +1187,7 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         assert_eq!(request["model"], "o3");
         assert_eq!(request["reasoning_effort"], "none");
         Ok(())
@@ -1202,7 +1206,7 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
         assert_eq!(request["model"], "databricks-gpt-5.4");
         assert_eq!(request["reasoning_effort"], "high");
         Ok(())
@@ -1216,7 +1220,7 @@ mod tests {
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
         model_config.request_params = Some(params);
 
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
 
         assert_eq!(request["thinking"]["type"], "adaptive");
         assert_eq!(request["output_config"]["effort"], "low");
@@ -1243,7 +1247,7 @@ mod tests {
             params.insert("thinking_effort".to_string(), serde_json::json!("high"));
             model_config.request_params = Some(params);
 
-            let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+            let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
 
             assert_eq!(request["thinking"]["type"], "adaptive", "{name}");
             assert!(request.get("temperature").is_none(), "{name}");
@@ -1264,7 +1268,7 @@ mod tests {
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
         model_config.request_params = Some(params);
 
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
 
         assert_eq!(request["thinking"]["type"], "adaptive");
         assert_eq!(request["output_config"]["effort"], "high");
@@ -1280,7 +1284,7 @@ mod tests {
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         model_config.request_params = Some(params);
 
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
 
         assert_eq!(request["thinking"]["type"], "enabled");
         assert_eq!(request["thinking"]["budget_tokens"], 16000);
@@ -1305,7 +1309,7 @@ mod tests {
             params.insert("thinking_effort".to_string(), serde_json::json!(effort));
             model_config.request_params = Some(params);
 
-            let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+            let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
 
             assert_eq!(request["thinking"]["type"], "enabled");
             assert_eq!(request["thinking"]["budget_tokens"], expected_budget);
@@ -1669,6 +1673,7 @@ mod tests {
             &messages,
             &[tool],
             &ImageFormat::OpenAi,
+            false,
         )?;
 
         // Verify system message has cache_control
@@ -1718,6 +1723,7 @@ mod tests {
             &messages,
             &[tool],
             &ImageFormat::OpenAi,
+            false,
         )?;
 
         // Verify system message does NOT have cache_control (it's a plain string)
@@ -1726,6 +1732,73 @@ mod tests {
         assert!(system_msg["content"].is_string());
 
         // Verify tool does NOT have cache_control
+        let tools = request["tools"].as_array().unwrap();
+        assert!(tools[0]["function"].get("cache_control").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_claude_subagent_no_cache_control() -> anyhow::Result<()> {
+        let model_config = ModelConfig {
+            model_name: "databricks-claude-sonnet-4".to_string(),
+            context_limit: Some(200000),
+            temperature: None,
+            max_tokens: Some(8192),
+            toolshim: false,
+            toolshim_model: None,
+            fast_model_config: None,
+            request_params: None,
+            reasoning: None,
+        };
+
+        let messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi there!"),
+            Message::user().with_text("How are you?"),
+        ];
+
+        let tool = Tool::new(
+            "test_tool",
+            "A test tool",
+            object!({
+                "type": "object",
+                "properties": {}
+            }),
+        );
+
+        // is_subagent = true: no cache_control should be added
+        let request = create_request(
+            &model_config,
+            "You are helpful",
+            &messages,
+            &[tool],
+            &ImageFormat::OpenAi,
+            true,
+        )?;
+
+        // System message should remain a plain string (no cache_control conversion)
+        let messages_arr = request["messages"].as_array().unwrap();
+        let system_msg = &messages_arr[0];
+        assert!(
+            system_msg["content"].is_string(),
+            "expected plain string system content for subagent"
+        );
+
+        // User messages should not have cache_control
+        for msg in messages_arr {
+            if msg.get("role") == Some(&json!("user")) {
+                if let Some(content) = msg.get("content") {
+                    if let Some(arr) = content.as_array() {
+                        for block in arr {
+                            assert!(block.get("cache_control").is_none());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tool should not have cache_control
         let tools = request["tools"].as_array().unwrap();
         assert!(tools[0]["function"].get("cache_control").is_none());
 

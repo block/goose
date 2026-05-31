@@ -23,6 +23,7 @@ use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::utils::RequestLog;
+use crate::session::session_manager::SessionManager;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -173,6 +174,7 @@ impl AnthropicProvider {
         AnthropicFormatOptions {
             preserve_unsigned_thinking: preserves_thinking,
             preserve_thinking_context: preserves_thinking,
+            skip_cache_control: false,
         }
     }
 
@@ -340,13 +342,18 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let is_subagent = SessionManager::is_subagent(session_id).await;
+        let options = AnthropicFormatOptions {
+            skip_cache_control: is_subagent,
+            ..self.format_options
+        };
         let mut payload = create_request_with_options_for_provider(
             ANTHROPIC_PROVIDER_NAME,
             model_config,
             system,
             messages,
             tools,
-            self.format_options,
+            options,
         )?;
         payload
             .as_object_mut()
