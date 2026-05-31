@@ -281,6 +281,12 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     ...buildGoosedEnv(port, serverSecret, goosedPath),
   };
 
+  // Remove GOOSE_MODEL and GOOSE_PROVIDER from the spawned environment so that
+  // goosed reads them from config.yaml rather than inheriting stale values from
+  // the Electron process (e.g. env vars baked in by managed-install tooling).
+  delete spawnEnv['GOOSE_MODEL'];
+  delete spawnEnv['GOOSE_PROVIDER'];
+
   for (const [key, value] of Object.entries(additionalEnv)) {
     if (value !== undefined) {
       spawnEnv[key] = value;
