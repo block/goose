@@ -13,7 +13,8 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{stream_from_single_message, MessageStream, Provider};
+use super::base::{stream_from_single_message, MessageStream, ModelInfo, Provider};
+use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
@@ -83,6 +84,57 @@ impl OpenAiCompatibleProvider {
     }
 }
 
+fn context_limit_from_model_entry(model: &Value) -> Option<usize> {
+    let value = model.get("meta").and_then(|meta| meta.get("n_ctx"))?;
+    let parsed = value
+        .as_u64()
+        .and_then(|v| usize::try_from(v).ok())
+        .or_else(|| value.as_str()?.trim().parse::<usize>().ok())?;
+
+    (parsed > 0).then_some(parsed)
+}
+
+fn model_info_from_models_api_entry(provider_name: &str, model: &Value) -> Option<ModelInfo> {
+    let name = model.get("id").and_then(|v| v.as_str())?;
+    let config = ModelConfig::new_or_fail(name)
+        .with_canonical_limits(provider_name)
+        .with_context_limit(context_limit_from_model_entry(model));
+
+    Some(ModelInfo {
+        name: name.to_string(),
+        resolved_model: None,
+        context_limit: config.context_limit(),
+        input_token_cost: None,
+        output_token_cost: None,
+        currency: None,
+        supports_cache_control: None,
+        reasoning: config.is_reasoning_model(),
+    })
+}
+
+fn parse_models_api_response(
+    provider_name: &str,
+    json: &Value,
+) -> Result<Vec<ModelInfo>, ProviderError> {
+    if let Some(err_obj) = json.get("error") {
+        let msg = err_obj
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
+        return Err(ProviderError::Authentication(msg.to_string()));
+    }
+
+    let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+        ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
+    })?;
+    let mut models: Vec<ModelInfo> = arr
+        .iter()
+        .filter_map(|m| model_info_from_models_api_entry(provider_name, m))
+        .collect();
+    models.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(models)
+}
+
 #[async_trait::async_trait]
 impl Provider for OpenAiCompatibleProvider {
     fn get_name(&self) -> &str {
@@ -94,30 +146,80 @@ impl Provider for OpenAiCompatibleProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let models = self.fetch_supported_model_info().await?;
+        Ok(models.into_iter().map(|model| model.name).collect())
+    }
+
+    async fn fetch_supported_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         let response = self
             .api_client
             .response_get(None, "models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;
+        parse_models_api_response(self.get_name(), &json)
+    }
 
-        if let Some(err_obj) = json.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
+    async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
+        self.fetch_supported_model_info()
+            .await?
+            .into_iter()
+            .find(|model| model.name.eq_ignore_ascii_case(model_name))
+            .ok_or_else(|| ProviderError::RequestFailed(format!("Model not found: {model_name}")))
+    }
+
+    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let all_models = self.fetch_supported_model_info().await?;
+
+        if self.skip_canonical_filtering() {
+            return Ok(all_models);
         }
 
-        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
-        let mut models: Vec<String> = arr
+
+        let provider_name = self.get_name();
+        let mut models_with_dates: Vec<(ModelInfo, Option<String>)> = all_models
             .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .filter_map(|model| {
+                let canonical_id = map_to_canonical_model(provider_name, &model.name, registry)?;
+                let (provider, model_name) = canonical_id.split_once('/')?;
+                let canonical_model = registry.get(provider, model_name)?;
+
+                if !canonical_model
+                    .modalities
+                    .input
+                    .contains(&crate::providers::canonical::Modality::Text)
+                {
+                    return None;
+                }
+
+                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                    return None;
+                }
+
+                Some((model.clone(), canonical_model.release_date.clone()))
+            })
             .collect();
-        models.sort();
-        Ok(models)
+
+        models_with_dates.sort_by(|a, b| match (&a.1, &b.1) {
+            (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.0.name.cmp(&b.0.name),
+        });
+
+        let recommended_models: Vec<ModelInfo> = models_with_dates
+            .into_iter()
+            .map(|(model, _)| model)
+            .collect();
+
+        if recommended_models.is_empty() {
+            Ok(all_models)
+        } else {
+            Ok(recommended_models)
+        }
     }
 
     async fn stream(
@@ -234,9 +336,79 @@ pub fn stream_responses_compat(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ModelConfig;
+    use crate::model::{ModelConfig, DEFAULT_CONTEXT_LIMIT};
     use serde_json::json;
     use test_case::test_case;
+
+    #[test]
+    fn models_api_entry_uses_llama_cpp_context_limit() {
+        let info = model_info_from_models_api_entry(
+            "custom-local",
+            &json!({
+                "id": "qwen3-coder:30b",
+                "object": "model",
+                "meta": {
+                    "n_ctx": 32768
+                }
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(info.name, "qwen3-coder:30b");
+        assert_eq!(info.context_limit, 32_768);
+    }
+
+    #[test]
+    fn models_api_entry_accepts_string_context_limit() {
+        let info = model_info_from_models_api_entry(
+            "custom-local",
+            &json!({
+                "id": "local-model",
+                "meta": {
+                    "n_ctx": "65536"
+                }
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(info.context_limit, 65_536);
+    }
+
+    #[test]
+    fn models_api_entry_ignores_invalid_context_limit() {
+        let info = model_info_from_models_api_entry(
+            "custom-local",
+            &json!({
+                "id": "local-model",
+                "meta": {
+                    "n_ctx": 0
+                }
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(info.context_limit, DEFAULT_CONTEXT_LIMIT);
+    }
+
+    #[test]
+    fn models_api_response_preserves_context_limits_and_sorts_by_id() {
+        let models = parse_models_api_response(
+            "custom-local",
+            &json!({
+                "object": "list",
+                "data": [
+                    {"id": "z-model", "meta": {"n_ctx": 8192}},
+                    {"id": "a-model", "meta": {"n_ctx": 16384}}
+                ]
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(models[0].name, "a-model");
+        assert_eq!(models[0].context_limit, 16_384);
+        assert_eq!(models[1].name, "z-model");
+        assert_eq!(models[1].context_limit, 8_192);
+    }
 
     #[test_case(
         StatusCode::PAYMENT_REQUIRED,
