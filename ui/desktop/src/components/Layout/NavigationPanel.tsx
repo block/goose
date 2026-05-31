@@ -105,6 +105,11 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
             path: { session_id: session.id },
             body: { name: newName },
           });
+          window.dispatchEvent(
+            new CustomEvent(AppEvents.SESSION_RENAMED, {
+              detail: { sessionId: session.id, newName },
+            })
+          );
           onRenamed();
         }}
         placeholder={intl.formatMessage(i18n.untitledSession)}

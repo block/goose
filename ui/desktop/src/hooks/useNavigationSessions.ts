@@ -134,7 +134,9 @@ export function useNavigationSessions() {
         .detail;
 
       setRecentSessions((prev) =>
-        prev.map((session) => (session.id === sessionId ? { ...session, name: newName } : session))
+        prev.map((session) =>
+          session.id === sessionId ? { ...session, name: newName, user_set_name: true } : session
+        )
       );
     };
 

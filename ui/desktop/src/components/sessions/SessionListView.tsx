@@ -499,7 +499,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
+        prevSessions.map((s) =>
+          s.id === sessionId ? { ...s, name: newDescription, user_set_name: true } : s
+        )
       );
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
