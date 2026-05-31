@@ -615,7 +615,19 @@ pub fn shutdown_otlp() {
         }
     }
 
-    OTEL_RT.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let Some(rt) = OTEL_RT.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        // Dropping a `Runtime` inside an async context panics with "Cannot drop
+        // a runtime in a context where blocking is not allowed". Move the drop
+        // off-runtime via `shutdown_background` (which takes ownership of
+        // `Runtime` and shuts down without blocking the caller).  If we still
+        // have other `Arc` clones alive, fall back to dropping on a plain thread.
+        match Arc::try_unwrap(rt) {
+            Ok(runtime) => runtime.shutdown_background(),
+            Err(arc) => {
+                std::thread::spawn(move || drop(arc));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
