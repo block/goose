@@ -22,7 +22,6 @@
 
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::errors::ProviderError;
-use llama_cpp_2::model::AddBos;
 use rmcp::model::{CallToolRequestParams, Tool};
 use serde_json::json;
 use std::borrow::Cow;
@@ -30,8 +29,8 @@ use uuid::Uuid;
 
 use super::super::{finalize_usage, StreamSender};
 use super::inference_engine::{
-    create_and_prefill_context, create_and_prefill_multimodal, generation_loop,
-    validate_and_compute_context, GenerationContext, TokenAction,
+    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer,
+    ThinkingOutputFilter, TokenAction,
 };
 
 const SHELL_TOOL: &str = "developer__shell";
@@ -355,56 +354,26 @@ fn send_emulator_action(
 pub(super) fn generate_with_emulated_tools(
     ctx: &mut GenerationContext<'_>,
     code_mode_enabled: bool,
+    oai_messages_json: &str,
 ) -> Result<(), ProviderError> {
-    // Use oaicompat variant — its C++ wrapper catches exceptions that would
-    // otherwise abort the process when other native libs disturb the C++ ABI.
-    let prompt = ctx
-        .loaded
-        .model
-        .apply_chat_template_with_tools_oaicompat(
-            &ctx.loaded.template,
-            ctx.chat_messages,
-            None, // no tools for emulated path
-            None, // no json_schema
-            true, // add_generation_prompt
-        )
-        .map(|r| r.prompt)
-        .map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
-        })?;
-
-    let (mut llama_ctx, prompt_token_count, effective_ctx) = if !ctx.images.is_empty() {
-        create_and_prefill_multimodal(
-            ctx.loaded,
-            ctx.backend,
-            &prompt,
-            ctx.images,
-            ctx.context_limit,
-            ctx.settings,
-        )?
-    } else {
-        let tokens = ctx
-            .loaded
-            .model
-            .str_to_token(&prompt, AddBos::Never)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        let (ptc, ectx) = validate_and_compute_context(
-            ctx.loaded,
-            ctx.backend,
-            tokens.len(),
-            ctx.context_limit,
-            ctx.settings,
-        )?;
-        let lctx =
-            create_and_prefill_context(ctx.loaded, ctx.backend, &tokens, ectx, ctx.settings)?;
-        (lctx, ptc, ectx)
-    };
+    let prepared = prepare_generation(ctx, oai_messages_json, None, None)?;
+    let template_result = prepared.template_result;
+    let mut llama_ctx = prepared.llama_ctx;
+    let prompt_token_count = prepared.prompt_token_count;
+    let effective_ctx = prepared.effective_ctx;
 
     let message_id = ctx.message_id;
     let tx = ctx.tx;
     let mut emulator_parser = StreamingEmulatorParser::new(code_mode_enabled);
+    let mut output_filter = ThinkingOutputFilter::new(
+        ctx.settings.enable_thinking,
+        &template_result.generation_prompt,
+    );
+    let mut stop_trimmer = StopSuffixTrimmer::new(&template_result.additional_stops);
+    let mut generated_text = String::new();
     let mut tool_call_emitted = false;
     let mut send_failed = false;
+    let mut stop_string_emitted = false;
 
     let output_token_count = generation_loop(
         &ctx.loaded.model,
@@ -413,7 +382,10 @@ pub(super) fn generate_with_emulated_tools(
         prompt_token_count,
         effective_ctx,
         |piece| {
-            let actions = emulator_parser.process_chunk(piece);
+            generated_text.push_str(piece);
+            let filtered = output_filter.push_text(piece);
+            let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+            let actions = emulator_parser.process_chunk(&content);
             for action in actions {
                 match send_emulator_action(&action, message_id, tx) {
                     Ok(is_tool) => {
@@ -429,11 +401,46 @@ pub(super) fn generate_with_emulated_tools(
             }
             if tool_call_emitted {
                 Ok(TokenAction::Stop)
+            } else if stop_seen
+                || template_result
+                    .additional_stops
+                    .iter()
+                    .any(|stop| generated_text.ends_with(stop))
+            {
+                stop_string_emitted = true;
+                Ok(TokenAction::Stop)
             } else {
                 Ok(TokenAction::Continue)
             }
         },
     )?;
+
+    if !send_failed {
+        let filtered = output_filter.finish();
+        if !filtered.thinking.is_empty() {
+            let mut message = Message::assistant().with_thinking(filtered.thinking, "");
+            message.id = Some(message_id.to_string());
+            send_failed = tx.blocking_send(Ok((Some(message), None))).is_err();
+        }
+        if !send_failed {
+            let content = if stop_string_emitted {
+                String::new()
+            } else {
+                let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+                let mut content = content;
+                if !stop_seen {
+                    content.push_str(&stop_trimmer.finish());
+                }
+                content
+            };
+            for action in emulator_parser.process_chunk(&content) {
+                if send_emulator_action(&action, message_id, tx).is_err() {
+                    send_failed = true;
+                    break;
+                }
+            }
+        }
+    }
 
     if !send_failed {
         for action in emulator_parser.flush() {
@@ -474,6 +481,50 @@ mod tests {
         parse_chunks(&[input], code_mode)
     }
 
+    fn trim_chunks(chunks: &[&str], stops: &[String]) -> (String, bool) {
+        let mut trimmer = StopSuffixTrimmer::new(stops);
+        let mut output = String::new();
+        let mut stopped = false;
+
+        for chunk in chunks {
+            let (content, stop_seen) = trimmer.push(chunk);
+            output.push_str(&content);
+            if stop_seen {
+                stopped = true;
+                break;
+            }
+        }
+
+        if !stopped {
+            output.push_str(&trimmer.finish());
+        }
+
+        (output, stopped)
+    }
+
+    fn parse_with_seeded_thinking(
+        chunks: &[&str],
+        code_mode: bool,
+    ) -> (String, Vec<EmulatorAction>) {
+        let mut output_filter = ThinkingOutputFilter::new(true, "<|assistant|><think>\n");
+        let mut parser = StreamingEmulatorParser::new(code_mode);
+        let mut thinking = String::new();
+        let mut actions = Vec::new();
+
+        for chunk in chunks {
+            let filtered = output_filter.push_text(chunk);
+            thinking.push_str(&filtered.thinking);
+            actions.extend(parser.process_chunk(&filtered.content));
+        }
+
+        let filtered = output_filter.finish();
+        thinking.push_str(&filtered.thinking);
+        actions.extend(parser.process_chunk(&filtered.content));
+        actions.extend(parser.flush());
+
+        (thinking, actions)
+    }
+
     fn assert_text(action: &EmulatorAction, expected: &str) {
         match action {
             EmulatorAction::Text(t) => assert_eq!(t.trim(), expected.trim(), "text mismatch"),
@@ -505,6 +556,24 @@ mod tests {
             EmulatorAction::ShellCommand(_) => "ShellCommand",
             EmulatorAction::ExecuteCode(_) => "ExecuteCode",
         }
+    }
+
+    #[test]
+    fn stop_suffix_trimmer_strips_split_stop() {
+        let stops = vec!["<|eom_id|>".to_string()];
+        let (content, stopped) = trim_chunks(&["The answer", "<|e", "om_id|>"], &stops);
+
+        assert!(stopped);
+        assert_eq!(content, "The answer");
+    }
+
+    #[test]
+    fn stop_suffix_trimmer_flushes_partial_non_stop() {
+        let stops = vec!["<|eom_id|>".to_string()];
+        let (content, stopped) = trim_chunks(&["Use the <", " symbol"], &stops);
+
+        assert!(!stopped);
+        assert_eq!(content, "Use the < symbol");
     }
 
     #[test]
@@ -665,6 +734,25 @@ mod tests {
             .collect();
         assert_eq!(shells.len(), 1);
         assert_shell(shells[0], "echo hello");
+    }
+
+    #[test]
+    fn thinking_seeded_from_generation_prompt_is_not_emulated_text() {
+        let (thinking, actions) =
+            parse_with_seeded_thinking(&["reasoning\n$ echo hidden\n</think>The answer."], false);
+
+        assert_eq!(thinking.trim(), "reasoning\n$ echo hidden");
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+        let text: String = actions
+            .iter()
+            .filter_map(|action| match action {
+                EmulatorAction::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text.trim(), "The answer.");
     }
 
     #[test]

@@ -420,6 +420,15 @@ if (process.platform !== 'darwin') {
           return;
         }
 
+        if (parsedUrl.hostname === 'resume') {
+          app.whenReady().then(async () => {
+            const recentDirs = loadRecentDirs();
+            const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+            await createResumeChatWindow(parsedUrl, openDir || undefined);
+          });
+          return;
+        }
+
         // For non-bot URLs, continue with normal handling
         handleProtocolUrl(protocolUrl);
       }
@@ -448,6 +457,26 @@ if (process.platform !== 'darwin') {
 const pendingDeepLinks = new Map<number, string>(); // windowId -> deep link URL
 let openUrlHandledLaunch = false;
 
+function getResumeSessionId(parsedUrl: URL): string | null {
+  try {
+    const sessionId = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, '')).trim();
+    return sessionId || null;
+  } catch {
+    return null;
+  }
+}
+
+async function createResumeChatWindow(parsedUrl: URL, dir?: string): Promise<boolean> {
+  const resumeSessionId = getResumeSessionId(parsedUrl);
+  if (!resumeSessionId) {
+    log.warn('[Main] Ignoring goose://resume URL without a session id');
+    return false;
+  }
+
+  await createChat(app, { dir, resumeSessionId });
+  return true;
+}
+
 async function handleProtocolUrl(url: string) {
   if (!url) return;
 
@@ -457,6 +486,9 @@ async function handleProtocolUrl(url: string) {
 
   if (parsedUrl.hostname === 'new-session') {
     await createChat(app, { dir: openDir || undefined });
+    return;
+  } else if (parsedUrl.hostname === 'resume') {
+    await createResumeChatWindow(parsedUrl, openDir || undefined);
     return;
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const existingWindows = BrowserWindow.getAllWindows();
@@ -513,7 +545,10 @@ app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
 
-    log.info('[Main] Received open-url event:', url.includes('key=') ? url.replace(/key=[^&]+/, 'key=REDACTED') : url);
+    log.info(
+      '[Main] Received open-url event:',
+      url.includes('key=') ? url.replace(/key=[^&]+/, 'key=REDACTED') : url
+    );
 
     await app.whenReady();
 
@@ -525,6 +560,12 @@ app.on('open-url', async (_event, url) => {
       log.info('[Main] Detected new-session URL, creating new chat window');
       openUrlHandledLaunch = true;
       await createChat(app, { dir: openDir || undefined });
+      return;
+    }
+
+    if (parsedUrl.hostname === 'resume') {
+      log.info('[Main] Detected resume URL, creating session resume window');
+      openUrlHandledLaunch = await createResumeChatWindow(parsedUrl, openDir || undefined);
       return;
     }
 
@@ -827,13 +868,17 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform !== 'darwin',
+    // windowStateKeeper persists the outer window bounds (getBounds), so the
+    // window must be restored by outer bounds too. With useContentSize the saved
+    // outer height is reapplied as the content height, growing the window by the
+    // frame height on every launch on framed platforms (#9363).
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 450,
+    minWidth: 480,
+    minHeight: 400,
     resizable: true,
-    useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
       spellcheck: settings.spellcheckEnabled ?? true,
@@ -1159,7 +1204,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       }
       windowPowerSaveBlockers.delete(windowId);
     }
-
   });
   return mainWindow;
 };
@@ -1576,7 +1620,6 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'sessionSharing',
   'seenAnnouncementIds',
-  'navExpandedWidth',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
@@ -2532,46 +2575,6 @@ async function appMain() {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (window) {
       window.reload();
-    }
-  });
-
-  // Handle metadata fetching from main process
-  ipcMain.handle('fetch-metadata', async (_event, url) => {
-    try {
-      // Validate URL
-      const parsedUrl = new URL(url);
-
-      // Only allow http and https protocols for fetching web content
-      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
-        throw new Error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
-      }
-
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Goose/1.0)',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Set a reasonable size limit (e.g., 10MB)
-      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-      const contentLength = parseInt(response.headers.get('content-length') || '0');
-      if (contentLength > MAX_SIZE) {
-        throw new Error('Response too large');
-      }
-
-      const text = await response.text();
-      if (text.length > MAX_SIZE) {
-        throw new Error('Response too large');
-      }
-
-      return text;
-    } catch (error) {
-      console.error('Error fetching metadata:', error);
-      throw error;
     }
   });
 

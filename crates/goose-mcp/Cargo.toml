@@ -12,6 +12,7 @@ description.workspace = true
 workspace = true
 
 [features]
+default = []
 rustls-tls = ["reqwest/rustls"]
 native-tls = ["reqwest/native-tls"]
 
@@ -28,15 +29,15 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true }
 indoc = { workspace = true }
-reqwest = { workspace = true, features = ["json", "system-proxy"], default-features = false }
+reqwest = { workspace = true, features = ["json", "system-proxy"] }
 chrono = { workspace = true }
 etcetera = { workspace = true }
 tempfile = { workspace = true }
 include_dir = { workspace = true }
 once_cell = { workspace = true }
-lopdf = "0.40.0"
-docx-rs = "0.4.20"
-image = { version = "0.24.9", features = ["jpeg"] }
-umya-spreadsheet = "2.2.3"
+lopdf = { version = "0.40", default-features = false }
+docx-rs = { version = "0.4.18", default-features = false, features = ["image"] }
+image = { version = "0.24.4", default-features = false, features = ["bmp", "dds", "dxt", "farbfeld", "gif", "hdr", "ico", "jpeg", "jpeg_rayon", "openexr", "png", "pnm", "tga", "tiff", "webp"] }
+umya-spreadsheet = { version = "2", default-features = false }
 shell-words = { workspace = true }
-process-wrap = { version = "9.1.0", features = ["std"] }
+process-wrap = { version = "9", default-features = false, features = ["std"] }

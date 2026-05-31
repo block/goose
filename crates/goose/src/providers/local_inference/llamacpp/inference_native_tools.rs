@@ -1,7 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::errors::ProviderError;
-use llama_cpp_2::model::AddBos;
-use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use rmcp::model::CallToolRequestParams;
 use serde_json::Value;
 use std::borrow::Cow;
@@ -9,121 +7,27 @@ use uuid::Uuid;
 
 use super::super::finalize_usage;
 use super::inference_engine::{
-    context_cap, create_and_prefill_context, create_and_prefill_multimodal,
-    estimate_max_context_for_memory, generation_loop, validate_and_compute_context,
-    GenerationContext, TokenAction,
+    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer,
+    ThinkingOutputFilter, TokenAction,
 };
 
 pub(super) fn generate_with_native_tools(
     ctx: &mut GenerationContext<'_>,
-    oai_messages_json: &Option<String>,
+    oai_messages_json: &str,
     full_tools_json: Option<&str>,
     compact_tools: Option<&str>,
 ) -> Result<(), ProviderError> {
-    let min_generation_headroom = 512;
-    let n_ctx_train = ctx.loaded.model.n_ctx_train() as usize;
-    let mmproj_overhead = if ctx.loaded.mtmd_ctx.is_some() {
-        ctx.settings.mmproj_size_bytes
-    } else {
-        0
-    };
-    let memory_max_ctx =
-        estimate_max_context_for_memory(&ctx.loaded.model, ctx.backend, mmproj_overhead);
-    let cap = context_cap(ctx.settings, ctx.context_limit, n_ctx_train, memory_max_ctx);
-    let token_budget = cap.saturating_sub(min_generation_headroom);
-
-    let apply_template = |tools: Option<&str>| {
-        if let Some(ref messages_json) = oai_messages_json {
-            let params = OpenAIChatTemplateParams {
-                messages_json: messages_json.as_str(),
-                tools_json: tools,
-                tool_choice: None,
-                json_schema: None,
-                grammar: None,
-                reasoning_format: if ctx.settings.enable_thinking {
-                    Some("auto")
-                } else {
-                    None
-                },
-                chat_template_kwargs: None,
-                add_generation_prompt: true,
-                use_jinja: true,
-                parallel_tool_calls: false,
-                enable_thinking: ctx.settings.enable_thinking,
-                add_bos: false,
-                add_eos: false,
-                parse_tool_calls: true,
-            };
-            ctx.loaded
-                .model
-                .apply_chat_template_oaicompat(&ctx.loaded.template, &params)
-        } else {
-            ctx.loaded.model.apply_chat_template_with_tools_oaicompat(
-                &ctx.loaded.template,
-                ctx.chat_messages,
-                tools,
-                None,
-                true,
-            )
-        }
-    };
-
-    let estimated_image_tokens = ctx.images.len() * ctx.settings.image_token_estimate;
-
-    let template_result = match apply_template(full_tools_json) {
-        Ok(r) => {
-            let token_count = ctx
-                .loaded
-                .model
-                .str_to_token(&r.prompt, AddBos::Never)
-                .map(|t| t.len())
-                .unwrap_or(0);
-            if token_count + estimated_image_tokens > token_budget {
-                apply_template(compact_tools).unwrap_or(r)
-            } else {
-                r
-            }
-        }
-        Err(_) => apply_template(compact_tools).map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
-        })?,
-    };
-
-    let _ = ctx.log.write(
-        &serde_json::json!({"applied_prompt": &template_result.prompt}),
-        None,
-    );
-
-    let (mut llama_ctx, prompt_token_count, effective_ctx) = if !ctx.images.is_empty() {
-        create_and_prefill_multimodal(
-            ctx.loaded,
-            ctx.backend,
-            &template_result.prompt,
-            ctx.images,
-            ctx.context_limit,
-            ctx.settings,
-        )?
-    } else {
-        let tokens = ctx
-            .loaded
-            .model
-            .str_to_token(&template_result.prompt, AddBos::Never)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        let (ptc, ectx) = validate_and_compute_context(
-            ctx.loaded,
-            ctx.backend,
-            tokens.len(),
-            ctx.context_limit,
-            ctx.settings,
-        )?;
-        let lctx =
-            create_and_prefill_context(ctx.loaded, ctx.backend, &tokens, ectx, ctx.settings)?;
-        (lctx, ptc, ectx)
-    };
+    let prepared = prepare_generation(ctx, oai_messages_json, full_tools_json, compact_tools)?;
+    let template_result = prepared.template_result;
+    let mut llama_ctx = prepared.llama_ctx;
+    let prompt_token_count = prepared.prompt_token_count;
+    let effective_ctx = prepared.effective_ctx;
 
     let message_id = ctx.message_id;
     let tx = ctx.tx;
     let mut generated_text = String::new();
+    let mut stop_trimmer = StopSuffixTrimmer::new(&template_result.additional_stops);
+    let mut stop_string_emitted = false;
 
     // Initialize streaming parser — handles thinking tokens, tool calls, etc.
     let mut stream_parser = template_result.streaming_state_oaicompat().map_err(|e| {
@@ -141,7 +45,10 @@ pub(super) fn generate_with_native_tools(
     // Accumulate thinking/reasoning across the entire generation so we can
     // attach it to the final tool-call message (mirroring what the OpenAI
     // streaming path does). Streaming chunks are still sent for UI display.
-    let mut accumulated_thinking = String::new();
+    let mut output_filter = ThinkingOutputFilter::new(
+        ctx.settings.enable_thinking,
+        &template_result.generation_prompt,
+    );
 
     let output_token_count = generation_loop(
         &ctx.loaded.model,
@@ -151,6 +58,7 @@ pub(super) fn generate_with_native_tools(
         effective_ctx,
         |piece| {
             generated_text.push_str(piece);
+            let mut stop_seen = false;
 
             // Feed the new piece to the streaming parser
             match stream_parser.update(piece, true) {
@@ -161,9 +69,10 @@ pub(super) fn generate_with_native_tools(
                             if let Some(reasoning) =
                                 delta.get("reasoning_content").and_then(|v| v.as_str())
                             {
-                                if !reasoning.is_empty() {
-                                    accumulated_thinking.push_str(reasoning);
-                                    let mut msg = Message::assistant().with_thinking(reasoning, "");
+                                if let Some(thinking) =
+                                    output_filter.push_structured_reasoning(reasoning)
+                                {
+                                    let mut msg = Message::assistant().with_thinking(thinking, "");
                                     msg.id = Some(message_id.to_string());
                                     if tx.blocking_send(Ok((Some(msg), None))).is_err() {
                                         return Ok(TokenAction::Stop);
@@ -173,10 +82,15 @@ pub(super) fn generate_with_native_tools(
                             // Stream content text to the UI
                             if let Some(content) = delta.get("content").and_then(|v| v.as_str()) {
                                 if !content.is_empty() {
-                                    let mut msg = Message::assistant().with_text(content);
-                                    msg.id = Some(message_id.to_string());
-                                    if tx.blocking_send(Ok((Some(msg), None))).is_err() {
-                                        return Ok(TokenAction::Stop);
+                                    let filtered = output_filter.push_text(content);
+                                    let (content, seen) = stop_trimmer.push(&filtered.content);
+                                    stop_seen |= seen;
+                                    if !content.is_empty() {
+                                        let mut msg = Message::assistant().with_text(content);
+                                        msg.id = Some(message_id.to_string());
+                                        if tx.blocking_send(Ok((Some(msg), None))).is_err() {
+                                            return Ok(TokenAction::Stop);
+                                        }
                                     }
                                 }
                             }
@@ -193,19 +107,26 @@ pub(super) fn generate_with_native_tools(
                 }
                 Err(e) => {
                     tracing::warn!("Streaming parser error: {}", e);
-                    let mut msg = Message::assistant().with_text(piece);
-                    msg.id = Some(message_id.to_string());
-                    if tx.blocking_send(Ok((Some(msg), None))).is_err() {
-                        return Ok(TokenAction::Stop);
+                    let filtered = output_filter.push_text(piece);
+                    let (content, seen) = stop_trimmer.push(&filtered.content);
+                    stop_seen |= seen;
+                    if !content.is_empty() {
+                        let mut msg = Message::assistant().with_text(content);
+                        msg.id = Some(message_id.to_string());
+                        if tx.blocking_send(Ok((Some(msg), None))).is_err() {
+                            return Ok(TokenAction::Stop);
+                        }
                     }
                 }
             }
 
-            let should_stop = template_result
-                .additional_stops
-                .iter()
-                .any(|stop| generated_text.ends_with(stop));
+            let should_stop = stop_seen
+                || template_result
+                    .additional_stops
+                    .iter()
+                    .any(|stop| generated_text.ends_with(stop));
             if should_stop {
+                stop_string_emitted = true;
                 Ok(TokenAction::Stop)
             } else {
                 Ok(TokenAction::Continue)
@@ -218,18 +139,22 @@ pub(super) fn generate_with_native_tools(
         for delta_json in final_deltas {
             if let Ok(delta) = serde_json::from_str::<Value>(&delta_json) {
                 if let Some(reasoning) = delta.get("reasoning_content").and_then(|v| v.as_str()) {
-                    if !reasoning.is_empty() {
-                        accumulated_thinking.push_str(reasoning);
-                        let mut msg = Message::assistant().with_thinking(reasoning, "");
+                    if let Some(thinking) = output_filter.push_structured_reasoning(reasoning) {
+                        let mut msg = Message::assistant().with_thinking(thinking, "");
                         msg.id = Some(message_id.to_string());
                         let _ = tx.blocking_send(Ok((Some(msg), None)));
                     }
                 }
                 if let Some(content) = delta.get("content").and_then(|v| v.as_str()) {
                     if !content.is_empty() {
-                        let mut msg = Message::assistant().with_text(content);
-                        msg.id = Some(message_id.to_string());
-                        let _ = tx.blocking_send(Ok((Some(msg), None)));
+                        let filtered = output_filter.push_text(content);
+                        let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+                        stop_string_emitted |= stop_seen;
+                        if !content.is_empty() {
+                            let mut msg = Message::assistant().with_text(content);
+                            msg.id = Some(message_id.to_string());
+                            let _ = tx.blocking_send(Ok((Some(msg), None)));
+                        }
                     }
                 }
                 if let Some(tool_calls) = delta.get("tool_calls").and_then(|v| v.as_array()) {
@@ -241,6 +166,28 @@ pub(super) fn generate_with_native_tools(
         }
     }
 
+    let filtered = output_filter.finish();
+    if !filtered.thinking.is_empty() {
+        let mut msg = Message::assistant().with_thinking(&filtered.thinking, "");
+        msg.id = Some(message_id.to_string());
+        let _ = tx.blocking_send(Ok((Some(msg), None)));
+    }
+    let content = if stop_string_emitted {
+        String::new()
+    } else {
+        let (content, stop_seen) = stop_trimmer.push(&filtered.content);
+        let mut content = content;
+        if !stop_seen {
+            content.push_str(&stop_trimmer.finish());
+        }
+        content
+    };
+    if !content.is_empty() {
+        let mut msg = Message::assistant().with_text(content);
+        msg.id = Some(message_id.to_string());
+        let _ = tx.blocking_send(Ok((Some(msg), None)));
+    }
+
     // Build a single message combining thinking + all tool calls, mirroring
     // the structure produced by the OpenAI streaming path. The agent relies
     // on this combined message to:
@@ -250,8 +197,11 @@ pub(super) fn generate_with_native_tools(
     let tool_call_contents = extract_oai_tool_call_contents(&accumulated_tool_calls);
     if !tool_call_contents.is_empty() {
         let mut contents: Vec<MessageContent> = Vec::new();
-        if !accumulated_thinking.is_empty() {
-            contents.push(MessageContent::thinking(&accumulated_thinking, ""));
+        if !output_filter.accumulated_thinking().is_empty() {
+            contents.push(MessageContent::thinking(
+                output_filter.accumulated_thinking(),
+                "",
+            ));
         }
         contents.extend(tool_call_contents);
         let mut msg = Message::new(

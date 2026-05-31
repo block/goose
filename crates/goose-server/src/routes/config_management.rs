@@ -9,7 +9,6 @@ use axum::{
 };
 use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
-use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::custom_requests::SourceType;
 use goose::model::ModelConfig;
@@ -22,7 +21,7 @@ use goose::providers::catalog::{
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{
-    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
+    agents::execute_commands, config::permission::PermissionLevel,
     slash_commands::recipe_slash_command,
 };
 use serde::{Deserialize, Serialize};
@@ -30,20 +29,6 @@ use serde_json::Value;
 use serde_yaml;
 use std::{collections::HashMap, sync::Arc};
 use utoipa::ToSchema;
-
-#[derive(Serialize, ToSchema)]
-pub struct ExtensionResponse {
-    pub extensions: Vec<ExtensionEntry>,
-    #[serde(default)]
-    pub warnings: Vec<String>,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct ExtensionQuery {
-    pub name: String,
-    pub config: ExtensionConfig,
-    pub enabled: bool,
-}
 
 #[derive(Deserialize, ToSchema)]
 pub struct UpsertConfigQuery {
@@ -297,72 +282,6 @@ pub async fn read_config(
         Err(e) => return Err(e.into()),
     };
     Ok(Json(response_value))
-}
-
-#[utoipa::path(
-    get,
-    path = "/config/extensions",
-    responses(
-        (status = 200, description = "All extensions retrieved successfully", body = ExtensionResponse),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn get_extensions() -> Result<Json<ExtensionResponse>, ErrorResponse> {
-    let extensions = goose::config::get_all_extensions()
-        .into_iter()
-        .filter(|ext| !goose::agents::extension_manager::is_hidden_extension(&ext.config.name()))
-        .collect();
-    let warnings = goose::config::get_warnings();
-    Ok(Json(ExtensionResponse {
-        extensions,
-        warnings,
-    }))
-}
-
-#[utoipa::path(
-    post,
-    path = "/config/extensions",
-    request_body = ExtensionQuery,
-    responses(
-        (status = 200, description = "Extension added or updated successfully", body = String),
-        (status = 400, description = "Invalid request"),
-        (status = 422, description = "Could not serialize config.yaml"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn add_extension(
-    Json(extension_query): Json<ExtensionQuery>,
-) -> Result<Json<String>, ErrorResponse> {
-    let extensions = goose::config::get_all_extensions();
-    let key = goose::config::extensions::name_to_key(&extension_query.name);
-
-    let is_update = extensions.iter().any(|e| e.config.key() == key);
-
-    goose::config::set_extension(ExtensionEntry {
-        enabled: extension_query.enabled,
-        config: extension_query.config,
-    });
-
-    if is_update {
-        Ok(Json(format!("Updated extension {}", extension_query.name)))
-    } else {
-        Ok(Json(format!("Added extension {}", extension_query.name)))
-    }
-}
-
-#[utoipa::path(
-    delete,
-    path = "/config/extensions/{name}",
-    responses(
-        (status = 200, description = "Extension removed successfully", body = String),
-        (status = 404, description = "Extension not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, ErrorResponse> {
-    let key = goose::config::extensions::name_to_key(&name);
-    goose::config::remove_extension(&key);
-    Ok(Json(format!("Removed extension {}", name)))
 }
 
 #[utoipa::path(
@@ -989,9 +908,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/upsert", post(upsert_config))
         .route("/config/remove", post(remove_config))
         .route("/config/read", post(read_config))
-        .route("/config/extensions", get(get_extensions))
-        .route("/config/extensions", post(add_extension))
-        .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route(

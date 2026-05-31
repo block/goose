@@ -845,5 +845,23 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
-  }
+  },
+  {
+  "id": "scholar-sidekick",
+  "name": "Scholar Sidekick",
+  "description": "Resolve, format, export, and verify academic citations (DOI, PMID, ISBN, arXiv) plus retraction and open-access checks",
+  "command": "npx -y scholar-sidekick-mcp@latest",
+  "link": "https://github.com/mlava/scholar-sidekick-mcp",
+  "installation_notes": "Requires a free RapidAPI key. Get one at https://rapidapi.com/scholar-sidekick-scholar-sidekick-api/api/scholar-sidekick and set RAPIDAPI_KEY.",
+  "is_builtin": false,
+  "endorsed": false,
+  "environmentVariables": [
+    {
+      "name": "RAPIDAPI_KEY",
+      "description": "RapidAPI key for the Scholar Sidekick API (free tier available)",
+      "required": true
+    }
+  ]
+}
+
 ]

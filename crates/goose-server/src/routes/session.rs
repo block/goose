@@ -9,11 +9,11 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
+#[cfg(feature = "nostr")]
 use goose::session::nostr_share;
 use goose::session::session_manager::{SessionInsights, SessionType};
-use goose::session::{EnabledExtensionsState, Session};
+use goose::session::Session;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -51,6 +51,7 @@ pub struct ImportSessionRequest {
     json: String,
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(dead_code))]
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ShareSessionNostrRequest {
@@ -67,6 +68,7 @@ pub struct ShareSessionNostrResponse {
     relays: Vec<String>,
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(dead_code))]
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportSessionNostrRequest {
@@ -387,6 +389,7 @@ async fn import_session(
     Ok(Json(session))
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
 #[utoipa::path(
     post,
     path = "/sessions/{session_id}/share/nostr",
@@ -410,25 +413,32 @@ async fn share_session_nostr(
     Path(session_id): Path<String>,
     Json(request): Json<ShareSessionNostrRequest>,
 ) -> Result<Json<ShareSessionNostrResponse>, StatusCode> {
-    let exported = state
-        .session_manager()
-        .export_session(&session_id)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    #[cfg(feature = "nostr")]
+    {
+        let exported = state
+            .session_manager()
+            .export_session(&session_id)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let relays = nostr_share::resolve_relays(request.relays, goose::config::Config::global());
-    let share = nostr_share::publish_session_json(&exported, relays)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let relays = nostr_share::resolve_relays(request.relays, goose::config::Config::global());
+        let share = nostr_share::publish_session_json(&exported, relays)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(ShareSessionNostrResponse {
-        deeplink: share.deeplink,
-        nevent: share.nevent,
-        event_id: share.event_id,
-        relays: share.relays,
-    }))
+        Ok(Json(ShareSessionNostrResponse {
+            deeplink: share.deeplink,
+            nevent: share.nevent,
+            event_id: share.event_id,
+            relays: share.relays,
+        }))
+    }
+
+    #[cfg(not(feature = "nostr"))]
+    Err(StatusCode::NOT_FOUND)
 }
 
+#[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
 #[utoipa::path(
     post,
     path = "/sessions/import/nostr",
@@ -448,16 +458,22 @@ async fn import_session_nostr(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ImportSessionNostrRequest>,
 ) -> Result<Json<Session>, StatusCode> {
-    let json = nostr_share::import_session_json_from_deeplink(&request.deeplink)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    let session = state
-        .session_manager()
-        .import_session(&json, Some(SessionType::User))
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    #[cfg(feature = "nostr")]
+    {
+        let json = nostr_share::import_session_json_from_deeplink(&request.deeplink)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        let session = state
+            .session_manager()
+            .import_session(&json, Some(SessionType::User))
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    Ok(Json(session))
+        Ok(Json(session))
+    }
+
+    #[cfg(not(feature = "nostr"))]
+    Err(StatusCode::NOT_FOUND)
 }
 
 #[utoipa::path(
@@ -553,47 +569,6 @@ async fn fork_session(
     }))
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionExtensionsResponse {
-    extensions: Vec<ExtensionConfig>,
-}
-
-#[utoipa::path(
-    get,
-    path = "/sessions/{session_id}/extensions",
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session extensions retrieved successfully", body = SessionExtensionsResponse),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn get_session_extensions(
-    State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
-) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
-    let session = state
-        .session_manager()
-        .get_session(&session_id, false)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let extensions = EnabledExtensionsState::extensions_or_default(
-        Some(&session.extension_data),
-        goose::config::Config::global(),
-    );
-
-    Ok(Json(SessionExtensionsResponse { extensions }))
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -620,10 +595,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             put(update_session_user_recipe_values),
         )
         .route("/sessions/{session_id}/fork", post(fork_session))
-        .route(
-            "/sessions/{session_id}/extensions",
-            get(get_session_extensions),
-        )
         .with_state(state)
 }
 #[derive(Deserialize, ToSchema)]
@@ -685,9 +656,9 @@ async fn search_sessions(
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
         .map(|dt| dt.with_timezone(&chrono::Utc));
 
-    let search_results = state
+    let sessions = state
         .session_manager()
-        .search_chat_history(
+        .search_chat_sessions(
             query,
             Some(limit),
             after_date,
@@ -698,23 +669,5 @@ async fn search_sessions(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Get full Session objects for matching session IDs
-    let session_ids: Vec<String> = search_results
-        .results
-        .into_iter()
-        .map(|r| r.session_id)
-        .collect();
-
-    let all_sessions = state
-        .session_manager()
-        .list_sessions()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let matching_sessions: Vec<Session> = all_sessions
-        .into_iter()
-        .filter(|s| session_ids.contains(&s.id))
-        .collect();
-
-    Ok(Json(matching_sessions))
+    Ok(Json(sessions))
 }

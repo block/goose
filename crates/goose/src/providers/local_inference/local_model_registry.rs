@@ -36,6 +36,29 @@ impl Default for SamplingConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolCallingMode {
+    #[default]
+    Auto,
+    ForceNative,
+    ForceEmulated,
+}
+
+#[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ChatTemplate {
+    #[serde(alias = "auto")]
+    #[default]
+    Embedded,
+    Builtin {
+        name: String,
+    },
+    CustomInline {
+        template: String,
+    },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelSettings {
     pub context_size: Option<u32>,
@@ -57,13 +80,13 @@ pub struct ModelSettings {
     pub flash_attention: Option<bool>,
     pub n_threads: Option<i32>,
     #[serde(default)]
-    pub native_tool_calling: bool,
+    pub tool_calling: ToolCallingMode,
     #[serde(default)]
-    pub use_jinja: bool,
+    pub chat_template: ChatTemplate,
     #[serde(default = "default_true")]
     pub enable_thinking: bool,
     /// Whether this model architecture supports vision input.
-    /// Derived from the featured model table, not user-configurable.
+    /// Derived from associated mmproj metadata, not user-configurable.
     #[serde(default)]
     pub vision_capable: bool,
     /// Estimated tokens per image for budget planning before mtmd tokenization.
@@ -106,8 +129,8 @@ impl Default for ModelSettings {
             use_mlock: false,
             flash_attention: None,
             n_threads: None,
-            native_tool_calling: false,
-            use_jinja: false,
+            tool_calling: ToolCallingMode::Auto,
+            chat_template: ChatTemplate::Embedded,
             enable_thinking: true,
             vision_capable: false,
             image_token_estimate: default_image_token_estimate(),
@@ -116,100 +139,43 @@ impl Default for ModelSettings {
     }
 }
 
-/// HuggingFace repo + filename for multimodal projection weights (vision encoder).
-pub struct MmprojSpec {
-    pub repo: &'static str,
-    pub filename: &'static str,
-}
-
-impl MmprojSpec {
-    /// Local path for this mmproj, namespaced by repo to avoid collisions
-    /// between different models that use the same filename.
-    pub fn local_path(&self) -> std::path::PathBuf {
-        let repo_name = self.repo.split('/').next_back().unwrap_or(self.repo);
-        Paths::in_data_dir("models")
-            .join(repo_name)
-            .join(self.filename)
-    }
-}
-
 pub struct FeaturedModel {
     /// HuggingFace spec in "author/repo-GGUF:quantization" format.
     pub spec: &'static str,
-    /// Whether this model's GGUF template supports native tool calling via llama.cpp.
-    pub native_tool_calling: bool,
-    /// Multimodal projection weights spec. None for text-only models.
-    pub mmproj: Option<MmprojSpec>,
 }
 
 pub const FEATURED_MODELS: &[FeaturedModel] = &[
     FeaturedModel {
         spec: "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
-        native_tool_calling: false,
-        mmproj: None,
     },
     FeaturedModel {
         spec: "unsloth/gemma-4-E4B-it-GGUF:Q4_K_M",
-        native_tool_calling: true,
-        mmproj: Some(MmprojSpec {
-            repo: "unsloth/gemma-4-E4B-it-GGUF",
-            filename: "mmproj-BF16.gguf",
-        }),
     },
     FeaturedModel {
         spec: "unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M",
-        native_tool_calling: true,
-        mmproj: Some(MmprojSpec {
-            repo: "unsloth/gemma-4-26B-A4B-it-GGUF",
-            filename: "mmproj-BF16.gguf",
-        }),
     },
 ];
 
-pub fn default_settings_for_model(model_id: &str) -> ModelSettings {
-    use super::hf_models::parse_model_spec;
-    let model_repo = model_id.split(':').next().unwrap_or(model_id);
-    let featured = FEATURED_MODELS.iter().find(|m| {
-        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
-            repo_id == model_repo
-        } else {
-            false
-        }
-    });
+pub fn default_settings_for_model(_model_id: &str) -> ModelSettings {
     ModelSettings {
-        native_tool_calling: featured.is_some_and(|m| m.native_tool_calling),
-        vision_capable: featured.is_some_and(|m| m.mmproj.is_some()),
         ..ModelSettings::default()
     }
 }
 
-/// Look up the `MmprojSpec` for a featured model by its model ID.
-pub fn featured_mmproj_spec(model_id: &str) -> Option<&'static MmprojSpec> {
-    use super::hf_models::parse_model_spec;
-    let model_repo = model_id.split(':').next().unwrap_or(model_id);
-    FEATURED_MODELS.iter().find_map(|m| {
-        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
-            if repo_id == model_repo {
-                return m.mmproj.as_ref();
-            }
-        }
-        None
-    })
+/// Local path for an mmproj file, namespaced by repo to avoid collisions
+/// between different models that use the same filename.
+pub fn mmproj_local_path(repo_id: &str, filename: &str) -> PathBuf {
+    let repo_name = repo_id.split('/').next_back().unwrap_or(repo_id);
+    Paths::in_data_dir("models").join(repo_name).join(filename)
 }
 
 /// Check if a model ID corresponds to a featured model.
@@ -263,32 +229,27 @@ pub struct LocalModelEntry {
     #[serde(default)]
     pub mmproj_size_bytes: u64,
     #[serde(default)]
+    pub mmproj_checked: bool,
+    #[serde(default)]
     pub shard_files: Vec<ShardFile>,
 }
 
 impl LocalModelEntry {
-    /// Populate mmproj metadata and vision settings from the featured model
-    /// table if this model's repo has a known vision encoder.
-    pub fn enrich_with_featured_mmproj(&mut self) {
-        if let Some(mmproj) = featured_mmproj_spec(&self.id) {
-            let path = mmproj.local_path();
-            if self.mmproj_path.as_ref() != Some(&path) {
-                self.mmproj_path = Some(path.clone());
-                self.mmproj_source_url = Some(format!(
-                    "https://huggingface.co/{}/resolve/main/{}",
-                    mmproj.repo, mmproj.filename
-                ));
-            }
+    pub fn refresh_mmproj_metadata(&mut self) {
+        self.settings.vision_capable = self.mmproj_path.is_some();
+        if let Some(path) = &self.mmproj_path {
+            self.mmproj_checked = true;
             self.settings.vision_capable = true;
             if self.mmproj_size_bytes == 0 || self.settings.mmproj_size_bytes == 0 {
-                if let Ok(meta) = std::fs::metadata(&path) {
+                if let Ok(meta) = std::fs::metadata(path) {
                     self.mmproj_size_bytes = meta.len();
                     self.settings.mmproj_size_bytes = meta.len();
                 }
             }
+        } else {
+            self.mmproj_size_bytes = 0;
+            self.settings.mmproj_size_bytes = 0;
         }
-        let defaults = default_settings_for_model(&self.id);
-        self.settings.native_tool_calling = defaults.native_tool_calling;
     }
 
     pub fn is_downloaded(&self) -> bool {
@@ -436,7 +397,7 @@ impl LocalModelRegistry {
 
         for mut entry in featured_entries {
             if !self.models.iter().any(|m| m.id == entry.id) {
-                entry.enrich_with_featured_mmproj();
+                entry.refresh_mmproj_metadata();
                 self.models.push(entry);
                 changed = true;
             }
@@ -455,7 +416,7 @@ impl LocalModelRegistry {
     }
 
     pub fn add_model(&mut self, mut entry: LocalModelEntry) -> Result<()> {
-        entry.enrich_with_featured_mmproj();
+        entry.refresh_mmproj_metadata();
         if let Some(existing) = self.models.iter_mut().find(|m| m.id == entry.id) {
             *existing = entry;
         } else {

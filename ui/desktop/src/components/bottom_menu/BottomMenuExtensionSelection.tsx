@@ -8,7 +8,8 @@ import { FixedExtensionEntry, useConfig } from '../ConfigContext';
 import { toastService } from '../../toasts';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { nameToKey } from '../settings/extensions/utils';
-import { ExtensionConfig, getSessionExtensions } from '../../api';
+import { ExtensionConfig } from '../../api';
+import { getSessionExtensions } from '../../acp/extensions';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import {
   setExtensionOverride,
@@ -119,14 +120,9 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }
 
       try {
-        const response = await getSessionExtensions({
-          path: { session_id: sessionId },
-        });
-
-        if (response.data?.extensions) {
-          setSessionExtensions(response.data.extensions);
-          setIsSessionExtensionsLoaded(true);
-        }
+        const extensions = await getSessionExtensions(sessionId);
+        setSessionExtensions(extensions);
+        setIsSessionExtensionsLoaded(true);
       } catch (error) {
         console.error('Failed to fetch session extensions:', error);
         setIsSessionExtensionsLoaded(true);
@@ -197,13 +193,8 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         }
 
         sortTimeoutRef.current = setTimeout(async () => {
-          const response = await getSessionExtensions({
-            path: { session_id: sessionId },
-          });
-
-          if (response.data?.extensions) {
-            setSessionExtensions(response.data.extensions);
-          }
+          const extensions = await getSessionExtensions(sessionId);
+          setSessionExtensions(extensions);
           setPendingSort(false);
           setIsTransitioning(false);
           setTogglingExtension(null);

@@ -52,6 +52,27 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'en-GB', messageLocale: 'en' });
   });
 
+  it('returns Russian when navigator.languages contains ru', () => {
+    vi.stubGlobal('navigator', { languages: ['ru'] });
+    expect(getLocale()).toEqual({ locale: 'ru', messageLocale: 'ru' });
+  });
+
+  it('preserves Russian regional tag for formatting', () => {
+    vi.stubGlobal('navigator', { languages: ['ru-RU'] });
+    expect(getLocale()).toEqual({ locale: 'ru-RU', messageLocale: 'ru' });
+  });
+
+  it('supports Turkish from navigator.languages', () => {
+    vi.stubGlobal('navigator', { languages: ['tr-TR'] });
+    expect(getLocale()).toEqual({ locale: 'tr-TR', messageLocale: 'tr' });
+  });
+
+  it('supports explicit Turkish locale', () => {
+    mockAppConfig({ GOOSE_LOCALE: 'tr' });
+    vi.stubGlobal('navigator', { languages: ['xx-XX'] });
+    expect(getLocale()).toEqual({ locale: 'tr', messageLocale: 'tr' });
+  });
+
   it('falls back to base language when locale tag is invalid BCP 47', () => {
     // "en-" is not a valid BCP 47 tag and would cause RangeError in Intl APIs
     mockAppConfig({ GOOSE_LOCALE: 'en-' });
