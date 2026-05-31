@@ -293,9 +293,21 @@ impl OpenAiProvider {
         // Those sources are indistinguishable from a registry default on the
         // ModelConfig itself, so the safe choice is to never overwrite an existing
         // value. Fails silently for hosts that don't expose meta.n_ctx (e.g. OpenAI).
+        //
+        // The probe is bounded by a short timeout so it can never stall provider
+        // construction. The shared ApiClient uses OPENAI_TIMEOUT (default 600s), which
+        // would otherwise block Goose startup / model switching for up to 10 minutes if
+        // the endpoint is reachable but /v1/models hangs. On timeout we silently fall
+        // back to the previous behavior (DEFAULT_CONTEXT_LIMIT).
+        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
         let provider = if provider.model.context_limit.is_none() {
             let model_name = provider.model.model_name.clone();
-            if let Some(n_ctx) = provider.fetch_n_ctx_from_api(&model_name).await {
+            let n_ctx =
+                tokio::time::timeout(N_CTX_PROBE_TIMEOUT, provider.fetch_n_ctx_from_api(&model_name))
+                    .await
+                    .ok()
+                    .flatten();
+            if let Some(n_ctx) = n_ctx {
                 let mut p = provider;
                 p.model.context_limit = Some(n_ctx);
                 p
