@@ -1614,6 +1614,7 @@ const validSettingKeys: Set<string> = new Set([
   'enableWakelock',
   'enableNotifications',
   'spellcheckEnabled',
+  'use24HourClock',
   'externalGoosed',
   'globalShortcut',
   'keyboardShortcuts',

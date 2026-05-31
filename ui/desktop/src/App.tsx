@@ -52,6 +52,7 @@ import { View, ViewOptions } from './utils/navigationUtils';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
+import { initTimeFormat } from './utils/timeUtils';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
@@ -411,6 +412,10 @@ export function AppInner() {
   }, []);
 
   const { addExtension } = useConfig();
+
+  useEffect(() => {
+    window.electron.getSetting('use24HourClock').then((v) => initTimeFormat(v));
+  }, []);
 
   useEffect(() => {
     try {

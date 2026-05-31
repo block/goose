@@ -35,6 +35,7 @@ export interface Settings {
   enableWakelock: boolean;
   enableNotifications: boolean;
   spellcheckEnabled: boolean;
+  use24HourClock: boolean;
   externalGoosed: ExternalGoosedConfig;
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
@@ -71,6 +72,7 @@ export const defaultSettings: Settings = {
   enableWakelock: false,
   enableNotifications: true,
   spellcheckEnabled: true,
+  use24HourClock: false,
   keyboardShortcuts: defaultKeyboardShortcuts,
   externalGoosed: {
     enabled: false,
