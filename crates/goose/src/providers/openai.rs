@@ -279,11 +279,12 @@ impl OpenAiProvider {
             preserve_thinking_context: !is_openai,
         };
 
-        // If no context limit was set via config/env, try to read meta.n_ctx from the
-        // server's /v1/models response. llama.cpp and Ollama include this non-standard
-        // field with the actual allocated context window, fixing auto-compaction for
-        // local servers. Fails silently — real OpenAI servers simply won't have it.
-        let provider = if provider.model.context_limit.is_none() {
+        // For non-OpenAI hosts (local llama.cpp, Ollama, etc.) try to read meta.n_ctx
+        // from /v1/models and use it as the authoritative context limit. This overrides
+        // any canonical registry value, which matters when a local server uses an alias
+        // that matches a known OpenAI model name (e.g. --alias gpt-3.5-turbo) but runs
+        // a different context size. Fails silently for hosts that don't expose meta.n_ctx.
+        let provider = if !is_openai {
             let model_name = provider.model.model_name.clone();
             if let Some(n_ctx) = provider.fetch_n_ctx_from_api(&model_name).await {
                 let mut p = provider;
@@ -655,6 +656,16 @@ impl OpenAiProvider {
                     .and_then(|v| v.as_u64())
                     .map(|v| v as usize);
             }
+        }
+        // No entry matched by id. For single-model servers without --alias, llama.cpp
+        // reports the loaded model file path as id rather than the alias used by the
+        // client, so the loop above never matches. Fall back to the sole entry's n_ctx.
+        if data.len() == 1 {
+            return data[0]
+                .get("meta")
+                .and_then(|m| m.get("n_ctx"))
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
         }
         None
     }
