@@ -1,6 +1,9 @@
 import { currentLocale } from '../i18n';
 
-let use24HourClock = false;
+let use24HourClock: boolean =
+  typeof window !== 'undefined' && window.appConfig
+    ? (window.appConfig.get('GOOSE_USE_24H_CLOCK') as boolean) ?? false
+    : false;
 
 export function initTimeFormat(use24h: boolean): void {
   use24HourClock = use24h;
@@ -17,7 +20,7 @@ export function formatMessageTimestamp(timestamp?: number): string {
   const timeStr = date.toLocaleTimeString(currentLocale, {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: !use24HourClock,
+    ...(use24HourClock ? { hour12: false } : {}),
   });
 
   // Check if the message is from today

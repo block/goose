@@ -902,6 +902,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           SECURITY_PROMPT_ENABLED_OVERRIDE: process.env.SECURITY_PROMPT_ENABLED_OVERRIDE,
           SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE:
             process.env.SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE,
+          GOOSE_USE_24H_CLOCK: settings.use24HourClock,
         }),
       ],
       partition: 'persist:goose',
