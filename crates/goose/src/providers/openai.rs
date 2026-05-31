@@ -280,11 +280,23 @@ impl OpenAiProvider {
         };
 
         // For non-OpenAI hosts (local llama.cpp, Ollama, etc.) try to read meta.n_ctx
-        // from /v1/models and use it as the authoritative context limit. This overrides
-        // any canonical registry value, which matters when a local server uses an alias
-        // that matches a known OpenAI model name (e.g. --alias gpt-3.5-turbo) but runs
-        // a different context size. Fails silently for hosts that don't expose meta.n_ctx.
-        let provider = if !is_openai {
+        // from /v1/models and use it as the context limit. This overrides values that
+        // come from the canonical registry / known-models list, which matters when a
+        // local server uses an alias matching a known OpenAI model name (e.g.
+        // --alias gpt-3.5-turbo) but runs a different context size.
+        //
+        // It must NOT override an explicit user limit, though. `context_limit` may have
+        // been set from GOOSE_CONTEXT_LIMIT (the documented escape hatch for capping
+        // compaction below the server's advertised window, or for correcting a wrong
+        // meta.n_ctx) — that takes priority. We re-check the config the same way
+        // ModelConfig::new_base does, since by this point an explicit override and a
+        // canonical-registry default are indistinguishable on the ModelConfig itself.
+        // Fails silently for hosts that don't expose meta.n_ctx.
+        let has_explicit_limit = matches!(
+            config.get_param::<usize>("GOOSE_CONTEXT_LIMIT"),
+            Ok(limit) if limit > 0
+        );
+        let provider = if !is_openai && !has_explicit_limit {
             let model_name = provider.model.model_name.clone();
             if let Some(n_ctx) = provider.fetch_n_ctx_from_api(&model_name).await {
                 let mut p = provider;
