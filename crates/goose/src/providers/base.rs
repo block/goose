@@ -461,6 +461,17 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
+    /// Inject the active session storage so subagent detection uses the same
+    /// database that created the session.  Providers that perform per-request
+    /// subagent checks (Anthropic, Databricks) override this; all others ignore
+    /// it.  The method is called on `Arc<dyn Provider>` so implementations must
+    /// use interior mutability.
+    fn inject_session_storage(
+        &self,
+        _storage: std::sync::Arc<crate::session::session_manager::SessionStorage>,
+    ) {
+    }
+
     /// Primary streaming method that all providers must implement.
     ///
     /// Note: Do not add `#[instrument]` here — the call sites (`complete` and

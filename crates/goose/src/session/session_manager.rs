@@ -376,16 +376,18 @@ impl SessionManager {
         }
     }
 
-    /// Returns `true` when the given session_id belongs to a `SubAgent` session.
-    /// Returns `false` for all other session types and when the session cannot be
-    /// looked up (e.g. the id is a synthetic test value that does not exist in the
-    /// database).
-    pub async fn is_subagent(session_id: &str) -> bool {
-        let storage = Arc::clone(&SESSION_STORAGE);
-        match storage.get_session(session_id, false).await {
+    /// Returns `true` when the given session_id belongs to a `SubAgent` session,
+    /// using this manager's storage rather than the process-global store.
+    /// Returns `false` for all other session types and when the session is not found.
+    pub async fn is_subagent_session(&self, session_id: &str) -> bool {
+        match self.storage.get_session(session_id, false).await {
             Ok(session) => session.session_type == SessionType::SubAgent,
             Err(_) => false,
         }
+    }
+
+    pub fn global_storage() -> Arc<SessionStorage> {
+        Arc::clone(&SESSION_STORAGE)
     }
 
     pub fn storage(&self) -> &Arc<SessionStorage> {
@@ -573,6 +575,14 @@ pub struct SessionStorage {
     session_dir: PathBuf,
 }
 
+impl std::fmt::Debug for SessionStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionStorage")
+            .field("session_dir", &self.session_dir)
+            .finish()
+    }
+}
+
 pub(crate) fn role_to_string(role: &Role) -> &'static str {
     match role {
         Role::User => "user",
@@ -685,6 +695,13 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 }
 
 impl SessionStorage {
+    pub async fn is_subagent_session(&self, session_id: &str) -> bool {
+        match self.get_session(session_id, false).await {
+            Ok(session) => session.session_type == SessionType::SubAgent,
+            Err(_) => false,
+        }
+    }
+
     fn create_pool(path: &Path) -> Pool<Sqlite> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("Failed to create session database directory");

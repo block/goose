@@ -6,6 +6,7 @@ use goose_providers::errors::ProviderError;
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::io;
+use std::sync::{Arc, Mutex};
 use tokio::pin;
 use tokio_util::io::StreamReader;
 
@@ -23,7 +24,7 @@ use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::utils::RequestLog;
-use crate::session::session_manager::SessionManager;
+use crate::session::session_manager::{SessionManager, SessionStorage};
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -62,6 +63,8 @@ pub struct AnthropicProvider {
     skip_canonical_filtering: bool,
     #[serde(skip)]
     format_options: AnthropicFormatOptions,
+    #[serde(skip)]
+    session_storage: Mutex<Arc<SessionStorage>>,
 }
 
 impl AnthropicProvider {
@@ -91,6 +94,7 @@ impl AnthropicProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             format_options: AnthropicFormatOptions::default(),
+            session_storage: Mutex::new(SessionManager::global_storage()),
         })
     }
 
@@ -167,6 +171,7 @@ impl AnthropicProvider {
             dynamic_models: config.dynamic_models,
             skip_canonical_filtering: config.skip_canonical_filtering,
             format_options,
+            session_storage: Mutex::new(SessionManager::global_storage()),
         })
     }
 
@@ -304,6 +309,10 @@ impl Provider for AnthropicProvider {
         &self.name
     }
 
+    fn inject_session_storage(&self, storage: Arc<SessionStorage>) {
+        *self.session_storage.lock().unwrap() = storage;
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }
@@ -342,7 +351,8 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let is_subagent = SessionManager::is_subagent(session_id).await;
+        let storage = self.session_storage.lock().unwrap().clone();
+        let is_subagent = storage.is_subagent_session(session_id).await;
         let options = AnthropicFormatOptions {
             skip_cache_control: is_subagent,
             ..self.format_options

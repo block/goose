@@ -92,6 +92,8 @@ pub struct DatabricksProvider {
     token_cache: Arc<Mutex<Option<String>>>,
     #[serde(skip)]
     instance_id: Option<String>,
+    #[serde(skip)]
+    session_storage: Mutex<Arc<crate::session::session_manager::SessionStorage>>,
 }
 
 impl DatabricksProvider {
@@ -151,6 +153,7 @@ impl DatabricksProvider {
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
+            session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
         };
         provider.model =
             model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
@@ -220,6 +223,7 @@ impl DatabricksProvider {
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
+            session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
         })
     }
 
@@ -566,6 +570,13 @@ impl Provider for DatabricksProvider {
         &self.name
     }
 
+    fn inject_session_storage(
+        &self,
+        storage: std::sync::Arc<crate::session::session_manager::SessionStorage>,
+    ) {
+        *self.session_storage.lock().unwrap() = storage;
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }
@@ -669,8 +680,8 @@ impl Provider for DatabricksProvider {
                 model_config
             };
 
-            let is_subagent =
-                crate::session::session_manager::SessionManager::is_subagent(session_id).await;
+            let storage = self.session_storage.lock().unwrap().clone();
+            let is_subagent = storage.is_subagent_session(session_id).await;
             let mut payload = create_request_for_provider(
                 DATABRICKS_PROVIDER_NAME,
                 request_model_config,

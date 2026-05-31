@@ -899,13 +899,15 @@ impl GooseAcpAgent {
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
     ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(
+        let provider = (self.provider_factory)(
             provider_name.to_string(),
             model_config,
             extensions,
             working_dir,
         )
-        .await
+        .await?;
+        provider.inject_session_storage(self.session_manager.storage().clone());
+        Ok(provider)
     }
 
     async fn maybe_refresh_provider_inventory_with_agent(

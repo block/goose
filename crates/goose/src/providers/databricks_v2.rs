@@ -62,6 +62,8 @@ pub struct DatabricksV2Provider {
     name: String,
     #[serde(skip)]
     token_cache: Arc<Mutex<Option<String>>>,
+    #[serde(skip)]
+    session_storage: Mutex<Arc<crate::session::session_manager::SessionStorage>>,
 }
 
 impl DatabricksV2Provider {
@@ -133,6 +135,7 @@ impl DatabricksV2Provider {
             retry_config,
             name: DATABRICKS_V2_PROVIDER_NAME.to_string(),
             token_cache,
+            session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
         })
     }
 
@@ -306,8 +309,8 @@ impl DatabricksV2Provider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let is_subagent =
-            crate::session::session_manager::SessionManager::is_subagent(session_id).await;
+        let storage = self.session_storage.lock().unwrap().clone();
+        let is_subagent = storage.is_subagent_session(session_id).await;
         let options = anthropic::AnthropicFormatOptions {
             skip_cache_control: is_subagent,
             ..Default::default()
@@ -386,6 +389,13 @@ impl ProviderDef for DatabricksV2Provider {
 impl Provider for DatabricksV2Provider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn inject_session_storage(
+        &self,
+        storage: std::sync::Arc<crate::session::session_manager::SessionStorage>,
+    ) {
+        *self.session_storage.lock().unwrap() = storage;
     }
 
     fn retry_config(&self) -> RetryConfig {
