@@ -279,24 +279,21 @@ impl OpenAiProvider {
             preserve_thinking_context: !is_openai,
         };
 
-        // For non-OpenAI hosts (local llama.cpp, Ollama, etc.) try to read meta.n_ctx
-        // from /v1/models and use it as the context limit. This overrides values that
-        // come from the canonical registry / known-models list, which matters when a
-        // local server uses an alias matching a known OpenAI model name (e.g.
-        // --alias gpt-3.5-turbo) but runs a different context size.
+        // When no context limit is otherwise known, read meta.n_ctx from the server's
+        // /v1/models response and use it. llama.cpp and Ollama report the actual
+        // allocated context window there, which fixes auto-compaction for local servers
+        // that would otherwise fall back to DEFAULT_CONTEXT_LIMIT (128k).
         //
-        // It must NOT override an explicit user limit, though. `context_limit` may have
-        // been set from GOOSE_CONTEXT_LIMIT (the documented escape hatch for capping
-        // compaction below the server's advertised window, or for correcting a wrong
-        // meta.n_ctx) — that takes priority. We re-check the config the same way
-        // ModelConfig::new_base does, since by this point an explicit override and a
-        // canonical-registry default are indistinguishable on the ModelConfig itself.
-        // Fails silently for hosts that don't expose meta.n_ctx.
-        let has_explicit_limit = matches!(
-            config.get_param::<usize>("GOOSE_CONTEXT_LIMIT"),
-            Ok(limit) if limit > 0
-        );
-        let provider = if !is_openai && !has_explicit_limit {
+        // We only fill when `context_limit` is still `None`, mirroring how
+        // `with_canonical_limits` fills derived limits. This deliberately preserves any
+        // already-set value, which by provider-construction time may be an explicit
+        // override from GOOSE_CONTEXT_LIMIT, an ACP/server per-session
+        // `with_context_limit`, or a `GOOSE_PREDEFINED_MODELS` entry — all of which a
+        // user set on purpose to cap compaction or correct an inaccurate meta.n_ctx.
+        // Those sources are indistinguishable from a registry default on the
+        // ModelConfig itself, so the safe choice is to never overwrite an existing
+        // value. Fails silently for hosts that don't expose meta.n_ctx (e.g. OpenAI).
+        let provider = if provider.model.context_limit.is_none() {
             let model_name = provider.model.model_name.clone();
             if let Some(n_ctx) = provider.fetch_n_ctx_from_api(&model_name).await {
                 let mut p = provider;
