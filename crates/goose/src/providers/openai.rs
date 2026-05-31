@@ -264,7 +264,7 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        Ok(Self {
+        let provider = Self {
             api_client,
             base_path,
             organization,
@@ -277,7 +277,26 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: !is_openai,
-        })
+        };
+
+        // If no context limit was set via config/env, try to read meta.n_ctx from the
+        // server's /v1/models response. llama.cpp and Ollama include this non-standard
+        // field with the actual allocated context window, fixing auto-compaction for
+        // local servers. Fails silently — real OpenAI servers simply won't have it.
+        let provider = if provider.model.context_limit.is_none() {
+            let model_name = provider.model.model_name.clone();
+            if let Some(n_ctx) = provider.fetch_n_ctx_from_api(&model_name).await {
+                let mut p = provider;
+                p.model.context_limit = Some(n_ctx);
+                p
+            } else {
+                provider
+            }
+        } else {
+            provider
+        };
+
+        Ok(provider)
     }
 
     #[doc(hidden)]
@@ -609,6 +628,35 @@ impl OpenAiProvider {
             .collect();
         models.sort();
         Ok(models)
+    }
+
+    /// Read `meta.n_ctx` from the `/v1/models` response for the given model name.
+    /// llama.cpp and Ollama include this non-standard field with the actual allocated
+    /// context window size. Returns `None` if the field is absent (e.g. real OpenAI).
+    async fn fetch_n_ctx_from_api(&self, model_name: &str) -> Option<usize> {
+        let models_path =
+            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
+        let response = self
+            .api_client
+            .request(None, &models_path)
+            .response_get()
+            .await
+            .ok()?;
+        let json = handle_response_openai_compat(response).await.ok()?;
+        let data = json.get("data")?.as_array()?;
+        for entry in data {
+            let Some(id) = entry.get("id").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            if id == model_name {
+                return entry
+                    .get("meta")
+                    .and_then(|m| m.get("n_ctx"))
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize);
+            }
+        }
+        None
     }
 }
 
