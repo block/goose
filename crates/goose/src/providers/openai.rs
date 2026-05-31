@@ -302,11 +302,13 @@ impl OpenAiProvider {
         const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
         let provider = if provider.model.context_limit.is_none() {
             let model_name = provider.model.model_name.clone();
-            let n_ctx =
-                tokio::time::timeout(N_CTX_PROBE_TIMEOUT, provider.fetch_n_ctx_from_api(&model_name))
-                    .await
-                    .ok()
-                    .flatten();
+            let n_ctx = tokio::time::timeout(
+                N_CTX_PROBE_TIMEOUT,
+                provider.fetch_n_ctx_from_api(&model_name),
+            )
+            .await
+            .ok()
+            .flatten();
             if let Some(n_ctx) = n_ctx {
                 let mut p = provider;
                 p.model.context_limit = Some(n_ctx);
