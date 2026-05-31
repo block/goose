@@ -36,7 +36,7 @@
   {
     "id": "apify",
     "name": "Apify",
-    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store \u26a1",
+    "description": "Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store ⚡",
     "command": "npx -y @apify/actors-mcp-server",
     "link": "https://github.com/apify/apify-mcp-server",
     "installation_notes": "Install using npx. Requires an Apify API token.",
@@ -99,6 +99,23 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "brave-search-mcp",
+    "name": "Brave Search",
+    "description": "Web and local search using Brave's independent search index",
+    "command": "npx -y @modelcontextprotocol/server-brave-search",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search",
+    "installation_notes": "Install using npx package manager. Requires a Brave Search API key from https://brave.com/search/api/.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "BRAVE_API_KEY",
+        "description": "Brave Search API key for web and local search",
+        "required": true
+      }
+    ]
   },
   {
     "id": "browserbase-mcp",
@@ -837,7 +854,7 @@
   {
     "id": "cash-app",
     "name": "Cash App",
-    "description": "Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus with calories and allergen info, customize orders, and complete checkout\u2014all conversationally.",
+    "description": "Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus with calories and allergen info, customize orders, and complete checkout—all conversationally.",
     "type": "streamable-http",
     "url": "https://connect.squareup.com/v2/mcp/cash-app",
     "link": "",
@@ -847,26 +864,25 @@
     "environmentVariables": []
   },
   {
-  "id": "scholar-sidekick",
-  "name": "Scholar Sidekick",
-  "description": "Resolve, format, export, and verify academic citations (DOI, PMID, ISBN, arXiv) plus retraction and open-access checks",
-  "command": "npx -y scholar-sidekick-mcp@latest",
-  "link": "https://github.com/mlava/scholar-sidekick-mcp",
-  "installation_notes": "No API key required — works anonymously on a free, rate-limited tier. Optionally set SCHOLAR_API_KEY (a free first-party ssk_ key from https://scholar-sidekick.com/account) for higher limits, or RAPIDAPI_KEY for paid tiers via RapidAPI.",
-  "is_builtin": false,
-  "endorsed": false,
-  "environmentVariables": [
-    {
-      "name": "SCHOLAR_API_KEY",
-      "description": "Optional first-party API key (ssk_) from https://scholar-sidekick.com/account; raises rate limits. Sent as Authorization: Bearer.",
-      "required": false
-    },
-    {
-      "name": "RAPIDAPI_KEY",
-      "description": "Optional RapidAPI key for paid/managed tiers; routes calls through the RapidAPI gateway.",
-      "required": false
-    }
-  ]
-}
-
+    "id": "scholar-sidekick",
+    "name": "Scholar Sidekick",
+    "description": "Resolve, format, export, and verify academic citations (DOI, PMID, ISBN, arXiv) plus retraction and open-access checks",
+    "command": "npx -y scholar-sidekick-mcp@latest",
+    "link": "https://github.com/mlava/scholar-sidekick-mcp",
+    "installation_notes": "No API key required — works anonymously on a free, rate-limited tier. Optionally set SCHOLAR_API_KEY (a free first-party ssk_ key from https://scholar-sidekick.com/account) for higher limits, or RAPIDAPI_KEY for paid tiers via RapidAPI.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "SCHOLAR_API_KEY",
+        "description": "Optional first-party API key (ssk_) from https://scholar-sidekick.com/account; raises rate limits. Sent as Authorization: Bearer.",
+        "required": false
+      },
+      {
+        "name": "RAPIDAPI_KEY",
+        "description": "Optional RapidAPI key for paid/managed tiers; routes calls through the RapidAPI gateway.",
+        "required": false
+      }
+    ]
+  }
 ]
