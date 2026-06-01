@@ -135,7 +135,7 @@ export default function BaseChat({
     return initialMessage;
   }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
 
-  const canAutoSubmit = !recipe || hasNotAcceptedRecipe === false;
+  const canAutoSubmit = session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false;
 
   useAutoSubmit({
     sessionId,
@@ -208,7 +208,7 @@ export default function BaseChat({
   }, [messages]);
 
   useEffect(() => {
-    if (!recipe || !isActiveSession) return;
+    if (!recipe || !isActiveSession || session?.session_type === 'scheduled') return;
 
     (async () => {
       const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
@@ -219,7 +219,7 @@ export default function BaseChat({
         setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
       }
     })();
-  }, [recipe, isActiveSession]);
+  }, [recipe, isActiveSession, session?.session_type]);
 
   const handleRecipeAccept = async (accept: boolean) => {
     if (recipe && accept) {
@@ -527,7 +527,7 @@ export default function BaseChat({
         </ChatInputCard>
       </MainPanelLayout>
 
-      {recipe && isActiveSession && (
+      {recipe && isActiveSession && session?.session_type !== 'scheduled' && (
         <RecipeWarningModal
           isOpen={!!hasNotAcceptedRecipe}
           onConfirm={() => handleRecipeAccept(true)}
@@ -541,7 +541,10 @@ export default function BaseChat({
         />
       )}
 
-      {recipe?.parameters && recipe.parameters.length > 0 && !session?.user_recipe_values && (
+      {recipe?.parameters &&
+        recipe.parameters.length > 0 &&
+        !session?.user_recipe_values &&
+        session?.session_type !== 'scheduled' && (
         <ParameterInputModal
           parameters={recipe.parameters}
           onSubmit={setRecipeUserParams}
