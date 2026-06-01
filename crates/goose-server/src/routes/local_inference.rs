@@ -534,6 +534,58 @@ fn mark_download_failed(model_id: &str, error: impl std::fmt::Display) {
     });
 }
 
+fn register_pending_download_model(
+    model_id: &str,
+    req: &DownloadModelRequest,
+    selection: Option<&LocalModelSelection>,
+) -> anyhow::Result<()> {
+    let (repo_id, backend_id, variant_id) = if let Some(selection) = selection {
+        (
+            selection.repo_id.clone(),
+            selection.backend_id.clone(),
+            selection
+                .variant_id
+                .clone()
+                .unwrap_or_else(|| "default".to_string()),
+        )
+    } else if let Ok((repo_id, quantization)) = hf_models::parse_model_spec(&req.spec) {
+        (repo_id, "llamacpp".to_string(), quantization)
+    } else {
+        (req.spec.clone(), "mlx".to_string(), "default".to_string())
+    };
+
+    let mut registry = get_registry()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
+    if registry.has_model(model_id) {
+        return Ok(());
+    }
+
+    let mut settings = default_settings_for_model(model_id);
+    if backend_id != "llamacpp" {
+        settings.backend_id = Some(backend_id.clone());
+    }
+
+    let filename = variant_id.clone();
+    registry.add_model(LocalModelEntry {
+        id: model_id.to_string(),
+        repo_id,
+        filename: filename.clone(),
+        quantization: variant_id,
+        local_path: Paths::in_data_dir("models").join(filename),
+        source_url: req.spec.clone(),
+        backend_id: settings.backend_id.clone(),
+        storage: LocalModelStorage::HuggingFaceCache,
+        settings,
+        size_bytes: 0,
+        mmproj_path: None,
+        mmproj_source_url: None,
+        mmproj_size_bytes: 0,
+        mmproj_checked: false,
+        shard_files: vec![],
+    })
+}
+
 #[utoipa::path(
     post,
     path = "/local-inference/download",
@@ -567,6 +619,14 @@ pub async fn download_hf_model(
         .map_err(|e| ErrorResponse::internal(format!("Download failed: {}", e)))?;
     if !download_reserved {
         return Ok((StatusCode::ACCEPTED, Json(model_id)));
+    }
+
+    if let Err(error) = register_pending_download_model(&model_id, &req, selection.as_ref()) {
+        mark_download_failed(&model_id, &error);
+        return Err(ErrorResponse::internal(format!(
+            "Failed to register download: {}",
+            error
+        )));
     }
 
     let spec = req.spec.clone();
