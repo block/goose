@@ -121,9 +121,12 @@ fn stop_hook_denial_notification(plugin: &str) -> Message {
 }
 
 fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
-    Message::assistant().with_text(format!(
-        "Stop hook `{plugin}` blocked the turn from ending more than {cap} consecutive times — overriding and ending turn to avoid an infinite loop. Set GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
-    ))
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        format!(
+            "Stop hook `{plugin}` blocked the turn from ending more than {cap} consecutive times — overriding and ending turn to avoid an infinite loop. Set GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
+        ),
+    )
 }
 
 /// Context needed for the reply function
@@ -3239,9 +3242,15 @@ exit 0
         assert!(texts.iter().any(|text| text == "provider response 0"));
         assert!(texts.iter().any(|text| text == "provider response 1"));
         assert!(texts.iter().any(|text| text == "provider response 2"));
-        assert!(texts.iter().any(|text| {
-            text.contains("more than 2 consecutive times")
-                && text.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
+        assert!(messages.iter().any(|message| {
+            message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::SystemNotification(notification)
+                        if notification.msg.contains("more than 2 consecutive times")
+                            && notification.msg.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
+                )
+            })
         }));
 
         Ok(())
