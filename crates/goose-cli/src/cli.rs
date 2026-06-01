@@ -29,6 +29,7 @@ use crate::commands::schedule::{
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
+use crate::commands::skills::handle_skills_list;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
@@ -700,6 +701,13 @@ enum PluginCommand {
 }
 
 #[derive(Subcommand)]
+enum SkillsCommand {
+    /// List all skills available to the goose agent
+    #[command(about = "List all skills available to the goose agent")]
+    List,
+}
+
+#[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
     #[command(about = "Validate a recipe")]
@@ -910,6 +918,13 @@ enum Command {
         command: RecipeCommand,
     },
 
+    /// Skill utilities
+    #[command(about = "Skill utilities")]
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCommand,
+    },
+
     /// Manage plugins
     #[command(about = "Manage plugins")]
     Plugin {
@@ -935,6 +950,7 @@ enum Command {
     },
 
     /// Update the goose CLI version
+    #[cfg(feature = "update")]
     #[command(about = "Update the goose CLI version")]
     Update {
         /// Update to canary version
@@ -970,6 +986,7 @@ enum Command {
     },
 
     /// Launch the goose terminal UI (TUI)
+    #[cfg(feature = "tui")]
     #[command(
         about = "Launch the goose terminal UI",
         long_about = "Launch the goose terminal UI (the @aaif/goose npm package).\n\
@@ -1269,10 +1286,13 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Run { .. }) => "run",
         Some(Command::Gateway { .. }) => "gateway",
         Some(Command::Schedule { .. }) => "schedule",
+        #[cfg(feature = "update")]
         Some(Command::Update { .. }) => "update",
         Some(Command::Recipe { .. }) => "recipe",
+        Some(Command::Skills { .. }) => "skills",
         Some(Command::Plugin { .. }) => "plugin",
         Some(Command::Term { .. }) => "term",
+        #[cfg(feature = "tui")]
         Some(Command::Tui { .. }) => "tui",
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { .. }) => "local-models",
@@ -1797,6 +1817,12 @@ fn handle_recipe_subcommand(command: RecipeCommand) -> Result<()> {
     }
 }
 
+async fn handle_skills_subcommand(command: SkillsCommand) -> Result<()> {
+    match command {
+        SkillsCommand::List => handle_skills_list().await,
+    }
+}
+
 async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
     match command {
         TermCommand::Init {
@@ -1814,7 +1840,7 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::{
-        get_registry, model_id_from_repo, LocalModelEntry,
+        get_registry, mmproj_local_path, model_id_from_repo, LocalModelEntry,
     };
 
     match command {
@@ -1851,10 +1877,28 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
         }
         LocalModelsCommand::Download { spec } => {
             println!("Resolving {}...", spec);
-            let (repo_id, file) = hf_models::resolve_model_spec(&spec).await?;
+            let (repo_id, resolved) = hf_models::resolve_model_spec_full(&spec).await?;
+            if resolved.files.len() > 1 {
+                anyhow::bail!(
+                    "Model '{}' is sharded ({} files) — download it from the desktop UI",
+                    spec,
+                    resolved.files.len()
+                );
+            }
+            let mmproj = resolved.mmproj;
+            let file = resolved.files.into_iter().next().unwrap();
             let model_id = model_id_from_repo(&repo_id, &file.quantization);
             let local_path =
                 goose::config::paths::Paths::in_data_dir("models").join(&file.filename);
+            let mmproj_path = mmproj
+                .as_ref()
+                .map(|mmproj| mmproj_local_path(&repo_id, &mmproj.filename));
+            let mmproj_source_url = mmproj.as_ref().map(|mmproj| mmproj.download_url.clone());
+            let mmproj_size_bytes = mmproj.as_ref().map_or(0, |mmproj| mmproj.size_bytes);
+            let mut download_files = vec![(file.download_url.clone(), local_path.clone())];
+            if let Some(mmproj) = mmproj {
+                download_files.push((mmproj.download_url, mmproj_path.clone().unwrap()));
+            }
 
             println!(
                 "Downloading {} ({})...",
@@ -1879,9 +1923,10 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 source_url: file.download_url.clone(),
                 settings: Default::default(),
                 size_bytes: file.size_bytes,
-                mmproj_path: None,
-                mmproj_source_url: None,
-                mmproj_size_bytes: 0,
+                mmproj_path,
+                mmproj_source_url,
+                mmproj_size_bytes,
+                mmproj_checked: true,
                 shard_files: vec![],
             };
 
@@ -1895,10 +1940,10 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             // Download
             let manager = goose::download_manager::get_download_manager();
             manager
-                .download_model(
+                .download_model_sharded(
                     format!("{}-model", model_id),
-                    file.download_url,
-                    local_path,
+                    download_files,
+                    file.size_bytes + mmproj_size_bytes,
                     None,
                 )
                 .await?;
@@ -2099,6 +2144,7 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Gateway { command }) => handle_gateway_command(command).await,
         Some(Command::Schedule { command }) => handle_schedule_command(command).await,
+        #[cfg(feature = "update")]
         Some(Command::Update {
             canary,
             reconfigure,
@@ -2107,8 +2153,10 @@ pub async fn cli() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
+        Some(Command::Skills { command }) => handle_skills_subcommand(command).await,
         Some(Command::Plugin { command }) => handle_plugin_subcommand(command),
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        #[cfg(feature = "tui")]
         Some(Command::Tui { args }) => crate::commands::tui::handle_tui(args),
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,

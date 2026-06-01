@@ -4,10 +4,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Certificate, Client, Identity, Response, StatusCode,
+    Client, Response, StatusCode,
 };
+#[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+use reqwest::{Certificate, Identity};
 use serde_json::Value;
 use std::fmt;
+#[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
 use std::fs::read_to_string;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -113,7 +116,8 @@ impl TlsConfig {
         self.client_identity.is_some() || self.ca_cert_path.is_some()
     }
 
-    pub fn load_identity(&self) -> Result<Option<Identity>> {
+    #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+    fn load_identity(&self) -> Result<Option<Identity>> {
         if let Some(cert_key_pair) = &self.client_identity {
             let cert_pem = read_to_string(&cert_key_pair.cert_path)
                 .map_err(|e| anyhow::anyhow!("Failed to read client certificate: {}", e))?;
@@ -142,7 +146,8 @@ impl TlsConfig {
         }
     }
 
-    pub fn load_ca_certificates(&self) -> Result<Vec<Certificate>> {
+    #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+    fn load_ca_certificates(&self) -> Result<Vec<Certificate>> {
         match &self.ca_cert_path {
             Some(ca_path) => {
                 let ca_pem = read_to_string(ca_path)
@@ -323,6 +328,7 @@ impl ApiClient {
     }
 
     /// Configure TLS settings on a reqwest ClientBuilder
+    #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
     fn configure_tls(
         mut client_builder: reqwest::ClientBuilder,
         tls_config: &TlsConfig,
@@ -338,6 +344,20 @@ impl ApiClient {
             for ca_cert in ca_certs {
                 client_builder = client_builder.add_root_certificate(ca_cert);
             }
+        }
+        Ok(client_builder)
+    }
+
+    /// Reject custom TLS settings when goose is compiled without a TLS backend.
+    #[cfg(not(any(feature = "rustls-tls", feature = "native-tls")))]
+    fn configure_tls(
+        client_builder: reqwest::ClientBuilder,
+        tls_config: &TlsConfig,
+    ) -> Result<reqwest::ClientBuilder> {
+        if tls_config.is_configured() {
+            return Err(anyhow::anyhow!(
+                "Custom TLS configuration requires the `rustls-tls` or `native-tls` feature"
+            ));
         }
         Ok(client_builder)
     }

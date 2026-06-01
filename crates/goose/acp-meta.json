@@ -31,6 +31,11 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/session/system-prompt/set",
+      "requestType": "SetSessionSystemPromptRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "session/delete",
       "requestType": "DeleteSessionRequest",
       "responseType": "EmptyResponse"
@@ -64,6 +69,11 @@
       "method": "_goose/unstable/providers/list",
       "requestType": "ListProvidersRequest_unstable",
       "responseType": "ListProvidersResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/providers/supported-models/list",
+      "requestType": "ProviderSupportedModelsListRequest_unstable",
+      "responseType": "ProviderSupportedModelsListResponse_unstable"
     },
     {
       "method": "_goose/unstable/providers/catalog/list",

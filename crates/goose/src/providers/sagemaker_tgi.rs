@@ -8,6 +8,7 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
+use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
@@ -61,7 +62,10 @@ impl SageMakerTgiProvider {
         set_aws_env_vars(config.all_values());
         set_aws_env_vars(config.all_secrets());
 
-        let aws_config = aws_config::load_from_env().await;
+        let aws_config = aws_config::from_env()
+            .http_client(ReqwestHttpClient::new())
+            .load()
+            .await;
 
         // Validate credentials
         aws_config

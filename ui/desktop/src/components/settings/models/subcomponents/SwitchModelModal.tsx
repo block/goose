@@ -477,7 +477,10 @@ export const SwitchModelModal = ({
 
     (async () => {
       try {
-        const providersResponse = await getProviders(false);
+        // Force a refresh so the list reflects providers (un)configured since the
+        // cache was populated; otherwise a provider deleted in Settings still
+        // shows up here (#9364).
+        const providersResponse = await getProviders(true);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         setActiveProvidersList(activeProviders);
         setProviderOptions([

@@ -1420,6 +1420,19 @@ mod tests {
     }
 
     #[test]
+    fn test_think_filter_tracks_generation_prompt_open_block() {
+        let mut filter = ThinkFilter::new();
+        let _ = filter.push("<|assistant|><think>\n");
+        let mut out = filter.push("hidden reasoning</think>visible answer");
+        let final_out = filter.finish();
+        out.content.push_str(&final_out.content);
+        out.thinking.push_str(&final_out.thinking);
+
+        assert_eq!(out.content, "visible answer");
+        assert_eq!(out.thinking, "hidden reasoning");
+    }
+
+    #[test]
     fn test_think_filter_preserves_tags_with_think_prefix() {
         for input in [
             "<thinking-mode>hello</thinking-mode>",

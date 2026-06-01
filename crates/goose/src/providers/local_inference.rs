@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use backend::{BackendLoadedModel, LocalInferenceBackend};
 use futures::future::BoxFuture;
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
+use local_model_registry::ChatTemplate;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -33,13 +34,19 @@ type ModelSlot = Arc<Mutex<Option<Box<dyn BackendLoadedModel>>>>;
 struct ModelCacheKey {
     backend_id: &'static str,
     model_id: String,
+    chat_template: ChatTemplate,
 }
 
 impl ModelCacheKey {
-    fn new(backend_id: &'static str, model_id: impl Into<String>) -> Self {
+    fn new(
+        backend_id: &'static str,
+        model_id: impl Into<String>,
+        chat_template: ChatTemplate,
+    ) -> Self {
         Self {
             backend_id,
             model_id: model_id.into(),
+            chat_template,
         }
     }
 }
@@ -47,6 +54,10 @@ impl ModelCacheKey {
 pub struct InferenceRuntime {
     models: StdMutex<HashMap<ModelCacheKey, ModelSlot>>,
     backends: HashMap<&'static str, Arc<dyn LocalInferenceBackend>>,
+}
+
+pub fn builtin_chat_template_names() -> Vec<String> {
+    llamacpp::builtin_chat_template_names()
 }
 
 /// Global weak reference used to share a single `InferenceRuntime` across
@@ -123,20 +134,12 @@ pub(super) struct ResolvedModelPaths {
 
 /// Resolve model path, context limit, settings, and mmproj path for a model ID from the registry.
 fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
-    use crate::providers::local_inference::local_model_registry::{
-        default_settings_for_model, get_registry,
-    };
+    use crate::providers::local_inference::local_model_registry::get_registry;
 
     if let Ok(registry) = get_registry().lock() {
         if let Some(entry) = registry.get_model(model_id) {
             let ctx = entry.settings.context_size.unwrap_or(0) as usize;
             let mut settings = entry.settings.clone();
-            // Capability flags are inherent to the model family, not user-configurable.
-            // Re-derive them so that registry entries persisted before a model was
-            // recognized (or with a different quantization) still get the right behavior.
-            let defaults = default_settings_for_model(model_id);
-            settings.native_tool_calling = defaults.native_tool_calling;
-            settings.vision_capable = defaults.vision_capable;
             settings.mmproj_size_bytes = entry.mmproj_size_bytes;
             let mmproj_path = entry.mmproj_path.as_ref().filter(|p| p.exists()).cloned();
             return Some(ResolvedModelPaths {
@@ -192,6 +195,22 @@ fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
     let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
     arr.extend(format_messages(messages, &ImageFormat::OpenAi));
     strip_image_parts_from_messages(&mut arr);
+    serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn build_openai_text_messages_json(system: &str, messages: &[Message]) -> String {
+    let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
+    arr.extend(messages.iter().filter_map(|m| {
+        let content = extract_text_content(m);
+        if content.trim().is_empty() {
+            return None;
+        }
+        let role = match m.role {
+            rmcp::model::Role::User => "user",
+            rmcp::model::Role::Assistant => "assistant",
+        };
+        Some(json!({"role": role, "content": content}))
+    }));
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
@@ -422,7 +441,11 @@ impl Provider for LocalInferenceProvider {
         let backend = self.runtime.backend_for_model(&resolved)?;
         let model_context_limit = resolved.context_limit;
         let model_settings = resolved.settings.clone();
-        let cache_key = ModelCacheKey::new(backend.id(), model_config.model_name.clone());
+        let cache_key = ModelCacheKey::new(
+            backend.id(),
+            model_config.model_name.clone(),
+            model_settings.chat_template.clone(),
+        );
         let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
 
         // Ensure model is loaded — unload any other models first to free memory.
@@ -477,8 +500,8 @@ impl Provider for LocalInferenceProvider {
             }).collect::<Vec<_>>(),
             "tools": tools.iter().map(|t| &t.name).collect::<Vec<_>>(),
             "settings": {
-                "use_jinja": settings.use_jinja,
-                "native_tool_calling": settings.native_tool_calling,
+                "tool_calling": settings.tool_calling,
+                "chat_template": settings.chat_template,
                 "context_size": settings.context_size,
                 "sampling": settings.sampling,
             },

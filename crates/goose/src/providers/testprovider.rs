@@ -13,6 +13,7 @@ use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, Provid
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, ToolResponse};
 use crate::model::ModelConfig;
+use crate::utils::bytes_to_hex;
 use futures::future::BoxFuture;
 use rmcp::model::{CallToolResult, Tool};
 
@@ -111,7 +112,7 @@ impl TestProvider {
         let serialized = serde_json::to_string(&stable_messages).unwrap_or_default();
         let mut hasher = Sha256::new();
         hasher.update(serialized.as_bytes());
-        format!("{:x}", hasher.finalize())
+        bytes_to_hex(hasher.finalize())
     }
 
     fn load_records(file_path: &str) -> Result<HashMap<String, TestRecord>> {

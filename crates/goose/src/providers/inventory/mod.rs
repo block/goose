@@ -4,6 +4,7 @@ use super::catalog::ProviderSetupCategory;
 use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::config::Config;
 use crate::session::session_manager::SessionStorage;
+use crate::utils::bytes_to_hex;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -126,7 +127,7 @@ impl InventoryIdentityInput {
         Ok(InventoryIdentity {
             provider_id,
             provider_family,
-            inventory_key: format!("{digest:x}"),
+            inventory_key: bytes_to_hex(digest),
         })
     }
 }
@@ -881,10 +882,10 @@ fn enrich_model_ids_with_canonical(
         models.push(model);
     }
 
-    // For databricks, prefer goose- prefixed model_ids when there are duplicates.
+    // For Databricks providers, prefer goose- prefixed model_ids when there are duplicates.
     // Re-scan: if a later model_id with "goose-" prefix maps to the same display name,
     // swap it in.
-    if provider_family == "databricks" {
+    if matches!(provider_family, "databricks" | "databricks_v2") {
         let mut name_to_idx: HashMap<String, usize> = HashMap::new();
         for (idx, model) in models.iter().enumerate() {
             name_to_idx.insert(model.name.clone(), idx);
@@ -1176,6 +1177,26 @@ mod tests {
 
         assert_eq!(models.len(), 1);
         assert!(models[0].name.contains("Claude"));
+    }
+
+    #[test]
+    fn databricks_v2_inventory_prefers_goose_model_ids_for_duplicate_names() {
+        let models = enrich_model_ids_with_canonical(
+            "databricks_v2",
+            &[
+                "databricks-gpt-5-5".to_string(),
+                "goose-gpt-5-5".to_string(),
+            ],
+        );
+
+        assert!(
+            models.iter().any(|model| model.id == "goose-gpt-5-5"),
+            "expected goose-gpt-5-5 to win duplicate canonical-name tie, got {models:?}"
+        );
+        assert!(
+            !models.iter().any(|model| model.id == "databricks-gpt-5-5"),
+            "expected databricks-gpt-5-5 to be replaced by goose-gpt-5-5, got {models:?}"
+        );
     }
 
     #[test]

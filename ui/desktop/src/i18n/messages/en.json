@@ -11,9 +11,6 @@
   "announcementModal.gotIt": {
     "defaultMessage": "Got it!"
   },
-  "appLayout.closeNavigation": {
-    "defaultMessage": "Close navigation"
-  },
   "appLayout.openNavigation": {
     "defaultMessage": "Open navigation"
   },
@@ -119,24 +116,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose finished the task."
   },
-  "chatHistorySearch.keyboardHintMac": {
-    "defaultMessage": "⌘K"
-  },
-  "chatHistorySearch.keyboardHintOther": {
-    "defaultMessage": "Ctrl+K"
-  },
-  "chatHistorySearch.messageCount": {
-    "defaultMessage": "{count,plural,one{# message} other{# messages}}"
-  },
-  "chatHistorySearch.noResults": {
-    "defaultMessage": "No chats found"
-  },
-  "chatHistorySearch.searchError": {
-    "defaultMessage": "Search failed"
-  },
-  "chatHistorySearch.searchPlaceholder": {
-    "defaultMessage": "Search chats…"
-  },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
   },
@@ -191,12 +170,6 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Waiting for images to save..."
   },
-  "chatSessionsDropdown.newChat": {
-    "defaultMessage": "New Chat"
-  },
-  "chatSessionsDropdown.showAll": {
-    "defaultMessage": "Show All"
-  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Configure how Goose interacts with tools and extensions"
   },
@@ -208,9 +181,6 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Response Styles"
-  },
-  "condensedRenderer.newChat": {
-    "defaultMessage": "New Chat"
   },
   "configSettings.configReset": {
     "defaultMessage": "Configuration Reset"
@@ -1391,63 +1361,6 @@
   "goosehintsSection.title": {
     "defaultMessage": "Project Hints (.goosehints)"
   },
-  "greeting.readyToBuild": {
-    "defaultMessage": "Ready to build something amazing?"
-  },
-  "greeting.readyToCreateGreat": {
-    "defaultMessage": "Ready to create something great?"
-  },
-  "greeting.readyToGetStarted": {
-    "defaultMessage": "Ready to get started?"
-  },
-  "greeting.whatCanBeAchieved": {
-    "defaultMessage": "What can be achieved?"
-  },
-  "greeting.whatCanBeBuilt": {
-    "defaultMessage": "What can be built today?"
-  },
-  "greeting.whatNeedsToBeDone": {
-    "defaultMessage": "What needs to be done?"
-  },
-  "greeting.whatProgress": {
-    "defaultMessage": "What progress can be made?"
-  },
-  "greeting.whatProjectNeedsAttention": {
-    "defaultMessage": "What project needs attention?"
-  },
-  "greeting.whatProjectReadyToBegin": {
-    "defaultMessage": "What project is ready to begin?"
-  },
-  "greeting.whatShallWeCreate": {
-    "defaultMessage": "What shall we create today?"
-  },
-  "greeting.whatTaskAwaits": {
-    "defaultMessage": "What task awaits?"
-  },
-  "greeting.whatToAccomplish": {
-    "defaultMessage": "What would you like to accomplish?"
-  },
-  "greeting.whatToExplore": {
-    "defaultMessage": "What would you like to explore?"
-  },
-  "greeting.whatToTackle": {
-    "defaultMessage": "What would you like to tackle?"
-  },
-  "greeting.whatToWorkOn": {
-    "defaultMessage": "What would you like to work on?"
-  },
-  "greeting.whatsNextChallenge": {
-    "defaultMessage": "What's the next challenge?"
-  },
-  "greeting.whatsOnYourMind": {
-    "defaultMessage": "What's on your mind?"
-  },
-  "greeting.whatsTheMission": {
-    "defaultMessage": "What's the mission today?"
-  },
-  "greeting.whatsThePlan": {
-    "defaultMessage": "What's the plan for today?"
-  },
   "groupedExtensionLoadingToast.askGoose": {
     "defaultMessage": "Ask goose"
   },
@@ -1507,6 +1420,15 @@
   },
   "headersSection.value": {
     "defaultMessage": "Value"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "Good afternoon"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "Good evening"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "Good morning"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Download"
@@ -2261,6 +2183,27 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "Prompt processing batch"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Built-in template"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Select a llama.cpp built-in template name"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Chat template"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Built-in"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Custom inline"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "Use embedded GGUF metadata, a llama.cpp built-in template, or inline Jinja"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Embedded"
+  },
   "modelSettingsPanel.contextAndGeneration": {
     "defaultMessage": "Context & Generation"
   },
@@ -2269,6 +2212,12 @@
   },
   "modelSettingsPanel.contextSizeDescription": {
     "defaultMessage": "Max context window (0 = model default)"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Custom chat template"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Paste the full Jinja chat template source"
   },
   "modelSettingsPanel.etaLearningRate": {
     "defaultMessage": "Eta (learning rate)"
@@ -2308,12 +2257,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "Native tool calling"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "Use the model's built-in tool-call format instead of the shell-command emulator. Enable for large models that reliably support tool calling."
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "Performance"
@@ -2367,7 +2310,19 @@
     "defaultMessage": "CPU threads for generation"
   },
   "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Tool Calling"
+    "defaultMessage": "Tool calling"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Auto"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Choose how local models select native or emulated tool calling"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Force emulated"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Force native"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
@@ -2402,77 +2357,41 @@
   "modelsSection.resetTitle": {
     "defaultMessage": "Reset Provider and Model"
   },
-  "navigationCustomization.dragInstructions": {
-    "defaultMessage": "Drag to reorder, click the eye icon to show/hide items"
-  },
-  "navigationCustomization.hideItem": {
-    "defaultMessage": "Hide item"
-  },
-  "navigationCustomization.itemApps": {
+  "navigation.itemApps": {
     "defaultMessage": "Apps"
   },
-  "navigationCustomization.itemChat": {
-    "defaultMessage": "Chat"
-  },
-  "navigationCustomization.itemExtensions": {
+  "navigation.itemExtensions": {
     "defaultMessage": "Extensions"
   },
-  "navigationCustomization.itemHome": {
-    "defaultMessage": "Home"
+  "navigation.itemHome": {
+    "defaultMessage": "New Chat"
   },
-  "navigationCustomization.itemRecipes": {
+  "navigation.itemRecipes": {
     "defaultMessage": "Recipes"
   },
-  "navigationCustomization.itemScheduler": {
+  "navigation.itemScheduler": {
     "defaultMessage": "Scheduler"
   },
-  "navigationCustomization.itemSettings": {
+  "navigation.itemSessions": {
+    "defaultMessage": "Session History"
+  },
+  "navigation.itemSettings": {
     "defaultMessage": "Settings"
   },
-  "navigationCustomization.itemSkills": {
+  "navigation.itemSkills": {
     "defaultMessage": "Skills"
   },
-  "navigationCustomization.resetToDefaults": {
-    "defaultMessage": "Reset to defaults"
+  "navigationPanel.chats": {
+    "defaultMessage": "Chats"
   },
-  "navigationCustomization.showItem": {
-    "defaultMessage": "Show item"
+  "navigationPanel.collapseSidebar": {
+    "defaultMessage": "Collapse sidebar"
   },
-  "navigationModeSelector.overlayDescription": {
-    "defaultMessage": "Full-screen overlay"
+  "navigationPanel.noChats": {
+    "defaultMessage": "No recent chats"
   },
-  "navigationModeSelector.overlayLabel": {
-    "defaultMessage": "Overlay"
-  },
-  "navigationModeSelector.pushDescription": {
-    "defaultMessage": "Navigation pushes content"
-  },
-  "navigationModeSelector.pushLabel": {
-    "defaultMessage": "Push"
-  },
-  "navigationPositionSelector.bottomLabel": {
-    "defaultMessage": "Bottom"
-  },
-  "navigationPositionSelector.leftLabel": {
-    "defaultMessage": "Left"
-  },
-  "navigationPositionSelector.rightLabel": {
-    "defaultMessage": "Right"
-  },
-  "navigationPositionSelector.topLabel": {
-    "defaultMessage": "Top"
-  },
-  "navigationStyleSelector.listDescription": {
-    "defaultMessage": "Classic condensed view"
-  },
-  "navigationStyleSelector.listLabel": {
-    "defaultMessage": "List"
-  },
-  "navigationStyleSelector.tileDescription": {
-    "defaultMessage": "Enlarged tile view"
-  },
-  "navigationStyleSelector.tileLabel": {
-    "defaultMessage": "Tile"
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "Untitled session"
   },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "The server may be starting up or temporarily unavailable."
@@ -4016,33 +3935,6 @@
   "sessions.toast.updated": {
     "defaultMessage": "Session description updated successfully"
   },
-  "sessionsInsights.failedToLoad": {
-    "defaultMessage": "Failed to load insights"
-  },
-  "sessionsInsights.noRecentChats": {
-    "defaultMessage": "No recent chat sessions found."
-  },
-  "sessionsInsights.recentChats": {
-    "defaultMessage": "Recent chats"
-  },
-  "sessionsInsights.seeAll": {
-    "defaultMessage": "See all"
-  },
-  "sessionsInsights.totalSessions": {
-    "defaultMessage": "Total sessions"
-  },
-  "sessionsInsights.totalTokens": {
-    "defaultMessage": "Total tokens"
-  },
-  "sessionsList.showAll": {
-    "defaultMessage": "Show All"
-  },
-  "sessionsList.startNewChat": {
-    "defaultMessage": "Start New Chat"
-  },
-  "sessionsList.untitledSession": {
-    "defaultMessage": "Untitled session"
-  },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "Failed to load session details. Please try again later."
   },
@@ -4087,24 +3979,6 @@
   },
   "settings.menuBarIcon.title": {
     "defaultMessage": "Menu bar icon"
-  },
-  "settings.navigation.customize": {
-    "defaultMessage": "Customize Items"
-  },
-  "settings.navigation.description": {
-    "defaultMessage": "Customize navigation layout and behavior"
-  },
-  "settings.navigation.mode": {
-    "defaultMessage": "Mode"
-  },
-  "settings.navigation.position": {
-    "defaultMessage": "Position"
-  },
-  "settings.navigation.style": {
-    "defaultMessage": "Style"
-  },
-  "settings.navigation.title": {
-    "defaultMessage": "Navigation"
   },
   "settings.notifications.configGuide": {
     "defaultMessage": "Configuration guide"

@@ -11,9 +11,6 @@
   "announcementModal.gotIt": {
     "defaultMessage": "知道了！"
   },
-  "appLayout.closeNavigation": {
-    "defaultMessage": "收起导航"
-  },
   "appLayout.openNavigation": {
     "defaultMessage": "展开导航"
   },
@@ -173,12 +170,6 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "正在等待图片保存…"
   },
-  "chatSessionsDropdown.newChat": {
-    "defaultMessage": "新建聊天"
-  },
-  "chatSessionsDropdown.showAll": {
-    "defaultMessage": "显示全部"
-  },
   "chatSettings.modeDescription": {
     "defaultMessage": "配置 Goose 与工具和扩展的交互方式"
   },
@@ -190,9 +181,6 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "回复风格"
-  },
-  "condensedRenderer.newChat": {
-    "defaultMessage": "新建聊天"
   },
   "configSettings.configReset": {
     "defaultMessage": "配置已重置"
@@ -295,9 +283,6 @@
   },
   "costTracker.pricingUnavailable": {
     "defaultMessage": "无法获取 {model} 的定价数据"
-  },
-  "costTracker.sessionCostBreakdown": {
-    "defaultMessage": "本次会话费用明细："
   },
   "costTracker.totalSessionCost": {
     "defaultMessage": "本次会话总费用：{cost}"
@@ -1334,63 +1319,6 @@
   "goosehintsSection.title": {
     "defaultMessage": "项目提示（.goosehints）"
   },
-  "greeting.readyToBuild": {
-    "defaultMessage": "准备好构建点酷炫的东西了吗？"
-  },
-  "greeting.readyToCreateGreat": {
-    "defaultMessage": "准备好创造点了不起的东西了吗？"
-  },
-  "greeting.readyToGetStarted": {
-    "defaultMessage": "准备好开始了吗？"
-  },
-  "greeting.whatCanBeAchieved": {
-    "defaultMessage": "可以实现什么？"
-  },
-  "greeting.whatCanBeBuilt": {
-    "defaultMessage": "今天可以构建什么？"
-  },
-  "greeting.whatNeedsToBeDone": {
-    "defaultMessage": "有什么需要做的？"
-  },
-  "greeting.whatProgress": {
-    "defaultMessage": "可以取得什么进展？"
-  },
-  "greeting.whatProjectNeedsAttention": {
-    "defaultMessage": "哪个项目需要关注？"
-  },
-  "greeting.whatProjectReadyToBegin": {
-    "defaultMessage": "哪个项目准备好开始了？"
-  },
-  "greeting.whatShallWeCreate": {
-    "defaultMessage": "今天我们来创造点什么？"
-  },
-  "greeting.whatTaskAwaits": {
-    "defaultMessage": "有什么任务在等着？"
-  },
-  "greeting.whatToAccomplish": {
-    "defaultMessage": "你想完成什么？"
-  },
-  "greeting.whatToExplore": {
-    "defaultMessage": "你想探索什么？"
-  },
-  "greeting.whatToTackle": {
-    "defaultMessage": "你想解决什么？"
-  },
-  "greeting.whatToWorkOn": {
-    "defaultMessage": "你想在什么上工作？"
-  },
-  "greeting.whatsNextChallenge": {
-    "defaultMessage": "下一个挑战是什么？"
-  },
-  "greeting.whatsOnYourMind": {
-    "defaultMessage": "你在想什么？"
-  },
-  "greeting.whatsTheMission": {
-    "defaultMessage": "今天的任务是什么？"
-  },
-  "greeting.whatsThePlan": {
-    "defaultMessage": "今天的计划是什么？"
-  },
   "groupedExtensionLoadingToast.askGoose": {
     "defaultMessage": "问问 goose"
   },
@@ -2222,6 +2150,48 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "启用 Flash Attention 优化"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "内置模板"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "选择 llama.cpp 内置模板名称"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "聊天模板"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "内置"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "自定义内联"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "使用嵌入式 GGUF 元数据、llama.cpp 内置模板或内联 Jinja 模板"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "嵌入式"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "自定义聊天模板"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "粘贴完整的 Jinja 聊天模板源码"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "工具调用"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "自动"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "选择本地模型如何使用原生或模拟工具调用"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "强制模拟"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "强制原生"
+  },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "频率惩罚"
   },
@@ -2251,12 +2221,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "原生工具调用"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "使用模型内置的工具调用格式，而不是 shell 命令模拟器。对可靠支持工具调用的大模型建议启用。"
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "性能"
@@ -2309,9 +2273,6 @@
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "用于生成的 CPU 线程数"
   },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "工具调用"
-  },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
   },
@@ -2345,77 +2306,26 @@
   "modelsSection.resetTitle": {
     "defaultMessage": "重置提供商和模型"
   },
-  "navigationCustomization.dragInstructions": {
-    "defaultMessage": "拖动重新排序，点击眼睛图标显示/隐藏项"
-  },
-  "navigationCustomization.hideItem": {
-    "defaultMessage": "隐藏项"
-  },
-  "navigationCustomization.itemApps": {
+  "navigation.itemApps": {
     "defaultMessage": "应用"
   },
-  "navigationCustomization.itemChat": {
-    "defaultMessage": "聊天"
-  },
-  "navigationCustomization.itemExtensions": {
+  "navigation.itemExtensions": {
     "defaultMessage": "扩展"
   },
-  "navigationCustomization.itemHome": {
-    "defaultMessage": "首页"
+  "navigation.itemHome": {
+    "defaultMessage": "新对话"
   },
-  "navigationCustomization.itemRecipes": {
+  "navigation.itemRecipes": {
     "defaultMessage": "配方"
   },
-  "navigationCustomization.itemScheduler": {
+  "navigation.itemScheduler": {
     "defaultMessage": "调度"
   },
-  "navigationCustomization.itemSettings": {
+  "navigation.itemSettings": {
     "defaultMessage": "设置"
   },
-  "navigationCustomization.itemSkills": {
+  "navigation.itemSkills": {
     "defaultMessage": "技能"
-  },
-  "navigationCustomization.resetToDefaults": {
-    "defaultMessage": "重置为默认"
-  },
-  "navigationCustomization.showItem": {
-    "defaultMessage": "显示项"
-  },
-  "navigationModeSelector.overlayDescription": {
-    "defaultMessage": "全屏悬浮"
-  },
-  "navigationModeSelector.overlayLabel": {
-    "defaultMessage": "悬浮"
-  },
-  "navigationModeSelector.pushDescription": {
-    "defaultMessage": "导航会推动内容"
-  },
-  "navigationModeSelector.pushLabel": {
-    "defaultMessage": "推动"
-  },
-  "navigationPositionSelector.bottomLabel": {
-    "defaultMessage": "底部"
-  },
-  "navigationPositionSelector.leftLabel": {
-    "defaultMessage": "左侧"
-  },
-  "navigationPositionSelector.rightLabel": {
-    "defaultMessage": "右侧"
-  },
-  "navigationPositionSelector.topLabel": {
-    "defaultMessage": "顶部"
-  },
-  "navigationStyleSelector.listDescription": {
-    "defaultMessage": "经典的紧凑视图"
-  },
-  "navigationStyleSelector.listLabel": {
-    "defaultMessage": "列表"
-  },
-  "navigationStyleSelector.tileDescription": {
-    "defaultMessage": "放大的瓷砖视图"
-  },
-  "navigationStyleSelector.tileLabel": {
-    "defaultMessage": "瓷砖"
   },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "服务器可能正在启动或暂时不可用。"
@@ -3923,33 +3833,6 @@
   "sessions.toast.updated": {
     "defaultMessage": "会话描述更新成功"
   },
-  "sessionsInsights.failedToLoad": {
-    "defaultMessage": "加载概览失败"
-  },
-  "sessionsInsights.noRecentChats": {
-    "defaultMessage": "未找到近期聊天会话。"
-  },
-  "sessionsInsights.recentChats": {
-    "defaultMessage": "近期聊天"
-  },
-  "sessionsInsights.seeAll": {
-    "defaultMessage": "查看全部"
-  },
-  "sessionsInsights.totalSessions": {
-    "defaultMessage": "会话总数"
-  },
-  "sessionsInsights.totalTokens": {
-    "defaultMessage": "令牌总数"
-  },
-  "sessionsList.showAll": {
-    "defaultMessage": "显示全部"
-  },
-  "sessionsList.startNewChat": {
-    "defaultMessage": "开始新聊天"
-  },
-  "sessionsList.untitledSession": {
-    "defaultMessage": "未命名会话"
-  },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "加载会话详情失败，请稍后重试。"
   },
@@ -3994,24 +3877,6 @@
   },
   "settings.menuBarIcon.title": {
     "defaultMessage": "菜单栏图标"
-  },
-  "settings.navigation.customize": {
-    "defaultMessage": "自定义项"
-  },
-  "settings.navigation.description": {
-    "defaultMessage": "自定义导航布局和行为"
-  },
-  "settings.navigation.mode": {
-    "defaultMessage": "模式"
-  },
-  "settings.navigation.position": {
-    "defaultMessage": "位置"
-  },
-  "settings.navigation.style": {
-    "defaultMessage": "样式"
-  },
-  "settings.navigation.title": {
-    "defaultMessage": "导航"
   },
   "settings.notifications.configGuide": {
     "defaultMessage": "配置指南"
