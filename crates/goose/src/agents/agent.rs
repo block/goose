@@ -2537,6 +2537,8 @@ impl Agent {
         provider: Arc<dyn Provider>,
         session_id: &str,
     ) -> Result<()> {
+        provider.inject_session_storage(self.config.session_manager.storage().clone());
+
         let provider_name = provider.get_name().to_string();
         let model_config = provider.get_model_config();
 

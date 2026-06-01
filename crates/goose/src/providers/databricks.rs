@@ -910,6 +910,9 @@ mod tests {
             name: "databricks".into(),
             token_cache: std::sync::Arc::new(std::sync::Mutex::new(None)),
             instance_id: None,
+            session_storage: std::sync::Mutex::new(
+                crate::session::session_manager::SessionManager::global_storage(),
+            ),
         }
     }
 

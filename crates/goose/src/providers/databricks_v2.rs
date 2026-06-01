@@ -64,6 +64,8 @@ pub struct DatabricksV2Provider {
     token_cache: Arc<Mutex<Option<String>>>,
     #[serde(skip)]
     session_storage: Mutex<Arc<crate::session::session_manager::SessionStorage>>,
+    #[serde(skip)]
+    format_options: anthropic::AnthropicFormatOptions,
 }
 
 impl DatabricksV2Provider {
@@ -136,6 +138,7 @@ impl DatabricksV2Provider {
             name: DATABRICKS_V2_PROVIDER_NAME.to_string(),
             token_cache,
             session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
+            format_options: anthropic::AnthropicFormatOptions::default(),
         })
     }
 
@@ -313,7 +316,7 @@ impl DatabricksV2Provider {
         let is_subagent = storage.is_subagent_session(session_id).await;
         let options = anthropic::AnthropicFormatOptions {
             skip_cache_control: is_subagent,
-            ..Default::default()
+            ..self.format_options
         };
         let mut payload =
             anthropic::create_request_with_options(model_config, system, messages, tools, options)?;

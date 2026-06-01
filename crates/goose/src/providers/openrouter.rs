@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
+use std::sync::{Arc, Mutex};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
@@ -12,6 +13,7 @@ use super::utils::RequestLog;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openrouter as openrouter_format;
+use crate::session::session_manager::{SessionManager, SessionStorage};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::{create_request, ModelConfigParams};
 use rmcp::model::Tool;
@@ -44,6 +46,8 @@ pub struct OpenRouterProvider {
     supports_streaming: bool,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    session_storage: Mutex<Arc<SessionStorage>>,
 }
 
 impl OpenRouterProvider {
@@ -66,6 +70,7 @@ impl OpenRouterProvider {
             model,
             supports_streaming: true,
             name: OPENROUTER_PROVIDER_NAME.to_string(),
+            session_storage: Mutex::new(SessionManager::global_storage()),
         })
     }
 }
@@ -190,6 +195,10 @@ impl Provider for OpenRouterProvider {
         &self.name
     }
 
+    fn inject_session_storage(&self, storage: Arc<SessionStorage>) {
+        *self.session_storage.lock().unwrap() = storage;
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -278,7 +287,14 @@ impl Provider for OpenRouterProvider {
             }
         }
 
-        if self.supports_cache_control().await {
+        let is_subagent = self
+            .session_storage
+            .lock()
+            .unwrap()
+            .clone()
+            .is_subagent_session(session_id)
+            .await;
+        if self.supports_cache_control().await && !is_subagent {
             payload = update_request_for_anthropic(&payload);
         }
 

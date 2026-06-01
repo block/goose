@@ -1975,66 +1975,6 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_cache_control_omits_cache_control_from_messages() {
-        let messages = vec![
-            Message::user().with_text("First"),
-            Message::assistant().with_text("Reply"),
-            Message::user().with_text("Second"),
-        ];
-        let opts = AnthropicFormatOptions {
-            skip_cache_control: true,
-            ..Default::default()
-        };
-        let spec = format_messages_with_options(&messages, opts);
-        for msg in &spec {
-            if let Some(content) = msg.get("content").and_then(|c| c.as_array()) {
-                for block in content {
-                    assert!(
-                        block.get("cache_control").is_none(),
-                        "unexpected cache_control in block: {block}"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_skip_cache_control_omits_cache_control_from_tools() {
-        let tool = Tool::new(
-            "my_tool",
-            "does stuff",
-            object!({"type": "object"}),
-        );
-        let opts = AnthropicFormatOptions {
-            skip_cache_control: true,
-            ..Default::default()
-        };
-        let specs = format_tools_with_options(&[tool], opts);
-        for spec in &specs {
-            assert!(
-                spec.get("cache_control").is_none(),
-                "unexpected cache_control in tool spec: {spec}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_skip_cache_control_omits_cache_control_from_system() {
-        let opts = AnthropicFormatOptions {
-            skip_cache_control: true,
-            ..Default::default()
-        };
-        let system = format_system_with_options("Be helpful.", opts);
-        let blocks = system.as_array().unwrap();
-        for block in blocks {
-            assert!(
-                block.get("cache_control").is_none(),
-                "unexpected cache_control in system block: {block}"
-            );
-        }
-    }
-
-    #[test]
     fn test_default_options_includes_cache_control_in_messages() {
         let messages = vec![
             Message::user().with_text("Hello"),

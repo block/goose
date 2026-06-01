@@ -432,6 +432,7 @@ mod tests {
             dynamic_models,
             skip_canonical_filtering: false,
             format_options: AnthropicFormatOptions::default(),
+            session_storage: Mutex::new(SessionManager::global_storage()),
         }
     }
 

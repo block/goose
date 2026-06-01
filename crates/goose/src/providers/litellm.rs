@@ -6,6 +6,7 @@ use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
@@ -18,6 +19,7 @@ use super::retry::ProviderRetry;
 use super::utils::{get_model, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use crate::session::session_manager::{SessionManager, SessionStorage};
 use goose_providers::formats::openai::ModelConfigParams;
 use rmcp::model::Tool;
 
@@ -35,6 +37,8 @@ pub struct LiteLLMProvider {
     name: String,
     #[serde(skip)]
     cached_model_info: tokio::sync::OnceCell<Vec<ModelInfo>>,
+    #[serde(skip)]
+    session_storage: Mutex<Arc<SessionStorage>>,
 }
 
 impl LiteLLMProvider {
@@ -83,6 +87,7 @@ impl LiteLLMProvider {
             model,
             name: LITELLM_PROVIDER_NAME.to_string(),
             cached_model_info: tokio::sync::OnceCell::new(),
+            session_storage: Mutex::new(SessionManager::global_storage()),
         })
     }
 
@@ -196,6 +201,10 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
+    fn inject_session_storage(&self, storage: Arc<SessionStorage>) {
+        *self.session_storage.lock().unwrap() = storage;
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         let mut config = self.model.clone();
         // The cache is populated lazily by the first stream() call (via
@@ -243,7 +252,14 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        if self.supports_cache_control().await {
+        let is_subagent = self
+            .session_storage
+            .lock()
+            .unwrap()
+            .clone()
+            .is_subagent_session(session_id.unwrap_or(""))
+            .await;
+        if self.supports_cache_control().await && !is_subagent {
             payload = update_request_for_cache_control(&payload);
         }
 

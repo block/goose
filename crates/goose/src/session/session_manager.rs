@@ -376,16 +376,6 @@ impl SessionManager {
         }
     }
 
-    /// Returns `true` when the given session_id belongs to a `SubAgent` session,
-    /// using this manager's storage rather than the process-global store.
-    /// Returns `false` for all other session types and when the session is not found.
-    pub async fn is_subagent_session(&self, session_id: &str) -> bool {
-        match self.storage.get_session(session_id, false).await {
-            Ok(session) => session.session_type == SessionType::SubAgent,
-            Err(_) => false,
-        }
-    }
-
     pub fn global_storage() -> Arc<SessionStorage> {
         Arc::clone(&SESSION_STORAGE)
     }
