@@ -38,6 +38,7 @@ use super::{
     snowflake::SnowflakeProvider,
     tetrate::TetrateProvider,
     xai::XaiProvider,
+    xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
@@ -87,6 +88,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<SnowflakeProvider>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<XaiProvider>(false);
+        registry.register::<XaiOAuthProvider>(true);
     });
     // Register cleanup functions for providers with cached state
     registry.set_cleanup(
@@ -108,6 +110,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
     registry.set_cleanup(
         "chatgpt_codex",
         Arc::new(|| Box::pin(ChatGptCodexProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "xai_oauth",
+        Arc::new(|| Box::pin(XaiOAuthProvider::cleanup())),
     );
 
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
