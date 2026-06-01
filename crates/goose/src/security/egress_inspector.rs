@@ -224,9 +224,17 @@ fn detect_direction(command: &str) -> EgressDirection {
 
     static CURL_UPLOAD_RE: OnceLock<Regex> = OnceLock::new();
     let curl_upload_re = CURL_UPLOAD_RE.get_or_init(|| {
-        Regex::new(r"(?i)\b(curl|wget|xh|httpie)\b.*(-X\s*(POST|PUT|PATCH)|--data|--data-raw|--data-binary|-d\s|-F\s|--form|--upload-file|-T\s)").unwrap()
+        Regex::new(r"(?i)\bcurl\b.*(-X\s*(POST|PUT|PATCH)|--data|--data-raw|--data-binary|-d\s|-F\s|--form|--upload-file|-T\s)").unwrap()
     });
     if curl_upload_re.is_match(command) {
+        return EgressDirection::Outbound;
+    }
+
+    static WGET_UPLOAD_RE: OnceLock<Regex> = OnceLock::new();
+    let wget_upload_re = WGET_UPLOAD_RE.get_or_init(|| {
+        Regex::new(r"(?i)\bwget\b.*(--post-data|--post-file|--body-data|--body-file)").unwrap()
+    });
+    if wget_upload_re.is_match(command) {
         return EgressDirection::Outbound;
     }
 
