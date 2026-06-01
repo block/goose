@@ -1488,6 +1488,7 @@ async fn handle_interactive_session(
         resume,
         fork,
         no_session: false,
+        hidden_session_name: None,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
@@ -1688,7 +1689,7 @@ async fn handle_run_command(
 
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let session_id = get_or_create_session_id(
-        identifier,
+        identifier.clone(),
         run_behavior.resume,
         run_behavior.no_session,
         goose_mode,
@@ -2027,6 +2028,7 @@ async fn handle_default_session() -> Result<()> {
         resume: false,
         fork: false,
         no_session: false,
+        hidden_session_name: None,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
         builtins: Vec::new(),

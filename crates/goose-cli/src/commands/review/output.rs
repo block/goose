@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use goose::session::session_manager::{SessionManager, SessionType};
 use serde::Serialize;
+use std::path::Path;
 
 use super::orchestrator::Finding;
 
@@ -125,7 +126,11 @@ pub fn sanitize_session_label(label: &str) -> String {
     }
 }
 
-pub async fn load_review_sessions(prefix: &str, since: DateTime<Utc>) -> Vec<ReviewSessionEntry> {
+pub async fn load_review_sessions(
+    prefix: &str,
+    since: DateTime<Utc>,
+    working_dir: &Path,
+) -> Vec<ReviewSessionEntry> {
     let session_manager = SessionManager::instance();
     let sessions = match session_manager
         .list_sessions_by_types(&[SessionType::Hidden])
@@ -135,12 +140,24 @@ pub async fn load_review_sessions(prefix: &str, since: DateTime<Utc>) -> Vec<Rev
         Err(_) => return Vec::new(),
     };
 
+    // Subprocess sessions are stamped to second precision in SQLite while
+    // `since` carries sub-second nanos from Utc::now(); subtract a small
+    // buffer so sessions created in the same second as review start match.
+    let since_cutoff = since - chrono::Duration::seconds(2);
+
     let mut out = Vec::new();
     for session in sessions {
-        if !session.name.starts_with(prefix) {
+        if session.working_dir != working_dir {
             continue;
         }
-        if session.created_at < since {
+        if session.created_at < since_cutoff {
+            continue;
+        }
+        let name_matches = session.name.starts_with(prefix);
+        let review_scoped = session.name.starts_with("goose-review:");
+        let tokens = i64::from(session.accumulated_input_tokens.unwrap_or(0))
+            + i64::from(session.accumulated_output_tokens.unwrap_or(0));
+        if !name_matches && !(review_scoped || tokens > 0) {
             continue;
         }
         let input = i64::from(session.accumulated_input_tokens.unwrap_or(0));

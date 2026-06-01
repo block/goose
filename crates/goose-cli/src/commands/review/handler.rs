@@ -286,11 +286,15 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             let total_seen = all_findings.len();
             let filtered = filter_findings(&all_findings, min_sev);
             let total_emitted = filtered.len();
-            let sessions = load_review_sessions(&session_prefix, review_started_at).await;
+            let working_dir_path = std::env::current_dir().unwrap_or_else(|_| repo_root.clone());
+            let sessions = load_review_sessions(
+                &session_prefix,
+                review_started_at,
+                &working_dir_path,
+            )
+            .await;
             let usage = aggregate_usage(&sessions);
-            let working_dir = std::env::current_dir()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default();
+            let working_dir = working_dir_path.display().to_string();
 
             let mut doc = ReviewResultDocument::new(review_id, review_started_at);
             doc.range = opts.range.clone();
