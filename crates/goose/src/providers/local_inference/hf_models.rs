@@ -1106,6 +1106,38 @@ mod tests {
     }
 
     #[test]
+    fn hf_download_progress_init_preserves_cancelled_reservation() {
+        let model_id = "test-cancelled-hf-progress-init";
+        let download_id = format!("{}-model", model_id);
+        let manager = crate::download_manager::get_download_manager();
+        manager.set_progress(crate::download_manager::DownloadProgress {
+            model_id: download_id.clone(),
+            status: crate::download_manager::DownloadStatus::Cancelled,
+            bytes_downloaded: 0,
+            total_bytes: 0,
+            progress_percent: 0.0,
+            speed_bps: None,
+            eta_seconds: None,
+            error: None,
+            task_exited: false,
+        });
+
+        HfDownloadProgress::new(model_id.to_string(), 42).init();
+
+        let progress = manager.get_progress(&download_id).expect("progress");
+        assert_eq!(
+            progress.status,
+            crate::download_manager::DownloadStatus::Cancelled
+        );
+        assert!(!progress.task_exited);
+
+        manager.update_progress(&download_id, |progress| {
+            progress.task_exited = true;
+        });
+        manager.clear_completed(&download_id);
+    }
+
+    #[test]
     fn test_is_model_file() {
         let stem = "gemma-3-27b-it";
         assert!(is_model_file("gemma-3-27b-it-Q4_K_M.gguf", stem));
@@ -1886,9 +1918,24 @@ impl HfDownloadProgress {
     }
 
     fn init(&self) {
-        crate::download_manager::get_download_manager().set_progress(
-            crate::download_manager::DownloadProgress {
-                model_id: format!("{}-model", self.model_id),
+        let manager = crate::download_manager::get_download_manager();
+        let download_id = format!("{}-model", self.model_id);
+        if manager.get_progress(&download_id).is_some() {
+            manager.update_progress(&download_id, |progress| {
+                if progress.status != crate::download_manager::DownloadStatus::Cancelled {
+                    progress.status = crate::download_manager::DownloadStatus::Downloading;
+                    progress.bytes_downloaded = 0;
+                    progress.total_bytes = self.total_bytes;
+                    progress.progress_percent = 0.0;
+                    progress.speed_bps = None;
+                    progress.eta_seconds = None;
+                    progress.error = None;
+                    progress.task_exited = false;
+                }
+            });
+        } else {
+            manager.set_progress(crate::download_manager::DownloadProgress {
+                model_id: download_id,
                 status: crate::download_manager::DownloadStatus::Downloading,
                 bytes_downloaded: 0,
                 total_bytes: self.total_bytes,
@@ -1897,8 +1944,8 @@ impl HfDownloadProgress {
                 eta_seconds: None,
                 error: None,
                 task_exited: false,
-            },
-        );
+            });
+        }
     }
 
     fn is_cancelled(&self) -> bool {

@@ -534,6 +534,12 @@ fn mark_download_failed(model_id: &str, error: impl std::fmt::Display) {
     });
 }
 
+fn model_download_completed(model_id: &str) -> bool {
+    get_download_manager()
+        .get_progress(&format!("{}-model", model_id))
+        .is_some_and(|progress| progress.status == DownloadStatus::Completed)
+}
+
 fn register_pending_download_model(
     model_id: &str,
     req: &DownloadModelRequest,
@@ -645,6 +651,9 @@ pub async fn download_hf_model(
         };
         match resolved {
             Ok(resolved) => {
+                if !model_download_completed(&model_id_for_task) {
+                    return;
+                }
                 if let Err(error) = register_resolved_model(resolved, &spec) {
                     mark_download_failed(&model_id_for_task, error);
                 }
@@ -832,4 +841,45 @@ pub fn routes(state: Arc<AppState>) -> Router {
             axum::routing::put(update_model_settings),
         )
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn progress_for(model_id: &str, status: DownloadStatus) -> DownloadProgress {
+        DownloadProgress {
+            model_id: format!("{}-model", model_id),
+            status,
+            bytes_downloaded: 0,
+            total_bytes: 0,
+            progress_percent: 0.0,
+            speed_bps: None,
+            eta_seconds: None,
+            error: None,
+            task_exited: true,
+        }
+    }
+
+    #[test]
+    fn model_download_completed_requires_completed_progress() {
+        let model_id = "test-completed-registration-gate";
+        let manager = get_download_manager();
+        manager.set_progress(progress_for(model_id, DownloadStatus::Completed));
+
+        assert!(model_download_completed(model_id));
+
+        manager.clear_completed(&format!("{}-model", model_id));
+    }
+
+    #[test]
+    fn model_download_completed_rejects_cancelled_progress() {
+        let model_id = "test-cancelled-registration-gate";
+        let manager = get_download_manager();
+        manager.set_progress(progress_for(model_id, DownloadStatus::Cancelled));
+
+        assert!(!model_download_completed(model_id));
+
+        manager.clear_completed(&format!("{}-model", model_id));
+    }
 }
