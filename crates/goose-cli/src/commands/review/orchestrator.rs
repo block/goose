@@ -39,6 +39,7 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use super::handler::ReviewOptions;
+use super::output::{sanitize_session_label, GOOSE_REVIEW_SESSION_PREFIX_ENV};
 use goose::checks::Check;
 
 /// Maximum number of check subprocesses we run concurrently. 4 is
@@ -258,6 +259,10 @@ async fn run_subprocess_for_findings(
     }
     if let Some(t) = max_turns {
         cmd.arg("--max-turns").arg(t.to_string());
+    }
+    if let Ok(prefix) = std::env::var(GOOSE_REVIEW_SESSION_PREFIX_ENV) {
+        let session_name = format!("{}:{}", prefix, sanitize_session_label(label));
+        cmd.arg("-n").arg(session_name);
     }
 
     let mut child = cmd
@@ -745,19 +750,23 @@ fn truncate(s: &str, max: usize) -> String {
 /// the format the in-process path produces. Findings whose severity
 /// ranks below `min_severity` are suppressed; this mirrors Amp's
 /// behavior of hiding `low` from the review output by default.
+pub fn filter_findings(findings: &[Finding], min_severity: Severity) -> Vec<Finding> {
+    findings
+        .iter()
+        .filter(|f| Severity::parse(&f.severity) >= min_severity)
+        .cloned()
+        .collect()
+}
+
 pub fn emit_findings(findings: &[Finding], min_severity: Severity) -> usize {
-    let mut emitted = 0usize;
-    for f in findings {
-        if Severity::parse(&f.severity) < min_severity {
-            continue;
-        }
+    let filtered = filter_findings(findings, min_severity);
+    for f in &filtered {
         // serde_json::to_string never fails for these owned strings.
         if let Ok(line) = serde_json::to_string(f) {
             println!("{line}");
-            emitted += 1;
         }
     }
-    emitted
+    filtered.len()
 }
 
 /// Severity floor for finding display. Mirrors Amp's CLI behavior of

@@ -1,14 +1,20 @@
 use anyhow::{anyhow, bail, Context, Result};
+use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Instant;
 
 use crate::session::{build_session, SessionBuilderConfig};
 
 use goose::checks::{discover, DiscoveredReview};
 
 use super::orchestrator::{
-    emit_findings, run_checks_in_parallel, run_main_pass_in_parallel, Severity,
+    emit_findings, filter_findings, run_checks_in_parallel, run_main_pass_in_parallel, Severity,
+};
+use super::output::{
+    aggregate_usage, emit_review_json, load_review_sessions, ReviewOutputFormat,
+    ReviewResultDocument, GOOSE_REVIEW_SESSION_PREFIX_ENV,
 };
 use super::prompt::{build_review_prompt, DEFAULT_REVIEW_PROMPT};
 
@@ -64,6 +70,8 @@ pub struct ReviewOptions {
     /// `medium`, matching Amp's CLI behavior of hiding `low` from
     /// the review output.
     pub severity: String,
+    /// How findings are written to stdout.
+    pub output_format: ReviewOutputFormat,
 }
 
 /// Entry point for the `goose review` subcommand.
@@ -136,6 +144,10 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     };
 
     let use_orchestrator = !opts.no_orchestrate;
+
+    if opts.output_format == ReviewOutputFormat::Json && !use_orchestrator {
+        bail!("--format json requires the default orchestrator; remove --no-orchestrate");
+    }
 
     // Reviewer instructions are also injected into every per-file
     // main-pass subprocess and every per-check subprocess. To avoid
@@ -222,6 +234,12 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     // each, capped at MAX_WORKERS) concurrently. Wall clock is bounded
     // by `max(slowest_main_file, slowest_check)` instead of scaling
     // with diff size or check count.
+    let review_started_at = Utc::now();
+    let review_start = Instant::now();
+    let review_id = new_review_id();
+    let session_prefix = format!("goose-review:{review_id}");
+    std::env::set_var(GOOSE_REVIEW_SESSION_PREFIX_ENV, &session_prefix);
+
     let main_findings_fut = async {
         if opts.checks_only {
             Vec::new()
@@ -232,33 +250,83 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     let checks_fut = run_checks_in_parallel(&discovered.checks, &diff, &opts);
     let (main_findings, check_results) = tokio::join!(main_findings_fut, checks_fut);
 
-    let mut total_emitted = 0usize;
-    let mut total_seen = main_findings.len();
-    total_emitted += emit_findings(&main_findings, min_sev);
-    for findings in &check_results {
-        total_seen += findings.len();
-        total_emitted += emit_findings(findings, min_sev);
-    }
-    if !opts.quiet {
-        let suppressed = total_seen.saturating_sub(total_emitted);
-        let main_pass_label = if opts.checks_only { "skipped" } else { "ran" };
-        if suppressed == 0 {
-            eprintln!(
-                "goose review: orchestrator emitted {total_emitted} finding(s) from {} check(s) (main: {main_pass_label}, {} finding(s))",
-                discovered.checks.len(),
-                main_findings.len()
-            );
-        } else {
-            eprintln!(
-                "goose review: orchestrator emitted {total_emitted} finding(s) from {} check(s) (main: {main_pass_label}, {} finding(s); {suppressed} hidden below severity={:?})",
-                discovered.checks.len(),
-                main_findings.len(),
-                min_sev
-            );
+    match opts.output_format {
+        ReviewOutputFormat::Jsonl => {
+            let mut total_emitted = 0usize;
+            let mut total_seen = main_findings.len();
+            total_emitted += emit_findings(&main_findings, min_sev);
+            for findings in &check_results {
+                total_seen += findings.len();
+                total_emitted += emit_findings(findings, min_sev);
+            }
+            if !opts.quiet {
+                let suppressed = total_seen.saturating_sub(total_emitted);
+                let main_pass_label = if opts.checks_only { "skipped" } else { "ran" };
+                if suppressed == 0 {
+                    eprintln!(
+                        "goose review: orchestrator emitted {total_emitted} finding(s) from {} check(s) (main: {main_pass_label}, {} finding(s))",
+                        discovered.checks.len(),
+                        main_findings.len()
+                    );
+                } else {
+                    eprintln!(
+                        "goose review: orchestrator emitted {total_emitted} finding(s) from {} check(s) (main: {main_pass_label}, {} finding(s); {suppressed} hidden below severity={:?})",
+                        discovered.checks.len(),
+                        main_findings.len(),
+                        min_sev
+                    );
+                }
+            }
+        }
+        ReviewOutputFormat::Json => {
+            let mut all_findings = main_findings;
+            for findings in &check_results {
+                all_findings.extend(findings.iter().cloned());
+            }
+            let total_seen = all_findings.len();
+            let filtered = filter_findings(&all_findings, min_sev);
+            let total_emitted = filtered.len();
+            let sessions = load_review_sessions(&session_prefix, review_started_at).await;
+            let usage = aggregate_usage(&sessions);
+            let working_dir = std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+
+            let mut doc = ReviewResultDocument::new(review_id, review_started_at);
+            doc.range = opts.range.clone();
+            doc.working_dir = working_dir;
+            doc.provider = opts.provider.clone();
+            doc.model = opts.default_model.clone();
+            doc.checks_discovered = discovered.checks.len();
+            doc.checks_run = discovered.checks.len();
+            doc.findings_seen = total_seen;
+            doc.findings_emitted = total_emitted;
+            doc.findings_suppressed = total_seen.saturating_sub(total_emitted);
+            doc.min_severity = sev_str.to_string();
+            doc.usage = usage;
+            doc.sessions = sessions;
+            doc.findings = filtered;
+            doc.finished_at = Utc::now().to_rfc3339();
+            doc.duration_ms = review_start.elapsed().as_millis() as u64;
+            emit_review_json(&doc);
+
+            if !opts.quiet {
+                eprintln!(
+                    "goose review: orchestrator emitted {total_emitted} finding(s) from {} check(s)",
+                    discovered.checks.len()
+                );
+            }
         }
     }
 
     Ok(())
+}
+
+fn new_review_id() -> String {
+    use rand::Rng;
+    let ts = Utc::now().format("%Y%m%d_%H%M%S");
+    let n: u32 = rand::thread_rng().gen_range(0..1_000_000);
+    format!("{ts}_{n:06}")
 }
 
 /// Restrict a discovered review to the named checks (no-op when the

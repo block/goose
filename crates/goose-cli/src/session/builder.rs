@@ -85,6 +85,8 @@ pub struct SessionBuilderConfig {
     pub fork: bool,
     /// Whether to run without a session file
     pub no_session: bool,
+    /// Display name for a hidden session when `no_session` is true.
+    pub hidden_session_name: Option<String>,
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
@@ -127,6 +129,7 @@ impl Default for SessionBuilderConfig {
             resume: false,
             fork: false,
             no_session: false,
+            hidden_session_name: None,
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
@@ -301,10 +304,14 @@ async fn resolve_session_id(
             output::render_error(&format!("Could not get working directory: {}", e));
             process::exit(1);
         });
+        let session_name = session_config
+            .hidden_session_name
+            .clone()
+            .unwrap_or_else(|| "CLI Session".to_string());
         let session = session_manager
             .create_session(
                 working_dir,
-                "CLI Session".to_string(),
+                session_name,
                 SessionType::Hidden,
                 goose_mode,
             )

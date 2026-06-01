@@ -345,7 +345,7 @@ pub struct RunBehavior {
         long = "no-session",
         help = "Run without storing a session file",
         long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-        conflicts_with_all = ["resume", "name", "path"]
+        conflicts_with_all = ["resume", "path"]
     )]
     pub no_session: bool,
 
@@ -1106,6 +1106,11 @@ enum Command {
         /// `--severity low` to surface every finding.
         #[arg(long = "severity", value_name = "LEVEL", default_value = "medium")]
         severity: String,
+
+        /// Output format: `jsonl` (one finding per line, default) or `json`
+        /// (single envelope with findings, usage, and session metadata).
+        #[arg(long = "format", value_name = "FORMAT", default_value = "jsonl")]
+        format: String,
     },
 
     #[command(
@@ -1690,11 +1695,18 @@ async fn handle_run_command(
     )
     .await?;
 
+    let hidden_session_name = if run_behavior.no_session {
+        identifier.as_ref().and_then(|id| id.name.clone())
+    } else {
+        None
+    };
+
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: run_behavior.resume,
         fork: false,
         no_session: run_behavior.no_session,
+        hidden_session_name,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
@@ -2151,8 +2163,12 @@ pub async fn cli() -> anyhow::Result<()> {
             checks_only,
             summary_only,
             severity,
+            format,
         }) => {
             use crate::commands::review::{handle_review, ReviewOptions};
+            use crate::commands::review::output::ReviewOutputFormat;
+            let output_format = ReviewOutputFormat::parse(&format)
+                .map_err(|e| anyhow::anyhow!(e))?;
             handle_review(ReviewOptions {
                 range,
                 prompt_file: prompt,
@@ -2170,6 +2186,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 checks_only,
                 summary_only,
                 severity,
+                output_format,
             })
             .await
         }
