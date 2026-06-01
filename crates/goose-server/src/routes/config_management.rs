@@ -546,6 +546,31 @@ fn unconfigure_provider(config: &Config, provider_name: &str) -> Result<(), Conf
     Ok(())
 }
 
+fn mark_provider_configured(config: &Config, provider_name: &str) -> Result<(), ConfigError> {
+    if let Some(mut entry) = goose::config::get_provider_entry(config, provider_name) {
+        entry.configured = true;
+        goose::config::set_provider_entry(config, provider_name, &entry)?;
+    } else {
+        let model = if goose::config::get_active_provider(config).as_deref() == Some(provider_name)
+        {
+            config.get_goose_model().unwrap_or_default()
+        } else {
+            String::new()
+        };
+        goose::config::set_provider_entry(
+            config,
+            provider_name,
+            &goose::config::ProviderEntry {
+                enabled: true,
+                model,
+                configured: true,
+            },
+        )?;
+    }
+
+    Ok(())
+}
+
 fn parse_secret_store_id(id: &str) -> Option<(&str, &str)> {
     let rest = id.strip_prefix(SECRET_STORE_ID_PREFIX)?;
     let (provider, key) = rest.split_once(':')?;
@@ -1283,6 +1308,7 @@ pub async fn configure_provider_oauth(
                 provider_name, e
             ))
         })?;
+        mark_provider_configured(goose::config::Config::global(), &provider_name)?;
         return Ok(Json("OAuth configuration completed".to_string()));
     }
 
@@ -1309,29 +1335,7 @@ pub async fn configure_provider_oauth(
         ))
     })?;
 
-    // Mark the provider as configured after successful OAuth
-    let config = goose::config::Config::global();
-    if let Some(mut entry) = goose::config::get_provider_entry(config, &provider_name) {
-        entry.configured = true;
-        goose::config::set_provider_entry(config, &provider_name, &entry)?;
-    } else {
-        let model = if goose::config::get_active_provider(config).as_deref()
-            == Some(provider_name.as_str())
-        {
-            config.get_goose_model().unwrap_or_default()
-        } else {
-            String::new()
-        };
-        goose::config::set_provider_entry(
-            config,
-            &provider_name,
-            &goose::config::ProviderEntry {
-                enabled: true,
-                model,
-                configured: true,
-            },
-        )?;
-    }
+    mark_provider_configured(goose::config::Config::global(), &provider_name)?;
 
     Ok(Json("OAuth configuration completed".to_string()))
 }
