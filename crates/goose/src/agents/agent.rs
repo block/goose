@@ -122,7 +122,7 @@ fn stop_hook_denial_notification(plugin: &str) -> Message {
 
 fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
     Message::assistant().with_text(format!(
-        "Stop hook `{plugin}` blocked the turn from ending {cap} consecutive times — overriding and ending turn to avoid an infinite loop. Set GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
+        "Stop hook `{plugin}` blocked the turn from ending more than {cap} consecutive times — overriding and ending turn to avoid an infinite loop. Set GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
     ))
 }
 
@@ -1708,7 +1708,7 @@ impl Agent {
                         }
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
-                            if consecutive_stop_hook_blocks >= stop_hook_block_cap {
+                            if consecutive_stop_hook_blocks > stop_hook_block_cap {
                                 let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
                                 session_manager.add_message(&session_config.id, &message).await?;
                                 yield AgentEvent::Message(message);
@@ -2365,7 +2365,7 @@ impl Agent {
                         }
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
-                            if consecutive_stop_hook_blocks >= stop_hook_block_cap {
+                            if consecutive_stop_hook_blocks > stop_hook_block_cap {
                                 let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
                                 session_manager.add_message(&session_config.id, &message).await?;
                                 yield AgentEvent::Message(message);
