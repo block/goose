@@ -117,6 +117,7 @@ pub enum ResolvedLocalModel {
         quantization: String,
         resolved: ResolvedModel,
         local_paths: Vec<std::path::PathBuf>,
+        mmproj_path: Option<std::path::PathBuf>,
         storage: LocalModelStorage,
     },
     Mlx {
@@ -1679,12 +1680,14 @@ fn snapshot_root_for_file(
 async fn resolve_gguf_model(repo_id: &str, quantization: &str) -> Result<ResolvedLocalModel> {
     let spec = format!("{}:{}", repo_id, quantization);
     let (_repo, resolved) = resolve_model_spec_full(&spec).await?;
-    let local_paths = download_gguf_to_hf_cache(repo_id, quantization, &resolved).await?;
+    let (local_paths, mmproj_path) =
+        download_gguf_to_hf_cache(repo_id, quantization, &resolved).await?;
     Ok(ResolvedLocalModel::Gguf {
         repo_id: repo_id.to_string(),
         quantization: quantization.to_string(),
         resolved,
         local_paths,
+        mmproj_path,
         storage: LocalModelStorage::HuggingFaceCache,
     })
 }
@@ -1693,10 +1696,15 @@ async fn download_gguf_to_hf_cache(
     repo_id: &str,
     quantization: &str,
     resolved: &ResolvedModel,
-) -> Result<Vec<std::path::PathBuf>> {
+) -> Result<(Vec<std::path::PathBuf>, Option<std::path::PathBuf>)> {
     let (owner, name) = split_repo_id(repo_id)?;
     let model_id = model_id_from_repo(repo_id, quantization);
-    let total_size = resolved.files.iter().map(|file| file.size_bytes).sum();
+    let total_size = resolved
+        .files
+        .iter()
+        .chain(resolved.mmproj.iter())
+        .map(|file| file.size_bytes)
+        .sum();
     let progress = HfDownloadProgress::new(model_id, total_size);
     progress.init();
     let client = hf_client()?;
@@ -1720,8 +1728,30 @@ async fn download_gguf_to_hf_cache(
         progress.finish_file(file.size_bytes);
         paths.push(path);
     }
+
+    let mmproj_path = if let Some(mmproj) = &resolved.mmproj {
+        let path = match repo
+            .download_file()
+            .filename(mmproj.filename.clone())
+            .progress(progress.clone())
+            .send()
+            .await
+            .map_err(anyhow::Error::from)
+        {
+            Ok(path) => path,
+            Err(error) => {
+                progress.fail(&error);
+                return Err(error);
+            }
+        };
+        progress.finish_file(mmproj.size_bytes);
+        Some(path)
+    } else {
+        None
+    };
+
     progress.complete();
-    Ok(paths)
+    Ok((paths, mmproj_path))
 }
 
 pub async fn resolve_local_model_spec(spec: &str) -> Result<ResolvedLocalModel> {
@@ -1994,6 +2024,7 @@ pub fn register_resolved_model(resolved: ResolvedLocalModel, source: &str) -> Re
         ResolvedLocalModel::Gguf {
             resolved,
             local_paths,
+            mmproj_path,
             ..
         } => {
             let first_file = &resolved.files[0];
@@ -2025,9 +2056,16 @@ pub fn register_resolved_model(resolved: ResolvedLocalModel, source: &str) -> Re
                 storage,
                 settings,
                 size_bytes: resolved.total_size,
-                mmproj_path: None,
-                mmproj_source_url: None,
-                mmproj_size_bytes: 0,
+                mmproj_path,
+                mmproj_source_url: resolved
+                    .mmproj
+                    .as_ref()
+                    .map(|mmproj| mmproj.download_url.clone()),
+                mmproj_size_bytes: resolved
+                    .mmproj
+                    .as_ref()
+                    .map(|mmproj| mmproj.size_bytes)
+                    .unwrap_or(0),
                 mmproj_checked: true,
                 shard_files,
             }

@@ -576,7 +576,7 @@ impl LocalModelRegistry {
             all_paths: entry.all_local_paths().map(|p| p.to_path_buf()).collect(),
             primary_path: entry.local_path.clone(),
             mmproj_path,
-            delete_mmproj: !other_uses_mmproj,
+            delete_mmproj: entry.storage == LocalModelStorage::GooseManaged && !other_uses_mmproj,
         })
     }
 
