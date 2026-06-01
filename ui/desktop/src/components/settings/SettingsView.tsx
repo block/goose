@@ -18,6 +18,7 @@ import {
   Keyboard,
   HardDrive,
   Network,
+  KeyRound,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import TunnelSection from './tunnel/TunnelSection';
@@ -25,6 +26,7 @@ import GatewaySettingsSection from './gateways/GatewaySettingsSection';
 import { getTunnelStatus } from '../../api/sdk.gen';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
+import AuthSettingsSection from './auth/AuthSettingsSection';
 import LocalInferenceSection from './localInference/LocalInferenceSection';
 import MeshSection from './mesh/MeshSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
@@ -60,6 +62,10 @@ const i18n = defineMessages({
   tabKeyboard: {
     id: 'settingsView.tabKeyboard',
     defaultMessage: 'Keyboard',
+  },
+  tabAuth: {
+    id: 'settingsView.tabAuth',
+    defaultMessage: 'Auth',
   },
   tabApp: {
     id: 'settingsView.tabApp',
@@ -109,6 +115,7 @@ export default function SettingsView({
         chat: 'chat',
         prompts: 'prompts',
         keyboard: 'keyboard',
+        auth: 'auth',
         gateway: 'sharing',
         'local-inference': 'local-inference',
         mesh: 'mesh',
@@ -242,6 +249,10 @@ export default function SettingsView({
                     <Keyboard className="h-4 w-4" />
                     {intl.formatMessage(i18n.tabKeyboard)}
                   </TabsTrigger>
+                  <TabsTrigger value="auth" className="flex gap-2" data-testid="settings-auth-tab">
+                    <KeyRound className="h-4 w-4" />
+                    {intl.formatMessage(i18n.tabAuth)}
+                  </TabsTrigger>
                   <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
                     <Monitor className="h-4 w-4" />
                     {intl.formatMessage(i18n.tabApp)}
@@ -310,6 +321,13 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <KeyboardShortcutsSection />
+                </TabsContent>
+
+                <TabsContent
+                  value="auth"
+                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+                >
+                  <AuthSettingsSection />
                 </TabsContent>
 
                 <TabsContent
