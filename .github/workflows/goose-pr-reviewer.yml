@@ -223,7 +223,7 @@ jobs:
     timeout-minutes: 15
 
     container:
-      image: ghcr.io/aaif-goose/goose:latest
+      image: ghcr.io/bfg-ent/goose:latest
       options: --user root
       env:
         GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}

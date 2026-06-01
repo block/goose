@@ -16,7 +16,7 @@ The documentation has moved to a new site: [https://goose-docs.ai/](https://goos
 ## Updated GitHub repository
 The GitHub repository and related projects have moved from `block/goose` to a new org:
 
-> **[https://github.com/aaif-goose/goose](https://github.com/aaif-goose/goose)**
+> **[https://github.com/bfg-ent/goose](https://github.com/bfg-ent/goose)**
 
 This includes related repositories in the [aaif-goose](https://github.com/aaif-goose) organization.
 
@@ -27,7 +27,7 @@ Everything else — the project, the community, the mission — remains the same
 If you have a local clone, update your git remote:
 
 ```bash
-git remote set-url origin git@github.com:aaif-goose/goose.git
+git remote set-url origin git@github.com:bfg-ent/goose.git
 ```
 
 ## Migration in progress

@@ -57,7 +57,7 @@ I won't list every single character here (it gets deep), but the takeaway is: Ga
 
 ## Introducing Goosetown
 
-This is exactly the kind of futuristic thinking we're building toward at [goose](https://goose-docs.ai). So the goose team, specifically Tyler Longwell, built our own take on this called [Goosetown](https://github.com/aaif-goose/goosetown).
+This is exactly the kind of futuristic thinking we're building toward at [goose](https://goose-docs.ai). So the goose team, specifically Tyler Longwell, built our own take on this called [Goosetown](https://github.com/bfg-ent/goosetown).
 
 Goosetown is a multi-agent orchestration layer built on top of goose. Like Gas Town, it coordinates parallel agents. Unlike Gas Town, it's deliberately minimal and built for research-first parallel work.
 
@@ -69,7 +69,7 @@ Here's a real Town Wall snippet from a session where parallel researchers conver
 * **[10:14] researcher-endpoints** - 💡 Found: native endpoint already exists with minimal deps. Alternative path viable.   
 * **[10:15] researcher-source** - ✅ Done. Confirmed: native path requires zero new dependencies. Recommending pivot.
 
-Goosetown operates on 4 components: [skills](/docs/guides/context-engineering/using-skills), [subagents](/docs/guides/context-engineering/subagents), [beads](https://github.com/steveyegge/beads), and a [gtwall](https://github.com/aaif-goose/goosetown/blob/main/gtwall).
+Goosetown operates on 4 components: [skills](/docs/guides/context-engineering/using-skills), [subagents](/docs/guides/context-engineering/subagents), [beads](https://github.com/steveyegge/beads), and a [gtwall](https://github.com/bfg-ent/goosetown/blob/main/gtwall).
 
 ### Skills
 
@@ -85,7 +85,7 @@ Goosetown uses [Beads](https://github.com/steveyegge/beads) to track progress so
 
 ### gtwall
 
-[gtwall](https://github.com/aaif-goose/goosetown/blob/main/gtwall) is an append-only log that delegates use to communicate and coordinate. All delegates post and read activity.
+[gtwall](https://github.com/bfg-ent/goosetown/blob/main/gtwall) is an append-only log that delegates use to communicate and coordinate. All delegates post and read activity.
 
 ## A Note from the Creator 
 
@@ -101,7 +101,7 @@ Goosetown uses [Beads](https://github.com/steveyegge/beads) to track progress so
 
 ## Get Started
 
-Ready to try parallel agentic engineering for yourself? [Goosetown](https://github.com/aaif-goose/goosetown) is open source and available on GitHub. Clone the [repo](https://github.com/aaif-goose/goosetown), follow the setup instructions in the README, and you'll be orchestrating multiple agents in no time. If you're new to this workflow, watching the video below is a great way to see what a real session looks like before diving in.
+Ready to try parallel agentic engineering for yourself? [Goosetown](https://github.com/bfg-ent/goosetown) is open source and available on GitHub. Clone the [repo](https://github.com/bfg-ent/goosetown), follow the setup instructions in the README, and you'll be orchestrating multiple agents in no time. If you're new to this workflow, watching the video below is a great way to see what a real session looks like before diving in.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/H2hJjNmvEEA" title="Rizel's first time using Goosetown" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 

@@ -190,7 +190,7 @@ Add any other context about the problem here.
         labels: 'bug',
       });
 
-      window.open(`https://github.com/aaif-goose/goose/issues/new?${params.toString()}`, '_blank');
+      window.open(`https://github.com/bfg-ent/goose/issues/new?${params.toString()}`, '_blank');
       onClose();
     } catch {
       toastError({

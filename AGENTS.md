@@ -124,3 +124,30 @@ remaining space for dynamic text.
 - Server: crates/goose-server/src/main.rs
 - UI: ui/desktop/src/main.ts
 - Agent: crates/goose/src/agents/agent.rs
+
+## Architecture
+
+### Agent Reply Loop (`crates/goose/src/agents/agent.rs`)
+`Agent::reply()` is the core loop: add user message → auto-compact if near token limit → call `provider.stream(system_prompt, messages, tools)` → parse response for tool calls → execute tools → append results → loop until no more tool calls or max turns reached. Tool calls fall into three categories:
+- **Frontend tools** — returned to the UI for execution (file pickers, confirmations)
+- **Extension tools** — dispatched via `ExtensionManager` to MCP servers
+- **Platform tools** — executed locally (shell commands, with permission checks)
+
+### Provider System (`crates/goose/src/providers/`)
+New providers implement two traits:
+- `Provider` — core interface: `stream(system, messages, tools) → MessageStream`
+- `ProviderDef` — factory: `metadata() → ProviderMetadata`, `from_env() → Box<dyn Provider>`
+
+Register in `providers/provider_registry.rs`. Configuration comes from env vars + `~/.goose/config.yaml` + system keyring (secrets).
+
+### Extension / MCP System (`crates/goose/src/agents/extension*.rs`)
+`ExtensionConfig` has three variants: `Stdio` (spawn external MCP subprocess), `Builtin` (built-in tools in `crates/goose-mcp/`), `Sse` (deprecated). `ExtensionManager` owns the MCP client lifecycle, translates MCP tool schemas into Goose tool definitions, and routes `call_tool` invocations.
+
+### ACP Protocol (`crates/goose/src/acp/`)
+Agent Client Protocol lets Goose delegate agent work to an external subprocess (e.g., Claude Code, Gemini CLI). `AcpProvider` spawns the subprocess, sends `prompt` requests, streams back response chunks, and handles bidirectional tool-call/result exchanges. Use this when a provider is itself an agentic system rather than a plain LLM.
+
+### Session Persistence
+`SessionManager` stores full conversation history in SQLite (`~/.goose/sessions/`). `context_mgmt/` handles auto-compaction: when a conversation approaches the model's context limit it summarizes older turns transparently and emits an `AgentEvent::HistoryReplaced`.
+
+### Key Shared Types (`crates/goose/src/conversation/message.rs`)
+`Message` and `MessageContent` are used everywhere — understand `ToolRequest`, `ToolResponse`, `Text`, and `Thinking` variants before touching provider or agent code.

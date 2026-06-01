@@ -219,7 +219,7 @@ If you want to experiment with Code Mode, here are some resources:
 
 **Community:**
 - Join our [Discord](https://discord.gg/goose-oss) to share what you learn
-- File issues on [GitHub](https://github.com/aaif-goose/goose) if something does not work as expected
+- File issues on [GitHub](https://github.com/bfg-ent/goose) if something does not work as expected
 
 Run your own experiments and let us know what you find.
 

@@ -65,7 +65,7 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: process.env.GITHUB_OWNER || 'aaif-goose',
+          owner: process.env.GITHUB_OWNER || 'bfg-ent',
           name: process.env.GITHUB_REPO || 'goose',
         },
         prerelease: false,

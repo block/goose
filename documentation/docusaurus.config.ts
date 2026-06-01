@@ -31,7 +31,7 @@ const config: Config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "aaif-goose", // Usually your GitHub org/user name.
+  organizationName: "bfg-ent", // Usually your GitHub org/user name.
   projectName: "goose", // Usually your repo name.
 
   onBrokenLinks: "throw",
@@ -503,7 +503,7 @@ const config: Config = {
           position: "right",
         },
         {
-          href: "https://github.com/aaif-goose/goose",
+          href: "https://github.com/bfg-ent/goose",
           label: "GitHub",
           position: "right",
         },
@@ -566,7 +566,7 @@ const config: Config = {
             },
             {
               label: "GitHub",
-              href: "https://github.com/aaif-goose/goose",
+              href: "https://github.com/bfg-ent/goose",
             },
           ],
         },
@@ -590,7 +590,7 @@ const config: Config = {
         getHelpCallToActions: [
           {
             name: "GitHub",
-            url: "https://github.com/aaif-goose/goose",
+            url: "https://github.com/bfg-ent/goose",
             icon: {
               builtIn: "FaGithub",
             },

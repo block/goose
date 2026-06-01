@@ -11,7 +11,7 @@ authors:
 
 I'm a developer at heart, so when I'm working on a personal project, the hardest part isn't writing code—it's making design decisions. I recently built a calendar user interface. I wanted to enhance its visual appeal, so I researched UI design trends like "glassmorphism" and "claymorphism."
 
-However, I didn't want to spend hours implementing the CSS for each design trend, so I developed a faster approach: screenshot-driven development. I used an open source developer agent called [goose](https://github.com/aaif-goose/goose) to transform my user interfaces quickly.
+However, I didn't want to spend hours implementing the CSS for each design trend, so I developed a faster approach: screenshot-driven development. I used an open source developer agent called [goose](https://github.com/bfg-ent/goose) to transform my user interfaces quickly.
 
 <!-- truncate -->
 
@@ -281,7 +281,7 @@ Developing user interfaces is a blend of creativity and problem-solving. And I l
 
 Beyond prototyping, goose's ability to analyze screenshots can help developers identify and resolve UI bugs.
 
-If you're interested in learning more, check out the [goose repo](https://github.com/aaif-goose/goose) and join our [Discord community](https://discord.gg/goose-oss).
+If you're interested in learning more, check out the [goose repo](https://github.com/bfg-ent/goose) and join our [Discord community](https://discord.gg/goose-oss).
 
 <head>
     <meta property="og:title" content="Screenshot-Driven Development" />

@@ -23,7 +23,7 @@ concurrency:
 jobs:
   rebuild-docs:
     runs-on: ubuntu-latest
-    if: github.repository == 'aaif-goose/goose'
+    if: github.repository == 'bfg-ent/goose'
     permissions:
       contents: read
       pages: write

@@ -32,7 +32,7 @@ sudo zypper install dpkg fakeroot gcc gcc-c++ make vulkan-headers vulkan-loader 
 goose is not officially support termux build yet, you need some minor patch to fix build issues.
 We will publish goose (block-goose) into termux-packages. <!-- NOTE: package name kept for backwards compat -->
 If you want to try there is a non-official build, https://github.com/shawn111/goose/releases/download/termux/goose-termux-aarch64.tar.bz2
-For more details, see: https://github.com/aaif-goose/goose/pull/3890
+For more details, see: https://github.com/bfg-ent/goose/pull/3890
 
 ```bash
 pkg install rust
@@ -50,7 +50,7 @@ pkg install cmake protobuf clang build-essential
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/aaif-goose/goose.git
+git clone https://github.com/bfg-ent/goose.git
 cd goose
 ```
 

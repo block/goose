@@ -337,7 +337,7 @@ registerAppTool(server, "delete-email", {
 MCP Apps open up a new dimension for agent interactions. Now it's time to build your own.
 
 - **Test with [MCPJam](https://mcpjam.com/)** — the open source local inspector for MCP Apps, ChatGPT apps SDK, and MCP servers. Perfect for debugging and iterating on your app before shipping.
-- **Run in [goose](https://github.com/aaif-goose/goose)** — an open source AI agent that renders MCP Apps directly in the chat interface. See your app come to life in a real agent environment.
+- **Run in [goose](https://github.com/bfg-ent/goose)** — an open source AI agent that renders MCP Apps directly in the chat interface. See your app come to life in a real agent environment.
 
 Ready to dive deeper? Check out the [MCP Apps tutorial](/docs/tutorials/building-mcp-apps) or [build your first MCP App with MCPJam](https://docs.mcpjam.com/guides/first-mcp-app).
 

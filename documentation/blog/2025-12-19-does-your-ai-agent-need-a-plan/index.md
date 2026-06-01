@@ -21,7 +21,7 @@ Lately, there's been a healthy debate in the industry about planning in AI codin
 
 This reveals an interesting truth: the value of a plan mode isn't just about the plan itself. It's about creating the right mental model and workflow for the developer using it. Sometimes you want the agent to just execute. Other times, you want to see its thinking, provide feedback, and collaborate on the approach before any code changes happen.
 
-Rather than picking one philosophy, [goose](https://github.com/aaif-goose/goose) supports multiple approaches because different situations call for different methods.
+Rather than picking one philosophy, [goose](https://github.com/bfg-ent/goose) supports multiple approaches because different situations call for different methods.
 
 ---
 

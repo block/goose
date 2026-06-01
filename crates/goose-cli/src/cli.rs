@@ -315,8 +315,8 @@ pub struct ModelOptions {
     #[arg(
         long = "provider",
         value_name = "PROVIDER",
-        help = "Specify the LLM provider to use (e.g., 'openai', 'anthropic')",
-        long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers include openai, anthropic, ollama, databricks, gemini-cli, claude-code, and others."
+        help = "Specify the LLM provider to use (e.g., 'gemini_oauth', 'gcp_vertex_ai')",
+        long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers are 'gemini_oauth' (Gemini via Google sign-in, the default) and 'gcp_vertex_ai' (GCP Vertex AI)."
     )]
     pub provider: Option<String>,
 

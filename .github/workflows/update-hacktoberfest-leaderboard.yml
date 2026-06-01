@@ -9,7 +9,7 @@ on:
 jobs:
   update-leaderboard:
     runs-on: ubuntu-latest
-    if: github.repository == 'aaif-goose/goose'
+    if: github.repository == 'bfg-ent/goose'
     permissions:
       contents: read
       pull-requests: read
@@ -29,7 +29,7 @@ jobs:
 
             // Track the Goose repo only
             const REPOS = [
-              'aaif-goose/goose'
+              'bfg-ent/goose'
             ];
 
             const POINT_VALUES = { small: 5, medium: 10, large: 15 };

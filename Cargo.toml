@@ -12,7 +12,7 @@ version = "1.36.0"
 rust-version = "1.91.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
-repository = "https://github.com/aaif-goose/goose"
+repository = "https://github.com/bfg-ent/goose"
 description = "An AI agent"
 
 [workspace.lints.clippy]

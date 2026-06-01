@@ -117,7 +117,7 @@ Before issues hit production, add [Goose to your CI/CD pipeline](/docs/tutorials
 
 Some MCP servers can introduce security risks, especially if compromised.
 
-Use the Goose [allowlist](https://github.com/aaif-goose/goose/blob/main/crates/goose-server/ALLOWLIST.md) feature to prevent Goose from calling unsafe or untrusted tools.
+Use the Goose [allowlist](https://github.com/bfg-ent/goose/blob/main/crates/goose-server/ALLOWLIST.md) feature to prevent Goose from calling unsafe or untrusted tools.
 
 Here's how the team at Block is thinking about [securing the MCP](/blog/2025/03/31/securing-mcp).
 

@@ -16,7 +16,7 @@ Powered by your choice of [large language models (LLMs)](/docs/getting-started/p
 
 You can think of goose as an assistant that is ready to take your instructions, and do the work for you.
 
-While goose's first use cases are engineering focused, the community has been exploring other non-engineering use cases for goose as well. And it goes without saying, goose is [open source](https://github.com/aaif-goose/goose) 🎉.
+While goose's first use cases are engineering focused, the community has been exploring other non-engineering use cases for goose as well. And it goes without saying, goose is [open source](https://github.com/bfg-ent/goose) 🎉.
 
 
 ## How goose Works
@@ -52,7 +52,7 @@ You can get started using goose right away! Check out our [Quickstart](/docs/qui
 
 Excited for upcoming features and events? Be sure to connect with us!
 
-- [GitHub](https://github.com/aaif-goose/goose)
+- [GitHub](https://github.com/bfg-ent/goose)
 - [Discord](https://discord.gg/goose-oss)
 - [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)

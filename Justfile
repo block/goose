@@ -1,5 +1,9 @@
 # Justfile
 
+# Always use the hermit-pinned toolchain (node, pnpm, etc.) from ./bin, even when
+# nvm or Homebrew have prepended their own versions to the caller's PATH.
+export PATH := justfile_directory() / "bin" + ":" + env_var('PATH')
+
 # list all tasks
 default:
   @just --list

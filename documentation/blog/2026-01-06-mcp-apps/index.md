@@ -14,7 +14,7 @@ The MCP ecosystem is standardizing how servers deliver interactive UIs to hosts,
 
 ## What's Shipping
 
-This release ([v1.19.0](https://github.com/aaif-goose/goose/releases/tag/v1.19.0)) brings a minimal-but-functional implementation of MCP Apps:
+This release ([v1.19.0](https://github.com/bfg-ent/goose/releases/tag/v1.19.0)) brings a minimal-but-functional implementation of MCP Apps:
 
 - Discovery of MCP App resources connected to tools
 - HTML content rendering in sandboxed iframes
@@ -47,7 +47,7 @@ MCP-UI isn't going away overnight. We'll keep supporting it while the community 
 
 - **Get started:** Update goose and point it at an MCP server that returns App resources
 - **Read the spec:** [github.com/modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps)
-- **Join the conversation:** [goose GitHub discussion](https://github.com/aaif-goose/goose/discussions/6069) · [MCP Contributors Discord](https://discord.gg/6CSzBmMkjX)
+- **Join the conversation:** [goose GitHub discussion](https://github.com/bfg-ent/goose/discussions/6069) · [MCP Contributors Discord](https://discord.gg/6CSzBmMkjX)
 
 If you build or port an app, we want to hear from you. File issues, share demos, tell us what's broken. Early feedback shapes what comes next.
 

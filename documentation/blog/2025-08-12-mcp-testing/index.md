@@ -61,9 +61,9 @@ The recipe starts by reading a plain text file containing natural language queri
 
 ```
 List contributors to the block/mcp repository
-List the top 10 contributors to aaif-goose/goose
+List the top 10 contributors to bfg-ent/goose
 Show me the closed branches in block/mcp
-Show me all branches in the aaif-goose/goose repository
+Show me all branches in the bfg-ent/goose repository
 ```
 
 **Step 2: Ask Goose to Make Predictions**
@@ -96,7 +96,7 @@ instructions: |
     {
         "test_cases": [
             {
-                "query": "Show me open pull requests in the aaif-goose/goose repository",
+                "query": "Show me open pull requests in the bfg-ent/goose repository",
                 "expected": {
                     "tool": "tool_name",
                     "parameters": {
@@ -349,7 +349,7 @@ Here are two common types of mismatches the system detects:
 - **Issue:** Tool name changed from `list_branches` to `get_repo_branches`, likely due to a tooltip or function name update
 
 **❌ Example 2: Parameter Mismatch**
-- **Query:** "Search for files containing console.log in aaif-goose/goose"
+- **Query:** "Search for files containing console.log in bfg-ent/goose"
 - **Gold Standard:**
   ```json
   {

@@ -92,7 +92,7 @@ The tool should automatically identify good candidates for parameters. I had ide
 ### 4. Template Generation
 
 :::tip
-I wanted goose to write all the recipes for me, but to be as up-to-date as possible. I cloned the [goose repository](https://github.com/aaif-goose/goose) and told goose to examine its own source code to learn how to successfully create recipes, and be sure to use proper YAML syntax.
+I wanted goose to write all the recipes for me, but to be as up-to-date as possible. I cloned the [goose repository](https://github.com/bfg-ent/goose) and told goose to examine its own source code to learn how to successfully create recipes, and be sure to use proper YAML syntax.
 :::
 
 From that, I had goose think about the following ideas as it considered how to make my recipes:
@@ -169,7 +169,7 @@ Start building your own cookbook generator, and stop doing the same work twice. 
 
 ## Contribute to Our Community Cookbook
 
-Want to contribute your own recipes or improvements to the cookbook generator? Join our [Discord community](https://discord.gg/goose-oss) or check out our [GitHub repository](https://github.com/aaif-goose/goose) for more automation ideas. Join our [Hacktoberfest](https://github.com/aaif-goose/goose/issues/4705) event going on to contribute recipes and prompt ideas to get on our leaderboard to win some great prizes!
+Want to contribute your own recipes or improvements to the cookbook generator? Join our [Discord community](https://discord.gg/goose-oss) or check out our [GitHub repository](https://github.com/bfg-ent/goose) for more automation ideas. Join our [Hacktoberfest](https://github.com/bfg-ent/goose/issues/4705) event going on to contribute recipes and prompt ideas to get on our leaderboard to win some great prizes!
 
 
 ## My Own Cookbook Generator Recipe

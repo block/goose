@@ -136,7 +136,7 @@ Tool calling enables models to interact with [MCP extensions](https://github.com
 
 ### Evaluation Suites
 
-Our evaluations are defined in the [Goose repository](https://github.com/aaif-goose/goose/tree/main/crates/goose-bench/src/eval_suites) (PRs welcome to add additional evals!) and are grouped into two categories:
+Our evaluations are defined in the [Goose repository](https://github.com/bfg-ent/goose/tree/main/crates/goose-bench/src/eval_suites) (PRs welcome to add additional evals!) and are grouped into two categories:
 
 #### Core Suite
 These evals focus on certain tasks fundamental to developer workflows:

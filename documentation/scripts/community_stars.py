@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Community Stars Analysis Script for aaif-goose/goose repository
+Community Stars Analysis Script for bfg-ent/goose repository
 
 # TODO: Update BLOCK_ORGS, is_block_employee(), and team categorization logic
 # for the AAIF org structure after the transfer from block/goose.
@@ -36,7 +36,7 @@ from datetime import datetime
 from pathlib import Path
 
 # GitHub URL for team list file
-TEAMS_FILE_URL = "https://raw.githubusercontent.com/aaif-goose/goose/main/documentation/scripts/community_stars_teams.txt"
+TEAMS_FILE_URL = "https://raw.githubusercontent.com/bfg-ent/goose/main/documentation/scripts/community_stars_teams.txt"
 LOCAL_TEAMS_FILE = Path(__file__).parent / "community_stars_teams.txt"
 
 # Block-related organizations to check
@@ -238,7 +238,7 @@ def main():
 
         for attempt in range(max_retries):
             try:
-                url = "https://api.github.com/repos/aaif-goose/goose/stats/contributors"
+                url = "https://api.github.com/repos/bfg-ent/goose/stats/contributors"
                 with urllib.request.urlopen(url, timeout=30) as response:
                     contributors_data = json.loads(response.read().decode("utf-8"))
 

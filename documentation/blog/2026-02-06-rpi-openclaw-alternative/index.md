@@ -10,7 +10,7 @@ authors:
 
 Everyone on Tech Twitter has been buying Mac Minis, so they could run a local agentic tool called [OpenClaw](https://openclaw.ai/). OpenClaw is a messaging-based AI assistant that connects to platforms such as Discord and Telegram allowing you to interact with an AI agent through DMs or @mentions. Under the hood, it uses an agent called Pi to execute tasks, browse the web, write code, and more.
 
-Seeing the hype made me want to get my hands dirty. I wanted to see if I could build a lite version for myself. I wanted something minimal that used [goose](https://github.com/aaif-goose/goose) as the engine instead of Pi. I tentatively dubbed it AltOpenClaw.
+Seeing the hype made me want to get my hands dirty. I wanted to see if I could build a lite version for myself. I wanted something minimal that used [goose](https://github.com/bfg-ent/goose) as the engine instead of Pi. I tentatively dubbed it AltOpenClaw.
 
 <!-- truncate -->
 

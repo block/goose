@@ -13,13 +13,13 @@ The only way to discover how much of an impact your contributions can make is to
 
 ## How BestCodes Discovered Goose
 
-[BestCodes (aka William Steele)](https://bestcodes.dev/) first discovered Goose during a [GitHub Open Source Friday livestream](https://www.youtube.com/watch?v=O-zJJN-TkXc&ab_channel=AngieJones) and decided to give it a try. At the time, Goose offered limited support for Windows/Linux (with more work in progress before any official release). Since BestCodes wasn't a Mac user, he wanted to help bring support to Linux. After lots of troubleshooting, he ended up creating [a Debian build fix](https://github.com/aaif-goose/goose/pull/2070) that finally let him start using Goose on Linux.
+[BestCodes (aka William Steele)](https://bestcodes.dev/) first discovered Goose during a [GitHub Open Source Friday livestream](https://www.youtube.com/watch?v=O-zJJN-TkXc&ab_channel=AngieJones) and decided to give it a try. At the time, Goose offered limited support for Windows/Linux (with more work in progress before any official release). Since BestCodes wasn't a Mac user, he wanted to help bring support to Linux. After lots of troubleshooting, he ended up creating [a Debian build fix](https://github.com/bfg-ent/goose/pull/2070) that finally let him start using Goose on Linux.
 
 Even though BestCodes wondered if such a small fix was worth sharing, it was this "small" contribution that enabled fellow community members wanting to use Goose on Linux, and gave him momentum for future PRs. His experience is proof that your contribution has a chance to help someone, and you should share it! You never know what curiosity and the open source community can make happen.
 
 ## Building Momentum
 
-BestCodes has continued to make Goose better with thoughtful improvements—from [polishing the UI](https://github.com/aaif-goose/goose/pull/2079) and [refining load states](https://github.com/aaif-goose/goose/pull/2079), to [fixing subtle bugs](https://github.com/aaif-goose/goose/pull/2279) that make the Goose experience smoother for everyone. You can check out [BestCodes' contributions on GitHub](https://github.com/aaif-goose/goose/pulls?q=is%3Apr+is%3Aclosed+author%3AThe-Best-Codes).
+BestCodes has continued to make Goose better with thoughtful improvements—from [polishing the UI](https://github.com/bfg-ent/goose/pull/2079) and [refining load states](https://github.com/bfg-ent/goose/pull/2079), to [fixing subtle bugs](https://github.com/bfg-ent/goose/pull/2279) that make the Goose experience smoother for everyone. You can check out [BestCodes' contributions on GitHub](https://github.com/bfg-ent/goose/pulls?q=is%3Apr+is%3Aclosed+author%3AThe-Best-Codes).
 
 Thank you so much for your continued support and contributions, BestCodes! Your work brings us one step closer to a full Goose experience on Windows and Linux.
 

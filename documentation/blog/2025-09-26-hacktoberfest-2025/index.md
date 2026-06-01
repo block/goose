@@ -15,9 +15,9 @@ October is around the corner, which means spooky season is upon us, and with tha
 [Hacktoberfest](https://hacktoberfest.com/participation/) is a month-long celebration every October of open source and participating open source projects. It's a great chance to earn fun prizes for contributing to your favorite projects, or a perfect opportunity to get your feet wet in a new project. 
 
 # 🎉 How Can I Contribute to goose?
-In the [goose repo](https://github.com/aaif-goose/goose), there's something for everyone no matter if you're a newbie or a veteran.
+In the [goose repo](https://github.com/bfg-ent/goose), there's something for everyone no matter if you're a newbie or a veteran.
 
-We've created an official [goose Hacktoberfest 2025 Project Hub](https://github.com/aaif-goose/goose/issues/4705). This hub will serve as your source of truth for all open `hacktoberfest` labeled-issues and resources you will need throughout the month. It will be updated every week with new issues as we experience contributions, so make sure to bookmark it!
+We've created an official [goose Hacktoberfest 2025 Project Hub](https://github.com/bfg-ent/goose/issues/4705). This hub will serve as your source of truth for all open `hacktoberfest` labeled-issues and resources you will need throughout the month. It will be updated every week with new issues as we experience contributions, so make sure to bookmark it!
 
 From writing blog posts about goose, fixing bugs, or adding new features, our goal is to give contributors of various practices the chance to contribute to goose! Here are all the categories of issues you can expect to make your impact:
 
@@ -34,8 +34,8 @@ To help you make the most of each of your contributions, below is a quick guide 
 
 ## ✅ Key Rules
 1. Read the [code of conduct](https://github.com/block/.github/blob/main/CODE_OF_CONDUCT.md).
-2. Refer to the [Responsible AI-Assisted Coding Guide](https://web.archive.org/web/20260305122657/https://github.com/aaif-goose/goose/blob/main/HOWTOAI.md), [Contributing Guide](https://github.com/aaif-goose/goose/blob/main/CONTRIBUTING.md) & [README](https://github.com/aaif-goose/goose/blob/main/README.md) for your contributions.
-3. Choose a task from this project's Hacktoberfest [Project Hub](https://github.com/aaif-goose/goose/issues/4705). Each issue has the 🏷️ `hacktoberfest` label.
+2. Refer to the [Responsible AI-Assisted Coding Guide](https://web.archive.org/web/20260305122657/https://github.com/bfg-ent/goose/blob/main/HOWTOAI.md), [Contributing Guide](https://github.com/bfg-ent/goose/blob/main/CONTRIBUTING.md) & [README](https://github.com/bfg-ent/goose/blob/main/README.md) for your contributions.
+3. Choose a task from this project's Hacktoberfest [Project Hub](https://github.com/bfg-ent/goose/issues/4705). Each issue has the 🏷️ `hacktoberfest` label.
 4. Comment ".take" on the corresponding issue to get assigned the task.
 5. Fork the repository and create a new branch for your work.
 6. Make your changes and submit a pull request.

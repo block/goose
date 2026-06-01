@@ -73,4 +73,4 @@ CMD ["--help"]
 LABEL org.opencontainers.image.title="goose"
 LABEL org.opencontainers.image.description="goose CLI"
 LABEL org.opencontainers.image.vendor="AAIF"
-LABEL org.opencontainers.image.source="https://github.com/aaif-goose/goose"
+LABEL org.opencontainers.image.source="https://github.com/bfg-ent/goose"

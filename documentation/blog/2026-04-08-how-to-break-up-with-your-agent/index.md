@@ -81,7 +81,7 @@ Pick the UI you like. Pick the agent you like. They don't have to be the same th
 
 - [ACP clients guide](/docs/guides/acp-clients)
 - [ACP providers guide](/docs/guides/acp-providers)
-- [Goose on GitHub](https://github.com/aaif-goose/goose)
+- [Goose on GitHub](https://github.com/bfg-ent/goose)
 - [Discord community](https://discord.gg/goose-oss)
 
 <head>

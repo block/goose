@@ -8,6 +8,10 @@ use tracing::warn;
 const PROVIDERS_CONFIG_KEY: &str = "providers";
 const ACTIVE_PROVIDER_KEY: &str = "active_provider";
 
+/// Provider used when nothing has been configured yet. This build ships with
+/// only Gemini (OAuth sign-in) and GCP Vertex AI, with Gemini as the default.
+pub const DEFAULT_PROVIDER: &str = "gemini_oauth";
+
 /// A single provider's persisted configuration within the `providers:` block.
 ///
 /// The `providers` block in config.yaml is the authoritative source for
@@ -88,6 +92,7 @@ pub fn set_provider_entry(
 ///    `get_param`)
 /// 2. `active_provider` key in config.yaml
 /// 3. Legacy flat `GOOSE_PROVIDER` key in config.yaml (backward compat)
+/// 4. [`DEFAULT_PROVIDER`] when nothing is configured
 pub fn get_active_provider(config: &Config) -> Option<String> {
     // Env var takes precedence (get_param checks env automatically)
     if let Ok(val) = env::var("GOOSE_PROVIDER") {
@@ -99,8 +104,12 @@ pub fn get_active_provider(config: &Config) -> Option<String> {
         return Some(val);
     }
 
-    // Legacy flat key fallback
-    config.get_param::<String>("GOOSE_PROVIDER").ok()
+    // Legacy flat key fallback, then the built-in default
+    Some(
+        config
+            .get_param::<String>("GOOSE_PROVIDER")
+            .unwrap_or_else(|_| DEFAULT_PROVIDER.to_string()),
+    )
 }
 
 /// Return the model for the currently active provider.
@@ -210,10 +219,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_active_provider_none_when_empty() {
+    fn test_get_active_provider_defaults_to_gemini_oauth() {
         let config = new_test_config();
         let result = get_active_provider(&config);
-        assert_eq!(result, None);
+        assert_eq!(result, Some(DEFAULT_PROVIDER.to_string()));
+        assert_eq!(result, Some("gemini_oauth".to_string()));
     }
 
     #[test]

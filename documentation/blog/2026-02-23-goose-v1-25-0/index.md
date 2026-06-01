@@ -121,7 +121,7 @@ Supply chain security matters. Starting with v1.25.0, every CLI binary, desktop 
 This means you can **cryptographically verify** that any goose artifact was built from the official repository by the official CI pipeline:
 
 ```bash
-gh attestation verify <artifact> --repo aaif-goose/goose
+gh attestation verify <artifact> --repo bfg-ent/goose
 ```
 
 The implementation covers all release workflows including stable releases, canary builds, nightly builds, and Docker images, with properly pinned actions and correct permission scoping.
@@ -130,9 +130,9 @@ The implementation covers all release workflows including stable releases, canar
 
 Ready to try v1.25.0? Head over to our [updating goose](https://goose-docs.ai/docs/guides/updating-goose) guide for step-by-step instructions on getting the latest version for Desktop or CLI.
 
-Check out the full [release notes](https://github.com/aaif-goose/goose/releases/tag/v1.25.0) for the complete list of changes, and join the conversation in [GitHub Discussions](https://github.com/aaif-goose/goose/discussions).
+Check out the full [release notes](https://github.com/bfg-ent/goose/releases/tag/v1.25.0) for the complete list of changes, and join the conversation in [GitHub Discussions](https://github.com/bfg-ent/goose/discussions).
 
-*goose is open source. Star us on [GitHub](https://github.com/aaif-goose/goose), and if you build something cool with goose, we'd love to hear about it!*
+*goose is open source. Star us on [GitHub](https://github.com/bfg-ent/goose), and if you build something cool with goose, we'd love to hear about it!*
 
 <head>
   <meta property="og:title" content="goose v1.25.0: Sandboxed, Streamlined, and More Secure" />

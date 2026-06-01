@@ -77,7 +77,7 @@ Join us for an evening in collaboration with Temporal and Dagger, where you'll g
 
 This system isn't perfect. Right now, it's still a separate experience outside the Goose interface, and it doesn't scale well for events with different credit amounts or more complex needs.
 
-We're working on it. Goose engineer, Mic Neale recently opened a [pull request](https://github.com/aaif-goose/goose/pull/3507) to automate Goose's first-time setup. It simplifies the onboarding flow so new users can log into OpenRouter through their browser, securely authenticate, and get a pre-configured Goose setup without touching config files or copying API keys. It's a huge leap in user experience and lays the groundwork for future improvements.
+We're working on it. Goose engineer, Mic Neale recently opened a [pull request](https://github.com/bfg-ent/goose/pull/3507) to automate Goose's first-time setup. It simplifies the onboarding flow so new users can log into OpenRouter through their browser, securely authenticate, and get a pre-configured Goose setup without touching config files or copying API keys. It's a huge leap in user experience and lays the groundwork for future improvements.
 
 ## Why This Approach Matters
 
