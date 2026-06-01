@@ -239,6 +239,8 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
+    #[cfg(test)]
+    stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
     goal: Mutex<Option<String>>,
     grind: Mutex<Option<String>>,
@@ -358,6 +360,8 @@ impl Agent {
                 provider.clone(),
             ),
             hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            #[cfg(test)]
+            stop_hook_block_cap_override: None,
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
@@ -366,6 +370,27 @@ impl Agent {
 
     /// Emit a lifecycle hook event with no extra context. Useful for events
     /// that have no matcher (e.g. `SessionStart`, `SessionEnd`).
+    #[cfg(test)]
+    pub(crate) fn set_hook_manager_for_test(&mut self, hook_manager: crate::hooks::HookManager) {
+        self.hook_manager = hook_manager;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_stop_hook_block_cap_for_test(&mut self, cap: u32) {
+        self.stop_hook_block_cap_override = Some(cap);
+    }
+
+    fn stop_hook_block_cap(&self) -> u32 {
+        #[cfg(test)]
+        if let Some(cap) = self.stop_hook_block_cap_override {
+            return cap;
+        }
+
+        Config::global()
+            .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
+            .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP)
+    }
+
     pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) {
         if !self.hook_manager.has_hooks(event) {
             return;
@@ -1674,9 +1699,7 @@ impl Agent {
             let mut stop_hook_handled_for_exit = false;
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
-            let stop_hook_block_cap = Config::global()
-                .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
-                .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP);
+            let stop_hook_block_cap = self.stop_hook_block_cap();
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2886,8 +2909,17 @@ impl Agent {
 mod tests {
     use super::*;
     use crate::permission::permission_confirmation::PrincipalType;
-    use crate::providers::base::PermissionRouting;
+    use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
+    use crate::providers::base::{
+        stream_from_single_message, MessageStream, PermissionRouting, ProviderUsage, Usage,
+    };
+    use crate::providers::errors::ProviderError;
     use crate::recipe::Response;
+    use crate::session::session_manager::SessionType;
+    use rmcp::model::Tool;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tempfile::TempDir;
 
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
@@ -3003,6 +3035,246 @@ mod tests {
 
         let conf = rx.await.unwrap();
         assert_eq!(conf.permission, crate::permission::Permission::AllowOnce);
+    }
+
+    const ALWAYS_BLOCK_SCRIPT: &str = r#"#!/bin/sh
+echo blocked >> "$PLUGIN_ROOT/hook.log"
+echo "always block" >&2
+exit 2
+"#;
+
+    const ALTERNATE_BLOCK_ALLOW_SCRIPT: &str = r#"#!/bin/sh
+count_file="$PLUGIN_ROOT/count"
+count=0
+if [ -f "$count_file" ]; then
+  count=$(cat "$count_file")
+fi
+count=$((count + 1))
+echo "$count" > "$count_file"
+echo "$count" >> "$PLUGIN_ROOT/hook.log"
+if [ $((count % 2)) -eq 1 ]; then
+  echo "block $count" >&2
+  exit 2
+fi
+exit 0
+"#;
+
+    struct StopHookTestEnv {
+        temp_dir: TempDir,
+        hook_log: PathBuf,
+    }
+
+    impl StopHookTestEnv {
+        fn new(script: &str) -> Result<Self> {
+            let temp_dir = tempfile::tempdir()?;
+            let plugin_dir = temp_dir.path().join("stop-blocker");
+            std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+            std::fs::write(
+                plugin_dir.join("hooks/hooks.json"),
+                r#"{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh ${PLUGIN_ROOT}/block.sh" }
+        ]
+      }
+    ]
+  }
+}
+"#,
+            )?;
+            std::fs::write(plugin_dir.join("block.sh"), script)?;
+
+            Ok(Self {
+                temp_dir,
+                hook_log: plugin_dir.join("hook.log"),
+            })
+        }
+
+        fn hook_manager(&self) -> crate::hooks::HookManager {
+            crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+                name: "stop-blocker".into(),
+                root: self.temp_dir.path().join("stop-blocker"),
+                scope: PluginScope::Project,
+            }])
+        }
+
+        fn data_dir(&self) -> PathBuf {
+            self.temp_dir.path().join("data")
+        }
+
+        fn hook_invocations(&self) -> usize {
+            std::fs::read_to_string(&self.hook_log)
+                .unwrap_or_default()
+                .lines()
+                .count()
+        }
+    }
+
+    struct CountingTextProvider {
+        call_count: AtomicUsize,
+    }
+
+    impl CountingTextProvider {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for CountingTextProvider {
+        async fn stream(
+            &self,
+            _model_config: &crate::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let message = Message::assistant().with_text(format!("provider response {call}"));
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "counting-text"
+        }
+    }
+
+    async fn create_stop_hook_test_agent(
+        env: &StopHookTestEnv,
+        stop_hook_block_cap: u32,
+    ) -> Result<(Agent, String, Arc<CountingTextProvider>)> {
+        let session_manager = Arc::new(SessionManager::new(env.data_dir()));
+        let permission_manager = Arc::new(PermissionManager::new(env.data_dir()));
+        let config = AgentConfig::new(
+            session_manager.clone(),
+            permission_manager,
+            None,
+            GooseMode::Auto,
+            true,
+            GoosePlatform::GooseCli,
+        );
+        let mut agent = Agent::with_config(config);
+        agent.set_hook_manager_for_test(env.hook_manager());
+        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
+        let provider = Arc::new(CountingTextProvider::new());
+        let session = session_manager
+            .create_session(
+                PathBuf::default(),
+                "stop-hook-test".to_string(),
+                SessionType::Hidden,
+                GooseMode::Auto,
+            )
+            .await?;
+        agent.update_provider(provider.clone(), &session.id).await?;
+        Ok((agent, session.id, provider))
+    }
+
+    async fn run_stop_hook_test_turn(
+        agent: &Agent,
+        session_id: &str,
+        text: &str,
+    ) -> Result<Vec<Message>> {
+        let session_config = SessionConfig {
+            id: session_id.to_string(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(Message::user().with_text(text), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut messages = Vec::new();
+        while let Some(event) = reply_stream.next().await {
+            match event? {
+                AgentEvent::Message(message) => messages.push(message),
+                AgentEvent::McpNotification(_) | AgentEvent::HistoryReplaced(_) => {}
+            }
+        }
+        Ok(messages)
+    }
+
+    fn visible_texts(messages: &[Message]) -> Vec<String> {
+        messages
+            .iter()
+            .map(Message::as_concat_text)
+            .filter(|text| !text.is_empty())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn stop_hook_block_cap_allows_configured_consecutive_blocks_then_overrides() -> Result<()>
+    {
+        let env = StopHookTestEnv::new(ALWAYS_BLOCK_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let texts = visible_texts(&messages);
+
+        assert_eq!(
+            provider.call_count(),
+            3,
+            "cap=2 should allow two blocked retries, then override on the third block"
+        );
+        assert_eq!(
+            env.hook_invocations(),
+            3,
+            "Stop hook should run for the initial response plus the two honored retries"
+        );
+        assert!(texts.iter().any(|text| text == "provider response 0"));
+        assert!(texts.iter().any(|text| text == "provider response 1"));
+        assert!(texts.iter().any(|text| text == "provider response 2"));
+        assert!(texts.iter().any(|text| {
+            text.contains("more than 2 consecutive times")
+                && text.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
+        }));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_block_cap_counts_only_consecutive_blocks() -> Result<()> {
+        let env = StopHookTestEnv::new(ALTERNATE_BLOCK_ALLOW_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 1).await?;
+
+        let first_turn = run_stop_hook_test_turn(&agent, &session_id, "first").await?;
+        let second_turn = run_stop_hook_test_turn(&agent, &session_id, "second").await?;
+        let mut texts = visible_texts(&first_turn);
+        texts.extend(visible_texts(&second_turn));
+
+        assert_eq!(
+            provider.call_count(),
+            4,
+            "each turn should honor one block, retry, then stop when the next Stop hook allows"
+        );
+        assert_eq!(env.hook_invocations(), 4);
+        assert!(texts.iter().any(|text| text == "provider response 0"));
+        assert!(texts.iter().any(|text| text == "provider response 1"));
+        assert!(texts.iter().any(|text| text == "provider response 2"));
+        assert!(texts.iter().any(|text| text == "provider response 3"));
+        assert!(
+            !texts
+                .iter()
+                .any(|text| text.contains("overriding and ending turn")),
+            "non-consecutive Stop hook blocks should not trip the cap warning"
+        );
+
+        Ok(())
     }
 
     #[tokio::test]

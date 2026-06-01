@@ -233,6 +233,11 @@ impl HookManager {
         Self::from_plugins(plugins)
     }
 
+    #[cfg(test)]
+    pub(crate) fn from_plugins_for_test(plugins: Vec<DiscoveredPlugin>) -> Self {
+        Self::from_plugins(plugins)
+    }
+
     fn from_plugins(plugins: Vec<DiscoveredPlugin>) -> Self {
         let mut rules: HashMap<HookEvent, Vec<LoadedRule>> = HashMap::new();
         let mut total = 0usize;
