@@ -208,7 +208,6 @@ fn extract_domain_from_url(url: &str) -> Option<String> {
     }
 }
 
-/// Detect whether a command represents outbound (DLP-relevant) or inbound data flow.
 fn detect_direction(command: &str) -> EgressDirection {
     let lower = command.to_lowercase();
 
@@ -276,33 +275,6 @@ fn detect_direction(command: &str) -> EgressDirection {
     }
 
     EgressDirection::Unknown
-}
-
-/// Redact obvious secrets/tokens from a command before logging.
-fn redact_secrets(command: &str) -> String {
-    static SECRET_RE: OnceLock<Regex> = OnceLock::new();
-    let re = SECRET_RE.get_or_init(|| {
-        Regex::new(
-            r"(?i)(token|password|secret|api[_-]?key|auth|bearer|credential|private[_-]?key)\s*[=:]\s*\S+"
-        ).unwrap()
-    });
-    let redacted = re.replace_all(command, "$1=[REDACTED]");
-
-    // Also redact inline bearer tokens in headers
-    static BEARER_RE: OnceLock<Regex> = OnceLock::new();
-    let bearer_re = BEARER_RE.get_or_init(|| {
-        Regex::new(r"(?i)(Bearer|token)\s+[A-Za-z0-9_\-./+=]{20,}").unwrap()
-    });
-    let redacted = bearer_re.replace_all(&redacted, "$1 [REDACTED]");
-
-    // Redact long hex/base64 strings that look like keys in auth headers
-    static LONG_KEY_RE: OnceLock<Regex> = OnceLock::new();
-    let long_key_re = LONG_KEY_RE.get_or_init(|| {
-        Regex::new(r#"(?i)(-H\s+['"]?(?:Authorization|X-Api-Key|X-Auth-Token)['"]?\s*:\s*['"]?)\S{20,}"#).unwrap()
-    });
-    let redacted = long_key_re.replace_all(&redacted, "$1[REDACTED]");
-
-    redacted.to_string()
 }
 
 fn is_shell_tool(name: &str) -> bool {
@@ -384,7 +356,6 @@ impl ToolInspector for EgressInspector {
             }
 
             let direction = detect_direction(&text);
-            let redacted_command = redact_secrets(&text);
 
             for dest in &destinations {
                 tracing::info!(
@@ -393,7 +364,7 @@ impl ToolInspector for EgressInspector {
                     destination = dest.destination.as_str(),
                     direction = direction.as_str(),
                     tool_name = name,
-                    command = redacted_command.as_str(),
+                    command = text.as_str(),
                     "egress destination detected"
                 );
             }
@@ -572,10 +543,8 @@ mod tests {
 
     #[test]
     fn test_detect_direction_file_transfer() {
-        // local → remote = outbound
         assert_eq!(detect_direction("scp file.txt user@remote.com:/tmp/"), EgressDirection::Outbound);
         assert_eq!(detect_direction("rsync -av ./dist/ deploy@prod.com:/var/www/"), EgressDirection::Outbound);
-        // remote → local = inbound
         assert_eq!(detect_direction("scp user@remote.com:/tmp/file.txt ./local/"), EgressDirection::Inbound);
         assert_eq!(detect_direction("rsync -av deploy@prod.com:/var/log/ ./logs/"), EgressDirection::Inbound);
     }
@@ -587,28 +556,5 @@ mod tests {
         assert_eq!(detect_direction("echo hello"), EgressDirection::Unknown);
     }
 
-    #[test]
-    fn test_redact_secrets() {
-        // Token/password patterns
-        assert_eq!(
-            redact_secrets("curl -H 'token=ghp_abc123def456' https://api.github.com"),
-            "curl -H 'token=[REDACTED] https://api.github.com"
-        );
-        assert_eq!(
-            redact_secrets("export API_KEY=sk-1234567890abcdef"),
-            "export api_key=[REDACTED]"
-        );
 
-        // Bearer tokens
-        assert_eq!(
-            redact_secrets("curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'"),
-            "curl -H 'Authorization: Bearer [REDACTED]'"
-        );
-
-        // No secrets — unchanged
-        assert_eq!(
-            redact_secrets("git push origin main"),
-            "git push origin main"
-        );
-    }
 }
