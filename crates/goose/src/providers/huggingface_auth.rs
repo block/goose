@@ -88,24 +88,24 @@ pub fn hf_token_secret() -> Result<Option<String>> {
 }
 
 pub fn resolve_token() -> Result<Option<String>> {
-    resolve_token_from_sources(usable_oauth_token(), None, hf_token_secret)
+    resolve_token_from_sources(None, usable_oauth_token(), hf_token_secret)
 }
 
-pub fn resolve_token_with_fallback(fallback: Option<String>) -> Result<Option<String>> {
-    resolve_token_from_sources(usable_oauth_token(), fallback, hf_token_secret)
+pub fn resolve_token_with_provider_token(provider_token: Option<String>) -> Result<Option<String>> {
+    resolve_token_from_sources(provider_token, usable_oauth_token(), hf_token_secret)
 }
 
 fn resolve_token_from_sources(
+    provider_token: Option<String>,
     oauth_token: Option<String>,
-    fallback: Option<String>,
     secret_fallback: impl FnOnce() -> Result<Option<String>>,
 ) -> Result<Option<String>> {
-    if oauth_token.is_some() {
-        return Ok(oauth_token);
+    if provider_token.is_some() {
+        return Ok(provider_token);
     }
 
-    if fallback.is_some() {
-        return Ok(fallback);
+    if oauth_token.is_some() {
+        return Ok(oauth_token);
     }
 
     secret_fallback()
@@ -536,29 +536,29 @@ mod tests {
     }
 
     #[test]
-    fn resolver_prefers_oauth_over_fallback() {
+    fn resolver_prefers_provider_token_over_oauth() {
         let token = resolve_token_from_sources(
-            Some("oauth".to_string()),
             Some("api-key".to_string()),
-            || panic!("secret store should not be queried when OAuth is usable"),
+            Some("oauth".to_string()),
+            || panic!("secret store should not be queried when provider token is usable"),
         )
-        .unwrap();
-
-        assert_eq!(token.as_deref(), Some("oauth"));
-    }
-
-    #[test]
-    fn resolver_uses_explicit_fallback_before_secret_store() {
-        let token = resolve_token_from_sources(None, Some("api-key".to_string()), || {
-            panic!("secret store should not be queried when an explicit fallback exists")
-        })
         .unwrap();
 
         assert_eq!(token.as_deref(), Some("api-key"));
     }
 
     #[test]
-    fn resolver_uses_secret_store_when_no_oauth_or_explicit_fallback_exists() {
+    fn resolver_uses_oauth_before_secret_store() {
+        let token = resolve_token_from_sources(None, Some("oauth".to_string()), || {
+            panic!("secret store should not be queried when OAuth is usable")
+        })
+        .unwrap();
+
+        assert_eq!(token.as_deref(), Some("oauth"));
+    }
+
+    #[test]
+    fn resolver_uses_secret_store_when_no_provider_token_or_oauth_exists() {
         let token = resolve_token_from_sources(None, None, || Ok(Some("secret-store".to_string())))
             .unwrap();
 

@@ -60,7 +60,7 @@ impl HuggingFaceProvider {
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
         let configured_key = configured_api_key(&config)?;
-        let token = huggingface_auth::resolve_token_with_fallback(configured_key)?
+        let token = huggingface_auth::resolve_token_with_provider_token(configured_key)?
             .ok_or_else(missing_token_error)?;
         let (host, completions_prefix, query_params) =
             openai_compatible_endpoint_parts(&config.base_url, config.base_path.as_deref())?;
