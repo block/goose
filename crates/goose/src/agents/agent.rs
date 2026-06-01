@@ -65,6 +65,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str =
     "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
@@ -117,6 +118,12 @@ fn stop_hook_denial_notification(plugin: &str) -> Message {
         SystemNotificationType::InlineMessage,
         format!("Stop hook `{plugin}` blocked ending this turn."),
     )
+}
+
+fn stop_hook_block_cap_warning(cap: u32) -> Message {
+    Message::assistant().with_text(format!(
+        "Stop hooks blocked ending this turn {cap} consecutive times, so Goose is ending the turn to avoid an infinite loop."
+    ))
 }
 
 /// Context needed for the reply function
@@ -1666,6 +1673,10 @@ impl Agent {
             let mut tool_pair_summarization_done = false;
             let mut stop_hook_handled_for_exit = false;
             let mut retrying_after_stop_hook_denial = false;
+            let mut consecutive_stop_hook_blocks = 0u32;
+            let stop_hook_block_cap = Config::global()
+                .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
+                .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP);
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1696,6 +1707,14 @@ impl Agent {
                             break;
                         }
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
+                            consecutive_stop_hook_blocks += 1;
+                            if consecutive_stop_hook_blocks >= stop_hook_block_cap {
+                                let message = stop_hook_block_cap_warning(stop_hook_block_cap);
+                                session_manager.add_message(&session_config.id, &message).await?;
+                                yield AgentEvent::Message(message);
+                                stop_hook_handled_for_exit = true;
+                                break;
+                            }
                             let message = stop_hook_denial_context_message(&plugin, &reason);
                             session_manager.add_message(&session_config.id, &message).await?;
                             conversation.push(message);
@@ -2345,6 +2364,14 @@ impl Agent {
                             break;
                         }
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
+                            consecutive_stop_hook_blocks += 1;
+                            if consecutive_stop_hook_blocks >= stop_hook_block_cap {
+                                let message = stop_hook_block_cap_warning(stop_hook_block_cap);
+                                session_manager.add_message(&session_config.id, &message).await?;
+                                yield AgentEvent::Message(message);
+                                stop_hook_handled_for_exit = true;
+                                break;
+                            }
                             let message = stop_hook_denial_context_message(&plugin, &reason);
                             session_manager.add_message(&session_config.id, &message).await?;
                             conversation.push(message);
