@@ -20,7 +20,7 @@ pub const HUGGINGFACE_OAUTH_CACHE_PATH: &str = "huggingface/oauth/tokens.json";
 
 const AUTHORIZE_URL: &str = "https://huggingface.co/oauth/authorize";
 const TOKEN_URL: &str = "https://huggingface.co/oauth/token";
-const OAUTH_SCOPES: &str = "read-repos gated-repos";
+const OAUTH_SCOPES: &str = "read-repos gated-repos inference-api";
 const BUNDLED_OAUTH_CLIENT_ID: &str = "1d30af6e-2b6c-4b7c-a97e-45fdc1af476b";
 // This URI must match the redirect URI registered on the public goose OAuth app.
 const OAUTH_HOST: [u8; 4] = [127, 0, 0, 1];
@@ -470,6 +470,7 @@ mod tests {
         assert!(url.contains("state=state-fixture"));
         assert!(url.contains("scope=read-repos"));
         assert!(url.contains("gated-repos"));
+        assert!(url.contains("inference-api"));
     }
 
     #[test]
