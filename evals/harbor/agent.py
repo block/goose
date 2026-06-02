@@ -285,15 +285,14 @@ class GooseBinaryAgent(Goose):
         ) * (pricing.get("output_cost_per_token") or 0.0)
 
     def populate_context_post_run(self, context: AgentContext) -> None:
+        super().populate_context_post_run(context)
         txt_path = self.logs_dir / "goose.txt"
         if not txt_path.exists():
             return
         log_text = txt_path.read_text()
-        total, inp, out = self._extract_complete_event_tokens(log_text)
+        _total, inp, out = self._extract_complete_event_tokens(log_text)
         if inp is not None:
             context.n_input_tokens = inp
-        elif total is not None:
-            context.n_input_tokens = total
         if out is not None:
             context.n_output_tokens = out
         cost = self._compute_cost_from_pricing(inp, out)
