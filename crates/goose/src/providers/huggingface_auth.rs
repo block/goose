@@ -132,18 +132,39 @@ pub async fn resolve_token_async() -> Result<Option<String>> {
 pub async fn resolve_token_async_with_provider_token(
     provider_token: Option<String>,
 ) -> Result<Option<String>> {
+    resolve_token_async_from_sources(
+        provider_token,
+        refreshed_or_usable_oauth_token_from_path(
+            &oauth_cache_path(),
+            oauth_client_id(),
+            TOKEN_URL,
+        ),
+        hf_token_secret,
+    )
+    .await
+}
+
+async fn resolve_token_async_from_sources(
+    provider_token: Option<String>,
+    oauth_token: impl std::future::Future<Output = Result<Option<String>>>,
+    secret_fallback: impl FnOnce() -> Result<Option<String>>,
+) -> Result<Option<String>> {
     if provider_token.is_some() {
         return Ok(provider_token);
     }
 
-    if let Some(token) =
-        refreshed_or_usable_oauth_token_from_path(&oauth_cache_path(), oauth_client_id(), TOKEN_URL)
-            .await?
-    {
-        return Ok(Some(token));
+    match oauth_token.await {
+        Ok(Some(token)) => return Ok(Some(token)),
+        Ok(None) => {}
+        Err(refresh_error) => {
+            return match secret_fallback()? {
+                Some(token) => Ok(Some(token)),
+                None => Err(refresh_error),
+            };
+        }
     }
 
-    hf_token_secret()
+    secret_fallback()
 }
 
 fn resolve_token_from_sources(
@@ -845,5 +866,31 @@ mod tests {
             .unwrap();
 
         assert_eq!(token.as_deref(), Some("secret-store"));
+    }
+
+    #[tokio::test]
+    async fn async_resolver_uses_secret_fallback_when_oauth_refresh_fails() {
+        let token = resolve_token_async_from_sources(
+            None,
+            async { Err(anyhow::anyhow!("refresh token revoked")) },
+            || Ok(Some("secret-store".to_string())),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(token.as_deref(), Some("secret-store"));
+    }
+
+    #[tokio::test]
+    async fn async_resolver_reports_refresh_error_without_secret_fallback() {
+        let error = resolve_token_async_from_sources(
+            None,
+            async { Err(anyhow::anyhow!("refresh token revoked")) },
+            || Ok(None),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error.to_string(), "refresh token revoked");
     }
 }
