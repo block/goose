@@ -29,7 +29,10 @@ use goose::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use utoipa::ToSchema;
 
 #[derive(Deserialize, ToSchema)]
@@ -371,6 +374,34 @@ const PROVIDER_CACHE_SECRET_DEFINITIONS: &[ProviderCacheSecretDefinition] = &[
     },
 ];
 
+fn provider_cache_definitions_for_display() -> Vec<ProviderCacheSecretDefinition> {
+    let mut seen_paths = HashSet::new();
+    PROVIDER_CACHE_SECRET_DEFINITIONS
+        .iter()
+        .copied()
+        .filter(|definition| seen_paths.insert(definition.path))
+        .collect()
+}
+
+fn provider_cache_definition(provider: &str) -> Option<ProviderCacheSecretDefinition> {
+    PROVIDER_CACHE_SECRET_DEFINITIONS
+        .iter()
+        .copied()
+        .find(|definition| definition.provider == provider)
+}
+
+fn provider_cache_providers_sharing_cache(provider: &str) -> Vec<&'static str> {
+    let Some(definition) = provider_cache_definition(provider) else {
+        return Vec::new();
+    };
+
+    PROVIDER_CACHE_SECRET_DEFINITIONS
+        .iter()
+        .filter(|other| other.path == definition.path)
+        .map(|definition| definition.provider)
+        .collect()
+}
+
 fn read_json_file(path: &std::path::Path) -> Option<Value> {
     std::fs::read_to_string(path)
         .ok()
@@ -617,8 +648,8 @@ pub async fn list_provider_secrets() -> Result<Json<ProviderSecretsResponse>, Er
 
     let mut secrets = build_secret_store_secrets(&stored_secrets, &providers);
 
-    for definition in PROVIDER_CACHE_SECRET_DEFINITIONS {
-        if let Some(secret) = build_provider_cache_secret(*definition, &display_names) {
+    for definition in provider_cache_definitions_for_display() {
+        if let Some(secret) = build_provider_cache_secret(definition, &display_names) {
             if !secrets.iter().any(|existing| existing.id == secret.id) {
                 secrets.push(secret);
             }
@@ -684,18 +715,18 @@ pub async fn delete_provider_secret(Path(id): Path<String>) -> Result<Json<Strin
             return Ok(Json(format!("Deleted provider secret {}", id)));
         }
 
-        let known_provider_cache = PROVIDER_CACHE_SECRET_DEFINITIONS
-            .iter()
-            .any(|definition| definition.provider == provider);
+        let cache_definition = provider_cache_definition(provider);
 
-        if !is_valid_provider_name(provider) || !known_provider_cache {
+        if !is_valid_provider_name(provider) || cache_definition.is_none() {
             return Err(ErrorResponse::bad_request(format!(
                 "Invalid provider name: '{}'",
                 provider
             )));
         }
         goose::providers::cleanup_provider(provider).await?;
-        unconfigure_provider(config, provider)?;
+        for shared_provider in provider_cache_providers_sharing_cache(provider) {
+            unconfigure_provider(config, shared_provider)?;
+        }
         return Ok(Json(format!("Deleted provider secret {}", id)));
     }
 
@@ -1565,6 +1596,29 @@ mod tests {
         );
         assert_eq!(parse_secret_store_id("provider_cache:openai"), None);
         assert_eq!(parse_provider_cache_id("secret_store:openai:key"), None);
+    }
+
+    #[test]
+    fn shared_databricks_cache_is_displayed_once() {
+        let databricks_definitions: Vec<_> = provider_cache_definitions_for_display()
+            .into_iter()
+            .filter(|definition| definition.path == "databricks/oauth")
+            .collect();
+
+        assert_eq!(databricks_definitions.len(), 1);
+        assert_eq!(databricks_definitions[0].provider, "databricks");
+    }
+
+    #[test]
+    fn shared_databricks_cache_unconfigures_both_providers() {
+        assert_eq!(
+            provider_cache_providers_sharing_cache("databricks"),
+            vec!["databricks", "databricks_v2"]
+        );
+        assert_eq!(
+            provider_cache_providers_sharing_cache("databricks_v2"),
+            vec!["databricks", "databricks_v2"]
+        );
     }
 
     #[test]
