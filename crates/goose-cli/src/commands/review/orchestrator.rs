@@ -39,8 +39,51 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use super::handler::ReviewOptions;
-use super::output::{parse_session_id_from_stderr, record_review_session_id, sanitize_session_label, GOOSE_REVIEW_SESSION_PREFIX_ENV};
+use super::output::{
+    record_subprocess_session_id, review_session_name, SubprocessFailure,
+};
 use goose::checks::Check;
+
+#[derive(Debug, Default, Clone)]
+pub struct OrchestratorStats {
+    pub failures: Vec<SubprocessFailure>,
+    pub checks_attempted: usize,
+    pub checks_succeeded: usize,
+    pub main_attempted: usize,
+    pub main_succeeded: usize,
+}
+
+impl OrchestratorStats {
+    pub fn subprocess_attempted(&self) -> usize {
+        self.checks_attempted + self.main_attempted
+    }
+
+    fn record_check_failure(&mut self, label: String, reason: String) {
+        self.checks_attempted += 1;
+        self.failures.push(SubprocessFailure { label, reason });
+    }
+
+    fn record_check_success(&mut self) {
+        self.checks_attempted += 1;
+        self.checks_succeeded += 1;
+    }
+
+    fn record_main_failure(&mut self, label: String, reason: String) {
+        self.main_attempted += 1;
+        self.failures.push(SubprocessFailure { label, reason });
+    }
+
+    fn record_main_success(&mut self) {
+        self.main_attempted += 1;
+        self.main_succeeded += 1;
+    }
+}
+
+#[derive(Copy, Clone)]
+enum SubprocessKind {
+    Main,
+    Check,
+}
 
 /// Maximum number of check subprocesses we run concurrently. 4 is
 /// empirically the sweet spot before LLM-side rate limits and local
@@ -95,7 +138,9 @@ pub async fn run_checks_in_parallel(
     checks: &[Check],
     diff: &str,
     opts: &ReviewOptions,
+    review_id: &str,
     session_ids: Arc<Mutex<Vec<String>>>,
+    stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Vec<Vec<Finding>> {
     let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
     let mut set = JoinSet::new();
@@ -110,6 +155,8 @@ pub async fn run_checks_in_parallel(
         let quiet = opts.quiet;
         let instructions = opts.instructions.clone();
         let session_ids = session_ids.clone();
+        let stats = stats.clone();
+        let review_id = review_id.to_string();
 
         set.spawn(async move {
             // Bounded concurrency: drop the permit only after the
@@ -122,7 +169,9 @@ pub async fn run_checks_in_parallel(
                 model.as_deref(),
                 instructions.as_deref(),
                 Some(max_turns),
+                &review_id,
                 session_ids,
+                stats,
             )
             .await;
             (idx, check, result, quiet)
@@ -199,16 +248,23 @@ async fn run_single_check_subprocess(
     model: Option<&str>,
     instructions: Option<&str>,
     max_turns: Option<usize>,
+    review_id: &str,
     session_ids: Arc<Mutex<Vec<String>>>,
+    stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Result<Vec<Finding>> {
     let prompt = build_check_prompt(check, diff, instructions);
+    let label = format!("check '{}'", check.name);
+    let session_name = review_session_name(review_id, &label);
     let raw = run_subprocess_for_findings(
         &prompt,
-        &format!("check '{}'", check.name),
+        &label,
+        session_name,
         provider,
         model,
         max_turns,
+        SubprocessKind::Check,
         session_ids,
+        stats,
     )
     .await?;
     let default_sev = check.severity_default.as_deref().unwrap_or("medium");
@@ -233,10 +289,13 @@ async fn run_single_check_subprocess(
 async fn run_subprocess_for_findings(
     prompt: &str,
     label: &str,
+    session_name: Option<String>,
     provider: Option<&str>,
     model: Option<&str>,
     max_turns: Option<usize>,
+    kind: SubprocessKind,
     session_ids: Arc<Mutex<Vec<String>>>,
+    stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Result<Vec<RawFinding>> {
     let goose_bin = std::env::current_exe().context("locate current goose binary")?;
 
@@ -266,9 +325,8 @@ async fn run_subprocess_for_findings(
     if let Some(t) = max_turns {
         cmd.arg("--max-turns").arg(t.to_string());
     }
-    if let Ok(prefix) = std::env::var(GOOSE_REVIEW_SESSION_PREFIX_ENV) {
-        let session_name = format!("{}:{}", prefix, sanitize_session_label(label));
-        cmd.arg("-n").arg(session_name);
+    if let Some(name) = session_name.as_deref() {
+        cmd.arg("-n").arg(name);
     }
 
     let mut child = cmd
@@ -288,17 +346,27 @@ async fn run_subprocess_for_findings(
     let output = match timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), wait).await {
         Ok(o) => o.with_context(|| format!("wait on {label}"))?,
         Err(_) => {
+            record_subprocess_session_id(
+                &session_ids,
+                session_name.as_deref(),
+                "",
+            )
+            .await;
+            record_subprocess_failure(&stats, kind, label, "timeout");
             anyhow::bail!("{label} timed out after {}s", CHECK_TIMEOUT_SECS);
         }
     };
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    record_review_session_id(
+    record_subprocess_session_id(
         &session_ids,
-        parse_session_id_from_stderr(&stderr),
-    );
+        session_name.as_deref(),
+        &stderr,
+    )
+    .await;
 
     if !output.status.success() {
+        record_subprocess_failure(&stats, kind, label, "exit");
         anyhow::bail!(
             "{label} subprocess exited with status {}: {}",
             output.status,
@@ -307,7 +375,43 @@ async fn run_subprocess_for_findings(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_findings(&stdout)
+    match parse_findings(&stdout) {
+        Ok(findings) => {
+            record_subprocess_success(&stats, kind);
+            Ok(findings)
+        }
+        Err(e) => {
+            record_subprocess_failure(&stats, kind, label, "parse");
+            Err(e)
+        }
+    }
+}
+
+fn record_subprocess_success(stats: &Arc<Mutex<OrchestratorStats>>, kind: SubprocessKind) {
+    if let Ok(mut stats) = stats.lock() {
+        match kind {
+            SubprocessKind::Main => stats.record_main_success(),
+            SubprocessKind::Check => stats.record_check_success(),
+        }
+    }
+}
+
+fn record_subprocess_failure(
+    stats: &Arc<Mutex<OrchestratorStats>>,
+    kind: SubprocessKind,
+    label: &str,
+    reason: &str,
+) {
+    if let Ok(mut stats) = stats.lock() {
+        match kind {
+            SubprocessKind::Main => {
+                stats.record_main_failure(label.to_string(), reason.to_string());
+            }
+            SubprocessKind::Check => {
+                stats.record_check_failure(label.to_string(), reason.to_string());
+            }
+        }
+    }
 }
 
 /// Run the main correctness pass as N parallel subprocesses, one per
@@ -329,7 +433,9 @@ pub async fn run_main_pass_in_parallel(
     diff: &str,
     base_prompt: &str,
     opts: &ReviewOptions,
+    review_id: &str,
     session_ids: Arc<Mutex<Vec<String>>>,
+    stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Vec<Finding> {
     let per_file = split_diff_by_file(diff);
     if per_file.is_empty() {
@@ -349,19 +455,25 @@ pub async fn run_main_pass_in_parallel(
         let instructions = opts.instructions.clone();
         let base_prompt = base_prompt.to_string();
         let session_ids = session_ids.clone();
+        let stats = stats.clone();
+        let review_id = review_id.to_string();
 
         set.spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore is never closed");
             let prompt =
                 build_main_pass_prompt(&path, &file_diff, &base_prompt, instructions.as_deref());
             let label = format!("main:{path}");
+            let session_name = review_session_name(&review_id, &label);
             let result = run_subprocess_for_findings(
                 &prompt,
                 &label,
+                session_name,
                 provider.as_deref(),
                 model.as_deref(),
                 None,
+                SubprocessKind::Main,
                 session_ids,
+                stats,
             )
             .await;
             (idx, path, result, quiet)

@@ -1701,6 +1701,10 @@ async fn handle_run_command(
     } else {
         None
     };
+    let emit_review_session_id = run_behavior.no_session
+        && hidden_session_name.as_deref().is_some_and(|n| {
+            n.starts_with(crate::commands::review::output::GOOSE_REVIEW_SESSION_NAME_PREFIX)
+        });
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1740,17 +1744,16 @@ async fn handle_run_command(
             "Headless session started"
         );
 
-        let result = session.headless(contents).await;
-        log_session_completion(&session, session_start, session_type, result.is_ok()).await;
-        if run_behavior.no_session
-            && std::env::var(crate::commands::review::output::GOOSE_REVIEW_SESSION_PREFIX_ENV).is_ok()
-        {
+        if emit_review_session_id {
             eprintln!(
                 "{} {}",
                 crate::commands::review::output::GOOSE_SESSION_ID_MARKER,
                 session.session_id()
             );
         }
+
+        let result = session.headless(contents).await;
+        log_session_completion(&session, session_start, session_type, result.is_ok()).await;
         result
     } else {
         Err(anyhow::anyhow!(

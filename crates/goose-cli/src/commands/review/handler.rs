@@ -11,11 +11,12 @@ use crate::session::{build_session, SessionBuilderConfig};
 use goose::checks::{discover, DiscoveredReview};
 
 use super::orchestrator::{
-    emit_findings, filter_findings, run_checks_in_parallel, run_main_pass_in_parallel, Severity,
+    emit_findings, filter_findings, run_checks_in_parallel, run_main_pass_in_parallel,
+    OrchestratorStats, Severity,
 };
 use super::output::{
-    aggregate_usage, emit_review_json, load_review_sessions_by_ids, ReviewOutputFormat,
-    ReviewResultDocument, GOOSE_REVIEW_SESSION_PREFIX_ENV,
+    aggregate_usage, emit_review_json, load_review_sessions_by_ids, review_document_status,
+    ReviewOutputFormat, ReviewResultDocument,
 };
 use super::prompt::{build_review_prompt, DEFAULT_REVIEW_PROMPT};
 
@@ -202,7 +203,9 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
                 &discovered.checks,
                 &diff,
                 &opts,
+                "",
                 Arc::new(Mutex::new(Vec::new())),
+                Arc::new(Mutex::new(OrchestratorStats::default())),
             )
             .await;
             let mut total_emitted = 0usize;
@@ -244,18 +247,32 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     let review_started_at = Utc::now();
     let review_start = Instant::now();
     let review_id = new_review_id();
-    let session_prefix = format!("goose-review:{review_id}");
-    std::env::set_var(GOOSE_REVIEW_SESSION_PREFIX_ENV, &session_prefix);
     let session_ids = Arc::new(Mutex::new(Vec::new()));
+    let stats = Arc::new(Mutex::new(OrchestratorStats::default()));
 
     let main_findings_fut = async {
         if opts.checks_only {
             Vec::new()
         } else {
-            run_main_pass_in_parallel(&diff, &base_prompt, &opts, session_ids.clone()).await
+            run_main_pass_in_parallel(
+                &diff,
+                &base_prompt,
+                &opts,
+                &review_id,
+                session_ids.clone(),
+                stats.clone(),
+            )
+            .await
         }
     };
-    let checks_fut = run_checks_in_parallel(&discovered.checks, &diff, &opts, session_ids.clone());
+    let checks_fut = run_checks_in_parallel(
+        &discovered.checks,
+        &diff,
+        &opts,
+        &review_id,
+        session_ids.clone(),
+        stats.clone(),
+    );
     let (main_findings, check_results) = tokio::join!(main_findings_fut, checks_fut);
 
     match opts.output_format {
@@ -300,6 +317,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
                 .unwrap_or_default();
             let sessions = load_review_sessions_by_ids(&collected_ids).await;
             let usage = aggregate_usage(&sessions);
+            let run_stats = stats.lock().map(|s| s.clone()).unwrap_or_default();
             let working_dir = std::env::current_dir()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| repo_root.display().to_string());
@@ -310,13 +328,21 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             doc.provider = opts.provider.clone();
             doc.model = opts.default_model.clone();
             doc.checks_discovered = discovered.checks.len();
-            doc.checks_run = discovered.checks.len();
+            doc.checks_run = run_stats.checks_succeeded;
+            doc.checks_failed = run_stats.checks_attempted.saturating_sub(run_stats.checks_succeeded);
             doc.findings_seen = total_seen;
             doc.findings_emitted = total_emitted;
             doc.findings_suppressed = total_seen.saturating_sub(total_emitted);
             doc.min_severity = sev_str.to_string();
-            doc.usage = usage;
-            doc.sessions = sessions;
+            doc.usage = usage.clone();
+            doc.sessions = sessions.clone();
+            doc.subprocess_failures = run_stats.failures.clone();
+            doc.status = review_document_status(
+                &run_stats.failures,
+                &sessions,
+                &usage,
+                run_stats.subprocess_attempted(),
+            );
             doc.findings = filtered;
             doc.finished_at = Utc::now().to_rfc3339();
             doc.duration_ms = review_start.elapsed().as_millis() as u64;

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use goose::session::session_manager::SessionManager;
+use goose::session::session_manager::{SessionManager, SessionType};
 use serde::Serialize;
 
 use super::orchestrator::Finding;
@@ -24,12 +24,11 @@ impl ReviewOutputFormat {
     }
 }
 
-/// Env var set for the duration of a review run. Subprocesses inherit it
-/// and tag hidden sessions as `{prefix}:{label}` via `--name`.
-pub const GOOSE_REVIEW_SESSION_PREFIX_ENV: &str = "GOOSE_REVIEW_SESSION_PREFIX";
+/// Prefix for hidden session names passed to review subprocesses via `-n`.
+pub const GOOSE_REVIEW_SESSION_NAME_PREFIX: &str = "goose-review:";
 
 /// Machine-readable session id line written to stderr by `goose run
-/// --no-session` subprocesses during a review orchestration run.
+/// --no-session -n goose-review:…` subprocesses.
 pub const GOOSE_SESSION_ID_MARKER: &str = "goose-session-id:";
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,15 +36,27 @@ pub struct ReviewUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    pub complete: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReviewSessionEntry {
     pub id: String,
     pub status: String,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SubprocessFailure {
+    pub label: String,
+    pub reason: String,
 }
 
 /// Top-level stdout document for `goose review --format json`.
@@ -65,12 +76,14 @@ pub struct ReviewResultDocument {
     pub model: Option<String>,
     pub checks_discovered: usize,
     pub checks_run: usize,
+    pub checks_failed: usize,
     pub findings_seen: usize,
     pub findings_emitted: usize,
     pub findings_suppressed: usize,
     pub min_severity: String,
     pub usage: ReviewUsage,
     pub sessions: Vec<ReviewSessionEntry>,
+    pub subprocess_failures: Vec<SubprocessFailure>,
     pub findings: Vec<Finding>,
 }
 
@@ -90,6 +103,7 @@ impl ReviewResultDocument {
             model: None,
             checks_discovered: 0,
             checks_run: 0,
+            checks_failed: 0,
             findings_seen: 0,
             findings_emitted: 0,
             findings_suppressed: 0,
@@ -98,8 +112,10 @@ impl ReviewResultDocument {
                 input_tokens: 0,
                 output_tokens: 0,
                 total_tokens: 0,
+                complete: true,
             },
             sessions: Vec::new(),
+            subprocess_failures: Vec::new(),
             findings: Vec::new(),
         }
     }
@@ -129,6 +145,28 @@ pub fn sanitize_session_label(label: &str) -> String {
     }
 }
 
+pub fn review_session_name(review_id: &str, label: &str) -> Option<String> {
+    if review_id.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "{GOOSE_REVIEW_SESSION_NAME_PREFIX}{review_id}:{}",
+        sanitize_session_label(label)
+    ))
+}
+
+pub async fn find_hidden_session_id_by_name(name: &str) -> Option<String> {
+    let session_manager = SessionManager::instance();
+    let sessions = session_manager
+        .list_sessions_by_types(&[SessionType::Hidden])
+        .await
+        .ok()?;
+    sessions
+        .into_iter()
+        .find(|s| s.name == name)
+        .map(|s| s.id)
+}
+
 pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEntry> {
     if ids.is_empty() {
         return Vec::new();
@@ -139,18 +177,39 @@ pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEnt
     for id in ids {
         let session = match session_manager.get_session(id, false).await {
             Ok(s) => s,
-            Err(_) => continue,
+            Err(e) => {
+                out.push(ReviewSessionEntry {
+                    id: id.clone(),
+                    status: "missing".to_string(),
+                    error: Some(e.to_string()),
+                    input_tokens: None,
+                    output_tokens: None,
+                    model: None,
+                });
+                continue;
+            }
         };
-        let input = i64::from(session.accumulated_input_tokens.unwrap_or(0));
-        let output = i64::from(session.accumulated_output_tokens.unwrap_or(0));
+        let input = session
+            .accumulated_input_tokens
+            .or(session.input_tokens)
+            .map(i64::from);
+        let output = session
+            .accumulated_output_tokens
+            .or(session.output_tokens)
+            .map(i64::from);
         let model = session
             .model_config
             .as_ref()
-            .map(|m| m.model_name.clone())
-            .unwrap_or_default();
+            .map(|m| m.model_name.clone());
+        let status = if input.is_some() && output.is_some() {
+            "ok".to_string()
+        } else {
+            "incomplete".to_string()
+        };
         out.push(ReviewSessionEntry {
             id: session.id,
-            status: "ok".to_string(),
+            status,
+            error: None,
             input_tokens: input,
             output_tokens: output,
             model,
@@ -182,18 +241,60 @@ pub fn record_review_session_id(session_ids: &std::sync::Mutex<Vec<String>>, id:
     }
 }
 
+pub async fn record_subprocess_session_id(
+    session_ids: &std::sync::Mutex<Vec<String>>,
+    session_name: Option<&str>,
+    stderr: &str,
+) {
+    if let Some(id) = parse_session_id_from_stderr(stderr) {
+        record_review_session_id(session_ids, Some(id));
+        return;
+    }
+    if let Some(name) = session_name {
+        if let Some(id) = find_hidden_session_id_by_name(name).await {
+            record_review_session_id(session_ids, Some(id));
+        }
+    }
+}
+
 pub fn aggregate_usage(sessions: &[ReviewSessionEntry]) -> ReviewUsage {
     let mut input_tokens = 0i64;
     let mut output_tokens = 0i64;
+    let mut complete = true;
     for s in sessions {
-        input_tokens += s.input_tokens;
-        output_tokens += s.output_tokens;
+        if s.status != "ok" {
+            complete = false;
+        }
+        match (s.input_tokens, s.output_tokens) {
+            (Some(i), Some(o)) => {
+                input_tokens += i;
+                output_tokens += o;
+            }
+            _ => complete = false,
+        }
     }
     ReviewUsage {
         input_tokens,
         output_tokens,
         total_tokens: input_tokens + output_tokens,
+        complete,
     }
+}
+
+pub fn review_document_status(
+    subprocess_failures: &[SubprocessFailure],
+    sessions: &[ReviewSessionEntry],
+    usage: &ReviewUsage,
+    subprocess_attempted: usize,
+) -> String {
+    let sessions_ok = sessions.iter().all(|s| s.status == "ok");
+    if subprocess_failures.is_empty() && sessions_ok && usage.complete {
+        return "ok".to_string();
+    }
+    if subprocess_attempted > 0 && subprocess_failures.len() >= subprocess_attempted {
+        return "error".to_string();
+    }
+    "partial".to_string()
 }
 
 pub fn emit_review_json(doc: &ReviewResultDocument) {
@@ -216,6 +317,15 @@ mod tests {
     }
 
     #[test]
+    fn review_session_name_includes_review_id_and_label() {
+        assert_eq!(
+            review_session_name("20260528_120000_000001", "main:foo.rs").as_deref(),
+            Some("goose-review:20260528_120000_000001:main_foo.rs")
+        );
+        assert!(review_session_name("", "main:foo.rs").is_none());
+    }
+
+    #[test]
     fn parse_session_id_from_stderr_reads_marker_line() {
         let stderr = "progress...\ngoose-session-id:20260601_33\n";
         assert_eq!(
@@ -235,5 +345,45 @@ mod tests {
             ReviewOutputFormat::Json
         );
         assert!(ReviewOutputFormat::parse("yaml").is_err());
+    }
+
+    #[test]
+    fn review_document_status_partial_on_failures() {
+        let failures = vec![SubprocessFailure {
+            label: "check 'security'".to_string(),
+            reason: "timeout".to_string(),
+        }];
+        assert_eq!(
+            review_document_status(&failures, &[], &ReviewUsage {
+                input_tokens: 0,
+                output_tokens: 0,
+                total_tokens: 0,
+                complete: false,
+            }, 2),
+            "partial"
+        );
+    }
+
+    #[test]
+    fn review_document_status_error_when_all_subprocesses_fail() {
+        let failures = vec![
+            SubprocessFailure {
+                label: "a".to_string(),
+                reason: "timeout".to_string(),
+            },
+            SubprocessFailure {
+                label: "b".to_string(),
+                reason: "exit".to_string(),
+            },
+        ];
+        assert_eq!(
+            review_document_status(&failures, &[], &ReviewUsage {
+                input_tokens: 0,
+                output_tokens: 0,
+                total_tokens: 0,
+                complete: false,
+            }, 2),
+            "error"
+        );
     }
 }
