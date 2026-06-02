@@ -80,6 +80,20 @@ fn usable_oauth_token_from_path(path: &std::path::Path) -> Option<String> {
     (!token.is_expired()).then_some(token.access_token)
 }
 
+pub fn has_usable_or_refreshable_oauth_token() -> bool {
+    has_usable_or_refreshable_oauth_token_from_path(&oauth_cache_path())
+}
+
+fn has_usable_or_refreshable_oauth_token_from_path(path: &std::path::Path) -> bool {
+    load_oauth_token_from_path(path).is_some_and(|token| {
+        !token.is_expired()
+            || token
+                .refresh_token
+                .as_deref()
+                .is_some_and(|token| !token.is_empty())
+    })
+}
+
 pub fn hf_token_secret() -> Result<Option<String>> {
     match Config::global().get_secret::<String>(HUGGINGFACE_TOKEN_SECRET_KEY) {
         Ok(token) => Ok(Some(token)),
@@ -682,6 +696,63 @@ mod tests {
                 usable_oauth_token_from_path(&path).as_deref(),
                 Some("valid")
             );
+        });
+    }
+
+    #[test]
+    fn has_usable_or_refreshable_oauth_token_accepts_unexpired_token() {
+        with_token_path(|path| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string(&HuggingFaceTokenData {
+                    access_token: "valid".to_string(),
+                    refresh_token: None,
+                    expires_at: Some(Utc::now() + chrono::Duration::minutes(1)),
+                })
+                .unwrap(),
+            )
+            .unwrap();
+
+            assert!(has_usable_or_refreshable_oauth_token_from_path(&path));
+        });
+    }
+
+    #[test]
+    fn has_usable_or_refreshable_oauth_token_accepts_expired_refreshable_token() {
+        with_token_path(|path| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string(&HuggingFaceTokenData {
+                    access_token: "expired".to_string(),
+                    refresh_token: Some("refresh".to_string()),
+                    expires_at: Some(Utc::now() - chrono::Duration::minutes(1)),
+                })
+                .unwrap(),
+            )
+            .unwrap();
+
+            assert!(has_usable_or_refreshable_oauth_token_from_path(&path));
+        });
+    }
+
+    #[test]
+    fn has_usable_or_refreshable_oauth_token_rejects_expired_unrefreshable_token() {
+        with_token_path(|path| {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string(&HuggingFaceTokenData {
+                    access_token: "expired".to_string(),
+                    refresh_token: None,
+                    expires_at: Some(Utc::now() - chrono::Duration::minutes(1)),
+                })
+                .unwrap(),
+            )
+            .unwrap();
+
+            assert!(!has_usable_or_refreshable_oauth_token_from_path(&path));
         });
     }
 

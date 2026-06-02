@@ -94,7 +94,7 @@ pub fn inspect_keys(
 
 pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: ProviderType) -> bool {
     check_provider_configured_with_huggingface_oauth(metadata, provider_type, || {
-        huggingface_auth::usable_oauth_token().is_some()
+        huggingface_auth::has_usable_or_refreshable_oauth_token()
     })
 }
 
