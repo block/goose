@@ -862,6 +862,16 @@
       "required": true
     }
   ]
-}
-
+},
+  {
+    "id": "doxa-mcp",
+    "name": "Doxa",
+    "description": "Christian encouragement and Bible lookup for any MCP client. Three tools grounded in the Berean Standard Bible (public domain): Scripture, summoned.",
+    "command": "npx -y mcp-remote https://doxa.app/mcp/v1",
+    "link": "https://github.com/The-Doxa-Way/doxa-mcp-schema",
+    "installation_notes": "No local setup required. Connects to the free hosted Doxa MCP server at https://doxa.app/mcp/v1 via mcp-remote; no API key needed. Bring your own LLM key for unlimited use. Requires Node.js.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 ]
