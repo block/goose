@@ -11,13 +11,15 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{MessageStream, Provider};
+use super::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, response_to_streaming_message};
+use crate::providers::formats::openai::{
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+};
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use rmcp::model::Tool;
 
@@ -28,6 +30,7 @@ pub struct OpenAiCompatibleProvider {
     model: ModelConfig,
     /// Path prefix prepended to `chat/completions` (e.g. `"deployments/{name}/"` for Azure).
     completions_prefix: String,
+    supports_streaming: bool,
 }
 
 impl OpenAiCompatibleProvider {
@@ -42,7 +45,13 @@ impl OpenAiCompatibleProvider {
             api_client,
             model,
             completions_prefix,
+            supports_streaming: true,
         }
+    }
+
+    pub fn with_supports_streaming(mut self, supports_streaming: bool) -> Self {
+        self.supports_streaming = supports_streaming;
+        self
     }
 
     fn build_request(
@@ -110,7 +119,13 @@ impl Provider for OpenAiCompatibleProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = self.build_request(model_config, system, messages, tools, true)?;
+        let payload = self.build_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            self.supports_streaming,
+        )?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let completions_path = format!("{}chat/completions", self.completions_prefix);
@@ -127,7 +142,27 @@ impl Provider for OpenAiCompatibleProvider {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        if self.supports_streaming {
+            stream_openai_compat(response, log)
+        } else {
+            let json: serde_json::Value = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+
+            let message = response_to_message(&json).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+            })?;
+
+            let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
+            let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+
+            log.write(
+                &serde_json::to_value(&message).unwrap_or_default(),
+                Some(&usage.usage),
+            )?;
+
+            Ok(stream_from_single_message(message, usage))
+        }
     }
 }
 
@@ -190,6 +225,7 @@ pub fn stream_responses_compat(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ModelConfig;
     use serde_json::json;
     use test_case::test_case;
 
@@ -261,5 +297,27 @@ mod tests {
             actual, expected_telemetry,
             "Expected {expected_variant}, got error: {err:?}"
         );
+    }
+
+    #[test]
+    fn build_request_respects_non_streaming_mode() {
+        let provider = OpenAiCompatibleProvider::new(
+            "test".to_string(),
+            ApiClient::new(
+                "http://localhost".to_string(),
+                super::super::api_client::AuthMethod::NoAuth,
+            )
+            .unwrap(),
+            ModelConfig::new_or_fail("test-model"),
+            String::new(),
+        )
+        .with_supports_streaming(false);
+
+        let payload = provider
+            .build_request(&provider.model, "", &[], &[], provider.supports_streaming)
+            .unwrap();
+
+        assert_eq!(payload.get("stream"), None);
+        assert_eq!(payload.get("stream_options"), None);
     }
 }

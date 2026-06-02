@@ -121,7 +121,8 @@ impl HuggingFaceProvider {
                 api_client,
                 model,
                 completions_prefix,
-            ),
+            )
+            .with_supports_streaming(config.supports_streaming.unwrap_or(true)),
             custom_models,
             dynamic_models: config.dynamic_models,
         })
