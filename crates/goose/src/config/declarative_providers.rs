@@ -1,7 +1,7 @@
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::providers::anthropic::AnthropicProvider;
-use crate::providers::base::{ModelInfo, ProviderType};
+use crate::providers::base::{ModelInfo, ProviderDef, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::inventory::declarative_inventory_identity;
 use crate::providers::ollama::OllamaProvider;
@@ -578,21 +578,23 @@ pub fn register_declarative_provider(
             let captured = config.clone();
             let identity_config = config.clone();
             if HuggingFaceProvider::matches_declarative_config(&config) {
-                registry.register_with_name::<HuggingFaceProvider, _, _>(
-                    &config,
-                    provider_type,
-                    config.dynamic_models.unwrap_or(false),
-                    move |model| {
-                        let mut cfg = captured.clone();
-                        resolve_config(&mut cfg)?;
-                        HuggingFaceProvider::from_custom_config(model, cfg)
-                    },
-                    move || {
-                        let mut cfg = identity_config.clone();
-                        resolve_config(&mut cfg)?;
-                        declarative_inventory_identity(&cfg)
-                    },
-                );
+                registry
+                    .register_with_name_and_inventory_configured::<HuggingFaceProvider, _, _, _>(
+                        &config,
+                        provider_type,
+                        config.dynamic_models.unwrap_or(false),
+                        move |model| {
+                            let mut cfg = captured.clone();
+                            resolve_config(&mut cfg)?;
+                            HuggingFaceProvider::from_custom_config(model, cfg)
+                        },
+                        move || {
+                            let mut cfg = identity_config.clone();
+                            resolve_config(&mut cfg)?;
+                            declarative_inventory_identity(&cfg)
+                        },
+                        HuggingFaceProvider::inventory_configured,
+                    );
             } else {
                 registry.register_with_name::<OpenAiProvider, _, _>(
                     &config,
