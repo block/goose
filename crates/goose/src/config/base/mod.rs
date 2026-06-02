@@ -1,8 +1,6 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use fs2::FileExt;
-#[cfg(feature = "system-keyring")]
-use keyring::Entry;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,7 +13,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
+mod params;
+mod secrets;
+mod values;
+pub use values::load_init_config_from_workspace;
+
+pub(super) fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -38,7 +41,7 @@ fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
 #[cfg(feature = "system-keyring")]
 const KEYRING_SERVICE: &str = "goose";
 #[cfg(feature = "system-keyring")]
-const KEYRING_USERNAME: &str = "secrets";
+pub(super) const KEYRING_USERNAME: &str = "secrets";
 pub const CONFIG_YAML_NAME: &str = "config.yaml";
 
 #[derive(Error, Debug)]
@@ -134,7 +137,7 @@ pub struct Config {
     secrets_cache: Arc<Mutex<Option<HashMap<String, Value>>>>,
 }
 
-enum SecretStorage {
+pub(super) enum SecretStorage {
     #[cfg(feature = "system-keyring")]
     Keyring {
         service: String,
@@ -144,7 +147,6 @@ enum SecretStorage {
     },
 }
 
-// Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 fn system_config_path() -> PathBuf {
@@ -273,6 +275,23 @@ macro_rules! config_value {
     };
 }
 
+config_value!(CLAUDE_CODE_COMMAND, String, "claude");
+config_value!(GEMINI_CLI_COMMAND, String, "gemini");
+config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
+config_value!(CODEX_COMMAND, String, "codex");
+config_value!(CODEX_ENABLE_SKILLS, String, "true");
+config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
+config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
+config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
+config_value!(GOOSE_MODE, GooseMode);
+config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
+config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
+config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
+config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
+config_value!(GOOSE_THINKING_EFFORT, String);
+config_value!(GOOSE_DEFAULT_EXTENSION_TIMEOUT, u64);
+
 fn parse_yaml_content(content: &str) -> Result<Mapping, ConfigError> {
     serde_yaml::from_str(content).map_err(|e| e.into())
 }
@@ -361,7 +380,7 @@ fn default_keyring_service() -> &'static str {
     ""
 }
 
-fn secrets_file_path_in(config_dir: &Path) -> PathBuf {
+pub(super) fn secrets_file_path_in(config_dir: &Path) -> PathBuf {
     config_dir.join("secrets.yaml")
 }
 
@@ -386,18 +405,10 @@ fn secret_storage(config_dir: &Path, _keyring_disabled: bool, _service: &str) ->
 }
 
 impl Config {
-    /// Get the global configuration instance.
-    ///
-    /// This will initialize the configuration with the default path (~/.config/goose/config.yaml)
-    /// if it hasn't been initialized yet.
     pub fn global() -> &'static Config {
         GLOBAL_CONFIG.get_or_init(Config::default)
     }
 
-    /// Create a new configuration instance with custom paths
-    ///
-    /// This is primarily useful for testing or for applications that need
-    /// to manage multiple configuration files.
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         let config_path = config_path.as_ref().to_path_buf();
         let keyring_disabled =
@@ -415,10 +426,6 @@ impl Config {
         })
     }
 
-    /// Create a new configuration instance with custom paths
-    ///
-    /// This is primarily useful for testing or for applications that need
-    /// to manage multiple configuration files.
     pub fn new_with_file_secrets<P1: AsRef<Path>, P2: AsRef<Path>>(
         config_path: P1,
         secrets_path: P2,
@@ -465,8 +472,6 @@ impl Config {
         self.write_path().to_string_lossy().to_string()
     }
 
-    /// Load only the writable config file for read-modify-write operations.
-    /// Returns an empty mapping if the file doesn't exist or can't be parsed.
     fn load_write_config(&self) -> Result<Mapping, ConfigError> {
         if !self.write_path().exists() {
             return Ok(Mapping::new());
@@ -537,7 +542,6 @@ impl Config {
     fn config_write_target_path(&self) -> Result<PathBuf, ConfigError> {
         let mut path = self.write_path().clone();
 
-        // Follow symlinks so we update the target file without replacing the link itself.
         const MAX_SYMLINK_HOPS: usize = 1;
         let mut hops = 0usize;
         loop {
@@ -572,7 +576,6 @@ impl Config {
     fn save_values(&self, values: &Mapping) -> Result<(), ConfigError> {
         let target_path = self.config_write_target_path()?;
 
-        // Convert to YAML for storage
         let yaml_value = serde_yaml::to_string(values)?;
 
         if let Some(parent) = target_path.parent() {
@@ -580,7 +583,6 @@ impl Config {
                 .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
         }
 
-        // Write to a temporary file first for atomic operation
         let temp_path = target_path.with_extension("tmp");
 
         {
@@ -590,18 +592,13 @@ impl Config {
                 .truncate(true)
                 .open(&temp_path)?;
 
-            // Acquire an exclusive lock
             file.lock_exclusive()
                 .map_err(|e| ConfigError::LockError(e.to_string()))?;
 
-            // Write the contents using the same file handle
             file.write_all(yaml_value.as_bytes())?;
             file.sync_all()?;
-
-            // Unlock is handled automatically when file is dropped
         }
 
-        // Atomically replace the original file
         std::fs::rename(&temp_path, &target_path)?;
 
         Ok(())
@@ -615,567 +612,6 @@ impl Config {
             Ok(())
         }
     }
-
-    pub fn all_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let mut cache = self.secrets_cache.lock().unwrap();
-
-        let values = if let Some(ref cached_secrets) = *cache {
-            cached_secrets.clone()
-        } else {
-            tracing::debug!("secrets cache miss, fetching from storage");
-
-            let loaded = match &self.secrets {
-                #[cfg(feature = "system-keyring")]
-                SecretStorage::Keyring { service } => {
-                    let result =
-                        self.handle_keyring_operation(|entry| entry.get_password(), service, None);
-
-                    match result {
-                        Ok(content) => {
-                            let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                            values
-                        }
-                        Err(ConfigError::FallbackToFileStorage) => {
-                            self.fallback_to_file_storage()?
-                        }
-                        Err(ConfigError::KeyringError(msg))
-                            if msg.contains("No entry found")
-                                || msg.contains("No matching entry found") =>
-                        {
-                            self.fallback_to_file_storage()?
-                        }
-                        Err(e) => return Err(e),
-                    }
-                }
-                SecretStorage::File { path } => self.read_secrets_from_file(path)?,
-            };
-
-            *cache = Some(loaded.clone());
-            loaded
-        };
-
-        Ok(values)
-    }
-
-    /// Parse an environment variable value into a JSON Value.
-    ///
-    /// This function tries to intelligently parse environment variable values:
-    /// 1. First attempts JSON parsing (for structured data)
-    /// 2. If that fails, tries primitive type parsing for common cases
-    /// 3. Falls back to string if nothing else works
-    fn parse_env_value(val: &str) -> Result<Value, ConfigError> {
-        // First try JSON parsing - this handles quoted strings, objects, arrays, etc.
-        if let Ok(json_value) = serde_json::from_str(val) {
-            return Ok(json_value);
-        }
-
-        let trimmed = val.trim();
-
-        match trimmed.to_lowercase().as_str() {
-            "true" => return Ok(Value::Bool(true)),
-            "false" => return Ok(Value::Bool(false)),
-            _ => {}
-        }
-
-        if let Ok(int_val) = trimmed.parse::<i64>() {
-            return Ok(Value::Number(int_val.into()));
-        }
-
-        if let Ok(float_val) = trimmed.parse::<f64>() {
-            if let Some(num) = serde_json::Number::from_f64(float_val) {
-                return Ok(Value::Number(num));
-            }
-        }
-
-        Ok(Value::String(val.to_string()))
-    }
-
-    // check all possible places for a parameter
-    pub fn get(&self, key: &str, is_secret: bool) -> Result<Value, ConfigError> {
-        if is_secret {
-            self.get_secret(key)
-        } else {
-            self.get_param(key)
-        }
-    }
-
-    // save a parameter in the appropriate location based on if it's secret or not
-    pub fn set<V>(&self, key: &str, value: &V, is_secret: bool) -> Result<(), ConfigError>
-    where
-        V: Serialize,
-    {
-        if is_secret {
-            self.set_secret(key, value)
-        } else {
-            self.set_param(key, value)
-        }
-    }
-
-    /// Get a configuration value (non-secret).
-    ///
-    /// This will attempt to get the value from (in order):
-    /// 1. Environment variable with the uppercase key name
-    /// 2. Merged config from all config paths (system → user → local)
-    ///
-    /// The value will be deserialized into the requested type. This works with
-    /// both simple types (String, i32, etc.) and complex types that implement
-    /// serde::Deserialize.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - The key doesn't exist in any of the above sources
-    /// - The value cannot be deserialized into the requested type
-    /// - There is an error reading the config file
-    pub fn get_param<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        let env_key = key.to_uppercase();
-        if let Ok(val) = env::var(&env_key) {
-            let value = Self::parse_env_value(&val)?;
-            return Ok(serde_json::from_value(value)?);
-        }
-
-        let values = self.load()?;
-        let value = values
-            .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))?;
-
-        match serde_yaml::from_value(value.clone()) {
-            Ok(value) => Ok(value),
-            Err(yaml_err) => {
-                let Some(string_value) = value.as_str() else {
-                    return Err(yaml_err.into());
-                };
-                let parsed = Self::parse_env_value(string_value)?;
-                serde_json::from_value(parsed).map_err(|_| yaml_err.into())
-            }
-        }
-    }
-
-    /// Read-modify-write a configuration value atomically through the write path.
-    pub fn update_param<T, V, F>(&self, key: &str, f: F) -> Result<(), ConfigError>
-    where
-        T: for<'de> Deserialize<'de> + Default,
-        V: Serialize,
-        F: FnOnce(T) -> V,
-    {
-        let _guard = self.guard.lock().unwrap();
-        let mut values = self.load_write_config()?;
-        let current: T = values
-            .get(key)
-            .and_then(|v| serde_yaml::from_value(v.clone()).ok())
-            .unwrap_or_default();
-        let updated = f(current);
-        values.insert(serde_yaml::to_value(key)?, serde_yaml::to_value(updated)?);
-        self.save_values(&values)
-    }
-
-    /// Set a configuration value in the config file (non-secret).
-    ///
-    /// This will immediately write the value to the config file. The value
-    /// can be any type that can be serialized to JSON/YAML.
-    ///
-    /// Note that this does not affect environment variables - those can only
-    /// be set through the system environment.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - There is an error reading or writing the config file
-    /// - There is an error serializing the value
-    pub fn set_param<V: Serialize>(&self, key: &str, value: V) -> Result<(), ConfigError> {
-        let _guard = self.guard.lock().unwrap();
-        let mut values = self.load_write_config()?;
-        values.insert(serde_yaml::to_value(key)?, serde_yaml::to_value(value)?);
-        self.save_values(&values)
-    }
-
-    /// Set multiple configuration values in the config file with one read and one write.
-    pub fn set_param_values(&self, updates: &[(String, Value)]) -> Result<(), ConfigError> {
-        if updates.is_empty() {
-            return Ok(());
-        }
-
-        let _guard = self.guard.lock().unwrap();
-        let mut values = self.load_write_config()?;
-        for (key, value) in updates {
-            values.insert(serde_yaml::to_value(key)?, serde_yaml::to_value(value)?);
-        }
-        self.save_values(&values)
-    }
-
-    /// Delete a configuration value in the config file.
-    ///
-    /// This will immediately write the value to the config file. The value
-    /// can be any type that can be serialized to JSON/YAML.
-    ///
-    /// Note that this does not affect environment variables - those can only
-    /// be set through the system environment.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - There is an error reading or writing the config file
-    /// - There is an error serializing the value
-    pub fn delete(&self, key: &str) -> Result<(), ConfigError> {
-        // Lock before reading to prevent race condition.
-        let _guard = self.guard.lock().unwrap();
-
-        let mut values = self.load_write_config()?;
-        values.shift_remove(key);
-
-        self.save_values(&values)
-    }
-
-    /// Get a secret value.
-    ///
-    /// This will attempt to get the value from:
-    /// 1. Environment variable with the exact key name
-    /// 2. System keyring
-    ///
-    /// The value will be deserialized into the requested type. This works with
-    /// both simple types (String, i32, etc.) and complex types that implement
-    /// serde::Deserialize.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - The key doesn't exist in either environment or keyring
-    /// - The value cannot be deserialized into the requested type
-    /// - There is an error accessing the keyring
-    pub fn get_secret<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        // First check environment variables (convert to uppercase)
-        let env_key = key.to_uppercase();
-        if let Ok(val) = env::var(&env_key) {
-            let value = Self::parse_env_value(&val)?;
-            return Ok(serde_json::from_value(value)?);
-        }
-
-        // Then check keyring
-        let values = self.all_secrets()?;
-        values
-            .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))
-            .and_then(|v| Ok(serde_json::from_value(v.clone())?))
-    }
-
-    /// Get secrets. If primary is in env, use env for all keys. Otherwise, use secret storage.
-    pub fn get_secrets(
-        &self,
-        primary: &str,
-        maybe_secret: &[&str],
-    ) -> Result<HashMap<String, String>, ConfigError> {
-        let use_env = env::var(primary.to_uppercase()).is_ok();
-        let get_value = |key: &str| -> Result<String, ConfigError> {
-            if use_env {
-                env::var(key.to_uppercase()).map_err(|_| ConfigError::NotFound(key.to_string()))
-            } else {
-                self.get_secret(key)
-            }
-        };
-
-        let mut result = HashMap::new();
-        result.insert(primary.to_string(), get_value(primary)?);
-        for &key in maybe_secret {
-            if let Ok(v) = get_value(key) {
-                result.insert(key.to_string(), v);
-            }
-        }
-        Ok(result)
-    }
-
-    fn write_all_secrets(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
-        match &self.secrets {
-            #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { service } => {
-                let json_value = serde_json::to_string(values)?;
-                match self.handle_keyring_operation(
-                    |entry| entry.set_password(&json_value),
-                    service,
-                    Some(values),
-                ) {
-                    Ok(_) => {}
-                    Err(ConfigError::FallbackToFileStorage) => {}
-                    Err(e) => return Err(e),
-                }
-            }
-            SecretStorage::File { path } => {
-                let yaml_value = serde_yaml::to_string(values)?;
-                write_secrets_file(path, &yaml_value)?;
-            }
-        }
-
-        self.invalidate_secrets_cache();
-        Ok(())
-    }
-
-    fn mutate_secrets(
-        &self,
-        mutate: impl FnOnce(&mut HashMap<String, Value>),
-    ) -> Result<(), ConfigError> {
-        let _guard = self.guard.lock().unwrap();
-        let mut values = self.all_secrets()?;
-        mutate(&mut values);
-        self.write_all_secrets(&values)
-    }
-
-    /// Set a secret value in the system keyring.
-    ///
-    /// This will store the value in a single JSON object in the system keyring,
-    /// alongside any other secrets. The value can be any type that can be
-    /// serialized to JSON.
-    ///
-    /// Note that this does not affect environment variables - those can only
-    /// be set through the system environment.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - There is an error accessing the keyring
-    /// - There is an error serializing the value
-    pub fn set_secret<V>(&self, key: &str, value: &V) -> Result<(), ConfigError>
-    where
-        V: Serialize,
-    {
-        let value = serde_json::to_value(value)?;
-        self.mutate_secrets(|values| {
-            values.insert(key.to_string(), value);
-        })
-    }
-
-    /// Set multiple secret values with one storage read and one storage write.
-    ///
-    /// This is intended for provider setup flows that save several fields at once.
-    /// It keeps keychain access batched while preserving the same storage format as
-    /// `set_secret`.
-    pub fn set_secret_values(&self, updates: &[(String, Value)]) -> Result<(), ConfigError> {
-        if updates.is_empty() {
-            return Ok(());
-        }
-
-        self.mutate_secrets(|values| {
-            for (key, value) in updates {
-                values.insert(key.clone(), value.clone());
-            }
-        })
-    }
-
-    /// Delete a secret from the system keyring.
-    ///
-    /// This will remove the specified key from the JSON object in the system keyring.
-    /// Other secrets will remain unchanged.
-    ///
-    /// # Errors
-    ///
-    /// Returns a ConfigError if:
-    /// - There is an error accessing the keyring
-    /// - There is an error serializing the remaining values
-    pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
-        self.mutate_secrets(|values| {
-            values.remove(key);
-        })
-    }
-
-    /// Delete multiple secret values with one storage read and one storage write.
-    pub fn delete_secret_values(&self, keys: &[String]) -> Result<(), ConfigError> {
-        if keys.is_empty() {
-            return Ok(());
-        }
-
-        self.mutate_secrets(|values| {
-            for key in keys {
-                values.remove(key);
-            }
-        })
-    }
-
-    /// Read secrets from a YAML file
-    fn read_secrets_from_file(&self, path: &Path) -> Result<HashMap<String, Value>, ConfigError> {
-        if path.exists() {
-            let file_content = std::fs::read_to_string(path)?;
-            let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
-            let json_value: Value = serde_json::to_value(yaml_value)?;
-            match json_value {
-                Value::Object(map) => Ok(map.into_iter().collect()),
-                _ => Ok(HashMap::new()),
-            }
-        } else {
-            Ok(HashMap::new())
-        }
-    }
-
-    /// Get the path to the secrets storage file
-    #[cfg(feature = "system-keyring")]
-    fn secrets_file_path() -> PathBuf {
-        secrets_file_path_in(&Paths::config_dir())
-    }
-
-    /// Fall back to file storage when keyring is unavailable
-    #[cfg(feature = "system-keyring")]
-    fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let path = Self::secrets_file_path();
-        self.read_secrets_from_file(&path)
-    }
-
-    /// Write secrets to file storage (used for fallback)
-    #[cfg(feature = "system-keyring")]
-    fn write_secrets_to_file(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
-        std::fs::create_dir_all(Paths::config_dir())?;
-        let path = Self::secrets_file_path();
-        let yaml_value = serde_yaml::to_string(values)?;
-        write_secrets_file(&path, &yaml_value)?;
-        Ok(())
-    }
-
-    pub fn invalidate_secrets_cache(&self) {
-        let mut cache = self.secrets_cache.lock().unwrap();
-        *cache = None;
-    }
-
-    /// Check if an error string indicates a keyring availability issue that should trigger fallback
-    #[cfg(feature = "system-keyring")]
-    fn is_keyring_availability_error(&self, error_str: &str) -> bool {
-        let lower = error_str.to_lowercase();
-        lower.contains("keyring")
-            || lower.contains("dbus")
-            || lower.contains("org.freedesktop.secrets")
-            || lower.contains("platform secure storage")
-            || lower.contains("no secret service")
-    }
-
-    /// Get a keyring entry for the specified service
-    #[cfg(feature = "system-keyring")]
-    fn get_keyring_entry(service: &str) -> Result<keyring::Entry, keyring::Error> {
-        Entry::new(service, KEYRING_USERNAME)
-    }
-
-    /// Handle keyring errors with automatic fallback to file storage
-    #[cfg(feature = "system-keyring")]
-    fn handle_keyring_fallback_error<T>(
-        &self,
-        keyring_err: &keyring::Error,
-        fallback_values: Option<&HashMap<String, Value>>,
-    ) -> Result<T, ConfigError> {
-        if self.is_keyring_availability_error(&keyring_err.to_string()) {
-            std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-            tracing::warn!("Keyring unavailable. Using file storage for secrets.");
-
-            if let Some(values) = fallback_values {
-                self.write_secrets_to_file(values)?;
-                Err(ConfigError::FallbackToFileStorage)
-            } else {
-                Err(ConfigError::FallbackToFileStorage)
-            }
-        } else {
-            Err(ConfigError::KeyringError(keyring_err.to_string()))
-        }
-    }
-
-    /// Handle keyring operation with automatic fallback to file storage
-    #[cfg(feature = "system-keyring")]
-    fn handle_keyring_operation<T>(
-        &self,
-        operation: impl FnOnce(keyring::Entry) -> Result<T, keyring::Error>,
-        service: &str,
-        fallback_values: Option<&HashMap<String, Value>>,
-    ) -> Result<T, ConfigError> {
-        // Try to get the keyring entry and perform the operation
-        let entry = match Self::get_keyring_entry(service) {
-            Ok(entry) => entry,
-            Err(keyring_err) => {
-                return self.handle_keyring_fallback_error(&keyring_err, fallback_values);
-            }
-        };
-
-        // Perform the operation
-        match operation(entry) {
-            Ok(result) => Ok(result),
-            Err(keyring_err) => self.handle_keyring_fallback_error(&keyring_err, fallback_values),
-        }
-    }
-}
-
-config_value!(CLAUDE_CODE_COMMAND, String, "claude");
-config_value!(GEMINI_CLI_COMMAND, String, "gemini");
-config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
-config_value!(CODEX_COMMAND, String, "codex");
-config_value!(CODEX_ENABLE_SKILLS, String, "true");
-config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
-config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
-
-config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
-config_value!(GOOSE_MODE, GooseMode);
-// GOOSE_PROVIDER and GOOSE_MODEL are handled by crate::config::providers
-// which checks the structured `providers:` block first and falls back to
-// the legacy flat keys. The accessors below delegate to that module.
-impl Config {
-    pub fn get_goose_provider(&self) -> Result<String, ConfigError> {
-        crate::config::providers::get_active_provider(self)
-            .ok_or_else(|| ConfigError::NotFound("GOOSE_PROVIDER".to_string()))
-    }
-    pub fn set_goose_provider(&self, v: impl Into<String>) -> Result<(), ConfigError> {
-        let name = v.into();
-        let model = crate::config::providers::get_provider_entry(self, &name)
-            .map(|e| e.model)
-            .unwrap_or_default();
-        crate::config::providers::set_active_provider(self, &name, &model)
-    }
-    pub fn get_goose_model(&self) -> Result<String, ConfigError> {
-        crate::config::providers::get_active_model(self)
-            .ok_or_else(|| ConfigError::NotFound("GOOSE_MODEL".to_string()))
-    }
-    pub fn set_goose_model(&self, v: impl Into<String>) -> Result<(), ConfigError> {
-        let model = v.into();
-        if let Some(provider) = crate::config::providers::get_active_provider(self) {
-            crate::config::providers::set_active_provider(self, &provider, &model)?;
-        }
-        Ok(())
-    }
-}
-config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
-config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
-config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
-config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
-config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
-config_value!(GOOSE_THINKING_EFFORT, String);
-config_value!(GOOSE_DEFAULT_EXTENSION_TIMEOUT, u64);
-
-fn find_workspace_or_exe_root() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let exe_dir = exe.parent()?.to_path_buf();
-
-    let mut path = exe;
-    while let Some(parent) = path.parent() {
-        let cargo_toml = parent.join("Cargo.toml");
-        if cargo_toml.exists() {
-            if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
-                if content.contains("[workspace]") {
-                    return Some(parent.to_path_buf());
-                }
-            }
-        }
-        path = parent.to_path_buf();
-    }
-
-    Some(exe_dir)
-}
-
-pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {
-    let root = find_workspace_or_exe_root().ok_or_else(|| {
-        ConfigError::FileError(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Could not determine executable path",
-        ))
-    })?;
-
-    let init_config_path = root.join("init-config.yaml");
-    if !init_config_path.exists() {
-        return Err(ConfigError::NotFound(
-            "init-config.yaml not found".to_string(),
-        ));
-    }
-
-    let init_content = std::fs::read_to_string(&init_config_path)?;
-    parse_yaml_content(&init_content)
 }
 
 #[cfg(test)]
@@ -1492,9 +928,6 @@ mod tests {
         let target_path = dir.path().join("real_config.yaml");
         std::fs::write(&target_path, "{}\n")?;
 
-        // config.yaml -> link1.yaml -> real_config.yaml
-        // We only allow following one symlink hop. If there's another symlink, we should fail
-        // rather than overwrite the intermediate symlink.
         let config_symlink = dir.path().join("config.yaml");
         let link1 = dir.path().join("link1.yaml");
         unix_fs::symlink(&target_path, &link1)?;
