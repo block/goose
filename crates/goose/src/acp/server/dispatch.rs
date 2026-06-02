@@ -17,6 +17,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
         // The MatchDispatchFrom chain produces an ~85KB async state machine.
         // Box::pin moves it to the heap so it doesn't overflow the tokio worker stack.
         Box::pin(async move {
+            // Capture the connection handle so handlers can lazily activate
+            // sessions that exist on disk but were never activated via
+            // new_session/load_session on this connection. Set-once per
+            // connection; the result is ignored on later requests.
+            let _ = agent.client_cx.set(cx.clone());
+
             // InitializeRequest runs inline: it sets connection-scoped state
             // (client fs/terminal capabilities) that later handlers read with
             // defaults, so a pipelined NewSessionRequest must not race ahead of it.

@@ -209,6 +209,7 @@ pub struct GooseAcpAgent {
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
     use_login_shell_path: OnceCell<bool>,
+    client_cx: OnceCell<ConnectionTo<Client>>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -1015,6 +1016,7 @@ impl GooseAcpAgent {
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
+            client_cx: OnceCell::new(),
             config_dir: options.config_dir,
             session_manager,
             permission_manager,
@@ -2246,15 +2248,39 @@ impl GooseAcpAgent {
         session_id: &str,
         cancel_token: Option<CancellationToken>,
     ) -> Result<Arc<Agent>, agent_client_protocol::Error> {
-        let mut sessions = self.sessions.lock().await;
-        let session = sessions.get_mut(session_id).ok_or_else(|| {
+        {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(session_id) {
+                if let Some(token) = cancel_token {
+                    session.cancel_token = Some(token);
+                }
+                return Ok(session.agent.clone());
+            }
+        }
+
+        let cx = self.client_cx.get().ok_or_else(|| {
             agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
                 .data(format!("Session not found: {}", session_id))
         })?;
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+        let (agent, _) = self
+            .activate_acp_session(cx, &session, HashMap::new())
+            .await?;
+
         if let Some(token) = cancel_token {
-            session.cancel_token = Some(token);
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(session_id) {
+                session.cancel_token = Some(token);
+            }
         }
-        Ok(session.agent.clone())
+        Ok(agent)
     }
 
     #[allow(dead_code)]
