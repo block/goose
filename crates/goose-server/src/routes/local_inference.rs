@@ -482,9 +482,7 @@ pub async fn download_hf_model(
     let (_repo, resolved) = resolve_model_spec_full(&req.spec)
         .await
         .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
-    let hf_token = huggingface_auth::resolve_token_async().await.map_err(|e| {
-        ErrorResponse::internal(format!("Failed to resolve Hugging Face token: {}", e))
-    })?;
+    let hf_token = huggingface_auth::resolve_token_async().await.ok().flatten();
 
     let model_id = model_id_from_repo(&repo_id, &quantization);
     let models_dir = Paths::in_data_dir("models");
