@@ -746,7 +746,11 @@ mod tests {
         assert_eq!(variants[idx].0, "gpt-4o");
 
         let variants = vec![
-            variant("claude-haiku-4-5-20251001", Some("2025-10-16"), Some("2025-10-16")),
+            variant(
+                "claude-haiku-4-5-20251001",
+                Some("2025-10-16"),
+                Some("2025-10-16"),
+            ),
             variant("claude-haiku-4-5", Some("2025-10-16"), Some("2025-10-16")),
         ];
         let idx = pick_winning_variant(&variants);
