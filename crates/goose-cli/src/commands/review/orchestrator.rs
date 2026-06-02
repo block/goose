@@ -578,7 +578,6 @@ fn build_subprocess_turn_budget_section(max_turns: usize) -> String {
          goose enforces this via `--max-turns`; when you exhaust it, the session stops and \
          any findings not yet emitted as JSON are lost.\n\n\
          Plan for the limit:\n\
-         - Review the diff below directly; avoid tool calls unless strictly necessary.\n\
          - As turns run low, stop exploring and return JSON with the findings you have verified.\n\
          - Always emit valid JSON (`{{\"findings\":[...]}}` or `{{\"findings\":[]}}`) before \
            the turn limit — an empty or missing response counts as failure.\n\n"
