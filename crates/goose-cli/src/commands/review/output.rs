@@ -29,10 +29,6 @@ impl ReviewOutputFormat {
 /// Prefix for hidden session names passed to review subprocesses via `-n`.
 pub const GOOSE_REVIEW_SESSION_NAME_PREFIX: &str = "goose-review:";
 
-/// Machine-readable session id line written to stderr by `goose run
-/// --no-session -n goose-review:…` subprocesses.
-pub const GOOSE_SESSION_ID_MARKER: &str = "goose-session-id:";
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ReviewUsage {
     pub input_tokens: i64,
@@ -229,19 +225,6 @@ pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEnt
     out
 }
 
-pub fn parse_session_id_from_stderr(stderr: &str) -> Option<String> {
-    for line in stderr.lines() {
-        let line = line.trim();
-        if let Some(id) = line.strip_prefix(GOOSE_SESSION_ID_MARKER) {
-            let id = id.trim();
-            if !id.is_empty() {
-                return Some(id.to_string());
-            }
-        }
-    }
-    None
-}
-
 pub fn record_review_session_id(session_ids: &std::sync::Mutex<Vec<String>>, id: Option<String>) {
     let Some(id) = id else { return };
     if let Ok(mut ids) = session_ids.lock() {
@@ -251,26 +234,30 @@ pub fn record_review_session_id(session_ids: &std::sync::Mutex<Vec<String>>, id:
     }
 }
 
-pub async fn record_subprocess_session_id(
+pub async fn record_subprocess_session_id_by_name(
     session_ids: &std::sync::Mutex<Vec<String>>,
     session_name: Option<&str>,
-    stderr: &str,
 ) {
-    if let Some(id) = parse_session_id_from_stderr(stderr) {
-        record_review_session_id(session_ids, Some(id));
-        return;
-    }
-    if let Some(name) = session_name {
+    let Some(name) = session_name else { return };
+    for attempt in 0..20 {
         if let Some(id) = find_hidden_session_id_by_name(name).await {
             record_review_session_id(session_ids, Some(id));
+            return;
         }
+        if attempt == 19 {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 }
 
-pub fn aggregate_usage(sessions: &[ReviewSessionEntry]) -> ReviewUsage {
+pub fn aggregate_usage(sessions: &[ReviewSessionEntry], subprocess_attempted: usize) -> ReviewUsage {
     let mut input_tokens = 0i64;
     let mut output_tokens = 0i64;
     let mut complete = true;
+    if subprocess_attempted > 0 && sessions.is_empty() {
+        complete = false;
+    }
     for s in sessions {
         if s.status != "ok" {
             complete = false;
@@ -298,12 +285,15 @@ pub fn review_document_status(
     usage: &ReviewUsage,
     subprocess_attempted: usize,
 ) -> String {
+    if subprocess_attempted > 0 && subprocess_failures.len() >= subprocess_attempted {
+        return "error".to_string();
+    }
+    if subprocess_attempted > 0 && sessions.is_empty() {
+        return "partial".to_string();
+    }
     let sessions_ok = sessions.iter().all(|s| s.status == "ok");
     if subprocess_failures.is_empty() && sessions_ok && usage.complete {
         return "ok".to_string();
-    }
-    if subprocess_attempted > 0 && subprocess_failures.len() >= subprocess_attempted {
-        return "error".to_string();
     }
     "partial".to_string()
 }
@@ -338,15 +328,6 @@ mod tests {
         let name = review_session_name("20260528_120000_000001", "main:foo.rs").unwrap();
         assert!(name.starts_with("goose-review:20260528_120000_000001:main_foo.rs_"));
         assert!(review_session_name("", "main:foo.rs").is_none());
-    }
-
-    #[test]
-    fn parse_session_id_from_stderr_reads_marker_line() {
-        let stderr = "progress...\ngoose-session-id:20260601_33\n";
-        assert_eq!(
-            parse_session_id_from_stderr(stderr).as_deref(),
-            Some("20260601_33")
-        );
     }
 
     #[test]

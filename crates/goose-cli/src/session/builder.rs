@@ -329,15 +329,16 @@ async fn resolve_session_id(
                 process::exit(1);
             });
         if user_provided {
-            session_manager
+            if let Err(e) = session_manager
                 .update(&session.id)
                 .user_provided_name(session_name)
                 .apply()
                 .await
-                .unwrap_or_else(|e| {
-                    output::render_error(&format!("Could not lock session name: {}", e));
-                    process::exit(1);
-                });
+            {
+                let _ = session_manager.delete_session(&session.id).await;
+                output::render_error(&format!("Could not lock session name: {}", e));
+                process::exit(1);
+            }
         }
         session.id
     } else if session_config.resume {

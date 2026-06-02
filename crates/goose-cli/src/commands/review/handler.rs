@@ -112,8 +112,16 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     }
 
     if diff.trim().is_empty() {
-        eprintln!("goose review: no changes to review");
+        if opts.output_format == ReviewOutputFormat::Json {
+            emit_no_changes_json_review(&opts, &repo_root, sev_str);
+        } else {
+            eprintln!("goose review: no changes to review");
+        }
         return Ok(());
+    }
+
+    if opts.summary_only && opts.output_format == ReviewOutputFormat::Json {
+        bail!("--format json is incompatible with --summary-only");
     }
 
     // `--summary-only` short-circuits everything else: print `git
@@ -149,6 +157,9 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
 
     if opts.output_format == ReviewOutputFormat::Json && !use_orchestrator {
         bail!("--format json requires the default orchestrator; remove --no-orchestrate");
+    }
+    if opts.output_format == ReviewOutputFormat::Jsonl && !use_orchestrator {
+        bail!("--format jsonl requires the default orchestrator; remove --no-orchestrate");
     }
 
     // Reviewer instructions are also injected into every per-file
@@ -316,8 +327,8 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
                 .map(|ids| ids.clone())
                 .unwrap_or_default();
             let sessions = load_review_sessions_by_ids(&collected_ids).await;
-            let usage = aggregate_usage(&sessions);
             let run_stats = stats.lock().map(|s| s.clone()).unwrap_or_default();
+            let usage = aggregate_usage(&sessions, run_stats.subprocess_attempted());
             let working_dir = std::env::current_dir()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| repo_root.display().to_string());
@@ -375,8 +386,20 @@ fn new_review_id() -> String {
     format!("{ts}_{n:06}")
 }
 
-/// Restrict a discovered review to the named checks (no-op when the
-/// filter is empty). Mirrors `amp review --check-filter`.
+fn emit_no_changes_json_review(opts: &ReviewOptions, repo_root: &Path, min_severity: &str) {
+    let working_dir = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| repo_root.display().to_string());
+    let mut doc = ReviewResultDocument::new(new_review_id(), Utc::now());
+    doc.working_dir = working_dir;
+    doc.range = opts.range.clone();
+    doc.provider = opts.provider.clone();
+    doc.model = opts.default_model.clone();
+    doc.min_severity = min_severity.to_string();
+    doc.finished_at = Utc::now().to_rfc3339();
+    emit_review_json(&doc);
+}
+
 fn filter_checks(discovered: DiscoveredReview, names: &[String]) -> DiscoveredReview {
     if names.is_empty() {
         return discovered;
