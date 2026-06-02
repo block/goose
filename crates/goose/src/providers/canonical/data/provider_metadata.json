@@ -261,7 +261,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "inception",
@@ -649,7 +649,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "evroc",
@@ -839,6 +839,17 @@
     "model_count": 4
   },
   {
+    "id": "anyapi",
+    "display_name": "AnyAPI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.anyapi.ai/v1",
+    "doc": "https://docs.anyapi.ai",
+    "env": [
+      "ANYAPI_API_KEY"
+    ],
+    "model_count": 30
+  },
+  {
     "id": "vultr",
     "display_name": "Vultr",
     "npm": "@ai-sdk/openai-compatible",
@@ -990,7 +1001,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "qiniu-ai",
@@ -1222,7 +1233,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "meta-llama",
