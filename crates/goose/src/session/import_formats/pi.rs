@@ -60,7 +60,7 @@ pub fn convert(content: &str) -> Result<String> {
     // Pi entries form a tree, but in practice the file is written in
     // chronological order and the linear view is what users expect on import.
     // We just walk top-to-bottom.
-    for entry in &entries {
+    for (entry_idx, entry) in entries.iter().enumerate() {
         let entry_type = entry.get("type").and_then(|v| v.as_str()).unwrap_or("");
         let ts = entry
             .get("timestamp")
@@ -153,7 +153,7 @@ pub fn convert(content: &str) -> Result<String> {
                 let mut args = Map::new();
                 args.insert("command".into(), json!(command));
                 let params = CallToolRequestParams::new("bash".to_string()).with_arguments(args);
-                let id = format!("pi_bash_{}", created);
+                let id = format!("pi_bash_{}", entry_idx);
 
                 let mut req = Message::assistant();
                 req.created = created;
@@ -419,5 +419,4 @@ mod tests {
         let msgs = v["conversation"].as_array().unwrap();
         assert_eq!(msgs.len(), 3);
     }
-
 }

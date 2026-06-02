@@ -118,5 +118,3 @@ pub(crate) fn summarize_first_line(s: &str) -> String {
         format!("{}...", truncated)
     }
 }
-
-

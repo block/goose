@@ -62,7 +62,7 @@ pub fn convert(content: &str) -> Result<String> {
     let mut total_input: i64 = 0;
     let mut total_output: i64 = 0;
 
-    for line in &lines {
+    for (line_idx, line) in lines.iter().enumerate() {
         let line_type = line.get("type").and_then(|v| v.as_str()).unwrap_or("");
         let timestamp = line
             .get("timestamp")
@@ -193,7 +193,7 @@ pub fn convert(content: &str) -> Result<String> {
                 if !url.is_empty() {
                     args.insert("url".into(), json!(url));
                 }
-                let id = format!("codex_websearch_{}", created);
+                let id = format!("codex_websearch_{}", line_idx);
                 let params =
                     CallToolRequestParams::new("web_search".to_string()).with_arguments(args);
                 let mut req = Message::assistant();
@@ -263,10 +263,7 @@ pub fn convert(content: &str) -> Result<String> {
 
 fn collect_user_text(content: Option<&Value>) -> String {
     let Some(Value::Array(blocks)) = content else {
-        return content
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        return content.and_then(|v| v.as_str()).unwrap_or("").to_string();
     };
     let mut parts = Vec::new();
     for block in blocks {
@@ -330,10 +327,7 @@ fn build_session_json(
         "conversation".into(),
         serde_json::to_value(&conversation).unwrap(),
     );
-    obj.insert(
-        "message_count".into(),
-        json!(conversation.messages().len()),
-    );
+    obj.insert("message_count".into(), json!(conversation.messages().len()));
     obj.insert("provider_name".into(), json!(null));
     obj.insert("model_config".into(), json!(null));
     obj.insert("goose_mode".into(), json!("auto"));
@@ -397,5 +391,4 @@ mod tests {
         assert_eq!(v["name"], "actual prompt");
         assert_eq!(v["message_count"], 2);
     }
-
 }

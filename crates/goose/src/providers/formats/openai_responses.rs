@@ -666,10 +666,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 arguments,
                 ..
             } => {
-                let request_id = call_id
-                    .clone()
-                    .or_else(|| id.clone())
-                    .unwrap_or_default();
+                let request_id = call_id.clone().or_else(|| id.clone()).unwrap_or_default();
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {

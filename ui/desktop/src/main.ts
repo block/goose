@@ -1899,11 +1899,7 @@ ipcMain.handle('select-import-session-file', async () => {
     const contents = await fs.readFile(filePath, 'utf8');
     return { filePath, contents };
   } catch (err) {
-    return {
-      filePath,
-      contents: '',
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return { filePath, contents: '', error: errorMessage(err) };
   }
 });
 
