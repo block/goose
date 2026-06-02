@@ -17,6 +17,8 @@ import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
+import { getSession } from './api';
+import { getSessionCwdHint, setSessionCwdHint } from './hooks/useChatStream';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -154,9 +156,30 @@ const PairRouteWrapper = ({
     extensionsList,
   ]);
 
-  // Add resumed session to active sessions if not already there
   useEffect(() => {
-    if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
+    if (!resumeSessionId) return;
+    if (activeSessions.some((s) => s.sessionId === resumeSessionId)) return;
+
+    let cancelled = false;
+    (async () => {
+      if (!getSessionCwdHint(resumeSessionId)) {
+        try {
+          const resp = await getSession({
+            path: { session_id: resumeSessionId },
+            throwOnError: true,
+          });
+          if (cancelled) return;
+          if (resp.data?.working_dir) {
+            setSessionCwdHint(resumeSessionId, resp.data.working_dir);
+          }
+        } catch (err) {
+          if (cancelled) return;
+          console.error('[PairRouteWrapper] Failed to prefetch session cwd:', err);
+          toast.error('Failed to load session. Please try again.');
+          return;
+        }
+      }
+      if (cancelled) return;
       window.dispatchEvent(
         new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
           detail: {
@@ -165,7 +188,11 @@ const PairRouteWrapper = ({
           },
         })
       );
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [resumeSessionId, activeSessions, initialMessage]);
 
   return null;

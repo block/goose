@@ -95,15 +95,6 @@
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "search extensions..."
   },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "auto"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Automatic mode selection"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Current mode: {label} - {description}"
-  },
   "cardButtons.configure": {
     "defaultMessage": "Configure"
   },
@@ -2183,27 +2174,6 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "Prompt processing batch"
   },
-  "modelSettingsPanel.builtinChatTemplate": {
-    "defaultMessage": "Built-in template"
-  },
-  "modelSettingsPanel.builtinChatTemplateDescription": {
-    "defaultMessage": "Select a llama.cpp built-in template name"
-  },
-  "modelSettingsPanel.chatTemplate": {
-    "defaultMessage": "Chat template"
-  },
-  "modelSettingsPanel.chatTemplateBuiltin": {
-    "defaultMessage": "Built-in"
-  },
-  "modelSettingsPanel.chatTemplateCustomInline": {
-    "defaultMessage": "Custom inline"
-  },
-  "modelSettingsPanel.chatTemplateDescription": {
-    "defaultMessage": "Use embedded GGUF metadata, a llama.cpp built-in template, or inline Jinja"
-  },
-  "modelSettingsPanel.chatTemplateEmbedded": {
-    "defaultMessage": "Embedded"
-  },
   "modelSettingsPanel.contextAndGeneration": {
     "defaultMessage": "Context & Generation"
   },
@@ -2212,12 +2182,6 @@
   },
   "modelSettingsPanel.contextSizeDescription": {
     "defaultMessage": "Max context window (0 = model default)"
-  },
-  "modelSettingsPanel.customChatTemplate": {
-    "defaultMessage": "Custom chat template"
-  },
-  "modelSettingsPanel.customChatTemplateDescription": {
-    "defaultMessage": "Paste the full Jinja chat template source"
   },
   "modelSettingsPanel.etaLearningRate": {
     "defaultMessage": "Eta (learning rate)"
@@ -2257,6 +2221,12 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
+  },
+  "modelSettingsPanel.nativeToolCalling": {
+    "defaultMessage": "Native tool calling"
+  },
+  "modelSettingsPanel.nativeToolCallingDescription": {
+    "defaultMessage": "Use the model's built-in tool-call format instead of the shell-command emulator. Enable for large models that reliably support tool calling."
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "Performance"
@@ -2310,19 +2280,7 @@
     "defaultMessage": "CPU threads for generation"
   },
   "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Tool calling"
-  },
-  "modelSettingsPanel.toolCallingAuto": {
-    "defaultMessage": "Auto"
-  },
-  "modelSettingsPanel.toolCallingDescription": {
-    "defaultMessage": "Choose how local models select native or emulated tool calling"
-  },
-  "modelSettingsPanel.toolCallingForceEmulated": {
-    "defaultMessage": "Force emulated"
-  },
-  "modelSettingsPanel.toolCallingForceNative": {
-    "defaultMessage": "Force native"
+    "defaultMessage": "Tool Calling"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
@@ -3728,9 +3686,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} messages"
-  },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Session sharing has already been configured"
   },
@@ -3853,9 +3808,6 @@
   },
   "sessions.error.tryAgain": {
     "defaultMessage": "Try Again"
-  },
-  "sessions.extensions": {
-    "defaultMessage": "Extensions:"
   },
   "sessions.import": {
     "defaultMessage": "Import Session"

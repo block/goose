@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
-import { updateSession } from '../../../api';
+import { acpSetSessionConfigOption } from '../../../acp/sessions';
 
 export const ModeSection = ({ sessionId }: { sessionId?: string }) => {
   const [currentMode, setCurrentMode] = useState('auto');
@@ -12,7 +12,7 @@ export const ModeSection = ({ sessionId }: { sessionId?: string }) => {
   const handleModeChange = async (newMode: string) => {
     try {
       if (sessionId) {
-        await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
+        await acpSetSessionConfigOption(sessionId, 'mode', newMode);
       }
       await upsert('GOOSE_MODE', newMode, false);
       setCurrentMode(newMode);

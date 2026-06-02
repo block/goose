@@ -1,8 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { readAllConfig, readConfig, removeConfig, upsertConfig, providers } from '../api';
 import {
-  getConfiguredExtensions,
+  readAllConfig,
+  readConfig,
+  removeConfig,
+  upsertConfig,
+  providers,
+} from '../api';
+import {
   addConfiguredExtension,
+  getConfiguredExtensions,
   removeConfiguredExtension,
 } from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';

@@ -97,6 +97,7 @@ export function getTextAndImageContent(message: Message): {
   // Strip assistant-only markup that shouldn't appear in rendered text
   if (message.role === 'assistant') {
     textContent = stripToolCallMarkers(textContent);
+    textContent = textContent.replace(/<think>[\s\S]*?<\/think>/gi, '');
   }
 
   return { textContent, imagePaths };
@@ -118,6 +119,20 @@ export function getThinkingContent(message: Message): string | null {
   for (const content of message.content) {
     if (content.type === 'thinking' && 'thinking' in content && content.thinking) {
       parts.push(content.thinking);
+    }
+  }
+
+  // Inline <think> tags in assistant text content
+  if (message.role === 'assistant') {
+    for (const content of message.content) {
+      if (content.type === 'text') {
+        const regex = /<think>([\s\S]*?)<\/think>/gi;
+        let match;
+        while ((match = regex.exec(content.text)) !== null) {
+          const text = match[1].trim();
+          if (text) parts.push(text);
+        }
+      }
     }
   }
 
@@ -222,6 +237,20 @@ export function getElicitationContent(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'elicitation'
   );
+}
+
+export function getElicitationResponseIds(messages: Message[]): Set<string> {
+  const responseIds = new Set<string>();
+
+  for (const message of messages) {
+    for (const content of message.content) {
+      if (content.type === 'actionRequired' && content.data.actionType === 'elicitationResponse') {
+        responseIds.add(content.data.id);
+      }
+    }
+  }
+
+  return responseIds;
 }
 
 export function hasCompletedToolCalls(message: Message): boolean {

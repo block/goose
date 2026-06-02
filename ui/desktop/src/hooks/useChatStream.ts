@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import type { SessionConfigOption } from '@agentclientprotocol/sdk';
+import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
 import { defineMessages, useIntl } from '../i18n';
 import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
@@ -7,7 +9,6 @@ import { ChatState } from '../types/chatState';
 import {
   getSession,
   Message,
-  resumeAgent,
   Session,
   sessionCancel,
   sessionReply,
@@ -15,11 +16,14 @@ import {
   updateFromSession,
   updateSessionUserRecipeValues,
   listApps,
+  ExtensionLoadResult,
+  Permission,
 } from '../api';
 
 import {
   createUserMessage,
   createElicitationResponseMessage,
+  generateMessageId,
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
@@ -29,8 +33,61 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
+import {
+  acpCancelPrompt,
+  acpLoadSession,
+  acpLoadSessionMeta,
+  acpPromptSession,
+} from '../acp/sessions';
+import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import {
+  createAcpSessionNotificationAdapter,
+  type AcpSessionUpdate,
+} from '../acp/sessionNotificationAdapter';
+import { type AcpCreditsExhaustedError, parseAcpCreditsExhaustedError } from '../acp/errors';
+import {
+  getAcpClient,
+  setAcpPermissionHandler,
+  subscribeToAcpGooseSession,
+  subscribeToAcpSession,
+} from '../acp/acpConnection';
 
-const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
+const resultsCache = new Map<
+  string,
+  { messages: Message[]; session: Session; acpConfigOptions?: SessionConfigOption[] | null }
+>();
+
+const sessionCwdHints = new Map<string, string>();
+
+export function setSessionCwdHint(sessionId: string, cwd: string): void {
+  sessionCwdHints.set(sessionId, cwd);
+}
+
+export function getSessionCwdHint(sessionId: string): string | undefined {
+  return sessionCwdHints.get(sessionId);
+}
+
+export function seedSessionCwdHints(items: Array<{ id: string; workingDir: string }>): void {
+  for (const s of items) {
+    sessionCwdHints.set(s.id, s.workingDir);
+  }
+}
+
+export function useSessionCwdChangeListener(
+  handler: (detail: { sessionId: string; newCwd: string }) => void
+): void {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+  useEffect(() => {
+    const wrap = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId: string; newCwd: string }>).detail;
+      if (detail) handlerRef.current(detail);
+    };
+    window.addEventListener(AppEvents.SESSION_CWD_CHANGED, wrap);
+    return () => window.removeEventListener(AppEvents.SESSION_CWD_CHANGED, wrap);
+  }, []);
+}
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -52,12 +109,20 @@ interface UseChatStreamReturn {
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
+  acpConfigOptions?: SessionConfigOption[] | null;
+  setAcpConfigOptions: (configOptions: SessionConfigOption[] | null | undefined) => void;
   notifications: Map<string, NotificationEvent[]>;
   onMessageUpdate: (
     messageId: string,
     newContent: string,
     editType?: 'fork' | 'edit'
   ) => Promise<void>;
+  onAcpPermissionDecision: (toolCallId: string, action: Permission) => Promise<boolean>;
+}
+
+interface PendingAcpPermissionRequest {
+  request: RequestPermissionRequest;
+  resolve: (response: RequestPermissionResponse) => void;
 }
 
 interface StreamState {
@@ -66,6 +131,7 @@ interface StreamState {
   chatState: ChatState;
   sessionLoadError: string | undefined;
   tokenState: TokenState;
+  acpConfigOptions?: SessionConfigOption[] | null;
   notifications: NotificationEvent[];
 }
 
@@ -75,6 +141,7 @@ type StreamAction =
   | { type: 'SET_CHAT_STATE'; payload: ChatState }
   | { type: 'SET_SESSION_LOAD_ERROR'; payload: string | undefined }
   | { type: 'SET_TOKEN_STATE'; payload: TokenState }
+  | { type: 'SET_ACP_CONFIG_OPTIONS'; payload: SessionConfigOption[] | null | undefined }
   | { type: 'ADD_NOTIFICATION'; payload: NotificationEvent }
   | { type: 'CLEAR_NOTIFICATIONS' }
   | {
@@ -83,12 +150,14 @@ type StreamAction =
         session: Session;
         messages: Message[];
         tokenState: TokenState;
+        acpConfigOptions?: SessionConfigOption[] | null;
       };
     }
   | { type: 'RESET_FOR_NEW_SESSION' }
   | { type: 'START_STREAMING' }
   | { type: 'STREAM_ERROR'; payload: string }
-  | { type: 'STREAM_FINISH'; payload?: string };
+  | { type: 'STREAM_FINISH'; payload?: string }
+  | { type: 'SET_SESSION_CWD'; payload: string };
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -105,8 +174,156 @@ const initialState: StreamState = {
   chatState: ChatState.Idle,
   sessionLoadError: undefined,
   tokenState: initialTokenState,
+  acpConfigOptions: undefined,
   notifications: [],
 };
+
+function tokenStateFromSession(session: Session | undefined): TokenState {
+  return {
+    inputTokens: session?.input_tokens ?? 0,
+    outputTokens: session?.output_tokens ?? 0,
+    totalTokens: session?.total_tokens ?? 0,
+    accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
+    accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
+    accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+    accumulatedCost: session?.accumulated_cost,
+  };
+}
+
+function mergeTokenState(tokenState: TokenState, update: Partial<TokenState>): TokenState {
+  return {
+    ...tokenState,
+    ...update,
+  };
+}
+
+function acpPermissionOptionId(
+  request: RequestPermissionRequest,
+  action: Permission
+): string | undefined {
+  const preferredKind = {
+    allow_once: 'allow_once',
+    always_allow: 'allow_always',
+    deny_once: 'reject_once',
+    always_deny: 'reject_always',
+    cancel: undefined,
+  } satisfies Record<Permission, string | undefined>;
+
+  const kind = preferredKind[action];
+  return kind ? request.options.find((option) => option.kind === kind)?.optionId : undefined;
+}
+
+function createAcpLoadSessionSnapshot(sessionId: string): Session {
+  const now = new Date().toISOString();
+  const workingDir =
+    sessionCwdHints.get(sessionId) ??
+    resultsCache.get(sessionId)?.session.working_dir ??
+    getInitialWorkingDir();
+  return {
+    id: sessionId,
+    name: DEFAULT_CHAT_TITLE,
+    working_dir: workingDir,
+    created_at: now,
+    updated_at: now,
+    message_count: 0,
+    extension_data: {},
+    conversation: [],
+  };
+}
+
+function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Message {
+  return {
+    id: generateMessageId(),
+    role: 'assistant',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'systemNotification',
+        notificationType: 'creditsExhausted',
+        msg: error.message,
+        ...(error.url ? { data: { top_up_url: error.url } } : {}),
+      },
+    ],
+    metadata: { userVisible: true, agentVisible: false },
+  };
+}
+
+interface AcpLoadController {
+  load(): Promise<{
+    session: Session;
+    tokenState: TokenState;
+    extensionResults: ExtensionLoadResult[] | null | undefined;
+    acpConfigOptions?: SessionConfigOption[] | null;
+  }>;
+  dispose(): void;
+}
+
+function createAcpLoadController(sessionId: string, sessionSnapshot: Session): AcpLoadController {
+  const adapter = createAcpSessionNotificationAdapter();
+  let tokenState = tokenStateFromSession(sessionSnapshot);
+  let sessionName = sessionSnapshot.name;
+  let disposed = false;
+
+  const applyUpdates = (updates: AcpSessionUpdate[]) => {
+    if (disposed) {
+      return;
+    }
+
+    for (const update of updates) {
+      switch (update.type) {
+        case 'sessionInfo':
+          sessionName = update.name ?? sessionName;
+          break;
+        case 'tokenState':
+          tokenState = mergeTokenState(tokenState, update.tokenState);
+          break;
+        case 'configOptions':
+          break;
+        case 'messages':
+          break;
+      }
+    }
+  };
+
+  const unsubscribeSession = subscribeToAcpSession(sessionId, (notification) => {
+    if (!disposed) {
+      applyUpdates(adapter.apply(notification));
+    }
+  });
+  const unsubscribeGooseSession = subscribeToAcpGooseSession(sessionId, (notification) => {
+    if (!disposed) {
+      applyUpdates(adapter.applyGoose(notification));
+    }
+  });
+
+  return {
+    async load() {
+      const response = await acpLoadSession(sessionId, sessionSnapshot.working_dir);
+      const meta = acpLoadSessionMeta(response);
+      return {
+        session: {
+          ...sessionSnapshot,
+          name: sessionName,
+          working_dir: meta.workingDir ?? sessionSnapshot.working_dir,
+          recipe: meta.recipe ?? sessionSnapshot.recipe,
+          user_recipe_values: meta.userRecipeValues ?? sessionSnapshot.user_recipe_values,
+          conversation: adapter.snapshot().messages,
+        },
+        tokenState,
+        extensionResults: meta.extensionResults,
+        acpConfigOptions: meta.configOptions,
+      };
+    },
+    dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      unsubscribeSession();
+      unsubscribeGooseSession();
+    },
+  };
+}
 
 function streamReducer(state: StreamState, action: StreamAction): StreamState {
   switch (action.type) {
@@ -125,6 +342,9 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
     case 'SET_TOKEN_STATE':
       return { ...state, tokenState: action.payload };
 
+    case 'SET_ACP_CONFIG_OPTIONS':
+      return { ...state, acpConfigOptions: action.payload };
+
     case 'ADD_NOTIFICATION':
       return { ...state, notifications: [...state.notifications, action.payload] };
 
@@ -137,6 +357,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         session: action.payload.session,
         messages: action.payload.messages,
         tokenState: action.payload.tokenState,
+        acpConfigOptions: action.payload.acpConfigOptions,
         chatState: ChatState.Idle,
         sessionLoadError: undefined,
       };
@@ -147,6 +368,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         messages: [],
         session: undefined,
         sessionLoadError: undefined,
+        acpConfigOptions: undefined,
         chatState: ChatState.LoadingConversation,
       };
 
@@ -169,6 +391,13 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         ...state,
         sessionLoadError: action.payload,
         chatState: ChatState.Idle,
+      };
+
+    case 'SET_SESSION_CWD':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: { ...state.session, working_dir: action.payload },
       };
 
     default:
@@ -423,9 +652,12 @@ export function useChatStream({
   // Track the active request for cancellation (includes the session that started it)
   const activeRequestIdRef = useRef<string | null>(null);
   const activeRequestSessionIdRef = useRef<string | null>(null);
-  const activeAbortRef = useRef<AbortController | null>(null);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
-  // When ActiveRequests fires before resumeAgent populates messages (cold mount),
+  const activeAcpPromptSessionRef = useRef<string | null>(null);
+  const pendingAcpPermissionRequestsRef = useRef<Map<string, PendingAcpPermissionRequest>>(
+    new Map()
+  );
+  // When ActiveRequests fires before session load populates messages (cold mount),
   // defer the reattach until the session is loaded so the event processor has
   // the full conversation history. Events are buffered in the meantime.
   const pendingReattachRequestIdRef = useRef<string | null>(null);
@@ -448,9 +680,19 @@ export function useChatStream({
 
   useEffect(() => {
     if (state.session) {
-      resultsCache.set(sessionId, { session: state.session, messages: state.messages });
+      resultsCache.set(sessionId, {
+        session: state.session,
+        messages: state.messages,
+        acpConfigOptions: state.acpConfigOptions,
+      });
+      sessionCwdHints.set(sessionId, state.session.working_dir);
     }
-  }, [sessionId, state.session, state.messages]);
+  }, [sessionId, state.session, state.messages, state.acpConfigOptions]);
+
+  useSessionCwdChangeListener((detail) => {
+    if (!sessionId || detail.sessionId !== sessionId) return;
+    dispatch({ type: 'SET_SESSION_CWD', payload: detail.newCwd });
+  });
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
@@ -620,7 +862,7 @@ export function useChatStream({
       const currentMessages = stateRef.current.messages;
 
       if (currentMessages.length === 0) {
-        // Cold mount: resumeAgent hasn't populated messages yet.
+        // Cold mount: session load hasn't populated messages yet.
         // Defer event processing until session load completes so the
         // processor starts with the full conversation history.
         // Register a buffering listener NOW so replayed events aren't
@@ -647,84 +889,141 @@ export function useChatStream({
     };
   }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
 
-  /**
-   * Submit a message via the new POST+SSE pattern.
-   * 1. Generate request_id
-   * 2. Register SSE listener BEFORE POST (no race condition)
-   * 3. POST to /sessions/{id}/reply
-   * 4. Events arrive on the long-lived SSE connection
-   */
-  const submitToSession = useCallback(
-    async (
-      targetSessionId: string,
-      userMessage: Message,
-      currentMessages: Message[],
-      overrideConversation?: Message[]
-    ) => {
-      const requestId = uuidv7();
-      const abortController = new AbortController();
-      activeRequestIdRef.current = requestId;
-      activeRequestSessionIdRef.current = targetSessionId;
-      activeAbortRef.current = abortController;
+  const onAcpPermissionDecision = useCallback(
+    async (toolCallId: string, action: Permission): Promise<boolean> => {
+      const pending = pendingAcpPermissionRequestsRef.current.get(toolCallId);
+      if (!pending) {
+        return false;
+      }
 
-      // Create event processor and register listener BEFORE the POST
-      const processEvent = createEventProcessor(
-        currentMessages,
-        dispatch,
-        onFinish,
-        targetSessionId,
-        reloadConversation
+      pendingAcpPermissionRequestsRef.current.delete(toolCallId);
+      const optionId = acpPermissionOptionId(pending.request, action);
+      pending.resolve(
+        optionId
+          ? { outcome: { outcome: 'selected', optionId } }
+          : { outcome: { outcome: 'cancelled' } }
       );
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+      return true;
+    },
+    []
+  );
 
-      const unsubscribe = addListener(requestId, (event) => {
-        const isTerminal = processEvent(event);
-        if (isTerminal) {
-          unsubscribe();
-          // Only clear global refs if this request is still the active one.
-          // A newer request may have already replaced them.
-          if (activeRequestIdRef.current === requestId) {
-            activeUnsubscribeRef.current = null;
-            activeRequestIdRef.current = null;
-            activeRequestSessionIdRef.current = null;
-            activeAbortRef.current = null;
+  const submitToSession = useCallback(
+    async (targetSessionId: string, userMessage: Message, currentMessages: Message[]) => {
+      const adapter = createAcpSessionNotificationAdapter(currentMessages);
+      activeRequestSessionIdRef.current = targetSessionId;
+      activeAcpPromptSessionRef.current = targetSessionId;
+      pendingAcpPermissionRequestsRef.current.clear();
+
+      const applyUpdates = (updates: AcpSessionUpdate[]) => {
+        for (const update of updates) {
+          switch (update.type) {
+            case 'messages':
+              dispatch({ type: 'SET_MESSAGES', payload: update.messages });
+              break;
+            case 'sessionInfo': {
+              const currentSession = stateRef.current.session;
+              if (currentSession && update.name) {
+                dispatch({
+                  type: 'SET_SESSION',
+                  payload: { ...currentSession, name: update.name },
+                });
+                window.dispatchEvent(
+                  new CustomEvent(AppEvents.SESSION_RENAMED, {
+                    detail: { sessionId: targetSessionId, newName: update.name },
+                  })
+                );
+              }
+              break;
+            }
+            case 'tokenState':
+              dispatch({
+                type: 'SET_TOKEN_STATE',
+                payload: mergeTokenState(stateRef.current.tokenState, update.tokenState),
+              });
+              break;
+            case 'configOptions':
+              dispatch({ type: 'SET_ACP_CONFIG_OPTIONS', payload: update.configOptions });
+              break;
           }
         }
+      };
+
+      const unsubscribeSession = subscribeToAcpSession(targetSessionId, (notification) => {
+        applyUpdates(adapter.apply(notification));
       });
+      const unsubscribeGooseSession = subscribeToAcpGooseSession(
+        targetSessionId,
+        (notification) => {
+          applyUpdates(adapter.applyGoose(notification));
+        }
+      );
+      const unsubscribe = () => {
+        unsubscribeSession();
+        unsubscribeGooseSession();
+      };
       activeUnsubscribeRef.current = unsubscribe;
 
-      try {
-        await sessionReply({
-          path: { id: targetSessionId },
-          body: {
-            request_id: requestId,
-            user_message: userMessage,
-            override_conversation: overrideConversation,
-          },
-          signal: abortController.signal,
-          throwOnError: true,
-        });
-      } catch (error) {
-        // Abort is expected when stopStreaming races with the POST
-        if (abortController.signal.aborted) return;
-        // POST failed — clean up listener and report error.
-        // Only clear global refs if this request is still the active one;
-        // a newer request may have already replaced them.
-        unsubscribe();
-        if (activeRequestIdRef.current === requestId) {
-          activeUnsubscribeRef.current = null;
-          activeRequestIdRef.current = null;
-          activeRequestSessionIdRef.current = null;
-          activeAbortRef.current = null;
+      setAcpPermissionHandler((request) => {
+        if (request.sessionId !== targetSessionId) {
+          return Promise.resolve({ outcome: { outcome: 'cancelled' } });
         }
-        const msg = errorMessage(error);
-        if (msg.includes('already has an active request')) {
+
+        applyUpdates(adapter.applyPermissionRequest(request));
+        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.WaitingForUserInput });
+
+        return new Promise<RequestPermissionResponse>((resolve) => {
+          pendingAcpPermissionRequestsRef.current.set(request.toolCall.toolCallId, {
+            request,
+            resolve,
+          });
+        });
+      });
+
+      try {
+        const response = await acpPromptSession(targetSessionId, userMessage);
+        if (response.stopReason === 'cancelled') {
           dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         } else {
-          onFinish('Submit error: ' + msg);
+          onFinish();
+        }
+      } catch (error) {
+        if (activeAcpPromptSessionRef.current === null) {
+          return;
+        }
+
+        const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
+        if (creditsExhaustedError) {
+          dispatch({
+            type: 'SET_MESSAGES',
+            payload: [
+              ...stateRef.current.messages,
+              createAcpCreditsExhaustedMessage(creditsExhaustedError),
+            ],
+          });
+          onFinish();
+          return;
+        }
+
+        onFinish('Submit error: ' + errorMessage(error));
+      } finally {
+        setAcpPermissionHandler(null);
+        for (const pending of pendingAcpPermissionRequestsRef.current.values()) {
+          pending.resolve({ outcome: { outcome: 'cancelled' } });
+        }
+        pendingAcpPermissionRequestsRef.current.clear();
+        unsubscribe();
+        if (activeAcpPromptSessionRef.current === targetSessionId) {
+          activeAcpPromptSessionRef.current = null;
+          activeRequestSessionIdRef.current = null;
+          activeUnsubscribeRef.current = null;
+        } else {
+          activeUnsubscribeRef.current = null;
         }
       }
     },
-    [addListener, onFinish, reloadConversation]
+    [onFinish]
   );
 
   // Load session on mount or sessionId change
@@ -738,6 +1037,7 @@ export function useChatStream({
         payload: {
           session: cached.session,
           messages: cached.messages,
+          acpConfigOptions: cached.acpConfigOptions,
           tokenState: {
             inputTokens: cached.session?.input_tokens ?? 0,
             outputTokens: cached.session?.output_tokens ?? 0,
@@ -756,24 +1056,32 @@ export function useChatStream({
     dispatch({ type: 'RESET_FOR_NEW_SESSION' });
 
     let cancelled = false;
+    let loadController: AcpLoadController | null = null;
 
     (async () => {
       try {
-        const response = await resumeAgent({
-          body: {
-            session_id: sessionId,
-            load_model_and_extensions: true,
-          },
-          throwOnError: true,
-        });
+        let loadedSession: Session | undefined;
+        let loadedTokenState: TokenState | undefined;
+        let extensionResults: ExtensionLoadResult[] | null | undefined;
+        let loadedAcpConfigOptions: SessionConfigOption[] | null | undefined;
+
+        const sessionSnapshot = createAcpLoadSessionSnapshot(sessionId);
 
         if (cancelled) {
           return;
         }
 
-        const resumeData = response.data;
-        const loadedSession = resumeData?.session;
-        const extensionResults = resumeData?.extension_results;
+        loadController = createAcpLoadController(sessionId, sessionSnapshot);
+        const response = await loadController.load();
+
+        if (cancelled) {
+          return;
+        }
+
+        loadedSession = response.session;
+        loadedTokenState = response.tokenState;
+        extensionResults = response.extensionResults;
+        loadedAcpConfigOptions = response.acpConfigOptions;
 
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
@@ -782,7 +1090,7 @@ export function useChatStream({
         const reattachedToActiveRequest = activeRequestIdRef.current !== null;
 
         if (pendingRequestId) {
-          // Cold-mount reattach: ActiveRequests arrived before resumeAgent
+          // Cold-mount reattach: ActiveRequests arrived before session load
           // returned. Load session state first, then complete the reattach
           // with the full conversation so the event processor has context.
           dispatch({
@@ -790,14 +1098,8 @@ export function useChatStream({
             payload: {
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
+              tokenState: loadedTokenState ?? tokenStateFromSession(loadedSession),
+              acpConfigOptions: loadedAcpConfigOptions,
             },
           });
           // Now complete the deferred reattach with the loaded messages
@@ -807,16 +1109,10 @@ export function useChatStream({
           // messages — only load session metadata, don't overwrite messages
           // with the stale DB snapshot.
           dispatch({ type: 'SET_SESSION', payload: loadedSession });
+          dispatch({ type: 'SET_ACP_CONFIG_OPTIONS', payload: loadedAcpConfigOptions });
           dispatch({
             type: 'SET_TOKEN_STATE',
-            payload: {
-              inputTokens: loadedSession?.input_tokens ?? 0,
-              outputTokens: loadedSession?.output_tokens ?? 0,
-              totalTokens: loadedSession?.total_tokens ?? 0,
-              accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-              accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-            },
+            payload: loadedTokenState ?? tokenStateFromSession(loadedSession),
           });
         } else {
           dispatch({
@@ -824,14 +1120,8 @@ export function useChatStream({
             payload: {
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
+              tokenState: loadedTokenState ?? tokenStateFromSession(loadedSession),
+              acpConfigOptions: loadedAcpConfigOptions,
             },
           });
         }
@@ -848,11 +1138,16 @@ export function useChatStream({
         if (cancelled) return;
 
         dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
+      } finally {
+        loadController?.dispose();
+        loadController = null;
       }
     })();
 
     return () => {
       cancelled = true;
+      loadController?.dispose();
+      loadController = null;
     };
   }, [sessionId, onSessionLoaded]);
 
@@ -958,14 +1253,27 @@ export function useChatStream({
       dispatch({ type: 'SET_MESSAGES', payload: nextMessages });
 
       try {
-        await sessionReply({
-          path: { id: sessionId },
-          body: {
-            request_id: uuidv7(),
-            user_message: responseMessage,
-          },
-          throwOnError: true,
-        });
+        const shouldUseAcp =
+          activeAcpPromptSessionRef.current === sessionId ||
+          currentState.acpConfigOptions !== undefined;
+
+        if (shouldUseAcp) {
+          const client = await getAcpClient();
+          await client.goose.elicitationRespond_unstable({
+            sessionId,
+            elicitationId,
+            userData,
+          });
+        } else {
+          await sessionReply({
+            path: { id: sessionId },
+            body: {
+              request_id: uuidv7(),
+              user_message: responseMessage,
+            },
+            throwOnError: true,
+          });
+        }
       } catch (error) {
         onFinish('Submit error: ' + errorMessage(error));
       }
@@ -1018,11 +1326,13 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     const requestId = activeRequestIdRef.current;
     const requestSessionId = activeRequestSessionIdRef.current;
+    const acpPromptSessionId = activeAcpPromptSessionRef.current;
 
-    // Abort the in-flight POST so the reply never starts if cancel wins the race
-    if (activeAbortRef.current) {
-      activeAbortRef.current.abort();
-      activeAbortRef.current = null;
+    if (acpPromptSessionId) {
+      activeAcpPromptSessionRef.current = null;
+      acpCancelPrompt(acpPromptSessionId).catch((e) => {
+        console.warn('Failed to cancel ACP prompt:', e);
+      });
     }
 
     if (requestId && requestSessionId) {
@@ -1043,6 +1353,7 @@ export function useChatStream({
     }
     activeRequestIdRef.current = null;
     activeRequestSessionIdRef.current = null;
+    activeAcpPromptSessionRef.current = null;
 
     dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
   }, []);
@@ -1133,9 +1444,19 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
+  const setAcpConfigOptions = useCallback(
+    (configOptions: SessionConfigOption[] | null | undefined) => {
+      dispatch({ type: 'SET_ACP_CONFIG_OPTIONS', payload: configOptions });
+    },
+    []
+  );
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
+  const maybe_cached_acp_config_options = state.session
+    ? state.acpConfigOptions
+    : cached?.acpConfigOptions;
 
   const notificationsMap = useMemo(() => {
     return state.notifications.reduce((map, notification) => {
@@ -1159,7 +1480,10 @@ export function useChatStream({
     stopStreaming,
     setRecipeUserParams,
     tokenState: state.tokenState,
+    acpConfigOptions: maybe_cached_acp_config_options,
+    setAcpConfigOptions,
     notifications: notificationsMap,
     onMessageUpdate,
+    onAcpPermissionDecision,
   };
 }

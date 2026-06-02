@@ -8,6 +8,8 @@ import {
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import { acpNewSession, acpNewSessionToSession } from './acp/sessions';
+import { setSessionCwdHint } from './hooks/useChatStream';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -17,6 +19,8 @@ export function shouldShowNewChatTitle(session: Session): boolean {
 }
 
 export function resumeSession(session: Session, setView: setViewType) {
+  setSessionCwdHint(session.id, session.working_dir);
+
   const eventDetail = {
     sessionId: session.id,
     initialMessage: undefined,
@@ -58,6 +62,17 @@ export async function createSession(
     body.recipe = await decodeRecipe(options.recipeDeeplink);
   }
 
+  const hasRecipe = Boolean(body.recipe_id || body.recipe);
+  const hasExplicitExtensionConfigs = Boolean(
+    options?.extensionConfigs && options.extensionConfigs.length > 0
+  );
+  const hasExtensionOverrideState = hasExtensionOverrides();
+
+  if (!hasRecipe && !hasExplicitExtensionConfigs && !hasExtensionOverrideState) {
+    const response = await acpNewSession(workingDir);
+    return acpNewSessionToSession(response, workingDir);
+  }
+
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
     body.extension_overrides = options.extensionConfigs;
   } else if (options?.allExtensions) {
@@ -88,6 +103,7 @@ export async function startNewSession(
   }
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
+  setSessionCwdHint(session.id, session.working_dir);
   window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
 
   const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;

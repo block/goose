@@ -8,7 +8,7 @@ import { FixedExtensionEntry, useConfig } from '../ConfigContext';
 import { toastService } from '../../toasts';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { nameToKey } from '../settings/extensions/utils';
-import { ExtensionConfig } from '../../api';
+import type { ExtensionConfig } from '../../api';
 import { getSessionExtensions } from '../../acp/extensions';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import {

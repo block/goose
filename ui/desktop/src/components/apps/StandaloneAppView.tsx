@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
-import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
+import { startAgent, listApps, stopAgent } from '../../api';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../i18n';
@@ -82,14 +82,6 @@ export default function StandaloneAppView() {
         });
 
         const sid = startResponse.data.id;
-
-        await resumeAgent({
-          body: {
-            session_id: sid,
-            load_model_and_extensions: true,
-          },
-          throwOnError: true,
-        });
 
         setSessionId(sid);
         setLoading(false);

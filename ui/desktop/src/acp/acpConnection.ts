@@ -1,26 +1,54 @@
 import {
   DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
   GooseClient,
-  type Client,
+  type GooseClientCallbacks,
+  type GooseSessionNotification_unstable as GooseSessionNotification,
   type GooseInitializeRequest,
 } from '@aaif/goose-sdk';
-import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
+import {
+  PROTOCOL_VERSION,
+  type RequestPermissionRequest,
+  type RequestPermissionResponse,
+  type SessionNotification,
+} from '@agentclientprotocol/sdk';
 import packageJson from '../../package.json';
 import { createWebSocketStream } from './createWebSocketStream';
+import { createSessionScopedNotificationRouter } from './sessionScopedNotificationRouter';
 
 let clientPromise: Promise<GooseClient> | null = null;
 let resolvedClient: GooseClient | null = null;
+let permissionHandler: AcpPermissionHandler | null = null;
 
-function createClientCallbacks(): () => Client {
+const sessionRouter = createSessionScopedNotificationRouter<SessionNotification>();
+const gooseSessionRouter = createSessionScopedNotificationRouter<GooseSessionNotification>();
+
+export const subscribeToAcpSession = sessionRouter.subscribe;
+export const subscribeToAcpGooseSession = gooseSessionRouter.subscribe;
+
+export type AcpPermissionHandler = (
+  request: RequestPermissionRequest
+) => Promise<RequestPermissionResponse>;
+
+export function setAcpPermissionHandler(handler: AcpPermissionHandler | null): void {
+  permissionHandler = handler;
+}
+
+function createClientCallbacks(): () => GooseClientCallbacks {
   return () => ({
-    requestPermission: async () => {
+    requestPermission: async (request) => {
+      if (permissionHandler) {
+        return permissionHandler(request);
+      }
+
+      console.warn('ACP permission request received before a permission handler was registered');
       return {
         outcome: {
           outcome: 'cancelled',
         },
       };
     },
-    sessionUpdate: async () => {},
+    sessionUpdate: sessionRouter.route,
+    unstable_sessionUpdate: gooseSessionRouter.route,
   });
 }
 

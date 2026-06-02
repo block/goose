@@ -402,6 +402,7 @@ export default function McpAppRenderer({
     return { status: 'idle' };
   });
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+  const [canSendHostContext, setCanSendHostContext] = useState(false);
 
   // Restore iframeHeight from the saved snapshot when returning to inline.
   // While in fullscreen/pip, handleSizeChanged ignores size notifications, so
@@ -676,6 +677,7 @@ export default function McpAppRenderer({
 
   const handleSizeChanged = useCallback(
     ({ height }: McpUiSizeChangedNotification['params']) => {
+      setCanSendHostContext(true);
       if (height !== undefined && height > 0 && isInline && !inlineTransitionRef.current) {
         setIframeHeight(height);
       }
@@ -849,7 +851,7 @@ export default function McpAppRenderer({
         toolInput={toolInput?.arguments}
         toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
         toolCancelled={isToolCancelled}
-        hostContext={hostContext}
+        hostContext={canSendHostContext ? hostContext : undefined}
         toolResult={toolResult}
         onOpenLink={handleOpenLink}
         onMessage={handleMessage}
