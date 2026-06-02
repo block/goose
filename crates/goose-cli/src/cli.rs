@@ -1058,8 +1058,9 @@ enum Command {
         #[arg(long = "override-model", value_name = "MODEL")]
         override_model: Option<String>,
 
-        /// Default `turn-limit` for the main pass and for checks that do not
-        /// declare their own.
+        /// Default `turn-limit` for orchestrated main-pass subprocesses and
+        /// for checks that do not declare their own. Does not cap the legacy
+        /// `--no-orchestrate` in-process main agent.
         #[arg(long = "turn-limit", value_name = "N")]
         turn_limit: Option<usize>,
 
