@@ -735,7 +735,7 @@ mod tests {
     }
 
     #[test]
-    fn undated_variant_wins() {
+    fn shortest_variant_wins() {
         let variants = vec![
             variant("gpt-4o-2024-08-06", Some("2024-08-06"), Some("2024-08-06")),
             variant("gpt-4o", Some("2024-05-13"), Some("2024-08-06")),

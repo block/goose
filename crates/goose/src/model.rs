@@ -878,7 +878,7 @@ mod tests {
             let config = ModelConfig::new_or_fail("gpt-4o").with_canonical_limits("openai");
 
             assert_eq!(config.context_limit, Some(128_000));
-            assert_eq!(config.max_tokens, Some(4_096));
+            assert_eq!(config.max_tokens, Some(16_384));
             assert_eq!(config.reasoning, Some(false));
         }
 
