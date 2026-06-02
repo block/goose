@@ -665,6 +665,7 @@ pub async fn delete_provider_secret(Path(id): Path<String>) -> Result<Json<Strin
     if let Some(provider) = parse_provider_cache_id(&id) {
         if provider == huggingface_auth::HUGGINGFACE_PROVIDER_NAME {
             huggingface_auth::clear_oauth_token()?;
+            unconfigure_provider(config, provider)?;
             return Ok(Json(format!("Deleted provider secret {}", id)));
         }
 
@@ -1392,8 +1393,23 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::config::ProviderEntry;
     use goose::providers::base::ConfigKey;
     use serde_json::json;
+
+    fn new_test_config() -> Config {
+        let unique = format!(
+            "goose-server-config-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let config_path = std::env::temp_dir().join(format!("{unique}-config.yaml"));
+        let secrets_path = std::env::temp_dir().join(format!("{unique}-secrets.yaml"));
+        Config::new_with_file_secrets(config_path, secrets_path).unwrap()
+    }
 
     #[test]
     fn secret_store_listing_only_includes_provider_secret_keys() {
@@ -1534,6 +1550,38 @@ mod tests {
         );
         assert_eq!(parse_secret_store_id("provider_cache:openai"), None);
         assert_eq!(parse_provider_cache_id("secret_store:openai:key"), None);
+    }
+
+    #[test]
+    fn unconfigure_provider_clears_structured_entry() {
+        let config = new_test_config();
+        goose::config::set_provider_entry(
+            &config,
+            "huggingface",
+            &ProviderEntry {
+                enabled: true,
+                model: "Qwen/Qwen3-Coder-480B-A35B-Instruct".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+
+        unconfigure_provider(&config, "huggingface").unwrap();
+
+        let entry = goose::config::get_provider_entry(&config, "huggingface").unwrap();
+        assert!(entry.enabled);
+        assert_eq!(entry.model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
+        assert!(!entry.configured);
+    }
+
+    #[test]
+    fn unconfigure_provider_deletes_legacy_configured_marker() {
+        let config = new_test_config();
+        config.set_param("huggingface_configured", true).unwrap();
+
+        unconfigure_provider(&config, "huggingface").unwrap();
+
+        assert!(config.get_param::<bool>("huggingface_configured").is_err());
     }
 
     #[test]
