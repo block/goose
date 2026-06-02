@@ -17,34 +17,68 @@ Use when given two harbor run names and a task name, and the goal is to understa
 
 ## Procedure
 
-### 1. Headline facts
+### 1. Find each run's trial directory for the task
 
-For each run, read `RUNS_DIR/<run>/<task>.1/result.json` directly — no Python
-import needed. The fields you want:
+Harbor 0.8 names trial dirs `<task>__<random-suffix>` (e.g.
+`extract-elf__bU3GHs4`), **not** `<task>.1`. The suffix is unique per trial,
+so don't guess it — discover it from disk:
+
+```bash
+TRIAL_A_DIR=$(ls -d "$RUNS_DIR/$RUN_A/${TASK}__"*/ 2>/dev/null | head -1)
+TRIAL_B_DIR=$(ls -d "$RUNS_DIR/$RUN_B/${TASK}__"*/ 2>/dev/null | head -1)
+```
+
+If either is empty, that run didn't include this task — stop and say so.
+(`ls "$RUNS_DIR/$RUN_A/"` shows what's there.)
+
+If you want to confirm the match, every `result.json` carries `task_name`
+and `trial_name`:
+
+```bash
+jq '{task_name, trial_name}' "$TRIAL_A_DIR/result.json"
+```
+
+### 2. Headline facts
+
+Pull these fields from each trial's `result.json`. The actual shape (harbor
+0.8 `TrialResult`):
 
 ```bash
 jq '{
-  reward: .result.score,
-  duration_seconds: .total_duration_seconds,
-  input_tokens: .agent_metrics.n_input_tokens,
-  output_tokens: .agent_metrics.n_output_tokens,
-  cost_usd: .agent_metrics.cost_usd,
-  error_type: .agent.error.error_type,
-  error_message: .agent.error.error_message
-}' RUNS_DIR/<run>/<task>.1/result.json
+  reward: (.verifier_result.rewards.reward // null),
+  rewards_all: .verifier_result.rewards,
+  duration_seconds: ((.finished_at | fromdateiso8601) - (.started_at | fromdateiso8601)),
+  input_tokens: .agent_result.n_input_tokens,
+  cache_tokens: .agent_result.n_cache_tokens,
+  output_tokens: .agent_result.n_output_tokens,
+  cost_usd: .agent_result.cost_usd,
+  error_type: .exception_info.exception_type,
+  error_message: (.exception_info.exception_message // "" | split("\n")[0])
+}' "$TRIAL_A_DIR/result.json"
 ```
 
 Derive status from those:
 
-- error if `error_type` is set and doesn't contain "timeout"
-- timeout if `error_type` contains "timeout"
-- pass / partial / fail by `reward` (>=1 / >0 / 0)
-- no-reward if `reward` is null
+- `pass` if `reward >= 1.0`
+- `partial` if `reward > 0` (and < 1)
+- `fail` if `reward == 0`
+- `timeout` if reward is 0/null **and** `error_type` contains "timeout"
+- `error` if reward is 0/null **and** `error_type` is set (non-timeout)
+- `no-reward` if neither `verifier_result.rewards` nor `exception_info` is set
 
-If either run doesn't have the task, stop and say so. (`ls RUNS_DIR/<run>/`
-will show what's there — task dirs are named `<task>.1`.)
+Reward wins over errors: harbor can record an `AgentTimeoutError` *after* the
+verifier already scored a pass (the agent finished the work then the harness
+timed out during teardown, or it timed out after writing the correct answer).
+If we got points, count them. See `reporter.trial_status` for the canonical
+rule.
 
-### 2. Read the task spec
+Several `agent_result` fields are commonly `null` for older `GooseBinaryAgent`
+runs (notably `n_cache_tokens`, `n_output_tokens`, `cost_usd`). Don't treat
+that as a failure — just omit those facts from the comparison if missing on
+either side. The reporter has fallbacks that read goose's `complete` event
+from `agent/goose.txt`; you don't normally need to replicate them here.
+
+### 3. Read the task spec
 
 The task definitions are NOT in the harbor Python package. They are plain
 text files on disk, in harbor's dataset cache. Do not run `find /` or
@@ -53,7 +87,6 @@ text files on disk, in harbor's dataset cache. Do not run `find /` or
 Find the task directory (works on Linux and macOS):
 
 ```bash
-TASK=<task-name>
 TASK_DIR=$(
   ls -d ~/.cache/harbor/datasets/terminal-bench__terminal-bench-2__*/tasks/"$TASK"/ 2>/dev/null \
   || ls -d ~/Library/Caches/harbor/datasets/terminal-bench__terminal-bench-2__*/tasks/"$TASK"/ 2>/dev/null
@@ -76,10 +109,17 @@ Without all three you can't tell whether a wrong answer was a misread, a
 shallow bug, or a verifier surprise. **Quote the assertion that failed**
 when you describe a failure — paraphrasing is how wrong conclusions sneak in.
 
-### 3. Read each agent's trajectory
+### 4. Read each agent's trajectory
 
-The agent log is at `RUNS_DIR/<run>/<task>.1/agent/<agent>.txt`
-(usually `goose.txt` or `pi.txt` — check the directory).
+Two sources, prefer the first when present:
+
+- `$TRIAL_DIR/agent/trajectory.json` — harbor's ATIF format, one entry per
+  agent step. `jq '.steps[] | {step_id, source, message, tool_calls: [.tool_calls[]?.function_name]}'`
+  gives a compact view. Recent goose runs (after the populate_context_post_run
+  fix) have this; older `GooseBinaryAgent` runs may not.
+- `$TRIAL_DIR/agent/<harness>.txt` — raw stream-json or log. The filename
+  matches the harness: `goose.txt`, `pi.txt`, `opencode.txt`,
+  `claude-code.txt`. `ls "$TRIAL_DIR/agent/"` to find it.
 
 Skim, don't quote in full. For each agent identify:
 
@@ -95,18 +135,29 @@ Skim, don't quote in full. For each agent identify:
   - diverged into an unproductive thread (e.g. debugging a non-issue)
   - the verifier expected something the spec didn't telegraph
 
-### 4. Read the verifier output
+### 5. Read the verifier output
 
-`RUNS_DIR/<run>/<task>.1/verifier/` contains the verifier's stdout/stderr.
+`$TRIAL_DIR/verifier/` typically contains:
+
+- `test-stdout.txt` — the verifier's full stdout (assertion failures, pytest
+  output, etc.). This is usually the most diagnostic file.
+- `reward.txt` — the scalar reward as a string.
+- `ctrf.json` — structured test results in CTRF format, useful if you want
+  per-assertion pass/fail without grepping stdout.
+
+```bash
+tail -50 "$TRIAL_DIR/verifier/test-stdout.txt"
+```
+
 This is often more diagnostic than the agent log — it tells you exactly which
 assertion failed and what the agent's output was at that point.
 
-### 5. Produce the comparison
+### 6. Produce the comparison
 
 Output markdown with these sections in order:
 
 - **Headline** (1 line): who won, by how much (reward + cost / duration if
-  meaningful).
+  meaningful, omitting fields that are null on either side).
 - **What A did** (2-4 sentences): plan, final artifact, verifier outcome.
 - **What B did** (2-4 sentences): same shape as A.
 - **Why outcomes differ** (2-4 sentences): the actual mechanism. Not "B was
@@ -119,9 +170,10 @@ Output markdown with these sections in order:
 
 ## Tools you'll need
 
-- file reads against `RUNS_DIR/<run>/<task>.1/`
-- file reads against the dataset cache (`~/.cache/harbor/datasets/...`)
+- `ls -d` to discover the `<task>__<suffix>` trial directories
 - `jq` for `result.json`
+- file reads against `$TRIAL_DIR/agent/` and `$TRIAL_DIR/verifier/`
+- file reads against the dataset cache (`~/.cache/harbor/datasets/...`)
 
 No Python imports, no `harbor` package required. Everything you need is on
 disk as JSON / text files.
