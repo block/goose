@@ -328,8 +328,10 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             doc.provider = opts.provider.clone();
             doc.model = opts.default_model.clone();
             doc.checks_discovered = discovered.checks.len();
-            doc.checks_run = run_stats.checks_succeeded;
-            doc.checks_failed = run_stats.checks_attempted.saturating_sub(run_stats.checks_succeeded);
+            doc.checks_run = run_stats.checks_attempted;
+            doc.checks_failed = run_stats
+                .checks_attempted
+                .saturating_sub(run_stats.checks_succeeded);
             doc.findings_seen = total_seen;
             doc.findings_emitted = total_emitted;
             doc.findings_suppressed = total_seen.saturating_sub(total_emitted);
@@ -337,6 +339,12 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             doc.usage = usage.clone();
             doc.sessions = sessions.clone();
             doc.subprocess_failures = run_stats.failures.clone();
+            if doc.model.as_ref().is_none_or(|m| m.is_empty()) {
+                doc.model = sessions.iter().find_map(|s| s.model.clone());
+            }
+            if doc.provider.as_ref().is_none_or(|p| p.is_empty()) {
+                doc.provider = sessions.iter().find_map(|s| s.provider.clone());
+            }
             doc.status = review_document_status(
                 &run_stats.failures,
                 &sessions,

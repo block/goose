@@ -58,24 +58,29 @@ impl OrchestratorStats {
         self.checks_attempted + self.main_attempted
     }
 
-    fn record_check_failure(&mut self, label: String, reason: String) {
-        self.checks_attempted += 1;
-        self.failures.push(SubprocessFailure { label, reason });
+    pub fn begin_subprocess(&mut self, kind: SubprocessKind) {
+        match kind {
+            SubprocessKind::Main => self.main_attempted += 1,
+            SubprocessKind::Check => self.checks_attempted += 1,
+        }
     }
 
-    fn record_check_success(&mut self) {
-        self.checks_attempted += 1;
-        self.checks_succeeded += 1;
+    pub fn mark_success(&mut self, kind: SubprocessKind) {
+        match kind {
+            SubprocessKind::Main => self.main_succeeded += 1,
+            SubprocessKind::Check => self.checks_succeeded += 1,
+        }
     }
 
-    fn record_main_failure(&mut self, label: String, reason: String) {
-        self.main_attempted += 1;
-        self.failures.push(SubprocessFailure { label, reason });
+    pub fn record_failure(&mut self, label: impl Into<String>, reason: impl Into<String>) {
+        self.failures.push(SubprocessFailure {
+            label: label.into(),
+            reason: reason.into(),
+        });
     }
 
-    fn record_main_success(&mut self) {
-        self.main_attempted += 1;
-        self.main_succeeded += 1;
+    pub fn has_failure(&self, label: &str) -> bool {
+        self.failures.iter().any(|f| f.label == label)
     }
 }
 
@@ -297,6 +302,46 @@ async fn run_subprocess_for_findings(
     session_ids: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Result<Vec<RawFinding>> {
+    if let Ok(mut run_stats) = stats.lock() {
+        run_stats.begin_subprocess(kind);
+    }
+
+    let result = run_subprocess_for_findings_inner(
+        prompt,
+        label,
+        session_name,
+        provider,
+        model,
+        max_turns,
+        kind,
+        session_ids,
+        stats.clone(),
+    )
+    .await;
+
+    if let Ok(mut run_stats) = stats.lock() {
+        match &result {
+            Ok(_) => run_stats.mark_success(kind),
+            Err(_) if !run_stats.has_failure(label) => {
+                run_stats.record_failure(label, "error");
+            }
+            Err(_) => {}
+        }
+    }
+    result
+}
+
+async fn run_subprocess_for_findings_inner(
+    prompt: &str,
+    label: &str,
+    session_name: Option<String>,
+    provider: Option<&str>,
+    model: Option<&str>,
+    max_turns: Option<usize>,
+    _kind: SubprocessKind,
+    session_ids: Arc<Mutex<Vec<String>>>,
+    stats: Arc<Mutex<OrchestratorStats>>,
+) -> Result<Vec<RawFinding>> {
     let goose_bin = std::env::current_exe().context("locate current goose binary")?;
 
     let mut cmd = Command::new(&goose_bin);
@@ -346,13 +391,13 @@ async fn run_subprocess_for_findings(
     let output = match timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), wait).await {
         Ok(o) => o.with_context(|| format!("wait on {label}"))?,
         Err(_) => {
+            record_subprocess_failure(&stats, label, "timeout");
             record_subprocess_session_id(
                 &session_ids,
                 session_name.as_deref(),
                 "",
             )
             .await;
-            record_subprocess_failure(&stats, kind, label, "timeout");
             anyhow::bail!("{label} timed out after {}s", CHECK_TIMEOUT_SECS);
         }
     };
@@ -366,7 +411,7 @@ async fn run_subprocess_for_findings(
     .await;
 
     if !output.status.success() {
-        record_subprocess_failure(&stats, kind, label, "exit");
+        record_subprocess_failure(&stats, label, "exit");
         anyhow::bail!(
             "{label} subprocess exited with status {}: {}",
             output.status,
@@ -375,42 +420,19 @@ async fn run_subprocess_for_findings(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    match parse_findings(&stdout) {
-        Ok(findings) => {
-            record_subprocess_success(&stats, kind);
-            Ok(findings)
-        }
-        Err(e) => {
-            record_subprocess_failure(&stats, kind, label, "parse");
-            Err(e)
-        }
-    }
-}
-
-fn record_subprocess_success(stats: &Arc<Mutex<OrchestratorStats>>, kind: SubprocessKind) {
-    if let Ok(mut stats) = stats.lock() {
-        match kind {
-            SubprocessKind::Main => stats.record_main_success(),
-            SubprocessKind::Check => stats.record_check_success(),
-        }
-    }
+    parse_findings(&stdout).map_err(|e| {
+        record_subprocess_failure(&stats, label, "parse");
+        e
+    })
 }
 
 fn record_subprocess_failure(
     stats: &Arc<Mutex<OrchestratorStats>>,
-    kind: SubprocessKind,
     label: &str,
     reason: &str,
 ) {
-    if let Ok(mut stats) = stats.lock() {
-        match kind {
-            SubprocessKind::Main => {
-                stats.record_main_failure(label.to_string(), reason.to_string());
-            }
-            SubprocessKind::Check => {
-                stats.record_check_failure(label.to_string(), reason.to_string());
-            }
-        }
+    if let Ok(mut run_stats) = stats.lock() {
+        run_stats.record_failure(label, reason);
     }
 }
 

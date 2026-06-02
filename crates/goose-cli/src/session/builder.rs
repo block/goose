@@ -304,11 +304,18 @@ async fn resolve_session_id(
             output::render_error(&format!("Could not get working directory: {}", e));
             process::exit(1);
         });
-        let session_name = session_config
-            .hidden_session_name
+        let user_name = session_config.hidden_session_name.as_ref().and_then(|n| {
+            let trimmed = n.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        });
+        let session_name = user_name
             .clone()
             .unwrap_or_else(|| "CLI Session".to_string());
-        let user_provided = session_config.hidden_session_name.is_some();
+        let user_provided = user_name.is_some();
         let session = session_manager
             .create_session(
                 working_dir,

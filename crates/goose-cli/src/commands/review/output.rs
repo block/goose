@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use goose::session::session_manager::{SessionManager, SessionType};
 use serde::Serialize;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use super::orchestrator::Finding;
 
@@ -51,6 +53,8 @@ pub struct ReviewSessionEntry {
     pub output_tokens: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -122,7 +126,7 @@ impl ReviewResultDocument {
 }
 
 pub fn sanitize_session_label(label: &str) -> String {
-    let mut out: String = label
+    let mut sanitized: String = label
         .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
@@ -132,17 +136,20 @@ pub fn sanitize_session_label(label: &str) -> String {
             }
         })
         .collect();
-    if out.len() > 120 {
-        out.truncate(120);
-        while !out.is_empty() && !out.is_char_boundary(out.len()) {
-            out.pop();
+    if sanitized.is_empty() {
+        sanitized = "session".to_string();
+    }
+    let mut hasher = DefaultHasher::new();
+    label.hash(&mut hasher);
+    let suffix = format!("_{:08x}", hasher.finish() as u32);
+    let max_base = 120usize.saturating_sub(suffix.len());
+    if sanitized.len() > max_base {
+        sanitized.truncate(max_base);
+        while !sanitized.is_empty() && !sanitized.is_char_boundary(sanitized.len()) {
+            sanitized.pop();
         }
     }
-    if out.is_empty() {
-        "session".to_string()
-    } else {
-        out
-    }
+    format!("{sanitized}{suffix}")
 }
 
 pub fn review_session_name(review_id: &str, label: &str) -> Option<String> {
@@ -185,6 +192,7 @@ pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEnt
                     input_tokens: None,
                     output_tokens: None,
                     model: None,
+                    provider: None,
                 });
                 continue;
             }
@@ -201,6 +209,7 @@ pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEnt
             .model_config
             .as_ref()
             .map(|m| m.model_name.clone());
+        let provider = session.provider_name.clone();
         let status = if input.is_some() && output.is_some() {
             "ok".to_string()
         } else {
@@ -213,6 +222,7 @@ pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEnt
             input_tokens: input,
             output_tokens: output,
             model,
+            provider,
         });
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -265,12 +275,13 @@ pub fn aggregate_usage(sessions: &[ReviewSessionEntry]) -> ReviewUsage {
         if s.status != "ok" {
             complete = false;
         }
-        match (s.input_tokens, s.output_tokens) {
-            (Some(i), Some(o)) => {
-                input_tokens += i;
-                output_tokens += o;
-            }
-            _ => complete = false,
+        match s.input_tokens {
+            Some(i) => input_tokens += i,
+            None => complete = false,
+        }
+        match s.output_tokens {
+            Some(o) => output_tokens += o,
+            None => complete = false,
         }
     }
     ReviewUsage {
@@ -310,18 +321,22 @@ mod tests {
 
     #[test]
     fn sanitize_session_label_replaces_spaces() {
-        assert_eq!(
-            sanitize_session_label("check 'security'"),
-            "check__security_"
-        );
+        let sanitized = sanitize_session_label("check 'security'");
+        assert!(sanitized.starts_with("check__security_"));
+        assert!(sanitized.len() <= 120);
+    }
+
+    #[test]
+    fn sanitize_session_label_distinct_after_truncation() {
+        let long_a = format!("main:{}", "a".repeat(200));
+        let long_b = format!("main:{}", "b".repeat(200));
+        assert_ne!(sanitize_session_label(&long_a), sanitize_session_label(&long_b));
     }
 
     #[test]
     fn review_session_name_includes_review_id_and_label() {
-        assert_eq!(
-            review_session_name("20260528_120000_000001", "main:foo.rs").as_deref(),
-            Some("goose-review:20260528_120000_000001:main_foo.rs")
-        );
+        let name = review_session_name("20260528_120000_000001", "main:foo.rs").unwrap();
+        assert!(name.starts_with("goose-review:20260528_120000_000001:main_foo.rs_"));
         assert!(review_session_name("", "main:foo.rs").is_none());
     }
 
