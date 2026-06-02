@@ -21,8 +21,9 @@ pub const HUGGINGFACE_OAUTH_CACHE_PATH: &str = "huggingface/oauth/tokens.json";
 const AUTHORIZE_URL: &str = "https://huggingface.co/oauth/authorize";
 const TOKEN_URL: &str = "https://huggingface.co/oauth/token";
 const OAUTH_SCOPES: &str = "read-repos gated-repos inference-api";
-const BUNDLED_OAUTH_CLIENT_ID: &str = "1d30af6e-2b6c-4b7c-a97e-45fdc1af476b";
-// This URI must match the redirect URI registered on the public goose OAuth app.
+const HUGGINGFACE_OAUTH_CLIENT_METADATA_URL: &str =
+    "https://goose-docs.ai/oauth/huggingface-client-metadata.json";
+// This URI must match the redirect URI in the Hugging Face CIMD metadata.
 const OAUTH_HOST: [u8; 4] = [127, 0, 0, 1];
 const OAUTH_PORT: u16 = 17863;
 const OAUTH_REDIRECT_PATH: &str = "/oauth/huggingface/callback";
@@ -47,10 +48,10 @@ impl HuggingFaceTokenData {
     }
 }
 
-pub fn oauth_client_id() -> Option<&'static str> {
+pub fn oauth_client_id() -> &'static str {
     option_env!("GOOSE_HUGGINGFACE_OAUTH_CLIENT_ID")
         .filter(|client_id| !client_id.trim().is_empty())
-        .or_else(|| (!BUNDLED_OAUTH_CLIENT_ID.is_empty()).then_some(BUNDLED_OAUTH_CLIENT_ID))
+        .unwrap_or(HUGGINGFACE_OAUTH_CLIENT_METADATA_URL)
 }
 
 pub fn oauth_cache_path() -> PathBuf {
@@ -120,11 +121,7 @@ pub fn clear_oauth_token() -> Result<()> {
 }
 
 pub async fn configure_oauth() -> Result<()> {
-    let client_id = oauth_client_id().ok_or_else(|| {
-        anyhow!("Hugging Face OAuth client ID is not configured in this goose build")
-    })?;
-
-    let token_data = perform_loopback_oauth_flow(client_id).await?;
+    let token_data = perform_loopback_oauth_flow(oauth_client_id()).await?;
     save_oauth_token(token_data)
 }
 
@@ -491,7 +488,14 @@ mod tests {
     }
 
     #[test]
-    fn redirect_uri_matches_huggingface_oauth_app_value() {
+    fn oauth_client_id_defaults_to_cimd_metadata_url() {
+        if option_env!("GOOSE_HUGGINGFACE_OAUTH_CLIENT_ID").is_none() {
+            assert_eq!(oauth_client_id(), HUGGINGFACE_OAUTH_CLIENT_METADATA_URL);
+        }
+    }
+
+    #[test]
+    fn redirect_uri_matches_huggingface_cimd_metadata() {
         assert_eq!(
             redirect_uri(),
             "http://127.0.0.1:17863/oauth/huggingface/callback"
