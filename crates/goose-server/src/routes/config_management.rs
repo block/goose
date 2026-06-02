@@ -588,6 +588,16 @@ fn is_valid_provider_name(provider_name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+fn should_unconfigure_after_secret_delete(
+    provider: &str,
+    key: &str,
+    has_usable_huggingface_oauth_token: impl FnOnce() -> bool,
+) -> bool {
+    provider == huggingface_auth::HUGGINGFACE_PROVIDER_NAME
+        && key == huggingface_auth::HUGGINGFACE_TOKEN_SECRET_KEY
+        && !has_usable_huggingface_oauth_token()
+}
+
 #[utoipa::path(
     get,
     path = "/config/provider-secrets",
@@ -659,6 +669,11 @@ pub async fn delete_provider_secret(Path(id): Path<String>) -> Result<Json<Strin
         }
 
         config.delete_secret(key)?;
+        if should_unconfigure_after_secret_delete(provider, key, || {
+            huggingface_auth::usable_oauth_token().is_some()
+        }) {
+            unconfigure_provider(config, provider)?;
+        }
         return Ok(Json(format!("Deleted provider secret {}", id)));
     }
 
@@ -1582,6 +1597,33 @@ mod tests {
         unconfigure_provider(&config, "huggingface").unwrap();
 
         assert!(config.get_param::<bool>("huggingface_configured").is_err());
+    }
+
+    #[test]
+    fn deleting_huggingface_token_unconfigures_without_oauth() {
+        assert!(should_unconfigure_after_secret_delete(
+            "huggingface",
+            "HF_TOKEN",
+            || false
+        ));
+    }
+
+    #[test]
+    fn deleting_huggingface_token_keeps_configured_with_oauth() {
+        assert!(!should_unconfigure_after_secret_delete(
+            "huggingface",
+            "HF_TOKEN",
+            || true
+        ));
+    }
+
+    #[test]
+    fn deleting_other_provider_secret_does_not_unconfigure_huggingface() {
+        assert!(!should_unconfigure_after_secret_delete(
+            "openai",
+            "OPENAI_API_KEY",
+            || false
+        ));
     }
 
     #[test]
