@@ -1,4 +1,4 @@
-use goose::config::declarative_providers::load_provider;
+use goose::config::declarative_providers::{load_provider, LoadedProvider};
 use goose::config::Config;
 use goose::providers::base::{ConfigKey, ProviderMetadata, ProviderType};
 use goose::providers::huggingface_auth;
@@ -101,16 +101,14 @@ pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: Pro
 fn check_provider_configured_with_huggingface_oauth(
     metadata: &ProviderMetadata,
     provider_type: ProviderType,
-    has_usable_huggingface_oauth_token: impl FnOnce() -> bool,
+    has_usable_huggingface_oauth_token: impl Fn() -> bool,
 ) -> bool {
     // Special override
     if metadata.name == "local" {
         return true;
     }
 
-    if metadata.name == huggingface_auth::HUGGINGFACE_PROVIDER_NAME
-        && has_usable_huggingface_oauth_token()
-    {
+    if accepts_huggingface_oauth(metadata, None, &has_usable_huggingface_oauth_token) {
         return true;
     }
 
@@ -118,6 +116,14 @@ fn check_provider_configured_with_huggingface_oauth(
 
     if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
         if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
+            if accepts_huggingface_oauth(
+                metadata,
+                Some(&loaded_provider),
+                &has_usable_huggingface_oauth_token,
+            ) {
+                return true;
+            }
+
             if !loaded_provider.config.requires_auth {
                 return true;
             }
@@ -229,9 +235,25 @@ fn check_provider_configured_with_huggingface_oauth(
     })
 }
 
+fn accepts_huggingface_oauth(
+    metadata: &ProviderMetadata,
+    loaded_provider: Option<&LoadedProvider>,
+    has_usable_huggingface_oauth_token: &impl Fn() -> bool,
+) -> bool {
+    let is_huggingface_provider = metadata.name == huggingface_auth::HUGGINGFACE_PROVIDER_NAME
+        || loaded_provider.is_some_and(|provider| {
+            provider.config.catalog_provider_id.as_deref()
+                == Some(huggingface_auth::HUGGINGFACE_PROVIDER_NAME)
+        });
+
+    is_huggingface_provider && has_usable_huggingface_oauth_token()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
+    use goose::providers::base::ModelInfo;
 
     fn huggingface_metadata() -> ProviderMetadata {
         ProviderMetadata::new(
@@ -257,6 +279,44 @@ mod tests {
             &huggingface_metadata(),
             ProviderType::Builtin,
             || true,
+        ));
+    }
+
+    #[test]
+    fn huggingface_catalog_provider_oauth_counts_as_configured() {
+        let mut metadata = huggingface_metadata();
+        metadata.name = "custom-huggingface".to_string();
+
+        let loaded_provider = LoadedProvider {
+            config: DeclarativeProviderConfig {
+                name: metadata.name.clone(),
+                engine: ProviderEngine::OpenAI,
+                display_name: "Custom Hugging Face".to_string(),
+                description: None,
+                api_key_env: String::new(),
+                base_url: "https://router.huggingface.co/v1".to_string(),
+                models: vec![ModelInfo::new("test-model", 128_000)],
+                headers: None,
+                timeout_seconds: None,
+                supports_streaming: None,
+                requires_auth: true,
+                catalog_provider_id: Some(huggingface_auth::HUGGINGFACE_PROVIDER_NAME.to_string()),
+                base_path: None,
+                env_vars: None,
+                dynamic_models: None,
+                skip_canonical_filtering: false,
+                model_doc_link: None,
+                setup_steps: vec![],
+                fast_model: None,
+                preserves_thinking: false,
+            },
+            is_editable: false,
+        };
+
+        assert!(accepts_huggingface_oauth(
+            &metadata,
+            Some(&loaded_provider),
+            &|| true,
         ));
     }
 }
