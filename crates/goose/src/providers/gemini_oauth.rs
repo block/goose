@@ -851,6 +851,11 @@ impl GeminiOAuthProvider {
         })
     }
 
+    pub async fn cleanup() -> Result<()> {
+        TokenCache::new().clear();
+        Ok(())
+    }
+
     async fn post_stream(
         &self,
         session_id: Option<&str>,

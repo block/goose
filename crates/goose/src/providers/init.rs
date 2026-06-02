@@ -114,6 +114,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         Arc::new(|| Box::pin(ChatGptCodexProvider::cleanup())),
     );
     registry.set_cleanup(
+        "gemini_oauth",
+        Arc::new(|| Box::pin(GeminiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
         "xai_oauth",
         Arc::new(|| Box::pin(XaiOAuthProvider::cleanup())),
     );
