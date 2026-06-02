@@ -261,6 +261,12 @@ fn apply_hf_auth(request: reqwest::RequestBuilder, token: Option<&str>) -> reqwe
     }
 }
 
+async fn optional_hf_token(
+    token: impl std::future::Future<Output = Result<Option<String>>>,
+) -> Option<String> {
+    token.await.ok().flatten()
+}
+
 fn parent_components(filename: &str) -> Vec<&str> {
     filename.rsplit_once('/').map_or(Vec::new(), |(parent, _)| {
         parent.split('/').filter(|part| !part.is_empty()).collect()
@@ -420,7 +426,7 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
 
 pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token_async().await?;
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!(
         "{}?search={}&filter=gguf&sort=downloads&direction=-1&limit={}",
         HF_API_BASE, query, limit
@@ -485,7 +491,7 @@ pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModel
 /// Fetch GGUF files for a repo and return them grouped by quantization.
 pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>> {
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token_async().await?;
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
     let response = apply_hf_auth(client.get(&url), token.as_deref())
@@ -510,7 +516,7 @@ pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>
 /// Fetch raw GGUF files (kept for resolve_model_spec).
 pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token_async().await?;
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
     let response = apply_hf_auth(client.get(&url), token.as_deref())
@@ -572,7 +578,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
     let (repo_id, quant) = parse_model_spec(spec)?;
 
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token_async().await?;
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
     let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
@@ -950,6 +956,21 @@ mod tests {
 
         assert_eq!(mmproj.filename, "mmproj-BF16.gguf");
         assert_eq!(mmproj.quantization, "BF16");
+    }
+
+    #[tokio::test]
+    async fn optional_hf_token_returns_resolved_token() {
+        let token = optional_hf_token(async { Ok(Some("token".to_string())) }).await;
+
+        assert_eq!(token.as_deref(), Some("token"));
+    }
+
+    #[tokio::test]
+    async fn optional_hf_token_ignores_resolution_errors() {
+        let token =
+            optional_hf_token(async { Err(anyhow::anyhow!("refresh token revoked")) }).await;
+
+        assert_eq!(token, None);
     }
 
     #[test]
