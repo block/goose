@@ -308,10 +308,11 @@ async fn resolve_session_id(
             .hidden_session_name
             .clone()
             .unwrap_or_else(|| "CLI Session".to_string());
+        let user_provided = session_config.hidden_session_name.is_some();
         let session = session_manager
             .create_session(
                 working_dir,
-                session_name,
+                session_name.clone(),
                 SessionType::Hidden,
                 goose_mode,
             )
@@ -320,6 +321,17 @@ async fn resolve_session_id(
                 output::render_error(&format!("Could not create session: {}", e));
                 process::exit(1);
             });
+        if user_provided {
+            session_manager
+                .update(&session.id)
+                .user_provided_name(session_name)
+                .apply()
+                .await
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Could not lock session name: {}", e));
+                    process::exit(1);
+                });
+        }
         session.id
     } else if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
@@ -639,6 +651,7 @@ mod tests {
             resume: false,
             fork: false,
             no_session: false,
+            hidden_session_name: None,
             extensions: vec!["echo test".to_string()],
             streamable_http_extensions: vec![StreamableHttpOptions {
                 url: "http://localhost:8080/mcp".to_string(),

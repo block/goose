@@ -3,6 +3,7 @@ use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use crate::session::{build_session, SessionBuilderConfig};
@@ -13,7 +14,7 @@ use super::orchestrator::{
     emit_findings, filter_findings, run_checks_in_parallel, run_main_pass_in_parallel, Severity,
 };
 use super::output::{
-    aggregate_usage, emit_review_json, load_review_sessions, ReviewOutputFormat,
+    aggregate_usage, emit_review_json, load_review_sessions_by_ids, ReviewOutputFormat,
     ReviewResultDocument, GOOSE_REVIEW_SESSION_PREFIX_ENV,
 };
 use super::prompt::{build_review_prompt, DEFAULT_REVIEW_PROMPT};
@@ -197,7 +198,13 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             // so it has no way to "skip the main pass". Fall back to the
             // orchestrator's check-runner (which IS able to run checks
             // in isolation) instead of silently no-op'ing.
-            let check_results = run_checks_in_parallel(&discovered.checks, &diff, &opts).await;
+            let check_results = run_checks_in_parallel(
+                &discovered.checks,
+                &diff,
+                &opts,
+                Arc::new(Mutex::new(Vec::new())),
+            )
+            .await;
             let mut total_emitted = 0usize;
             let mut total_seen = 0usize;
             for findings in &check_results {
@@ -239,15 +246,16 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     let review_id = new_review_id();
     let session_prefix = format!("goose-review:{review_id}");
     std::env::set_var(GOOSE_REVIEW_SESSION_PREFIX_ENV, &session_prefix);
+    let session_ids = Arc::new(Mutex::new(Vec::new()));
 
     let main_findings_fut = async {
         if opts.checks_only {
             Vec::new()
         } else {
-            run_main_pass_in_parallel(&diff, &base_prompt, &opts).await
+            run_main_pass_in_parallel(&diff, &base_prompt, &opts, session_ids.clone()).await
         }
     };
-    let checks_fut = run_checks_in_parallel(&discovered.checks, &diff, &opts);
+    let checks_fut = run_checks_in_parallel(&discovered.checks, &diff, &opts, session_ids.clone());
     let (main_findings, check_results) = tokio::join!(main_findings_fut, checks_fut);
 
     match opts.output_format {
@@ -286,15 +294,15 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             let total_seen = all_findings.len();
             let filtered = filter_findings(&all_findings, min_sev);
             let total_emitted = filtered.len();
-            let working_dir_path = std::env::current_dir().unwrap_or_else(|_| repo_root.clone());
-            let sessions = load_review_sessions(
-                &session_prefix,
-                review_started_at,
-                &working_dir_path,
-            )
-            .await;
+            let collected_ids = session_ids
+                .lock()
+                .map(|ids| ids.clone())
+                .unwrap_or_default();
+            let sessions = load_review_sessions_by_ids(&collected_ids).await;
             let usage = aggregate_usage(&sessions);
-            let working_dir = working_dir_path.display().to_string();
+            let working_dir = std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| repo_root.display().to_string());
 
             let mut doc = ReviewResultDocument::new(review_id, review_started_at);
             doc.range = opts.range.clone();

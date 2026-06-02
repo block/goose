@@ -30,7 +30,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
@@ -39,7 +39,7 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use super::handler::ReviewOptions;
-use super::output::{sanitize_session_label, GOOSE_REVIEW_SESSION_PREFIX_ENV};
+use super::output::{parse_session_id_from_stderr, record_review_session_id, sanitize_session_label, GOOSE_REVIEW_SESSION_PREFIX_ENV};
 use goose::checks::Check;
 
 /// Maximum number of check subprocesses we run concurrently. 4 is
@@ -95,6 +95,7 @@ pub async fn run_checks_in_parallel(
     checks: &[Check],
     diff: &str,
     opts: &ReviewOptions,
+    session_ids: Arc<Mutex<Vec<String>>>,
 ) -> Vec<Vec<Finding>> {
     let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
     let mut set = JoinSet::new();
@@ -108,6 +109,7 @@ pub async fn run_checks_in_parallel(
         let max_turns = check.resolved_turn_limit(opts.default_turn_limit);
         let quiet = opts.quiet;
         let instructions = opts.instructions.clone();
+        let session_ids = session_ids.clone();
 
         set.spawn(async move {
             // Bounded concurrency: drop the permit only after the
@@ -120,6 +122,7 @@ pub async fn run_checks_in_parallel(
                 model.as_deref(),
                 instructions.as_deref(),
                 Some(max_turns),
+                session_ids,
             )
             .await;
             (idx, check, result, quiet)
@@ -196,6 +199,7 @@ async fn run_single_check_subprocess(
     model: Option<&str>,
     instructions: Option<&str>,
     max_turns: Option<usize>,
+    session_ids: Arc<Mutex<Vec<String>>>,
 ) -> Result<Vec<Finding>> {
     let prompt = build_check_prompt(check, diff, instructions);
     let raw = run_subprocess_for_findings(
@@ -204,6 +208,7 @@ async fn run_single_check_subprocess(
         provider,
         model,
         max_turns,
+        session_ids,
     )
     .await?;
     let default_sev = check.severity_default.as_deref().unwrap_or("medium");
@@ -231,6 +236,7 @@ async fn run_subprocess_for_findings(
     provider: Option<&str>,
     model: Option<&str>,
     max_turns: Option<usize>,
+    session_ids: Arc<Mutex<Vec<String>>>,
 ) -> Result<Vec<RawFinding>> {
     let goose_bin = std::env::current_exe().context("locate current goose binary")?;
 
@@ -286,8 +292,13 @@ async fn run_subprocess_for_findings(
         }
     };
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    record_review_session_id(
+        &session_ids,
+        parse_session_id_from_stderr(&stderr),
+    );
+
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!(
             "{label} subprocess exited with status {}: {}",
             output.status,
@@ -318,6 +329,7 @@ pub async fn run_main_pass_in_parallel(
     diff: &str,
     base_prompt: &str,
     opts: &ReviewOptions,
+    session_ids: Arc<Mutex<Vec<String>>>,
 ) -> Vec<Finding> {
     let per_file = split_diff_by_file(diff);
     if per_file.is_empty() {
@@ -336,6 +348,7 @@ pub async fn run_main_pass_in_parallel(
         let quiet = opts.quiet;
         let instructions = opts.instructions.clone();
         let base_prompt = base_prompt.to_string();
+        let session_ids = session_ids.clone();
 
         set.spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore is never closed");
@@ -348,6 +361,7 @@ pub async fn run_main_pass_in_parallel(
                 provider.as_deref(),
                 model.as_deref(),
                 None,
+                session_ids,
             )
             .await;
             (idx, path, result, quiet)

@@ -1742,6 +1742,15 @@ async fn handle_run_command(
 
         let result = session.headless(contents).await;
         log_session_completion(&session, session_start, session_type, result.is_ok()).await;
+        if run_behavior.no_session
+            && std::env::var(crate::commands::review::output::GOOSE_REVIEW_SESSION_PREFIX_ENV).is_ok()
+        {
+            eprintln!(
+                "{} {}",
+                crate::commands::review::output::GOOSE_SESSION_ID_MARKER,
+                session.session_id()
+            );
+        }
         result
     } else {
         Err(anyhow::anyhow!(

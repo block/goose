@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use goose::session::session_manager::{SessionManager, SessionType};
+use goose::session::session_manager::SessionManager;
 use serde::Serialize;
-use std::path::Path;
 
 use super::orchestrator::Finding;
 
@@ -28,6 +27,10 @@ impl ReviewOutputFormat {
 /// Env var set for the duration of a review run. Subprocesses inherit it
 /// and tag hidden sessions as `{prefix}:{label}` via `--name`.
 pub const GOOSE_REVIEW_SESSION_PREFIX_ENV: &str = "GOOSE_REVIEW_SESSION_PREFIX";
+
+/// Machine-readable session id line written to stderr by `goose run
+/// --no-session` subprocesses during a review orchestration run.
+pub const GOOSE_SESSION_ID_MARKER: &str = "goose-session-id:";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReviewUsage {
@@ -126,40 +129,18 @@ pub fn sanitize_session_label(label: &str) -> String {
     }
 }
 
-pub async fn load_review_sessions(
-    prefix: &str,
-    since: DateTime<Utc>,
-    working_dir: &Path,
-) -> Vec<ReviewSessionEntry> {
+pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEntry> {
+    if ids.is_empty() {
+        return Vec::new();
+    }
+
     let session_manager = SessionManager::instance();
-    let sessions = match session_manager
-        .list_sessions_by_types(&[SessionType::Hidden])
-        .await
-    {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-
-    // Subprocess sessions are stamped to second precision in SQLite while
-    // `since` carries sub-second nanos from Utc::now(); subtract a small
-    // buffer so sessions created in the same second as review start match.
-    let since_cutoff = since - chrono::Duration::seconds(2);
-
-    let mut out = Vec::new();
-    for session in sessions {
-        if session.working_dir != working_dir {
-            continue;
-        }
-        if session.created_at < since_cutoff {
-            continue;
-        }
-        let name_matches = session.name.starts_with(prefix);
-        let review_scoped = session.name.starts_with("goose-review:");
-        let tokens = i64::from(session.accumulated_input_tokens.unwrap_or(0))
-            + i64::from(session.accumulated_output_tokens.unwrap_or(0));
-        if !name_matches && !(review_scoped || tokens > 0) {
-            continue;
-        }
+    let mut out = Vec::with_capacity(ids.len());
+    for id in ids {
+        let session = match session_manager.get_session(id, false).await {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
         let input = i64::from(session.accumulated_input_tokens.unwrap_or(0));
         let output = i64::from(session.accumulated_output_tokens.unwrap_or(0));
         let model = session
@@ -177,6 +158,28 @@ pub async fn load_review_sessions(
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));
     out
+}
+
+pub fn parse_session_id_from_stderr(stderr: &str) -> Option<String> {
+    for line in stderr.lines() {
+        let line = line.trim();
+        if let Some(id) = line.strip_prefix(GOOSE_SESSION_ID_MARKER) {
+            let id = id.trim();
+            if !id.is_empty() {
+                return Some(id.to_string());
+            }
+        }
+    }
+    None
+}
+
+pub fn record_review_session_id(session_ids: &std::sync::Mutex<Vec<String>>, id: Option<String>) {
+    let Some(id) = id else { return };
+    if let Ok(mut ids) = session_ids.lock() {
+        if !ids.iter().any(|existing| existing == &id) {
+            ids.push(id);
+        }
+    }
 }
 
 pub fn aggregate_usage(sessions: &[ReviewSessionEntry]) -> ReviewUsage {
@@ -209,6 +212,15 @@ mod tests {
         assert_eq!(
             sanitize_session_label("check 'security'"),
             "check__security_"
+        );
+    }
+
+    #[test]
+    fn parse_session_id_from_stderr_reads_marker_line() {
+        let stderr = "progress...\ngoose-session-id:20260601_33\n";
+        assert_eq!(
+            parse_session_id_from_stderr(stderr).as_deref(),
+            Some("20260601_33")
         );
     }
 
