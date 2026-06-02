@@ -567,6 +567,25 @@ fn take_quoted(s: &str) -> Option<(String, &str)> {
     None
 }
 
+/// Prompt section telling review subprocesses about the orchestrator's
+/// hard wall-clock cap ([`CHECK_TIMEOUT_SECS`]). Without this, models
+/// routinely burn the full budget on tool loops and return nothing
+/// when the outer timeout kills the subprocess.
+fn build_subprocess_timeout_section() -> String {
+    let minutes = CHECK_TIMEOUT_SECS / 60;
+    format!(
+        "## Time budget\n\n\
+         You have a hard wall-clock limit of {CHECK_TIMEOUT_SECS} seconds ({minutes} minutes). \
+         The orchestrator terminates this run when that limit expires; \
+         any output after that point is discarded and your findings are lost.\n\n\
+         Plan for the deadline:\n\
+         - Review the diff below directly; do not use tools unless absolutely necessary.\n\
+         - If time is running short, stop exploring and return JSON with the findings you have verified.\n\
+         - Always emit valid JSON (`{{\"findings\":[...]}}` or `{{\"findings\":[]}}`) before the limit — \
+           an empty or missing response counts as failure.\n\n"
+    )
+}
+
 /// Build the strict, JSON-only prompt sent to one main-pass
 /// subprocess. The base prompt (custom or
 /// [`DEFAULT_REVIEW_PROMPT`]) supplies the reviewer voice; we then
@@ -589,6 +608,7 @@ fn build_main_pass_prompt(
             s.push_str("\n\n");
         }
     }
+    s.push_str(&build_subprocess_timeout_section());
     s.push_str("## File under review\n\n");
     s.push_str(&format!("Path: `{path}`\n\n"));
     s.push_str(
@@ -633,7 +653,9 @@ fn build_check_prompt(check: &Check, diff: &str, instructions: Option<&str>) -> 
             s.push('\n');
         }
     }
-    s.push_str("\nReview ONLY the git diff provided below.\n");
+    s.push_str("\n");
+    s.push_str(&build_subprocess_timeout_section());
+    s.push_str("Review ONLY the git diff provided below.\n");
     s.push_str("Do not ask for missing context.\n");
     s.push_str("Use repo-relative file paths.\n");
     s.push_str("Use post-change line numbers from the diff.\n");
@@ -855,6 +877,14 @@ mod tests {
     fn check_prompt_skips_blank_reviewer_instructions() {
         let p = build_check_prompt(&ck("perf"), "diff content", Some("   \n  "));
         assert!(!p.contains("Reviewer instructions"));
+    }
+
+    #[test]
+    fn check_prompt_includes_orchestrator_timeout_budget() {
+        let p = build_check_prompt(&ck("perf"), "diff content", None);
+        assert!(p.contains("## Time budget"));
+        assert!(p.contains(&format!("{CHECK_TIMEOUT_SECS} seconds")));
+        assert!(p.contains("terminates this run when that limit expires"));
     }
 
     #[test]
@@ -1117,5 +1147,13 @@ rename to new/name.rs
     fn main_pass_prompt_skips_blank_reviewer_instructions() {
         let p = build_main_pass_prompt("src/foo.rs", "diff body", "BASE", Some("   \n  \t\n"));
         assert!(!p.contains("Reviewer instructions"));
+    }
+
+    #[test]
+    fn main_pass_prompt_includes_orchestrator_timeout_budget() {
+        let p = build_main_pass_prompt("src/foo.rs", "diff body", "BASE", None);
+        assert!(p.contains("## Time budget"));
+        assert!(p.contains(&format!("{CHECK_TIMEOUT_SECS} seconds")));
+        assert!(p.contains("Always emit valid JSON"));
     }
 }
