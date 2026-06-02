@@ -209,13 +209,12 @@ impl ProviderDef for HuggingFaceProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
-            let token = huggingface_auth::resolve_token_async()
-                .await?
-                .ok_or_else(missing_token_error)?;
+            let auth_method =
+                refreshable_huggingface_auth_method(huggingface_auth::has_configured_token)?;
             let host: String = config
                 .get_param("HF_HOST")
                 .unwrap_or_else(|_| HUGGINGFACE_API_HOST.to_string());
-            let api_client = ApiClient::new(host, AuthMethod::BearerToken(token))?;
+            let api_client = ApiClient::new(host, auth_method)?;
 
             Ok(Self {
                 inner: OpenAiCompatibleProvider::new(
@@ -306,7 +305,13 @@ fn custom_auth_method_from_sources(
         return Ok(AuthMethod::BearerToken(token));
     }
 
-    if !has_global_token()? {
+    refreshable_huggingface_auth_method(has_global_token)
+}
+
+fn refreshable_huggingface_auth_method(
+    has_configured_token: impl FnOnce() -> Result<bool>,
+) -> Result<AuthMethod> {
+    if !has_configured_token()? {
         return Err(missing_token_error());
     }
 
@@ -507,6 +512,23 @@ mod tests {
         let auth_method = custom_auth_method_from_sources(true, None, || Ok(true)).unwrap();
 
         assert!(matches!(auth_method, AuthMethod::Custom(_)));
+    }
+
+    #[test]
+    fn refreshable_huggingface_auth_method_uses_refresh_capable_auth() {
+        let auth_method = refreshable_huggingface_auth_method(|| Ok(true)).unwrap();
+
+        assert!(matches!(auth_method, AuthMethod::Custom(_)));
+    }
+
+    #[test]
+    fn refreshable_huggingface_auth_method_requires_configured_token() {
+        let error = refreshable_huggingface_auth_method(|| Ok(false)).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Hugging Face token is not configured. Sign in from Settings > Auth or configure HF_TOKEN."
+        );
     }
 
     #[test]
