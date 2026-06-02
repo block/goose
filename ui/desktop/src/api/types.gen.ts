@@ -25,6 +25,11 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
+export type AddExtensionRequest = {
+    config: ExtensionConfig;
+    session_id: string;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -486,6 +491,17 @@ export type ExtensionLoadResult = {
     error?: string | null;
     name: string;
     success: boolean;
+};
+
+export type ExtensionQuery = {
+    config: ExtensionConfig;
+    enabled: boolean;
+    name: string;
+};
+
+export type ExtensionResponse = {
+    extensions: Array<ExtensionEntry>;
+    warnings?: Array<string>;
 };
 
 export type FeaturesResponse = {
@@ -1136,6 +1152,11 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RemoveExtensionRequest = {
+    name: string;
+    session_id: string;
+};
+
 export type RepoVariantsResponse = {
     available_memory_bytes: number;
     downloaded_quants: Array<string>;
@@ -1325,6 +1346,10 @@ export type SessionDisplayInfo = {
     scheduleId?: string | null;
     totalTokens?: number | null;
     workingDir: string;
+};
+
+export type SessionExtensionsResponse = {
+    extensions: Array<ExtensionConfig>;
 };
 
 export type SessionInsights = {
@@ -1756,6 +1781,37 @@ export type ConfirmToolActionResponses = {
     200: unknown;
 };
 
+export type AgentAddExtensionData = {
+    body: AddExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/add_extension';
+};
+
+export type AgentAddExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentAddExtensionResponses = {
+    /**
+     * Extension added
+     */
+    200: string;
+};
+
+export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
 export type CallToolData = {
     body: CallToolRequest;
     path?: never;
@@ -1925,6 +1981,37 @@ export type ReadResourceResponses = {
 };
 
 export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
+
+export type AgentRemoveExtensionData = {
+    body: RemoveExtensionRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/remove_extension';
+};
+
+export type AgentRemoveExtensionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AgentRemoveExtensionResponses = {
+    /**
+     * Extension removed
+     */
+    200: string;
+};
+
+export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
 export type RestartAgentData = {
     body: RestartAgentRequest;
@@ -2360,6 +2447,89 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
+
+export type GetExtensionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/extensions';
+};
+
+export type GetExtensionsErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetExtensionsResponses = {
+    /**
+     * All extensions retrieved successfully
+     */
+    200: ExtensionResponse;
+};
+
+export type GetExtensionsResponse = GetExtensionsResponses[keyof GetExtensionsResponses];
+
+export type AddExtensionData = {
+    body: ExtensionQuery;
+    path?: never;
+    query?: never;
+    url: '/config/extensions';
+};
+
+export type AddExtensionErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Could not serialize config.yaml
+     */
+    422: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AddExtensionResponses = {
+    /**
+     * Extension added or updated successfully
+     */
+    200: string;
+};
+
+export type AddExtensionResponse = AddExtensionResponses[keyof AddExtensionResponses];
+
+export type RemoveExtensionData = {
+    body?: never;
+    path: {
+        name: string;
+    };
+    query?: never;
+    url: '/config/extensions/{name}';
+};
+
+export type RemoveExtensionErrors = {
+    /**
+     * Extension not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RemoveExtensionResponses = {
+    /**
+     * Extension removed successfully
+     */
+    200: string;
+};
+
+export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
 
 export type UpsertPermissionsData = {
     body: UpsertPermissionsQuery;
@@ -4325,6 +4495,42 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type GetSessionExtensionsData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/extensions';
+};
+
+export type GetSessionExtensionsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionExtensionsResponses = {
+    /**
+     * Session extensions retrieved successfully
+     */
+    200: SessionExtensionsResponse;
+};
+
+export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
 
 export type ForkSessionData = {
     body: ForkRequest;
