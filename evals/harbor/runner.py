@@ -99,6 +99,19 @@ def parse_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+PACKAGE_INDEX_ENV_VARS = ("UV_DEFAULT_INDEX", "PIP_INDEX_URL", "UV_INDEX_URL")
+
+
+def package_index_env() -> dict[str, str]:
+    index_url = next(
+        (os.environ[key] for key in PACKAGE_INDEX_ENV_VARS if os.environ.get(key)),
+        None,
+    )
+    if index_url is None:
+        return {}
+    return {key: index_url for key in PACKAGE_INDEX_ENV_VARS}
+
+
 def dataset_config(dataset_ref: str, tasks: list[str]) -> dict[str, Any]:
     name, sep, ref = dataset_ref.rpartition("@")
     dataset_name = name if sep else dataset_ref
@@ -151,11 +164,12 @@ def build_harbor_config(args: argparse.Namespace) -> dict[str, Any]:
         else default_job_name(args.model, args.dataset)
     )
 
+    index_env = package_index_env()
     container_env_passthrough = [
         f"{key}=${{{key}}}"
         for key in PROVIDER_SECRETS.get(provider, [])
         if os.environ.get(key)
-    ]
+    ] + [f"{key}={value}" for key, value in index_env.items()]
 
     config: dict[str, Any] = {
         "job_name": job_name,
@@ -177,6 +191,8 @@ def build_harbor_config(args: argparse.Namespace) -> dict[str, Any]:
         ],
         "datasets": [dataset_config(args.dataset, args.tasks)],
     }
+    if index_env:
+        config["verifier"] = {"env": index_env}
     if args.timeout_multiplier != 1.0:
         config["timeout_multiplier"] = args.timeout_multiplier
     return config
