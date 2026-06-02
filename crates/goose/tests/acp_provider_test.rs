@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 #[allow(dead_code)]
-#[path = "acp_common_tests/mod.rs"]
+#[path = "acp_common_tests.rs"]
 mod common_tests;
 use common_tests::fixtures::provider::AcpProviderConnection;
 use common_tests::fixtures::run_test;
