@@ -96,6 +96,27 @@ pub fn resolve_token_with_provider_token(provider_token: Option<String>) -> Resu
     resolve_token_from_sources(provider_token, usable_oauth_token(), hf_token_secret)
 }
 
+pub async fn resolve_token_async() -> Result<Option<String>> {
+    resolve_token_async_with_provider_token(None).await
+}
+
+pub async fn resolve_token_async_with_provider_token(
+    provider_token: Option<String>,
+) -> Result<Option<String>> {
+    if provider_token.is_some() {
+        return Ok(provider_token);
+    }
+
+    if let Some(token) =
+        refreshed_or_usable_oauth_token_from_path(&oauth_cache_path(), oauth_client_id(), TOKEN_URL)
+            .await?
+    {
+        return Ok(Some(token));
+    }
+
+    hf_token_secret()
+}
+
 fn resolve_token_from_sources(
     provider_token: Option<String>,
     oauth_token: Option<String>,
@@ -204,9 +225,16 @@ struct TokenResponse {
 }
 
 fn token_data_from_response(response: TokenResponse) -> HuggingFaceTokenData {
+    token_data_from_response_with_refresh_fallback(response, None)
+}
+
+fn token_data_from_response_with_refresh_fallback(
+    response: TokenResponse,
+    refresh_token_fallback: Option<String>,
+) -> HuggingFaceTokenData {
     HuggingFaceTokenData {
         access_token: response.access_token,
-        refresh_token: response.refresh_token,
+        refresh_token: response.refresh_token.or(refresh_token_fallback),
         expires_at: response
             .expires_in
             .map(|secs| Utc::now() + chrono::Duration::seconds(secs)),
@@ -247,6 +275,64 @@ async fn exchange_code_for_tokens(
     }
 
     Ok(resp.json().await?)
+}
+
+async fn refresh_access_token(
+    client_id: &str,
+    refresh_token: &str,
+    token_url: &str,
+) -> Result<TokenResponse> {
+    let client = reqwest::Client::new();
+    let params = [
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token),
+        ("client_id", client_id),
+    ];
+
+    let resp = client
+        .post(token_url)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .header("Accept", "application/json")
+        .form(&params)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(anyhow!(
+            "Hugging Face token refresh failed ({}): {}",
+            status,
+            text
+        ));
+    }
+
+    Ok(resp.json().await?)
+}
+
+async fn refreshed_or_usable_oauth_token_from_path(
+    path: &Path,
+    client_id: &str,
+    token_url: &str,
+) -> Result<Option<String>> {
+    let Some(token) = load_oauth_token_from_path(path) else {
+        return Ok(None);
+    };
+
+    if !token.is_expired() {
+        return Ok(Some(token.access_token));
+    }
+
+    let Some(refresh_token) = token.refresh_token else {
+        return Ok(None);
+    };
+
+    let refreshed = refresh_access_token(client_id, &refresh_token, token_url).await?;
+    let refreshed =
+        token_data_from_response_with_refresh_fallback(refreshed, Some(refresh_token.clone()));
+    let access_token = refreshed.access_token.clone();
+    save_oauth_token_to_path(path, &refreshed)?;
+    Ok(Some(access_token))
 }
 
 const HTML_SUCCESS_TEMPLATE: &str = r#"<!doctype html>
@@ -450,6 +536,8 @@ async fn perform_loopback_oauth_flow(client_id: &str) -> Result<HuggingFaceToken
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use wiremock::matchers::{body_string_contains, method, path as request_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn token_path(dir: &TempDir) -> PathBuf {
         dir.path().join(HUGGINGFACE_OAUTH_CACHE_PATH)
@@ -513,6 +601,47 @@ mod tests {
         let expires_at = token_data.expires_at.unwrap();
         assert!(expires_at > Utc::now());
         assert!(expires_at <= Utc::now() + chrono::Duration::seconds(60));
+    }
+
+    #[tokio::test]
+    async fn expired_oauth_token_refreshes_with_cached_refresh_token() {
+        let dir = TempDir::new().unwrap();
+        let path = token_path(&dir);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_string(&HuggingFaceTokenData {
+                access_token: "expired".to_string(),
+                refresh_token: Some("refresh".to_string()),
+                expires_at: Some(Utc::now() - chrono::Duration::minutes(1)),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(request_path("/"))
+            .and(body_string_contains("grant_type=refresh_token"))
+            .and(body_string_contains("refresh_token=refresh"))
+            .and(body_string_contains("client_id=client-fixture"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "refreshed",
+                "expires_in": 60
+            })))
+            .mount(&server)
+            .await;
+
+        let token =
+            refreshed_or_usable_oauth_token_from_path(&path, "client-fixture", &server.uri())
+                .await
+                .unwrap();
+
+        assert_eq!(token.as_deref(), Some("refreshed"));
+        let saved = load_oauth_token_from_path(&path).unwrap();
+        assert_eq!(saved.access_token, "refreshed");
+        assert_eq!(saved.refresh_token.as_deref(), Some("refresh"));
+        assert!(saved.expires_at.unwrap() > Utc::now());
     }
 
     #[test]

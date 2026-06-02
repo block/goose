@@ -420,7 +420,7 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
 
 pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token()?;
+    let token = huggingface_auth::resolve_token_async().await?;
     let url = format!(
         "{}?search={}&filter=gguf&sort=downloads&direction=-1&limit={}",
         HF_API_BASE, query, limit
@@ -485,7 +485,7 @@ pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModel
 /// Fetch GGUF files for a repo and return them grouped by quantization.
 pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>> {
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token()?;
+    let token = huggingface_auth::resolve_token_async().await?;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
     let response = apply_hf_auth(client.get(&url), token.as_deref())
@@ -510,7 +510,7 @@ pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>
 /// Fetch raw GGUF files (kept for resolve_model_spec).
 pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token()?;
+    let token = huggingface_auth::resolve_token_async().await?;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
     let response = apply_hf_auth(client.get(&url), token.as_deref())
@@ -572,7 +572,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
     let (repo_id, quant) = parse_model_spec(spec)?;
 
     let client = reqwest::Client::new();
-    let token = huggingface_auth::resolve_token()?;
+    let token = huggingface_auth::resolve_token_async().await?;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
     let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")

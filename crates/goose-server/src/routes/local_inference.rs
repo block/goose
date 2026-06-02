@@ -252,7 +252,7 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
     // Auto-download mmproj files for models that are already downloaded.
     // Deduplicate by path since multiple quants share one mmproj file.
     let dm = get_download_manager();
-    let hf_token = huggingface_auth::resolve_token().ok().flatten();
+    let hf_token = huggingface_auth::resolve_token_async().await.ok().flatten();
     let mut started_paths = std::collections::HashSet::new();
     for (model_id, url, path) in mmproj_downloads_needed {
         if !path.exists() && started_paths.insert(path.clone()) {
@@ -482,7 +482,7 @@ pub async fn download_hf_model(
     let (_repo, resolved) = resolve_model_spec_full(&req.spec)
         .await
         .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
-    let hf_token = huggingface_auth::resolve_token().map_err(|e| {
+    let hf_token = huggingface_auth::resolve_token_async().await.map_err(|e| {
         ErrorResponse::internal(format!("Failed to resolve Hugging Face token: {}", e))
     })?;
 

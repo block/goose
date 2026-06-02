@@ -49,6 +49,8 @@ type EndpointParts = (String, String, QueryParams);
 
 pub struct HuggingFaceProvider {
     inner: OpenAiCompatibleProvider,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
 }
 
 impl HuggingFaceProvider {
@@ -62,6 +64,15 @@ impl HuggingFaceProvider {
         model: ModelConfig,
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
+        let custom_models = static_model_names(&config);
+        if config.dynamic_models == Some(false) && custom_models.is_none() {
+            return Err(anyhow!(
+                "Provider '{}' has dynamic_models: false but no static models listed; \
+                 at least one entry in `models` is required.",
+                config.name
+            ));
+        }
+
         let auth_method = custom_auth_method(&config)?;
         let (host, completions_prefix, query_params) =
             openai_compatible_endpoint_parts(&config.base_url, config.base_path.as_deref())?;
@@ -99,6 +110,8 @@ impl HuggingFaceProvider {
                 model,
                 completions_prefix,
             ),
+            custom_models,
+            dynamic_models: config.dynamic_models,
         })
     }
 
@@ -118,6 +131,25 @@ impl Provider for HuggingFaceProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        if let Some(custom_models) = &self.custom_models {
+            if self.dynamic_models == Some(false) {
+                return Ok(custom_models.clone());
+            }
+
+            match self.inner.fetch_supported_models().await {
+                Ok(models) => return Ok(models),
+                Err(e) if e.is_endpoint_not_found() => {
+                    tracing::debug!(
+                        "Models endpoint not implemented for Hugging Face provider '{}' ({}), using predefined list",
+                        self.inner.get_name(),
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
         self.inner.fetch_supported_models().await
     }
 
@@ -165,7 +197,9 @@ impl ProviderDef for HuggingFaceProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
-            let token = huggingface_auth::resolve_token()?.ok_or_else(missing_token_error)?;
+            let token = huggingface_auth::resolve_token_async()
+                .await?
+                .ok_or_else(missing_token_error)?;
             let host: String = config
                 .get_param("HF_HOST")
                 .unwrap_or_else(|_| HUGGINGFACE_API_HOST.to_string());
@@ -178,6 +212,8 @@ impl ProviderDef for HuggingFaceProvider {
                     model,
                     String::new(),
                 ),
+                custom_models: None,
+                dynamic_models: None,
             })
         })
     }
@@ -214,6 +250,16 @@ fn configured_api_key(config: &DeclarativeProviderConfig) -> Result<Option<Strin
         Err(ConfigError::NotFound(_)) => Ok(None),
         Err(error) => Err(error.into()),
     }
+}
+
+fn static_model_names(config: &DeclarativeProviderConfig) -> Option<Vec<String>> {
+    (!config.models.is_empty()).then(|| {
+        config
+            .models
+            .iter()
+            .map(|model| model.name.clone())
+            .collect()
+    })
 }
 
 fn custom_auth_method(config: &DeclarativeProviderConfig) -> Result<AuthMethod> {
@@ -305,6 +351,7 @@ fn completions_prefix(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::base::ModelInfo;
 
     #[test]
     fn metadata_preserves_huggingface_id_and_token_key() {
@@ -363,6 +410,46 @@ mod tests {
         assert_eq!(host, "https://router.huggingface.co");
         assert_eq!(prefix, "v1/");
         assert!(query.is_empty());
+    }
+
+    #[tokio::test]
+    async fn custom_provider_returns_static_models_when_dynamic_models_disabled() {
+        let mut config = test_config();
+        config.requires_auth = false;
+        config.dynamic_models = Some(false);
+        config.models = vec![
+            ModelInfo::new("static-a".to_string(), 128000),
+            ModelInfo::new("static-b".to_string(), 128000),
+        ];
+
+        let provider =
+            HuggingFaceProvider::from_custom_config(ModelConfig::new("static-a").unwrap(), config)
+                .unwrap();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-a".to_string(), "static-b".to_string()]
+        );
+    }
+
+    #[test]
+    fn custom_provider_requires_static_models_when_dynamic_models_disabled() {
+        let mut config = test_config();
+        config.requires_auth = false;
+        config.dynamic_models = Some(false);
+
+        let error = match HuggingFaceProvider::from_custom_config(
+            ModelConfig::new("model").unwrap(),
+            config,
+        ) {
+            Ok(_) => panic!("expected dynamic_models: false without static models to fail"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.to_string(),
+            "Provider 'custom_provider' has dynamic_models: false but no static models listed; at least one entry in `models` is required."
+        );
     }
 
     #[test]
