@@ -15,8 +15,8 @@ use super::orchestrator::{
     OrchestratorStats, Severity,
 };
 use super::output::{
-    aggregate_usage, emit_review_json, load_review_sessions_by_ids, review_document_status,
-    ReviewOutputFormat, ReviewResultDocument,
+    aggregate_usage, emit_review_json, load_review_sessions_by_ids, resolve_review_session_ids,
+    review_document_status, ReviewOutputFormat, ReviewResultDocument,
 };
 use super::prompt::{build_review_prompt, DEFAULT_REVIEW_PROMPT};
 
@@ -72,8 +72,10 @@ pub struct ReviewOptions {
     /// `medium`, matching Amp's CLI behavior of hiding `low` from
     /// the review output.
     pub severity: String,
-    /// How findings are written to stdout.
-    pub output_format: ReviewOutputFormat,
+    /// Structured stdout format when explicitly requested. Unset means
+    /// free-form text (legacy `--no-orchestrate`) or default orchestrator
+    /// JSONL when orchestration is enabled.
+    pub output_format: Option<ReviewOutputFormat>,
 }
 
 /// Entry point for the `goose review` subcommand.
@@ -112,7 +114,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     }
 
     if diff.trim().is_empty() {
-        if opts.output_format == ReviewOutputFormat::Json {
+        if opts.output_format == Some(ReviewOutputFormat::Json) {
             emit_no_changes_json_review(&opts, &repo_root, sev_str);
         } else {
             eprintln!("goose review: no changes to review");
@@ -120,8 +122,8 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
         return Ok(());
     }
 
-    if opts.summary_only && opts.output_format == ReviewOutputFormat::Json {
-        bail!("--format json is incompatible with --summary-only");
+    if opts.summary_only && opts.output_format.is_some() {
+        bail!("--summary-only is incompatible with --format");
     }
 
     // `--summary-only` short-circuits everything else: print `git
@@ -155,12 +157,19 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
 
     let use_orchestrator = !opts.no_orchestrate;
 
-    if opts.output_format == ReviewOutputFormat::Json && !use_orchestrator {
-        bail!("--format json requires the default orchestrator; remove --no-orchestrate");
+    if let Some(fmt) = opts.output_format {
+        if !use_orchestrator {
+            bail!(
+                "--format {} requires the default orchestrator; remove --no-orchestrate",
+                match fmt {
+                    ReviewOutputFormat::Jsonl => "jsonl",
+                    ReviewOutputFormat::Json => "json",
+                }
+            );
+        }
     }
-    if opts.output_format == ReviewOutputFormat::Jsonl && !use_orchestrator {
-        bail!("--format jsonl requires the default orchestrator; remove --no-orchestrate");
-    }
+
+    let output_format = opts.output_format.unwrap_or(ReviewOutputFormat::Jsonl);
 
     // Reviewer instructions are also injected into every per-file
     // main-pass subprocess and every per-check subprocess. To avoid
@@ -258,7 +267,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     let review_started_at = Utc::now();
     let review_start = Instant::now();
     let review_id = new_review_id();
-    let session_ids = Arc::new(Mutex::new(Vec::new()));
+    let session_names = Arc::new(Mutex::new(Vec::new()));
     let stats = Arc::new(Mutex::new(OrchestratorStats::default()));
 
     let main_findings_fut = async {
@@ -270,7 +279,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
                 &base_prompt,
                 &opts,
                 &review_id,
-                session_ids.clone(),
+                session_names.clone(),
                 stats.clone(),
             )
             .await
@@ -281,12 +290,12 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
         &diff,
         &opts,
         &review_id,
-        session_ids.clone(),
+        session_names.clone(),
         stats.clone(),
     );
     let (main_findings, check_results) = tokio::join!(main_findings_fut, checks_fut);
 
-    match opts.output_format {
+    match output_format {
         ReviewOutputFormat::Jsonl => {
             let mut total_emitted = 0usize;
             let mut total_seen = main_findings.len();
@@ -322,13 +331,15 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             let total_seen = all_findings.len();
             let filtered = filter_findings(&all_findings, min_sev);
             let total_emitted = filtered.len();
-            let collected_ids = session_ids
+            let names = session_names
                 .lock()
-                .map(|ids| ids.clone())
+                .map(|names| names.clone())
                 .unwrap_or_default();
+            let sessions_expected = names.len();
+            let collected_ids = resolve_review_session_ids(&names).await;
             let sessions = load_review_sessions_by_ids(&collected_ids).await;
             let run_stats = stats.lock().map(|s| s.clone()).unwrap_or_default();
-            let usage = aggregate_usage(&sessions, run_stats.subprocess_attempted());
+            let usage = aggregate_usage(&sessions, sessions_expected);
             let working_dir = std::env::current_dir()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| repo_root.display().to_string());
@@ -361,6 +372,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
                 &sessions,
                 &usage,
                 run_stats.subprocess_attempted(),
+                sessions_expected,
             );
             doc.findings = filtered;
             doc.finished_at = Utc::now().to_rfc3339();

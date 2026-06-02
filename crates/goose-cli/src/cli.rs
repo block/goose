@@ -1109,8 +1109,8 @@ enum Command {
 
         /// Output format: `jsonl` (one finding per line, default) or `json`
         /// (single envelope with findings, usage, and session metadata).
-        #[arg(long = "format", value_name = "FORMAT", default_value = "jsonl")]
-        format: String,
+        #[arg(long = "format", value_name = "FORMAT")]
+        format: Option<String>,
     },
 
     #[command(
@@ -2169,8 +2169,12 @@ pub async fn cli() -> anyhow::Result<()> {
         }) => {
             use crate::commands::review::{handle_review, ReviewOptions};
             use crate::commands::review::output::ReviewOutputFormat;
-            let output_format = ReviewOutputFormat::parse(&format)
-                .map_err(|e| anyhow::anyhow!(e))?;
+            let output_format = match format {
+                None => None,
+                Some(value) => Some(
+                    ReviewOutputFormat::parse(&value).map_err(|e| anyhow::anyhow!(e))?,
+                ),
+            };
             handle_review(ReviewOptions {
                 range,
                 prompt_file: prompt,

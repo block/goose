@@ -39,10 +39,7 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use super::handler::ReviewOptions;
-use super::output::{
-    record_subprocess_session_id_by_name, record_subprocess_session_id_by_name_with_retry,
-    review_session_name, SubprocessFailure,
-};
+use super::output::{record_subprocess_session_name, review_session_name, SubprocessFailure};
 use goose::checks::Check;
 
 #[derive(Debug, Default, Clone)]
@@ -145,7 +142,7 @@ pub async fn run_checks_in_parallel(
     diff: &str,
     opts: &ReviewOptions,
     review_id: &str,
-    session_ids: Arc<Mutex<Vec<String>>>,
+    session_names: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Vec<Vec<Finding>> {
     let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
@@ -160,7 +157,7 @@ pub async fn run_checks_in_parallel(
         let max_turns = check.resolved_turn_limit(opts.default_turn_limit);
         let quiet = opts.quiet;
         let instructions = opts.instructions.clone();
-        let session_ids = session_ids.clone();
+        let session_names = session_names.clone();
         let stats = stats.clone();
         let review_id = review_id.to_string();
 
@@ -176,7 +173,7 @@ pub async fn run_checks_in_parallel(
                 instructions.as_deref(),
                 Some(max_turns),
                 &review_id,
-                session_ids,
+                session_names,
                 stats,
             )
             .await;
@@ -255,7 +252,7 @@ async fn run_single_check_subprocess(
     instructions: Option<&str>,
     max_turns: Option<usize>,
     review_id: &str,
-    session_ids: Arc<Mutex<Vec<String>>>,
+    session_names: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Result<Vec<Finding>> {
     let prompt = build_check_prompt(check, diff, instructions);
@@ -269,7 +266,7 @@ async fn run_single_check_subprocess(
         model,
         max_turns,
         SubprocessKind::Check,
-        session_ids,
+        session_names,
         stats,
     )
     .await?;
@@ -300,13 +297,14 @@ async fn run_subprocess_for_findings(
     model: Option<&str>,
     max_turns: Option<usize>,
     kind: SubprocessKind,
-    session_ids: Arc<Mutex<Vec<String>>>,
+    session_names: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Result<Vec<RawFinding>> {
     if let Ok(mut run_stats) = stats.lock() {
         run_stats.begin_subprocess(kind);
     }
 
+    let name_for_record = session_name.clone();
     let result = run_subprocess_for_findings_inner(
         prompt,
         label,
@@ -314,11 +312,11 @@ async fn run_subprocess_for_findings(
         provider,
         model,
         max_turns,
-        kind,
-        session_ids,
         stats.clone(),
     )
     .await;
+
+    record_subprocess_session_name(&session_names, name_for_record);
 
     if let Ok(mut run_stats) = stats.lock() {
         match &result {
@@ -339,8 +337,6 @@ async fn run_subprocess_for_findings_inner(
     provider: Option<&str>,
     model: Option<&str>,
     max_turns: Option<usize>,
-    _kind: SubprocessKind,
-    session_ids: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Result<Vec<RawFinding>> {
     let goose_bin = std::env::current_exe().context("locate current goose binary")?;
@@ -393,17 +389,9 @@ async fn run_subprocess_for_findings_inner(
         Ok(o) => o.with_context(|| format!("wait on {label}"))?,
         Err(_) => {
             record_subprocess_failure(&stats, label, "timeout");
-            record_subprocess_session_id_by_name_with_retry(
-                &session_ids,
-                session_name.as_deref(),
-                20,
-            )
-            .await;
             anyhow::bail!("{label} timed out after {}s", CHECK_TIMEOUT_SECS);
         }
     };
-
-    record_subprocess_session_id_by_name(&session_ids, session_name.as_deref()).await;
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
@@ -452,7 +440,7 @@ pub async fn run_main_pass_in_parallel(
     base_prompt: &str,
     opts: &ReviewOptions,
     review_id: &str,
-    session_ids: Arc<Mutex<Vec<String>>>,
+    session_names: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<OrchestratorStats>>,
 ) -> Vec<Finding> {
     let per_file = split_diff_by_file(diff);
@@ -472,7 +460,7 @@ pub async fn run_main_pass_in_parallel(
         let quiet = opts.quiet;
         let instructions = opts.instructions.clone();
         let base_prompt = base_prompt.to_string();
-        let session_ids = session_ids.clone();
+        let session_names = session_names.clone();
         let stats = stats.clone();
         let review_id = review_id.to_string();
 
@@ -490,7 +478,7 @@ pub async fn run_main_pass_in_parallel(
                 model.as_deref(),
                 None,
                 SubprocessKind::Main,
-                session_ids,
+                session_names,
                 stats,
             )
             .await;

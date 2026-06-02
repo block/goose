@@ -335,8 +335,14 @@ async fn resolve_session_id(
                 .apply()
                 .await
             {
-                let _ = session_manager.delete_session(&session.id).await;
-                output::render_error(&format!("Could not lock session name: {}", e));
+                let delete_err = session_manager.delete_session(&session.id).await.err();
+                let msg = match delete_err {
+                    Some(de) => format!(
+                        "Could not lock session name: {e}; cleanup delete also failed: {de}"
+                    ),
+                    None => format!("Could not lock session name: {e}"),
+                };
+                output::render_error(&msg);
                 process::exit(1);
             }
         }

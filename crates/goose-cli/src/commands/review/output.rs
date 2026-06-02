@@ -4,6 +4,8 @@ use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+use anyhow::Result;
+
 use super::orchestrator::Finding;
 
 /// How `goose review` formats stdout.
@@ -158,16 +160,60 @@ pub fn review_session_name(review_id: &str, label: &str) -> Option<String> {
     ))
 }
 
-pub async fn find_hidden_session_id_by_name(name: &str) -> Option<String> {
+pub async fn find_hidden_session_id_by_name(name: &str) -> Result<Option<String>> {
     let session_manager = SessionManager::instance();
     let sessions = session_manager
         .list_sessions_by_types(&[SessionType::Hidden])
-        .await
-        .ok()?;
-    sessions
+        .await?;
+    Ok(sessions
         .into_iter()
         .find(|s| s.name == name)
-        .map(|s| s.id)
+        .map(|s| s.id))
+}
+
+async fn find_hidden_session_id_by_name_with_retry(
+    name: &str,
+    max_attempts: usize,
+) -> Result<Option<String>> {
+    for attempt in 0..max_attempts {
+        if let Some(id) = find_hidden_session_id_by_name(name).await? {
+            return Ok(Some(id));
+        }
+        if attempt + 1 >= max_attempts {
+            return Ok(None);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    Ok(None)
+}
+
+pub fn record_subprocess_session_name(
+    session_names: &std::sync::Mutex<Vec<String>>,
+    name: Option<String>,
+) {
+    let Some(name) = name else { return };
+    if let Ok(mut names) = session_names.lock() {
+        if !names.iter().any(|existing| existing == &name) {
+            names.push(name);
+        }
+    }
+}
+
+/// Resolve hidden review subprocess session names to ids after orchestration.
+pub async fn resolve_review_session_ids(names: &[String]) -> Vec<String> {
+    let mut ids = Vec::with_capacity(names.len());
+    for name in names {
+        match find_hidden_session_id_by_name_with_retry(name, 20).await {
+            Ok(Some(id)) => ids.push(id),
+            Ok(None) => {
+                eprintln!("goose review: session not found for subprocess name {name}");
+            }
+            Err(e) => {
+                eprintln!("goose review: session lookup failed for {name}: {e}");
+            }
+        }
+    }
+    ids
 }
 
 pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEntry> {
@@ -225,45 +271,11 @@ pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEnt
     out
 }
 
-pub fn record_review_session_id(session_ids: &std::sync::Mutex<Vec<String>>, id: Option<String>) {
-    let Some(id) = id else { return };
-    if let Ok(mut ids) = session_ids.lock() {
-        if !ids.iter().any(|existing| existing == &id) {
-            ids.push(id);
-        }
-    }
-}
-
-pub async fn record_subprocess_session_id_by_name(
-    session_ids: &std::sync::Mutex<Vec<String>>,
-    session_name: Option<&str>,
-) {
-    record_subprocess_session_id_by_name_with_retry(session_ids, session_name, 1).await;
-}
-
-pub async fn record_subprocess_session_id_by_name_with_retry(
-    session_ids: &std::sync::Mutex<Vec<String>>,
-    session_name: Option<&str>,
-    max_attempts: usize,
-) {
-    let Some(name) = session_name else { return };
-    for attempt in 0..max_attempts {
-        if let Some(id) = find_hidden_session_id_by_name(name).await {
-            record_review_session_id(session_ids, Some(id));
-            return;
-        }
-        if attempt + 1 >= max_attempts {
-            return;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-}
-
-pub fn aggregate_usage(sessions: &[ReviewSessionEntry], subprocess_attempted: usize) -> ReviewUsage {
+pub fn aggregate_usage(sessions: &[ReviewSessionEntry], sessions_expected: usize) -> ReviewUsage {
     let mut input_tokens = 0i64;
     let mut output_tokens = 0i64;
     let mut complete = true;
-    if subprocess_attempted > 0 && sessions.is_empty() {
+    if sessions_expected > 0 && sessions.len() < sessions_expected {
         complete = false;
     }
     for s in sessions {
@@ -292,11 +304,12 @@ pub fn review_document_status(
     sessions: &[ReviewSessionEntry],
     usage: &ReviewUsage,
     subprocess_attempted: usize,
+    sessions_expected: usize,
 ) -> String {
     if subprocess_attempted > 0 && subprocess_failures.len() >= subprocess_attempted {
         return "error".to_string();
     }
-    if subprocess_attempted > 0 && sessions.is_empty() {
+    if sessions_expected > 0 && sessions.len() < sessions_expected {
         return "partial".to_string();
     }
     let sessions_ok = sessions.iter().all(|s| s.status == "ok");
@@ -363,7 +376,29 @@ mod tests {
                 output_tokens: 0,
                 total_tokens: 0,
                 complete: false,
-            }, 2),
+            }, 2, 0),
+            "partial"
+        );
+    }
+
+    #[test]
+    fn review_document_status_partial_when_sessions_missing() {
+        let sessions = vec![ReviewSessionEntry {
+            id: "a".to_string(),
+            status: "ok".to_string(),
+            error: None,
+            input_tokens: Some(1),
+            output_tokens: Some(1),
+            model: None,
+            provider: None,
+        }];
+        assert_eq!(
+            review_document_status(&[], &sessions, &ReviewUsage {
+                input_tokens: 1,
+                output_tokens: 1,
+                total_tokens: 2,
+                complete: false,
+            }, 3, 3),
             "partial"
         );
     }
@@ -386,7 +421,7 @@ mod tests {
                 output_tokens: 0,
                 total_tokens: 0,
                 complete: false,
-            }, 2),
+            }, 2, 0),
             "error"
         );
     }
