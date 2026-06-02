@@ -1,4 +1,4 @@
-use super::api_client::{ApiClient, AuthMethod};
+use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
@@ -51,6 +51,18 @@ pub struct HuggingFaceProvider {
     inner: OpenAiCompatibleProvider,
     custom_models: Option<Vec<String>>,
     dynamic_models: Option<bool>,
+}
+
+struct HuggingFaceAuthProvider;
+
+#[async_trait::async_trait]
+impl AuthProvider for HuggingFaceAuthProvider {
+    async fn get_auth_header(&self) -> Result<(String, String)> {
+        let token = huggingface_auth::resolve_token_async()
+            .await?
+            .ok_or_else(missing_token_error)?;
+        Ok(("Authorization".to_string(), format!("Bearer {}", token)))
+    }
 }
 
 impl HuggingFaceProvider {
@@ -275,13 +287,30 @@ fn custom_auth_method_with_provider_token(
     requires_auth: bool,
     provider_token: Option<String>,
 ) -> Result<AuthMethod> {
+    custom_auth_method_from_sources(requires_auth, provider_token, || {
+        Ok(huggingface_auth::has_usable_or_refreshable_oauth_token()
+            || huggingface_auth::hf_token_secret()?.is_some())
+    })
+}
+
+fn custom_auth_method_from_sources(
+    requires_auth: bool,
+    provider_token: Option<String>,
+    has_global_token: impl FnOnce() -> Result<bool>,
+) -> Result<AuthMethod> {
     if !requires_auth {
         return Ok(AuthMethod::NoAuth);
     }
 
-    let token = huggingface_auth::resolve_token_with_provider_token(provider_token)?
-        .ok_or_else(missing_token_error)?;
-    Ok(AuthMethod::BearerToken(token))
+    if let Some(token) = provider_token {
+        return Ok(AuthMethod::BearerToken(token));
+    }
+
+    if !has_global_token()? {
+        return Err(missing_token_error());
+    }
+
+    Ok(AuthMethod::Custom(Box::new(HuggingFaceAuthProvider)))
 }
 
 fn openai_compatible_endpoint_parts(
@@ -471,6 +500,23 @@ mod tests {
             AuthMethod::BearerToken(token) => assert_eq!(token, "provider-token"),
             other => panic!("expected bearer token auth, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn custom_auth_method_uses_refresh_capable_auth_for_global_token() {
+        let auth_method = custom_auth_method_from_sources(true, None, || Ok(true)).unwrap();
+
+        assert!(matches!(auth_method, AuthMethod::Custom(_)));
+    }
+
+    #[test]
+    fn custom_auth_method_requires_global_token_when_auth_is_required() {
+        let error = custom_auth_method_from_sources(true, None, || Ok(false)).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Hugging Face token is not configured. Sign in from Settings > Auth or configure HF_TOKEN."
+        );
     }
 
     fn test_config() -> DeclarativeProviderConfig {
