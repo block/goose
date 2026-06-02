@@ -305,7 +305,7 @@ async fn run_subprocess_for_findings(
     }
 
     let name_for_record = session_name.clone();
-    let result = run_subprocess_for_findings_inner(
+    let (result, spawned) = run_subprocess_for_findings_inner(
         prompt,
         label,
         session_name,
@@ -316,7 +316,9 @@ async fn run_subprocess_for_findings(
     )
     .await;
 
-    record_subprocess_session_name(&session_names, name_for_record);
+    if spawned {
+        record_subprocess_session_name(&session_names, name_for_record);
+    }
 
     if let Ok(mut run_stats) = stats.lock() {
         match &result {
@@ -338,8 +340,11 @@ async fn run_subprocess_for_findings_inner(
     model: Option<&str>,
     max_turns: Option<usize>,
     stats: Arc<Mutex<OrchestratorStats>>,
-) -> Result<Vec<RawFinding>> {
-    let goose_bin = std::env::current_exe().context("locate current goose binary")?;
+) -> (Result<Vec<RawFinding>>, bool) {
+    let goose_bin = match std::env::current_exe().context("locate current goose binary") {
+        Ok(path) => path,
+        Err(e) => return (Err(e), false),
+    };
 
     let mut cmd = Command::new(&goose_bin);
     cmd.arg("run")
@@ -371,43 +376,68 @@ async fn run_subprocess_for_findings_inner(
         cmd.arg("-n").arg(name);
     }
 
-    let mut child = cmd
+    let mut child = match cmd
         .spawn()
-        .with_context(|| format!("spawn subprocess for {label}"))?;
+        .with_context(|| format!("spawn subprocess for {label}"))
+    {
+        Ok(child) => child,
+        Err(e) => return (Err(e), false),
+    };
 
     if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(prompt.as_bytes())
-            .await
-            .with_context(|| format!("write prompt to {label} stdin"))?;
-        // Closing stdin signals EOF to `goose run -i -`.
+        if let Err(e) = async {
+            stdin
+                .write_all(prompt.as_bytes())
+                .await
+                .with_context(|| format!("write prompt to {label} stdin"))?;
+            Ok::<(), anyhow::Error>(())
+        }
+        .await
+        {
+            return (Err(e), true);
+        }
         drop(stdin);
     }
 
     let wait = child.wait_with_output();
     let output = match timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), wait).await {
-        Ok(o) => o.with_context(|| format!("wait on {label}"))?,
+        Ok(o) => match o.with_context(|| format!("wait on {label}")) {
+            Ok(output) => output,
+            Err(e) => return (Err(e), true),
+        },
         Err(_) => {
             record_subprocess_failure(&stats, label, "timeout");
-            anyhow::bail!("{label} timed out after {}s", CHECK_TIMEOUT_SECS);
+            return (
+                Err(anyhow::anyhow!(
+                    "{label} timed out after {}s",
+                    CHECK_TIMEOUT_SECS
+                )),
+                true,
+            );
         }
     };
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
         record_subprocess_failure(&stats, label, "exit");
-        anyhow::bail!(
-            "{label} subprocess exited with status {}: {}",
-            output.status,
-            truncate(&stderr, 500)
+        return (
+            Err(anyhow::anyhow!(
+                "{label} subprocess exited with status {}: {}",
+                output.status,
+                truncate(&stderr, 500)
+            )),
+            true,
         );
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_findings(&stdout).map_err(|e| {
-        record_subprocess_failure(&stats, label, "parse");
-        e
-    })
+    (
+        parse_findings(&stdout).map_err(|e| {
+            record_subprocess_failure(&stats, label, "parse");
+            e
+        }),
+        true,
+    )
 }
 
 fn record_subprocess_failure(

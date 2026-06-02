@@ -2171,9 +2171,12 @@ pub async fn cli() -> anyhow::Result<()> {
             use crate::commands::review::output::ReviewOutputFormat;
             let output_format = match format {
                 None => None,
-                Some(value) => Some(
-                    ReviewOutputFormat::parse(&value).map_err(|e| anyhow::anyhow!(e))?,
-                ),
+                Some(value) => match ReviewOutputFormat::parse(&value)
+                    .map_err(|e| anyhow::anyhow!(e))?
+                {
+                    ReviewOutputFormat::Jsonl => None,
+                    ReviewOutputFormat::Json => Some(ReviewOutputFormat::Json),
+                },
             };
             handle_review(ReviewOptions {
                 range,

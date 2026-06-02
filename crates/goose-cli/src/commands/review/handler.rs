@@ -113,6 +113,22 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
         }
     }
 
+    if opts.summary_only && opts.output_format.is_some() {
+        bail!("--summary-only is incompatible with --format");
+    }
+
+    if let Some(fmt) = opts.output_format {
+        if opts.no_orchestrate {
+            bail!(
+                "--format {} requires the default orchestrator; remove --no-orchestrate",
+                match fmt {
+                    ReviewOutputFormat::Jsonl => "jsonl",
+                    ReviewOutputFormat::Json => "json",
+                }
+            );
+        }
+    }
+
     if diff.trim().is_empty() {
         if opts.output_format == Some(ReviewOutputFormat::Json) {
             emit_no_changes_json_review(&opts, &repo_root, sev_str);
@@ -122,13 +138,6 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
         return Ok(());
     }
 
-    if opts.summary_only && opts.output_format.is_some() {
-        bail!("--summary-only is incompatible with --format");
-    }
-
-    // `--summary-only` short-circuits everything else: print `git
-    // diff --stat` and return without calling the agent. Mirrors
-    // `amp review --summary-only`.
     if opts.summary_only {
         let summary = collect_diff_stat(&repo_root, opts.range.as_deref(), &opts.files)?;
         print!("{}", summary);
@@ -156,18 +165,6 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     };
 
     let use_orchestrator = !opts.no_orchestrate;
-
-    if let Some(fmt) = opts.output_format {
-        if !use_orchestrator {
-            bail!(
-                "--format {} requires the default orchestrator; remove --no-orchestrate",
-                match fmt {
-                    ReviewOutputFormat::Jsonl => "jsonl",
-                    ReviewOutputFormat::Json => "json",
-                }
-            );
-        }
-    }
 
     let output_format = opts.output_format.unwrap_or(ReviewOutputFormat::Jsonl);
 

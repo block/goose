@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use goose::session::session_manager::{SessionManager, SessionType};
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use anyhow::Result;
@@ -160,31 +161,64 @@ pub fn review_session_name(review_id: &str, label: &str) -> Option<String> {
     ))
 }
 
-pub async fn find_hidden_session_id_by_name(name: &str) -> Result<Option<String>> {
+async fn hidden_sessions_by_name() -> Result<HashMap<String, String>> {
     let session_manager = SessionManager::instance();
     let sessions = session_manager
         .list_sessions_by_types(&[SessionType::Hidden])
         .await?;
     Ok(sessions
         .into_iter()
-        .find(|s| s.name == name)
-        .map(|s| s.id))
+        .map(|s| (s.name, s.id))
+        .collect())
 }
 
-async fn find_hidden_session_id_by_name_with_retry(
-    name: &str,
-    max_attempts: usize,
-) -> Result<Option<String>> {
-    for attempt in 0..max_attempts {
-        if let Some(id) = find_hidden_session_id_by_name(name).await? {
-            return Ok(Some(id));
-        }
-        if attempt + 1 >= max_attempts {
-            return Ok(None);
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+/// Resolve hidden review subprocess session names to ids after orchestration.
+pub async fn resolve_review_session_ids(names: &[String]) -> Vec<String> {
+    if names.is_empty() {
+        return Vec::new();
     }
-    Ok(None)
+
+    let mut by_name = hidden_sessions_by_name().await.unwrap_or_else(|e| {
+        eprintln!("goose review: failed to list hidden sessions: {e}");
+        HashMap::new()
+    });
+
+    let mut ids = Vec::with_capacity(names.len());
+    let mut missing = Vec::new();
+    for name in names {
+        if let Some(id) = by_name.get(name) {
+            ids.push(id.clone());
+        } else {
+            missing.push(name.clone());
+        }
+    }
+
+    if missing.is_empty() {
+        return ids;
+    }
+
+    for attempt in 0..20 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        by_name = hidden_sessions_by_name().await.unwrap_or(by_name);
+        missing.retain(|name| {
+            if let Some(id) = by_name.get(name) {
+                ids.push(id.clone());
+                false
+            } else {
+                true
+            }
+        });
+        if missing.is_empty() {
+            break;
+        }
+        if attempt + 1 >= 20 {
+            for name in &missing {
+                eprintln!("goose review: session not found for subprocess name {name}");
+            }
+        }
+    }
+
+    ids
 }
 
 pub fn record_subprocess_session_name(
@@ -197,23 +231,6 @@ pub fn record_subprocess_session_name(
             names.push(name);
         }
     }
-}
-
-/// Resolve hidden review subprocess session names to ids after orchestration.
-pub async fn resolve_review_session_ids(names: &[String]) -> Vec<String> {
-    let mut ids = Vec::with_capacity(names.len());
-    for name in names {
-        match find_hidden_session_id_by_name_with_retry(name, 20).await {
-            Ok(Some(id)) => ids.push(id),
-            Ok(None) => {
-                eprintln!("goose review: session not found for subprocess name {name}");
-            }
-            Err(e) => {
-                eprintln!("goose review: session lookup failed for {name}: {e}");
-            }
-        }
-    }
-    ids
 }
 
 pub async fn load_review_sessions_by_ids(ids: &[String]) -> Vec<ReviewSessionEntry> {
