@@ -85,7 +85,7 @@
     "env": [
       "OVHCLOUD_API_KEY"
     ],
-    "model_count": 11
+    "model_count": 15
   },
   {
     "id": "iflowcn",
@@ -416,7 +416,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 29
+    "model_count": 22
   },
   {
     "id": "inference",

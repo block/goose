@@ -27458,9 +27458,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.28,
-      "output": 0.38,
-      "cache_read": 0.06
+      "input": 0.18,
+      "output": 0.35,
+      "cache_read": 0.04
     },
     "limit": {
       "context": 163840,
@@ -27490,7 +27490,7 @@
     "cost": {
       "input": 0.12,
       "output": 0.21,
-      "cache_read": 0.02
+      "cache_read": 0.003
     },
     "limit": {
       "context": 1000000,
@@ -27518,8 +27518,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.4,
-      "output": 0.85,
+      "input": 0.35,
+      "output": 0.8,
       "cache_read": 0.003
     },
     "limit": {
@@ -27528,13 +27528,14 @@
     }
   },
   {
-    "id": "crof/deepseek-v4-pro-precision",
-    "name": "DeepSeek V4 Pro (Precision)",
+    "id": "crof/deepseek-v4-pro-lightning",
+    "name": "DeepSeek V4 Pro",
     "family": "deepseek-thinking",
     "attachment": false,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
+    "knowledge": "2025-05",
     "release_date": "2026-04-24",
     "last_updated": "2026-04-24",
     "modalities": {
@@ -27547,9 +27548,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 1.25,
-      "output": 2.5,
-      "cache_read": 0.1
+      "input": 0.8,
+      "output": 1.6,
+      "cache_read": 0.02
     },
     "limit": {
       "context": 1000000,
@@ -27644,7 +27645,7 @@
       "cache_write": 0.0
     },
     "limit": {
-      "context": 200000,
+      "context": 202752,
       "output": 131072
     }
   },
@@ -27699,8 +27700,8 @@
     "open_weights": false,
     "cost": {
       "input": 0.45,
-      "output": 2.1,
-      "cache_read": 0.09,
+      "output": 2.15,
+      "cache_read": 0.08,
       "cache_write": 0.0
     },
     "limit": {
@@ -27709,37 +27710,8 @@
     }
   },
   {
-    "id": "crof/glm-5.1-precision",
-    "name": "GLM 5.1 (Precision)",
-    "family": "glm",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-03-27",
-    "last_updated": "2026-03-27",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.75,
-      "output": 2.9,
-      "cache_read": 0.15
-    },
-    "limit": {
-      "context": 202752,
-      "output": 202752
-    }
-  },
-  {
-    "id": "crof/greg",
-    "name": "Experiment!: Greg",
+    "id": "crof/greg-1",
+    "name": "Greg 1 Normal",
     "attachment": false,
     "reasoning": false,
     "tool_call": false,
@@ -27757,7 +27729,91 @@
     "open_weights": false,
     "cost": {
       "input": 0.1,
-      "output": 0.2,
+      "output": 0.3,
+      "cache_read": 0.02
+    },
+    "limit": {
+      "context": 229376,
+      "output": 229376
+    }
+  },
+  {
+    "id": "crof/greg-1-mini",
+    "name": "Greg 1 Mini",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "release_date": "2026-01-27",
+    "last_updated": "2026-01-27",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.07,
+      "output": 0.15,
+      "cache_read": 0.01
+    },
+    "limit": {
+      "context": 229376,
+      "output": 229376
+    }
+  },
+  {
+    "id": "crof/greg-1-super",
+    "name": "Greg 1 Super",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "release_date": "2026-01-27",
+    "last_updated": "2026-01-27",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.0,
+      "output": 5.0,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 229376,
+      "output": 229376
+    }
+  },
+  {
+    "id": "crof/greg-rp",
+    "name": "Greg (Roleplay)",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "release_date": "2026-01-27",
+    "last_updated": "2026-01-27",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.1,
+      "output": 0.3,
       "cache_read": 0.02
     },
     "limit": {
@@ -27853,38 +27909,7 @@
     "cost": {
       "input": 0.5,
       "output": 1.99,
-      "cache_read": 0.1
-    },
-    "limit": {
-      "context": 262144,
-      "output": 262144
-    }
-  },
-  {
-    "id": "crof/kimi-k2.6-precision",
-    "name": "Kimi K2.6 (Precision)",
-    "family": "kimi-k2.6",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-04-21",
-    "last_updated": "2026-04-21",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "video"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.55,
-      "output": 2.7,
-      "cache_read": 0.11
+      "cache_read": 0.05
     },
     "limit": {
       "context": 262144,
@@ -27912,41 +27937,12 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.5,
-      "output": 1.5,
-      "cache_read": 0.1
+      "input": 0.4,
+      "output": 0.8,
+      "cache_read": 0.003
     },
     "limit": {
       "context": 1048576,
-      "output": 131072
-    }
-  },
-  {
-    "id": "crof/mimo-v2.5-pro-precision",
-    "name": "MiMo-V2.5-Pro (Precision)",
-    "family": "mimo",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-04-22",
-    "last_updated": "2026-04-22",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.8,
-      "output": 2.5,
-      "cache_read": 0.16
-    },
-    "limit": {
-      "context": 1000000,
       "output": 131072
     }
   },
@@ -34825,7 +34821,7 @@
   },
   {
     "id": "github-copilot/claude-haiku-4.5",
-    "name": "Claude Haiku 4.5",
+    "name": "Claude Haiku 4.5 (latest)",
     "family": "claude-haiku",
     "attachment": true,
     "reasoning": true,
@@ -34837,7 +34833,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -34845,8 +34842,10 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 1.0,
+      "output": 5.0,
+      "cache_read": 0.1,
+      "cache_write": 1.25
     },
     "limit": {
       "context": 200000,
@@ -34855,7 +34854,7 @@
   },
   {
     "id": "github-copilot/claude-opus-4.5",
-    "name": "Claude Opus 4.5",
+    "name": "Claude Opus 4.5 (latest)",
     "family": "claude-opus",
     "attachment": true,
     "reasoning": true,
@@ -34863,11 +34862,12 @@
     "temperature": true,
     "knowledge": "2025-03-31",
     "release_date": "2025-11-24",
-    "last_updated": "2025-08-01",
+    "last_updated": "2025-11-24",
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -34875,12 +34875,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
     },
     "limit": {
       "context": 200000,
-      "output": 32000
+      "output": 64000
     }
   },
   {
@@ -34893,11 +34895,12 @@
     "temperature": true,
     "knowledge": "2025-05-31",
     "release_date": "2026-02-05",
-    "last_updated": "2026-02-05",
+    "last_updated": "2026-03-13",
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -34905,12 +34908,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
     },
     "limit": {
-      "context": 200000,
-      "output": 32000
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -34927,7 +34932,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -34935,12 +34941,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
     },
     "limit": {
-      "context": 200000,
-      "output": 32000
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -34951,13 +34959,13 @@
     "reasoning": true,
     "tool_call": true,
     "temperature": false,
-    "knowledge": "2026-01-31",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -34965,47 +34973,19 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
     },
     "limit": {
-      "context": 200000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "github-copilot/claude-opus-41",
-    "name": "Claude Opus 4.1",
-    "family": "claude-opus",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": false,
-    "temperature": true,
-    "knowledge": "2025-03-31",
-    "release_date": "2025-08-05",
-    "last_updated": "2025-08-05",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 80000,
-      "output": 16000
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
     "id": "github-copilot/claude-sonnet-4",
-    "name": "Claude Sonnet 4",
+    "name": "Claude Sonnet 4 (latest)",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
@@ -35017,7 +34997,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35025,29 +35006,32 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
     },
     "limit": {
-      "context": 216000,
-      "output": 16000
+      "context": 200000,
+      "output": 64000
     }
   },
   {
     "id": "github-copilot/claude-sonnet-4.5",
-    "name": "Claude Sonnet 4.5",
+    "name": "Claude Sonnet 4.5 (latest)",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "knowledge": "2025-03-31",
+    "knowledge": "2025-07-31",
     "release_date": "2025-09-29",
     "last_updated": "2025-09-29",
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35055,12 +35039,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
     },
     "limit": {
       "context": 200000,
-      "output": 32000
+      "output": 64000
     }
   },
   {
@@ -35073,11 +35059,12 @@
     "temperature": true,
     "knowledge": "2025-08-31",
     "release_date": "2026-02-17",
-    "last_updated": "2026-02-17",
+    "last_updated": "2026-03-13",
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35085,12 +35072,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
     },
     "limit": {
-      "context": 200000,
-      "output": 32000
+      "context": 1000000,
+      "output": 64000
     }
   },
   {
@@ -35098,7 +35087,7 @@
     "name": "Gemini 2.5 Pro",
     "family": "gemini-pro",
     "attachment": true,
-    "reasoning": false,
+    "reasoning": true,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2025-01",
@@ -35109,7 +35098,8 @@
         "text",
         "image",
         "audio",
-        "video"
+        "video",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35117,17 +35107,18 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read": 0.125
     },
     "limit": {
-      "context": 128000,
-      "output": 64000
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
     "id": "github-copilot/gemini-3-flash-preview",
-    "name": "Gemini 3 Flash",
+    "name": "Gemini 3 Flash Preview",
     "family": "gemini-flash",
     "attachment": true,
     "reasoning": true,
@@ -35140,8 +35131,9 @@
       "input": [
         "text",
         "image",
+        "video",
         "audio",
-        "video"
+        "pdf"
       ],
       "output": [
         "text"
@@ -35149,44 +35141,13 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 0.5,
+      "output": 3.0,
+      "cache_read": 0.05
     },
     "limit": {
-      "context": 128000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "github-copilot/gemini-3-pro-preview",
-    "name": "Gemini 3 Pro Preview",
-    "family": "gemini-pro",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-01",
-    "release_date": "2025-11-18",
-    "last_updated": "2025-11-18",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "audio",
-        "video"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 128000,
-      "output": 64000
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
@@ -35203,7 +35164,10 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "video",
+        "audio",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35211,12 +35175,13 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
     },
     "limit": {
-      "context": 200000,
-      "output": 64000
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
@@ -35234,8 +35199,9 @@
       "input": [
         "text",
         "image",
+        "video",
         "audio",
-        "video"
+        "pdf"
       ],
       "output": [
         "text"
@@ -35243,12 +35209,13 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 1.5,
+      "output": 9.0,
+      "cache_read": 0.15
     },
     "limit": {
-      "context": 200000,
-      "output": 64000
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
@@ -35265,7 +35232,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35273,53 +35241,24 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 2.0,
+      "output": 8.0,
+      "cache_read": 0.5
     },
     "limit": {
-      "context": 128000,
-      "output": 16384
+      "context": 1047576,
+      "output": 32768
     }
   },
   {
-    "id": "github-copilot/gpt-4o",
-    "name": "GPT-4o",
-    "family": "gpt",
-    "attachment": true,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2023-09",
-    "release_date": "2024-05-13",
-    "last_updated": "2024-05-13",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "github-copilot/gpt-5",
-    "name": "GPT-5",
-    "family": "gpt",
+    "id": "github-copilot/gpt-5-mini",
+    "name": "GPT-5 Mini",
+    "family": "gpt-mini",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-10",
+    "temperature": false,
+    "knowledge": "2024-05-30",
     "release_date": "2025-08-07",
     "last_updated": "2025-08-07",
     "modalities": {
@@ -35333,158 +35272,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 128000,
-      "output": 128000
-    }
-  },
-  {
-    "id": "github-copilot/gpt-5-mini",
-    "name": "GPT-5-mini",
-    "family": "gpt-mini",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-06",
-    "release_date": "2025-08-13",
-    "last_updated": "2025-08-13",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 264000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "github-copilot/gpt-5.1",
-    "name": "GPT-5.1",
-    "family": "gpt",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": false,
-    "knowledge": "2024-09-30",
-    "release_date": "2025-11-13",
-    "last_updated": "2025-11-13",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 264000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "github-copilot/gpt-5.1-codex",
-    "name": "GPT-5.1-Codex",
-    "family": "gpt-codex",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": false,
-    "knowledge": "2024-09-30",
-    "release_date": "2025-11-13",
-    "last_updated": "2025-11-13",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 400000,
-      "output": 128000
-    }
-  },
-  {
-    "id": "github-copilot/gpt-5.1-codex-max",
-    "name": "GPT-5.1-Codex-max",
-    "family": "gpt-codex",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": false,
-    "knowledge": "2024-09-30",
-    "release_date": "2025-12-04",
-    "last_updated": "2025-12-04",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 400000,
-      "output": 128000
-    }
-  },
-  {
-    "id": "github-copilot/gpt-5.1-codex-mini",
-    "name": "GPT-5.1-Codex-mini",
-    "family": "gpt-codex",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": false,
-    "knowledge": "2024-09-30",
-    "release_date": "2025-11-13",
-    "last_updated": "2025-11-13",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 0.25,
+      "output": 2.0,
+      "cache_read": 0.025
     },
     "limit": {
       "context": 400000,
@@ -35513,8 +35303,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
     },
     "limit": {
       "context": 400000,
@@ -35523,9 +35314,9 @@
   },
   {
     "id": "github-copilot/gpt-5.2-codex",
-    "name": "GPT-5.2-Codex",
+    "name": "GPT-5.2 Codex",
     "family": "gpt-codex",
-    "attachment": false,
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": false,
@@ -35535,7 +35326,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35543,8 +35335,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
     },
     "limit": {
       "context": 400000,
@@ -35553,19 +35346,20 @@
   },
   {
     "id": "github-copilot/gpt-5.3-codex",
-    "name": "GPT-5.3-Codex",
+    "name": "GPT-5.3 Codex",
     "family": "gpt-codex",
-    "attachment": false,
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": false,
     "knowledge": "2025-08-31",
-    "release_date": "2026-02-24",
-    "last_updated": "2026-02-24",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35573,8 +35367,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
     },
     "limit": {
       "context": 400000,
@@ -35585,7 +35380,7 @@
     "id": "github-copilot/gpt-5.4",
     "name": "GPT-5.4",
     "family": "gpt",
-    "attachment": false,
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": false,
@@ -35595,7 +35390,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35603,17 +35399,18 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read": 0.25
     },
     "limit": {
-      "context": 400000,
+      "context": 1050000,
       "output": 128000
     }
   },
   {
     "id": "github-copilot/gpt-5.4-mini",
-    "name": "GPT-5.4 Mini",
+    "name": "GPT-5.4 mini",
     "family": "gpt-mini",
     "attachment": true,
     "reasoning": true,
@@ -35633,8 +35430,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 0.75,
+      "output": 4.5,
+      "cache_read": 0.075
     },
     "limit": {
       "context": 400000,
@@ -35642,16 +35440,16 @@
     }
   },
   {
-    "id": "github-copilot/gpt-5.5",
-    "name": "GPT-5.5",
-    "family": "gpt",
-    "attachment": false,
+    "id": "github-copilot/gpt-5.4-nano",
+    "name": "GPT-5.4 nano",
+    "family": "gpt-nano",
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": false,
     "knowledge": "2025-08-31",
-    "release_date": "2026-04-22",
-    "last_updated": "2026-04-22",
+    "release_date": "2026-03-17",
+    "last_updated": "2026-03-17",
     "modalities": {
       "input": [
         "text",
@@ -35663,8 +35461,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 0.2,
+      "output": 1.25,
+      "cache_read": 0.02
     },
     "limit": {
       "context": 400000,
@@ -35672,19 +35471,21 @@
     }
   },
   {
-    "id": "github-copilot/grok-code-fast-1",
-    "name": "Grok Code Fast 1",
-    "family": "grok",
-    "attachment": false,
+    "id": "github-copilot/gpt-5.5",
+    "name": "GPT-5.5",
+    "family": "gpt",
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-08",
-    "release_date": "2025-08-27",
-    "last_updated": "2025-08-27",
+    "temperature": false,
+    "knowledge": "2025-12-01",
+    "release_date": "2026-04-23",
+    "last_updated": "2026-04-23",
     "modalities": {
       "input": [
-        "text"
+        "text",
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -35692,12 +35493,44 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 5.0,
+      "output": 30.0,
+      "cache_read": 0.5
     },
     "limit": {
-      "context": 128000,
-      "output": 64000
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "github-copilot/raptor-mini",
+    "name": "Raptor mini",
+    "family": "gpt-mini",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2024-05-30",
+    "release_date": "2025-08-07",
+    "last_updated": "2025-08-07",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.25,
+      "output": 2.0,
+      "cache_read": 0.025
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
     }
   },
   {
@@ -57945,8 +57778,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.8,
-      "output": 2.4
+      "input": 0.55,
+      "output": 2.19
     },
     "limit": {
       "context": 64000,
@@ -57976,7 +57809,7 @@
     "cost": {
       "input": 0.56,
       "output": 1.68,
-      "cache_read": 0.11
+      "cache_read": 0.07
     },
     "limit": {
       "context": 128000,
@@ -58006,7 +57839,7 @@
     "cost": {
       "input": 0.28,
       "output": 0.42,
-      "cache_read": 0.03
+      "cache_read": 0.056
     },
     "limit": {
       "context": 163840,
@@ -58909,7 +58742,7 @@
     "cost": {
       "input": 0.04,
       "output": 0.4,
-      "cache_read": 0.0
+      "cache_read": 0.004
     },
     "limit": {
       "context": 128000,
@@ -60016,8 +59849,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.15,
-      "output": 0.75
+      "input": 0.05,
+      "output": 0.25
     },
     "limit": {
       "context": 131072,
@@ -60044,8 +59877,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.1,
-      "output": 0.5
+      "input": 0.04,
+      "output": 0.15
     },
     "limit": {
       "context": 131072,
@@ -60343,9 +60176,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 1.0,
-      "output": 3.0,
-      "cache_read": 0.5
+      "input": 0.6,
+      "output": 2.5,
+      "cache_read": 0.12
     },
     "limit": {
       "context": 131072,
@@ -61498,8 +61331,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.5,
-      "output": 1.0
+      "input": 0.502,
+      "output": 1.004
     },
     "limit": {
       "context": 131072,
@@ -61736,8 +61569,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.3,
-      "output": 0.3
+      "input": 1.4,
+      "output": 4.2
     },
     "limit": {
       "context": 131072,
@@ -61822,8 +61655,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.5,
-      "output": 2.5
+      "input": 0.2,
+      "output": 0.8
     },
     "limit": {
       "context": 131072,
@@ -61850,8 +61683,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.8,
-      "output": 2.4
+      "input": 0.09,
+      "output": 0.58
     },
     "limit": {
       "context": 131072,
@@ -61878,8 +61711,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.8,
-      "output": 2.4
+      "input": 0.2,
+      "output": 0.6
     },
     "limit": {
       "context": 131072,
@@ -61935,7 +61768,7 @@
     "open_weights": true,
     "cost": {
       "input": 0.1,
-      "output": 0.1
+      "output": 0.3
     },
     "limit": {
       "context": 131072,
@@ -62048,7 +61881,7 @@
     "open_weights": true,
     "cost": {
       "input": 0.03,
-      "output": 0.05
+      "output": 0.03
     },
     "limit": {
       "context": 131072,
@@ -62162,8 +61995,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.8,
-      "output": 4.0
+      "input": 0.108,
+      "output": 0.675
     },
     "limit": {
       "context": 262144,
@@ -62307,8 +62140,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.8,
-      "output": 2.4
+      "input": 0.3,
+      "output": 1.5
     },
     "limit": {
       "context": 131072,
@@ -62336,8 +62169,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.8,
-      "output": 2.4
+      "input": 0.5,
+      "output": 2.0
     },
     "limit": {
       "context": 131072,
@@ -62365,8 +62198,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.1
+      "input": 0.2,
+      "output": 0.7
     },
     "limit": {
       "context": 131072,
@@ -62394,8 +62227,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.1
+      "input": 0.2,
+      "output": 1.0
     },
     "limit": {
       "context": 131072,
@@ -62423,8 +62256,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.1
+      "input": 0.08,
+      "output": 0.5
     },
     "limit": {
       "context": 131072,
@@ -62452,9 +62285,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.05,
-      "output": 0.4,
-      "cache_read": 0.01
+      "input": 0.022,
+      "output": 0.215,
+      "cache_read": 0.0044
     },
     "limit": {
       "context": 1000000,
@@ -62759,7 +62592,7 @@
     "cost": {
       "input": 0.07,
       "output": 0.3,
-      "cache_read": 0.01
+      "cache_read": 0.015
     },
     "limit": {
       "context": 256000,
@@ -108059,14 +107892,14 @@
     }
   },
   {
-    "id": "ovhcloud/qwen3.5-9b",
-    "name": "Qwen3.5-9B",
+    "id": "ovhcloud/qwen3.5-397b-a17b",
+    "name": "Qwen3.5-397B-A17B",
     "attachment": true,
-    "reasoning": false,
+    "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "release_date": "2026-02-15",
-    "last_updated": "2026-02-15",
+    "release_date": "2026-05-18",
+    "last_updated": "2026-05-18",
     "modalities": {
       "input": [
         "text",
@@ -108078,12 +107911,116 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.15
+      "input": 0.71,
+      "output": 4.25
     },
     "limit": {
       "context": 262144,
       "output": 262144
+    }
+  },
+  {
+    "id": "ovhcloud/qwen3.5-9b",
+    "name": "Qwen3.5-9B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-04-22",
+    "last_updated": "2026-04-22",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.12,
+      "output": 0.18
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "ovhcloud/qwen3.6-27b",
+    "name": "Qwen3.6-27B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-06-01",
+    "last_updated": "2026-06-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.47,
+      "output": 3.19
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "ovhcloud/qwen3guard-gen-0.6b",
+    "name": "Qwen3Guard-Gen-0.6B",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "release_date": "2026-01-22",
+    "last_updated": "2026-01-22",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {},
+    "limit": {
+      "context": 32768,
+      "output": 16384
+    }
+  },
+  {
+    "id": "ovhcloud/qwen3guard-gen-8b",
+    "name": "Qwen3Guard-Gen-8B",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "release_date": "2026-01-22",
+    "last_updated": "2026-01-22",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {},
+    "limit": {
+      "context": 32768,
+      "output": 16384
     }
   },
   {
