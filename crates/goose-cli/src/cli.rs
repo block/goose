@@ -1939,7 +1939,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
 
             // Download
             let manager = goose::download_manager::get_download_manager();
-            let hf_token = goose::providers::huggingface_auth::resolve_token()?;
+            let hf_token = goose::providers::huggingface_auth::resolve_token_async().await?;
             manager
                 .download_model_sharded_with_bearer_token(
                     format!("{}-model", model_id),
