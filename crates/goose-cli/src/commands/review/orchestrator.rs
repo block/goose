@@ -39,7 +39,10 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use super::handler::ReviewOptions;
-use super::output::{record_subprocess_session_id_by_name, review_session_name, SubprocessFailure};
+use super::output::{
+    record_subprocess_session_id_by_name, record_subprocess_session_id_by_name_with_retry,
+    review_session_name, SubprocessFailure,
+};
 use goose::checks::Check;
 
 #[derive(Debug, Default, Clone)]
@@ -390,7 +393,12 @@ async fn run_subprocess_for_findings_inner(
         Ok(o) => o.with_context(|| format!("wait on {label}"))?,
         Err(_) => {
             record_subprocess_failure(&stats, label, "timeout");
-            record_subprocess_session_id_by_name(&session_ids, session_name.as_deref()).await;
+            record_subprocess_session_id_by_name_with_retry(
+                &session_ids,
+                session_name.as_deref(),
+                20,
+            )
+            .await;
             anyhow::bail!("{label} timed out after {}s", CHECK_TIMEOUT_SECS);
         }
     };

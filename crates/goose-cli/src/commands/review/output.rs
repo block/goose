@@ -238,13 +238,21 @@ pub async fn record_subprocess_session_id_by_name(
     session_ids: &std::sync::Mutex<Vec<String>>,
     session_name: Option<&str>,
 ) {
+    record_subprocess_session_id_by_name_with_retry(session_ids, session_name, 1).await;
+}
+
+pub async fn record_subprocess_session_id_by_name_with_retry(
+    session_ids: &std::sync::Mutex<Vec<String>>,
+    session_name: Option<&str>,
+    max_attempts: usize,
+) {
     let Some(name) = session_name else { return };
-    for attempt in 0..20 {
+    for attempt in 0..max_attempts {
         if let Some(id) = find_hidden_session_id_by_name(name).await {
             record_review_session_id(session_ids, Some(id));
             return;
         }
-        if attempt == 19 {
+        if attempt + 1 >= max_attempts {
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
