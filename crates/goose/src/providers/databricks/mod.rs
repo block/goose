@@ -16,7 +16,7 @@ use super::base::{
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::create_request;
-use super::formats::openai_responses::create_responses_request;
+use super::formats::openai::create_responses_request;
 use super::oauth;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, map_http_error_to_provider_error, sanitize_url,
@@ -35,25 +35,11 @@ use crate::providers::retry::{
 use rmcp::model::Tool;
 use serde_json::json;
 
-#[derive(Debug, Clone)]
-struct DatabricksEndpointInfo {
-    name: String,
-    upstream_model_name: Option<String>,
-    upstream_model_provider: Option<String>,
-    reasoning: Option<bool>,
-}
+mod auth;
+mod types;
 
-#[derive(Debug, Clone)]
-struct DatabricksUpstreamModel {
-    name: String,
-    provider: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct CachedDatabricksEndpointInfo {
-    info: DatabricksEndpointInfo,
-    fetched_at: Instant,
-}
+pub use auth::*;
+use types::{CachedDatabricksEndpointInfo, DatabricksEndpointInfo, DatabricksUpstreamModel};
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost";
@@ -74,69 +60,6 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
 
 pub const DATABRICKS_DOC_URL: &str =
     "https://docs.databricks.com/en/generative-ai/external-models/index.html";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DatabricksAuth {
-    Token(String),
-    OAuth {
-        host: String,
-        client_id: String,
-        redirect_url: String,
-        scopes: Vec<String>,
-    },
-}
-
-impl DatabricksAuth {
-    pub fn oauth(host: String) -> Self {
-        Self::OAuth {
-            host,
-            client_id: DEFAULT_CLIENT_ID.to_string(),
-            redirect_url: DEFAULT_REDIRECT_URL.to_string(),
-            scopes: DEFAULT_SCOPES.iter().map(|s| s.to_string()).collect(),
-        }
-    }
-
-    pub fn token(token: String) -> Self {
-        Self::Token(token)
-    }
-}
-
-struct DatabricksAuthProvider {
-    auth: DatabricksAuth,
-    token_cache: Arc<Mutex<Option<String>>>,
-}
-
-#[async_trait]
-impl AuthProvider for DatabricksAuthProvider {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        let token = match &self.auth {
-            DatabricksAuth::Token(original) => {
-                let cached = self.token_cache.lock().unwrap().clone();
-                match cached {
-                    Some(t) => t,
-                    None => {
-                        // Cache was cleared by refresh_credentials(); re-read
-                        // from config which may have a sidecar-rotated token.
-                        // Fall back to the constructor-provided token if config
-                        // lookup fails (e.g. from_params usage).
-                        let fresh = crate::config::Config::global()
-                            .get_secret::<String>("DATABRICKS_TOKEN")
-                            .unwrap_or_else(|_| original.clone());
-                        *self.token_cache.lock().unwrap() = Some(fresh.clone());
-                        fresh
-                    }
-                }
-            }
-            DatabricksAuth::OAuth {
-                host,
-                client_id,
-                redirect_url,
-                scopes,
-            } => oauth::get_oauth_token_async(host, client_id, redirect_url, scopes).await?,
-        };
-        Ok(("Authorization".to_string(), format!("Bearer {}", token)))
-    }
-}
 
 #[derive(Debug, serde::Serialize)]
 pub struct DatabricksProvider {
@@ -194,7 +117,7 @@ impl DatabricksProvider {
             _ => None,
         }));
 
-        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
+        let auth_method = AuthMethod::Custom(Box::new(auth::DatabricksAuthProvider {
             auth: auth.clone(),
             token_cache: token_cache.clone(),
         }));
@@ -263,7 +186,7 @@ impl DatabricksProvider {
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
         let token_cache = Arc::new(Mutex::new(Some(api_key.clone())));
         let auth = DatabricksAuth::token(api_key);
-        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
+        let auth_method = AuthMethod::Custom(Box::new(auth::DatabricksAuthProvider {
             auth: auth.clone(),
             token_cache: token_cache.clone(),
         }));

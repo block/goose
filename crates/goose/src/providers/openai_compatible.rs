@@ -17,8 +17,8 @@ use super::retry::ProviderRetry;
 use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::formats::openai::responses_api_to_streaming_message;
 use crate::providers::formats::openai::{create_request, response_to_streaming_message};
-use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {

@@ -26,8 +26,8 @@ use super::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::errors::ProviderError;
+use super::formats::openai::create_responses_request;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, is_openai_responses_model, ImageFormat, RequestLog};

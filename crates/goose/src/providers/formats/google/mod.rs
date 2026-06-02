@@ -14,610 +14,15 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
 
-pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
-const SYNTHETIC_THOUGHT_SIGNATURE: &str = "skip_thought_signature_validator";
-const GEMINI25_DEFAULT_THINKING_BUDGET: i32 = 8192;
+mod messages;
+mod request;
+mod streaming;
+mod types;
 
-pub fn metadata_with_signature(signature: &str) -> ProviderMetadata {
-    let mut map = ProviderMetadata::new();
-    map.insert(THOUGHT_SIGNATURE_KEY.to_string(), json!(signature));
-    map
-}
-
-pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str> {
-    metadata
-        .as_ref()
-        .and_then(|m| m.get(THOUGHT_SIGNATURE_KEY))
-        .and_then(|v| v.as_str())
-}
-
-fn is_user_loop_boundary(message: &Message) -> bool {
-    message.role == Role::User
-        && message
-            .content
-            .iter()
-            .any(|content| !matches!(content, MessageContent::ToolResponse(_)))
-}
-
-fn insert_thought_signature(part: &mut Map<String, Value>, signature: &str) {
-    part.insert(THOUGHT_SIGNATURE_KEY.to_string(), json!(signature));
-}
-
-fn maybe_insert_signature_from_metadata(
-    part: &mut Map<String, Value>,
-    metadata: &Option<ProviderMetadata>,
-) {
-    if let Some(signature) = get_thought_signature(metadata) {
-        insert_thought_signature(part, signature);
-    }
-}
-
-fn build_function_response_part(name: &str, text: String) -> Map<String, Value> {
-    let mut part = Map::new();
-    let mut function_response = Map::new();
-    function_response.insert("name".to_string(), json!(name));
-    function_response.insert("response".to_string(), json!({"content": {"text": text}}));
-    part.insert("functionResponse".to_string(), json!(function_response));
-    part
-}
-
-/// Convert internal Message format to Google's API message specification
-pub fn format_messages(messages: &[Message]) -> Vec<Value> {
-    let filtered: Vec<_> = messages
-        .iter()
-        .filter(|m| m.is_agent_visible())
-        .filter(|message| {
-            message.content.iter().any(|content| {
-                !matches!(
-                    content,
-                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
-                )
-            })
-        })
-        .collect();
-
-    let active_loop_start_idx = filtered
-        .iter()
-        .enumerate()
-        .rev()
-        .find(|(_, m)| is_user_loop_boundary(m))
-        .map(|(i, _)| i);
-
-    filtered
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, message)| {
-            let role = if message.role == Role::User {
-                "user"
-            } else {
-                "model"
-            };
-            let include_signature = active_loop_start_idx.is_none_or(|start_idx| idx >= start_idx);
-            // Only the first model tool call in a turn is guaranteed to carry
-            // a signature for loop continuity.
-            let mut needs_synthetic_for_first_model_tool_call =
-                include_signature && message.role != Role::User;
-            let mut parts = Vec::new();
-            for message_content in message.content.iter() {
-                match message_content {
-                    MessageContent::Text(text) => {
-                        if !text.text.is_empty() {
-                            parts.push(json!({"text": text.text}));
-                        }
-                    }
-                    MessageContent::ToolRequest(request) => match &request.tool_call {
-                        Ok(tool_call) => {
-                            let mut function_call_part = Map::new();
-                            function_call_part.insert(
-                                "name".to_string(),
-                                json!(sanitize_function_name(&tool_call.name)),
-                            );
-
-                            if let Some(args) = &tool_call.arguments {
-                                if !args.is_empty() {
-                                    function_call_part
-                                        .insert("args".to_string(), args.clone().into());
-                                }
-                            }
-
-                            let mut part = Map::new();
-                            part.insert("functionCall".to_string(), json!(function_call_part));
-
-                            if include_signature {
-                                if let Some(signature) = get_thought_signature(&request.metadata) {
-                                    insert_thought_signature(&mut part, signature);
-                                } else if needs_synthetic_for_first_model_tool_call {
-                                    insert_thought_signature(
-                                        &mut part,
-                                        SYNTHETIC_THOUGHT_SIGNATURE,
-                                    );
-                                }
-                            }
-                            needs_synthetic_for_first_model_tool_call = false;
-
-                            parts.push(json!(part));
-                        }
-                        Err(e) => {
-                            parts.push(json!({"text":format!("Error: {}", e)}));
-                        }
-                    },
-                    MessageContent::ToolResponse(response) => match &response.tool_result {
-                        Ok(result) => {
-                            let mut tool_content = Vec::new();
-                            for content in result.content.iter().map(|c| c.raw.clone()) {
-                                match content {
-                                    RawContent::Image(image) => {
-                                        parts.push(json!({
-                                            "inline_data": {
-                                                "mime_type": image.mime_type,
-                                                "data": image.data,
-                                            }
-                                        }));
-                                    }
-                                    _ => {
-                                        tool_content.push(content.no_annotation());
-                                    }
-                                }
-                            }
-                            let mut text = tool_content
-                                .iter()
-                                .filter_map(|c| match c.deref() {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    RawContent::Resource(raw_embedded_resource) => Some(
-                                        raw_embedded_resource.clone().no_annotation().get_text(),
-                                    ),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
-
-                            if text.is_empty() {
-                                text = "Tool call is done.".to_string();
-                            }
-                            let mut part = build_function_response_part(&response.id, text);
-                            if include_signature {
-                                maybe_insert_signature_from_metadata(&mut part, &response.metadata);
-                            }
-                            parts.push(json!(part));
-                        }
-                        Err(e) => {
-                            let mut part =
-                                build_function_response_part(&response.id, format!("Error: {}", e));
-                            if include_signature {
-                                maybe_insert_signature_from_metadata(&mut part, &response.metadata);
-                            }
-                            parts.push(json!(part));
-                        }
-                    },
-                    MessageContent::Thinking(_) => {}
-                    MessageContent::Image(image) => {
-                        parts.push(json!({
-                            "inline_data": {
-                                "mime_type": image.mime_type,
-                                "data": image.data,
-                            }
-                        }));
-                    }
-
-                    _ => {}
-                }
-            }
-            if parts.is_empty() {
-                None
-            } else {
-                Some(json!({"role": role, "parts": parts}))
-            }
-        })
-        .collect()
-}
-
-pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
-    tools
-        .iter()
-        .map(|tool| {
-            let mut parameters = Map::new();
-            parameters.insert("name".to_string(), json!(tool.name));
-            parameters.insert("description".to_string(), json!(tool.description));
-
-            // Use parametersJsonSchema which supports full JSON Schema including $ref/$defs
-            if tool
-                .input_schema
-                .get("properties")
-                .and_then(|v| v.as_object())
-                .is_some_and(|p| !p.is_empty())
-            {
-                parameters.insert("parametersJsonSchema".to_string(), json!(tool.input_schema));
-            }
-            json!(parameters)
-        })
-        .collect()
-}
-
-fn process_response_part_impl(
-    part: &Value,
-    last_signature: &mut Option<String>,
-) -> Option<MessageContent> {
-    let signature = part.get(THOUGHT_SIGNATURE_KEY).and_then(|v| v.as_str());
-    let is_thought = part
-        .get("thought")
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false);
-
-    if let Some(sig) = signature {
-        *last_signature = Some(sig.to_string());
-    }
-
-    let text_value = part.get("text");
-    if let Some(text) = text_value.and_then(|v| v.as_str()) {
-        if text.is_empty() {
-            return None;
-        }
-        if is_thought {
-            match signature {
-                Some(sig) => Some(MessageContent::thinking(text.to_string(), sig.to_string())),
-                None => Some(MessageContent::thinking(text.to_string(), "")),
-            }
-        } else {
-            Some(MessageContent::text(text.to_string()))
-        }
-    } else if text_value.is_some() {
-        tracing::warn!(
-            "Google response part has 'text' field but it's not a string: {:?}",
-            text_value
-        );
-        None
-    } else if let Some(function_call) = part.get("functionCall") {
-        let id = Uuid::new_v4().to_string();
-        let name = function_call["name"].as_str().unwrap_or_default();
-
-        if !is_valid_function_name(name) {
-            let error = ErrorData {
-                code: ErrorCode::INVALID_REQUEST,
-                message: Cow::from(format!(
-                    "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                    name
-                )),
-                data: None,
-            };
-            Some(MessageContent::tool_request(id, Err(error)))
-        } else {
-            let arguments = function_call
-                .get("args")
-                .map(|params| object(params.clone()));
-            let effective_signature = signature.or(last_signature.as_deref());
-            let metadata = effective_signature.map(metadata_with_signature);
-
-            Some(MessageContent::tool_request_with_metadata(
-                id,
-                Ok({
-                    let mut params = CallToolRequestParams::new(name.to_string());
-                    if let Some(args) = arguments {
-                        params = params.with_arguments(args);
-                    }
-                    params
-                }),
-                metadata.as_ref(),
-            ))
-        }
-    } else {
-        None
-    }
-}
-
-pub fn response_to_message(response: Value) -> Result<Message> {
-    let role = Role::Assistant;
-    let created = chrono::Utc::now().timestamp();
-
-    let parts = response
-        .get("candidates")
-        .and_then(|v| v.as_array())
-        .and_then(|c| c.first())
-        .and_then(|c| c.get("content"))
-        .and_then(|c| c.get("parts"))
-        .and_then(|p| p.as_array());
-
-    let Some(parts) = parts else {
-        return Ok(Message::new(role, created, Vec::new()));
-    };
-
-    let mut content = Vec::new();
-    let mut last_signature: Option<String> = None;
-
-    for part in parts {
-        if let Some(msg_content) = process_response_part_impl(part, &mut last_signature) {
-            content.push(msg_content);
-        }
-    }
-    Ok(Message::new(role, created, content))
-}
-
-/// Extract usage information from Google's API response
-pub fn get_usage(data: &Value) -> Result<Usage> {
-    if let Some(usage_meta_data) = data.get("usageMetadata") {
-        let input_tokens = usage_meta_data
-            .get("promptTokenCount")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32);
-        let output_tokens = usage_meta_data
-            .get("candidatesTokenCount")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32);
-        let total_tokens = usage_meta_data
-            .get("totalTokenCount")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32);
-        Ok(Usage::new(input_tokens, output_tokens, total_tokens))
-    } else {
-        tracing::debug!(
-            "Failed to get usage data: {}",
-            ProviderError::UsageError("No usage data found in response".to_string())
-        );
-        // If no usage data, return None for all values
-        Ok(Usage::new(None, None, None))
-    }
-}
-
-pub fn response_to_streaming_message<S>(
-    mut stream: S,
-) -> impl futures::Stream<
-    Item = anyhow::Result<(
-        Option<Message>,
-        Option<crate::providers::base::ProviderUsage>,
-    )>,
-> + 'static
-where
-    S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
-{
-    use async_stream::try_stream;
-    use futures::StreamExt;
-
-    try_stream! {
-        let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
-        let mut last_signature: Option<String> = None;
-        let stream_id = Uuid::new_v4().to_string();
-        let mut incomplete_data: Option<String> = None;
-
-        while let Some(line_result) = stream.next().await {
-            let line = line_result?;
-
-            if line.trim().is_empty() {
-                continue;
-            }
-
-            let data_part = if line.starts_with("data: ") {
-                line.strip_prefix("data: ").unwrap()
-            } else if line.starts_with("event:") || line.starts_with("id:") || line.starts_with("retry:") {
-                continue;
-            } else if incomplete_data.is_some() {
-                &line
-            } else {
-                continue;
-            };
-
-            if data_part.trim() == "[DONE]" {
-                break;
-            }
-
-            let chunk: Value = if let Some(ref mut incomplete) = incomplete_data {
-                incomplete.push_str(data_part);
-                match serde_json::from_str(incomplete) {
-                    Ok(v) => {
-                        incomplete_data = None;
-                        v
-                    }
-                    Err(e) => {
-                        if e.is_eof() {
-                            continue;
-                        }
-                        tracing::warn!("Failed to parse streaming chunk: {}", e);
-                        incomplete_data = None;
-                        continue;
-                    }
-                }
-            } else {
-                match serde_json::from_str(data_part) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        if e.is_eof() {
-                            incomplete_data = Some(data_part.to_string());
-                            continue;
-                        }
-                        tracing::warn!("Failed to parse streaming chunk: {}", e);
-                        continue;
-                    }
-                }
-            };
-
-            if let Some(error) = chunk.get("error") {
-                let message = error
-                    .get("message")
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("Unknown error");
-                let status = error
-                    .get("status")
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("UNKNOWN");
-                Err(anyhow::anyhow!("Google API error ({}): {}", status, message))?;
-            }
-
-            if let Ok(usage) = get_usage(&chunk) {
-                if usage.input_tokens.is_some() || usage.output_tokens.is_some() {
-                    let model = chunk.get("modelVersion")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown")
-                        .to_string();
-                    final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
-                }
-            }
-
-            let parts = chunk
-                .get("candidates")
-                .and_then(|v| v.as_array())
-                .and_then(|c| c.first())
-                .and_then(|c| c.get("content"))
-                .and_then(|c| c.get("parts"))
-                .and_then(|p| p.as_array());
-
-            if let Some(parts) = parts {
-                for part in parts {
-                    if let Some(content) = process_response_part_impl(part, &mut last_signature) {
-                        let message = Message::new(
-                            Role::Assistant,
-                            chrono::Utc::now().timestamp(),
-                            vec![content],
-                        ).with_id(stream_id.clone());
-                        yield (Some(message), None);
-                    }
-                }
-            }
-        }
-
-        if let Some(usage) = final_usage {
-            yield (None, Some(usage));
-        }
-    }
-}
-
-#[derive(Serialize)]
-struct TextPart<'a> {
-    text: &'a str,
-}
-
-#[derive(Serialize)]
-struct SystemInstruction<'a> {
-    parts: [TextPart<'a>; 1],
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ToolsWrapper {
-    function_declarations: Vec<Value>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct GenerationConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_output_tokens: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    thinking_config: Option<ThinkingConfig>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
-enum ThinkingLevel {
-    Low,
-    High,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ThinkingConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    thinking_level: Option<ThinkingLevel>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    thinking_budget: Option<i32>,
-    include_thoughts: bool,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct GoogleRequest<'a> {
-    system_instruction: SystemInstruction<'a>,
-    contents: Vec<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<ToolsWrapper>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    generation_config: Option<GenerationConfig>,
-}
-
-fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
-    let model_name = model_config.model_name.to_lowercase();
-    let is_gemini_3 = model_name.starts_with("gemini-3");
-    let is_gemini_25 = model_name.starts_with("gemini-2.5");
-    if !is_gemini_3 && !is_gemini_25 {
-        return None;
-    }
-
-    if is_gemini_3 {
-        use crate::model::ThinkingEffort;
-        let effort = model_config
-            .thinking_effort()
-            .unwrap_or(ThinkingEffort::Off);
-        if effort == ThinkingEffort::Off {
-            return None;
-        }
-        let thinking_level = match effort {
-            ThinkingEffort::Off | ThinkingEffort::Low | ThinkingEffort::Medium => {
-                ThinkingLevel::Low
-            }
-            ThinkingEffort::High | ThinkingEffort::Max => ThinkingLevel::High,
-        };
-
-        Some(ThinkingConfig {
-            thinking_level: Some(thinking_level),
-            thinking_budget: None,
-            include_thoughts: true,
-        })
-    } else {
-        let thinking_budget = match model_config
-            .get_config_param::<i32>("thinking_budget", "GEMINI25_THINKING_BUDGET")
-        {
-            Some(budget) if budget >= 0 => budget,
-            Some(budget) => {
-                tracing::warn!(
-                    "Invalid thinking budget '{}' for model '{}'. Must be >= 0. Using '{}'.",
-                    budget,
-                    model_config.model_name,
-                    GEMINI25_DEFAULT_THINKING_BUDGET,
-                );
-                GEMINI25_DEFAULT_THINKING_BUDGET
-            }
-            None => GEMINI25_DEFAULT_THINKING_BUDGET,
-        };
-        Some(ThinkingConfig {
-            thinking_level: None,
-            thinking_budget: Some(thinking_budget),
-            include_thoughts: true,
-        })
-    }
-}
-
-pub fn create_request(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<Value> {
-    let tools_wrapper = if tools.is_empty() {
-        None
-    } else {
-        Some(ToolsWrapper {
-            function_declarations: format_tools(tools),
-        })
-    };
-
-    let thinking_config = get_thinking_config(model_config);
-
-    let generation_config = Some(GenerationConfig {
-        temperature: model_config.temperature.map(|t| t as f64),
-        max_output_tokens: Some(model_config.max_output_tokens()),
-        thinking_config,
-    });
-
-    let request = GoogleRequest {
-        system_instruction: SystemInstruction {
-            parts: [TextPart { text: system }],
-        },
-        contents: format_messages(messages),
-        tools: tools_wrapper,
-        generation_config,
-    };
-
-    Ok(serde_json::to_value(request)?)
-}
+pub use messages::*;
+pub use request::*;
+pub use streaming::*;
+use types::*;
 
 #[cfg(test)]
 mod tests {
@@ -1085,7 +490,7 @@ mod tests {
         let formatted = format_messages(&[user_prompt, assistant_tool]);
         assert_eq!(
             formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY],
-            SYNTHETIC_THOUGHT_SIGNATURE
+            messages::SYNTHETIC_THOUGHT_SIGNATURE
         );
     }
 
@@ -1379,7 +784,7 @@ data: [DONE]"#;
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
         let mut config = ModelConfig::new("gemini-3-pro").unwrap();
         config.request_params = Some(params);
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(thinking_config.thinking_level.is_some());
@@ -1391,7 +796,7 @@ data: [DONE]"#;
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         let mut config = ModelConfig::new("Gemini-3-Flash").unwrap();
         config.request_params = Some(params);
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(matches!(
@@ -1400,14 +805,14 @@ data: [DONE]"#;
         ));
 
         let config = ModelConfig::new("gemini-2.5-flash").unwrap();
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(thinking_config.include_thoughts);
         assert!(thinking_config.thinking_level.is_none());
         assert_eq!(
             thinking_config.thinking_budget,
-            Some(GEMINI25_DEFAULT_THINKING_BUDGET)
+            Some(request::GEMINI25_DEFAULT_THINKING_BUDGET)
         );
 
         let mut params = HashMap::new();
@@ -1415,7 +820,7 @@ data: [DONE]"#;
         let config = ModelConfig::new("gemini-2.5-flash")
             .unwrap()
             .with_merged_request_params(params);
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert_eq!(thinking_config.thinking_budget, Some(4096));
@@ -1425,20 +830,20 @@ data: [DONE]"#;
         let config = ModelConfig::new("gemini-2.5-flash")
             .unwrap()
             .with_merged_request_params(params);
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert_eq!(
             thinking_config.thinking_budget,
-            Some(GEMINI25_DEFAULT_THINKING_BUDGET)
+            Some(request::GEMINI25_DEFAULT_THINKING_BUDGET)
         );
 
         let config = ModelConfig::new("gemini-2.0-flash").unwrap();
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_none());
 
         let config = ModelConfig::new("gpt-4o").unwrap();
-        let result = get_thinking_config(&config);
+        let result = request::get_thinking_config(&config);
         assert!(result.is_none());
     }
 }
