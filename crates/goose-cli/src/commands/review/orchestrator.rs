@@ -653,7 +653,7 @@ fn build_check_prompt(check: &Check, diff: &str, instructions: Option<&str>) -> 
             s.push('\n');
         }
     }
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(&build_subprocess_timeout_section());
     s.push_str("Review ONLY the git diff provided below.\n");
     s.push_str("Do not ask for missing context.\n");
