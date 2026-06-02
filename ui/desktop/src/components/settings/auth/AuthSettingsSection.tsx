@@ -137,7 +137,7 @@ export default function AuthSettingsSection() {
     try {
       const response = await listProviderSecrets({ throwOnError: true });
       setSecrets(response.data?.secrets ?? []);
-    } catch (error) {
+    } catch {
       toast.error(intl.formatMessage(i18n.failedToLoad));
       setSecrets([]);
     } finally {

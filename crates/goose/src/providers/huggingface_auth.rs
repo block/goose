@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::io;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tokio::sync::{oneshot, Mutex as TokioMutex};
 
@@ -61,7 +61,7 @@ pub fn load_oauth_token() -> Option<HuggingFaceTokenData> {
     load_oauth_token_from_path(&oauth_cache_path())
 }
 
-fn load_oauth_token_from_path(path: &std::path::Path) -> Option<HuggingFaceTokenData> {
+fn load_oauth_token_from_path(path: &Path) -> Option<HuggingFaceTokenData> {
     let contents = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&contents).ok()
 }
@@ -130,12 +130,29 @@ pub async fn configure_oauth() -> Result<()> {
 
 fn save_oauth_token(token_data: HuggingFaceTokenData) -> Result<()> {
     let path = oauth_cache_path();
+    save_oauth_token_to_path(&path, &token_data)
+}
+
+fn save_oauth_token_to_path(path: &Path, token_data: &HuggingFaceTokenData) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
     let contents = serde_json::to_string(&token_data)?;
     std::fs::write(path, contents)?;
+    restrict_token_file_permissions(path)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn restrict_token_file_permissions(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restrict_token_file_permissions(_path: &Path) -> Result<()> {
     Ok(())
 }
 
@@ -532,6 +549,27 @@ mod tests {
                 usable_oauth_token_from_path(&path).as_deref(),
                 Some("valid")
             );
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_oauth_token_restricts_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        with_token_path(|path| {
+            save_oauth_token_to_path(
+                &path,
+                &HuggingFaceTokenData {
+                    access_token: "saved".to_string(),
+                    refresh_token: None,
+                    expires_at: None,
+                },
+            )
+            .unwrap();
+
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
         });
     }
 

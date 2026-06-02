@@ -44,6 +44,9 @@ pub const HUGGINGFACE_KNOWN_MODELS: &[&str] = &[
     "zai-org/GLM-5.1",
 ];
 
+type QueryParams = Vec<(String, String)>;
+type EndpointParts = (String, String, QueryParams);
+
 pub struct HuggingFaceProvider {
     inner: OpenAiCompatibleProvider,
 }
@@ -218,7 +221,7 @@ fn configured_api_key(config: &DeclarativeProviderConfig) -> Result<Option<Strin
 fn openai_compatible_endpoint_parts(
     base_url: &str,
     base_path: Option<&str>,
-) -> Result<(String, String, Vec<(String, String)>)> {
+) -> Result<EndpointParts> {
     let url =
         url::Url::parse(base_url).map_err(|e| anyhow!("Invalid base URL '{}': {}", base_url, e))?;
     let mut host = if let Some(port) = url.port() {

@@ -57,24 +57,18 @@ const providerSecret: ProviderSecret = {
   configure_provider: null,
 };
 
+const apiResult = <T,>(data: T) => ({
+  data,
+  request: {} as never,
+  response: {} as never,
+});
+
 describe('AuthSettingsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedListProviderSecrets.mockResolvedValue({
-      data: { secrets: [] },
-      request: new Request('http://localhost/config/provider-secrets'),
-      response: new Response(),
-    });
-    mockedDeleteProviderSecret.mockResolvedValue({
-      data: 'ok',
-      request: new Request('http://localhost/config/provider-secrets/secret'),
-      response: new Response(),
-    });
-    mockedConfigureProviderOauth.mockResolvedValue({
-      data: 'ok',
-      request: new Request('http://localhost/config/providers/huggingface/oauth'),
-      response: new Response(),
-    });
+    mockedListProviderSecrets.mockResolvedValue(apiResult({ secrets: [] }));
+    mockedDeleteProviderSecret.mockResolvedValue(apiResult('ok'));
+    mockedConfigureProviderOauth.mockResolvedValue(apiResult('ok'));
   });
 
   it('renders an empty state when no credentials are stored', async () => {
@@ -85,8 +79,8 @@ describe('AuthSettingsSection', () => {
   });
 
   it('renders provider credentials with storage and expiry status', async () => {
-    mockedListProviderSecrets.mockResolvedValue({
-      data: {
+    mockedListProviderSecrets.mockResolvedValue(
+      apiResult({
         secrets: [
           {
             ...providerSecret,
@@ -94,10 +88,8 @@ describe('AuthSettingsSection', () => {
             status: 'valid',
           },
         ],
-      },
-      request: new Request('http://localhost/config/provider-secrets'),
-      response: new Response(),
-    });
+      })
+    );
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -108,11 +100,7 @@ describe('AuthSettingsSection', () => {
   });
 
   it('does not render an expiry badge when expiry is unknown', async () => {
-    mockedListProviderSecrets.mockResolvedValue({
-      data: { secrets: [providerSecret] },
-      request: new Request('http://localhost/config/provider-secrets'),
-      response: new Response(),
-    });
+    mockedListProviderSecrets.mockResolvedValue(apiResult({ secrets: [providerSecret] }));
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -125,16 +113,8 @@ describe('AuthSettingsSection', () => {
   it('deletes a credential after confirmation and refreshes the list', async () => {
     const user = userEvent.setup();
     mockedListProviderSecrets
-      .mockResolvedValueOnce({
-        data: { secrets: [providerSecret] },
-        request: new Request('http://localhost/config/provider-secrets'),
-        response: new Response(),
-      })
-      .mockResolvedValueOnce({
-        data: { secrets: [] },
-        request: new Request('http://localhost/config/provider-secrets'),
-        response: new Response(),
-      });
+      .mockResolvedValueOnce(apiResult({ secrets: [providerSecret] }))
+      .mockResolvedValueOnce(apiResult({ secrets: [] }));
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -181,13 +161,9 @@ describe('AuthSettingsSection', () => {
     };
 
     mockedListProviderSecrets
-      .mockResolvedValueOnce({
-        data: { secrets: [huggingFaceSecret] },
-        request: new Request('http://localhost/config/provider-secrets'),
-        response: new Response(),
-      })
-      .mockResolvedValueOnce({
-        data: {
+      .mockResolvedValueOnce(apiResult({ secrets: [huggingFaceSecret] }))
+      .mockResolvedValueOnce(
+        apiResult({
           secrets: [
             {
               ...huggingFaceSecret,
@@ -196,10 +172,8 @@ describe('AuthSettingsSection', () => {
               can_delete: true,
             },
           ],
-        },
-        request: new Request('http://localhost/config/provider-secrets'),
-        response: new Response(),
-      });
+        })
+      );
 
     renderWithIntl(<AuthSettingsSection />);
 
