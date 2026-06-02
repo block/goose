@@ -94,6 +94,21 @@ fn has_usable_or_refreshable_oauth_token_from_path(path: &std::path::Path) -> bo
     })
 }
 
+pub fn has_configured_token() -> Result<bool> {
+    has_configured_token_from_sources(has_usable_or_refreshable_oauth_token(), hf_token_secret)
+}
+
+fn has_configured_token_from_sources(
+    has_oauth_token: bool,
+    secret_fallback: impl FnOnce() -> Result<Option<String>>,
+) -> Result<bool> {
+    if has_oauth_token {
+        return Ok(true);
+    }
+
+    Ok(secret_fallback()?.is_some())
+}
+
 pub fn hf_token_secret() -> Result<Option<String>> {
     match Config::global().get_secret::<String>(HUGGINGFACE_TOKEN_SECRET_KEY) {
         Ok(token) => Ok(Some(token)),
@@ -754,6 +769,31 @@ mod tests {
 
             assert!(!has_usable_or_refreshable_oauth_token_from_path(&path));
         });
+    }
+
+    #[test]
+    fn has_configured_token_accepts_oauth_without_secret_lookup() {
+        let configured = has_configured_token_from_sources(true, || {
+            panic!("secret store should not be queried when OAuth is configured")
+        })
+        .unwrap();
+
+        assert!(configured);
+    }
+
+    #[test]
+    fn has_configured_token_accepts_secret_fallback() {
+        let configured =
+            has_configured_token_from_sources(false, || Ok(Some("hf-token".to_string()))).unwrap();
+
+        assert!(configured);
+    }
+
+    #[test]
+    fn has_configured_token_rejects_missing_oauth_and_secret() {
+        let configured = has_configured_token_from_sources(false, || Ok(None)).unwrap();
+
+        assert!(!configured);
     }
 
     #[cfg(unix)]

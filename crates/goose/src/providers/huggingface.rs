@@ -241,8 +241,7 @@ impl ProviderDef for HuggingFaceProvider {
     }
 
     fn inventory_configured() -> bool {
-        huggingface_auth::usable_oauth_token().is_some()
-            || huggingface_auth::hf_token_secret().ok().flatten().is_some()
+        huggingface_auth::has_configured_token().unwrap_or(false)
     }
 }
 
@@ -287,10 +286,11 @@ fn custom_auth_method_with_provider_token(
     requires_auth: bool,
     provider_token: Option<String>,
 ) -> Result<AuthMethod> {
-    custom_auth_method_from_sources(requires_auth, provider_token, || {
-        Ok(huggingface_auth::has_usable_or_refreshable_oauth_token()
-            || huggingface_auth::hf_token_secret()?.is_some())
-    })
+    custom_auth_method_from_sources(
+        requires_auth,
+        provider_token,
+        huggingface_auth::has_configured_token,
+    )
 }
 
 fn custom_auth_method_from_sources(

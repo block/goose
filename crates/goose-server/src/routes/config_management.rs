@@ -670,7 +670,7 @@ pub async fn delete_provider_secret(Path(id): Path<String>) -> Result<Json<Strin
 
         config.delete_secret(key)?;
         if should_unconfigure_after_secret_delete(provider, key, || {
-            huggingface_auth::usable_oauth_token().is_some()
+            huggingface_auth::has_configured_token().unwrap_or(false)
         }) {
             unconfigure_provider(config, provider)?;
         }
