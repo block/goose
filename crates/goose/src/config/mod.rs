@@ -14,7 +14,9 @@ pub mod signup_tetrate;
 
 pub use crate::agents::ExtensionConfig;
 pub use base::{merge_config_values, Config, ConfigError};
-pub use declarative_providers::DeclarativeProviderConfig;
+pub use declarative_providers::{
+    get_provider_disclaimers, DeclarativeProviderConfig, DisclaimerConfig,
+};
 pub use experiments::ExperimentManager;
 pub use extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,

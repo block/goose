@@ -5,7 +5,7 @@ use super::CliSession;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{Config, ExtensionConfig, GooseMode};
+use goose::config::{get_provider_disclaimers, Config, ExtensionConfig, GooseMode};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -596,6 +596,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
+    let disclaimers = get_provider_disclaimers(&resolved.provider_name);
+
     let session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
@@ -605,6 +607,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         edit_mode,
         recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
+        disclaimers.response,
     )
     .await;
 
@@ -617,6 +620,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             &resolved.model_name,
             &Some(session_id),
         );
+        if let Some(ref text) = disclaimers.startup {
+            output::display_disclaimer(text);
+        }
     }
     session
 }

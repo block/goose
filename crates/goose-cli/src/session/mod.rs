@@ -172,6 +172,7 @@ pub struct CliSession {
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
     output_format: String,
+    response_disclaimer: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +251,7 @@ impl CliSession {
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
         output_format: String,
+        response_disclaimer: Option<String>,
     ) -> Self {
         let messages = agent
             .config
@@ -271,6 +273,7 @@ impl CliSession {
             edit_mode,
             retry_config,
             output_format,
+            response_disclaimer,
         }
     }
 
@@ -710,6 +713,10 @@ impl CliSession {
                 let elapsed = start_time.elapsed();
                 let elapsed_str = format_elapsed_time(elapsed);
                 println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
+
+                if let Some(ref disclaimer) = self.response_disclaimer {
+                    output::display_disclaimer(disclaimer);
+                }
             }
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
@@ -1128,6 +1135,14 @@ impl CliSession {
         let result = self
             .process_message(message, CancellationToken::default(), false)
             .await;
+
+        let is_json_mode = self.output_format == "json" || self.output_format == "stream-json";
+        if !is_json_mode {
+            if let Some(ref disclaimer) = self.response_disclaimer {
+                output::display_disclaimer(disclaimer);
+            }
+        }
+
         self.agent
             .emit_hook(goose::hooks::HookEvent::SessionEnd, &self.session_id)
             .await;

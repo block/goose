@@ -104,6 +104,25 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
+    pub startup_disclaimer: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
+    pub response_disclaimer: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DisclaimerConfig {
+    pub startup: Option<String>,
+    pub response: Option<String>,
+}
+
+pub fn get_provider_disclaimers(provider_name: &str) -> DisclaimerConfig {
+    load_provider(provider_name)
+        .map(|loaded| DisclaimerConfig {
+            startup: loaded.config.startup_disclaimer,
+            response: loaded.config.response_disclaimer,
+        })
+        .unwrap_or_default()
 }
 
 fn default_requires_auth() -> bool {
@@ -321,6 +340,8 @@ pub fn create_custom_provider(
         setup_steps: vec![],
         fast_model: None,
         preserves_thinking,
+        startup_disclaimer: None,
+        response_disclaimer: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -401,6 +422,8 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
+            startup_disclaimer: existing_config.startup_disclaimer,
+            response_disclaimer: existing_config.response_disclaimer,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;

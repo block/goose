@@ -1349,6 +1349,16 @@ pub fn display_session_info(
     );
 }
 
+pub fn display_disclaimer(text: &str) {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    for line in trimmed.lines() {
+        println!("  {}", style(line).yellow().dim());
+    }
+}
+
 fn set_terminal_title() {
     if !std::io::stdout().is_terminal() {
         return;

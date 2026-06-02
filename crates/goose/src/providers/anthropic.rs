@@ -443,6 +443,8 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            startup_disclaimer: None,
+            response_disclaimer: None,
         }
     }
 
