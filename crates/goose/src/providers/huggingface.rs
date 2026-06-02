@@ -62,9 +62,7 @@ impl HuggingFaceProvider {
         model: ModelConfig,
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
-        let configured_key = configured_api_key(&config)?;
-        let token = huggingface_auth::resolve_token_with_provider_token(configured_key)?
-            .ok_or_else(missing_token_error)?;
+        let auth_method = custom_auth_method(&config)?;
         let (host, completions_prefix, query_params) =
             openai_compatible_endpoint_parts(&config.base_url, config.base_path.as_deref())?;
 
@@ -73,7 +71,7 @@ impl HuggingFaceProvider {
             .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
         let mut api_client = ApiClient::with_timeout(
             host,
-            AuthMethod::BearerToken(token),
+            auth_method,
             std::time::Duration::from_secs(timeout_secs),
         )?
         .with_query(query_params);
@@ -218,6 +216,28 @@ fn configured_api_key(config: &DeclarativeProviderConfig) -> Result<Option<Strin
     }
 }
 
+fn custom_auth_method(config: &DeclarativeProviderConfig) -> Result<AuthMethod> {
+    let configured_key = if config.requires_auth {
+        configured_api_key(config)?
+    } else {
+        None
+    };
+    custom_auth_method_with_provider_token(config.requires_auth, configured_key)
+}
+
+fn custom_auth_method_with_provider_token(
+    requires_auth: bool,
+    provider_token: Option<String>,
+) -> Result<AuthMethod> {
+    if !requires_auth {
+        return Ok(AuthMethod::NoAuth);
+    }
+
+    let token = huggingface_auth::resolve_token_with_provider_token(provider_token)?
+        .ok_or_else(missing_token_error)?;
+    Ok(AuthMethod::BearerToken(token))
+}
+
 fn openai_compatible_endpoint_parts(
     base_url: &str,
     base_path: Option<&str>,
@@ -343,6 +363,27 @@ mod tests {
         assert_eq!(host, "https://router.huggingface.co");
         assert_eq!(prefix, "v1/");
         assert!(query.is_empty());
+    }
+
+    #[test]
+    fn custom_auth_method_respects_no_auth_config() {
+        let auth_method =
+            custom_auth_method_with_provider_token(false, Some("provider-token".to_string()))
+                .unwrap();
+
+        assert!(matches!(auth_method, AuthMethod::NoAuth));
+    }
+
+    #[test]
+    fn custom_auth_method_uses_provider_token_when_auth_is_required() {
+        let auth_method =
+            custom_auth_method_with_provider_token(true, Some("provider-token".to_string()))
+                .unwrap();
+
+        match auth_method {
+            AuthMethod::BearerToken(token) => assert_eq!(token, "provider-token"),
+            other => panic!("expected bearer token auth, got {other:?}"),
+        }
     }
 
     fn test_config() -> DeclarativeProviderConfig {
