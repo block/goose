@@ -209,7 +209,7 @@ export const zGooseExtension = z.union([
             z.null()
         ]).optional(),
         timeout: z.union([
-            z.coerce.bigint().gte(BigInt(0)).max(BigInt('18446744073709551615'), { message: 'Invalid value: Expected uint64 to be <= 18446744073709551615' }),
+            z.number().int().gte(0),
             z.null()
         ]).optional(),
         bundled: z.union([
@@ -242,7 +242,7 @@ export const zGooseExtension = z.union([
             z.null()
         ]).optional(),
         timeout: z.union([
-            z.coerce.bigint().gte(BigInt(0)).max(BigInt('18446744073709551615'), { message: 'Invalid value: Expected uint64 to be <= 18446744073709551615' }),
+            z.number().int().gte(0),
             z.null()
         ]).optional(),
         socket: z.union([

@@ -300,7 +300,6 @@
                 "integer",
                 "null"
               ],
-              "format": "uint64",
               "minimum": 0
             },
             "bundled": {
@@ -376,7 +375,6 @@
                 "integer",
                 "null"
               ],
-              "format": "uint64",
               "minimum": 0
             },
             "socket": {
@@ -922,9 +920,8 @@
             "integer",
             "null"
           ],
-          "format": "uint",
-          "minimum": 0,
-          "description": "Context window size in tokens."
+          "description": "Context window size in tokens.",
+          "minimum": 0
         },
         "reasoning": {
           "type": [

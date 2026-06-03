@@ -308,7 +308,15 @@ fn add_object_discriminant(defs: &mut Map<String, Value>, def_name: &str, tag: &
 fn strip_integer_formats(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            let is_integer = map.get("type").and_then(|v| v.as_str()) == Some("integer");
+            let is_integer = match map.get("type") {
+                Some(Value::String(schema_type)) => schema_type == "integer",
+                Some(Value::Array(schema_types)) => schema_types.iter().any(|schema_type| {
+                    schema_type
+                        .as_str()
+                        .is_some_and(|schema_type| schema_type == "integer")
+                }),
+                _ => false,
+            };
             if is_integer {
                 map.remove("format");
             }
@@ -411,5 +419,46 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&json!("type")));
+    }
+
+    #[test]
+    fn strips_integer_formats_from_nullable_integer_schemas() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "timeout": {
+                    "type": ["integer", "null"],
+                    "format": "uint64",
+                    "minimum": 0
+                },
+                "count": {
+                    "type": "integer",
+                    "format": "uint32",
+                    "minimum": 0
+                },
+                "name": {
+                    "type": "string",
+                    "format": "custom"
+                }
+            }
+        });
+
+        strip_integer_formats(&mut schema);
+
+        assert_eq!(
+            schema["properties"]["timeout"].get("format"),
+            None,
+            "nullable integer formats should be stripped"
+        );
+        assert_eq!(
+            schema["properties"]["count"].get("format"),
+            None,
+            "integer formats should be stripped"
+        );
+        assert_eq!(
+            schema["properties"]["name"]["format"],
+            json!("custom"),
+            "non-integer formats should be preserved"
+        );
     }
 }
