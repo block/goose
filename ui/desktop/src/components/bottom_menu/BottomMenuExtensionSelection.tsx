@@ -67,6 +67,8 @@ interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;
 }
 
+type GetSessionExtensionsSignal = Parameters<typeof getSessionExtensions>[0]['signal'];
+
 export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
   const intl = useIntl();
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,13 +99,13 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, []);
 
   const loadSessionExtensions = useCallback(
-    async (targetSessionId: string, signal?: AbortSignal) => {
+    async (targetSessionId: string, signal?: GetSessionExtensionsSignal) => {
       const response = await getSessionExtensions({
         path: { session_id: targetSessionId },
         signal,
       });
 
-      if (latestSessionIdRef.current !== targetSessionId) {
+      if (signal?.aborted || latestSessionIdRef.current !== targetSessionId) {
         return;
       }
 
