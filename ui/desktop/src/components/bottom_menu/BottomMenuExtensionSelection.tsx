@@ -78,10 +78,12 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
   const [isSessionExtensionsLoaded, setIsSessionExtensionsLoaded] = useState(false);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestSessionIdRef = useRef(sessionId);
   const { extensionsList: allExtensions } = useConfig();
   const isHubView = !sessionId;
 
   useEffect(() => {
+    latestSessionIdRef.current = sessionId;
     setIsSessionExtensionsLoaded(false);
     setSessionExtensions([]);
   }, [sessionId]);
@@ -94,28 +96,52 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     };
   }, []);
 
-  useEffect(() => {
-    const fetchExtensions = async () => {
-      if (!sessionId) {
-        setIsSessionExtensionsLoaded(true);
+  const loadSessionExtensions = useCallback(
+    async (targetSessionId: string, signal?: AbortSignal) => {
+      const response = await getSessionExtensions({
+        path: { session_id: targetSessionId },
+        signal,
+      });
+
+      if (latestSessionIdRef.current !== targetSessionId) {
         return;
       }
 
-      try {
-        const response = await getSessionExtensions({
-          path: { session_id: sessionId },
-        });
+      setSessionExtensions(response.data?.extensions ?? []);
+      setIsSessionExtensionsLoaded(true);
+    },
+    []
+  );
 
-        setSessionExtensions(response.data?.extensions ?? []);
-      } catch (error) {
-        console.error('Failed to fetch session extensions:', error);
-      } finally {
-        setIsSessionExtensionsLoaded(true);
+  useEffect(() => {
+    if (!sessionId) {
+      setIsSessionExtensionsLoaded(true);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    loadSessionExtensions(sessionId, controller.signal).catch((error) => {
+      if (controller.signal.aborted || latestSessionIdRef.current !== sessionId) {
+        return;
       }
-    };
 
-    fetchExtensions();
-  }, [sessionId]);
+      console.error('Failed to fetch session extensions:', error);
+      setIsSessionExtensionsLoaded(true);
+    });
+
+    return () => {
+      controller.abort();
+    };
+  }, [sessionId, loadSessionExtensions]);
+
+  const finishSessionTransition = useCallback((targetSessionId: string) => {
+    if (latestSessionIdRef.current === targetSessionId) {
+      setPendingSort(false);
+      setIsTransitioning(false);
+      setTogglingExtension(null);
+    }
+  }, []);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
@@ -177,17 +203,16 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           clearTimeout(sortTimeoutRef.current);
         }
 
-        sortTimeoutRef.current = setTimeout(async () => {
-          const response = await getSessionExtensions({
-            path: { session_id: sessionId },
-          });
-
-          if (response.data?.extensions) {
-            setSessionExtensions(response.data.extensions);
-          }
-          setPendingSort(false);
-          setIsTransitioning(false);
-          setTogglingExtension(null);
+        sortTimeoutRef.current = setTimeout(() => {
+          loadSessionExtensions(sessionId)
+            .catch((error) => {
+              if (latestSessionIdRef.current === sessionId) {
+                console.error('Failed to fetch session extensions:', error);
+              }
+            })
+            .finally(() => {
+              finishSessionTransition(sessionId);
+            });
         }, 800);
       } catch {
         setIsTransitioning(false);
@@ -195,7 +220,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         setTogglingExtension(null);
       }
     },
-    [sessionId, isHubView, togglingExtension, intl]
+    [sessionId, isHubView, togglingExtension, intl, loadSessionExtensions, finishSessionTransition]
   );
 
   // Merge all available extensions with session-specific or hub override state
