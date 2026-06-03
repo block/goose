@@ -979,7 +979,16 @@ pub async fn resolve_provider_model_info(
     model_config = model_config.with_canonical_limits(name);
     let provider = goose::providers::create(name, model_config.clone(), Vec::new()).await?;
     match provider.fetch_model_info(model).await {
-        Ok(info) => Ok(info),
+        Ok(mut info) => {
+            // When catalog_provider_id is set, the provider's internal
+            // fetch_model_info uses self.get_name() (the raw custom provider
+            // name) to resolve canonical metadata, which misses the catalog.
+            // Override context_limit from the normalized model_config.
+            if metadata.catalog_provider_id.is_some() {
+                info.context_limit = model_config.context_limit();
+            }
+            Ok(info)
+        }
         Err(error) => {
             let mut info = ModelInfo::new(model, model_config.context_limit());
             info.reasoning = model_config.is_reasoning_model();
