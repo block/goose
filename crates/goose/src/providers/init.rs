@@ -492,7 +492,7 @@ mod tests {
         fs::create_dir_all(&custom_dir).expect("custom providers dir should be created");
 
         // Custom provider with catalog_provider_id but NO explicit context_limit.
-        // The hardcoded 128000 from create_custom_provider should be overridden
+        // The sentinel 0 from create_custom_provider should be overridden
         // by the canonical lookup using catalog_provider_id.
         let custom_xiaomi = r#"{
   "name": "custom_xiaomi_test",
@@ -502,7 +502,7 @@ mod tests {
   "api_key_env": "",
   "base_url": "https://example.invalid/v1/chat/completions",
   "models": [
-    {"name": "mimo-v2.5-pro", "context_limit": 128000}
+    {"name": "mimo-v2.5-pro", "context_limit": 0}
   ],
   "catalog_provider_id": "xiaomi-token-plan-sgp",
   "requires_auth": false
@@ -519,7 +519,7 @@ mod tests {
             .expect("custom_xiaomi_test provider should be creatable");
 
         // Should resolve to 1048576 from canonical data via catalog_provider_id,
-        // NOT the hardcoded 128000 from the JSON config.
+        // NOT the sentinel 0 from the JSON config.
         assert_eq!(
             provider.get_model_config().context_limit,
             Some(1_048_576),
@@ -554,7 +554,7 @@ mod tests {
   "api_key_env": "",
   "base_url": "https://example.invalid/v1/chat/completions",
   "models": [
-    {"name": "anthropic/claude-sonnet-4", "context_limit": 128000}
+    {"name": "anthropic/claude-sonnet-4", "context_limit": 0}
   ],
   "catalog_provider_id": "openrouter",
   "requires_auth": false

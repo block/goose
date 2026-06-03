@@ -261,10 +261,9 @@ impl ModelConfig {
     /// alone (e.g. `anthropic/claude-sonnet-4` → Anthropic).
     ///
     /// Overrides the current `context_limit` when it is unset **or** when it
-    /// equals `DEFAULT_CONTEXT_LIMIT` (the hardcoded placeholder from
-    /// `create_custom_provider`).  A different non-default value means the
-    /// user explicitly configured a limit (e.g. via `GOOSE_CONTEXT_LIMIT`)
-    /// and is preserved.
+    /// equals `0` (the sentinel value from `create_custom_provider` meaning
+    /// "not yet configured").  A different positive value means the user or
+    /// config explicitly set a limit and is preserved.
     pub fn with_catalog_provider_fallback(mut self, catalog_provider_id: &str) -> Self {
         let canonical = crate::providers::canonical::maybe_get_canonical_model(
             catalog_provider_id,
@@ -273,12 +272,12 @@ impl ModelConfig {
 
         if let Some(canonical) = canonical {
             // Override the context limit when it is unset OR when it
-            // equals the hardcoded placeholder (DEFAULT_CONTEXT_LIMIT).
-            // A non-default value means the user explicitly configured
-            // a limit (e.g. via GOOSE_CONTEXT_LIMIT) — respect it.
+            // equals 0 (the "not configured" sentinel from
+            // create_custom_provider).  A positive value means the user
+            // or config explicitly set a limit — respect it.
             let dominated = self
                 .context_limit
-                .map(|v| v == DEFAULT_CONTEXT_LIMIT)
+                .map(|v| v == 0)
                 .unwrap_or(true);
             if dominated {
                 self.context_limit = Some(canonical.limit.context);
@@ -1054,15 +1053,15 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
 
-            // DEFAULT_CONTEXT_LIMIT (128000) is the hardcoded placeholder
-            // from create_custom_provider — the catalog should override it.
+            // 0 is the "not configured" sentinel from create_custom_provider
+            // — the catalog should override it.
             let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
-            config.context_limit = Some(128_000);
+            config.context_limit = Some(0);
             let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
             assert_eq!(
                 config.context_limit,
                 Some(1_048_576),
-                "placeholder 128000 should be overridden by catalog fallback"
+                "placeholder 0 should be overridden by catalog fallback"
             );
         }
 

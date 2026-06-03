@@ -290,10 +290,14 @@ pub fn create_custom_provider(
         String::new()
     };
 
+    // Use 0 as "not configured" sentinel for context_limit.
+    // The catalog / canonical / known_models fallback chain in
+    // normalize_model_config will fill in the real value later.
+    // Using 0 avoids ambiguity with real 128k limits (the old sentinel).
     let model_infos: Vec<ModelInfo> = params
         .models
         .into_iter()
-        .map(|name| ModelInfo::new(name, 128000))
+        .map(|name| ModelInfo::new(name, 0))
         .collect();
 
     let engine = ProviderEngine::from_str(&params.engine)?;
@@ -362,10 +366,11 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     };
 
     if editable {
+        // Use 0 as "not configured" sentinel — see comment above.
         let model_infos: Vec<ModelInfo> = params
             .models
             .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
+            .map(|name| ModelInfo::new(name, 0))
             .collect();
 
         let engine = ProviderEngine::from_str(&params.engine)?;
