@@ -943,7 +943,23 @@ pub async fn get_provider_models(
     let models_result = provider.fetch_recommended_model_info().await;
 
     match models_result {
-        Ok(models) => Ok(Json(models)),
+        Ok(mut models) => {
+            // When catalog_provider_id is set, override each model's
+            // context_limit with the catalog value.  The provider's
+            // fetch_recommended_model_info uses the raw custom name, so
+            // budgets can be stale (e.g. 128k for Xiaomi, 200k for
+            // OpenRouter/Anthropic).
+            if let Some(ref catalog_id) = metadata.catalog_provider_id {
+                for info in &mut models {
+                    if let Some(canonical) = goose::providers::canonical::maybe_get_canonical_model(
+                        catalog_id, &info.name,
+                    ) {
+                        info.context_limit = canonical.limit.context;
+                    }
+                }
+            }
+            Ok(Json(models))
+        }
         Err(provider_error) => Err(provider_error.into()),
     }
 }

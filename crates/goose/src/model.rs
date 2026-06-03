@@ -181,7 +181,7 @@ impl ModelConfig {
                         "GOOSE_CONTEXT_LIMIT".to_string(),
                         String::new(),
                         e.to_string(),
-                    ))
+                    ));
                 }
             }
         };
@@ -260,10 +260,14 @@ impl ModelConfig {
     /// takes priority over the inference path that matches by model name
     /// alone (e.g. `anthropic/claude-sonnet-4` → Anthropic).
     ///
-    /// Overrides the current `context_limit` when it is unset **or** when it
-    /// equals `0` (the sentinel value from `create_custom_provider` meaning
-    /// "not yet configured").  A different positive value means the user or
-    /// config explicitly set a limit and is preserved.
+    /// When the catalog contains a match for this model the context limit is
+    /// **always** overridden.  Positive values that arrived from the desktop
+    /// model picker are not necessarily explicit user overrides — the picker
+    /// builds model info via the raw custom provider name, so stale budgets
+    /// (e.g. 128 k for Xiaomi, 200 k for OpenRouter/Anthropic) can leak
+    /// through.  The catalog is the authoritative source for catalog-backed
+    /// providers; if the user needs a custom limit they should remove the
+    /// `catalog_provider_id` first.
     pub fn with_catalog_provider_fallback(mut self, catalog_provider_id: &str) -> Self {
         let canonical = crate::providers::canonical::maybe_get_canonical_model(
             catalog_provider_id,
@@ -271,14 +275,9 @@ impl ModelConfig {
         );
 
         if let Some(canonical) = canonical {
-            // Override the context limit when it is unset OR when it
-            // equals 0 (the "not configured" sentinel from
-            // create_custom_provider).  A positive value means the user
-            // or config explicitly set a limit — respect it.
-            let dominated = self.context_limit.map(|v| v == 0).unwrap_or(true);
-            if dominated {
-                self.context_limit = Some(canonical.limit.context);
-            }
+            // Always override: the catalog is the authoritative source.
+            // Positive values from the model picker can be stale.
+            self.context_limit = Some(canonical.limit.context);
             if self.max_tokens.is_none() {
                 self.max_tokens = canonical
                     .limit
@@ -1026,20 +1025,22 @@ mod tests {
         }
 
         #[test]
-        fn catalog_provider_id_fallback_does_not_override_user_limit() {
+        fn catalog_provider_id_fallback_always_overrides_with_catalog() {
             let _guard = env_lock::lock_env([
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
 
-            // A non-default value (e.g. from GOOSE_CONTEXT_LIMIT) must be preserved.
+            // When catalog_provider_id is set, the catalog is authoritative.
+            // Even a positive value (e.g. from the desktop model picker or a
+            // stale config) is overridden by the catalog.
             let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
             config.context_limit = Some(512_000);
             let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
             assert_eq!(
                 config.context_limit,
-                Some(512_000),
-                "non-default context_limit should not be overridden by catalog fallback"
+                Some(1_048_576),
+                "catalog should override any positive context_limit for catalog-backed providers"
             );
         }
 

@@ -71,8 +71,9 @@ impl ProviderEntry {
         //
         //    Skip entries that use the old 128000 placeholder when the provider
         //    has a catalog_provider_id — those are stale artifacts from the
-        //    previous create_custom_provider code and should be overridden by
-        //    the catalog lookup in step 2.
+        //    previous create_custom_provider code.  (The catalog in step 2
+        //    would override them anyway, but skipping avoids a pointless
+        //    set-then-override cycle.)
         if model.context_limit.is_none() {
             if let Some(info) = self.metadata.known_models.iter().find(|m| {
                 m.name.eq_ignore_ascii_case(&model.model_name)
@@ -85,8 +86,10 @@ impl ProviderEntry {
         }
 
         // 2. Try the explicit catalog_provider_id (e.g. "openrouter").
-        //    Internally guarded: only overrides when context_limit is unset or
-        //    still equals the 0 sentinel from create_custom_provider.
+        //    The catalog is authoritative: always overrides context_limit
+        //    when it has a match, even if a positive value was already set
+        //    by known_models above.  Positive values from the desktop model
+        // picker can be stale (see PR #9580 review r3349258028).
         if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
             model = model.with_catalog_provider_fallback(catalog_id);
         }
