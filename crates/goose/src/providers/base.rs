@@ -496,6 +496,10 @@ pub struct ProviderMetadata {
     /// Hint shown in the model picker when this provider manages its own model selection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_selection_hint: Option<String>,
+    /// Provider ID used in the canonical model registry (e.g. "xiaomi-token-plan-sgp").
+    /// When set, used as a fallback for resolving context limits from canonical data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_provider_id: Option<String>,
 }
 
 impl ProviderMetadata {
@@ -521,6 +525,7 @@ impl ProviderMetadata {
             config_keys,
             setup_steps: vec![],
             model_selection_hint: None,
+            catalog_provider_id: None,
         }
     }
 
@@ -543,6 +548,7 @@ impl ProviderMetadata {
             config_keys,
             setup_steps: vec![],
             model_selection_hint: None,
+            catalog_provider_id: None,
         }
     }
 
@@ -557,6 +563,7 @@ impl ProviderMetadata {
             config_keys: vec![],
             setup_steps: vec![],
             model_selection_hint: None,
+            catalog_provider_id: None,
         }
     }
 

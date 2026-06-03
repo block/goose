@@ -252,6 +252,37 @@ impl ModelConfig {
         self
     }
 
+    /// Try resolving context_limit from canonical model data using a
+    /// `catalog_provider_id` (e.g. "xiaomi-token-plan-sgp") as the provider
+    /// key.  This is intended as a fallback after `with_canonical_limits`
+    /// already failed with the raw config provider name.
+    pub fn with_catalog_provider_fallback(mut self, catalog_provider_id: &str) -> Self {
+        if self.context_limit.is_some() {
+            return self;
+        }
+
+        let canonical = crate::providers::canonical::maybe_get_canonical_model(
+            catalog_provider_id,
+            &self.model_name,
+        );
+
+        if let Some(canonical) = canonical {
+            self.context_limit = Some(canonical.limit.context);
+            if self.max_tokens.is_none() {
+                self.max_tokens = canonical
+                    .limit
+                    .output
+                    .filter(|&output| output < canonical.limit.context)
+                    .map(|output| output as i32);
+            }
+            if self.reasoning.is_none() {
+                self.reasoning = canonical.reasoning;
+            }
+        }
+
+        self
+    }
+
     fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
         let limit = val.parse::<usize>().map_err(|_| {
             ConfigError::InvalidValue(
@@ -956,6 +987,63 @@ mod tests {
             let config =
                 ModelConfig::new_or_fail("gpt-5.4-nano-low").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(400_000));
+        }
+
+        #[test]
+        fn catalog_provider_id_fallback_resolves_context_limit() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+
+            // "custom_xiaomi_token_plan__sgp" is NOT a known canonical provider,
+            // so direct lookup should fail.
+            let config = ModelConfig::new_or_fail("mimo-v2.5-pro")
+                .with_canonical_limits("custom_xiaomi_token_plan__sgp");
+            assert_eq!(
+                config.context_limit, None,
+                "raw custom provider name should NOT resolve canonical model"
+            );
+
+            // "xiaomi-token-plan-sgp" IS the catalog_provider_id — fallback should resolve.
+            let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
+            assert_eq!(
+                config.context_limit,
+                Some(1_048_576),
+                "catalog_provider_id should resolve canonical model context limit"
+            );
+        }
+
+        #[test]
+        fn catalog_provider_id_fallback_does_not_override_existing_limit() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+
+            let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
+            config.context_limit = Some(512_000);
+            let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
+            assert_eq!(
+                config.context_limit,
+                Some(512_000),
+                "catalog_provider_id fallback should not override existing context_limit"
+            );
+        }
+
+        #[test]
+        fn catalog_provider_id_fallback_unknown_id_is_noop() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+
+            let config = ModelConfig::new_or_fail("mimo-v2.5-pro")
+                .with_catalog_provider_fallback("totally-unknown-provider");
+            assert_eq!(
+                config.context_limit, None,
+                "unknown catalog_provider_id should leave context_limit as None"
+            );
         }
     }
 

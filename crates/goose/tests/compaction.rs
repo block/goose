@@ -193,6 +193,7 @@ impl ProviderDef for MockCompactionProvider {
             config_keys: vec![],
             setup_steps: vec![],
             model_selection_hint: None,
+            catalog_provider_id: None,
         }
     }
 

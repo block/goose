@@ -60,6 +60,14 @@ impl ProviderEntry {
     fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
         model = model.with_canonical_limits(&self.metadata.name);
 
+        // Fallback: try canonical lookup via catalog_provider_id (e.g.
+        // "xiaomi-token-plan-sgp") when the raw config name didn't match.
+        if model.context_limit.is_none() {
+            if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
+                model = model.with_catalog_provider_fallback(catalog_id);
+            }
+        }
+
         if model.context_limit.is_none() {
             if let Some(info) = self
                 .metadata
@@ -288,6 +296,7 @@ impl ProviderRegistry {
             config_keys,
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
+            catalog_provider_id: config.catalog_provider_id.clone(),
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
         let default_inventory_configured = Arc::new(move || {

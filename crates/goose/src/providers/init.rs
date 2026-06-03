@@ -481,4 +481,51 @@ mod tests {
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }
+
+    #[tokio::test]
+    async fn test_catalog_provider_id_resolves_canonical_context_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", None::<&str>)]);
+        let temp_dir = tempfile::tempdir().expect("tempdir should be created");
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
+        let custom_dir = Paths::config_dir().join("custom_providers");
+        fs::create_dir_all(&custom_dir).expect("custom providers dir should be created");
+
+        // Custom provider with catalog_provider_id but NO explicit context_limit.
+        // The hardcoded 128000 from create_custom_provider should be overridden
+        // by the canonical lookup using catalog_provider_id.
+        let custom_xiaomi = r#"{
+  "name": "custom_xiaomi_test",
+  "engine": "openai",
+  "display_name": "Xiaomi Test",
+  "description": "test provider with catalog_provider_id",
+  "api_key_env": "",
+  "base_url": "https://example.invalid/v1/chat/completions",
+  "models": [
+    {"name": "mimo-v2.5-pro", "context_limit": 128000}
+  ],
+  "catalog_provider_id": "xiaomi-token-plan-sgp",
+  "requires_auth": false
+}"#;
+        fs::write(custom_dir.join("custom_xiaomi_test.json"), custom_xiaomi)
+            .expect("custom_xiaomi_test.json should be written");
+
+        refresh_custom_providers()
+            .await
+            .expect("custom providers should refresh");
+
+        let provider = create_with_named_model("custom_xiaomi_test", "mimo-v2.5-pro", Vec::new())
+            .await
+            .expect("custom_xiaomi_test provider should be creatable");
+
+        // Should resolve to 1048576 from canonical data via catalog_provider_id,
+        // NOT the hardcoded 128000 from the JSON config.
+        assert_eq!(
+            provider.get_model_config().context_limit,
+            Some(1_048_576),
+            "catalog_provider_id should resolve canonical context limit for mimo-v2.5-pro"
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
 }
