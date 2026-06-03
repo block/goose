@@ -25,7 +25,14 @@ impl GooseAcpAgent {
         };
         let config = Config::global();
         let (resolved_provider, resolved_model_config) =
-            super::resolve_default_provider_model_config(config)?;
+            match meta_string(args.meta.as_ref(), "provider") {
+                Some(provider) => {
+                    let model_config =
+                        super::resolve_provider_default_model_config(&provider).await?;
+                    (provider, model_config)
+                }
+                None => super::resolve_default_provider_model_config(config)?,
+            };
         let current_mode: GooseMode = config.get_goose_mode().unwrap_or_default();
         let t0 = std::time::Instant::now();
         let mut goose_session = self
