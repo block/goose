@@ -7155,6 +7155,11 @@
           "config_keys"
         ],
         "properties": {
+          "catalog_provider_id": {
+            "type": "string",
+            "description": "Provider ID used in the canonical model registry (e.g. \"xiaomi-token-plan-sgp\").\nWhen set, used as a fallback for resolving context limits from canonical data.",
+            "nullable": true
+          },
           "config_keys": {
             "type": "array",
             "items": {

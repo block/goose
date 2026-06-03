@@ -989,6 +989,11 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  */
 export type ProviderMetadata = {
     /**
+     * Provider ID used in the canonical model registry (e.g. "xiaomi-token-plan-sgp").
+     * When set, used as a fallback for resolving context limits from canonical data.
+     */
+    catalog_provider_id?: string | null;
+    /**
      * Required configuration keys
      */
     config_keys: Array<ConfigKey>;
