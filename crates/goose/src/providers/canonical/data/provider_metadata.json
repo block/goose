@@ -55,17 +55,6 @@
     "model_count": 12
   },
   {
-    "id": "crof",
-    "display_name": "CrofAI",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://crof.ai/v1",
-    "doc": "https://crof.ai/docs",
-    "env": [
-      "CROF_API_KEY"
-    ],
-    "model_count": 21
-  },
-  {
     "id": "ambient",
     "display_name": "Ambient",
     "npm": "@ai-sdk/openai-compatible",
@@ -83,44 +72,7 @@
     "api": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
     "doc": "https://docs.stackit.cloud/products/data-and-ai/ai-model-serving/basics/available-shared-models",
     "env": [
-<<<<<<< HEAD
-      "ROUTING_RUN_API_KEY"
-    ],
-    "model_count": 24
-  },
-  {
-    "id": "the-grid-ai",
-    "display_name": "The Grid AI",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.thegrid.ai/v1",
-    "doc": "https://thegrid.ai/docs",
-    "env": [
-      "THEGRIDAI_API_KEY"
-    ],
-    "model_count": 9
-  },
-  {
-    "id": "fastrouter",
-    "display_name": "FastRouter",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://go.fastrouter.ai/api/v1",
-    "doc": "https://fastrouter.ai/models",
-    "env": [
-      "FASTROUTER_API_KEY"
-    ],
-    "model_count": 15
-  },
-  {
-    "id": "tencent-coding-plan",
-    "display_name": "Tencent Coding Plan (China)",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.lkeap.cloud.tencent.com/coding/v3",
-    "doc": "https://cloud.tencent.com/document/product/1772/128947",
-    "env": [
-      "TENCENT_CODING_PLAN_API_KEY"
-=======
       "STACKIT_API_KEY"
->>>>>>> upstream/main
     ],
     "model_count": 8
   },
@@ -133,7 +85,7 @@
     "env": [
       "OVHCLOUD_API_KEY"
     ],
-    "model_count": 11
+    "model_count": 15
   },
   {
     "id": "iflowcn",
@@ -265,11 +217,7 @@
     "env": [
       "REGOLO_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 27
-=======
     "model_count": 13
->>>>>>> upstream/main
   },
   {
     "id": "deepseek",
@@ -302,45 +250,7 @@
     "env": [
       "MOONSHOT_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 3
-  },
-  {
-    "id": "nearai",
-    "display_name": "NEAR AI Cloud",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://cloud-api.near.ai/v1",
-    "doc": "https://docs.near.ai/",
-    "env": [
-      "NEARAI_API_KEY"
-    ],
-    "model_count": 37
-  },
-  {
-    "id": "abacus",
-    "display_name": "Abacus",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://routellm.abacus.ai/v1",
-    "doc": "https://abacus.ai/help/api",
-    "env": [
-      "ABACUS_API_KEY"
-    ],
-    "model_count": 65
-  },
-  {
-    "id": "privatemode-ai",
-    "display_name": "Privatemode AI",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "http://localhost:8080/v1",
-    "doc": "https://docs.privatemode.ai/api/overview",
-    "env": [
-      "PRIVATEMODE_API_KEY",
-      "PRIVATEMODE_ENDPOINT"
-    ],
-    "model_count": 5
-=======
     "model_count": 7
->>>>>>> upstream/main
   },
   {
     "id": "minimax-cn-coding-plan",
@@ -351,7 +261,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "inception",
@@ -451,11 +361,7 @@
       "DATABRICKS_HOST",
       "DATABRICKS_TOKEN"
     ],
-<<<<<<< HEAD
-    "model_count": 7
-=======
     "model_count": 25
->>>>>>> upstream/main
   },
   {
     "id": "siliconflow-cn",
@@ -510,7 +416,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 29
+    "model_count": 22
   },
   {
     "id": "inference",
@@ -578,7 +484,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 188
+    "model_count": 189
   },
   {
     "id": "moark",
@@ -589,166 +495,7 @@
     "env": [
       "MOARK_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 136
-  },
-  {
-    "id": "minimax",
-    "display_name": "MiniMax (minimax.io)",
-    "npm": "@ai-sdk/anthropic",
-    "api": "https://api.minimax.io/anthropic/v1",
-    "doc": "https://platform.minimax.io/docs/guides/quickstart",
-    "env": [
-      "MINIMAX_API_KEY"
-    ],
-    "model_count": 6
-  },
-  {
-    "id": "xiaomi-token-plan-sgp",
-    "display_name": "Xiaomi Token Plan (Singapore)",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://token-plan-sgp.xiaomimimo.com/v1",
-    "doc": "https://platform.xiaomimimo.com/#/docs",
-    "env": [
-      "XIAOMI_API_KEY"
-    ],
-    "model_count": 6
-  },
-  {
-    "id": "siliconflow",
-    "display_name": "SiliconFlow",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.siliconflow.com/v1",
-    "doc": "https://cloud.siliconflow.com/models",
-    "env": [
-      "SILICONFLOW_API_KEY"
-    ],
-    "model_count": 76
-  },
-  {
-    "id": "ollama-cloud",
-    "display_name": "Ollama Cloud",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://ollama.com/v1",
-    "doc": "https://docs.ollama.com/cloud",
-    "env": [
-      "OLLAMA_API_KEY"
-    ],
-    "model_count": 39
-  },
-  {
-    "id": "databricks",
-    "display_name": "Databricks",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://${DATABRICKS_HOST}/ai-gateway/mlflow/v1",
-    "doc": "https://docs.databricks.com/aws/en/machine-learning/foundation-models/",
-    "env": [
-      "DATABRICKS_HOST",
-      "DATABRICKS_TOKEN"
-    ],
-    "model_count": 25
-  },
-  {
-    "id": "berget",
-    "display_name": "Berget.AI",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.berget.ai/v1",
-    "doc": "https://api.berget.ai",
-    "env": [
-      "BERGET_API_KEY"
-    ],
-    "model_count": 7
-  },
-  {
-    "id": "moonshotai-cn",
-    "display_name": "Moonshot AI (China)",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.moonshot.cn/v1",
-    "doc": "https://platform.moonshot.cn/docs/api/chat",
-    "env": [
-      "MOONSHOT_API_KEY"
-    ],
-    "model_count": 7
-  },
-  {
-    "id": "alibaba-coding-plan-cn",
-    "display_name": "Alibaba Coding Plan (China)",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://coding.dashscope.aliyuncs.com/v1",
-    "doc": "https://help.aliyun.com/zh/model-studio/coding-plan",
-    "env": [
-      "ALIBABA_CODING_PLAN_API_KEY"
-    ],
-    "model_count": 11
-  },
-  {
-    "id": "minimax-cn",
-    "display_name": "MiniMax (minimaxi.com)",
-    "npm": "@ai-sdk/anthropic",
-    "api": "https://api.minimaxi.com/anthropic/v1",
-    "doc": "https://platform.minimaxi.com/docs/guides/quickstart",
-    "env": [
-      "MINIMAX_API_KEY"
-    ],
-    "model_count": 6
-  },
-  {
-    "id": "chutes",
-    "display_name": "Chutes",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://llm.chutes.ai/v1",
-    "doc": "https://llm.chutes.ai/v1/models",
-    "env": [
-      "CHUTES_API_KEY"
-    ],
-    "model_count": 39
-  },
-  {
-    "id": "siliconflow-cn",
-    "display_name": "SiliconFlow (China)",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.siliconflow.cn/v1",
-    "doc": "https://cloud.siliconflow.com/models",
-    "env": [
-      "SILICONFLOW_CN_API_KEY"
-    ],
-    "model_count": 81
-  },
-  {
-    "id": "nvidia",
-    "display_name": "Nvidia",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://integrate.api.nvidia.com/v1",
-    "doc": "https://docs.api.nvidia.com/nim/",
-    "env": [
-      "NVIDIA_API_KEY"
-    ],
-    "model_count": 92
-  },
-  {
-    "id": "zhipuai-coding-plan",
-    "display_name": "Zhipu AI Coding Plan",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://open.bigmodel.cn/api/coding/paas/v4",
-    "doc": "https://docs.bigmodel.cn/cn/coding-plan/overview",
-    "env": [
-      "ZHIPU_API_KEY"
-    ],
-    "model_count": 5
-  },
-  {
-    "id": "atomic-chat",
-    "display_name": "Atomic Chat",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "http://127.0.0.1:1337/v1",
-    "doc": "https://atomic.chat",
-    "env": [
-      "ATOMIC_CHAT_API_KEY"
-    ],
-    "model_count": 5
-=======
     "model_count": 2
->>>>>>> upstream/main
   },
   {
     "id": "github-models",
@@ -781,33 +528,7 @@
     "env": [
       "LMSTUDIO_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 16
-  },
-  {
-    "id": "opencode",
-    "display_name": "OpenCode Zen",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://opencode.ai/zen/v1",
-    "doc": "https://opencode.ai/docs/zen",
-    "env": [
-      "OPENCODE_API_KEY"
-    ],
-    "model_count": 62
-  },
-  {
-    "id": "mixlayer",
-    "display_name": "Mixlayer",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://models.mixlayer.ai/v1",
-    "doc": "https://docs.mixlayer.com",
-    "env": [
-      "MIXLAYER_API_KEY"
-    ],
-    "model_count": 5
-=======
     "model_count": 3
->>>>>>> upstream/main
   },
   {
     "id": "zenmux",
@@ -841,8 +562,6 @@
       "ALIBABA_CODING_PLAN_API_KEY"
     ],
     "model_count": 11
-<<<<<<< HEAD
-=======
   },
   {
     "id": "modelscope",
@@ -865,7 +584,6 @@
       "QIHANG_API_KEY"
     ],
     "model_count": 9
->>>>>>> upstream/main
   },
   {
     "id": "poe",
@@ -923,17 +641,6 @@
     "model_count": 5
   },
   {
-    "id": "inceptron",
-    "display_name": "Inceptron",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.inceptron.io/v1",
-    "doc": "https://docs.inceptron.io",
-    "env": [
-      "INCEPTRON_API_KEY"
-    ],
-    "model_count": 4
-  },
-  {
     "id": "minimax-coding-plan",
     "display_name": "MiniMax Token Plan (minimax.io)",
     "npm": "@ai-sdk/anthropic",
@@ -942,7 +649,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "evroc",
@@ -1085,11 +792,7 @@
     "env": [
       "WAFER_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 4
-=======
     "model_count": 7
->>>>>>> upstream/main
   },
   {
     "id": "berget",
@@ -1134,6 +837,17 @@
       "STEPFUN_API_KEY"
     ],
     "model_count": 4
+  },
+  {
+    "id": "anyapi",
+    "display_name": "AnyAPI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.anyapi.ai/v1",
+    "doc": "https://docs.anyapi.ai",
+    "env": [
+      "ANYAPI_API_KEY"
+    ],
+    "model_count": 30
   },
   {
     "id": "vultr",
@@ -1221,11 +935,7 @@
     "env": [
       "NEARAI_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 12
-=======
     "model_count": 37
->>>>>>> upstream/main
   },
   {
     "id": "inceptron",
@@ -1236,22 +946,7 @@
     "env": [
       "INCEPTRON_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 50
-  },
-  {
-    "id": "302ai",
-    "display_name": "302.AI",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.302.ai/v1",
-    "doc": "https://doc.302.ai",
-    "env": [
-      "302AI_API_KEY"
-    ],
-    "model_count": 97
-=======
     "model_count": 4
->>>>>>> upstream/main
   },
   {
     "id": "xpersona",
@@ -1306,7 +1001,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "qiniu-ai",
@@ -1339,9 +1034,6 @@
     "env": [
       "XIAOMI_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 82
-=======
     "model_count": 8
   },
   {
@@ -1376,7 +1068,6 @@
       "ABACUS_API_KEY"
     ],
     "model_count": 65
->>>>>>> upstream/main
   },
   {
     "id": "drun",
@@ -1508,22 +1199,7 @@
     "env": [
       "ALIBABA_CODING_PLAN_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 28
-  },
-  {
-    "id": "stepfun-ai",
-    "display_name": "StepFun",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.stepfun.ai/step_plan/v1",
-    "doc": "https://platform.stepfun.ai/docs/en/step-plan/integrations/open-code",
-    "env": [
-      "STEPFUN_API_KEY"
-    ],
-    "model_count": 2
-=======
     "model_count": 11
->>>>>>> upstream/main
   },
   {
     "id": "cloudflare-workers-ai",
@@ -1535,20 +1211,6 @@
       "CLOUDFLARE_ACCOUNT_ID",
       "CLOUDFLARE_API_KEY"
     ],
-<<<<<<< HEAD
-    "model_count": 9
-  },
-  {
-    "id": "poolside",
-    "display_name": "Poolside",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://inference.poolside.ai/v1",
-    "doc": "https://platform.poolside.ai",
-    "env": [
-      "POOLSIDE_API_KEY"
-    ],
-    "model_count": 2
-=======
     "model_count": 20
   },
   {
@@ -1571,7 +1233,7 @@
     "env": [
       "MINIMAX_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "meta-llama",
@@ -1583,6 +1245,5 @@
       "LLAMA_API_KEY"
     ],
     "model_count": 7
->>>>>>> upstream/main
   }
 ]

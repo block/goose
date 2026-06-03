@@ -12,7 +12,8 @@
 //!
 //! - One subprocess per check (`goose run -q -t <prompt>`)
 //! - Concurrency capped at [`MAX_WORKERS`] via a Tokio semaphore
-//! - Per-check timeout of [`CHECK_TIMEOUT_SECS`]
+//! - Per-subprocess turn limit via `--max-turns` (see
+//!   [`resolve_main_turn_limit`] and [`Check::resolved_turn_limit`])
 //! - Each check is given a strict, tool-free prompt and is required to
 //!   return only `{"findings": [...]}` JSON
 //! - Findings are tagged with the originating `check` name in Rust, not
@@ -31,26 +32,18 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tokio::time::timeout;
 
 use super::handler::ReviewOptions;
-use goose::checks::Check;
+use goose::checks::{Check, DEFAULT_CHECK_TURN_LIMIT};
 
 /// Maximum number of check subprocesses we run concurrently. 4 is
 /// empirically the sweet spot before LLM-side rate limits and local
 /// resource contention start hurting wall-clock.
 pub const MAX_WORKERS: usize = 4;
-
-/// Hard wall-clock cap for a single check subprocess. A check that
-/// takes longer than this is almost always stuck in a tool-call loop
-/// or a retry storm; we'd rather surface the timeout than block the
-/// whole review.
-pub const CHECK_TIMEOUT_SECS: u64 = 5 * 60;
 
 /// One review finding emitted by a check or by the main correctness
 /// pass.
@@ -87,7 +80,7 @@ struct RawFinding {
 /// Run all discovered checks concurrently as `goose run` subprocesses.
 ///
 /// Returns one `Vec<Finding>` per check, in the same order as `checks`.
-/// A failed check (subprocess error, timeout, malformed JSON) yields an
+/// A failed check (subprocess error, turn-limit exhaustion, malformed JSON) yields an
 /// empty findings list and a warning on stderr; a single broken check
 /// must never block the rest of the review.
 pub async fn run_checks_in_parallel(
@@ -186,6 +179,14 @@ fn resolve_check_model(check: &Check, opts: &ReviewOptions) -> Option<String> {
     opts.default_model.clone()
 }
 
+/// Resolve the turn limit for a main-pass subprocess.
+///
+/// Uses `goose review --turn-limit` when set, otherwise
+/// [`DEFAULT_CHECK_TURN_LIMIT`].
+fn resolve_main_turn_limit(default_turn_limit: Option<usize>) -> usize {
+    default_turn_limit.unwrap_or(DEFAULT_CHECK_TURN_LIMIT)
+}
+
 /// Spawn a single `goose run` subprocess for one check and parse its
 /// output into [`Finding`]s.
 async fn run_single_check_subprocess(
@@ -196,7 +197,8 @@ async fn run_single_check_subprocess(
     instructions: Option<&str>,
     max_turns: Option<usize>,
 ) -> Result<Vec<Finding>> {
-    let prompt = build_check_prompt(check, diff, instructions);
+    let turns = max_turns.expect("check subprocess always has a resolved turn limit");
+    let prompt = build_check_prompt(check, diff, instructions, turns);
     let raw = run_subprocess_for_findings(
         &prompt,
         &format!("check '{}'", check.name),
@@ -222,8 +224,7 @@ async fn run_single_check_subprocess(
 /// Generic `goose run` subprocess that hands a prompt to the model
 /// and parses `{"findings": [...]}` JSON out of the response. Shared
 /// by the per-check and per-file main-pass orchestrators so both get
-/// the same robust JSON extraction, timeout handling, and error
-/// reporting.
+/// the same robust JSON extraction and error reporting.
 async fn run_subprocess_for_findings(
     prompt: &str,
     label: &str,
@@ -243,11 +244,8 @@ async fn run_subprocess_for_findings(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        // Drop-on-cancel safety: when the outer `timeout` fires it drops
-        // this future, which drops the Child handle. Without
-        // kill_on_drop, the Tokio runtime leaves the subprocess running
-        // (and racking up tokens) in the background — kill_on_drop sends
-        // SIGKILL on Drop instead.
+        // If this future is dropped, kill the child so it does not keep
+        // running (and racking up tokens) in the background.
         .kill_on_drop(true);
 
     if let Some(p) = provider {
@@ -273,13 +271,10 @@ async fn run_subprocess_for_findings(
         drop(stdin);
     }
 
-    let wait = child.wait_with_output();
-    let output = match timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), wait).await {
-        Ok(o) => o.with_context(|| format!("wait on {label}"))?,
-        Err(_) => {
-            anyhow::bail!("{label} timed out after {}s", CHECK_TIMEOUT_SECS);
-        }
-    };
+    let output = child
+        .wait_with_output()
+        .await
+        .with_context(|| format!("wait on {label}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -321,6 +316,7 @@ pub async fn run_main_pass_in_parallel(
 
     let semaphore = Arc::new(Semaphore::new(MAX_WORKERS));
     let mut set: JoinSet<(usize, String, Result<Vec<RawFinding>>, bool)> = JoinSet::new();
+    let max_turns = resolve_main_turn_limit(opts.default_turn_limit);
 
     for (idx, (path, file_diff)) in per_file.iter().enumerate() {
         let sem = semaphore.clone();
@@ -334,15 +330,20 @@ pub async fn run_main_pass_in_parallel(
 
         set.spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore is never closed");
-            let prompt =
-                build_main_pass_prompt(&path, &file_diff, &base_prompt, instructions.as_deref());
+            let prompt = build_main_pass_prompt(
+                &path,
+                &file_diff,
+                &base_prompt,
+                instructions.as_deref(),
+                max_turns,
+            );
             let label = format!("main:{path}");
             let result = run_subprocess_for_findings(
                 &prompt,
                 &label,
                 provider.as_deref(),
                 model.as_deref(),
-                None,
+                Some(max_turns),
             )
             .await;
             (idx, path, result, quiet)
@@ -567,6 +568,22 @@ fn take_quoted(s: &str) -> Option<(String, &str)> {
     None
 }
 
+/// Prompt section telling review subprocesses about the `--max-turns`
+/// cap enforced by goose. Without this, models routinely burn turns on
+/// tool loops and return nothing when the limit stops the session.
+fn build_subprocess_turn_budget_section(max_turns: usize) -> String {
+    format!(
+        "## Turn budget\n\n\
+         You may take at most {max_turns} agent turns (model/tool iterations) in this run. \
+         goose enforces this via `--max-turns`; when you exhaust it, the session stops and \
+         any findings not yet emitted as JSON are lost.\n\n\
+         Plan for the limit:\n\
+         - As turns run low, stop exploring and return JSON with the findings you have verified.\n\
+         - Always emit valid JSON (`{{\"findings\":[...]}}` or `{{\"findings\":[]}}`) before \
+           the turn limit — an empty or missing response counts as failure.\n\n"
+    )
+}
+
 /// Build the strict, JSON-only prompt sent to one main-pass
 /// subprocess. The base prompt (custom or
 /// [`DEFAULT_REVIEW_PROMPT`]) supplies the reviewer voice; we then
@@ -577,6 +594,7 @@ fn build_main_pass_prompt(
     file_diff: &str,
     base_prompt: &str,
     instructions: Option<&str>,
+    max_turns: usize,
 ) -> String {
     let mut s = String::new();
     s.push_str(base_prompt.trim_end());
@@ -589,6 +607,7 @@ fn build_main_pass_prompt(
             s.push_str("\n\n");
         }
     }
+    s.push_str(&build_subprocess_turn_budget_section(max_turns));
     s.push_str("## File under review\n\n");
     s.push_str(&format!("Path: `{path}`\n\n"));
     s.push_str(
@@ -611,7 +630,12 @@ fn build_main_pass_prompt(
 /// Shape matches the prompt format Amp-authored checks already expect,
 /// so a check written for `amp review` runs the same way under
 /// `goose review`.
-fn build_check_prompt(check: &Check, diff: &str, instructions: Option<&str>) -> String {
+fn build_check_prompt(
+    check: &Check,
+    diff: &str,
+    instructions: Option<&str>,
+    max_turns: usize,
+) -> String {
     let mut s = String::new();
     s.push_str("You are running an automated code review check.\n\n");
     s.push_str(&format!("Check name: {}\n", check.name));
@@ -633,7 +657,9 @@ fn build_check_prompt(check: &Check, diff: &str, instructions: Option<&str>) -> 
             s.push('\n');
         }
     }
-    s.push_str("\nReview ONLY the git diff provided below.\n");
+    s.push('\n');
+    s.push_str(&build_subprocess_turn_budget_section(max_turns));
+    s.push_str("Review ONLY the git diff provided below.\n");
     s.push_str("Do not ask for missing context.\n");
     s.push_str("Use repo-relative file paths.\n");
     s.push_str("Use post-change line numbers from the diff.\n");
@@ -820,7 +846,7 @@ mod tests {
 
     #[test]
     fn check_prompt_is_strict_and_diff_aware() {
-        let p = build_check_prompt(&ck("perf"), "diff content", None);
+        let p = build_check_prompt(&ck("perf"), "diff content", None, DEFAULT_CHECK_TURN_LIMIT);
         assert!(p.contains("automated code review check"));
         assert!(p.contains("Check name: perf"));
         assert!(p.contains("```diff\ndiff content\n```"));
@@ -833,7 +859,7 @@ mod tests {
     fn check_prompt_restricts_findings_to_added_or_modified_lines() {
         // Mirrors Amp's prompt language; without these the model
         // happily flags pre-existing code shown for context.
-        let p = build_check_prompt(&ck("perf"), "diff content", None);
+        let p = build_check_prompt(&ck("perf"), "diff content", None, DEFAULT_CHECK_TURN_LIMIT);
         assert!(p.contains("ONLY in the changed lines"));
         assert!(p.contains("lines beginning with `+`"));
         assert!(p.contains("ONLY for code that was added or modified"));
@@ -846,6 +872,7 @@ mod tests {
             &ck("perf"),
             "diff content",
             Some("This is a refactor; flag any behavior change."),
+            DEFAULT_CHECK_TURN_LIMIT,
         );
         assert!(p.contains("Reviewer instructions:"));
         assert!(p.contains("flag any behavior change"));
@@ -853,8 +880,27 @@ mod tests {
 
     #[test]
     fn check_prompt_skips_blank_reviewer_instructions() {
-        let p = build_check_prompt(&ck("perf"), "diff content", Some("   \n  "));
+        let p = build_check_prompt(
+            &ck("perf"),
+            "diff content",
+            Some("   \n  "),
+            DEFAULT_CHECK_TURN_LIMIT,
+        );
         assert!(!p.contains("Reviewer instructions"));
+    }
+
+    #[test]
+    fn check_prompt_includes_turn_budget() {
+        let p = build_check_prompt(&ck("perf"), "diff content", None, 12);
+        assert!(p.contains("## Turn budget"));
+        assert!(p.contains("at most 12 agent turns"));
+        assert!(p.contains("--max-turns"));
+    }
+
+    #[test]
+    fn resolve_main_turn_limit_uses_cli_default_or_fallback() {
+        assert_eq!(resolve_main_turn_limit(Some(40)), 40);
+        assert_eq!(resolve_main_turn_limit(None), DEFAULT_CHECK_TURN_LIMIT);
     }
 
     #[test]
@@ -1090,6 +1136,7 @@ rename to new/name.rs
             "diff --git a/src/foo.rs b/src/foo.rs\n@@ -1 +1 @@\n-old\n+new\n",
             "BASE PROMPT",
             None,
+            DEFAULT_CHECK_TURN_LIMIT,
         );
         assert!(p.starts_with("BASE PROMPT"));
         assert!(p.contains("Path: `src/foo.rs`"));
@@ -1108,6 +1155,7 @@ rename to new/name.rs
             "diff body",
             "BASE",
             Some("PR is a refactor; flag behavior changes."),
+            DEFAULT_CHECK_TURN_LIMIT,
         );
         assert!(p.contains("## Reviewer instructions"));
         assert!(p.contains("flag behavior changes"));
@@ -1115,7 +1163,20 @@ rename to new/name.rs
 
     #[test]
     fn main_pass_prompt_skips_blank_reviewer_instructions() {
-        let p = build_main_pass_prompt("src/foo.rs", "diff body", "BASE", Some("   \n  \t\n"));
+        let p = build_main_pass_prompt(
+            "src/foo.rs",
+            "diff body",
+            "BASE",
+            Some("   \n  \t\n"),
+            DEFAULT_CHECK_TURN_LIMIT,
+        );
         assert!(!p.contains("Reviewer instructions"));
+    }
+
+    #[test]
+    fn main_pass_prompt_includes_turn_budget() {
+        let p = build_main_pass_prompt("src/foo.rs", "diff body", "BASE", None, 18);
+        assert!(p.contains("## Turn budget"));
+        assert!(p.contains("at most 18 agent turns"));
     }
 }

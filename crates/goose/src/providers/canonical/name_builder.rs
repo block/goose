@@ -12,7 +12,6 @@ static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
         Regex::new(r"-\d{4}$").unwrap(),
         Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(),
         Regex::new(r"-bedrock$").unwrap(),
-        Regex::new(r"-reasoning$").unwrap(),
     ]
 });
 

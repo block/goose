@@ -300,6 +300,15 @@ pub async fn handle_session_import(input: String, nostr: bool) -> Result<()> {
             .with_context(|| format!("Failed to read session import file: {input}"))?
     };
 
+    let format = goose::session::import_formats::detect_format(&json);
+    let label = match format {
+        goose::session::import_formats::ImportFormat::Goose => "goose",
+        goose::session::import_formats::ImportFormat::ClaudeCode => "Claude Code",
+        goose::session::import_formats::ImportFormat::Codex => "Codex",
+        goose::session::import_formats::ImportFormat::Pi => "Pi",
+    };
+    println!("Detected format: {}", label);
+
     let session_manager = SessionManager::instance();
     let session = session_manager
         .import_session(&json, Some(SessionType::User))

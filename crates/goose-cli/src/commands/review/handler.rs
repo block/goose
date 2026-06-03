@@ -29,7 +29,9 @@ pub struct ReviewOptions {
     /// Force every discovered check to run with this model, regardless of
     /// the check's own `model:` field.
     pub override_model: Option<String>,
-    /// Default `turn-limit` applied to checks that do not declare their own.
+    /// Default `turn-limit` for orchestrated main-pass subprocesses and for
+    /// checks that do not declare their own. Does not cap the legacy
+    /// `--no-orchestrate` in-process main agent.
     pub default_turn_limit: Option<usize>,
     /// Print the assembled prompt and discovered checks instead of dispatching
     /// the review.

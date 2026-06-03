@@ -1746,7 +1746,8 @@ impl SessionStorage {
         json: &str,
         session_type_override: Option<SessionType>,
     ) -> Result<Session> {
-        let import: Session = serde_json::from_str(json)?;
+        let normalized = super::import_formats::convert_to_goose_session_json(json)?;
+        let import: Session = serde_json::from_str(&normalized)?;
 
         let session = self
             .create_session(
