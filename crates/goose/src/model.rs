@@ -260,14 +260,13 @@ impl ModelConfig {
     /// takes priority over the inference path that matches by model name
     /// alone (e.g. `anthropic/claude-sonnet-4` → Anthropic).
     ///
-    /// When the catalog contains a match for this model the context limit is
-    /// **always** overridden.  Positive values that arrived from the desktop
-    /// model picker are not necessarily explicit user overrides — the picker
-    /// builds model info via the raw custom provider name, so stale budgets
-    /// (e.g. 128 k for Xiaomi, 200 k for OpenRouter/Anthropic) can leak
-    /// through.  The catalog is the authoritative source for catalog-backed
-    /// providers; if the user needs a custom limit they should remove the
-    /// `catalog_provider_id` first.
+    /// Overrides the current `context_limit` when it is unset **or** equals
+    /// the `0` sentinel from `create_custom_provider`.  A different positive
+    /// value means the user or config explicitly set a limit (e.g. via
+    /// `GOOSE_CONTEXT_LIMIT`) and is preserved.  Stale picker values are
+    /// corrected at the source — `get_provider_models` and
+    /// `resolve_provider_model_info` now apply the catalog lookup before
+    /// returning model info to the desktop UI.
     pub fn with_catalog_provider_fallback(mut self, catalog_provider_id: &str) -> Self {
         let canonical = crate::providers::canonical::maybe_get_canonical_model(
             catalog_provider_id,
@@ -275,9 +274,14 @@ impl ModelConfig {
         );
 
         if let Some(canonical) = canonical {
-            // Always override: the catalog is the authoritative source.
-            // Positive values from the model picker can be stale.
-            self.context_limit = Some(canonical.limit.context);
+            // Override when context_limit is unset or is the 0 sentinel
+            // from create_custom_provider.  A positive value means the
+            // user explicitly set a limit (e.g. GOOSE_CONTEXT_LIMIT) —
+            // preserve it.  Stale picker values are now corrected at the
+            // source by get_provider_models / resolve_provider_model_info.
+            if self.context_limit.is_none() || self.context_limit == Some(0) {
+                self.context_limit = Some(canonical.limit.context);
+            }
             if self.max_tokens.is_none() {
                 self.max_tokens = canonical
                     .limit
@@ -1025,22 +1029,22 @@ mod tests {
         }
 
         #[test]
-        fn catalog_provider_id_fallback_always_overrides_with_catalog() {
+        fn catalog_provider_id_fallback_preserves_explicit_user_limit() {
             let _guard = env_lock::lock_env([
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
 
-            // When catalog_provider_id is set, the catalog is authoritative.
-            // Even a positive value (e.g. from the desktop model picker or a
-            // stale config) is overridden by the catalog.
+            // A non-default positive value (e.g. from GOOSE_CONTEXT_LIMIT)
+            // must be preserved — the catalog should not override it.
+            // Stale picker values are corrected at the source endpoints.
             let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
             config.context_limit = Some(512_000);
             let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
             assert_eq!(
                 config.context_limit,
-                Some(1_048_576),
-                "catalog should override any positive context_limit for catalog-backed providers"
+                Some(512_000),
+                "explicit positive context_limit should not be overridden by catalog fallback"
             );
         }
 

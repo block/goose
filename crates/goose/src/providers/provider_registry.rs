@@ -86,10 +86,11 @@ impl ProviderEntry {
         }
 
         // 2. Try the explicit catalog_provider_id (e.g. "openrouter").
-        //    The catalog is authoritative: always overrides context_limit
-        //    when it has a match, even if a positive value was already set
-        //    by known_models above.  Positive values from the desktop model
-        // picker can be stale (see PR #9580 review r3349258028).
+        //    Only overrides when context_limit is unset or still the 0
+        //    sentinel.  A positive value from known_models or GOOSE_CONTEXT_LIMIT
+        //    is treated as an explicit override and preserved.  Stale picker
+        //    values are corrected at the source (get_provider_models /
+        //    resolve_provider_model_info now apply catalog lookup).
         if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
             model = model.with_catalog_provider_fallback(catalog_id);
         }
