@@ -1,7 +1,7 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::InventoryIdentityInput;
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
-use crate::model::ModelConfig;
+use crate::model::{ModelConfig, DEFAULT_CONTEXT_LIMIT};
 use anyhow::Result;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
@@ -59,14 +59,24 @@ impl ProviderEntry {
 
     fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
         // 1. Check known_models metadata first for explicit per-model limits
-        //    (e.g. custom provider JSON with per-model context_limit values).
-        //    These are the most specific and should take highest priority.
+        //    (e.g. custom provider JSON with per-model context_limit values,
+        //    or desktop UI inventory entries).
+        //
+        //    Skip entries that use the old 128000 placeholder when the provider
+        //    has a catalog_provider_id — those are stale artifacts from the
+        //    previous create_custom_provider code and should be overridden by
+        //    the catalog lookup in step 2.
         if model.context_limit.is_none() {
             if let Some(info) = self
                 .metadata
                 .known_models
                 .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
+                .find(|m| {
+                    m.name.eq_ignore_ascii_case(&model.model_name)
+                        && m.context_limit > 0
+                        && !(self.metadata.catalog_provider_id.is_some()
+                            && m.context_limit == DEFAULT_CONTEXT_LIMIT)
+                })
             {
                 model.context_limit = Some(info.context_limit);
             }
