@@ -8786,7 +8786,8 @@
         "enum": [
           "thinkingMessage",
           "inlineMessage",
-          "creditsExhausted"
+          "creditsExhausted",
+          "providerError"
         ]
       },
       "TaskSupport": {

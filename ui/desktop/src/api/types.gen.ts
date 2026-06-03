@@ -1498,7 +1498,7 @@ export type SystemNotificationContent = {
     notificationType: SystemNotificationType;
 };
 
-export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted' | 'providerError';
 
 export type TaskSupport = 'forbidden' | 'optional' | 'required';
 
