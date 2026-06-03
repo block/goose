@@ -152,8 +152,6 @@ blake3 = { version = "1", default-features = false, features = ["std"] }
 fs2 = { workspace = true }
 tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }
-dashmap = { version = "6", default-features = false }
-ahash = { version = "0.8.11", default-features = false, features = ["std"] }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
 agent-client-protocol = { workspace = true, features = ["unstable"] }
