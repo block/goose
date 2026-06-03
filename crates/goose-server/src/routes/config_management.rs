@@ -994,19 +994,25 @@ pub async fn resolve_provider_model_info(
     }
     model_config = model_config.with_canonical_limits(name);
     let provider = goose::providers::create(name, model_config.clone(), Vec::new()).await?;
+    // The created provider went through normalize_model_config, which applied
+    // known_models, catalog lookup, and canonical limits.  Use its config as
+    // the authoritative source so that explicit per-model limits from the JSON
+    // config (e.g. a new model with context_limit: 256000 not yet in the
+    // catalog) are reflected in the returned model info.
+    let normalized_limit = provider.get_model_config().context_limit();
     match provider.fetch_model_info(model).await {
         Ok(mut info) => {
             // When catalog_provider_id is set, the provider's internal
             // fetch_model_info uses self.get_name() (the raw custom provider
             // name) to resolve canonical metadata, which misses the catalog.
-            // Override context_limit from the normalized model_config.
+            // Override context_limit from the registry-normalized config.
             if metadata.catalog_provider_id.is_some() {
-                info.context_limit = model_config.context_limit();
+                info.context_limit = normalized_limit;
             }
             Ok(info)
         }
         Err(error) => {
-            let mut info = ModelInfo::new(model, model_config.context_limit());
+            let mut info = ModelInfo::new(model, normalized_limit);
             info.reasoning = model_config.is_reasoning_model();
             tracing::debug!(
                 provider = name,
