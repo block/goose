@@ -528,4 +528,69 @@ mod tests {
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }
+
+    /// Verifies that `catalog_provider_id` lookup takes precedence over
+    /// canonical inference from the raw provider name (r3347579987).
+    ///
+    /// Model `anthropic/claude-sonnet-4` under a custom provider with raw name
+    /// `custom_openrouter_canonical_test`: `with_canonical_limits` infers
+    /// Anthropic (200k) via the model-name inference path.  The explicit
+    /// `catalog_provider_id: "openrouter"` should resolve to OpenRouter's
+    /// canonical entry (1M) instead.
+    #[tokio::test]
+    async fn test_catalog_lookup_precedes_canonical_inference() {
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", None::<&str>)]);
+        let temp_dir = tempfile::tempdir().expect("tempdir should be created");
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
+        let custom_dir = Paths::config_dir().join("custom_providers");
+        fs::create_dir_all(&custom_dir).expect("custom providers dir should be created");
+
+        let custom = r#"{
+  "name": "custom_openrouter_canonical_test",
+  "engine": "openai",
+  "display_name": "OpenRouter Canonical Test",
+  "description": "test catalog takes precedence over canonical inference",
+  "api_key_env": "",
+  "base_url": "https://example.invalid/v1/chat/completions",
+  "models": [
+    {"name": "anthropic/claude-sonnet-4", "context_limit": 128000}
+  ],
+  "catalog_provider_id": "openrouter",
+  "requires_auth": false
+}"#;
+        fs::write(
+            custom_dir.join("custom_openrouter_canonical_test.json"),
+            custom,
+        )
+        .expect("custom provider JSON should be written");
+
+        refresh_custom_providers()
+            .await
+            .expect("custom providers should refresh");
+
+        let provider = create_with_named_model(
+            "custom_openrouter_canonical_test",
+            "anthropic/claude-sonnet-4",
+            Vec::new(),
+        )
+        .await
+        .expect("provider should be creatable");
+
+        let config = provider.get_model_config();
+        let limit = config
+            .context_limit
+            .expect("context_limit should be resolved");
+
+        // Must NOT be Anthropic's 200k (inference) or 128k (placeholder).
+        // OpenRouter's canonical entry for anthropic/claude-sonnet-4 is 1M.
+        assert_ne!(
+            limit, 200_000,
+            "should NOT resolve to Anthropic canonical via inference; \
+             catalog_provider_id 'openrouter' should take precedence"
+        );
+        assert_ne!(limit, 128_000, "should NOT keep the hardcoded placeholder");
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
 }

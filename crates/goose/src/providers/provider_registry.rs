@@ -58,16 +58,22 @@ impl ProviderEntry {
     }
 
     fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
-        model = model.with_canonical_limits(&self.metadata.name);
-
-        // Fallback: try canonical lookup via catalog_provider_id (e.g.
-        // "xiaomi-token-plan-sgp") when the raw config name didn't match.
-        if model.context_limit.is_none() {
-            if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
-                model = model.with_catalog_provider_fallback(catalog_id);
-            }
+        // 1. Try the explicit `catalog_provider_id` first.  This is the
+        //    user-configured, authoritative source (e.g. "openrouter").
+        //    Must run *before* `with_canonical_limits` because that method's
+        //    inference path can match by model name alone (stripping prefixes
+        //    like "anthropic/" and inferring the provider), which would set
+        //    context_limit and block this lookup via the `is_none()` guard.
+        if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
+            model = model.with_catalog_provider_fallback(catalog_id);
         }
 
+        // 2. Fall back to canonical limits from the raw provider name.
+        //    Internally guarded by `is_none()`, so won't override a value
+        //    already set by the catalog lookup above.
+        model = model.with_canonical_limits(&self.metadata.name);
+
+        // 3. Fall back to known_models metadata (e.g. desktop UI inventory).
         if model.context_limit.is_none() {
             if let Some(info) = self
                 .metadata

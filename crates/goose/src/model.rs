@@ -252,16 +252,19 @@ impl ModelConfig {
         self
     }
 
-    /// Try resolving context_limit from canonical model data using a
-    /// `catalog_provider_id` (e.g. "xiaomi-token-plan-sgp") as the provider
-    /// key.  This is intended as a fallback after `with_canonical_limits`
-    /// already failed with the raw config provider name.
+    /// Try resolving `context_limit` from canonical model data using a
+    /// `catalog_provider_id` (e.g. "openrouter", "xiaomi-token-plan-sgp")
+    /// as the provider key.
     ///
-    /// When a canonical match is found, it overrides the current
-    /// `context_limit` **unless** the current value was explicitly set
-    /// by the user (i.e. it differs from `DEFAULT_CONTEXT_LIMIT`).
-    /// This handles the desktop flow where the UI sends the stale
-    /// `known_models` placeholder (128 000) via `with_context_limit`.
+    /// Called *before* `with_canonical_limits` so the user-configured catalog
+    /// takes priority over the inference path that matches by model name
+    /// alone (e.g. `anthropic/claude-sonnet-4` → Anthropic).
+    ///
+    /// Overrides the current `context_limit` when it is unset **or** when it
+    /// equals `DEFAULT_CONTEXT_LIMIT` (the hardcoded placeholder from
+    /// `create_custom_provider`).  A different non-default value means the
+    /// user explicitly configured a limit (e.g. via `GOOSE_CONTEXT_LIMIT`)
+    /// and is preserved.
     pub fn with_catalog_provider_fallback(mut self, catalog_provider_id: &str) -> Self {
         let canonical = crate::providers::canonical::maybe_get_canonical_model(
             catalog_provider_id,
