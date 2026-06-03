@@ -6720,8 +6720,7 @@
         "type": "object",
         "description": "Information about a model's capabilities",
         "required": [
-          "name",
-          "context_limit"
+          "name"
         ],
         "properties": {
           "context_limit": {
