@@ -67,17 +67,12 @@ impl ProviderEntry {
         //    previous create_custom_provider code and should be overridden by
         //    the catalog lookup in step 2.
         if model.context_limit.is_none() {
-            if let Some(info) = self
-                .metadata
-                .known_models
-                .iter()
-                .find(|m| {
-                    m.name.eq_ignore_ascii_case(&model.model_name)
-                        && m.context_limit > 0
-                        && !(self.metadata.catalog_provider_id.is_some()
-                            && m.context_limit == DEFAULT_CONTEXT_LIMIT)
-                })
-            {
+            if let Some(info) = self.metadata.known_models.iter().find(|m| {
+                m.name.eq_ignore_ascii_case(&model.model_name)
+                    && m.context_limit > 0
+                    && !(self.metadata.catalog_provider_id.is_some()
+                        && m.context_limit == DEFAULT_CONTEXT_LIMIT)
+            }) {
                 model.context_limit = Some(info.context_limit);
             }
         }
