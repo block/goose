@@ -1,9 +1,7 @@
 use super::*;
 use crate::agents::extension::Envs;
 use crate::config::extensions::ExtensionEntry;
-use agent_client_protocol::schema::{
-    HttpHeader, McpServer, McpServerHttp, McpServerStdio,
-};
+use agent_client_protocol::schema::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
     pub(super) async fn on_add_extension(
