@@ -13,7 +13,7 @@ This tutorial covers how to add the [Scholar Sidekick MCP Server](https://github
 :::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=scholar-sidekick-mcp%40latest&id=scholar-sidekick&name=Scholar%20Sidekick&description=Resolve%2C%20format%2C%20export%2C%20and%20verify%20academic%20citations%20plus%20retraction%20and%20open-access%20checks&env=RAPIDAPI_KEY%3DRapidAPI%20key%20for%20the%20Scholar%20Sidekick%20API%20%28free%20tier%20available%29&timeout=300)
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=scholar-sidekick-mcp%40latest&id=scholar-sidekick&name=Scholar%20Sidekick&description=Resolve%2C%20format%2C%20export%2C%20and%20verify%20academic%20citations%20plus%20retraction%20and%20open-access%20checks&timeout=300)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
   **Command**
@@ -22,16 +22,13 @@ This tutorial covers how to add the [Scholar Sidekick MCP Server](https://github
   ```
   </TabItem>
 </Tabs>
-  **Environment Variable**
-  ```
-  RAPIDAPI_KEY: <YOUR_API_KEY>
-  ```
+  **No API key required** — the server works anonymously on a free, rate-limited tier. Optionally set `SCHOLAR_API_KEY` (a free `ssk_` key from [scholar-sidekick.com/account](https://scholar-sidekick.com/account)) for higher limits, or `RAPIDAPI_KEY` for paid tiers. See [Optional: higher rate limits](#optional-higher-rate-limits).
 :::
 
 ## Configuration
 
 :::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`. You'll also need a free [RapidAPI key for Scholar Sidekick](https://rapidapi.com/scholar-sidekick-scholar-sidekick-api/api/scholar-sidekick) — the free tier is enough for most personal use.
+You'll need [Node.js](https://nodejs.org/) installed (the command uses `npx`). **No API key is required** — Scholar Sidekick works anonymously on a free, rate-limited tier. For higher limits, add a free first-party key (`SCHOLAR_API_KEY`, an `ssk_` key from [scholar-sidekick.com/account](https://scholar-sidekick.com/account)); for paid/managed tiers, add a [RapidAPI key](https://rapidapi.com/scholar-sidekick-scholar-sidekick-api/api/scholar-sidekick) (`RAPIDAPI_KEY`). See [Optional: higher rate limits](#optional-higher-rate-limits) below.
 :::
 
 <Tabs groupId="interface">
@@ -44,11 +41,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       command="npx"
       args={["-y", "scholar-sidekick-mcp@latest"]}
       timeout={300}
-      envVars={[
-        { name: "RAPIDAPI_KEY", label: "RapidAPI key for the Scholar Sidekick API" }
-      ]}
-      apiKeyLink="https://rapidapi.com/scholar-sidekick-scholar-sidekick-api/api/scholar-sidekick"
-      apiKeyLinkText="RapidAPI Key"
     />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -58,20 +50,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       type="stdio"
       command="npx -y scholar-sidekick-mcp@latest"
       timeout={300}
-      envVars={[
-        { key: "RAPIDAPI_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
-      ]}
-      infoNote={
-        <>
-          Get your API key from{" "}
-          <a href="https://rapidapi.com/scholar-sidekick-scholar-sidekick-api/api/scholar-sidekick" target="_blank" rel="noopener noreferrer">
-            RapidAPI
-          </a> and paste it in.
-        </>
-      }
     />
   </TabItem>
 </Tabs>
+
+## Optional: higher rate limits
+
+Scholar Sidekick runs **without any key** on a free, rate-limited tier — fine for normal interactive use. To raise your limits, add one environment variable to the extension (goose Desktop: extension settings → Environment Variables; CLI: `goose configure` → the extension's env):
+
+- **`SCHOLAR_API_KEY`** — a **free** first-party key (prefixed `ssk_`). Create one at [scholar-sidekick.com/account](https://scholar-sidekick.com/account). Sent as `Authorization: Bearer`; raises your rate limit and unlocks the verifier's optional LLM screen.
+- **`RAPIDAPI_KEY`** — for paid/managed tiers via the [RapidAPI gateway](https://rapidapi.com/scholar-sidekick-scholar-sidekick-api/api/scholar-sidekick). When set, calls route through RapidAPI instead of the anonymous/first-party endpoint.
+
+Neither is required, and you never need both — if both are set, RapidAPI takes precedence.
 
 ## What You Can Do
 
