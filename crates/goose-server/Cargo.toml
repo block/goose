@@ -19,9 +19,11 @@ default = [
     "telemetry",
     "nostr",
     "otel",
+    "openapi",
     "rustls-tls",
     "system-keyring",
 ]
+openapi = []
 code-mode = ["goose/code-mode"]
 local-inference = ["goose/local-inference"]
 aws-providers = ["goose/aws-providers"]
@@ -101,6 +103,7 @@ path = "src/main.rs"
 [[bin]]
 name = "generate_schema"
 path = "src/bin/generate_schema.rs"
+required-features = ["openapi"]
 
 [dev-dependencies]
 tower = { version = "0.5.2", default-features = false }

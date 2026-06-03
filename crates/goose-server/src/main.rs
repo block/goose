@@ -2,6 +2,7 @@ mod commands;
 mod configuration;
 mod error;
 mod logging;
+#[cfg(feature = "openapi")]
 mod openapi;
 mod routes;
 mod session_event_bus;

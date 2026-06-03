@@ -147,6 +147,7 @@ pub struct CallToolRequest {
 #[allow(dead_code)]
 pub enum ContentBlock {}
 
+#[cfg(feature = "openapi")]
 impl<'s> utoipa::ToSchema<'s> for ContentBlock {
     fn schema() -> (
         &'s str,
