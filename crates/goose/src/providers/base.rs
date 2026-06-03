@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::Stream;
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
 /// Default HTTP timeout for all provider API calls.
@@ -9,14 +9,14 @@ use serde::{Deserialize, Serialize};
 /// before giving up. Individual providers may override this via their own config key.
 pub const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
 
-use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
+use super::canonical::{CanonicalModelRegistry, map_to_canonical_model};
 use super::errors::ProviderError;
-use super::inventory::{default_inventory_identity, InventoryIdentityInput};
+use super::inventory::{InventoryIdentityInput, default_inventory_identity};
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
 use crate::config::{Config, ExtensionConfig, GooseMode};
-use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
@@ -380,6 +380,11 @@ pub fn get_current_model() -> Option<String> {
 
 pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
 
+/// Serde helper: skip serializing usize fields that equal 0.
+fn is_zero_usize(v: &usize) -> bool {
+    *v == 0
+}
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -389,6 +394,7 @@ pub struct ModelInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_model: Option<String>,
     /// The maximum context length this model supports
+    #[serde(default, skip_serializing_if = "is_zero_usize")]
     pub context_limit: usize,
     /// Cost per token for input in USD (optional)
     pub input_token_cost: Option<f64>,
