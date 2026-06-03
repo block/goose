@@ -58,6 +58,13 @@ impl ProviderEntry {
     }
 
     fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
+        // Normalize the 0 sentinel to None so the entire fallback chain
+        // treats it as "not configured".  Without this, providers without
+        // a catalog_provider_id would run with an actual context_limit of 0.
+        if model.context_limit == Some(0) {
+            model.context_limit = None;
+        }
+
         // 1. Check known_models metadata first for explicit per-model limits
         //    (e.g. custom provider JSON with per-model context_limit values,
         //    or desktop UI inventory entries).

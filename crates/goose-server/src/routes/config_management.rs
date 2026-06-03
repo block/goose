@@ -971,7 +971,12 @@ pub async fn resolve_provider_model_info(
         )));
     }
 
-    let model_config = ModelConfig::new(model)?.with_canonical_limits(name);
+    let mut model_config = ModelConfig::new(model)?;
+    // Apply catalog_provider_id lookup first (if set), then canonical limits.
+    if let Some(ref catalog_id) = metadata.catalog_provider_id {
+        model_config = model_config.with_catalog_provider_fallback(catalog_id);
+    }
+    model_config = model_config.with_canonical_limits(name);
     let provider = goose::providers::create(name, model_config.clone(), Vec::new()).await?;
     match provider.fetch_model_info(model).await {
         Ok(info) => Ok(info),
