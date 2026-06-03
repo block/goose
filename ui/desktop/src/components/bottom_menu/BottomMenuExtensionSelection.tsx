@@ -1,4 +1,3 @@
-import { AppEvents } from '../../constants/events';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -77,7 +76,6 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [pendingSort, setPendingSort] = useState(false);
   const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isSessionExtensionsLoaded, setIsSessionExtensionsLoaded] = useState(false);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { extensionsList: allExtensions } = useConfig();
@@ -89,18 +87,6 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, [sessionId]);
 
   useEffect(() => {
-    const handleExtensionsLoaded = () => {
-      setRefreshTrigger((prev) => prev + 1);
-    };
-
-    window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
-
-    return () => {
-      window.removeEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
-    };
-  }, []);
-
-  useEffect(() => {
     return () => {
       if (sortTimeoutRef.current) {
         clearTimeout(sortTimeoutRef.current);
@@ -109,12 +95,9 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, []);
 
   useEffect(() => {
-    if (refreshTrigger === 0 && !isOpen) {
-      return;
-    }
-
     const fetchExtensions = async () => {
       if (!sessionId) {
+        setIsSessionExtensionsLoaded(true);
         return;
       }
 
@@ -123,18 +106,16 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           path: { session_id: sessionId },
         });
 
-        if (response.data?.extensions) {
-          setSessionExtensions(response.data.extensions);
-          setIsSessionExtensionsLoaded(true);
-        }
+        setSessionExtensions(response.data?.extensions ?? []);
       } catch (error) {
         console.error('Failed to fetch session extensions:', error);
+      } finally {
         setIsSessionExtensionsLoaded(true);
       }
     };
 
     fetchExtensions();
-  }, [sessionId, isOpen, refreshTrigger]);
+  }, [sessionId]);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
