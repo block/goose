@@ -26,6 +26,12 @@ goose works with 15+ providers — Anthropic, OpenAI, Google, Ollama, OpenRouter
 
 goose is part of the [Agentic AI Foundation (AAIF)](https://aaif.io/) at the Linux Foundation.
 
+## 📊 EvalMonkey Benchmark Results (Claude Sonnet 4.5)
+
+[![EvalMonkey Reliability](https://img.shields.io/badge/Production%20Reliability-Score%3A42.1-orange)](https://github.com/Corbell-AI/evalmonkey)
+
+*This agent scored a Production Reliability of **42.1/100** when benchmarked on Claude Sonnet 4.5 across HotpotQA, TruthfulQA, and MMLU with adversarial chaos profiles (prompt injection & schema mutation) by [EvalMonkey](https://github.com/Corbell-AI/evalmonkey).*
+
 # Get started
 
 **[Download the desktop app](https://goose-docs.ai/docs/getting-started/installation)** for macOS, Linux, and Windows.
