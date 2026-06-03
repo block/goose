@@ -818,7 +818,7 @@ export type ModelInfo = {
     /**
      * The maximum context length this model supports
      */
-    context_limit: number;
+    context_limit?: number;
     /**
      * Currency for the costs (default: "$")
      */
