@@ -157,6 +157,10 @@ pub enum GooseExtension {
         description: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         display_name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timeout: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bundled: Option<bool>,
     },
     Platform {
         name: String,
@@ -164,6 +168,8 @@ pub enum GooseExtension {
         description: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         display_name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bundled: Option<bool>,
     },
     Mcp {
         server: McpServer,
@@ -175,6 +181,8 @@ pub enum GooseExtension {
         timeout: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         socket: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bundled: Option<bool>,
     },
     InlinePython {
         name: String,
@@ -194,6 +202,8 @@ pub enum GooseExtension {
         tools: Vec<serde_json::Value>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         instructions: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bundled: Option<bool>,
     },
 }
 
@@ -203,6 +213,8 @@ impl Default for GooseExtension {
             name: String::new(),
             description: None,
             display_name: None,
+            timeout: None,
+            bundled: None,
         }
     }
 }
@@ -242,7 +254,7 @@ pub struct GetConfigExtensionsRequest {}
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetConfigExtensionsResponse {
     pub extensions: Vec<GooseExtensionEntry>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<String>,
 }
 

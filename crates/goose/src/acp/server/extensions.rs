@@ -87,13 +87,6 @@ impl GooseAcpAgent {
         &self,
         req: RemoveConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        if let Some(entry) = crate::config::get_extension_entry_by_key(&req.config_key) {
-            if is_server_owned_extension_config(&entry.config) {
-                return Err(agent_client_protocol::Error::invalid_params()
-                    .data(format!("Extension '{}' cannot be removed", req.config_key)));
-            }
-        }
-
         crate::config::extensions::remove_extension(&req.config_key);
         Ok(EmptyResponse {})
     }
@@ -148,21 +141,27 @@ fn config_to_goose_extension(
             name,
             description,
             display_name,
+            timeout,
+            bundled,
             ..
         } => GooseExtension::Builtin {
             name: name.clone(),
             description: empty_string_to_none(description),
             display_name: display_name.clone(),
+            timeout: *timeout,
+            bundled: *bundled,
         },
         ExtensionConfig::Platform {
             name,
             description,
             display_name,
+            bundled,
             ..
         } => GooseExtension::Platform {
             name: name.clone(),
             description: empty_string_to_none(description),
             display_name: display_name.clone(),
+            bundled: *bundled,
         },
         ExtensionConfig::Stdio {
             name,
@@ -171,6 +170,7 @@ fn config_to_goose_extension(
             args,
             env_keys,
             timeout,
+            bundled,
             ..
         } => GooseExtension::Mcp {
             server: McpServer::Stdio(McpServerStdio::new(name, cmd).args(args.clone())),
@@ -178,6 +178,7 @@ fn config_to_goose_extension(
             description: empty_string_to_none(description),
             timeout: *timeout,
             socket: None,
+            bundled: *bundled,
         },
         ExtensionConfig::StreamableHttp {
             name,
@@ -187,6 +188,7 @@ fn config_to_goose_extension(
             headers,
             timeout,
             socket,
+            bundled,
             ..
         } => {
             let headers = headers
@@ -199,6 +201,7 @@ fn config_to_goose_extension(
                 description: empty_string_to_none(description),
                 timeout: *timeout,
                 socket: socket.clone(),
+                bundled: *bundled,
             }
         }
         ExtensionConfig::Frontend {
@@ -206,6 +209,7 @@ fn config_to_goose_extension(
             description,
             tools,
             instructions,
+            bundled,
             ..
         } => {
             let tools = tools
@@ -218,6 +222,7 @@ fn config_to_goose_extension(
                 description: empty_string_to_none(description),
                 tools,
                 instructions: instructions.clone(),
+                bundled: *bundled,
             }
         }
         ExtensionConfig::InlinePython {
@@ -243,16 +248,39 @@ fn goose_extension_to_config(
     extension: GooseExtension,
 ) -> Result<ExtensionConfig, agent_client_protocol::Error> {
     let config = match extension {
-        GooseExtension::Builtin { .. } | GooseExtension::Platform { .. } => {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data("builtin and platform extensions cannot be added to persistent config"));
-        }
+        GooseExtension::Builtin {
+            name,
+            description,
+            display_name,
+            timeout,
+            bundled,
+        } => ExtensionConfig::Builtin {
+            name,
+            description: description.unwrap_or_default(),
+            display_name,
+            timeout,
+            bundled,
+            available_tools: Vec::new(),
+        },
+        GooseExtension::Platform {
+            name,
+            description,
+            display_name,
+            bundled,
+        } => ExtensionConfig::Platform {
+            name,
+            description: description.unwrap_or_default(),
+            display_name,
+            bundled,
+            available_tools: Vec::new(),
+        },
         GooseExtension::Mcp {
             server,
             env_keys,
             description,
             timeout,
             socket,
+            bundled,
         } => match server {
             McpServer::Stdio(stdio) => {
                 if socket.is_some() {
@@ -267,7 +295,7 @@ fn goose_extension_to_config(
                     envs: Envs::default(),
                     env_keys,
                     timeout,
-                    bundled: Some(false),
+                    bundled,
                     available_tools: Vec::new(),
                 }
             }
@@ -284,7 +312,7 @@ fn goose_extension_to_config(
                     .collect(),
                 timeout,
                 socket,
-                bundled: Some(false),
+                bundled,
                 available_tools: Vec::new(),
             },
             McpServer::Sse(_) => {
@@ -316,6 +344,7 @@ fn goose_extension_to_config(
             description,
             tools,
             instructions,
+            bundled,
         } => ExtensionConfig::Frontend {
             name,
             description: description.unwrap_or_default(),
@@ -328,7 +357,7 @@ fn goose_extension_to_config(
                         .data(format!("bad frontend tool: {error}"))
                 })?,
             instructions,
-            bundled: Some(false),
+            bundled,
             available_tools: Vec::new(),
         },
     };
@@ -347,25 +376,6 @@ fn config_entry_to_goose_entry(
         enabled: entry.enabled,
         config_key: Some(config_key),
     }))
-}
-
-fn is_server_owned_extension_config(config: &ExtensionConfig) -> bool {
-    matches!(
-        config,
-        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
-    ) || matches!(
-        config,
-        ExtensionConfig::Stdio {
-            bundled: Some(true),
-            ..
-        } | ExtensionConfig::StreamableHttp {
-            bundled: Some(true),
-            ..
-        } | ExtensionConfig::Frontend {
-            bundled: Some(true),
-            ..
-        }
-    )
 }
 
 fn empty_string_to_none(value: &str) -> Option<String> {
@@ -403,6 +413,8 @@ mod tests {
             name,
             description,
             display_name,
+            timeout,
+            bundled,
         } = extension
         else {
             panic!("expected builtin extension");
@@ -411,6 +423,8 @@ mod tests {
         assert_eq!(name, "developer");
         assert_eq!(description.as_deref(), Some("Developer tools"));
         assert_eq!(display_name.as_deref(), Some("Developer"));
+        assert_eq!(timeout, Some(30));
+        assert_eq!(bundled, Some(true));
     }
 
     #[test]
@@ -431,6 +445,7 @@ mod tests {
             name,
             description,
             display_name,
+            bundled,
         } = extension
         else {
             panic!("expected platform extension");
@@ -439,6 +454,7 @@ mod tests {
         assert_eq!(name, "todo");
         assert_eq!(description.as_deref(), Some("Todo tools"));
         assert_eq!(display_name.as_deref(), Some("Todo"));
+        assert_eq!(bundled, Some(true));
     }
 
     #[test]
@@ -468,6 +484,7 @@ mod tests {
             description,
             timeout,
             socket,
+            bundled,
         } = extension
         else {
             panic!("expected mcp extension");
@@ -477,6 +494,7 @@ mod tests {
         assert_eq!(description.as_deref(), Some("Test stdio"));
         assert_eq!(timeout, Some(42));
         assert_eq!(socket, None);
+        assert_eq!(bundled, None);
 
         let McpServer::Stdio(stdio) = server else {
             panic!("expected stdio server");
@@ -519,6 +537,7 @@ mod tests {
             description,
             timeout,
             socket,
+            bundled,
         } = extension
         else {
             panic!("expected mcp extension");
@@ -528,6 +547,7 @@ mod tests {
         assert_eq!(description.as_deref(), Some("Test HTTP"));
         assert_eq!(timeout, Some(99));
         assert_eq!(socket.as_deref(), Some("@egress.sock"));
+        assert_eq!(bundled, None);
 
         let McpServer::Http(http) = server else {
             panic!("expected http server");
@@ -606,6 +626,7 @@ mod tests {
             description,
             tools,
             instructions,
+            bundled,
         } = extension
         else {
             panic!("expected frontend extension");
@@ -620,6 +641,7 @@ mod tests {
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["name"], "pick_color");
         assert_eq!(tools[0]["description"], "Pick a color");
+        assert_eq!(bundled, None);
     }
 
     #[test]
@@ -650,6 +672,7 @@ mod tests {
             description: Some("Test stdio".to_string()),
             timeout: Some(42),
             socket: None,
+            bundled: Some(true),
         };
 
         let config = goose_extension_to_config(extension).expect("conversion should succeed");
@@ -679,7 +702,7 @@ mod tests {
         );
         assert_eq!(env_keys, vec!["SECRET_TOKEN"]);
         assert_eq!(timeout, Some(42));
-        assert_eq!(bundled, Some(false));
+        assert_eq!(bundled, Some(true));
         assert!(available_tools.is_empty());
     }
 
@@ -695,6 +718,7 @@ mod tests {
             description: Some("Test HTTP".to_string()),
             timeout: Some(99),
             socket: Some("@egress.sock".to_string()),
+            bundled: Some(true),
         };
 
         let config = goose_extension_to_config(extension).expect("conversion should succeed");
@@ -732,7 +756,7 @@ mod tests {
         );
         assert_eq!(timeout, Some(99));
         assert_eq!(socket.as_deref(), Some("@egress.sock"));
-        assert_eq!(bundled, Some(false));
+        assert_eq!(bundled, Some(true));
         assert!(available_tools.is_empty());
     }
 
@@ -785,6 +809,7 @@ mod tests {
             description: Some("Frontend tools".to_string()),
             tools: vec![tool],
             instructions: Some("Use frontend tools carefully".to_string()),
+            bundled: Some(true),
         };
 
         let config = goose_extension_to_config(extension).expect("conversion should succeed");
@@ -810,25 +835,69 @@ mod tests {
             instructions.as_deref(),
             Some("Use frontend tools carefully")
         );
-        assert_eq!(bundled, Some(false));
+        assert_eq!(bundled, Some(true));
         assert!(available_tools.is_empty());
     }
 
     #[test]
-    fn goose_builtin_and_platform_extensions_are_rejected_for_config_add() {
+    fn goose_builtin_extension_converts_to_config() {
         let builtin = GooseExtension::Builtin {
             name: "developer".to_string(),
-            description: None,
-            display_name: None,
-        };
-        let platform = GooseExtension::Platform {
-            name: "todo".to_string(),
-            description: None,
-            display_name: None,
+            description: Some("Developer tools".to_string()),
+            display_name: Some("Developer".to_string()),
+            timeout: Some(30),
+            bundled: Some(true),
         };
 
-        assert!(goose_extension_to_config(builtin).is_err());
-        assert!(goose_extension_to_config(platform).is_err());
+        let config = goose_extension_to_config(builtin).expect("conversion should succeed");
+
+        let ExtensionConfig::Builtin {
+            name,
+            description,
+            display_name,
+            timeout,
+            bundled,
+            available_tools,
+        } = config
+        else {
+            panic!("expected builtin config");
+        };
+
+        assert_eq!(name, "developer");
+        assert_eq!(description, "Developer tools");
+        assert_eq!(display_name.as_deref(), Some("Developer"));
+        assert_eq!(timeout, Some(30));
+        assert_eq!(bundled, Some(true));
+        assert!(available_tools.is_empty());
+    }
+
+    #[test]
+    fn goose_platform_extension_converts_to_config() {
+        let platform = GooseExtension::Platform {
+            name: "todo".to_string(),
+            description: Some("Todo tools".to_string()),
+            display_name: Some("Todo".to_string()),
+            bundled: Some(true),
+        };
+
+        let config = goose_extension_to_config(platform).expect("conversion should succeed");
+
+        let ExtensionConfig::Platform {
+            name,
+            description,
+            display_name,
+            bundled,
+            available_tools,
+        } = config
+        else {
+            panic!("expected platform config");
+        };
+
+        assert_eq!(name, "todo");
+        assert_eq!(description, "Todo tools");
+        assert_eq!(display_name.as_deref(), Some("Todo"));
+        assert_eq!(bundled, Some(true));
+        assert!(available_tools.is_empty());
     }
 
     #[test]
@@ -839,6 +908,7 @@ mod tests {
             description: None,
             timeout: None,
             socket: None,
+            bundled: None,
         };
 
         assert!(goose_extension_to_config(extension).is_err());

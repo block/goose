@@ -93,10 +93,6 @@ pub fn get_extension_by_name(name: &str) -> Option<ExtensionConfig> {
         .map(|entry| entry.config.clone())
 }
 
-pub fn get_extension_entry_by_key(key: &str) -> Option<ExtensionEntry> {
-    get_extensions_map().get(key).cloned()
-}
-
 pub fn set_extension(entry: ExtensionEntry) {
     let mut extensions = get_extensions_map();
     let key = entry.config.key();

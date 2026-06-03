@@ -206,6 +206,14 @@ export const zGooseExtension = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        timeout: z.union([
+            z.coerce.bigint().gte(BigInt(0)).max(BigInt('18446744073709551615'), { message: 'Invalid value: Expected uint64 to be <= 18446744073709551615' }),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
         type: z.literal('builtin')
     }),
     z.object({
@@ -216,6 +224,10 @@ export const zGooseExtension = z.union([
         ]).optional(),
         display_name: z.union([
             z.string(),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
             z.null()
         ]).optional(),
         type: z.literal('platform')
@@ -233,6 +245,10 @@ export const zGooseExtension = z.union([
         ]).optional(),
         socket: z.union([
             z.string(),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
             z.null()
         ]).optional(),
         type: z.literal('mcp')
@@ -262,6 +278,10 @@ export const zGooseExtension = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
         type: z.literal('frontend')
     })
 ]);
@@ -280,7 +300,7 @@ export const zGooseExtensionEntry = z.object({
  */
 export const zGetConfigExtensionsResponse_unstable = z.object({
     extensions: z.array(zGooseExtensionEntry),
-    warnings: z.array(z.string()).optional()
+    warnings: z.array(z.string()).optional().default([])
 });
 
 /**

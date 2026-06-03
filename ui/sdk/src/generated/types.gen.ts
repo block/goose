@@ -141,11 +141,14 @@ export type GooseExtension = {
     name: string;
     description?: string | null;
     display_name?: string | null;
+    timeout?: number | null;
+    bundled?: boolean | null;
     type: 'builtin';
 } | {
     name: string;
     description?: string | null;
     display_name?: string | null;
+    bundled?: boolean | null;
     type: 'platform';
 } | {
     server: McpServer;
@@ -153,6 +156,7 @@ export type GooseExtension = {
     description?: string | null;
     timeout?: number | null;
     socket?: string | null;
+    bundled?: boolean | null;
     type: 'mcp';
 } | {
     name: string;
@@ -166,6 +170,7 @@ export type GooseExtension = {
     description?: string | null;
     tools?: Array<unknown>;
     instructions?: string | null;
+    bundled?: boolean | null;
     type: 'frontend';
 };
 

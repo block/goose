@@ -243,7 +243,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "default": []
         }
       },
       "required": [
@@ -294,6 +295,20 @@
                 "null"
               ]
             },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "type": {
               "type": "string",
               "const": "builtin"
@@ -319,6 +334,12 @@
             "display_name": {
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
                 "null"
               ]
             },
@@ -361,6 +382,12 @@
             "socket": {
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
                 "null"
               ]
             },
@@ -433,6 +460,12 @@
             "instructions": {
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
                 "null"
               ]
             },
