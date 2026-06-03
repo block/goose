@@ -75,11 +75,11 @@ impl GooseAcpAgent {
         self.on_delete_session(req).await
     }
 
-    #[custom_method(GetExtensionsRequest)]
-    async fn dispatch_get_extensions(
+    #[custom_method(GetConfigExtensionsRequest)]
+    async fn dispatch_get_config_extensions(
         &self,
-    ) -> Result<GetExtensionsResponse, agent_client_protocol::Error> {
-        self.on_get_extensions().await
+    ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {
+        self.on_get_config_extensions().await
     }
 
     #[custom_method(AddConfigExtensionRequest)]

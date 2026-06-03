@@ -1,3 +1,4 @@
+use agent_client_protocol::schema::McpServer;
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -147,18 +148,94 @@ pub struct DeleteSessionRequest {
     pub session_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum GooseExtension {
+    Builtin {
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+    },
+    Platform {
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+    },
+    Mcp {
+        server: McpServer,
+        #[serde(default, rename = "envKeys", skip_serializing_if = "Vec::is_empty")]
+        env_keys: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timeout: Option<u64>,
+    },
+    InlinePython {
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        code: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timeout: Option<u64>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        dependencies: Vec<String>,
+    },
+    Frontend {
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        tools: Vec<serde_json::Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        instructions: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GooseExtensionEntry {
+    pub extension: GooseExtension,
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_key: Option<String>,
+}
+
+/// List Goose-owned extension definitions available to configure or enable.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/extensions/available",
+    response = GetAvailableExtensionsResponse
+)]
+pub struct GetAvailableExtensionsRequest {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAvailableExtensionsResponse {
+    pub extensions: Vec<GooseExtension>,
+}
+
 /// List configured extensions and any warnings.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/config/extensions/list", response = GetExtensionsResponse)]
-pub struct GetExtensionsRequest {}
+#[request(
+    method = "_goose/unstable/config/extensions/list",
+    response = GetConfigExtensionsResponse
+)]
+pub struct GetConfigExtensionsRequest {}
 
 /// List configured extensions and any warnings.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
-pub struct GetExtensionsResponse {
+pub struct GetConfigExtensionsResponse {
     /// Array of ExtensionEntry objects with `enabled` flag, `configKey`, and flattened config details.
     pub extensions: Vec<serde_json::Value>,
     pub warnings: Vec<String>,
 }
+
+pub type GetExtensionsRequest = GetConfigExtensionsRequest;
+pub type GetExtensionsResponse = GetConfigExtensionsResponse;
 
 /// Persist a new extension to the user's global goose config.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
@@ -181,6 +258,18 @@ pub struct AddConfigExtensionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RemoveConfigExtensionRequest {
     pub config_key: String,
+}
+
+/// Set the `enabled` flag for a persisted extension in the user's global goose config.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/config/extensions/set-enabled",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct SetConfigExtensionEnabledRequest {
+    pub config_key: String,
+    pub enabled: bool,
 }
 
 /// Toggle the `enabled` flag for a persisted extension in the user's global goose config.

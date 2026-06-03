@@ -30,9 +30,9 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    pub(super) async fn on_get_extensions(
+    pub(super) async fn on_get_config_extensions(
         &self,
-    ) -> Result<GetExtensionsResponse, agent_client_protocol::Error> {
+    ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {
         let extensions = crate::config::extensions::get_all_extensions()
             .into_iter()
             .filter(|ext| {
@@ -55,7 +55,7 @@ impl GooseAcpAgent {
             })
             .collect::<Result<Vec<_>, _>>()
             .internal_err()?;
-        Ok(GetExtensionsResponse {
+        Ok(GetConfigExtensionsResponse {
             extensions: extensions_json,
             warnings,
         })
