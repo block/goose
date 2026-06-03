@@ -82,6 +82,13 @@ impl GooseAcpAgent {
         self.on_get_config_extensions().await
     }
 
+    #[custom_method(GetAvailableExtensionsRequest)]
+    async fn dispatch_get_available_extensions(
+        &self,
+    ) -> Result<GetAvailableExtensionsResponse, agent_client_protocol::Error> {
+        self.on_get_available_extensions().await
+    }
+
     #[custom_method(AddConfigExtensionRequest)]
     async fn dispatch_add_config_extension(
         &self,

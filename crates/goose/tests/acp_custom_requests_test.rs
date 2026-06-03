@@ -172,6 +172,48 @@ extensions:
 }
 
 #[test]
+fn test_custom_get_available_extensions() {
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/unstable/extensions/available",
+            serde_json::json!({}),
+        )
+        .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+        let response = result.unwrap();
+        let extensions = response
+            .get("extensions")
+            .and_then(|extensions| extensions.as_array())
+            .expect("extensions should be an array");
+        assert!(!extensions.is_empty(), "extensions should not be empty");
+        assert!(
+            extensions.iter().all(|extension| matches!(
+                extension["type"].as_str(),
+                Some("builtin" | "platform")
+            )),
+            "available extensions should only include builtin and platform entries"
+        );
+        assert!(
+            extensions.iter().any(|extension| {
+                extension["type"] == "platform" && extension["name"] == "developer"
+            }),
+            "developer platform extension should be available"
+        );
+        assert!(
+            !extensions.iter().any(|extension| {
+                extension["type"] == "platform" && extension["name"] == "orchestrator"
+            }),
+            "hidden orchestrator platform extension should not be available"
+        );
+    });
+}
+
+#[test]
 fn test_new_session_passes_cwd_to_provider_factory() {
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;

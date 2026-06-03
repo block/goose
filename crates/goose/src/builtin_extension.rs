@@ -22,3 +22,7 @@ pub fn register_builtin_extensions(extensions: HashMap<&'static str, SpawnServer
 pub fn get_builtin_extension(name: &str) -> Option<SpawnServerFn> {
     BUILTIN_REGISTRY.read().unwrap().get(name).cloned()
 }
+
+pub fn get_builtin_extension_names() -> Vec<&'static str> {
+    BUILTIN_REGISTRY.read().unwrap().keys().copied().collect()
+}
