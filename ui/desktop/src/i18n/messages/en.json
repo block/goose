@@ -1526,6 +1526,21 @@
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "May not fit in memory ({size} model, {available} available)"
   },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "Failed to sign in to Hugging Face: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Sign in"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "Hugging Face signed in"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "Signing in..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
+  },
   "imagePreview.altText": {
     "defaultMessage": "goose image"
   },
@@ -1864,6 +1879,9 @@
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Featured Models"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "Sign in to increase rate limits when searching and downloading models, and to access private or gated Hugging Face repositories."
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Model Settings"
@@ -2860,6 +2878,9 @@
   },
   "providerConfigurationModal.goBack": {
     "defaultMessage": "Go Back"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "Sign in to use Hugging Face Inference Providers without manually entering an API token."
   },
   "providerConfigurationModal.oauthLoginFailed": {
     "defaultMessage": "OAuth login failed: {error}"
