@@ -937,7 +937,9 @@ pub async fn get_provider_models(
         )));
     }
 
-    let model_config = ModelConfig::new(&metadata.default_model)?.with_canonical_limits(&name);
+    // Do not pre-fill with canonical limits here — normalize_model_config
+    // inside create handles the full chain: known_models → catalog → canonical.
+    let model_config = ModelConfig::new(&metadata.default_model)?;
     let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
 
     let models_result = provider.fetch_recommended_model_info().await;
@@ -997,18 +999,17 @@ pub async fn resolve_provider_model_info(
         )));
     }
 
-    let mut model_config = ModelConfig::new(model)?;
-    // Apply catalog_provider_id lookup first (if set), then canonical limits.
-    if let Some(ref catalog_id) = metadata.catalog_provider_id {
-        model_config = model_config.with_catalog_provider_fallback(catalog_id);
-    }
-    model_config = model_config.with_canonical_limits(name);
-    let provider = goose::providers::create(name, model_config.clone(), Vec::new()).await?;
-    // The created provider went through normalize_model_config, which applied
-    // known_models, catalog lookup, and canonical limits.  Use its config as
-    // the authoritative source so that explicit per-model limits from the JSON
-    // config (e.g. a new model with context_limit: 256000 not yet in the
-    // catalog) are reflected in the returned model info.
+    // Do not pre-fill context_limit with catalog or canonical values here.
+    // ProviderEntry::normalize_model_config (called inside create) applies
+    // the correct chain:  known_models → catalog → canonical.  Pre-filling
+    // would set a positive value that causes normalize_model_config to skip
+    // the known_models override, losing explicit per-model limits from the
+    // provider's JSON config.
+    let model_config = ModelConfig::new(model)?;
+    let provider = goose::providers::create(name, model_config, Vec::new()).await?;
+    // Use the registry-normalized config as the authoritative source so that
+    // explicit per-model limits from the JSON config (e.g. a custom provider
+    // capping a model at 256k) are reflected in the returned model info.
     let normalized_limit = provider.get_model_config().context_limit();
     match provider.fetch_model_info(model).await {
         Ok(mut info) => {
