@@ -267,6 +267,218 @@ mod tests {
 
         assert!(extension.is_none());
     }
+
+    #[test]
+    fn goose_mcp_stdio_extension_converts_to_config_without_literal_envs() {
+        let extension = GooseExtension::Mcp {
+            server: McpServer::Stdio(
+                McpServerStdio::new("test-stdio", "test-command")
+                    .args(vec!["--flag".to_string(), "value".to_string()])
+                    .env(vec![agent_client_protocol::schema::EnvVariable::new(
+                        "SECRET_TOKEN",
+                        "literal-secret",
+                    )]),
+            ),
+            env_keys: vec!["SECRET_TOKEN".to_string()],
+            description: Some("Test stdio".to_string()),
+            timeout: Some(42),
+            socket: None,
+        };
+
+        let config = goose_extension_to_config(extension).expect("conversion should succeed");
+
+        let ExtensionConfig::Stdio {
+            name,
+            description,
+            cmd,
+            args,
+            envs,
+            env_keys,
+            timeout,
+            bundled,
+            available_tools,
+        } = config
+        else {
+            panic!("expected stdio config");
+        };
+
+        assert_eq!(name, "test-stdio");
+        assert_eq!(description, "Test stdio");
+        assert_eq!(cmd, "test-command");
+        assert_eq!(args, vec!["--flag", "value"]);
+        assert!(
+            envs.get_env().is_empty(),
+            "literal envs should not be persisted"
+        );
+        assert_eq!(env_keys, vec!["SECRET_TOKEN"]);
+        assert_eq!(timeout, Some(42));
+        assert_eq!(bundled, Some(false));
+        assert!(available_tools.is_empty());
+    }
+
+    #[test]
+    fn goose_mcp_streamable_http_extension_converts_to_config_without_literal_envs() {
+        let extension = GooseExtension::Mcp {
+            server: McpServer::Http(
+                McpServerHttp::new("test-http", "https://example.com/mcp").headers(vec![
+                    HttpHeader::new("Authorization", "Bearer ${API_TOKEN}"),
+                ]),
+            ),
+            env_keys: vec!["API_TOKEN".to_string()],
+            description: Some("Test HTTP".to_string()),
+            timeout: Some(99),
+            socket: Some("@egress.sock".to_string()),
+        };
+
+        let config = goose_extension_to_config(extension).expect("conversion should succeed");
+
+        let ExtensionConfig::StreamableHttp {
+            name,
+            description,
+            uri,
+            envs,
+            env_keys,
+            headers,
+            timeout,
+            socket,
+            bundled,
+            available_tools,
+        } = config
+        else {
+            panic!("expected streamable http config");
+        };
+
+        assert_eq!(name, "test-http");
+        assert_eq!(description, "Test HTTP");
+        assert_eq!(uri, "https://example.com/mcp");
+        assert!(
+            envs.get_env().is_empty(),
+            "literal envs should not be persisted"
+        );
+        assert_eq!(env_keys, vec!["API_TOKEN"]);
+        assert_eq!(
+            headers,
+            HashMap::from([(
+                "Authorization".to_string(),
+                "Bearer ${API_TOKEN}".to_string()
+            )])
+        );
+        assert_eq!(timeout, Some(99));
+        assert_eq!(socket.as_deref(), Some("@egress.sock"));
+        assert_eq!(bundled, Some(false));
+        assert!(available_tools.is_empty());
+    }
+
+    #[test]
+    fn goose_inline_python_extension_converts_to_config() {
+        let extension = GooseExtension::InlinePython {
+            name: "python-tools".to_string(),
+            description: Some("Python tools".to_string()),
+            code: "print('hello')".to_string(),
+            timeout: Some(12),
+            dependencies: vec!["requests".to_string()],
+        };
+
+        let config = goose_extension_to_config(extension).expect("conversion should succeed");
+
+        let ExtensionConfig::InlinePython {
+            name,
+            description,
+            code,
+            timeout,
+            dependencies,
+            available_tools,
+        } = config
+        else {
+            panic!("expected inline python config");
+        };
+
+        assert_eq!(name, "python-tools");
+        assert_eq!(description, "Python tools");
+        assert_eq!(code, "print('hello')");
+        assert_eq!(timeout, Some(12));
+        assert_eq!(dependencies, Some(vec!["requests".to_string()]));
+        assert!(available_tools.is_empty());
+    }
+
+    #[test]
+    fn goose_frontend_extension_converts_to_config() {
+        let tool = serde_json::json!({
+            "name": "pick_color",
+            "description": "Pick a color",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "hex": { "type": "string" }
+                }
+            }
+        });
+        let extension = GooseExtension::Frontend {
+            name: "frontend-tools".to_string(),
+            description: Some("Frontend tools".to_string()),
+            tools: vec![tool],
+            instructions: Some("Use frontend tools carefully".to_string()),
+        };
+
+        let config = goose_extension_to_config(extension).expect("conversion should succeed");
+
+        let ExtensionConfig::Frontend {
+            name,
+            description,
+            tools,
+            instructions,
+            bundled,
+            available_tools,
+        } = config
+        else {
+            panic!("expected frontend config");
+        };
+
+        assert_eq!(name, "frontend-tools");
+        assert_eq!(description, "Frontend tools");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "pick_color");
+        assert_eq!(tools[0].description.as_deref(), Some("Pick a color"));
+        assert_eq!(
+            instructions.as_deref(),
+            Some("Use frontend tools carefully")
+        );
+        assert_eq!(bundled, Some(false));
+        assert!(available_tools.is_empty());
+    }
+
+    #[test]
+    fn goose_builtin_and_platform_extensions_are_rejected_for_config_add() {
+        let builtin = GooseExtension::Builtin {
+            name: "developer".to_string(),
+            description: None,
+            display_name: None,
+        };
+        let platform = GooseExtension::Platform {
+            name: "todo".to_string(),
+            description: None,
+            display_name: None,
+        };
+
+        assert!(goose_extension_to_config(builtin).is_err());
+        assert!(goose_extension_to_config(platform).is_err());
+    }
+
+    #[test]
+    fn goose_mcp_sse_extension_is_rejected_for_config_add() {
+        let extension = GooseExtension::Mcp {
+            server: McpServer::Sse(agent_client_protocol::schema::McpServerSse::new(
+                "legacy-sse",
+                "https://example.com/sse",
+            )),
+            env_keys: Vec::new(),
+            description: None,
+            timeout: None,
+            socket: None,
+        };
+
+        assert!(goose_extension_to_config(extension).is_err());
+    }
 }
 
 fn config_to_goose_extension(
@@ -368,6 +580,102 @@ fn config_to_goose_extension(
     Ok(Some(extension))
 }
 
+fn goose_extension_to_config(
+    extension: GooseExtension,
+) -> Result<ExtensionConfig, agent_client_protocol::Error> {
+    let config = match extension {
+        GooseExtension::Builtin { .. } | GooseExtension::Platform { .. } => {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("builtin and platform extensions cannot be added to persistent config"));
+        }
+        GooseExtension::Mcp {
+            server,
+            env_keys,
+            description,
+            timeout,
+            socket,
+        } => match server {
+            McpServer::Stdio(stdio) => {
+                if socket.is_some() {
+                    return Err(agent_client_protocol::Error::invalid_params()
+                        .data("socket is only supported for streamable_http MCP extensions"));
+                }
+                ExtensionConfig::Stdio {
+                    name: stdio.name,
+                    description: description.unwrap_or_default(),
+                    cmd: stdio.command.to_string_lossy().to_string(),
+                    args: stdio.args,
+                    envs: crate::agents::extension::Envs::default(),
+                    env_keys,
+                    timeout,
+                    bundled: Some(false),
+                    available_tools: Vec::new(),
+                }
+            }
+            McpServer::Http(http) => ExtensionConfig::StreamableHttp {
+                name: http.name,
+                description: description.unwrap_or_default(),
+                uri: http.url,
+                envs: crate::agents::extension::Envs::default(),
+                env_keys,
+                headers: http
+                    .headers
+                    .into_iter()
+                    .map(|header| (header.name, header.value))
+                    .collect(),
+                timeout,
+                socket,
+                bundled: Some(false),
+                available_tools: Vec::new(),
+            },
+            McpServer::Sse(_) => {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data("SSE is unsupported, migrate to streamable_http"));
+            }
+            _ => {
+                return Err(
+                    agent_client_protocol::Error::invalid_params().data("unsupported MCP server")
+                );
+            }
+        },
+        GooseExtension::InlinePython {
+            name,
+            description,
+            code,
+            timeout,
+            dependencies,
+        } => ExtensionConfig::InlinePython {
+            name,
+            description: description.unwrap_or_default(),
+            code,
+            timeout,
+            dependencies: (!dependencies.is_empty()).then_some(dependencies),
+            available_tools: Vec::new(),
+        },
+        GooseExtension::Frontend {
+            name,
+            description,
+            tools,
+            instructions,
+        } => ExtensionConfig::Frontend {
+            name,
+            description: description.unwrap_or_default(),
+            tools: tools
+                .into_iter()
+                .map(serde_json::from_value)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data(format!("bad frontend tool: {error}"))
+                })?,
+            instructions,
+            bundled: Some(false),
+            available_tools: Vec::new(),
+        },
+    };
+    Ok(config)
+}
+
 fn config_entry_to_goose_entry(
     entry: crate::config::extensions::ExtensionEntry,
 ) -> Result<Option<GooseExtensionEntry>, agent_client_protocol::Error> {
@@ -380,6 +688,25 @@ fn config_entry_to_goose_entry(
         enabled: entry.enabled,
         config_key: Some(config_key),
     }))
+}
+
+fn is_server_owned_extension_config(config: &ExtensionConfig) -> bool {
+    matches!(
+        config,
+        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
+    ) || matches!(
+        config,
+        ExtensionConfig::Stdio {
+            bundled: Some(true),
+            ..
+        } | ExtensionConfig::StreamableHttp {
+            bundled: Some(true),
+            ..
+        } | ExtensionConfig::Frontend {
+            bundled: Some(true),
+            ..
+        }
+    )
 }
 
 impl GooseAcpAgent {
@@ -453,22 +780,7 @@ impl GooseAcpAgent {
         &self,
         req: AddConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let mut obj = match req.extension_config {
-            serde_json::Value::Object(obj) => obj,
-            _ => {
-                return Err(agent_client_protocol::Error::invalid_params()
-                    .data("extensionConfig must be a JSON object"));
-            }
-        };
-        obj.insert(
-            "name".to_string(),
-            serde_json::Value::String(req.name.clone()),
-        );
-
-        let config: crate::agents::ExtensionConfig =
-            serde_json::from_value(serde_json::Value::Object(obj)).map_err(|e| {
-                agent_client_protocol::Error::invalid_params().data(format!("bad config: {e}"))
-            })?;
+        let config = goose_extension_to_config(req.extension)?;
 
         crate::config::extensions::set_extension(crate::config::extensions::ExtensionEntry {
             enabled: req.enabled,
@@ -481,25 +793,28 @@ impl GooseAcpAgent {
         &self,
         req: RemoveConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let keys = crate::config::extensions::get_all_extension_names();
-        if !keys.iter().any(|k| k == &req.config_key) {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data(format!("Extension '{}' not found", req.config_key)));
+        if let Some(entry) = crate::config::get_extension_entry_by_key(&req.config_key) {
+            if is_server_owned_extension_config(&entry.config) {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Extension '{}' cannot be removed", req.config_key)));
+            }
         }
+
         crate::config::extensions::remove_extension(&req.config_key);
         Ok(EmptyResponse {})
     }
 
-    pub(super) async fn on_toggle_config_extension(
+    pub(super) async fn on_set_config_extension_enabled(
         &self,
-        req: ToggleConfigExtensionRequest,
+        req: SetConfigExtensionEnabledRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let keys = crate::config::extensions::get_all_extension_names();
-        if !keys.iter().any(|k| k == &req.config_key) {
+        let updated =
+            crate::config::extensions::set_extension_enabled(&req.config_key, req.enabled);
+        if !updated {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data(format!("Extension '{}' not found", req.config_key)));
         }
-        crate::config::extensions::set_extension_enabled(&req.config_key, req.enabled);
+
         Ok(EmptyResponse {})
     }
 

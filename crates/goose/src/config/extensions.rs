@@ -93,6 +93,10 @@ pub fn get_extension_by_name(name: &str) -> Option<ExtensionConfig> {
         .map(|entry| entry.config.clone())
 }
 
+pub fn get_extension_entry_by_key(key: &str) -> Option<ExtensionEntry> {
+    get_extensions_map().get(key).cloned()
+}
+
 pub fn set_extension(entry: ExtensionEntry) {
     let mut extensions = get_extensions_map();
     let key = entry.config.key();
@@ -106,12 +110,16 @@ pub fn remove_extension(key: &str) {
     save_extensions_map(extensions);
 }
 
-pub fn set_extension_enabled(key: &str, enabled: bool) {
+/// Returns true when an existing extension was updated, false when the key was missing.
+pub fn set_extension_enabled(key: &str, enabled: bool) -> bool {
     let mut extensions = get_extensions_map();
-    if let Some(entry) = extensions.get_mut(key) {
-        entry.enabled = enabled;
-        save_extensions_map(extensions);
-    }
+    let Some(entry) = extensions.get_mut(key) else {
+        return false;
+    };
+
+    entry.enabled = enabled;
+    save_extensions_map(extensions);
+    true
 }
 
 pub fn get_all_extensions() -> Vec<ExtensionEntry> {

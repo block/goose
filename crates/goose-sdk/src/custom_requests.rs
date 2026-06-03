@@ -197,6 +197,16 @@ pub enum GooseExtension {
     },
 }
 
+impl Default for GooseExtension {
+    fn default() -> Self {
+        Self::Builtin {
+            name: String::new(),
+            description: None,
+            display_name: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GooseExtensionEntry {
@@ -244,12 +254,7 @@ pub type GetExtensionsResponse = GetConfigExtensionsResponse;
 #[request(method = "_goose/unstable/config/extensions/add", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct AddConfigExtensionRequest {
-    pub name: String,
-    /// Extension configuration. Must be a JSON object matching one of the
-    /// `ExtensionConfig` variants (e.g. `stdio`, `streamable_http`, `builtin`).
-    /// `name` and `enabled` are injected server-side.
-    #[serde(default)]
-    pub extension_config: serde_json::Value,
+    pub extension: GooseExtension,
     #[serde(default)]
     pub enabled: bool,
 }
@@ -270,15 +275,6 @@ pub struct RemoveConfigExtensionRequest {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct SetConfigExtensionEnabledRequest {
-    pub config_key: String,
-    pub enabled: bool,
-}
-
-/// Toggle the `enabled` flag for a persisted extension in the user's global goose config.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/config/extensions/toggle", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct ToggleConfigExtensionRequest {
     pub config_key: String,
     pub enabled: bool,
 }

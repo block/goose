@@ -103,7 +103,7 @@ fn test_custom_get_tools() {
 #[test]
 #[serial]
 fn test_custom_get_extensions() {
-    let config_key = "test-stdio-acp-config-list";
+    let config_key = "test-stdio-acp-mutation-flow";
     let temp_dir = tempfile::tempdir().unwrap();
     let temp_root = temp_dir.path().to_string_lossy().to_string();
     let _guard = env_lock::lock_env([
@@ -115,19 +115,6 @@ fn test_custom_get_extensions() {
     let config_yaml = format!(
         r#"GOOSE_MODEL: {TEST_MODEL}
 GOOSE_PROVIDER: openai
-extensions:
-  {config_key}:
-    enabled: true
-    type: stdio
-    name: {config_key}
-    description: Test stdio
-    cmd: test-command
-    args:
-      - --flag
-      - value
-    env_keys:
-      - SECRET_TOKEN
-    timeout: 42
 "#
     );
     fs::write(config_dir.join(CONFIG_YAML_NAME), config_yaml).unwrap();
@@ -136,23 +123,57 @@ extensions:
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let result = send_custom(
+        let add_result = send_custom(
             conn.cx(),
-            "_goose/unstable/config/extensions/list",
-            serde_json::json!({}),
+            "_goose/unstable/config/extensions/add",
+            serde_json::json!({
+                "enabled": true,
+                "extension": {
+                    "type": "mcp",
+                    "description": "Test stdio",
+                    "envKeys": ["SECRET_TOKEN"],
+                    "timeout": 42,
+                    "server": {
+                        "type": "stdio",
+                        "name": config_key,
+                        "command": "test-command",
+                        "args": ["--flag", "value"],
+                        "env": [
+                            {
+                                "name": "SECRET_TOKEN",
+                                "value": "literal-secret"
+                            }
+                        ]
+                    }
+                }
+            }),
         )
         .await;
-        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+        assert!(add_result.is_ok(), "expected ok, got: {:?}", add_result);
 
-        let response = result.unwrap();
-        let extensions = response
-            .get("extensions")
-            .and_then(|extensions| extensions.as_array())
-            .expect("extensions should be an array");
-        let entry = extensions
-            .iter()
-            .find(|entry| entry["configKey"] == config_key)
-            .unwrap_or_else(|| panic!("missing seeded extension entry in response: {response:#?}"));
+        let list_extension = || async {
+            let result = send_custom(
+                conn.cx(),
+                "_goose/unstable/config/extensions/list",
+                serde_json::json!({}),
+            )
+            .await;
+            assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+            let response = result.unwrap();
+            let extensions = response
+                .get("extensions")
+                .and_then(|extensions| extensions.as_array())
+                .expect("extensions should be an array");
+            extensions
+                .iter()
+                .find(|entry| entry["configKey"] == config_key)
+                .cloned()
+        };
+
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing added extension entry"));
         assert_eq!(entry["enabled"], true);
         assert_eq!(entry["configKey"], config_key);
 
@@ -168,6 +189,45 @@ extensions:
         assert_eq!(server["command"], "test-command");
         assert_eq!(server["args"], serde_json::json!(["--flag", "value"]));
         assert_eq!(server["env"], serde_json::json!([]));
+
+        let set_enabled_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/set-enabled",
+            serde_json::json!({
+                "configKey": config_key,
+                "enabled": false,
+            }),
+        )
+        .await;
+        assert!(
+            set_enabled_result.is_ok(),
+            "expected ok, got: {:?}",
+            set_enabled_result
+        );
+
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing disabled extension entry"));
+        assert_eq!(entry["enabled"], false);
+
+        let remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/remove",
+            serde_json::json!({
+                "configKey": config_key,
+            }),
+        )
+        .await;
+        assert!(
+            remove_result.is_ok(),
+            "expected ok, got: {:?}",
+            remove_result
+        );
+
+        assert!(
+            list_extension().await.is_none(),
+            "removed extension should not be listed"
+        );
     });
 }
 
