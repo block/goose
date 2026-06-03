@@ -3,28 +3,28 @@ use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::routing::put;
 use axum::{
-    Json, Router,
     extract::Path,
     routing::{delete, get, post},
+    Json, Router,
 };
 use chrono::{DateTime, TimeZone, Utc};
-use goose::config::ExtensionEntry;
 use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
+use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::custom_requests::SourceType;
 use goose::model::ModelConfig;
 use goose::providers::base::{ModelInfo, ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::catalog::{
-    ProviderCatalogEntry, ProviderFormat, ProviderTemplate, get_provider_template,
-    get_providers_by_format,
+    get_provider_template, get_providers_by_format, ProviderCatalogEntry, ProviderFormat,
+    ProviderTemplate,
 };
 use goose::providers::create_with_default_model;
 use goose::providers::huggingface_auth;
 use goose::providers::providers as get_providers;
 use goose::{
-    agents::ExtensionConfig, agents::execute_commands, config::permission::PermissionLevel,
+    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands::recipe_slash_command,
 };
 use serde::{Deserialize, Serialize};
