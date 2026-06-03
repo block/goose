@@ -256,18 +256,30 @@ impl ModelConfig {
     /// `catalog_provider_id` (e.g. "xiaomi-token-plan-sgp") as the provider
     /// key.  This is intended as a fallback after `with_canonical_limits`
     /// already failed with the raw config provider name.
+    ///
+    /// When a canonical match is found, it overrides the current
+    /// `context_limit` **unless** the current value was explicitly set
+    /// by the user (i.e. it differs from `DEFAULT_CONTEXT_LIMIT`).
+    /// This handles the desktop flow where the UI sends the stale
+    /// `known_models` placeholder (128 000) via `with_context_limit`.
     pub fn with_catalog_provider_fallback(mut self, catalog_provider_id: &str) -> Self {
-        if self.context_limit.is_some() {
-            return self;
-        }
-
         let canonical = crate::providers::canonical::maybe_get_canonical_model(
             catalog_provider_id,
             &self.model_name,
         );
 
         if let Some(canonical) = canonical {
-            self.context_limit = Some(canonical.limit.context);
+            // Override the context limit when it is unset OR when it
+            // equals the hardcoded placeholder (DEFAULT_CONTEXT_LIMIT).
+            // A non-default value means the user explicitly configured
+            // a limit (e.g. via GOOSE_CONTEXT_LIMIT) — respect it.
+            let dominated = self
+                .context_limit
+                .map(|v| v == DEFAULT_CONTEXT_LIMIT)
+                .unwrap_or(true);
+            if dominated {
+                self.context_limit = Some(canonical.limit.context);
+            }
             if self.max_tokens.is_none() {
                 self.max_tokens = canonical
                     .limit
@@ -1015,19 +1027,39 @@ mod tests {
         }
 
         #[test]
-        fn catalog_provider_id_fallback_does_not_override_existing_limit() {
+        fn catalog_provider_id_fallback_does_not_override_user_limit() {
             let _guard = env_lock::lock_env([
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
 
+            // A non-default value (e.g. from GOOSE_CONTEXT_LIMIT) must be preserved.
             let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
             config.context_limit = Some(512_000);
             let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
             assert_eq!(
                 config.context_limit,
                 Some(512_000),
-                "catalog_provider_id fallback should not override existing context_limit"
+                "non-default context_limit should not be overridden by catalog fallback"
+            );
+        }
+
+        #[test]
+        fn catalog_provider_id_fallback_overrides_default_placeholder() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+
+            // DEFAULT_CONTEXT_LIMIT (128000) is the hardcoded placeholder
+            // from create_custom_provider — the catalog should override it.
+            let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
+            config.context_limit = Some(128_000);
+            let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
+            assert_eq!(
+                config.context_limit,
+                Some(1_048_576),
+                "placeholder 128000 should be overridden by catalog fallback"
             );
         }
 
