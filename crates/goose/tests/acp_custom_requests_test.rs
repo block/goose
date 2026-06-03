@@ -7,11 +7,14 @@ use common_tests::fixtures::{
     run_test, send_custom, Connection, PermissionDecision, Session, SessionData,
     TestConnectionConfig,
 };
+use fs_err as fs;
 use goose::acp::server::AcpProviderFactory;
+use goose::config::base::CONFIG_YAML_NAME;
 use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
 use goose::providers::errors::ProviderError;
-use goose_test_support::{EnforceSessionId, IgnoreSessionId};
+use goose_test_support::{EnforceSessionId, IgnoreSessionId, TEST_MODEL};
+use serial_test::serial;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -98,7 +101,37 @@ fn test_custom_get_tools() {
 }
 
 #[test]
+#[serial]
 fn test_custom_get_extensions() {
+    let config_key = "test-stdio-acp-config-list";
+    let temp_dir = tempfile::tempdir().unwrap();
+    let temp_root = temp_dir.path().to_string_lossy().to_string();
+    let _guard = env_lock::lock_env([
+        ("GOOSE_PATH_ROOT", Some(temp_root.as_str())),
+        ("EXTENSIONS", None::<&str>),
+    ]);
+    let config_dir = temp_dir.path().join("config");
+    fs::create_dir_all(&config_dir).unwrap();
+    let config_yaml = format!(
+        r#"GOOSE_MODEL: {TEST_MODEL}
+GOOSE_PROVIDER: openai
+extensions:
+  {config_key}:
+    enabled: true
+    type: stdio
+    name: {config_key}
+    description: Test stdio
+    cmd: test-command
+    args:
+      - --flag
+      - value
+    env_keys:
+      - SECRET_TOKEN
+    timeout: 42
+"#
+    );
+    fs::write(config_dir.join(CONFIG_YAML_NAME), config_yaml).unwrap();
+
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -112,14 +145,29 @@ fn test_custom_get_extensions() {
         assert!(result.is_ok(), "expected ok, got: {:?}", result);
 
         let response = result.unwrap();
-        assert!(
-            response.get("extensions").is_some(),
-            "missing 'extensions' field"
-        );
-        assert!(
-            response.get("warnings").is_some(),
-            "missing 'warnings' field"
-        );
+        let extensions = response
+            .get("extensions")
+            .and_then(|extensions| extensions.as_array())
+            .expect("extensions should be an array");
+        let entry = extensions
+            .iter()
+            .find(|entry| entry["configKey"] == config_key)
+            .unwrap_or_else(|| panic!("missing seeded extension entry in response: {response:#?}"));
+        assert_eq!(entry["enabled"], true);
+        assert_eq!(entry["configKey"], config_key);
+
+        let extension = &entry["extension"];
+        assert_eq!(extension["type"], "mcp");
+        assert_eq!(extension["envKeys"], serde_json::json!(["SECRET_TOKEN"]));
+        assert_eq!(extension["description"], "Test stdio");
+        assert_eq!(extension["timeout"], 42);
+        assert!(extension.get("socket").is_none());
+
+        let server = &extension["server"];
+        assert_eq!(server["name"], config_key);
+        assert_eq!(server["command"], "test-command");
+        assert_eq!(server["args"], serde_json::json!(["--flag", "value"]));
+        assert_eq!(server["env"], serde_json::json!([]));
     });
 }
 

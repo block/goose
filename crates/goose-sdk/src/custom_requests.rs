@@ -173,6 +173,8 @@ pub enum GooseExtension {
         description: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         timeout: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        socket: Option<String>,
     },
     InlinePython {
         name: String,
@@ -229,8 +231,8 @@ pub struct GetConfigExtensionsRequest {}
 /// List configured extensions and any warnings.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetConfigExtensionsResponse {
-    /// Array of ExtensionEntry objects with `enabled` flag, `configKey`, and flattened config details.
-    pub extensions: Vec<serde_json::Value>,
+    pub extensions: Vec<GooseExtensionEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
 }
 
