@@ -1,5 +1,374 @@
 use super::*;
-use agent_client_protocol::schema::{HttpHeader, McpServerHttp, McpServerStdio};
+use crate::agents::extension::Envs;
+use crate::config::extensions::ExtensionEntry;
+use agent_client_protocol::schema::{
+    EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
+};
+
+impl GooseAcpAgent {
+    pub(super) async fn on_add_extension(
+        &self,
+        req: AddExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = &req.session_id;
+        let config: ExtensionConfig = serde_json::from_value(req.config).map_err(|e| {
+            agent_client_protocol::Error::invalid_params().data(format!("bad config: {e}"))
+        })?;
+        let agent = self.get_session_agent(&req.session_id, None).await?;
+        agent
+            .add_extension(config, session_id)
+            .await
+            .internal_err()?;
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_remove_extension(
+        &self,
+        req: RemoveExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = &req.session_id;
+        let agent = self.get_session_agent(&req.session_id, None).await?;
+        agent
+            .remove_extension(&req.name, session_id)
+            .await
+            .internal_err()?;
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_get_config_extensions(
+        &self,
+    ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {
+        let extensions = crate::config::extensions::get_all_extensions()
+            .into_iter()
+            .filter(|ext| {
+                !crate::agents::extension_manager::is_hidden_extension(&ext.config.name())
+            })
+            .collect::<Vec<_>>();
+        let warnings = crate::config::extensions::get_warnings();
+        let extensions = extensions
+            .into_iter()
+            .map(config_entry_to_goose_entry)
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        Ok(GetConfigExtensionsResponse {
+            extensions,
+            warnings,
+        })
+    }
+
+    pub(super) async fn on_get_available_extensions(
+        &self,
+    ) -> Result<GetAvailableExtensionsResponse, agent_client_protocol::Error> {
+        let extensions = crate::config::get_available_extensions()
+            .into_iter()
+            .map(|config| config_to_goose_extension(&config))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        Ok(GetAvailableExtensionsResponse { extensions })
+    }
+
+    pub(super) async fn on_add_config_extension(
+        &self,
+        req: AddConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let config = goose_extension_to_config(req.extension)?;
+
+        crate::config::extensions::set_extension(ExtensionEntry {
+            enabled: req.enabled,
+            config,
+        });
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_remove_config_extension(
+        &self,
+        req: RemoveConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        if let Some(entry) = crate::config::get_extension_entry_by_key(&req.config_key) {
+            if is_server_owned_extension_config(&entry.config) {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Extension '{}' cannot be removed", req.config_key)));
+            }
+        }
+
+        crate::config::extensions::remove_extension(&req.config_key);
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_set_config_extension_enabled(
+        &self,
+        req: SetConfigExtensionEnabledRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let updated =
+            crate::config::extensions::set_extension_enabled(&req.config_key, req.enabled);
+        if !updated {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data(format!("Extension '{}' not found", req.config_key)));
+        }
+
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_get_session_extensions(
+        &self,
+        req: GetSessionExtensionsRequest,
+    ) -> Result<GetSessionExtensionsResponse, agent_client_protocol::Error> {
+        let session_id = &req.session_id;
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err()?;
+
+        let extensions = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            crate::config::Config::global(),
+        );
+
+        let extensions_json = extensions
+            .into_iter()
+            .map(|e| serde_json::to_value(&e))
+            .collect::<Result<Vec<_>, _>>()
+            .internal_err()?;
+
+        Ok(GetSessionExtensionsResponse {
+            extensions: extensions_json,
+        })
+    }
+}
+
+fn config_to_goose_extension(
+    config: &ExtensionConfig,
+) -> Result<Option<GooseExtension>, agent_client_protocol::Error> {
+    let extension = match config {
+        ExtensionConfig::Builtin {
+            name,
+            description,
+            display_name,
+            ..
+        } => GooseExtension::Builtin {
+            name: name.clone(),
+            description: empty_string_to_none(description),
+            display_name: display_name.clone(),
+        },
+        ExtensionConfig::Platform {
+            name,
+            description,
+            display_name,
+            ..
+        } => GooseExtension::Platform {
+            name: name.clone(),
+            description: empty_string_to_none(description),
+            display_name: display_name.clone(),
+        },
+        ExtensionConfig::Stdio {
+            name,
+            description,
+            cmd,
+            args,
+            env_keys,
+            timeout,
+            ..
+        } => GooseExtension::Mcp {
+            server: McpServer::Stdio(McpServerStdio::new(name, cmd).args(args.clone())),
+            env_keys: env_keys.clone(),
+            description: empty_string_to_none(description),
+            timeout: *timeout,
+            socket: None,
+        },
+        ExtensionConfig::StreamableHttp {
+            name,
+            description,
+            uri,
+            env_keys,
+            headers,
+            timeout,
+            socket,
+            ..
+        } => {
+            let headers = headers
+                .iter()
+                .map(|(key, value)| HttpHeader::new(key, value))
+                .collect();
+            GooseExtension::Mcp {
+                server: McpServer::Http(McpServerHttp::new(name, uri).headers(headers)),
+                env_keys: env_keys.clone(),
+                description: empty_string_to_none(description),
+                timeout: *timeout,
+                socket: socket.clone(),
+            }
+        }
+        ExtensionConfig::Frontend {
+            name,
+            description,
+            tools,
+            instructions,
+            ..
+        } => {
+            let tools = tools
+                .iter()
+                .map(serde_json::to_value)
+                .collect::<Result<Vec<_>, _>>()
+                .internal_err()?;
+            GooseExtension::Frontend {
+                name: name.clone(),
+                description: empty_string_to_none(description),
+                tools,
+                instructions: instructions.clone(),
+            }
+        }
+        ExtensionConfig::InlinePython {
+            name,
+            description,
+            code,
+            timeout,
+            dependencies,
+            ..
+        } => GooseExtension::InlinePython {
+            name: name.clone(),
+            description: empty_string_to_none(description),
+            code: code.clone(),
+            timeout: *timeout,
+            dependencies: dependencies.clone().unwrap_or_default(),
+        },
+        ExtensionConfig::Sse { .. } => return Ok(None),
+    };
+    Ok(Some(extension))
+}
+
+fn goose_extension_to_config(
+    extension: GooseExtension,
+) -> Result<ExtensionConfig, agent_client_protocol::Error> {
+    let config = match extension {
+        GooseExtension::Builtin { .. } | GooseExtension::Platform { .. } => {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("builtin and platform extensions cannot be added to persistent config"));
+        }
+        GooseExtension::Mcp {
+            server,
+            env_keys,
+            description,
+            timeout,
+            socket,
+        } => match server {
+            McpServer::Stdio(stdio) => {
+                if socket.is_some() {
+                    return Err(agent_client_protocol::Error::invalid_params()
+                        .data("socket is only supported for streamable_http MCP extensions"));
+                }
+                ExtensionConfig::Stdio {
+                    name: stdio.name,
+                    description: description.unwrap_or_default(),
+                    cmd: stdio.command.to_string_lossy().to_string(),
+                    args: stdio.args,
+                    envs: Envs::default(),
+                    env_keys,
+                    timeout,
+                    bundled: Some(false),
+                    available_tools: Vec::new(),
+                }
+            }
+            McpServer::Http(http) => ExtensionConfig::StreamableHttp {
+                name: http.name,
+                description: description.unwrap_or_default(),
+                uri: http.url,
+                envs: Envs::default(),
+                env_keys,
+                headers: http
+                    .headers
+                    .into_iter()
+                    .map(|header| (header.name, header.value))
+                    .collect(),
+                timeout,
+                socket,
+                bundled: Some(false),
+                available_tools: Vec::new(),
+            },
+            McpServer::Sse(_) => {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data("SSE is unsupported, migrate to streamable_http"));
+            }
+            _ => {
+                return Err(
+                    agent_client_protocol::Error::invalid_params().data("unsupported MCP server")
+                );
+            }
+        },
+        GooseExtension::InlinePython {
+            name,
+            description,
+            code,
+            timeout,
+            dependencies,
+        } => ExtensionConfig::InlinePython {
+            name,
+            description: description.unwrap_or_default(),
+            code,
+            timeout,
+            dependencies: (!dependencies.is_empty()).then_some(dependencies),
+            available_tools: Vec::new(),
+        },
+        GooseExtension::Frontend {
+            name,
+            description,
+            tools,
+            instructions,
+        } => ExtensionConfig::Frontend {
+            name,
+            description: description.unwrap_or_default(),
+            tools: tools
+                .into_iter()
+                .map(serde_json::from_value)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data(format!("bad frontend tool: {error}"))
+                })?,
+            instructions,
+            bundled: Some(false),
+            available_tools: Vec::new(),
+        },
+    };
+    Ok(config)
+}
+
+fn config_entry_to_goose_entry(
+    entry: ExtensionEntry,
+) -> Result<Option<GooseExtensionEntry>, agent_client_protocol::Error> {
+    let config_key = entry.config.key();
+    let Some(extension) = config_to_goose_extension(&entry.config)? else {
+        return Ok(None);
+    };
+    Ok(Some(GooseExtensionEntry {
+        extension,
+        enabled: entry.enabled,
+        config_key: Some(config_key),
+    }))
+}
+
+fn is_server_owned_extension_config(config: &ExtensionConfig) -> bool {
+    matches!(
+        config,
+        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
+    ) || matches!(
+        config,
+        ExtensionConfig::Stdio {
+            bundled: Some(true),
+            ..
+        } | ExtensionConfig::StreamableHttp {
+            bundled: Some(true),
+            ..
+        } | ExtensionConfig::Frontend {
+            bundled: Some(true),
+            ..
+        }
+    )
+}
 
 fn empty_string_to_none(value: &str) -> Option<String> {
     if value.is_empty() {
@@ -13,7 +382,7 @@ fn empty_string_to_none(value: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use agent_client_protocol::schema::McpServer;
+    use agent_client_protocol::schema::{McpServer, McpServerSse};
     use rmcp::model::Tool;
     use std::collections::HashMap;
 
@@ -467,10 +836,7 @@ mod tests {
     #[test]
     fn goose_mcp_sse_extension_is_rejected_for_config_add() {
         let extension = GooseExtension::Mcp {
-            server: McpServer::Sse(agent_client_protocol::schema::McpServerSse::new(
-                "legacy-sse",
-                "https://example.com/sse",
-            )),
+            server: McpServer::Sse(McpServerSse::new("legacy-sse", "https://example.com/sse")),
             env_keys: Vec::new(),
             description: None,
             timeout: None,
@@ -478,370 +844,5 @@ mod tests {
         };
 
         assert!(goose_extension_to_config(extension).is_err());
-    }
-}
-
-fn config_to_goose_extension(
-    config: &ExtensionConfig,
-) -> Result<Option<GooseExtension>, agent_client_protocol::Error> {
-    let extension = match config {
-        ExtensionConfig::Builtin {
-            name,
-            description,
-            display_name,
-            ..
-        } => GooseExtension::Builtin {
-            name: name.clone(),
-            description: empty_string_to_none(description),
-            display_name: display_name.clone(),
-        },
-        ExtensionConfig::Platform {
-            name,
-            description,
-            display_name,
-            ..
-        } => GooseExtension::Platform {
-            name: name.clone(),
-            description: empty_string_to_none(description),
-            display_name: display_name.clone(),
-        },
-        ExtensionConfig::Stdio {
-            name,
-            description,
-            cmd,
-            args,
-            env_keys,
-            timeout,
-            ..
-        } => GooseExtension::Mcp {
-            server: McpServer::Stdio(McpServerStdio::new(name, cmd).args(args.clone())),
-            env_keys: env_keys.clone(),
-            description: empty_string_to_none(description),
-            timeout: *timeout,
-            socket: None,
-        },
-        ExtensionConfig::StreamableHttp {
-            name,
-            description,
-            uri,
-            env_keys,
-            headers,
-            timeout,
-            socket,
-            ..
-        } => {
-            let headers = headers
-                .iter()
-                .map(|(key, value)| HttpHeader::new(key, value))
-                .collect();
-            GooseExtension::Mcp {
-                server: McpServer::Http(McpServerHttp::new(name, uri).headers(headers)),
-                env_keys: env_keys.clone(),
-                description: empty_string_to_none(description),
-                timeout: *timeout,
-                socket: socket.clone(),
-            }
-        }
-        ExtensionConfig::Frontend {
-            name,
-            description,
-            tools,
-            instructions,
-            ..
-        } => {
-            let tools = tools
-                .iter()
-                .map(serde_json::to_value)
-                .collect::<Result<Vec<_>, _>>()
-                .internal_err()?;
-            GooseExtension::Frontend {
-                name: name.clone(),
-                description: empty_string_to_none(description),
-                tools,
-                instructions: instructions.clone(),
-            }
-        }
-        ExtensionConfig::InlinePython {
-            name,
-            description,
-            code,
-            timeout,
-            dependencies,
-            ..
-        } => GooseExtension::InlinePython {
-            name: name.clone(),
-            description: empty_string_to_none(description),
-            code: code.clone(),
-            timeout: *timeout,
-            dependencies: dependencies.clone().unwrap_or_default(),
-        },
-        ExtensionConfig::Sse { .. } => return Ok(None),
-    };
-    Ok(Some(extension))
-}
-
-fn goose_extension_to_config(
-    extension: GooseExtension,
-) -> Result<ExtensionConfig, agent_client_protocol::Error> {
-    let config = match extension {
-        GooseExtension::Builtin { .. } | GooseExtension::Platform { .. } => {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data("builtin and platform extensions cannot be added to persistent config"));
-        }
-        GooseExtension::Mcp {
-            server,
-            env_keys,
-            description,
-            timeout,
-            socket,
-        } => match server {
-            McpServer::Stdio(stdio) => {
-                if socket.is_some() {
-                    return Err(agent_client_protocol::Error::invalid_params()
-                        .data("socket is only supported for streamable_http MCP extensions"));
-                }
-                ExtensionConfig::Stdio {
-                    name: stdio.name,
-                    description: description.unwrap_or_default(),
-                    cmd: stdio.command.to_string_lossy().to_string(),
-                    args: stdio.args,
-                    envs: crate::agents::extension::Envs::default(),
-                    env_keys,
-                    timeout,
-                    bundled: Some(false),
-                    available_tools: Vec::new(),
-                }
-            }
-            McpServer::Http(http) => ExtensionConfig::StreamableHttp {
-                name: http.name,
-                description: description.unwrap_or_default(),
-                uri: http.url,
-                envs: crate::agents::extension::Envs::default(),
-                env_keys,
-                headers: http
-                    .headers
-                    .into_iter()
-                    .map(|header| (header.name, header.value))
-                    .collect(),
-                timeout,
-                socket,
-                bundled: Some(false),
-                available_tools: Vec::new(),
-            },
-            McpServer::Sse(_) => {
-                return Err(agent_client_protocol::Error::invalid_params()
-                    .data("SSE is unsupported, migrate to streamable_http"));
-            }
-            _ => {
-                return Err(
-                    agent_client_protocol::Error::invalid_params().data("unsupported MCP server")
-                );
-            }
-        },
-        GooseExtension::InlinePython {
-            name,
-            description,
-            code,
-            timeout,
-            dependencies,
-        } => ExtensionConfig::InlinePython {
-            name,
-            description: description.unwrap_or_default(),
-            code,
-            timeout,
-            dependencies: (!dependencies.is_empty()).then_some(dependencies),
-            available_tools: Vec::new(),
-        },
-        GooseExtension::Frontend {
-            name,
-            description,
-            tools,
-            instructions,
-        } => ExtensionConfig::Frontend {
-            name,
-            description: description.unwrap_or_default(),
-            tools: tools
-                .into_iter()
-                .map(serde_json::from_value)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| {
-                    agent_client_protocol::Error::invalid_params()
-                        .data(format!("bad frontend tool: {error}"))
-                })?,
-            instructions,
-            bundled: Some(false),
-            available_tools: Vec::new(),
-        },
-    };
-    Ok(config)
-}
-
-fn config_entry_to_goose_entry(
-    entry: crate::config::extensions::ExtensionEntry,
-) -> Result<Option<GooseExtensionEntry>, agent_client_protocol::Error> {
-    let config_key = entry.config.key();
-    let Some(extension) = config_to_goose_extension(&entry.config)? else {
-        return Ok(None);
-    };
-    Ok(Some(GooseExtensionEntry {
-        extension,
-        enabled: entry.enabled,
-        config_key: Some(config_key),
-    }))
-}
-
-fn is_server_owned_extension_config(config: &ExtensionConfig) -> bool {
-    matches!(
-        config,
-        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
-    ) || matches!(
-        config,
-        ExtensionConfig::Stdio {
-            bundled: Some(true),
-            ..
-        } | ExtensionConfig::StreamableHttp {
-            bundled: Some(true),
-            ..
-        } | ExtensionConfig::Frontend {
-            bundled: Some(true),
-            ..
-        }
-    )
-}
-
-impl GooseAcpAgent {
-    pub(super) async fn on_add_extension(
-        &self,
-        req: AddExtensionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let session_id = &req.session_id;
-        let config: ExtensionConfig = serde_json::from_value(req.config).map_err(|e| {
-            agent_client_protocol::Error::invalid_params().data(format!("bad config: {e}"))
-        })?;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
-        agent
-            .add_extension(config, session_id)
-            .await
-            .internal_err()?;
-        Ok(EmptyResponse {})
-    }
-
-    pub(super) async fn on_remove_extension(
-        &self,
-        req: RemoveExtensionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
-        agent
-            .remove_extension(&req.name, session_id)
-            .await
-            .internal_err()?;
-        Ok(EmptyResponse {})
-    }
-
-    pub(super) async fn on_get_config_extensions(
-        &self,
-    ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {
-        let extensions = crate::config::extensions::get_all_extensions()
-            .into_iter()
-            .filter(|ext| {
-                !crate::agents::extension_manager::is_hidden_extension(&ext.config.name())
-            })
-            .collect::<Vec<_>>();
-        let warnings = crate::config::extensions::get_warnings();
-        let extensions = extensions
-            .into_iter()
-            .map(config_entry_to_goose_entry)
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        Ok(GetConfigExtensionsResponse {
-            extensions,
-            warnings,
-        })
-    }
-
-    pub(super) async fn on_get_available_extensions(
-        &self,
-    ) -> Result<GetAvailableExtensionsResponse, agent_client_protocol::Error> {
-        let extensions = crate::config::get_available_extensions()
-            .into_iter()
-            .map(|config| config_to_goose_extension(&config))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-
-        Ok(GetAvailableExtensionsResponse { extensions })
-    }
-
-    pub(super) async fn on_add_config_extension(
-        &self,
-        req: AddConfigExtensionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let config = goose_extension_to_config(req.extension)?;
-
-        crate::config::extensions::set_extension(crate::config::extensions::ExtensionEntry {
-            enabled: req.enabled,
-            config,
-        });
-        Ok(EmptyResponse {})
-    }
-
-    pub(super) async fn on_remove_config_extension(
-        &self,
-        req: RemoveConfigExtensionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        if let Some(entry) = crate::config::get_extension_entry_by_key(&req.config_key) {
-            if is_server_owned_extension_config(&entry.config) {
-                return Err(agent_client_protocol::Error::invalid_params()
-                    .data(format!("Extension '{}' cannot be removed", req.config_key)));
-            }
-        }
-
-        crate::config::extensions::remove_extension(&req.config_key);
-        Ok(EmptyResponse {})
-    }
-
-    pub(super) async fn on_set_config_extension_enabled(
-        &self,
-        req: SetConfigExtensionEnabledRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let updated =
-            crate::config::extensions::set_extension_enabled(&req.config_key, req.enabled);
-        if !updated {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data(format!("Extension '{}' not found", req.config_key)));
-        }
-
-        Ok(EmptyResponse {})
-    }
-
-    pub(super) async fn on_get_session_extensions(
-        &self,
-        req: GetSessionExtensionsRequest,
-    ) -> Result<GetSessionExtensionsResponse, agent_client_protocol::Error> {
-        let session_id = &req.session_id;
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err()?;
-
-        let extensions = EnabledExtensionsState::extensions_or_default(
-            Some(&session.extension_data),
-            crate::config::Config::global(),
-        );
-
-        let extensions_json = extensions
-            .into_iter()
-            .map(|e| serde_json::to_value(&e))
-            .collect::<Result<Vec<_>, _>>()
-            .internal_err()?;
-
-        Ok(GetSessionExtensionsResponse {
-            extensions: extensions_json,
-        })
     }
 }
