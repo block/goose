@@ -58,22 +58,9 @@ impl ProviderEntry {
     }
 
     fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
-        // 1. Try the explicit `catalog_provider_id` first.  This is the
-        //    user-configured, authoritative source (e.g. "openrouter").
-        //    Must run *before* `with_canonical_limits` because that method's
-        //    inference path can match by model name alone (stripping prefixes
-        //    like "anthropic/" and inferring the provider), which would set
-        //    context_limit and block this lookup via the `is_none()` guard.
-        if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
-            model = model.with_catalog_provider_fallback(catalog_id);
-        }
-
-        // 2. Fall back to canonical limits from the raw provider name.
-        //    Internally guarded by `is_none()`, so won't override a value
-        //    already set by the catalog lookup above.
-        model = model.with_canonical_limits(&self.metadata.name);
-
-        // 3. Fall back to known_models metadata (e.g. desktop UI inventory).
+        // 1. Check known_models metadata first for explicit per-model limits
+        //    (e.g. custom provider JSON with per-model context_limit values).
+        //    These are the most specific and should take highest priority.
         if model.context_limit.is_none() {
             if let Some(info) = self
                 .metadata
@@ -84,6 +71,18 @@ impl ProviderEntry {
                 model.context_limit = Some(info.context_limit);
             }
         }
+
+        // 2. Try the explicit catalog_provider_id (e.g. "openrouter").
+        //    Internally guarded: only overrides when context_limit is unset or
+        //    still equals the 0 sentinel from create_custom_provider.
+        if let Some(ref catalog_id) = self.metadata.catalog_provider_id {
+            model = model.with_catalog_provider_fallback(catalog_id);
+        }
+
+        // 3. Fall back to canonical limits from the raw provider name.
+        //    Internally guarded by is_none(), so won't override a value
+        //    already set by steps 1 or 2.
+        model = model.with_canonical_limits(&self.metadata.name);
 
         model
     }
