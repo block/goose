@@ -204,42 +204,9 @@ fn config_to_goose_extension(
                 bundled: *bundled,
             }
         }
-        ExtensionConfig::Frontend {
-            name,
-            description,
-            tools,
-            instructions,
-            bundled,
-            ..
-        } => {
-            let tools = tools
-                .iter()
-                .map(serde_json::to_value)
-                .collect::<Result<Vec<_>, _>>()
-                .internal_err()?;
-            GooseExtension::Frontend {
-                name: name.clone(),
-                description: empty_string_to_none(description),
-                tools,
-                instructions: instructions.clone(),
-                bundled: *bundled,
-            }
-        }
-        ExtensionConfig::InlinePython {
-            name,
-            description,
-            code,
-            timeout,
-            dependencies,
-            ..
-        } => GooseExtension::InlinePython {
-            name: name.clone(),
-            description: empty_string_to_none(description),
-            code: code.clone(),
-            timeout: *timeout,
-            dependencies: dependencies.clone().unwrap_or_default(),
-        },
-        ExtensionConfig::Sse { .. } => return Ok(None),
+        ExtensionConfig::Frontend { .. }
+        | ExtensionConfig::InlinePython { .. }
+        | ExtensionConfig::Sse { .. } => return Ok(None),
     };
     Ok(Some(extension))
 }
@@ -330,41 +297,6 @@ fn goose_extension_to_config(
                 );
             }
         },
-        GooseExtension::InlinePython {
-            name,
-            description,
-            code,
-            timeout,
-            dependencies,
-        } => ExtensionConfig::InlinePython {
-            name,
-            description: description.unwrap_or_default(),
-            code,
-            timeout,
-            dependencies: (!dependencies.is_empty()).then_some(dependencies),
-            available_tools: Vec::new(),
-        },
-        GooseExtension::Frontend {
-            name,
-            description,
-            tools,
-            instructions,
-            bundled,
-        } => ExtensionConfig::Frontend {
-            name,
-            description: description.unwrap_or_default(),
-            tools: tools
-                .into_iter()
-                .map(serde_json::from_value)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| {
-                    agent_client_protocol::Error::invalid_params()
-                        .data(format!("bad frontend tool: {error}"))
-                })?,
-            instructions,
-            bundled,
-            available_tools: Vec::new(),
-        },
     };
     Ok(config)
 }
@@ -396,7 +328,6 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::{McpServer, McpServerSse};
-    use rmcp::model::Tool;
     use std::collections::HashMap;
 
     #[test]
@@ -566,7 +497,7 @@ mod tests {
     }
 
     #[test]
-    fn inline_python_config_converts_to_goose_inline_python_extension() {
+    fn inline_python_config_is_skipped() {
         let config = ExtensionConfig::InlinePython {
             name: "python-tools".to_string(),
             description: "Python tools".to_string(),
@@ -576,31 +507,14 @@ mod tests {
             available_tools: vec!["fetch".to_string()],
         };
 
-        let extension = config_to_goose_extension(&config)
-            .expect("conversion should succeed")
-            .expect("inline python should be supported");
+        let extension = config_to_goose_extension(&config).expect("conversion should succeed");
 
-        let GooseExtension::InlinePython {
-            name,
-            description,
-            code,
-            timeout,
-            dependencies,
-        } = extension
-        else {
-            panic!("expected inline python extension");
-        };
-
-        assert_eq!(name, "python-tools");
-        assert_eq!(description.as_deref(), Some("Python tools"));
-        assert_eq!(code, "print('hello')");
-        assert_eq!(timeout, Some(12));
-        assert_eq!(dependencies, vec!["requests"]);
+        assert!(extension.is_none());
     }
 
     #[test]
-    fn frontend_config_converts_to_goose_frontend_extension() {
-        let tool = Tool::new(
+    fn frontend_config_is_skipped() {
+        let tool = rmcp::model::Tool::new(
             "pick_color",
             "Pick a color",
             serde_json::json!({
@@ -622,31 +536,9 @@ mod tests {
             available_tools: vec!["pick_color".to_string()],
         };
 
-        let extension = config_to_goose_extension(&config)
-            .expect("conversion should succeed")
-            .expect("frontend should be supported");
+        let extension = config_to_goose_extension(&config).expect("conversion should succeed");
 
-        let GooseExtension::Frontend {
-            name,
-            description,
-            tools,
-            instructions,
-            bundled,
-        } = extension
-        else {
-            panic!("expected frontend extension");
-        };
-
-        assert_eq!(name, "frontend-tools");
-        assert_eq!(description.as_deref(), Some("Frontend tools"));
-        assert_eq!(
-            instructions.as_deref(),
-            Some("Use frontend tools carefully")
-        );
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["name"], "pick_color");
-        assert_eq!(tools[0]["description"], "Pick a color");
-        assert_eq!(bundled, None);
+        assert!(extension.is_none());
     }
 
     #[test]
@@ -773,85 +665,6 @@ mod tests {
         );
         assert_eq!(timeout, Some(99));
         assert_eq!(socket.as_deref(), Some("@egress.sock"));
-        assert_eq!(bundled, Some(true));
-        assert!(available_tools.is_empty());
-    }
-
-    #[test]
-    fn goose_inline_python_extension_converts_to_config() {
-        let extension = GooseExtension::InlinePython {
-            name: "python-tools".to_string(),
-            description: Some("Python tools".to_string()),
-            code: "print('hello')".to_string(),
-            timeout: Some(12),
-            dependencies: vec!["requests".to_string()],
-        };
-
-        let config = goose_extension_to_config(extension).expect("conversion should succeed");
-
-        let ExtensionConfig::InlinePython {
-            name,
-            description,
-            code,
-            timeout,
-            dependencies,
-            available_tools,
-        } = config
-        else {
-            panic!("expected inline python config");
-        };
-
-        assert_eq!(name, "python-tools");
-        assert_eq!(description, "Python tools");
-        assert_eq!(code, "print('hello')");
-        assert_eq!(timeout, Some(12));
-        assert_eq!(dependencies, Some(vec!["requests".to_string()]));
-        assert!(available_tools.is_empty());
-    }
-
-    #[test]
-    fn goose_frontend_extension_converts_to_config() {
-        let tool = serde_json::json!({
-            "name": "pick_color",
-            "description": "Pick a color",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "hex": { "type": "string" }
-                }
-            }
-        });
-        let extension = GooseExtension::Frontend {
-            name: "frontend-tools".to_string(),
-            description: Some("Frontend tools".to_string()),
-            tools: vec![tool],
-            instructions: Some("Use frontend tools carefully".to_string()),
-            bundled: Some(true),
-        };
-
-        let config = goose_extension_to_config(extension).expect("conversion should succeed");
-
-        let ExtensionConfig::Frontend {
-            name,
-            description,
-            tools,
-            instructions,
-            bundled,
-            available_tools,
-        } = config
-        else {
-            panic!("expected frontend config");
-        };
-
-        assert_eq!(name, "frontend-tools");
-        assert_eq!(description, "Frontend tools");
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].name, "pick_color");
-        assert_eq!(tools[0].description.as_deref(), Some("Pick a color"));
-        assert_eq!(
-            instructions.as_deref(),
-            Some("Use frontend tools carefully")
-        );
         assert_eq!(bundled, Some(true));
         assert!(available_tools.is_empty());
     }

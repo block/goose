@@ -53,7 +53,6 @@ function gooseExtensionEntryToExtensionEntry(entry: GooseExtensionEntry): Extens
   switch (extension.type) {
     case 'builtin':
     case 'platform':
-    case 'inline_python':
       return {
         ...extension,
         description: extension.description ?? '',
@@ -61,13 +60,6 @@ function gooseExtensionEntryToExtensionEntry(entry: GooseExtensionEntry): Extens
       };
     case 'mcp':
       return mcpServerToExtension(extension.server, entry);
-    case 'frontend':
-      return {
-        ...extension,
-        description: extension.description ?? '',
-        tools: extension.tools ?? [],
-        enabled: entry.enabled,
-      } as ExtensionEntry;
   }
 
   return null;

@@ -184,27 +184,6 @@ pub enum GooseExtension {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
     },
-    InlinePython {
-        name: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        description: Option<String>,
-        code: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        timeout: Option<u64>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        dependencies: Vec<String>,
-    },
-    Frontend {
-        name: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        description: Option<String>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        tools: Vec<serde_json::Value>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        instructions: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        bundled: Option<bool>,
-    },
 }
 
 impl Default for GooseExtension {
