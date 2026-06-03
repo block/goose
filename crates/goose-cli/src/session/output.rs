@@ -258,6 +258,10 @@ pub fn render_message(message: &Message, debug: bool) {
                     SystemNotificationType::CreditsExhausted => {
                         render_credits_exhausted_notification(notification);
                     }
+                    SystemNotificationType::ProviderError => {
+                        hide_thinking();
+                        eprintln!("\n{}", style(&notification.msg).yellow());
+                    }
                 }
             }
             _ => {
@@ -341,6 +345,11 @@ pub fn render_message_streaming(
                     SystemNotificationType::CreditsExhausted => {
                         flush_markdown_buffer(buffer, theme);
                         render_credits_exhausted_notification(notification);
+                    }
+                    SystemNotificationType::ProviderError => {
+                        flush_markdown_buffer(buffer, theme);
+                        hide_thinking();
+                        eprintln!("\n{}", style(&notification.msg).yellow());
                     }
                 }
             }

@@ -246,6 +246,16 @@ pub enum SystemNotificationType {
     ThinkingMessage,
     InlineMessage,
     CreditsExhausted,
+    /// The agent loop terminated because the provider returned an error
+    /// (e.g. subprocess died, auth failed, transient API error). Carries
+    /// the same human-readable text we used to emit as an assistant
+    /// `with_text(...)` message, but as a notification so headless
+    /// consumers (`goose run`, the review orchestrator) can detect the
+    /// failure and surface a non-zero exit instead of feeding the
+    /// error text into a JSON parser. `data` carries the
+    /// `ProviderError::telemetry_type()` slug so programmatic consumers
+    /// can branch without re-parsing the message.
+    ProviderError,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]

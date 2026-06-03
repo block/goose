@@ -286,7 +286,43 @@ async fn run_subprocess_for_findings(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Defense-in-depth: when the agent loop terminates because of a
+    // ProviderError it ought to propagate as a non-zero exit (see
+    // `process_agent_response` + `SystemNotificationType::ProviderError`),
+    // but if any error path slips through and leaves the rendered
+    // notification on stdout while exiting 0, surface a clear error
+    // here instead of feeding the English text into `parse_findings`
+    // and getting an inscrutable `parse check JSON: …` failure.
+    if let Some(err) = detect_provider_error_in_stdout(&stdout) {
+        anyhow::bail!("{label} hit a provider error: {err}");
+    }
+
     parse_findings(&stdout)
+}
+
+/// Heuristic for "the goose subprocess exited 0 but stdout is actually
+/// an agent error report, not findings JSON". Conservative on
+/// purpose: we only match the exact prefix the agent loop uses in
+/// [`crates/goose/src/agents/agent.rs`](../../../goose/src/agents/agent.rs)
+/// so a legitimate model response that happens to mention the phrase
+/// in passing isn't mis-classified. Returns the trimmed first line of
+/// the error, or `None` when the output looks like a normal response.
+fn detect_provider_error_in_stdout(stdout: &str) -> Option<String> {
+    const ERROR_PREFIX: &str = "Ran into this error:";
+    let trimmed = stdout.trim_start();
+    if !trimmed.starts_with(ERROR_PREFIX) {
+        return None;
+    }
+    // Stop at the standard retry-hint blank line so we don't drag the
+    // whole stdout into the error message.
+    let first_para = trimmed
+        .split("\n\n")
+        .next()
+        .unwrap_or(trimmed)
+        .trim()
+        .to_string();
+    Some(first_para)
 }
 
 /// Run the main correctness pass as N parallel subprocesses, one per
@@ -996,6 +1032,39 @@ mod tests {
         assert_eq!(Severity::from_str("critical").unwrap(), Severity::Critical);
         assert!(Severity::from_str("info").is_err());
         assert!(Severity::from_str("").is_err());
+    }
+
+    #[test]
+    fn detect_provider_error_in_stdout_matches_agent_prefix() {
+        // Exact prefix the agent loop emits when a provider call fails.
+        // We check `Some(_)` rather than the full first line so this
+        // doesn't have to track wording tweaks to the agent message.
+        let stdout = "Ran into this error: Request failed: Failed to write to stdin: Broken pipe (os error 32).\n\nPlease retry if you think this is a transient or recoverable error.";
+        let detected = detect_provider_error_in_stdout(stdout);
+        assert!(detected.is_some());
+        let msg = detected.unwrap();
+        assert!(msg.starts_with("Ran into this error:"));
+        // The post-blank-line "Please retry…" hint is dropped so the
+        // surfaced error stays compact.
+        assert!(!msg.contains("Please retry"));
+    }
+
+    #[test]
+    fn detect_provider_error_in_stdout_ignores_normal_responses() {
+        // Findings JSON — not an error.
+        assert!(detect_provider_error_in_stdout(r#"{"findings":[]}"#).is_none());
+        // Plain prose — not an error.
+        assert!(detect_provider_error_in_stdout("Here are the findings I spotted.").is_none());
+        // Empty stdout — not an error (caught elsewhere as parse failure).
+        assert!(detect_provider_error_in_stdout("").is_none());
+    }
+
+    #[test]
+    fn detect_provider_error_in_stdout_tolerates_leading_whitespace() {
+        // The agent rendering path adds a leading newline; make sure
+        // the detector still matches.
+        let stdout = "\n\nRan into this error: oh no.";
+        assert!(detect_provider_error_in_stdout(stdout).is_some());
     }
 
     #[test]

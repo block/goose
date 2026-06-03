@@ -210,22 +210,14 @@ impl CodexProvider {
             ))
         })?;
 
-        // Write prompt to stdin
-        if let Some(mut stdin) = child.stdin.take() {
-            use tokio::io::AsyncWriteExt;
-            stdin.write_all(prompt.as_bytes()).await.map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to write to stdin: {}", e))
-            })?;
-            // Close stdin to signal end of input
-            drop(stdin);
-        }
-
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
-
-        // Drain stderr concurrently to prevent pipe buffer deadlock
+        // Drain stderr concurrently to prevent pipe buffer deadlock.
+        // This MUST happen before we try to write to stdin: if the codex
+        // CLI exits early (auth failure, bad flag, panic, OpenAI 401 /
+        // rate-limit), its stderr is the only signal we have for *why*,
+        // and the write_all below will fail with EPIPE before we ever
+        // reach the wait/stderr-collect path. Spawning the stderr drain
+        // up front lets us recover that diagnostic and attach it to the
+        // ProviderError instead of dropping it on the floor.
         let stderr_handle = {
             let stderr = child.stderr.take();
             tokio::spawn(async move {
@@ -237,6 +229,26 @@ impl CodexProvider {
                 output
             })
         };
+
+        // Write prompt to stdin
+        if let Some(mut stdin) = child.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            if let Err(write_err) = stdin.write_all(prompt.as_bytes()).await {
+                // Codex exited (or closed stdin) before we finished
+                // writing the prompt. Collect whatever exit status and
+                // stderr we can to surface the actual cause to the
+                // caller, then drop the error in a single message.
+                drop(stdin);
+                return Err(diagnose_early_exit(child, stderr_handle, write_err).await);
+            }
+            // Close stdin to signal end of input
+            drop(stdin);
+        }
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
         let mut reader = BufReader::new(stdout);
         let mut lines = Vec::new();
@@ -441,6 +453,81 @@ impl CodexProvider {
 
         Ok((message, usage))
     }
+}
+
+/// Build a rich [`ProviderError`] for the case where the codex CLI
+/// exited before we finished writing the prompt to its stdin. We
+/// bound how long we wait on the child / stderr drain so a wedged
+/// codex process can't hang the whole agent loop.
+#[allow(clippy::string_slice)] // Manual UTF-8 boundary walk for the stderr cap.
+async fn diagnose_early_exit(
+    mut child: tokio::process::Child,
+    stderr_handle: tokio::task::JoinHandle<String>,
+    write_err: std::io::Error,
+) -> ProviderError {
+    // The child has either exited or closed stdin. Either way we want
+    // its exit status and stderr, but with a cap — if the process is
+    // genuinely wedged (rare, but possible if stdin closed without
+    // exiting), we still want to surface a useful error promptly
+    // rather than blocking forever.
+    const EARLY_EXIT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+    let exit_status = match tokio::time::timeout(EARLY_EXIT_WAIT, child.wait()).await {
+        Ok(Ok(status)) => Some(status),
+        Ok(Err(_)) => None,
+        Err(_) => {
+            // Child didn't exit in time — kill it so we don't leak.
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            None
+        }
+    };
+
+    let stderr_text = match tokio::time::timeout(EARLY_EXIT_WAIT, stderr_handle).await {
+        Ok(Ok(s)) => s,
+        _ => String::new(),
+    };
+    let stderr_trimmed = stderr_text.trim();
+
+    let mut msg = format!(
+        "Codex CLI exited before reading prompt from stdin ({}).",
+        write_err
+    );
+    if let Some(status) = exit_status {
+        if let Some(code) = status.code() {
+            msg.push_str(&format!(" Exit code: {}.", code));
+        } else {
+            msg.push_str(&format!(" Exit status: {}.", status));
+        }
+    } else {
+        msg.push_str(" Exit status: unavailable.");
+    }
+    if !stderr_trimmed.is_empty() {
+        // Cap stderr so a chatty codex panic doesn't blow the error
+        // message size out (and downstream into LD config / Datadog
+        // tags, etc.). Walk back to a char boundary so non-ASCII
+        // codex output (panic messages, file paths) doesn't panic
+        // the slice.
+        const STDERR_CAP: usize = 2048;
+        let snippet = if stderr_trimmed.len() > STDERR_CAP {
+            let mut cut = STDERR_CAP;
+            while cut > 0 && !stderr_trimmed.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            format!(
+                "{}…[truncated {} bytes]",
+                &stderr_trimmed[..cut],
+                stderr_trimmed.len() - cut
+            )
+        } else {
+            stderr_trimmed.to_string()
+        };
+        msg.push_str("\nCodex stderr:\n");
+        msg.push_str(&snippet);
+    } else {
+        msg.push_str(" Codex stderr was empty.");
+    }
+    ProviderError::RequestFailed(msg)
 }
 
 /// Builds the text prompt and extracts images to temp files in a single pass.
@@ -1327,5 +1414,52 @@ mod tests {
             .map(|a| a.to_str().unwrap())
             .collect();
         assert_eq!(args, expected);
+    }
+
+    /// Simulates the broken-pipe path: spawn a tiny child that prints
+    /// a recognizable line on stderr and exits immediately, then ask
+    /// `diagnose_early_exit` to format the error. The expectation is
+    /// the resulting message includes the exit code AND the stderr
+    /// snippet — i.e. the diagnostic that the old code path silently
+    /// discarded is now surfaced to the caller.
+    #[tokio::test]
+    async fn diagnose_early_exit_includes_stderr_and_exit_code() {
+        use std::process::Stdio;
+        use tokio::io::AsyncReadExt;
+        let mut child = tokio::process::Command::new("sh")
+            .arg("-c")
+            .arg("echo 'codex: invalid model gpt-5.5' 1>&2; exit 17")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn helper process");
+
+        let stderr = child.stderr.take();
+        let stderr_handle = tokio::spawn(async move {
+            let mut out = String::new();
+            if let Some(mut s) = stderr {
+                let _ = s.read_to_string(&mut out).await;
+            }
+            out
+        });
+
+        // Synthetic write error to plug into the function under test —
+        // matches what we'd see if a real `write_all` returned EPIPE.
+        let write_err =
+            std::io::Error::new(std::io::ErrorKind::BrokenPipe, "Broken pipe (os error 32)");
+
+        let err = diagnose_early_exit(child, stderr_handle, write_err).await;
+        let msg = err.to_string();
+
+        // Must mention the original write error, the exit code, and
+        // the stderr snippet — every piece of information the old
+        // path threw away.
+        assert!(msg.contains("Broken pipe"), "missing write error: {msg}");
+        assert!(msg.contains("Exit code: 17"), "missing exit code: {msg}");
+        assert!(
+            msg.contains("codex: invalid model gpt-5.5"),
+            "missing stderr snippet: {msg}"
+        );
     }
 }

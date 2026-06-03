@@ -2203,9 +2203,14 @@ impl Agent {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
+                            let notification_data = serde_json::json!({
+                                "telemetry_type": provider_err.telemetry_type(),
+                            });
                             yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                Message::assistant().with_system_notification_with_data(
+                                    SystemNotificationType::ProviderError,
+                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error."),
+                                    notification_data,
                                 )
                             );
                             break;

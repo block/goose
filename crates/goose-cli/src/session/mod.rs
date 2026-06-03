@@ -43,7 +43,9 @@ use rmcp::model::{ErrorCode, ErrorData};
 use strum::VariantNames;
 
 use goose::config::paths::Paths;
-use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
+use goose::conversation::message::{
+    ActionRequiredData, Message, MessageContent, SystemNotificationType,
+};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1176,6 +1178,14 @@ impl CliSession {
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
         let mut prompted_credits_urls: HashSet<String> = HashSet::new();
         let mut thinking_header_shown = false;
+        // Captures a `ProviderError` SystemNotification emitted by the
+        // agent loop (e.g. an LLM subprocess died, auth failed). In
+        // non-interactive mode we use this to return Err from this
+        // function so `goose run` exits non-zero — without it,
+        // downstream consumers (the review orchestrator, scripts that
+        // pipe `goose run` output into a parser) silently feed the
+        // English error text into whatever expected structured output.
+        let mut provider_error_msg: Option<String> = None;
 
         use futures::StreamExt;
         loop {
@@ -1292,6 +1302,10 @@ impl CliSession {
                                         &mut prompted_credits_urls,
                                     );
                                 }
+
+                                if let Some(err_msg) = find_provider_error(&message) {
+                                    provider_error_msg = Some(err_msg);
+                                }
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
@@ -1390,6 +1404,16 @@ impl CliSession {
             });
         } else {
             println!();
+        }
+
+        // Surface a provider-side failure to non-interactive callers
+        // (`goose run`, the review orchestrator) as a non-zero exit.
+        // Interactive sessions keep going — the user already saw the
+        // rendered notification and can decide to retry or quit.
+        if !interactive {
+            if let Some(msg) = provider_error_msg {
+                return Err(anyhow::anyhow!(msg));
+            }
         }
 
         Ok(())
@@ -1802,6 +1826,20 @@ fn find_tool_confirmation(message: &Message) -> Option<(String, Option<String>)>
         if let MessageContent::ActionRequired(action) = content {
             if let ActionRequiredData::ToolConfirmation { id, prompt, .. } = &action.data {
                 return Some((id.clone(), prompt.clone()));
+            }
+        }
+        None
+    })
+}
+
+/// Find a `ProviderError` SystemNotification on the message, if any,
+/// and return its `msg` text. Used by [`process_agent_response`] to
+/// propagate provider failures as a non-zero exit in headless mode.
+fn find_provider_error(message: &Message) -> Option<String> {
+    message.content.iter().find_map(|content| {
+        if let MessageContent::SystemNotification(notification) = content {
+            if notification.notification_type == SystemNotificationType::ProviderError {
+                return Some(notification.msg.clone());
             }
         }
         None
