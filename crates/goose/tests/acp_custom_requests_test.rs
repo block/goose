@@ -138,12 +138,7 @@ GOOSE_PROVIDER: openai
                         "name": config_key,
                         "command": "test-command",
                         "args": ["--flag", "value"],
-                        "env": [
-                            {
-                                "name": "SECRET_TOKEN",
-                                "value": "literal-secret"
-                            }
-                        ]
+                        "env": []
                     }
                 }
             }),
