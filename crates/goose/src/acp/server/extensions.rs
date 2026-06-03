@@ -287,6 +287,11 @@ fn goose_extension_to_config(
                     return Err(agent_client_protocol::Error::invalid_params()
                         .data("socket is only supported for streamable_http MCP extensions"));
                 }
+                if !stdio.env.is_empty() {
+                    return Err(agent_client_protocol::Error::invalid_params().data(
+                        "literal env values are unsupported for config extensions; use envKeys",
+                    ));
+                }
                 ExtensionConfig::Stdio {
                     name: stdio.name,
                     description: description.unwrap_or_default(),
@@ -662,11 +667,7 @@ mod tests {
         let extension = GooseExtension::Mcp {
             server: McpServer::Stdio(
                 McpServerStdio::new("test-stdio", "test-command")
-                    .args(vec!["--flag".to_string(), "value".to_string()])
-                    .env(vec![agent_client_protocol::schema::EnvVariable::new(
-                        "SECRET_TOKEN",
-                        "literal-secret",
-                    )]),
+                    .args(vec!["--flag".to_string(), "value".to_string()]),
             ),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             description: Some("Test stdio".to_string()),
@@ -704,6 +705,22 @@ mod tests {
         assert_eq!(timeout, Some(42));
         assert_eq!(bundled, Some(true));
         assert!(available_tools.is_empty());
+    }
+
+    #[test]
+    fn goose_mcp_stdio_extension_rejects_literal_envs_for_config_add() {
+        let extension = GooseExtension::Mcp {
+            server: McpServer::Stdio(McpServerStdio::new("test-stdio", "test-command").env(vec![
+                agent_client_protocol::schema::EnvVariable::new("SECRET_TOKEN", "literal-secret"),
+            ])),
+            env_keys: vec!["SECRET_TOKEN".to_string()],
+            description: Some("Test stdio".to_string()),
+            timeout: Some(42),
+            socket: None,
+            bundled: Some(true),
+        };
+
+        assert!(goose_extension_to_config(extension).is_err());
     }
 
     #[test]
