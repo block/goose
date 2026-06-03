@@ -604,6 +604,11 @@ async fn update_agent_provider(
         }
     };
 
+    // Do not apply with_canonical_limits here — normalize_model_config
+    // handles canonical inference as step 3 (after catalog lookup).
+    // Applying canonical limits early would set a positive context_limit
+    // (e.g. Anthropic 200k for claude-sonnet-4) that the catalog guard
+    // would preserve, preventing the correct catalog value from applying.
     let mut model_config = ModelConfig::new(&model)
         .map_err(|e| {
             (
@@ -611,7 +616,6 @@ async fn update_agent_provider(
                 format!("Invalid model config: {}", e),
             )
         })?
-        .with_canonical_limits(&payload.provider)
         .with_context_limit(payload.context_limit);
 
     if let Some(request_params) = payload.request_params {

@@ -1,7 +1,7 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::InventoryIdentityInput;
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
-use crate::model::{ModelConfig, DEFAULT_CONTEXT_LIMIT};
+use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
@@ -69,18 +69,18 @@ impl ProviderEntry {
         //    (e.g. custom provider JSON with per-model context_limit values,
         //    or desktop UI inventory entries).
         //
-        //    Skip entries that use the old 128000 placeholder when the provider
-        //    has a catalog_provider_id — those are stale artifacts from the
-        //    previous create_custom_provider code.  (The catalog in step 2
-        //    would override them anyway, but skipping avoids a pointless
-        //    set-then-override cycle.)
+        //    All positive values are honored, including 128000.  We cannot
+        //    distinguish a stale auto-generated 128k placeholder from a
+        //    hand-authored intentional 128k cap by value alone, so we
+        //    preserve the stored value and let the user update it if they
+        //    want the catalog default.
         if model.context_limit.is_none() {
-            if let Some(info) = self.metadata.known_models.iter().find(|m| {
-                m.name.eq_ignore_ascii_case(&model.model_name)
-                    && m.context_limit > 0
-                    && !(self.metadata.catalog_provider_id.is_some()
-                        && m.context_limit == DEFAULT_CONTEXT_LIMIT)
-            }) {
+            if let Some(info) = self
+                .metadata
+                .known_models
+                .iter()
+                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
+            {
                 model.context_limit = Some(info.context_limit);
             }
         }

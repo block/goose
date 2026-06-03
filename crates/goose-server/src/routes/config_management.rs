@@ -949,8 +949,18 @@ pub async fn get_provider_models(
             // fetch_recommended_model_info uses the raw custom name, so
             // budgets can be stale (e.g. 128k for Xiaomi, 200k for
             // OpenRouter/Anthropic).
-            if let Some(ref catalog_id) = metadata.catalog_provider_id {
-                for info in &mut models {
+            // Apply explicit per-model limits from the provider's JSON
+            // config (known_models) before falling back to the catalog.
+            // This ensures user-configured caps (e.g. 256k for a specific
+            // model) take precedence over the catalog's default.
+            for info in &mut models {
+                let known_override = metadata
+                    .known_models
+                    .iter()
+                    .find(|m| m.name.eq_ignore_ascii_case(&info.name) && m.context_limit > 0);
+                if let Some(known) = known_override {
+                    info.context_limit = known.context_limit;
+                } else if let Some(ref catalog_id) = metadata.catalog_provider_id {
                     if let Some(canonical) = goose::providers::canonical::maybe_get_canonical_model(
                         catalog_id, &info.name,
                     ) {
