@@ -15,6 +15,7 @@ import {
   getExtensionOverrides,
 } from '../../store/extensionOverrides';
 import { defineMessages, useIntl } from '../../i18n';
+import { AppEvents } from '../../constants/events';
 
 const i18n = defineMessages({
   manageExtensions: {
@@ -88,6 +89,14 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     latestSessionIdRef.current = sessionId;
     setIsSessionExtensionsLoaded(false);
     setSessionExtensions([]);
+    setPendingSort(false);
+    setIsTransitioning(false);
+    setTogglingExtension(null);
+
+    if (sortTimeoutRef.current) {
+      clearTimeout(sortTimeoutRef.current);
+      sortTimeoutRef.current = null;
+    }
   }, [sessionId]);
 
   useEffect(() => {
@@ -121,19 +130,37 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       return;
     }
 
-    const controller = new AbortController();
+    let controller: AbortController | null = null;
 
-    loadSessionExtensions(sessionId, controller.signal).catch((error) => {
-      if (controller.signal.aborted || latestSessionIdRef.current !== sessionId) {
+    const loadExtensionsForCurrentSession = (event: Event) => {
+      const targetSessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
+
+      if (targetSessionId !== sessionId) {
         return;
       }
 
-      console.error('Failed to fetch session extensions:', error);
-      setIsSessionExtensionsLoaded(true);
-    });
+      controller?.abort();
+      const currentController = new AbortController();
+      controller = currentController;
+
+      loadSessionExtensions(targetSessionId, currentController.signal).catch((error) => {
+        if (currentController.signal.aborted || latestSessionIdRef.current !== targetSessionId) {
+          return;
+        }
+
+        console.error('Failed to fetch session extensions:', error);
+        setIsSessionExtensionsLoaded(true);
+      });
+    };
+
+    window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, loadExtensionsForCurrentSession);
 
     return () => {
-      controller.abort();
+      controller?.abort();
+      window.removeEventListener(
+        AppEvents.SESSION_EXTENSIONS_LOADED,
+        loadExtensionsForCurrentSession
+      );
     };
   }, [sessionId, loadSessionExtensions]);
 
@@ -169,6 +196,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           setPendingSort(false);
           setIsTransitioning(false);
           setTogglingExtension(null);
+          sortTimeoutRef.current = null;
         }, 800);
 
         toastService.success({
@@ -214,6 +242,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             })
             .finally(() => {
               finishSessionTransition(sessionId);
+              sortTimeoutRef.current = null;
             });
         }, 800);
       } catch {
