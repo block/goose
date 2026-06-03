@@ -112,6 +112,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       const response = await getSessionExtensions({
         path: { session_id: targetSessionId },
         signal,
+        throwOnError: true,
       });
 
       if (signal?.aborted || latestSessionIdRef.current !== targetSessionId) {
