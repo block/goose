@@ -2,7 +2,7 @@ use super::*;
 use crate::agents::extension::Envs;
 use crate::config::extensions::ExtensionEntry;
 use agent_client_protocol::schema::{
-    EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
+    HttpHeader, McpServer, McpServerHttp, McpServerStdio,
 };
 
 impl GooseAcpAgent {
