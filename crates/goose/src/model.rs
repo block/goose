@@ -275,10 +275,7 @@ impl ModelConfig {
             // equals 0 (the "not configured" sentinel from
             // create_custom_provider).  A positive value means the user
             // or config explicitly set a limit — respect it.
-            let dominated = self
-                .context_limit
-                .map(|v| v == 0)
-                .unwrap_or(true);
+            let dominated = self.context_limit.map(|v| v == 0).unwrap_or(true);
             if dominated {
                 self.context_limit = Some(canonical.limit.context);
             }
