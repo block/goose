@@ -10,7 +10,7 @@ const MAX_RECENT_SESSIONS = 25;
 
 export function sortAndTrim(sessions: Session[]): Session[] {
   return [...sessions]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, MAX_RECENT_SESSIONS);
 }
 

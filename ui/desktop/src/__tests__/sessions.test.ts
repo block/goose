@@ -71,13 +71,25 @@ describe('getSessionDisplayName (fix for #8865)', () => {
 });
 
 describe('sortAndTrim', () => {
-  it('sorts by created_at descending', () => {
+  it('sorts by updated_at descending', () => {
     const result = sortAndTrim([
-      makeSession({ id: 'old', created_at: '2024-01-01T00:00:00Z' }),
-      makeSession({ id: 'new', created_at: '2024-03-01T00:00:00Z' }),
-      makeSession({ id: 'mid', created_at: '2024-02-01T00:00:00Z' }),
+      makeSession({
+        id: 'old-but-active',
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-03-01T00:00:00Z',
+      }),
+      makeSession({
+        id: 'newer-but-idle',
+        created_at: '2024-03-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      }),
+      makeSession({
+        id: 'mid',
+        created_at: '2024-02-01T00:00:00Z',
+        updated_at: '2024-02-01T00:00:00Z',
+      }),
     ]);
-    expect(result.map((s) => s.id)).toEqual(['new', 'mid', 'old']);
+    expect(result.map((s) => s.id)).toEqual(['old-but-active', 'mid', 'newer-but-idle']);
   });
 
   it('caps the list at 25 sessions', () => {
@@ -89,8 +101,8 @@ describe('sortAndTrim', () => {
 
   it('does not mutate the input array', () => {
     const input = [
-      makeSession({ id: 'a', created_at: '2024-01-01T00:00:00Z' }),
-      makeSession({ id: 'b', created_at: '2024-02-01T00:00:00Z' }),
+      makeSession({ id: 'a', updated_at: '2024-01-01T00:00:00Z' }),
+      makeSession({ id: 'b', updated_at: '2024-02-01T00:00:00Z' }),
     ];
     sortAndTrim(input);
     expect(input.map((s) => s.id)).toEqual(['a', 'b']);
