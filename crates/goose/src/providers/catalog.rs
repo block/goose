@@ -376,6 +376,23 @@ const SETUP_METADATA: &[CuratedSetupMetadata] = &[
         field_overrides: &[],
     },
     CuratedSetupMetadata {
+        provider_id: "huggingface",
+        category: ProviderSetupCategory::Model,
+        setup_method: ProviderSetupMethod::SingleApiKey,
+        group: ProviderSetupGroup::Default,
+        display_name: Some("Hugging Face"),
+        description: Some("Hugging Face Inference Providers"),
+        docs_url: Some("https://huggingface.co/docs/inference-providers"),
+        aliases: &["huggingface", "hf"],
+        native_connect_query: None,
+        binary_name: None,
+        setup_capabilities: setup_capabilities(false, false, false),
+        show_only_when_installed: false,
+        synthetic: false,
+        secret_field_default: Some(API_KEY_FIELD),
+        field_overrides: &[],
+    },
+    CuratedSetupMetadata {
         provider_id: "chatgpt_codex",
         category: ProviderSetupCategory::Model,
         setup_method: ProviderSetupMethod::OauthDeviceCode,
@@ -1197,6 +1214,20 @@ mod tests {
                 .map(|field| field.key.as_str())
                 .collect::<Vec<_>>(),
             ["DATABRICKS_HOST", "DATABRICKS_TOKEN"]
+        );
+
+        let huggingface = entries
+            .iter()
+            .find(|entry| entry.provider_id == "huggingface")
+            .expect("setup catalog should include huggingface");
+        assert_eq!(huggingface.setup_method, ProviderSetupMethod::SingleApiKey);
+        assert_eq!(
+            huggingface
+                .fields
+                .iter()
+                .map(|field| field.key.as_str())
+                .collect::<Vec<_>>(),
+            ["HF_TOKEN"]
         );
 
         let atomic_chat = entries

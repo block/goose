@@ -191,6 +191,11 @@
       "responseType": "ImportSessionResponse_unstable"
     },
     {
+      "method": "_goose/unstable/elicitation/respond",
+      "requestType": "ElicitationRespondRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/session/project/update",
       "requestType": "UpdateSessionProjectRequest_unstable",
       "responseType": "EmptyResponse"
@@ -289,6 +294,12 @@
       "method": "_goose/unstable/dictation/models/select",
       "requestType": "DictationModelSelectRequest_unstable",
       "responseType": "EmptyResponse"
+    }
+  ],
+  "notifications": [
+    {
+      "method": "_goose/unstable/session/update",
+      "paramsType": "GooseSessionNotification_unstable"
     }
   ]
 }

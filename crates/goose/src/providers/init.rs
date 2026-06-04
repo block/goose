@@ -27,6 +27,7 @@ use super::{
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
+    huggingface::HuggingFaceProvider,
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
@@ -76,6 +77,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
+        registry.register::<HuggingFaceProvider>(true);
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
@@ -112,8 +114,16 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         Arc::new(|| Box::pin(ChatGptCodexProvider::cleanup())),
     );
     registry.set_cleanup(
+        "gemini_oauth",
+        Arc::new(|| Box::pin(GeminiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
         "xai_oauth",
         Arc::new(|| Box::pin(XaiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "huggingface",
+        Arc::new(|| Box::pin(HuggingFaceProvider::cleanup())),
     );
 
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
@@ -259,6 +269,22 @@ mod tests {
             .expect("TANZU_AI_ENDPOINT config key should exist");
         assert!(endpoint.required, "Endpoint should be required");
         assert!(!endpoint.secret, "Endpoint should not be secret");
+    }
+
+    #[tokio::test]
+    async fn test_huggingface_provider_registry_wiring() {
+        let huggingface = get_from_registry("huggingface")
+            .await
+            .expect("huggingface provider should be registered");
+        let meta = huggingface.metadata();
+
+        assert_eq!(huggingface.provider_type(), ProviderType::Preferred);
+        assert_eq!(meta.display_name, "Hugging Face");
+        assert_eq!(meta.default_model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "HF_TOKEN" && key.secret));
     }
 
     #[tokio::test]
