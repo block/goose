@@ -661,16 +661,6 @@ impl ProviderUsage {
         Self { model, usage }
     }
 
-    pub async fn ensure_tokens(
-        &mut self,
-        _system_prompt: &str,
-        _request_messages: &[Message],
-        _response: &Message,
-        _tools: &[Tool],
-    ) -> Result<(), ProviderError> {
-        Ok(())
-    }
-
     pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
         ProviderUsage {
             model: self.model.clone(),

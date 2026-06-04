@@ -6,6 +6,7 @@ use crate::prompt_template::render_template;
 use crate::providers::base::{stream_from_single_message, MessageStream};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
+use crate::providers::usage_estimator::ensure_usage_tokens;
 use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
 use indoc::indoc;
@@ -319,10 +320,15 @@ async fn do_compact(
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
 
-                provider_usage
-                    .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+                ensure_usage_tokens(
+                    &mut provider_usage,
+                    &system_prompt,
+                    &summarization_request,
+                    &response,
+                    &[],
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
                 return Ok((response, provider_usage));
             }
