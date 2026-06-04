@@ -14,9 +14,17 @@ export function sortAndTrim(sessions: Session[]): Session[] {
     .slice(0, MAX_RECENT_SESSIONS);
 }
 
-export function mergeWithEmptyLocals(prev: Session[], apiSessions: Session[]): Session[] {
+export function mergeWithPendingEmptyLocals(
+  prev: Session[],
+  apiSessions: Session[],
+  pendingLocalSessionIds: ReadonlySet<string>
+): Session[] {
+  const apiSessionIds = new Set(apiSessions.map((api) => api.id));
   const emptyLocalSessions = prev.filter(
-    (local) => local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
+    (local) =>
+      pendingLocalSessionIds.has(local.id) &&
+      local.message_count === 0 &&
+      !apiSessionIds.has(local.id)
   );
   return [...emptyLocalSessions, ...apiSessions].slice(0, MAX_RECENT_SESSIONS);
 }
@@ -50,7 +58,7 @@ export function useNavigationSessions() {
       const response = await listSessions({ throwOnError: false });
       if (response.data) {
         const apiSessions = sortAndTrim(response.data.sessions);
-        setRecentSessions((prev) => mergeWithEmptyLocals(prev, apiSessions));
+        setRecentSessions(apiSessions);
       }
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
@@ -69,11 +77,13 @@ export function useNavigationSessions() {
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
+    const pendingLocalSessionIds = new Set<string>();
     let isPolling = false;
 
     const handleSessionCreated = (event: Event) => {
       const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
       if (session) {
+        pendingLocalSessionIds.add(session.id);
         setRecentSessions((prev) => prependUnique(prev, session));
       }
 
@@ -91,7 +101,10 @@ export function useNavigationSessions() {
           const response = await listSessions({ throwOnError: false });
           if (response.data) {
             const apiSessions = sortAndTrim(response.data.sessions);
-            setRecentSessions((prev) => mergeWithEmptyLocals(prev, apiSessions));
+            response.data.sessions.forEach((session) => pendingLocalSessionIds.delete(session.id));
+            setRecentSessions((prev) =>
+              mergeWithPendingEmptyLocals(prev, apiSessions, pendingLocalSessionIds)
+            );
           }
         } catch (error) {
           console.error('Failed to poll sessions:', error);
@@ -101,6 +114,7 @@ export function useNavigationSessions() {
           const timeout = setTimeout(pollForUpdates, pollIntervalMs);
           pollingTimeouts.push(timeout);
         } else {
+          pendingLocalSessionIds.clear();
           isPolling = false;
         }
       };
@@ -131,7 +145,7 @@ export function useNavigationSessions() {
         .then((response) => {
           if (version !== fetchVersion || !response.data) return;
           const apiSessions = sortAndTrim(response.data.sessions);
-          setRecentSessions((prev) => mergeWithEmptyLocals(prev, apiSessions));
+          setRecentSessions(apiSessions);
         })
         .catch((error) => console.error('Failed to fetch sessions:', error));
     };
