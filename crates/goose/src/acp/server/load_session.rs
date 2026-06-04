@@ -168,11 +168,17 @@ fn replay_conversation_to_client(
                                 cx,
                                 supports_goose_custom_notifications,
                                 session_id.0.as_ref(),
-                                id.clone(),
-                                InteractionState::Pending,
-                                Some(elicitation_message.clone()),
-                                Some(requested_schema.clone()),
-                                Some(serde_json::Value::Object(replay_message_meta(message))),
+                                InteractionUpdate {
+                                    interaction: Interaction::Elicitation {
+                                        id: id.clone(),
+                                        state: InteractionState::Pending,
+                                        message: Some(elicitation_message.clone()),
+                                        requested_schema: Some(requested_schema.clone()),
+                                    },
+                                    meta: Some(serde_json::Value::Object(replay_message_meta(
+                                        message,
+                                    ))),
+                                },
                             )?;
                         }
                     }

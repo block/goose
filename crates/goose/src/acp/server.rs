@@ -1479,11 +1479,15 @@ impl GooseAcpAgent {
                         cx,
                         self.supports_goose_custom_notifications(),
                         session_id.0.as_ref(),
-                        id.clone(),
-                        InteractionState::Pending,
-                        Some(message.clone()),
-                        Some(requested_schema.clone()),
-                        Some(interaction_update_meta(message_id, message_created)),
+                        InteractionUpdate {
+                            interaction: Interaction::Elicitation {
+                                id: id.clone(),
+                                state: InteractionState::Pending,
+                                message: Some(message.clone()),
+                                requested_schema: Some(requested_schema.clone()),
+                            },
+                            meta: Some(interaction_update_meta(message_id, message_created)),
+                        },
                     )?;
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
@@ -2102,24 +2106,12 @@ fn send_elicitation_interaction_update(
     cx: &ConnectionTo<Client>,
     supports_goose_custom_notifications: bool,
     session_id: &str,
-    id: String,
-    state: InteractionState,
-    message: Option<String>,
-    requested_schema: Option<serde_json::Value>,
-    meta: Option<serde_json::Value>,
+    update: InteractionUpdate,
 ) -> Result<(), agent_client_protocol::Error> {
     if supports_goose_custom_notifications {
         cx.send_notification(GooseSessionNotification {
             session_id: session_id.to_string(),
-            update: GooseSessionUpdate::InteractionUpdate(InteractionUpdate {
-                interaction: Interaction::Elicitation {
-                    id,
-                    state,
-                    message,
-                    requested_schema,
-                },
-                meta,
-            }),
+            update: GooseSessionUpdate::InteractionUpdate(update),
         })?;
     }
     Ok(())
@@ -2630,14 +2622,18 @@ impl GooseAcpAgent {
             cx,
             self.supports_goose_custom_notifications(),
             &req.session_id,
-            req.elicitation_id,
-            InteractionState::Submitted,
-            None,
-            None,
-            Some(interaction_update_meta(
-                response_message.id.as_deref(),
-                response_message.created,
-            )),
+            InteractionUpdate {
+                interaction: Interaction::Elicitation {
+                    id: req.elicitation_id,
+                    state: InteractionState::Submitted,
+                    message: None,
+                    requested_schema: None,
+                },
+                meta: Some(interaction_update_meta(
+                    response_message.id.as_deref(),
+                    response_message.created,
+                )),
+            },
         )?;
 
         Ok(EmptyResponse {})
