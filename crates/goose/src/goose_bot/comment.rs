@@ -6,7 +6,9 @@ use anyhow::{bail, Result};
 use serde::Deserialize;
 use tokio::process::Command;
 
-use super::github::{client, configure_bot_git_identity, git_run};
+use super::github::{
+    authenticated_repo_url, client, configure_bot_git_identity, git_run, scrub_remote_credentials,
+};
 use super::runner::run_goose_for_reply;
 use super::store::load_prefs;
 use super::types::GooseBotCommentRequest;
@@ -75,16 +77,14 @@ async fn git_clone_and_checkout_for_comment(
     req: &GooseBotCommentRequest,
     dest: &Path,
 ) -> Result<()> {
-    let url = format!(
-        "https://x-access-token:{}@github.com/{}",
-        req.github_token, req.repo
-    );
+    let url = authenticated_repo_url(&req.github_token, &req.repo);
     git_run(dest, &["clone", "--quiet", "--no-tags", &url, "."]).await?;
     if req.is_pr {
         let refspec = format!("+refs/pull/{}/head:refs/goose-bot/pr", req.pr_number);
         git_run(dest, &["fetch", "--quiet", "origin", &refspec]).await?;
         git_run(dest, &["checkout", "--quiet", "refs/goose-bot/pr"]).await?;
     }
+    scrub_remote_credentials(dest, &req.repo).await?;
     Ok(())
 }
 
@@ -471,8 +471,9 @@ async fn commit_and_push_if_changed(
     git_run(workdir, &["add", "-A"]).await?;
     let commit_msg = format!("Apply changes requested by @{}", req.commenter);
     git_run(workdir, &["commit", "--quiet", "-m", &commit_msg]).await?;
+    let push_url = authenticated_repo_url(&req.github_token, &req.repo);
     let refspec = format!("HEAD:refs/heads/{}", req.head_ref);
-    git_run(workdir, &["push", "--quiet", "origin", &refspec]).await?;
+    git_run(workdir, &["push", "--quiet", &push_url, &refspec]).await?;
     Ok(Some(changed))
 }
 
@@ -523,8 +524,9 @@ async fn create_branch_and_open_pr_if_changed(
         req.pr_number, req.commenter
     );
     git_run(workdir, &["commit", "--quiet", "-m", &commit_msg]).await?;
+    let push_url = authenticated_repo_url(&req.github_token, &req.repo);
     let refspec = format!("HEAD:refs/heads/{branch}");
-    git_run(workdir, &["push", "--quiet", "origin", &refspec]).await?;
+    git_run(workdir, &["push", "--quiet", &push_url, &refspec]).await?;
 
     let title = format!("Address issue #{}", req.pr_number);
     let body = format!(

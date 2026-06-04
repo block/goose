@@ -75,15 +75,23 @@ pub async fn fetch_pr_base_sha(req: &GooseBotReviewRequest) -> Result<String> {
     Ok(pr.base.sha)
 }
 
+pub fn authenticated_repo_url(github_token: &str, repo: &str) -> String {
+    format!("https://x-access-token:{github_token}@github.com/{repo}")
+}
+
+pub async fn scrub_remote_credentials(dest: &Path, repo: &str) -> Result<()> {
+    let clean = format!("https://github.com/{repo}");
+    git_run(dest, &["remote", "set-url", "origin", &clean]).await
+}
+
 pub async fn git_clone_and_checkout_pr(req: &GooseBotReviewRequest, dest: &Path) -> Result<()> {
-    let url = format!(
-        "https://x-access-token:{}@github.com/{}",
-        req.github_token, req.repo
-    );
+    let url = authenticated_repo_url(&req.github_token, &req.repo);
     git_run(dest, &["clone", "--quiet", "--no-tags", &url, "."]).await?;
     let refspec = format!("+refs/pull/{}/head:refs/goose-bot/pr", req.pr_number);
     git_run(dest, &["fetch", "--quiet", "origin", &refspec]).await?;
-    git_run(dest, &["checkout", "--quiet", "refs/goose-bot/pr"]).await?;
+    git_run(dest, &["fetch", "--quiet", "origin", &req.head_sha]).await?;
+    scrub_remote_credentials(dest, &req.repo).await?;
+    git_run(dest, &["checkout", "--quiet", "--detach", &req.head_sha]).await?;
     Ok(())
 }
 
