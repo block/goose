@@ -564,6 +564,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: true,
+            requires_reasoning_content_on_all_messages: false,
         }
     }
 }

@@ -105,6 +105,9 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    /// Always emit `reasoning_content` on assistant messages (even `""`); required by DeepSeek V4.
+    #[serde(default)]
+    pub requires_reasoning_content_on_all_messages: bool,
 }
 
 fn default_requires_auth() -> bool {
@@ -322,6 +325,7 @@ pub fn create_custom_provider(
         setup_steps: vec![],
         fast_model: None,
         preserves_thinking,
+        requires_reasoning_content_on_all_messages: false,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -402,6 +406,8 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
+            requires_reasoning_content_on_all_messages: existing_config
+                .requires_reasoning_content_on_all_messages,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;
@@ -720,6 +726,7 @@ mod tests {
             setup_steps: Vec::new(),
             fast_model: None,
             preserves_thinking: true,
+            requires_reasoning_content_on_all_messages: false,
         }
     }
 

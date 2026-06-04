@@ -309,6 +309,7 @@ mod tests {
                 setup_steps: vec![],
                 fast_model: None,
                 preserves_thinking: false,
+                requires_reasoning_content_on_all_messages: false,
             },
             is_editable: false,
         };

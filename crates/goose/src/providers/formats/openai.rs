@@ -46,6 +46,8 @@ fn is_reserved_request_param_key(key: &str) -> bool {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
+    /// DeepSeek V4 requires `reasoning_content` on every assistant message (even `""`); Kimi rejects it when empty.
+    pub require_reasoning_content_on_all_messages: bool,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -169,6 +171,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         image_format,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -408,10 +411,13 @@ pub fn format_messages_with_options(
             }
         }
 
-        // Include reasoning_content only when non-empty. Kimi rejects empty
-        // reasoning_content (""), so we must omit it entirely.
-        if options.preserve_thinking_context && !reasoning_text.is_empty() {
-            converted["reasoning_content"] = json!(reasoning_text);
+        // Kimi rejects empty reasoning_content; DeepSeek V4 requires it on every assistant message.
+        if options.preserve_thinking_context {
+            if !reasoning_text.is_empty() {
+                converted["reasoning_content"] = json!(reasoning_text);
+            } else if options.require_reasoning_content_on_all_messages {
+                converted["reasoning_content"] = json!("");
+            }
         }
 
         if has_message_payload {
@@ -1234,6 +1240,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -2898,6 +2905,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -2956,6 +2964,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: false,
+                ..Default::default()
             },
         );
 
@@ -3018,6 +3027,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3048,6 +3058,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3076,6 +3087,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3100,6 +3112,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3337,6 +3350,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -3371,6 +3385,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);

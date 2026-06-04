@@ -123,6 +123,7 @@ pub struct OpenAiProvider {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    require_reasoning_content_on_all_messages: bool,
 }
 
 impl OpenAiProvider {
@@ -277,6 +278,7 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: !is_openai,
+            require_reasoning_content_on_all_messages: false,
         })
     }
 
@@ -295,6 +297,7 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            require_reasoning_content_on_all_messages: false,
         }
     }
 
@@ -432,6 +435,8 @@ impl OpenAiProvider {
             dynamic_models: config.dynamic_models,
             skip_canonical_filtering: config.skip_canonical_filtering,
             preserve_thinking_context: config.preserves_thinking,
+            require_reasoning_content_on_all_messages: config
+                .requires_reasoning_content_on_all_messages,
         })
     }
 
@@ -841,6 +846,8 @@ impl Provider for OpenAiProvider {
                 self.supports_streaming,
                 OpenAiFormatOptions {
                     preserve_thinking_context: self.preserve_thinking_context,
+                    require_reasoning_content_on_all_messages: self
+                        .require_reasoning_content_on_all_messages,
                 },
             )?;
             let payload = self.sanitize_request_for_compat(payload);
@@ -977,6 +984,7 @@ mod tests {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            require_reasoning_content_on_all_messages: false,
         }
     }
 
@@ -1276,6 +1284,7 @@ mod tests {
             dynamic_models,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            require_reasoning_content_on_all_messages: false,
         }
     }
 
@@ -1304,6 +1313,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            requires_reasoning_content_on_all_messages: false,
         }
     }
 
