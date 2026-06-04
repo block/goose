@@ -21,7 +21,7 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
     ServerCapabilities, ServerNotification, Tool,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -48,6 +48,14 @@ fn kind_plural(kind: SourceType) -> &'static str {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImageContentData {
+    /// Base64-encoded image data
+    pub data: String,
+    /// MIME type of the image, e.g. "image/png"
+    pub mime_type: String,
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct DelegateParams {
     pub instructions: Option<String>,
@@ -60,6 +68,9 @@ pub struct DelegateParams {
     pub max_turns: Option<usize>,
     #[serde(default)]
     pub r#async: bool,
+    /// Images to forward to the subagent
+    #[serde(default)]
+    pub images: Option<Vec<ImageContentData>>,
 }
 
 pub struct BackgroundTask {
@@ -538,6 +549,18 @@ impl SummonClient {
                     "type": "boolean",
                     "default": false,
                     "description": "Run in background (default: false)."
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "data": {"type": "string"},
+                            "mime_type": {"type": "string"}
+                        },
+                        "required": ["data", "mime_type"]
+                    },
+                    "description": "Images to forward to the subagent. Each image needs a base64-encoded data string and mime_type. Omit if no images to forward."
                 }
             }
         });
@@ -1122,6 +1145,7 @@ impl SummonClient {
             cancellation_token: Some(cancellation_token),
             on_message: None,
             notification_tx: Some(notif_tx),
+            images: params.images.clone().unwrap_or_default(),
         })
         .await;
 
@@ -1642,6 +1666,7 @@ impl SummonClient {
                 cancellation_token: Some(task_token_clone),
                 on_message: Some(on_message),
                 notification_tx: Some(notif_tx),
+                images: params.images.clone().unwrap_or_default(),
             })
             .await
         });
@@ -1820,6 +1845,7 @@ impl McpClientTrait for SummonClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use serial_test::serial;
     use std::collections::{HashMap, HashSet};
     use std::fs;
@@ -2489,5 +2515,23 @@ You review code."#;
             .lock()
             .await
             .contains_key("20260204_1"));
+    }
+
+    #[test]
+    fn delegate_tool_schema_includes_images_property() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let tool = client.create_delegate_tool();
+
+        let schema = &tool.input_schema;
+        let properties = schema
+            .get("properties")
+            .expect("schema should have properties");
+        assert!(
+            properties.get("images").is_some(),
+            "delegate tool schema must include 'images' property"
+        );
+
+        let images_prop = properties.get("images").unwrap();
+        assert_eq!(images_prop.get("type").unwrap(), "array");
     }
 }

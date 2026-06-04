@@ -43,6 +43,8 @@ pub struct SubagentRunParams {
     pub cancellation_token: Option<CancellationToken>,
     pub on_message: Option<OnMessageCallback>,
     pub notification_tx: Option<tokio::sync::mpsc::UnboundedSender<ServerNotification>>,
+    /// Images to forward to the subagent's initial user message
+    pub images: Vec<crate::agents::platform_extensions::summon::ImageContentData>,
 }
 
 pub async fn run_subagent_task(params: SubagentRunParams) -> Result<String, anyhow::Error> {
@@ -129,7 +131,8 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
             cancellation_token,
             on_message,
             notification_tx,
-            ..
+            return_last_only: _,
+            images,
         } = params;
 
         let system_instructions = recipe.instructions.clone().unwrap_or_default();
@@ -164,7 +167,10 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
             build_subagent_prompt(&agent, &task_config, &session_id, system_instructions).await?;
         agent.override_system_prompt(subagent_prompt).await;
 
-        let user_message = Message::user().with_text(user_task);
+        let mut user_message = Message::user().with_text(user_task);
+        for img in &images {
+            user_message = user_message.with_image(img.data.clone(), img.mime_type.clone());
+        }
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
         if let Some(activities) = recipe.activities {
@@ -342,5 +348,39 @@ mod tests {
     fn create_tool_notification_ignores_non_tool_request() {
         let content = MessageContent::text("hello");
         assert!(create_tool_notification(&content, "session_1").is_none());
+    }
+
+    #[test]
+    fn user_message_includes_delegate_images() {
+        use super::super::platform_extensions::summon::ImageContentData;
+        use crate::conversation::message::Message;
+
+        let images = vec![
+            ImageContentData {
+                data: "iVBORw0KGgo=".to_string(),
+                mime_type: "image/png".to_string(),
+            },
+            ImageContentData {
+                data: "/9j/4AAQ".to_string(),
+                mime_type: "image/jpeg".to_string(),
+            },
+        ];
+
+        let mut user_message = Message::user().with_text("describe these images");
+        for img in &images {
+            user_message = user_message.with_image(img.data.clone(), img.mime_type.clone());
+        }
+
+        assert_eq!(user_message.content.len(), 3);
+
+        use crate::conversation::message::MessageContent;
+        match &user_message.content[1] {
+            MessageContent::Image(img) => assert_eq!(img.mime_type, "image/png"),
+            other => panic!("expected Image, got {:?}", other),
+        }
+        match &user_message.content[2] {
+            MessageContent::Image(img) => assert_eq!(img.mime_type, "image/jpeg"),
+            other => panic!("expected Image, got {:?}", other),
+        }
     }
 }
