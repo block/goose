@@ -7,13 +7,11 @@ use common_tests::fixtures::{
     run_test, send_custom, Connection, PermissionDecision, Session, SessionData,
     TestConnectionConfig,
 };
-use fs_err as fs;
 use goose::acp::server::AcpProviderFactory;
-use goose::config::base::CONFIG_YAML_NAME;
 use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
 use goose::providers::errors::ProviderError;
-use goose_test_support::{EnforceSessionId, IgnoreSessionId, TEST_MODEL};
+use goose_test_support::{EnforceSessionId, IgnoreSessionId};
 use serial_test::serial;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -123,20 +121,8 @@ fn test_custom_get_tools() {
 #[serial]
 fn test_custom_get_extensions() {
     let config_key = "test-stdio-acp-mutation-flow";
-    let temp_dir = tempfile::tempdir().unwrap();
-    let temp_root = temp_dir.path().to_string_lossy().to_string();
-    let _guard = env_lock::lock_env([
-        ("GOOSE_PATH_ROOT", Some(temp_root.as_str())),
-        ("EXTENSIONS", None::<&str>),
-    ]);
-    let config_dir = temp_dir.path().join("config");
-    fs::create_dir_all(&config_dir).unwrap();
-    let config_yaml = format!(
-        r#"GOOSE_MODEL: {TEST_MODEL}
-GOOSE_PROVIDER: openai
-"#
-    );
-    fs::write(config_dir.join(CONFIG_YAML_NAME), config_yaml).unwrap();
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
 
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
@@ -246,6 +232,7 @@ GOOSE_PROVIDER: openai
 }
 
 #[test]
+#[serial]
 fn test_custom_get_available_extensions() {
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
