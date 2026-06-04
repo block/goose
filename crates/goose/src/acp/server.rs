@@ -208,6 +208,7 @@ pub struct GooseAcpAgent {
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
+    client_supports_goose_custom_notifications: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
     config_dir: std::path::PathBuf,
@@ -1002,6 +1003,13 @@ impl GooseAcpAgent {
         Arc::clone(&self.permission_manager)
     }
 
+    pub(super) fn supports_goose_custom_notifications(&self) -> bool {
+        self.client_supports_goose_custom_notifications
+            .get()
+            .copied()
+            .unwrap_or(false)
+    }
+
     // TODO: goose reads Paths::in_state_dir globally (e.g. RequestLog), ignoring this data_dir.
     pub async fn new(options: GooseAcpAgentOptions) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(options.data_dir));
@@ -1032,6 +1040,7 @@ impl GooseAcpAgent {
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
+            client_supports_goose_custom_notifications: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
             config_dir: options.config_dir,
@@ -1468,6 +1477,7 @@ impl GooseAcpAgent {
                 } => {
                     send_elicitation_interaction_update(
                         cx,
+                        self.supports_goose_custom_notifications(),
                         session_id.0.as_ref(),
                         id.clone(),
                         InteractionState::Pending,
@@ -1479,7 +1489,12 @@ impl GooseAcpAgent {
                 ActionRequiredData::ElicitationResponse { .. } => {}
             },
             MessageContent::SystemNotification(notification) => {
-                send_status_message_update(cx, session_id.0.as_ref(), notification)?;
+                send_status_message_update(
+                    cx,
+                    self.supports_goose_custom_notifications(),
+                    session_id.0.as_ref(),
+                    notification,
+                )?;
             }
             _ => {}
         }
@@ -1996,6 +2011,17 @@ impl GooseAcpAgent {
     }
 }
 
+fn extract_client_supports_goose_custom_notifications(args: &InitializeRequest) -> bool {
+    args.client_capabilities
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get("goose"))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|goose| goose.get("customNotifications"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
 fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConfirmation {
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
@@ -2043,14 +2069,17 @@ fn credits_exhausted_prompt_error(
 
 fn send_status_message_update(
     cx: &ConnectionTo<Client>,
+    supports_goose_custom_notifications: bool,
     session_id: &str,
     notification: &SystemNotificationContent,
 ) -> Result<(), agent_client_protocol::Error> {
     if let Some(status) = status_message_from_system_notification(notification) {
-        cx.send_notification(GooseSessionNotification {
-            session_id: session_id.to_string(),
-            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate { status }),
-        })?;
+        if supports_goose_custom_notifications {
+            cx.send_notification(GooseSessionNotification {
+                session_id: session_id.to_string(),
+                update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate { status }),
+            })?;
+        }
     }
     Ok(())
 }
@@ -2071,6 +2100,7 @@ fn status_message_from_system_notification(
 
 fn send_elicitation_interaction_update(
     cx: &ConnectionTo<Client>,
+    supports_goose_custom_notifications: bool,
     session_id: &str,
     id: String,
     state: InteractionState,
@@ -2078,18 +2108,21 @@ fn send_elicitation_interaction_update(
     requested_schema: Option<serde_json::Value>,
     meta: Option<serde_json::Value>,
 ) -> Result<(), agent_client_protocol::Error> {
-    cx.send_notification(GooseSessionNotification {
-        session_id: session_id.to_string(),
-        update: GooseSessionUpdate::InteractionUpdate(InteractionUpdate {
-            interaction: Interaction::Elicitation {
-                id,
-                state,
-                message,
-                requested_schema,
-            },
-            meta,
-        }),
-    })
+    if supports_goose_custom_notifications {
+        cx.send_notification(GooseSessionNotification {
+            session_id: session_id.to_string(),
+            update: GooseSessionUpdate::InteractionUpdate(InteractionUpdate {
+                interaction: Interaction::Elicitation {
+                    id,
+                    state,
+                    message,
+                    requested_schema,
+                },
+                meta,
+            }),
+        })?;
+    }
+    Ok(())
 }
 
 fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json::Value {
@@ -2224,6 +2257,9 @@ impl GooseAcpAgent {
         let _ = self
             .client_mcp_host_info
             .set(extract_client_mcp_host_info(&args));
+        let _ = self
+            .client_supports_goose_custom_notifications
+            .set(extract_client_supports_goose_custom_notifications(&args));
         let _ = self
             .use_login_shell_path
             .set(extract_use_login_shell_path(&args));
@@ -2513,7 +2549,9 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to load session")?;
         if let Some(updates) = build_usage_updates(&session) {
-            cx.send_notification(updates.custom)?;
+            if self.supports_goose_custom_notifications() {
+                cx.send_notification(updates.custom)?;
+            }
             // Standard ACP notification — emitted alongside the custom one for
             // backwards compatibility. Remove once all known clients have
             // migrated to `_goose/unstable/session/update`.
@@ -2590,6 +2628,7 @@ impl GooseAcpAgent {
 
         send_elicitation_interaction_update(
             cx,
+            self.supports_goose_custom_notifications(),
             &req.session_id,
             req.elicitation_id,
             InteractionState::Submitted,
@@ -3721,5 +3760,34 @@ print(\"hello, world\")
     fn test_build_usage_update_requires_model_config() {
         let session = make_session_with_usage(Some(120), Some(80), Some(40), None, None, None);
         assert!(build_usage_updates(&session).is_none());
+    }
+
+    #[test]
+    fn test_goose_custom_notifications_capability_defaults_to_false() {
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+
+        assert!(!extract_client_supports_goose_custom_notifications(
+            &request
+        ));
+    }
+
+    #[test]
+    fn test_goose_custom_notifications_capability_reads_client_meta() {
+        let mut goose_meta = serde_json::Map::new();
+        goose_meta.insert(
+            "customNotifications".to_string(),
+            serde_json::Value::Bool(true),
+        );
+        let mut meta = serde_json::Map::new();
+        meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
+
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
+                .client_capabilities(
+                    agent_client_protocol::schema::ClientCapabilities::new().meta(meta),
+                );
+
+        assert!(extract_client_supports_goose_custom_notifications(&request));
     }
 }

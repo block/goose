@@ -29,6 +29,7 @@ fn send_replay_content_chunk(
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
+    supports_goose_custom_notifications: bool,
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
@@ -165,6 +166,7 @@ fn replay_conversation_to_client(
                         if !submitted_elicitation_ids.contains(id) {
                             send_elicitation_interaction_update(
                                 cx,
+                                supports_goose_custom_notifications,
                                 session_id.0.as_ref(),
                                 id.clone(),
                                 InteractionState::Pending,
@@ -226,7 +228,11 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
+        let replay_tool_requests = replay_conversation_to_client(
+            cx,
+            &session,
+            self.supports_goose_custom_notifications(),
+        )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
@@ -245,7 +251,7 @@ impl GooseAcpAgent {
         let (mode_state, model_state, config_options) =
             build_session_setup_config(&self.provider_inventory, &session).await?;
 
-        send_session_setup_notifications(cx, &session)?;
+        send_session_setup_notifications(cx, &session, self.supports_goose_custom_notifications())?;
 
         let mut response = LoadSessionResponse::new().modes(mode_state);
         if let Some(ms) = model_state {
