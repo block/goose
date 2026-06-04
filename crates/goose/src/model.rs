@@ -238,10 +238,15 @@ impl ModelConfig {
                 self.context_limit = Some(canonical.limit.context);
             }
             if self.max_tokens.is_none() {
+                // Compare against the effective context_limit (which may
+                // be a lower user override like GOOSE_CONTEXT_LIMIT=65536),
+                // not the raw catalog context.  Otherwise a 65k window
+                // could request 131k output tokens, overrunning the budget.
+                let effective_ctx = self.context_limit.unwrap_or(canonical.limit.context);
                 self.max_tokens = canonical
                     .limit
                     .output
-                    .filter(|&output| output < canonical.limit.context)
+                    .filter(|&output| output < effective_ctx)
                     .map(|output| output as i32);
             }
             if self.reasoning.is_none() {
@@ -283,10 +288,15 @@ impl ModelConfig {
                 self.context_limit = Some(canonical.limit.context);
             }
             if self.max_tokens.is_none() {
+                // Compare against the effective context_limit (which may
+                // be a lower user override like GOOSE_CONTEXT_LIMIT=65536),
+                // not the raw catalog context.  Otherwise a 65k window
+                // could request 131k output tokens, overrunning the budget.
+                let effective_ctx = self.context_limit.unwrap_or(canonical.limit.context);
                 self.max_tokens = canonical
                     .limit
                     .output
-                    .filter(|&output| output < canonical.limit.context)
+                    .filter(|&output| output < effective_ctx)
                     .map(|output| output as i32);
             }
             if self.reasoning.is_none() {
@@ -1064,6 +1074,34 @@ mod tests {
                 config.context_limit,
                 Some(1_048_576),
                 "placeholder 0 should be overridden by catalog fallback"
+            );
+        }
+
+        #[test]
+        fn catalog_output_tokens_capped_to_effective_context() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+
+            // Simulate a user override with GOOSE_CONTEXT_LIMIT=65536
+            // combined with a catalog-backed provider that has a much
+            // larger context (1M) and output limit (131k).
+            let mut config = ModelConfig::new_or_fail("mimo-v2.5-pro");
+            config.context_limit = Some(65_536); // explicit lower limit
+            let config = config.with_catalog_provider_fallback("xiaomi-token-plan-sgp");
+            assert_eq!(
+                config.context_limit,
+                Some(65_536),
+                "explicit context_limit should be preserved"
+            );
+            // Output tokens must be capped to the effective 65k context,
+            // not the catalog's 1M context — otherwise requests would
+            // ask for 131k output tokens in a 65k window.
+            assert!(
+                config.max_tokens.unwrap_or(0) <= 65_536,
+                "max_tokens ({}) should not exceed effective context_limit (65536)",
+                config.max_tokens.unwrap_or(0),
             );
         }
 

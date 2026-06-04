@@ -290,10 +290,12 @@ pub fn create_custom_provider(
         String::new()
     };
 
-    // Use 0 as "not configured" sentinel for context_limit.
-    // The catalog / canonical / known_models fallback chain in
-    // normalize_model_config will fill in the real value later.
-    // Using 0 avoids ambiguity with real 128k limits (the old sentinel).
+    // Use 0 as the "not configured" sentinel for context_limit.
+    // normalize_model_config fills in the real value at runtime via
+    // the known_models → catalog → canonical fallback chain.
+    // The metadata API endpoint resolves 0 to the catalog value
+    // before serving to the desktop UI, so stale cached limits are
+    // never persisted — catalog updates propagate automatically.
     let model_infos: Vec<ModelInfo> = params
         .models
         .into_iter()
@@ -366,7 +368,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     };
 
     if editable {
-        // Use 0 as "not configured" sentinel — see comment above.
+        // Use 0 sentinel — same as create_custom_provider.
         let model_infos: Vec<ModelInfo> = params
             .models
             .into_iter()

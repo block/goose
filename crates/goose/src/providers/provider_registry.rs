@@ -248,18 +248,37 @@ impl ProviderRegistry {
             .first()
             .map(|m| m.name.clone())
             .unwrap_or_default();
+        // Resolve 0-sentinel context_limits from the catalog on the fly.
+        // This ensures the desktop UI sees the correct limit even though
+        // the stored config uses 0 as the "not configured" sentinel.
+        // Catalog updates propagate automatically without re-saving the
+        // provider — no stale cached limits.
         let known_models: Vec<ModelInfo> = config
             .models
             .iter()
-            .map(|m| ModelInfo {
-                name: m.name.clone(),
-                resolved_model: None,
-                context_limit: m.context_limit,
-                input_token_cost: m.input_token_cost,
-                output_token_cost: m.output_token_cost,
-                currency: m.currency.clone(),
-                supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                reasoning: m.reasoning,
+            .map(|m| {
+                let context_limit = if m.context_limit == 0 {
+                    config
+                        .catalog_provider_id
+                        .as_deref()
+                        .and_then(|cid| {
+                            crate::providers::canonical::maybe_get_canonical_model(cid, &m.name)
+                                .map(|c| c.limit.context)
+                        })
+                        .unwrap_or(0)
+                } else {
+                    m.context_limit
+                };
+                ModelInfo {
+                    name: m.name.clone(),
+                    resolved_model: None,
+                    context_limit,
+                    input_token_cost: m.input_token_cost,
+                    output_token_cost: m.output_token_cost,
+                    currency: m.currency.clone(),
+                    supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
+                    reasoning: m.reasoning,
+                }
             })
             .collect();
 
