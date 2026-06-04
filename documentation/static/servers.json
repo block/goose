@@ -1,5 +1,24 @@
 [
   {
+    "id": "actionbook",
+    "name": "Actionbook",
+    "description": "Let your AI agent operate any website through your own logged-in Chrome session",
+    "type": "streamable-http",
+    "url": "https://edge.actionbook.dev/mcp",
+    "link": "https://actionbook.dev",
+    "installation_notes": "This is a remote extension that requires an Actionbook API key from the actionbook.dev dashboard as a Request Header e.g Authorization: Bearer <YOUR_ACTIONBOOK_API_KEY>. Install the Actionbook Chrome extension and sign in to let agents operate your browser.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "Authorization",
+        "description": "Bearer <YOUR_ACTIONBOOK_API_KEY>",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "agentql-mcp",
     "name": "AgentQL",
     "description": "Transform unstructured web content into structured data",
