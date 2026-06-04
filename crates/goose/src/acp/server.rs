@@ -422,15 +422,17 @@ fn extract_timeout_from_meta(meta: &Option<Meta>) -> Option<u64> {
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct GooseClientMetaEnvelope {
+struct ClientCapabilitiesMeta {
     #[serde(default)]
-    goose: Option<GooseClientMeta>,
+    goose: Option<GooseClientCapabilities>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct GooseClientMeta {
+struct GooseClientCapabilities {
     #[serde(rename = "mcpHostCapabilities", default)]
     mcp_host_capabilities: Option<GooseMcpHostCapabilities>,
+    #[serde(rename = "customNotifications", default)]
+    custom_notifications: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -439,24 +441,25 @@ struct GooseMcpHostCapabilities {
     extensions: Option<rmcp::model::ExtensionCapabilities>,
 }
 
-fn extract_goose_client_meta(meta: &Meta) -> Option<GooseClientMetaEnvelope> {
-    serde_json::from_value(serde_json::Value::Object(meta.clone())).ok()
-}
-
-fn extract_client_mcp_host_info(args: &InitializeRequest) -> GooseMcpHostInfo {
-    let host_capabilities = args
-        .client_capabilities
+fn extract_client_capabilities_meta(args: &InitializeRequest) -> Option<ClientCapabilitiesMeta> {
+    args.client_capabilities
         .meta
         .as_ref()
-        .and_then(extract_goose_client_meta)
-        .and_then(|meta| meta.goose)
-        .and_then(|goose| goose.mcp_host_capabilities);
+        .and_then(|meta| serde_json::from_value(serde_json::Value::Object(meta.clone())).ok())
+}
+
+fn extract_client_mcp_host_info(
+    args: &InitializeRequest,
+    goose_client_capabilities: Option<&GooseClientCapabilities>,
+) -> GooseMcpHostInfo {
+    let host_capabilities =
+        goose_client_capabilities.and_then(|goose| goose.mcp_host_capabilities.as_ref());
     let explicit_extensions = host_capabilities
         .as_ref()
         .and_then(|capabilities| capabilities.extensions.as_ref())
         .is_some();
     let extensions = host_capabilities
-        .and_then(|capabilities| capabilities.extensions)
+        .and_then(|capabilities| capabilities.extensions.clone())
         .unwrap_or_default();
 
     GooseMcpHostInfo {
@@ -2015,14 +2018,11 @@ impl GooseAcpAgent {
     }
 }
 
-fn extract_client_supports_goose_custom_notifications(args: &InitializeRequest) -> bool {
-    args.client_capabilities
-        .meta
-        .as_ref()
-        .and_then(|meta| meta.get("goose"))
-        .and_then(serde_json::Value::as_object)
-        .and_then(|goose| goose.get("customNotifications"))
-        .and_then(serde_json::Value::as_bool)
+fn extract_client_supports_goose_custom_notifications(
+    goose_client_capabilities: Option<&GooseClientCapabilities>,
+) -> bool {
+    goose_client_capabilities
+        .and_then(|goose| goose.custom_notifications)
         .unwrap_or(false)
 }
 
@@ -2246,12 +2246,15 @@ impl GooseAcpAgent {
             .client_fs_capabilities
             .set(args.client_capabilities.fs.clone());
         let _ = self.client_terminal.set(args.client_capabilities.terminal);
-        let _ = self
-            .client_mcp_host_info
-            .set(extract_client_mcp_host_info(&args));
-        let _ = self
-            .client_supports_goose_custom_notifications
-            .set(extract_client_supports_goose_custom_notifications(&args));
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&args).and_then(|meta| meta.goose);
+        let _ = self.client_mcp_host_info.set(extract_client_mcp_host_info(
+            &args,
+            goose_client_capabilities.as_ref(),
+        ));
+        let _ = self.client_supports_goose_custom_notifications.set(
+            extract_client_supports_goose_custom_notifications(goose_client_capabilities.as_ref()),
+        );
         let _ = self
             .use_login_shell_path
             .set(extract_use_login_shell_path(&args));
@@ -3762,9 +3765,11 @@ print(\"hello, world\")
     fn test_goose_custom_notifications_capability_defaults_to_false() {
         let request =
             InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
         assert!(!extract_client_supports_goose_custom_notifications(
-            &request
+            goose_client_capabilities.as_ref()
         ));
     }
 
@@ -3783,7 +3788,11 @@ print(\"hello, world\")
                 .client_capabilities(
                     agent_client_protocol::schema::ClientCapabilities::new().meta(meta),
                 );
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
-        assert!(extract_client_supports_goose_custom_notifications(&request));
+        assert!(extract_client_supports_goose_custom_notifications(
+            goose_client_capabilities.as_ref()
+        ));
     }
 }
