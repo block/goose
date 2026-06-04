@@ -862,6 +862,16 @@
       "required": true
     }
   ]
-}
-
+},
+  {
+    "id": "byte-mcp-server",
+    "name": "PayPerByte",
+    "description": "Verified, provenance-first per-byte USDC data feeds for AI agents on Arbitrum — subscribe or pay-per-call via x402, with verify-before-act on-chain provenance.",
+    "command": "npx -y byte-mcp-server",
+    "link": "https://github.com/0rkz/byte-mcp-server",
+    "installation_notes": "Install via npx. Read-only tools need no config; set PRIVATE_KEY (testnet wallet) for write/x402 tools.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 ]
