@@ -559,9 +559,13 @@ enum SessionCommand {
         )]
         relays: Vec<String>,
     },
-    #[command(about = "Import a session from JSON or an encrypted Nostr share link")]
+    #[command(
+        about = "Import a session from JSON, a Claude Code / Codex / Pi .jsonl, or an encrypted Nostr share link"
+    )]
     Import {
-        #[arg(help = "Path to a JSON session export, or a goose://sessions/nostr share link")]
+        #[arg(
+            help = "Path to a goose session export, a Claude Code, Codex, or Pi .jsonl transcript, or a goose://sessions/nostr share link"
+        )]
         input: String,
 
         #[arg(long = "nostr", help = "Treat input as an encrypted Nostr share link")]
@@ -1058,8 +1062,9 @@ enum Command {
         #[arg(long = "override-model", value_name = "MODEL")]
         override_model: Option<String>,
 
-        /// Default `turn-limit` applied to checks that do not declare their
-        /// own.
+        /// Default `turn-limit` for orchestrated main-pass subprocesses and
+        /// for checks that do not declare their own. Does not cap the legacy
+        /// `--no-orchestrate` in-process main agent.
         #[arg(long = "turn-limit", value_name = "N")]
         turn_limit: Option<usize>,
 
@@ -1939,11 +1944,16 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
 
             // Download
             let manager = goose::download_manager::get_download_manager();
+            let hf_token = goose::providers::huggingface_auth::resolve_token_async()
+                .await
+                .ok()
+                .flatten();
             manager
-                .download_model_sharded(
+                .download_model_sharded_with_bearer_token(
                     format!("{}-model", model_id),
                     download_files,
                     file.size_bytes + mmproj_size_bytes,
+                    hf_token,
                     None,
                 )
                 .await?;

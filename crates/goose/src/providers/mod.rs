@@ -31,6 +31,8 @@ pub mod gemini_oauth;
 pub mod githubcopilot;
 pub mod google;
 pub mod http_status;
+pub mod huggingface;
+pub mod huggingface_auth;
 mod init;
 pub mod inventory;
 pub mod kimicode;
@@ -58,6 +60,7 @@ pub mod usage_estimator;
 pub mod utils;
 
 pub mod xai;
+pub mod xai_oauth;
 
 pub use init::{
     cleanup_provider, create, create_with_default_model, create_with_named_model,

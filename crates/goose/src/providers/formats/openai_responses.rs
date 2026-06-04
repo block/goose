@@ -52,19 +52,27 @@ fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
 #[serde(rename_all = "snake_case")]
 pub enum ResponseOutputItem {
     Reasoning {
-        id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
         #[serde(default)]
         summary: Vec<SummaryText>,
     },
     Message {
-        id: String,
-        status: String,
+        // `id` and `status` are required when the OpenAI API emits these
+        // items, but Codex rollout files (which reuse the same shape on
+        // disk) sometimes omit them. Keep deserialization permissive.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
         role: String,
         content: Vec<ResponseContentBlock>,
     },
     FunctionCall {
-        id: String,
-        status: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         call_id: Option<String>,
         name: String,
@@ -659,7 +667,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 arguments,
                 ..
             } => {
-                let request_id = call_id.as_ref().unwrap_or(id).clone();
+                let request_id = call_id.clone().or_else(|| id.clone()).unwrap_or_default();
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -1220,8 +1228,8 @@ mod tests {
             status: "completed".to_string(),
             model: "gpt-5.3-codex".to_string(),
             output: vec![ResponseOutputItem::FunctionCall {
-                id: "fc_123".to_string(),
-                status: "completed".to_string(),
+                id: Some("fc_123".to_string()),
+                status: Some("completed".to_string()),
                 call_id: Some("call_abc".to_string()),
                 name: "test__get_person_zip_code".to_string(),
                 arguments: r#"{"name":"Alice Burns"}"#.to_string(),

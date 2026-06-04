@@ -1879,6 +1879,33 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+// Native picker tailored for session imports: shows hidden files (so users can
+// reach `~/.claude/projects/...` or `~/.pi/agent/sessions/...`), filters for
+// .json/.jsonl, and returns the file's contents inline so the renderer doesn't
+// need a separate read step.
+ipcMain.handle('select-import-session-file', async () => {
+  const result = (await dialog.showOpenDialog({
+    title: 'Import session',
+    defaultPath: os.homedir(),
+    properties: ['openFile', 'showHiddenFiles'],
+    filters: [
+      { name: 'Session files', extensions: ['json', 'jsonl'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  })) as unknown as OpenDialogReturnValue;
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  const filePath = result.filePaths[0];
+  try {
+    const contents = await fs.readFile(filePath, 'utf8');
+    return { filePath, contents };
+  } catch (err) {
+    return { filePath, contents: '', error: errorMessage(err) };
+  }
+});
+
 // ── Mesh-LLM lifecycle (see mesh.ts) ────────────────────────────────
 
 ipcMain.handle('check-mesh', () => mesh.check());

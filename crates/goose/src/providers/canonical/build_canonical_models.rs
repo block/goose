@@ -499,6 +499,20 @@ fn collect_provider_metadata(
     metadata_list
 }
 
+fn pick_winning_variant(variants: &[(String, CanonicalModel)]) -> usize {
+    variants
+        .iter()
+        .enumerate()
+        .min_by(|(_, (id_a, a)), (_, (id_b, b))| {
+            id_a.len()
+                .cmp(&id_b.len())
+                .then_with(|| b.last_updated.cmp(&a.last_updated))
+                .then_with(|| b.release_date.cmp(&a.release_date))
+                .then_with(|| id_a.cmp(id_b))
+        })
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
 async fn build_canonical_models() -> Result<()> {
     let json = fetch_models_dev().await?;
 
@@ -523,10 +537,37 @@ async fn build_canonical_models() -> Result<()> {
             models.len()
         );
 
+        let mut candidates: BTreeMap<String, Vec<(String, CanonicalModel)>> = BTreeMap::new();
         for (model_id, model_data) in models {
             let (model_name, canonical_model) =
                 process_model(model_id, model_data, normalized_provider)?;
-            registry.register(normalized_provider, &model_name, canonical_model);
+            candidates
+                .entry(model_name)
+                .or_default()
+                .push((model_id.clone(), canonical_model));
+        }
+
+        for (canonical_key, mut variants) in candidates {
+            let winner = if variants.len() == 1 {
+                variants.pop().unwrap().1
+            } else {
+                let chosen_idx = pick_winning_variant(&variants);
+                let chosen_id = variants[chosen_idx].0.clone();
+                println!(
+                    "  ⚠ {} variants collide on key '{}/{}': [{}] — keeping '{}'",
+                    variants.len(),
+                    normalized_provider,
+                    canonical_key,
+                    variants
+                        .iter()
+                        .map(|(id, _)| id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    chosen_id,
+                );
+                variants.swap_remove(chosen_idx).1
+            };
+            registry.register(normalized_provider, &canonical_key, winner);
             total_models += 1;
         }
     }
@@ -665,4 +706,54 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn variant(id: &str, release: Option<&str>, updated: Option<&str>) -> (String, CanonicalModel) {
+        (
+            id.to_string(),
+            CanonicalModel {
+                id: format!("openai/{}", id),
+                name: id.to_string(),
+                family: None,
+                attachment: None,
+                reasoning: None,
+                tool_call: false,
+                temperature: None,
+                knowledge: None,
+                release_date: release.map(String::from),
+                last_updated: updated.map(String::from),
+                modalities: Modalities::default(),
+                open_weights: None,
+                cost: Pricing::default(),
+                limit: Limit::default(),
+            },
+        )
+    }
+
+    #[test]
+    fn shortest_variant_wins() {
+        let variants = vec![
+            variant("gpt-4o-2024-08-06", Some("2024-08-06"), Some("2024-08-06")),
+            variant("gpt-4o", Some("2024-05-13"), Some("2024-08-06")),
+            variant("gpt-4o-2024-11-20", Some("2024-11-20"), Some("2024-11-20")),
+            variant("gpt-4o-2024-05-13", Some("2024-05-13"), Some("2024-05-13")),
+        ];
+        let idx = pick_winning_variant(&variants);
+        assert_eq!(variants[idx].0, "gpt-4o");
+
+        let variants = vec![
+            variant(
+                "claude-haiku-4-5-20251001",
+                Some("2025-10-16"),
+                Some("2025-10-16"),
+            ),
+            variant("claude-haiku-4-5", Some("2025-10-16"), Some("2025-10-16")),
+        ];
+        let idx = pick_winning_variant(&variants);
+        assert_eq!(variants[idx].0, "claude-haiku-4-5");
+    }
 }

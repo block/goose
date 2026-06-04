@@ -131,11 +131,47 @@ impl DownloadManager {
             .await
     }
 
+    pub async fn download_model_with_bearer_token(
+        &self,
+        model_id: String,
+        url: String,
+        destination: PathBuf,
+        bearer_token: Option<String>,
+        on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
+    ) -> Result<()> {
+        self.download_model_sharded_with_bearer_token(
+            model_id,
+            vec![(url, destination)],
+            0,
+            bearer_token,
+            on_complete,
+        )
+        .await
+    }
+
     pub async fn download_model_sharded(
         &self,
         model_id: String,
         files: Vec<(String, PathBuf)>,
         total_size_hint: u64,
+        on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
+    ) -> Result<()> {
+        self.download_model_sharded_with_bearer_token(
+            model_id,
+            files,
+            total_size_hint,
+            None,
+            on_complete,
+        )
+        .await
+    }
+
+    pub async fn download_model_sharded_with_bearer_token(
+        &self,
+        model_id: String,
+        files: Vec<(String, PathBuf)>,
+        total_size_hint: u64,
+        bearer_token: Option<String>,
         on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
     ) -> Result<()> {
         info!(model_id = %model_id, file_count = files.len(), "Starting model download");
@@ -186,8 +222,13 @@ impl DownloadManager {
         let files_for_cleanup: Vec<PathBuf> = files.iter().map(|(_, d)| d.clone()).collect();
 
         tokio::spawn(async move {
-            let result =
-                Self::download_files_sequentially(&files, &downloads, &model_id_clone).await;
+            let result = Self::download_files_sequentially(
+                &files,
+                &downloads,
+                &model_id_clone,
+                bearer_token.as_deref(),
+            )
+            .await;
 
             match result {
                 Ok(_) => {
@@ -262,6 +303,7 @@ impl DownloadManager {
         files: &[(String, PathBuf)],
         downloads: &DownloadMap,
         model_id: &str,
+        bearer_token: Option<&str>,
     ) -> Result<(), anyhow::Error> {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(30))
@@ -273,8 +315,7 @@ impl DownloadManager {
         let mut total: u64 = 0;
         let mut all_resolved = true;
         for (url, _) in files {
-            let size = client
-                .head(url)
+            let size = Self::apply_bearer_token(client.head(url), bearer_token)
                 .send()
                 .await
                 .ok()
@@ -329,6 +370,7 @@ impl DownloadManager {
                 &mut cumulative_bytes,
                 start_time,
                 bytes_at_start,
+                bearer_token,
             )
             .await?;
         }
@@ -346,6 +388,7 @@ impl DownloadManager {
         cumulative_bytes: &mut u64,
         start_time: std::time::Instant,
         bytes_at_start: u64,
+        bearer_token: Option<&str>,
     ) -> Result<(), anyhow::Error> {
         let partial_path = partial_path_for(destination);
         let mut retries = 0u32;
@@ -357,8 +400,7 @@ impl DownloadManager {
         };
 
         // Get this file's total size
-        let mut file_total: u64 = client
-            .head(url)
+        let mut file_total: u64 = Self::apply_bearer_token(client.head(url), bearer_token)
             .send()
             .await
             .ok()
@@ -386,7 +428,7 @@ impl DownloadManager {
                 anyhow::bail!("Download cancelled");
             }
 
-            let mut request = client.get(url);
+            let mut request = Self::apply_bearer_token(client.get(url), bearer_token);
             if file_bytes > 0 {
                 request = request.header("Range", format!("bytes={}-", file_bytes));
             }
@@ -582,6 +624,17 @@ impl DownloadManager {
                     downloads.remove(model_id);
                 }
             }
+        }
+    }
+
+    fn apply_bearer_token(
+        request: reqwest::RequestBuilder,
+        bearer_token: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        if let Some(token) = bearer_token.filter(|token| !token.is_empty()) {
+            request.header("Authorization", format!("Bearer {}", token))
+        } else {
+            request
         }
     }
 }
