@@ -14,9 +14,10 @@ use common_tests::{
     run_load_mode, run_load_model, run_load_session_error, run_load_session_mcp,
     run_load_session_replays_image_attachment, run_mode_set, run_model_list, run_model_set,
     run_model_set_error_session_not_found, run_new_session_returns_initial_config,
-    run_permission_persistence, run_prompt_basic, run_prompt_error, run_prompt_image,
-    run_prompt_image_attachment, run_prompt_mcp, run_prompt_model_mismatch, run_prompt_skill,
-    run_session_name_update_notification, run_shell_terminal_false, run_shell_terminal_true,
+    run_new_session_uses_current_config_mode, run_permission_persistence, run_prompt_basic,
+    run_prompt_error, run_prompt_image, run_prompt_image_attachment, run_prompt_mcp,
+    run_prompt_model_mismatch, run_prompt_skill, run_session_name_update_notification,
+    run_shell_terminal_false, run_shell_terminal_true,
 };
 use goose::config::GooseMode;
 use goose::conversation::message::Message;
@@ -238,6 +239,11 @@ fn test_model_list() {
 #[test]
 fn test_new_session_returns_initial_config() {
     run_test(async { run_new_session_returns_initial_config::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_new_session_uses_current_config_mode() {
+    run_test(async { run_new_session_uses_current_config_mode::<AcpServerConnection>().await });
 }
 
 #[test]

@@ -31,6 +31,8 @@ pub mod gemini_oauth;
 pub mod githubcopilot;
 pub mod google;
 pub mod http_status;
+pub mod huggingface;
+pub mod huggingface_auth;
 mod init;
 pub mod inventory;
 pub mod kimicode;

@@ -71,7 +71,10 @@ async function postProcessTypes() {
   await fs.writeFile(tsPath, src);
 }
 
-async function postProcessIndex(meta: { methods: unknown[] }) {
+async function postProcessIndex(meta: {
+  methods: unknown[];
+  notifications?: unknown[];
+}) {
   const indexPath = resolve(OUTPUT_DIR, "index.ts");
   let src = await fs.readFile(indexPath, "utf8");
 
@@ -88,6 +91,10 @@ async function postProcessIndex(meta: { methods: unknown[] }) {
 export const GOOSE_EXT_METHODS = ${JSON.stringify(meta.methods, null, 2)} as const;
 
 export type GooseExtMethod = (typeof GOOSE_EXT_METHODS)[number];
+
+export const GOOSE_EXT_NOTIFICATIONS = ${JSON.stringify(meta.notifications ?? [], null, 2)} as const;
+
+export type GooseExtNotification = (typeof GOOSE_EXT_NOTIFICATIONS)[number];
 `,
     { parser: "typescript" },
   );
@@ -126,6 +133,32 @@ interface MethodMeta {
   responseType: string | null;
 }
 
+interface NotificationMeta {
+  method: string;
+  paramsType: string | null;
+}
+
+function methodToHandlerName(method: string): string {
+  let methodParts = method.split(/[/_]/).filter((part) => part.length > 0);
+  let prefix = "";
+  if (methodParts[0] == "goose" && methodParts[1] == "unstable") {
+    methodParts.shift();
+    methodParts.shift();
+    prefix = "unstable_";
+  } else if (methodParts[0] == "goose") {
+    methodParts.shift();
+  }
+  const body = methodParts
+    .map((part) =>
+      part.replace(/[^a-zA-Z0-9]+(.)/g, (_, chr: string) => chr.toUpperCase()),
+    )
+    .map((part, i) =>
+      i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1),
+    )
+    .join("");
+  return `${prefix}${body}`;
+}
+
 function methodToCamelCase(method: string): string {
   let methodParts = method.split(/[/_]/).filter((part) => part.length > 0);
 
@@ -150,9 +183,13 @@ function methodToCamelCase(method: string): string {
   return `${prefix}${suffix}`;
 }
 
-async function generateClient(meta: { methods: MethodMeta[] }) {
+async function generateClient(meta: {
+  methods: MethodMeta[];
+  notifications?: NotificationMeta[];
+}) {
   const typeImports = new Set<string>();
   const zodImports = new Set<string>();
+  const upstreamTypeImports = new Set<string>(["Client"]);
 
   const methodDefs: string[] = [];
 
@@ -200,6 +237,67 @@ async function generateClient(meta: { methods: MethodMeta[] }) {
   }`);
   }
 
+  const handlerFields: string[] = [];
+  const dispatchCases: string[] = [];
+  const handlerKeys: string[] = [];
+
+  for (const n of meta.notifications ?? []) {
+    const handlerName = methodToHandlerName(n.method);
+    handlerKeys.push(handlerName);
+    if (!n.paramsType) {
+      handlerFields.push(
+        `  ${handlerName}?: (params: Record<string, unknown>) => Promise<void>;`,
+      );
+      dispatchCases.push(
+        `      case "${n.method}": {
+        await ${handlerName}?.(params);
+        return;
+      }`,
+      );
+      continue;
+    }
+    typeImports.add(n.paramsType);
+    const zodName = `z${n.paramsType}`;
+    zodImports.add(zodName);
+    handlerFields.push(
+      `  ${handlerName}?: (notification: ${n.paramsType}) => Promise<void>;`,
+    );
+    dispatchCases.push(
+      `      case "${n.method}": {
+        const parsed = ${zodName}.parse(params) as ${n.paramsType};
+        await ${handlerName}?.(parsed);
+        return;
+      }`,
+    );
+  }
+
+  const handlerDestructure =
+    handlerKeys.length > 0
+      ? `const { ${handlerKeys.join(", ")}, ...rest } = callbacks;`
+      : `const rest = callbacks;`;
+  const handlersInterface = `export interface GooseExtNotifications {
+${handlerFields.join("\n")}
+}`;
+
+  const dispatcherFn = `export function installGooseExtNotificationDispatcher(
+  callbacks: GooseClientCallbacks,
+): Client {
+  ${handlerDestructure}
+  const userExtNotification = rest.extNotification;
+  return {
+    ...rest,
+    extNotification: async (method, params) => {
+      switch (method) {
+${dispatchCases.join("\n")}
+        default:
+          await userExtNotification?.(method, params);
+          return;
+      }
+    },
+  };
+}`;
+
+  const upstreamImportLine = `import type { ${[...upstreamTypeImports].sort().join(", ")} } from "@agentclientprotocol/sdk";`;
   const typeImportLine = typeImports.size
     ? `import type { ${[...typeImports].sort().join(", ")} } from "./types.gen.js";`
     : "";
@@ -213,6 +311,7 @@ export interface ExtMethodProvider {
   extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
 }
 
+${upstreamImportLine}
 ${typeImportLine}
 ${zodImportLine}
 
@@ -220,6 +319,12 @@ export class GooseExtClient {
   constructor(private conn: ExtMethodProvider) {}
 ${methodDefs.join("\n")}
 }
+
+${handlersInterface}
+
+export type GooseClientCallbacks = Client & GooseExtNotifications;
+
+${dispatcherFn}
 `;
 
   src = await prettier.format(src, { parser: "typescript" });

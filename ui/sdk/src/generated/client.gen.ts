@@ -7,6 +7,7 @@ export interface ExtMethodProvider {
   ): Promise<Record<string, unknown>>;
 }
 
+import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
   AddExtensionRequest_unstable,
@@ -40,6 +41,7 @@ import type {
   DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
+  ElicitationRespondRequest_unstable,
   ExportSessionRequest_unstable,
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
@@ -50,6 +52,7 @@ import type {
   GetSessionExtensionsResponse_unstable,
   GetToolsRequest_unstable,
   GetToolsResponse_unstable,
+  GooseSessionNotification_unstable,
   GooseToolCallRequest_unstable,
   GooseToolCallResponse_unstable,
   ImportSessionRequest_unstable,
@@ -115,6 +118,7 @@ import {
   zGetExtensionsResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
   zGetToolsResponse_unstable,
+  zGooseSessionNotification_unstable,
   zGooseToolCallResponse_unstable,
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
@@ -527,6 +531,12 @@ export class GooseExtClient {
     ) as ImportSessionResponse_unstable;
   }
 
+  async elicitationRespond_unstable(
+    params: ElicitationRespondRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/elicitation/respond", params);
+  }
+
   async sessionProjectUpdate_unstable(
     params: UpdateSessionProjectRequest_unstable,
   ): Promise<void> {
@@ -715,4 +725,36 @@ export class GooseExtClient {
       params,
     );
   }
+}
+
+export interface GooseExtNotifications {
+  unstable_sessionUpdate?: (
+    notification: GooseSessionNotification_unstable,
+  ) => Promise<void>;
+}
+
+export type GooseClientCallbacks = Client & GooseExtNotifications;
+
+export function installGooseExtNotificationDispatcher(
+  callbacks: GooseClientCallbacks,
+): Client {
+  const { unstable_sessionUpdate, ...rest } = callbacks;
+  const userExtNotification = rest.extNotification;
+  return {
+    ...rest,
+    extNotification: async (method, params) => {
+      switch (method) {
+        case "_goose/unstable/session/update": {
+          const parsed = zGooseSessionNotification_unstable.parse(
+            params,
+          ) as GooseSessionNotification_unstable;
+          await unstable_sessionUpdate?.(parsed);
+          return;
+        }
+        default:
+          await userExtNotification?.(method, params);
+          return;
+      }
+    },
+  };
 }

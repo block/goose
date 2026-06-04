@@ -2522,9 +2522,14 @@ impl Agent {
             .await
             .is_ok()
         {
-            let p = crate::providers::create(&provider_name, model_config, extensions)
-                .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+            let p = crate::providers::create_with_working_dir(
+                &provider_name,
+                model_config,
+                extensions,
+                session.working_dir.clone(),
+            )
+            .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
             (p, false)
         } else {
             let fallback_provider_name = config
@@ -2552,10 +2557,11 @@ impl Agent {
                 .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?
                 .with_canonical_limits(&fallback_provider_name);
 
-            let fallback_provider = crate::providers::create(
+            let fallback_provider = crate::providers::create_with_working_dir(
                 &fallback_provider_name,
                 fallback_model_config.clone(),
                 extensions,
+                session.working_dir.clone(),
             )
             .await
             .map_err(|e| {

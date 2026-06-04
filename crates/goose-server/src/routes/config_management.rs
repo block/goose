@@ -7,8 +7,10 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use chrono::{DateTime, TimeZone, Utc};
 use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
+use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::custom_requests::SourceType;
 use goose::model::ModelConfig;
@@ -19,16 +21,34 @@ use goose::providers::catalog::{
     ProviderTemplate,
 };
 use goose::providers::create_with_default_model;
+use goose::providers::huggingface_auth;
 use goose::providers::providers as get_providers;
 use goose::{
-    agents::execute_commands, config::permission::PermissionLevel,
+    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands::recipe_slash_command,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use utoipa::ToSchema;
+
+#[derive(Serialize, ToSchema)]
+pub struct ExtensionResponse {
+    pub extensions: Vec<ExtensionEntry>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct ExtensionQuery {
+    pub name: String,
+    pub config: ExtensionConfig,
+    pub enabled: bool,
+}
 
 #[derive(Deserialize, ToSchema)]
 pub struct UpsertConfigQuery {
@@ -124,6 +144,43 @@ pub struct MaskedSecret {
 pub enum ConfigValueResponse {
     Value(Value),
     MaskedValue(MaskedSecret),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderSecretStorage {
+    SecretStore,
+    ProviderCache,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderSecretStatus {
+    Valid,
+    Expired,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ProviderSecret {
+    pub id: String,
+    pub provider: String,
+    pub provider_display_name: String,
+    pub name: String,
+    pub storage: ProviderSecretStorage,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub status: ProviderSecretStatus,
+    pub configured: bool,
+    pub has_secret: bool,
+    pub can_delete: bool,
+    pub can_configure: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configure_provider: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProviderSecretsResponse {
+    pub secrets: Vec<ProviderSecret>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -233,11 +290,465 @@ fn mask_secret(secret: Value) -> String {
     format!("{}{}", visible, mask)
 }
 
+const SECRET_STORE_ID_PREFIX: &str = "secret_store:";
+const PROVIDER_CACHE_ID_PREFIX: &str = "provider_cache:";
+
+fn provider_secret_status(expires_at: Option<DateTime<Utc>>) -> ProviderSecretStatus {
+    match expires_at {
+        Some(expires_at) if expires_at <= Utc::now() => ProviderSecretStatus::Expired,
+        Some(_) => ProviderSecretStatus::Valid,
+        None => ProviderSecretStatus::Unknown,
+    }
+}
+
+fn parse_expiry_value(value: &Value) -> Option<DateTime<Utc>> {
+    match value {
+        Value::String(value) => DateTime::parse_from_rfc3339(value)
+            .ok()
+            .map(|dt| dt.with_timezone(&Utc)),
+        Value::Number(value) => value
+            .as_i64()
+            .and_then(|timestamp| Utc.timestamp_opt(timestamp, 0).single()),
+        _ => None,
+    }
+}
+
+fn find_expires_at(value: &Value) -> Option<DateTime<Utc>> {
+    match value {
+        Value::Object(map) => {
+            if map
+                .get("refresh_token")
+                .and_then(Value::as_str)
+                .is_some_and(|token| !token.is_empty())
+            {
+                return None;
+            }
+            if let Some(expires_at) = map.get("expires_at").and_then(parse_expiry_value) {
+                return Some(expires_at);
+            }
+            if let Some(expires_at) = map.get("expires_on").and_then(parse_expiry_value) {
+                return Some(expires_at);
+            }
+            map.values().find_map(find_expires_at)
+        }
+        Value::Array(values) => values.iter().find_map(find_expires_at),
+        _ => None,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ProviderCacheSecretDefinition {
+    provider: &'static str,
+    name: &'static str,
+    path: &'static str,
+    is_directory: bool,
+}
+
+const PROVIDER_CACHE_SECRET_DEFINITIONS: &[ProviderCacheSecretDefinition] = &[
+    ProviderCacheSecretDefinition {
+        provider: "gemini_oauth",
+        name: "OAuth token",
+        path: "gemini_oauth/tokens.json",
+        is_directory: false,
+    },
+    ProviderCacheSecretDefinition {
+        provider: "chatgpt_codex",
+        name: "OAuth token",
+        path: "chatgpt_codex/tokens.json",
+        is_directory: false,
+    },
+    ProviderCacheSecretDefinition {
+        provider: "kimi_code",
+        name: "OAuth token",
+        path: "kimicode/token.json",
+        is_directory: false,
+    },
+    ProviderCacheSecretDefinition {
+        provider: "github_copilot",
+        name: "OAuth token",
+        path: "githubcopilot",
+        is_directory: true,
+    },
+    ProviderCacheSecretDefinition {
+        provider: "xai_oauth",
+        name: "OAuth token",
+        path: "xai_oauth/tokens.json",
+        is_directory: false,
+    },
+    ProviderCacheSecretDefinition {
+        provider: "databricks",
+        name: "OAuth token",
+        path: "databricks/oauth",
+        is_directory: true,
+    },
+    ProviderCacheSecretDefinition {
+        provider: "databricks_v2",
+        name: "OAuth token",
+        path: "databricks/oauth",
+        is_directory: true,
+    },
+];
+
+fn provider_cache_definitions_for_display() -> Vec<ProviderCacheSecretDefinition> {
+    let mut seen_paths = HashSet::new();
+    PROVIDER_CACHE_SECRET_DEFINITIONS
+        .iter()
+        .copied()
+        .filter(|definition| seen_paths.insert(definition.path))
+        .collect()
+}
+
+fn provider_cache_definition(provider: &str) -> Option<ProviderCacheSecretDefinition> {
+    PROVIDER_CACHE_SECRET_DEFINITIONS
+        .iter()
+        .copied()
+        .find(|definition| definition.provider == provider)
+}
+
+fn provider_cache_providers_sharing_cache(provider: &str) -> Vec<&'static str> {
+    let Some(definition) = provider_cache_definition(provider) else {
+        return Vec::new();
+    };
+
+    PROVIDER_CACHE_SECRET_DEFINITIONS
+        .iter()
+        .filter(|other| other.path == definition.path)
+        .map(|definition| definition.provider)
+        .collect()
+}
+
+fn read_json_file(path: &std::path::Path) -> Option<Value> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| serde_json::from_str(&contents).ok())
+}
+
+fn collect_json_expiries(path: &std::path::Path, is_directory: bool) -> Vec<DateTime<Utc>> {
+    if !is_directory {
+        return read_json_file(path)
+            .and_then(|value| find_expires_at(&value))
+            .into_iter()
+            .collect();
+    }
+
+    let mut expiries = Vec::new();
+    let mut stack = vec![path.to_path_buf()];
+
+    while let Some(current) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(current) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+            if let Some(expires_at) =
+                read_json_file(&path).and_then(|value| find_expires_at(&value))
+            {
+                expiries.push(expires_at);
+            }
+        }
+    }
+
+    expiries
+}
+
+fn provider_cache_exists(path: &std::path::Path, is_directory: bool) -> bool {
+    if !is_directory {
+        return path.is_file();
+    }
+
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+
+    entries.flatten().any(|entry| {
+        let path = entry.path();
+        path.is_file() || provider_cache_exists(&path, true)
+    })
+}
+
+fn provider_cache_expiry(definition: ProviderCacheSecretDefinition) -> Option<DateTime<Utc>> {
+    let path = Paths::in_config_dir(definition.path);
+    let expiries = collect_json_expiries(&path, definition.is_directory);
+    expiries.into_iter().min()
+}
+
+fn build_provider_cache_secret(
+    definition: ProviderCacheSecretDefinition,
+    display_names: &HashMap<String, String>,
+) -> Option<ProviderSecret> {
+    let path = Paths::in_config_dir(definition.path);
+    if !provider_cache_exists(&path, definition.is_directory) {
+        return None;
+    }
+
+    let expires_at = provider_cache_expiry(definition);
+    Some(ProviderSecret {
+        id: format!("{}{}", PROVIDER_CACHE_ID_PREFIX, definition.provider),
+        provider: definition.provider.to_string(),
+        provider_display_name: display_names
+            .get(definition.provider)
+            .cloned()
+            .unwrap_or_else(|| definition.provider.to_string()),
+        name: definition.name.to_string(),
+        storage: ProviderSecretStorage::ProviderCache,
+        expires_at,
+        status: provider_secret_status(expires_at),
+        configured: true,
+        has_secret: true,
+        can_delete: true,
+        can_configure: false,
+        configure_provider: None,
+    })
+}
+
+fn build_huggingface_oauth_secret(
+    token: Option<huggingface_auth::HuggingFaceTokenData>,
+) -> ProviderSecret {
+    let expires_at = token.as_ref().and_then(|token| token.expires_at);
+    let has_secret = token.is_some();
+
+    ProviderSecret {
+        id: format!(
+            "{}{}",
+            PROVIDER_CACHE_ID_PREFIX,
+            huggingface_auth::HUGGINGFACE_PROVIDER_NAME
+        ),
+        provider: huggingface_auth::HUGGINGFACE_PROVIDER_NAME.to_string(),
+        provider_display_name: huggingface_auth::HUGGINGFACE_DISPLAY_NAME.to_string(),
+        name: huggingface_auth::HUGGINGFACE_OAUTH_TOKEN_NAME.to_string(),
+        storage: ProviderSecretStorage::ProviderCache,
+        expires_at,
+        status: provider_secret_status(expires_at),
+        configured: has_secret,
+        has_secret,
+        can_delete: has_secret,
+        can_configure: true,
+        configure_provider: Some(huggingface_auth::HUGGINGFACE_PROVIDER_NAME.to_string()),
+    }
+}
+
+fn build_secret_store_secrets(
+    stored_secrets: &HashMap<String, Value>,
+    providers: &[(ProviderMetadata, ProviderType)],
+) -> Vec<ProviderSecret> {
+    let mut secrets = Vec::new();
+
+    for (metadata, _) in providers {
+        for config_key in metadata.config_keys.iter().filter(|key| key.secret) {
+            if !stored_secrets.contains_key(&config_key.name) {
+                continue;
+            }
+            secrets.push(ProviderSecret {
+                id: format!(
+                    "{}{}:{}",
+                    SECRET_STORE_ID_PREFIX, metadata.name, config_key.name
+                ),
+                provider: metadata.name.clone(),
+                provider_display_name: metadata.display_name.clone(),
+                name: config_key.name.clone(),
+                storage: ProviderSecretStorage::SecretStore,
+                expires_at: None,
+                status: ProviderSecretStatus::Unknown,
+                configured: true,
+                has_secret: true,
+                can_delete: true,
+                can_configure: false,
+                configure_provider: None,
+            });
+        }
+    }
+
+    secrets
+}
+
+fn is_known_provider_secret(
+    providers: &[(ProviderMetadata, ProviderType)],
+    provider: &str,
+    key: &str,
+) -> bool {
+    providers
+        .iter()
+        .filter(|(metadata, _)| metadata.name == provider)
+        .flat_map(|(metadata, _)| metadata.config_keys.iter())
+        .any(|config_key| config_key.secret && config_key.name == key)
+}
+
+fn unconfigure_provider(config: &Config, provider_name: &str) -> Result<(), ConfigError> {
+    if let Some(mut entry) = goose::config::get_provider_entry(config, provider_name) {
+        entry.configured = false;
+        goose::config::set_provider_entry(config, provider_name, &entry)?;
+    }
+
+    let configured_marker = format!("{}_configured", provider_name);
+    config.delete(&configured_marker)?;
+    Ok(())
+}
+
+fn mark_provider_configured(config: &Config, provider_name: &str) -> Result<(), ConfigError> {
+    if let Some(mut entry) = goose::config::get_provider_entry(config, provider_name) {
+        entry.configured = true;
+        goose::config::set_provider_entry(config, provider_name, &entry)?;
+    } else {
+        let model = if goose::config::get_active_provider(config).as_deref() == Some(provider_name)
+        {
+            config.get_goose_model().unwrap_or_default()
+        } else {
+            String::new()
+        };
+        goose::config::set_provider_entry(
+            config,
+            provider_name,
+            &goose::config::ProviderEntry {
+                enabled: true,
+                model,
+                configured: true,
+            },
+        )?;
+    }
+
+    Ok(())
+}
+
+fn parse_secret_store_id(id: &str) -> Option<(&str, &str)> {
+    let rest = id.strip_prefix(SECRET_STORE_ID_PREFIX)?;
+    let (provider, key) = rest.split_once(':')?;
+    Some((provider, key))
+}
+
+fn parse_provider_cache_id(id: &str) -> Option<&str> {
+    id.strip_prefix(PROVIDER_CACHE_ID_PREFIX)
+}
+
 fn is_valid_provider_name(provider_name: &str) -> bool {
     !provider_name.is_empty()
         && provider_name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn should_unconfigure_after_secret_delete(
+    provider: &str,
+    key: &str,
+    has_usable_huggingface_oauth_token: impl FnOnce() -> bool,
+) -> bool {
+    provider == huggingface_auth::HUGGINGFACE_PROVIDER_NAME
+        && key == huggingface_auth::HUGGINGFACE_TOKEN_SECRET_KEY
+        && !has_usable_huggingface_oauth_token()
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/provider-secrets",
+    responses(
+        (status = 200, description = "Provider secrets retrieved successfully", body = ProviderSecretsResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn list_provider_secrets() -> Result<Json<ProviderSecretsResponse>, ErrorResponse> {
+    let config = Config::global();
+    let stored_secrets = config.all_secrets()?;
+    let providers = get_providers().await;
+    let display_names: HashMap<String, String> = providers
+        .iter()
+        .map(|(metadata, _)| (metadata.name.clone(), metadata.display_name.clone()))
+        .collect();
+
+    let mut secrets = build_secret_store_secrets(&stored_secrets, &providers);
+
+    for definition in provider_cache_definitions_for_display() {
+        if let Some(secret) = build_provider_cache_secret(definition, &display_names) {
+            if !secrets.iter().any(|existing| existing.id == secret.id) {
+                secrets.push(secret);
+            }
+        }
+    }
+
+    let huggingface_secret = build_huggingface_oauth_secret(huggingface_auth::load_oauth_token());
+    if let Some(existing) = secrets
+        .iter_mut()
+        .find(|existing| existing.id == huggingface_secret.id)
+    {
+        *existing = huggingface_secret;
+    } else {
+        secrets.push(huggingface_secret);
+    }
+
+    secrets.sort_by(|a, b| {
+        a.provider_display_name
+            .cmp(&b.provider_display_name)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+
+    Ok(Json(ProviderSecretsResponse { secrets }))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/config/provider-secrets/{id}",
+    params(
+        ("id" = String, Path, description = "Provider secret identifier")
+    ),
+    responses(
+        (status = 200, description = "Provider secret deleted successfully", body = String),
+        (status = 400, description = "Invalid provider secret identifier"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn delete_provider_secret(Path(id): Path<String>) -> Result<Json<String>, ErrorResponse> {
+    let config = Config::global();
+
+    if let Some((provider, key)) = parse_secret_store_id(&id) {
+        let providers = get_providers().await;
+        if !is_known_provider_secret(&providers, provider, key) {
+            return Err(ErrorResponse::bad_request(format!(
+                "Invalid provider secret id: '{}'",
+                id
+            )));
+        }
+
+        config.delete_secret(key)?;
+        if should_unconfigure_after_secret_delete(provider, key, || {
+            huggingface_auth::has_configured_token().unwrap_or(false)
+        }) {
+            unconfigure_provider(config, provider)?;
+        }
+        return Ok(Json(format!("Deleted provider secret {}", id)));
+    }
+
+    if let Some(provider) = parse_provider_cache_id(&id) {
+        if provider == huggingface_auth::HUGGINGFACE_PROVIDER_NAME {
+            huggingface_auth::clear_oauth_token()?;
+            unconfigure_provider(config, provider)?;
+            return Ok(Json(format!("Deleted provider secret {}", id)));
+        }
+
+        let cache_definition = provider_cache_definition(provider);
+
+        if !is_valid_provider_name(provider) || cache_definition.is_none() {
+            return Err(ErrorResponse::bad_request(format!(
+                "Invalid provider name: '{}'",
+                provider
+            )));
+        }
+        goose::providers::cleanup_provider(provider).await?;
+        for shared_provider in provider_cache_providers_sharing_cache(provider) {
+            unconfigure_provider(config, shared_provider)?;
+        }
+        return Ok(Json(format!("Deleted provider secret {}", id)));
+    }
+
+    Err(ErrorResponse::bad_request(format!(
+        "Invalid provider secret id: '{}'",
+        id
+    )))
 }
 
 #[utoipa::path(
@@ -282,6 +793,72 @@ pub async fn read_config(
         Err(e) => return Err(e.into()),
     };
     Ok(Json(response_value))
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/extensions",
+    responses(
+        (status = 200, description = "All extensions retrieved successfully", body = ExtensionResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_extensions() -> Result<Json<ExtensionResponse>, ErrorResponse> {
+    let extensions = goose::config::get_all_extensions()
+        .into_iter()
+        .filter(|ext| !goose::agents::extension_manager::is_hidden_extension(&ext.config.name()))
+        .collect();
+    let warnings = goose::config::get_warnings();
+    Ok(Json(ExtensionResponse {
+        extensions,
+        warnings,
+    }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/extensions",
+    request_body = ExtensionQuery,
+    responses(
+        (status = 200, description = "Extension added or updated successfully", body = String),
+        (status = 400, description = "Invalid request"),
+        (status = 422, description = "Could not serialize config.yaml"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn add_extension(
+    Json(extension_query): Json<ExtensionQuery>,
+) -> Result<Json<String>, ErrorResponse> {
+    let extensions = goose::config::get_all_extensions();
+    let key = goose::config::extensions::name_to_key(&extension_query.name);
+
+    let is_update = extensions.iter().any(|e| e.config.key() == key);
+
+    goose::config::set_extension(ExtensionEntry {
+        enabled: extension_query.enabled,
+        config: extension_query.config,
+    });
+
+    if is_update {
+        Ok(Json(format!("Updated extension {}", extension_query.name)))
+    } else {
+        Ok(Json(format!("Added extension {}", extension_query.name)))
+    }
+}
+
+#[utoipa::path(
+    delete,
+    path = "/config/extensions/{name}",
+    responses(
+        (status = 200, description = "Extension removed successfully", body = String),
+        (status = 404, description = "Extension not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, ErrorResponse> {
+    let key = goose::config::extensions::name_to_key(&name);
+    goose::config::remove_extension(&key);
+    Ok(Json(format!("Removed extension {}", name)))
 }
 
 #[utoipa::path(
@@ -852,6 +1429,17 @@ pub async fn configure_provider_oauth(
         )));
     }
 
+    if provider_name == huggingface_auth::HUGGINGFACE_PROVIDER_NAME {
+        huggingface_auth::configure_oauth().await.map_err(|e| {
+            ErrorResponse::bad_request(format!(
+                "OAuth configuration failed for provider '{}': {}",
+                provider_name, e
+            ))
+        })?;
+        mark_provider_configured(goose::config::Config::global(), &provider_name)?;
+        return Ok(Json("OAuth configuration completed".to_string()));
+    }
+
     let temp_model = ModelConfig::new("temp")
         .map_err(|e| {
             ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
@@ -875,29 +1463,7 @@ pub async fn configure_provider_oauth(
         ))
     })?;
 
-    // Mark the provider as configured after successful OAuth
-    let config = goose::config::Config::global();
-    if let Some(mut entry) = goose::config::get_provider_entry(config, &provider_name) {
-        entry.configured = true;
-        goose::config::set_provider_entry(config, &provider_name, &entry)?;
-    } else {
-        let model = if goose::config::get_active_provider(config).as_deref()
-            == Some(provider_name.as_str())
-        {
-            config.get_goose_model().unwrap_or_default()
-        } else {
-            String::new()
-        };
-        goose::config::set_provider_entry(
-            config,
-            &provider_name,
-            &goose::config::ProviderEntry {
-                enabled: true,
-                model,
-                configured: true,
-            },
-        )?;
-    }
+    mark_provider_configured(goose::config::Config::global(), &provider_name)?;
 
     Ok(Json("OAuth configuration completed".to_string()))
 }
@@ -908,6 +1474,14 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/upsert", post(upsert_config))
         .route("/config/remove", post(remove_config))
         .route("/config/read", post(read_config))
+        .route("/config/provider-secrets", get(list_provider_secrets))
+        .route(
+            "/config/provider-secrets/{id}",
+            delete(delete_provider_secret),
+        )
+        .route("/config/extensions", get(get_extensions))
+        .route("/config/extensions", post(add_extension))
+        .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route(
@@ -947,4 +1521,281 @@ pub fn routes(state: Arc<AppState>) -> Router {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use goose::config::ProviderEntry;
+    use goose::providers::base::ConfigKey;
+    use serde_json::json;
+
+    fn new_test_config() -> Config {
+        let unique = format!(
+            "goose-server-config-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let config_path = std::env::temp_dir().join(format!("{unique}-config.yaml"));
+        let secrets_path = std::env::temp_dir().join(format!("{unique}-secrets.yaml"));
+        Config::new_with_file_secrets(config_path, secrets_path).unwrap()
+    }
+
+    #[test]
+    fn secret_store_listing_only_includes_provider_secret_keys() {
+        let metadata = ProviderMetadata::new(
+            "openai",
+            "OpenAI",
+            "OpenAI provider",
+            "gpt-4o",
+            vec![],
+            "https://example.com",
+            vec![
+                ConfigKey::new("OPENAI_API_KEY", true, true, None, true),
+                ConfigKey::new("OPENAI_HOST", false, false, None, false),
+            ],
+        );
+        let providers = vec![(metadata, ProviderType::Builtin)];
+        let stored_secrets = HashMap::from([
+            (
+                "OPENAI_API_KEY".to_string(),
+                Value::String("secret-value".to_string()),
+            ),
+            (
+                "UNRELATED_SECRET".to_string(),
+                Value::String("other-secret".to_string()),
+            ),
+            (
+                "OPENAI_HOST".to_string(),
+                Value::String("https://api.openai.com".to_string()),
+            ),
+        ]);
+
+        let secrets = build_secret_store_secrets(&stored_secrets, &providers);
+
+        assert_eq!(secrets.len(), 1);
+        assert_eq!(secrets[0].id, "secret_store:openai:OPENAI_API_KEY");
+        assert_eq!(secrets[0].provider_display_name, "OpenAI");
+        assert_eq!(secrets[0].name, "OPENAI_API_KEY");
+        assert_eq!(secrets[0].storage, ProviderSecretStorage::SecretStore);
+        assert_eq!(secrets[0].status, ProviderSecretStatus::Unknown);
+    }
+
+    #[test]
+    fn provider_secret_delete_validation_requires_provider_secret_key() {
+        let metadata = ProviderMetadata::new(
+            "openai",
+            "OpenAI",
+            "OpenAI provider",
+            "gpt-4o",
+            vec![],
+            "https://example.com",
+            vec![
+                ConfigKey::new("OPENAI_API_KEY", true, true, None, true),
+                ConfigKey::new("OPENAI_HOST", false, false, None, false),
+            ],
+        );
+        let providers = vec![(metadata, ProviderType::Builtin)];
+
+        assert!(is_known_provider_secret(
+            &providers,
+            "openai",
+            "OPENAI_API_KEY"
+        ));
+        assert!(!is_known_provider_secret(
+            &providers,
+            "openai",
+            "OPENAI_HOST"
+        ));
+        assert!(!is_known_provider_secret(
+            &providers,
+            "openai",
+            "UNRELATED_SECRET"
+        ));
+        assert!(!is_known_provider_secret(
+            &providers,
+            "anthropic",
+            "OPENAI_API_KEY"
+        ));
+    }
+
+    #[test]
+    fn expiry_extraction_handles_nested_rfc3339_values() {
+        let expires_at = Utc::now() + chrono::Duration::hours(1);
+        let value = json!({
+            "project_id": "project",
+            "token": {
+                "access_token": "secret",
+                "expires_at": expires_at.to_rfc3339(),
+            }
+        });
+
+        let parsed = find_expires_at(&value).expect("expected expiry");
+
+        assert_eq!(parsed.timestamp(), expires_at.timestamp());
+        assert_eq!(
+            provider_secret_status(Some(parsed)),
+            ProviderSecretStatus::Valid
+        );
+    }
+
+    #[test]
+    fn expiry_extraction_ignores_refreshable_access_tokens() {
+        let expires_at = Utc::now() - chrono::Duration::hours(1);
+        let value = json!({
+            "access_token": "access",
+            "refresh_token": "refresh",
+            "expires_at": expires_at.to_rfc3339(),
+        });
+
+        assert_eq!(find_expires_at(&value), None);
+    }
+
+    #[test]
+    fn expiry_extraction_handles_expired_unix_timestamps() {
+        let value = json!({
+            "info": {
+                "expires_at": 1
+            }
+        });
+
+        let parsed = find_expires_at(&value).expect("expected expiry");
+
+        assert_eq!(parsed.timestamp(), 1);
+        assert_eq!(
+            provider_secret_status(Some(parsed)),
+            ProviderSecretStatus::Expired
+        );
+    }
+
+    #[test]
+    fn provider_secret_ids_parse_expected_prefixes() {
+        assert_eq!(
+            parse_secret_store_id("secret_store:openai:OPENAI_API_KEY"),
+            Some(("openai", "OPENAI_API_KEY"))
+        );
+        assert_eq!(
+            parse_provider_cache_id("provider_cache:gemini_oauth"),
+            Some("gemini_oauth")
+        );
+        assert_eq!(parse_secret_store_id("provider_cache:openai"), None);
+        assert_eq!(parse_provider_cache_id("secret_store:openai:key"), None);
+    }
+
+    #[test]
+    fn shared_databricks_cache_is_displayed_once() {
+        let databricks_definitions: Vec<_> = provider_cache_definitions_for_display()
+            .into_iter()
+            .filter(|definition| definition.path == "databricks/oauth")
+            .collect();
+
+        assert_eq!(databricks_definitions.len(), 1);
+        assert_eq!(databricks_definitions[0].provider, "databricks");
+    }
+
+    #[test]
+    fn shared_databricks_cache_unconfigures_both_providers() {
+        assert_eq!(
+            provider_cache_providers_sharing_cache("databricks"),
+            vec!["databricks", "databricks_v2"]
+        );
+        assert_eq!(
+            provider_cache_providers_sharing_cache("databricks_v2"),
+            vec!["databricks", "databricks_v2"]
+        );
+    }
+
+    #[test]
+    fn unconfigure_provider_clears_structured_entry() {
+        let config = new_test_config();
+        goose::config::set_provider_entry(
+            &config,
+            "huggingface",
+            &ProviderEntry {
+                enabled: true,
+                model: "Qwen/Qwen3-Coder-480B-A35B-Instruct".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+
+        unconfigure_provider(&config, "huggingface").unwrap();
+
+        let entry = goose::config::get_provider_entry(&config, "huggingface").unwrap();
+        assert!(entry.enabled);
+        assert_eq!(entry.model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
+        assert!(!entry.configured);
+    }
+
+    #[test]
+    fn unconfigure_provider_deletes_legacy_configured_marker() {
+        let config = new_test_config();
+        config.set_param("huggingface_configured", true).unwrap();
+
+        unconfigure_provider(&config, "huggingface").unwrap();
+
+        assert!(config.get_param::<bool>("huggingface_configured").is_err());
+    }
+
+    #[test]
+    fn deleting_huggingface_token_unconfigures_without_oauth() {
+        assert!(should_unconfigure_after_secret_delete(
+            "huggingface",
+            "HF_TOKEN",
+            || false
+        ));
+    }
+
+    #[test]
+    fn deleting_huggingface_token_keeps_configured_with_oauth() {
+        assert!(!should_unconfigure_after_secret_delete(
+            "huggingface",
+            "HF_TOKEN",
+            || true
+        ));
+    }
+
+    #[test]
+    fn deleting_other_provider_secret_does_not_unconfigure_huggingface() {
+        assert!(!should_unconfigure_after_secret_delete(
+            "openai",
+            "OPENAI_API_KEY",
+            || false
+        ));
+    }
+
+    #[test]
+    fn huggingface_oauth_secret_is_permanent_without_token() {
+        let secret = build_huggingface_oauth_secret(None);
+
+        assert_eq!(secret.id, "provider_cache:huggingface");
+        assert_eq!(secret.provider_display_name, "Hugging Face");
+        assert_eq!(secret.name, "OAuth token");
+        assert_eq!(secret.storage, ProviderSecretStorage::ProviderCache);
+        assert_eq!(secret.status, ProviderSecretStatus::Unknown);
+        assert!(!secret.configured);
+        assert!(!secret.has_secret);
+        assert!(!secret.can_delete);
+        assert!(secret.can_configure);
+        assert_eq!(secret.configure_provider.as_deref(), Some("huggingface"));
+    }
+
+    #[test]
+    fn huggingface_oauth_secret_reports_cached_token_metadata() {
+        let expires_at = Utc::now() + chrono::Duration::hours(1);
+        let secret = build_huggingface_oauth_secret(Some(huggingface_auth::HuggingFaceTokenData {
+            access_token: "hidden".to_string(),
+            refresh_token: None,
+            expires_at: Some(expires_at),
+        }));
+
+        assert_eq!(
+            secret.expires_at.map(|value| value.timestamp()),
+            Some(expires_at.timestamp())
+        );
+        assert_eq!(secret.status, ProviderSecretStatus::Valid);
+        assert!(secret.configured);
+        assert!(secret.has_secret);
+        assert!(secret.can_delete);
+    }
+}

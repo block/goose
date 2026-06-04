@@ -761,6 +761,15 @@ export const zImportSessionResponse_unstable = z.object({
 });
 
 /**
+ * Submit a response for a pending MCP elicitation in an active session.
+ */
+export const zElicitationRespondRequest_unstable = z.object({
+    sessionId: z.string(),
+    elicitationId: z.string(),
+    userData: z.unknown().optional().default(null)
+});
+
+/**
  * Update the project association for a session.
  */
 export const zUpdateSessionProjectRequest_unstable = z.object({
@@ -1088,6 +1097,86 @@ export const zDictationModelSelectRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * Streaming context-window usage update for a session.
+ */
+export const zSessionUsageUpdate = z.object({
+    used: z.number().int().gte(0),
+    contextLimit: z.number().int().gte(0),
+    accumulatedInputTokens: z.number().int().gte(0),
+    accumulatedOutputTokens: z.number().int().gte(0),
+    accumulatedCost: z.union([
+        z.number(),
+        z.null()
+    ]).optional()
+});
+
+export const zStatusMessage = z.union([
+    z.object({
+        message: z.string(),
+        type: z.literal('notice')
+    }),
+    z.object({
+        message: z.string(),
+        type: z.literal('progress')
+    })
+]);
+
+/**
+ * Live UI/session status. This is not conversation transcript content, and
+ * should not be persisted or replayed as history.
+ */
+export const zStatusMessageUpdate = z.object({
+    status: zStatusMessage
+});
+
+export const zInteractionState = z.enum(['pending', 'submitted']);
+
+export const zInteraction = z.object({
+    id: z.string(),
+    state: zInteractionState,
+    message: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    requestedSchema: z.unknown().optional(),
+    type: z.literal('elicitation')
+});
+
+export const zInteractionUpdate = z.object({
+    interaction: zInteraction,
+    _meta: z.unknown().optional()
+});
+
+/**
+ * Discriminated union of goose-specific session update payloads.
+ * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
+ *
+ * `discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)
+ * emit the correct snake_case tag value even when this enum has a single
+ * variant. Add a mapping entry per variant.
+ */
+export const zGooseSessionUpdate = z.union([
+    z.object({
+        sessionUpdate: z.literal('usage_update')
+    }).and(zSessionUsageUpdate),
+    z.object({
+        sessionUpdate: z.literal('status_message')
+    }).and(zStatusMessageUpdate),
+    z.object({
+        sessionUpdate: z.literal('interaction_update')
+    }).and(zInteractionUpdate)
+]);
+
+/**
+ * Goose-custom session update notification — a parallel to ACP's
+ * `session/update` carrying goose-specific update variants.
+ */
+export const zGooseSessionNotification_unstable = z.object({
+    sessionId: z.string(),
+    update: zGooseSessionUpdate
+});
+
 export const zExtRequest = z.object({
     id: z.string(),
     method: z.string(),
@@ -1130,6 +1219,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zElicitationRespondRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
             zArchiveSessionRequest_unstable,
@@ -1210,3 +1300,14 @@ export const zExtResponse = z.union([
         id: z.string()
     })
 ]);
+
+export const zExtNotification = z.object({
+    method: z.string(),
+    params: z.union([
+        zGooseSessionNotification_unstable,
+        z.union([
+            z.record(z.unknown()),
+            z.null()
+        ])
+    ]).optional()
+});

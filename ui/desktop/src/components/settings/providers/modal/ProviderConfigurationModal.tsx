@@ -26,6 +26,7 @@ import {
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../../../i18n';
+import HuggingFaceSignInPrompt from '../../auth/HuggingFaceSignInPrompt';
 
 const i18n = defineMessages({
   deleteConfigHeader: {
@@ -114,6 +115,11 @@ const i18n = defineMessages({
     id: 'providerConfigurationModal.close',
     defaultMessage: 'Close',
   },
+  huggingFaceOAuthDescription: {
+    id: 'providerConfigurationModal.huggingFaceOAuthDescription',
+    defaultMessage:
+      'Sign in to use Hugging Face Inference Providers without manually entering an API token.',
+  },
 });
 
 /** Render a setup step string, turning `backtick` spans into <code> and newlines into <br/>. */
@@ -176,6 +182,7 @@ export default function ProviderConfigurationModal({
   const hasOAuth = provider.metadata.config_keys.some((key) => key.oauth_flow);
   const hasConfig = configKeys.length > 0;
   const hasDeviceCodeFlow = provider.metadata.config_keys.some((key) => key.device_code_flow);
+  const isHuggingFaceProvider = provider.name === 'huggingface';
 
   const isConfigured = provider.is_configured;
   const headerText = showDeleteConfirmation
@@ -419,6 +426,20 @@ export default function ProviderConfigurationModal({
                       },
                     }}
                     validationErrors={validationErrors}
+                  />
+                )}
+
+                {isHuggingFaceProvider && !hasOAuth && (
+                  <HuggingFaceSignInPrompt
+                    className="mb-4"
+                    description={intl.formatMessage(i18n.huggingFaceOAuthDescription)}
+                    onSignedIn={() => {
+                      if (onConfigured) {
+                        onConfigured(provider);
+                      } else {
+                        onClose();
+                      }
+                    }}
                   />
                 )}
 

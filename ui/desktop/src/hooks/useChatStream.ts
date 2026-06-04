@@ -748,7 +748,9 @@ export function useChatStream({
           },
         },
       });
-      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
+      );
       onSessionLoaded?.();
       return;
     }
@@ -776,7 +778,9 @@ export function useChatStream({
         const extensionResults = resumeData?.extension_results;
 
         showExtensionLoadResults(extensionResults);
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
+        );
 
         const pendingRequestId = pendingReattachRequestIdRef.current;
         const reattachedToActiveRequest = activeRequestIdRef.current !== null;
