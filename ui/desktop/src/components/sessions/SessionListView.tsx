@@ -1030,9 +1030,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 relative px-8">
+            <div className="flex-1 min-h-0 relative">
               <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
-                <div ref={containerRef} className="h-full relative">
+                <div ref={containerRef} className="h-full relative px-8">
                   <SearchView
                     onSearch={handleSearch}
                     onNavigate={handleSearchNavigation}
