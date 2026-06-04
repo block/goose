@@ -2,7 +2,6 @@ import {
   DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
   GooseClient,
   type Client,
-  type GooseInitializeRequest,
 } from '@aaif/goose-sdk';
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
 import packageJson from '../../package.json';
@@ -58,7 +57,7 @@ async function initializeConnection(): Promise<GooseClient> {
       name: packageJson.name,
       version: packageJson.version,
     },
-  } satisfies GooseInitializeRequest);
+  });
 
   monitorConnection(client);
   return client;
