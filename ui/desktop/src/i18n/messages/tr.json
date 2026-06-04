@@ -98,15 +98,6 @@
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "uzantıları ara..."
   },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "otomatik"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Otomatik mod seçimi"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Geçerli mod: {label} - {description}"
-  },
   "cardButtons.configure": {
     "defaultMessage": "Yapılandır"
   },
@@ -3841,9 +3832,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} mesajları"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Oturum paylaşımı zaten yapılandırılmış"
