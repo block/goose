@@ -4581,6 +4581,7 @@ dependencies = [
  "icu_calendar",
  "icu_locale",
  "ignore",
+ "image 0.24.9",
  "include_dir",
  "indexmap 2.14.0",
  "indoc",
