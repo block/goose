@@ -239,18 +239,16 @@ async function generateClient(meta: {
 
   const handlerFields: string[] = [];
   const dispatchCases: string[] = [];
-  const handlerKeys: string[] = [];
 
   for (const n of meta.notifications ?? []) {
     const handlerName = methodToHandlerName(n.method);
-    handlerKeys.push(handlerName);
     if (!n.paramsType) {
       handlerFields.push(
         `  ${handlerName}?: (params: Record<string, unknown>) => Promise<void>;`,
       );
       dispatchCases.push(
         `      case "${n.method}": {
-        await ${handlerName}?.(params);
+        await callbacks.${handlerName}?.(params);
         return;
       }`,
       );
@@ -265,16 +263,12 @@ async function generateClient(meta: {
     dispatchCases.push(
       `      case "${n.method}": {
         const parsed = ${zodName}.parse(params) as ${n.paramsType};
-        await ${handlerName}?.(parsed);
+        await callbacks.${handlerName}?.(parsed);
         return;
       }`,
     );
   }
 
-  const handlerDestructure =
-    handlerKeys.length > 0
-      ? `const { ${handlerKeys.join(", ")}, ...rest } = callbacks;`
-      : `const rest = callbacks;`;
   const handlersInterface = `export interface GooseExtNotifications {
 ${handlerFields.join("\n")}
 }`;
@@ -282,19 +276,26 @@ ${handlerFields.join("\n")}
   const dispatcherFn = `export function installGooseExtNotificationDispatcher(
   callbacks: GooseClientCallbacks,
 ): Client {
-  ${handlerDestructure}
-  const userExtNotification = rest.extNotification;
-  return {
-    ...rest,
+  const dispatcher: Pick<Client, "extNotification"> = {
     extNotification: async (method, params) => {
       switch (method) {
 ${dispatchCases.join("\n")}
         default:
-          await userExtNotification?.(method, params);
+          await callbacks.extNotification?.(method, params);
           return;
       }
     },
   };
+  return new Proxy(callbacks, {
+    get(target, property) {
+      if (property === "extNotification") {
+        return dispatcher.extNotification;
+      }
+
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Client;
 }`;
 
   const upstreamImportLine = `import type { ${[...upstreamTypeImports].sort().join(", ")} } from "@agentclientprotocol/sdk";`;
@@ -322,7 +323,10 @@ ${methodDefs.join("\n")}
 
 ${handlersInterface}
 
-export type GooseClientCallbacks = Client & GooseExtNotifications;
+export type GooseClientCallbacks =
+  Omit<Client, "extNotification"> &
+  Partial<Pick<Client, "extNotification">> &
+  GooseExtNotifications;
 
 ${dispatcherFn}
 `;
