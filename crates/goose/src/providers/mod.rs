@@ -11,7 +11,10 @@ pub mod bedrock;
 pub mod canonical {
     pub use goose_providers::canonical::*;
 }
-pub mod catalog;
+mod catalog_util;
+pub mod catalog {
+    pub use super::catalog_util::*;
+}
 pub mod chatgpt_codex;
 pub mod claude_acp;
 pub mod claude_code;
