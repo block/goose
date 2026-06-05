@@ -1,4 +1,5 @@
 use super::*;
+use crate::providers::inventory::ensure_refresh_identity_current;
 
 impl HandleDispatchFrom<Client> for GooseAcpHandler {
     fn describe_chain(&self) -> impl std::fmt::Debug {
@@ -16,6 +17,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
         // The MatchDispatchFrom chain produces an ~85KB async state machine.
         // Box::pin moves it to the heap so it doesn't overflow the tokio worker stack.
         Box::pin(async move {
+            // Capture the connection handle so handlers can lazily activate
+            // sessions that exist on disk but were never activated via
+            // new_session/load_session on this connection. Set-once per
+            // connection; the result is ignored on later requests.
+            let _ = agent.client_cx.set(cx.clone());
+
             // InitializeRequest runs inline: it sets connection-scoped state
             // (client fs/terminal capabilities) that later handlers read with
             // defaults, so a pipelined NewSessionRequest must not race ahead of it.
@@ -86,6 +93,19 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     let agent = agent.clone();
                     agent.on_cancel(notif).await?;
                     Ok(())
+                })
+                .await
+                .if_request({
+                    let agent = agent.clone();
+                    let cx = cx.clone();
+                    |req: ElicitationRespondRequest, responder: Responder<EmptyResponse>| async move {
+                        let cx_spawn = cx.clone();
+                        cx.spawn(async move {
+                            responder.respond_with_result(agent.on_elicitation_respond(&cx_spawn, req).await)?;
+                            Ok(())
+                        })?;
+                        Ok(())
+                    }
                 })
                 .await
                 // set_config_option (SACP 11) and legacy set_mode/set_model; custom _goose/* in otherwise.
