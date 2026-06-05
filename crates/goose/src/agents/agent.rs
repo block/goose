@@ -361,7 +361,10 @@ impl Agent {
                 permission_manager,
                 provider.clone(),
             ),
-            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            hook_manager: crate::hooks::HookManager::load(
+                std::env::current_dir().ok().as_deref(),
+                use_login_shell_path,
+            ),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
