@@ -37,6 +37,8 @@
     "build:native:all": "tsx scripts/build-native.ts --all",
     "generate": "tsx generate-schema.ts",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "format": "prettier --write src/",
     "check:compat": "node scripts/check-binary-compat.mjs"
   },

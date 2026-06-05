@@ -96,7 +96,11 @@ impl GooseAcpAgent {
             meta.insert("extensionResults".to_string(), extension_results);
             response = response.meta(meta);
         }
-        super::send_session_setup_notifications(cx, &goose_session)?;
+        super::send_session_setup_notifications(
+            cx,
+            &goose_session,
+            self.supports_goose_custom_notifications(),
+        )?;
         debug!(
             target: "perf",
             sid = %sid,
