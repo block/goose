@@ -748,28 +748,37 @@ export interface GooseExtNotifications {
   ) => Promise<void>;
 }
 
-export type GooseClientCallbacks = Client & GooseExtNotifications;
+export type GooseClientCallbacks = Omit<Client, "extNotification"> &
+  Partial<Pick<Client, "extNotification">> &
+  GooseExtNotifications;
 
 export function installGooseExtNotificationDispatcher(
   callbacks: GooseClientCallbacks,
 ): Client {
-  const { unstable_sessionUpdate, ...rest } = callbacks;
-  const userExtNotification = rest.extNotification;
-  return {
-    ...rest,
+  const dispatcher: Pick<Client, "extNotification"> = {
     extNotification: async (method, params) => {
       switch (method) {
         case "_goose/unstable/session/update": {
           const parsed = zGooseSessionNotification_unstable.parse(
             params,
           ) as GooseSessionNotification_unstable;
-          await unstable_sessionUpdate?.(parsed);
+          await callbacks.unstable_sessionUpdate?.(parsed);
           return;
         }
         default:
-          await userExtNotification?.(method, params);
+          await callbacks.extNotification?.(method, params);
           return;
       }
     },
   };
+  return new Proxy(callbacks, {
+    get(target, property) {
+      if (property === "extNotification") {
+        return dispatcher.extNotification;
+      }
+
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Client;
 }

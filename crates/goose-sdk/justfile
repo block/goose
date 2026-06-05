@@ -1,0 +1,38 @@
+set shell := ["bash", "-cu"]
+set working-directory := '../..'
+
+lib_ext := if os() == "macos" { "dylib" } else if os() == "windows" { "dll" } else { "so" }
+lib_dir := "./target/debug"
+lib_path := lib_dir / "libgoose_sdk." + lib_ext
+bindgen := "./target/debug/goose-uniffi-bindgen"
+config := "./crates/goose-sdk/uniffi.toml"
+gen_dir := "./crates/goose-sdk/generated"
+examples_dir := "./crates/goose-sdk/examples/uniffi"
+
+default:
+    @just --list --justfile {{justfile()}}
+
+_build:
+    cargo build -p goose-sdk --features uniffi -q
+
+_generate lang: _build
+    {{bindgen}} generate --library {{lib_path}} --config {{config}} --language {{lang}} --no-format --out-dir {{gen_dir}} 2>/dev/null
+    cp {{lib_path}} {{gen_dir}}/
+    touch {{gen_dir}}/__init__.py
+
+python: (_generate "python")
+    DYLD_LIBRARY_PATH={{lib_dir}} LD_LIBRARY_PATH={{lib_dir}} \
+        python3 {{examples_dir}}/ping.py
+
+kotlin: (_generate "kotlin")
+    @if [ ! -f {{examples_dir}}/jna.jar ]; then \
+        curl -sSL -o {{examples_dir}}/jna.jar \
+            https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar; \
+    fi
+    kotlinc -cp {{examples_dir}}/jna.jar -nowarn \
+        {{gen_dir}}/aaif/goose/aaif_goose.kt \
+        {{examples_dir}}/Ping.kt \
+        -include-runtime -d {{examples_dir}}/ping.jar 2>/dev/null
+    java -Djna.library.path={{lib_dir}} \
+        --enable-native-access=ALL-UNNAMED \
+        -cp {{examples_dir}}/ping.jar:{{examples_dir}}/jna.jar aaif.example.PingKt
