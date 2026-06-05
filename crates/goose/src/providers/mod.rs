@@ -5,10 +5,7 @@ pub mod api_client;
 pub mod avian;
 pub mod azure;
 pub mod azureauth;
-pub mod base {
-    pub use super::provider_def::ProviderDef;
-    pub use goose_providers::base::*;
-}
+pub mod base;
 #[cfg(feature = "aws-providers")]
 pub mod bedrock;
 pub mod canonical {
@@ -58,9 +55,7 @@ pub mod pi_acp;
 mod provider_def;
 pub mod provider_registry;
 pub mod provider_test;
-pub mod retry {
-    pub use goose_providers::retry::*;
-}
+pub mod retry;
 pub mod runtime;
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;

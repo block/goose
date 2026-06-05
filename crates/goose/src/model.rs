@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use serde::de::{DeserializeOwned, Deserializer};
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -7,8 +7,6 @@ use std::fmt;
 use std::str::FromStr;
 use thiserror::Error;
 use utoipa::ToSchema;
-
-use crate::config::ProviderConfigError;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
@@ -86,21 +84,6 @@ pub enum ConfigError {
 }
 
 pub use ConfigError as ModelConfigError;
-
-struct ProviderConfigReader;
-
-impl ProviderConfigReader {
-    fn get_param<T: DeserializeOwned>(&self, key: &str) -> Result<T, ProviderConfigError> {
-        get_provider_param(key)
-    }
-}
-
-fn get_provider_param<T: DeserializeOwned>(key: &str) -> Result<T, ProviderConfigError> {
-    let value = std::env::var(key.to_uppercase())
-        .map_err(|_| ProviderConfigError::NotFound(key.to_string()))?;
-    let value = serde_json::from_str(&value).unwrap_or(Value::String(value));
-    serde_json::from_value(value).map_err(|e| ProviderConfigError::Deserialize(e.to_string()))
-}
 
 #[derive(Debug, Clone, Default, Serialize, ToSchema)]
 pub struct ModelConfig {
@@ -184,7 +167,7 @@ impl ModelConfig {
                 None
             }
         } else {
-            match get_provider_param::<usize>("GOOSE_CONTEXT_LIMIT") {
+            match crate::config::Config::global().get_param::<usize>("GOOSE_CONTEXT_LIMIT") {
                 Ok(limit) => {
                     if limit == 0 {
                         return Err(ConfigError::InvalidRange(
@@ -194,7 +177,7 @@ impl ModelConfig {
                     }
                     Some(limit)
                 }
-                Err(ProviderConfigError::NotFound(_)) => None,
+                Err(crate::config::ConfigError::NotFound(_)) => None,
                 Err(e) => {
                     return Err(ConfigError::InvalidValue(
                         "GOOSE_CONTEXT_LIMIT".to_string(),
@@ -241,16 +224,16 @@ impl ModelConfig {
         // to the name with reasoning-effort suffixes stripped (e.g.
         // "databricks-gpt-5.4-high" → "databricks-gpt-5.4").
         let canonical =
-            crate::canonical::maybe_get_canonical_model(provider_name, &self.model_name).or_else(
-                || {
-                    let (base, _effort) = crate::utils::extract_reasoning_effort(&self.model_name);
+            crate::providers::canonical::maybe_get_canonical_model(provider_name, &self.model_name)
+                .or_else(|| {
+                    let (base, _effort) =
+                        crate::providers::utils::extract_reasoning_effort(&self.model_name);
                     if base != self.model_name {
-                        crate::canonical::maybe_get_canonical_model(provider_name, &base)
+                        crate::providers::canonical::maybe_get_canonical_model(provider_name, &base)
                     } else {
                         None
                     }
-                },
-            );
+                });
 
         if let Some(canonical) = canonical {
             if self.context_limit.is_none() {
@@ -312,7 +295,7 @@ impl ModelConfig {
     }
 
     fn parse_max_tokens() -> Result<Option<i32>, ConfigError> {
-        match get_provider_param::<i32>("GOOSE_MAX_TOKENS") {
+        match crate::config::Config::global().get_param::<i32>("GOOSE_MAX_TOKENS") {
             Ok(tokens) => {
                 if tokens <= 0 {
                     return Err(ConfigError::InvalidRange(
@@ -322,7 +305,7 @@ impl ModelConfig {
                 }
                 Ok(Some(tokens))
             }
-            Err(ProviderConfigError::NotFound(_)) => Ok(None),
+            Err(crate::config::ConfigError::NotFound(_)) => Ok(None),
             Err(e) => Err(ConfigError::InvalidValue(
                 "goose_max_tokens".to_string(),
                 String::new(),
@@ -428,7 +411,7 @@ impl ModelConfig {
     }
 
     pub fn is_openai_reasoning_model(&self) -> bool {
-        crate::utils::is_openai_responses_model(&self.model_name)
+        crate::providers::utils::is_openai_responses_model(&self.model_name)
     }
 
     pub fn is_reasoning_model(&self) -> bool {
@@ -493,7 +476,7 @@ impl ModelConfig {
     }
 
     fn legacy_thinking_effort() -> Option<ThinkingEffort> {
-        let config = ProviderConfigReader;
+        let config = crate::config::Config::global();
 
         if let Ok(value) = config.get_param::<String>("CLAUDE_THINKING_TYPE") {
             if let Some(effort) = match value.to_lowercase().as_str() {
@@ -539,7 +522,11 @@ impl ModelConfig {
             .as_ref()
             .and_then(|params| params.get(request_key))
             .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .or_else(|| ProviderConfigReader.get_param::<T>(config_key).ok())
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param::<T>(config_key)
+                    .ok()
+            })
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {

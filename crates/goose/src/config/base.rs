@@ -198,7 +198,10 @@ impl Default for Config {
     }
 }
 
-pub use goose_providers::base::ConfigValue;
+pub trait ConfigValue {
+    const KEY: &'static str;
+    const DEFAULT: &'static str;
+}
 
 macro_rules! config_value {
     ($key:ident, $type:ty) => {

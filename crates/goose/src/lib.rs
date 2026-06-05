@@ -25,9 +25,7 @@ pub mod logging;
 pub mod mcp_utils {
     pub use goose_providers::mcp_utils::*;
 }
-pub mod model {
-    pub use goose_providers::model::*;
-}
+pub mod model;
 pub mod oauth;
 #[cfg(feature = "otel")]
 pub mod otel;
