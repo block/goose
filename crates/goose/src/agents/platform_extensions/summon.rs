@@ -1453,7 +1453,7 @@ impl SummonClient {
         params: &DelegateParams,
         recipe: &Recipe,
         session: &crate::session::Session,
-    ) -> Result<Arc<dyn crate::providers::mode::GooseProvider>, anyhow::Error> {
+    ) -> Result<Arc<dyn crate::providers::base::Provider>, anyhow::Error> {
         let provider_name = params
             .provider
             .clone()

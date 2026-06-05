@@ -159,7 +159,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                     let refresh_provider_id = refresh_job.provider_id;
                                     let mut refresh_guard =
                                         agent_bg.provider_inventory.refresh_guard(&refresh_identity);
-                                    let provider_result: Result<Arc<dyn GooseProvider>> =
+                                    let provider_result: Result<Arc<dyn Provider>> =
                                         AssertUnwindSafe(async {
                                             let session_agent =
                                                 agent_bg.get_session_agent(&session_id_bg.0, None).await?;

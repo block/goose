@@ -1,6 +1,4 @@
-pub mod permission_confirmation {
-    pub use goose_providers::permission::*;
-}
+pub mod permission_confirmation;
 pub mod permission_inspector;
 pub mod permission_judge;
 pub mod permission_store;

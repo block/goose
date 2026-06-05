@@ -83,8 +83,6 @@ pub enum ConfigError {
     InvalidRange(String, String),
 }
 
-pub use ConfigError as ModelConfigError;
-
 #[derive(Debug, Clone, Default, Serialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,

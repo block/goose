@@ -676,6 +676,19 @@ impl Provider for ClaudeCodeProvider {
         Ok(extract_model_aliases(response.ok().flatten().as_ref()))
     }
 
+    async fn update_mode(&self, _session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
+        // Mode is baked into the subprocess at spawn; claude-acp replaces
+        // this provider (#7801).
+        let mut guard = self.initial_mode.lock().await;
+        let current = *guard.get_or_insert(mode);
+        if current != mode {
+            return Err(ProviderError::RequestFailed(format!(
+                "Mode change not supported: session is {current}, requested {mode}",
+            )));
+        }
+        Ok(())
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }
@@ -918,22 +931,6 @@ impl Provider for ClaudeCodeProvider {
             let provider_usage = ProviderUsage::new(model_name, accumulated_usage);
             yield (None, Some(provider_usage));
         }))
-    }
-}
-
-#[async_trait]
-impl crate::providers::mode::GooseProvider for ClaudeCodeProvider {
-    async fn update_mode(&self, _session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        // Mode is baked into the subprocess at spawn; claude-acp replaces
-        // this provider (#7801).
-        let mut guard = self.initial_mode.lock().await;
-        let current = *guard.get_or_insert(mode);
-        if current != mode {
-            return Err(ProviderError::RequestFailed(format!(
-                "Mode change not supported: session is {current}, requested {mode}",
-            )));
-        }
-        Ok(())
     }
 }
 

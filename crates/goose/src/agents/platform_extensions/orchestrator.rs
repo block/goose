@@ -7,7 +7,7 @@ use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::Message;
 use crate::execution::manager::AgentManager;
 use crate::providers;
-use crate::providers::mode::GooseProvider;
+use crate::providers::base::Provider;
 use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::session_manager::SessionType;
 use anyhow::Result;
@@ -126,7 +126,7 @@ impl OrchestratorClient {
             .map_err(|e| format!("Failed to get agent manager: {}", e))
     }
 
-    async fn get_provider(&self) -> Result<Arc<dyn GooseProvider>, String> {
+    async fn get_provider(&self) -> Result<Arc<dyn Provider>, String> {
         let extension_manager = self
             .context
             .extension_manager

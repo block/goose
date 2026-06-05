@@ -738,6 +738,8 @@ mod tests {
         )
         .transient_only();
 
+        assert!(config.transient_only);
+
         use super::super::errors::ProviderError;
         use super::super::retry::should_retry;
 

@@ -42,9 +42,8 @@ use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::PermissionRouting;
+use crate::providers::base::{PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
-use crate::providers::mode::GooseProvider;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
@@ -760,7 +759,7 @@ impl Agent {
     }
 
     /// Get a reference count clone to the provider
-    pub async fn provider(&self) -> Result<Arc<dyn GooseProvider>, anyhow::Error> {
+    pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
         match &*self.provider.lock().await {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
@@ -2449,7 +2448,7 @@ impl Agent {
 
     pub async fn update_provider(
         &self,
-        provider: Arc<dyn GooseProvider>,
+        provider: Arc<dyn Provider>,
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
@@ -2953,9 +2952,6 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl crate::providers::mode::GooseProvider for ActionRequiredProvider {}
-
-    #[async_trait::async_trait]
     impl crate::providers::base::Provider for ActionRequiredProvider {
         fn get_name(&self) -> &str {
             "test-action-required"
@@ -2995,7 +2991,7 @@ mod tests {
         let agent = Agent::new();
         let provider = Arc::new(ActionRequiredProvider::new());
         *agent.provider.lock().await =
-            Some(provider.clone() as Arc<dyn crate::providers::mode::GooseProvider>);
+            Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
 
         // Known request_id → provider handles it, confirmation_router NOT called
         agent
@@ -3143,9 +3139,6 @@ exit 0
             self.call_count.load(Ordering::SeqCst)
         }
     }
-
-    #[async_trait::async_trait]
-    impl crate::providers::mode::GooseProvider for CountingTextProvider {}
 
     #[async_trait::async_trait]
     impl crate::providers::base::Provider for CountingTextProvider {

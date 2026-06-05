@@ -11,7 +11,6 @@ use goose::providers::base::{
     ProviderUsage, Usage,
 };
 use goose::providers::errors::ProviderError;
-use goose::providers::mode::GooseProvider;
 use goose::session::session_manager::SessionType;
 use goose::session::Session;
 use rmcp::model::Tool;
@@ -96,9 +95,6 @@ impl MockCompactionProvider {
         }
     }
 }
-
-#[async_trait]
-impl GooseProvider for MockCompactionProvider {}
 
 #[async_trait]
 impl Provider for MockCompactionProvider {

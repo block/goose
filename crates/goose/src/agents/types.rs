@@ -1,5 +1,5 @@
 use crate::mcp_utils::ToolResult;
-use crate::providers::mode::GooseProvider;
+use crate::providers::base::Provider;
 use rmcp::model::{CallToolResult, Tool};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use utoipa::ToSchema;
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<CallToolResult>)>>>;
 
 // We use double Arc here to allow easy provider swaps while sharing concurrent access
-pub type SharedProvider = Arc<Mutex<Option<Arc<dyn GooseProvider>>>>;
+pub type SharedProvider = Arc<Mutex<Option<Arc<dyn Provider>>>>;
 
 /// Default timeout for retry operations (5 minutes)
 pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;

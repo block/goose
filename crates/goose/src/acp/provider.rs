@@ -386,6 +386,29 @@ impl Provider for AcpProvider {
         model
     }
 
+    async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
+        let mode_str = self
+            .mode_mapping
+            .get(&mode)
+            .cloned()
+            .unwrap_or_else(|| format!("{mode:?}"));
+
+        if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
+            self.send_set_config_option(session_id, "mode".into(), mode_str)
+                .await
+                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
+        } else {
+            self.send_set_mode(session_id, mode_str)
+                .await
+                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
+        }
+
+        if let Ok(mut guard) = self.goose_mode.lock() {
+            *guard = mode;
+        }
+        Ok(())
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }
@@ -600,32 +623,6 @@ impl Provider for AcpProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let (_, available) = resolve_model_info(&self.name, &self.session.response)?;
         Ok(available)
-    }
-}
-
-#[async_trait::async_trait]
-impl crate::providers::mode::GooseProvider for AcpProvider {
-    async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        let mode_str = self
-            .mode_mapping
-            .get(&mode)
-            .cloned()
-            .unwrap_or_else(|| format!("{mode:?}"));
-
-        if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
-            self.send_set_config_option(session_id, "mode".into(), mode_str)
-                .await
-                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
-        } else {
-            self.send_set_mode(session_id, mode_str)
-                .await
-                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
-        }
-
-        if let Ok(mut guard) = self.goose_mode.lock() {
-            *guard = mode;
-        }
-        Ok(())
     }
 }
 

@@ -247,7 +247,10 @@ where
         .await?;
 
     agent
-        .update_provider(provider_arc.clone(), &session.id)
+        .update_provider(
+            provider_arc as Arc<dyn goose::providers::base::Provider>,
+            &session.id,
+        )
         .await?;
 
     let mut cli_session = CliSession::new(

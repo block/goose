@@ -283,7 +283,7 @@ impl GcpVertexAIProvider {
         let mut rate_limit_attempts = 0;
         let mut overloaded_attempts = 0;
         let mut last_error = None;
-        let max_retries = self.retry_config.max_retries();
+        let max_retries = self.retry_config.max_retries;
 
         loop {
             if rate_limit_attempts > max_retries && overloaded_attempts > max_retries {

@@ -17,7 +17,7 @@ use goose::builtin_extension::register_builtin_extensions;
 use goose::config::paths::Paths;
 use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
-use goose::providers::mode::GooseProvider;
+use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
 use goose::session_context::SESSION_ID_HEADER;
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
@@ -182,7 +182,7 @@ pub async fn spawn_acp_server_in_process(
                         ApiAuthMethod::BearerToken("test-key".to_string()),
                     )
                     .unwrap();
-                    let provider: Arc<dyn GooseProvider> =
+                    let provider: Arc<dyn Provider> =
                         Arc::new(OpenAiProvider::new(api_client, model_config));
                     Ok(provider)
                 })

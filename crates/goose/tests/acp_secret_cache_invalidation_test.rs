@@ -10,7 +10,6 @@ use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
 use goose::providers::errors::ProviderError;
 use goose::providers::inventory::ProviderInventoryService;
-use goose::providers::mode::GooseProvider;
 use goose::session::session_manager::SessionStorage;
 use goose_test_support::EnforceSessionId;
 use serial_test::serial;
@@ -20,9 +19,6 @@ struct MockProvider {
     name: String,
     model_config: ModelConfig,
 }
-
-#[async_trait::async_trait]
-impl GooseProvider for MockProvider {}
 
 #[async_trait::async_trait]
 impl Provider for MockProvider {
@@ -56,7 +52,7 @@ fn mock_provider_factory() -> goose::acp::server::AcpProviderFactory {
             Ok(Arc::new(MockProvider {
                 name: provider_name,
                 model_config,
-            }) as Arc<dyn GooseProvider>)
+            }) as Arc<dyn Provider>)
         })
     })
 }

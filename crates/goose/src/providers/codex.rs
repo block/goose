@@ -56,7 +56,7 @@ pub struct CodexProvider {
     /// CLI config overrides for MCP servers
     mcp_config_overrides: Vec<String>,
     #[serde(skip)]
-    pub(crate) mode_by_session: tokio::sync::RwLock<HashMap<String, GooseMode>>,
+    mode_by_session: tokio::sync::RwLock<HashMap<String, GooseMode>>,
 }
 
 impl CodexProvider {
@@ -740,19 +740,16 @@ impl Provider for CodexProvider {
         ))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
-    }
-}
-
-#[async_trait]
-impl crate::providers::mode::GooseProvider for CodexProvider {
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
         self.mode_by_session
             .write()
             .await
             .insert(session_id.to_string(), mode);
         Ok(())
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 }
 

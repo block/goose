@@ -22,7 +22,7 @@ pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
-    default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::mode::GooseProvider>>>>,
+    default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
     default_mode: GooseMode,
     cancel_tokens: Arc<RwLock<HashMap<String, CancellationToken>>>,
     /// Per-session creation locks.  When `get_or_create_agent` misses the
@@ -93,10 +93,7 @@ impl AgentManager {
         &self.session_manager
     }
 
-    pub async fn set_default_provider(
-        &self,
-        provider: Arc<dyn crate::providers::mode::GooseProvider>,
-    ) {
+    pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
         debug!("Setting default provider on AgentManager");
         *self.default_provider.write().await = Some(provider);
     }
@@ -547,6 +544,82 @@ mod tests {
         assert!(
             manager.creation_locks.lock().await.is_empty(),
             "remove_session must prune the creation lock for the removed session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_failed_creation_prunes_creation_lock() {
+        // Regression test for the Codex review note on PR #9357: when the
+        // provider-setup path in `create_agent_locked` returns Err, the
+        // outer `get_or_create_agent` must also drop its local Arc clone
+        // of the creation lock before pruning.  Otherwise
+        // `Arc::strong_count` stays > 1 and the failed session leaks a
+        // permanent entry in `creation_locks`.
+        use async_trait::async_trait;
+        use rmcp::model::Tool;
+
+        use crate::conversation::message::Message;
+        use crate::model::ModelConfig;
+        use crate::providers::base::{MessageStream, Provider, ProviderUsage, Usage};
+        use crate::providers::errors::ProviderError;
+
+        struct FailingProvider;
+
+        #[async_trait]
+        impl Provider for FailingProvider {
+            fn get_name(&self) -> &str {
+                "failing-test-provider"
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new_or_fail("test-model")
+            }
+
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> std::result::Result<MessageStream, ProviderError> {
+                Ok(crate::providers::base::stream_from_single_message(
+                    Message::assistant().with_text("unused"),
+                    ProviderUsage::new("failing-test-provider".into(), Usage::default()),
+                ))
+            }
+
+            async fn update_mode(
+                &self,
+                _session_id: &str,
+                _mode: GooseMode,
+            ) -> std::result::Result<(), ProviderError> {
+                Err(ProviderError::ExecutionError(
+                    "intentional failure for test".into(),
+                ))
+            }
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        manager
+            .set_default_provider(Arc::new(FailingProvider))
+            .await;
+
+        let session_id = String::from("failed-creation-test");
+        let result = manager.get_or_create_agent(session_id.clone()).await;
+
+        assert!(
+            result.is_err(),
+            "expected provider mode-update failure to propagate"
+        );
+        assert!(
+            manager.creation_locks.lock().await.is_empty(),
+            "creation_locks must be empty after a failed agent creation"
+        );
+        assert!(
+            !manager.has_session(&session_id).await,
+            "failed creation must not insert into the LRU cache"
         );
     }
 

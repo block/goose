@@ -1,6 +1,6 @@
 use crate::agents::ExtensionConfig;
 use crate::config::Config;
-use crate::providers::mode::GooseProvider;
+use crate::providers::base::Provider;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -11,7 +11,7 @@ pub const DEFAULT_SUBAGENT_MAX_TURNS: usize = 25;
 /// Configuration for task execution with all necessary dependencies
 #[derive(Clone)]
 pub struct TaskConfig {
-    pub provider: Arc<dyn GooseProvider>,
+    pub provider: Arc<dyn Provider>,
     pub parent_session_id: String,
     pub parent_working_dir: PathBuf,
     pub extensions: Vec<ExtensionConfig>,
@@ -32,7 +32,7 @@ impl fmt::Debug for TaskConfig {
 
 impl TaskConfig {
     pub fn new(
-        provider: Arc<dyn GooseProvider>,
+        provider: Arc<dyn Provider>,
         parent_session_id: &str,
         parent_working_dir: &Path,
         extensions: Vec<ExtensionConfig>,

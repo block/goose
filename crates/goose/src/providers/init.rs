@@ -8,18 +8,38 @@ use super::local_inference::LocalInferenceProvider;
 #[cfg(feature = "aws-providers")]
 use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
-    amp_acp::AmpAcpProvider, anthropic::AnthropicProvider, avian::AvianProvider,
-    azure::AzureProvider, base::ProviderMetadata, chatgpt_codex::ChatGptCodexProvider,
-    claude_acp::ClaudeAcpProvider, claude_code::ClaudeCodeProvider, codex::CodexProvider,
-    codex_acp::CodexAcpProvider, copilot_acp::CopilotAcpProvider,
-    cursor_agent::CursorAgentProvider, databricks::DatabricksProvider,
-    databricks_v2::DatabricksV2Provider, gcpvertexai::GcpVertexAIProvider,
-    gemini_cli::GeminiCliProvider, gemini_oauth::GeminiOAuthProvider,
-    githubcopilot::GithubCopilotProvider, google::GoogleProvider, huggingface::HuggingFaceProvider,
-    kimicode::KimiCodeProvider, litellm::LiteLLMProvider, nanogpt::NanoGptProvider,
-    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
-    pi_acp::PiAcpProvider, provider_registry::ProviderRegistry, snowflake::SnowflakeProvider,
-    tetrate::TetrateProvider, xai::XaiProvider, xai_oauth::XaiOAuthProvider,
+    amp_acp::AmpAcpProvider,
+    anthropic::AnthropicProvider,
+    avian::AvianProvider,
+    azure::AzureProvider,
+    base::{Provider, ProviderMetadata},
+    chatgpt_codex::ChatGptCodexProvider,
+    claude_acp::ClaudeAcpProvider,
+    claude_code::ClaudeCodeProvider,
+    codex::CodexProvider,
+    codex_acp::CodexAcpProvider,
+    copilot_acp::CopilotAcpProvider,
+    cursor_agent::CursorAgentProvider,
+    databricks::DatabricksProvider,
+    databricks_v2::DatabricksV2Provider,
+    gcpvertexai::GcpVertexAIProvider,
+    gemini_cli::GeminiCliProvider,
+    gemini_oauth::GeminiOAuthProvider,
+    githubcopilot::GithubCopilotProvider,
+    google::GoogleProvider,
+    huggingface::HuggingFaceProvider,
+    kimicode::KimiCodeProvider,
+    litellm::LiteLLMProvider,
+    nanogpt::NanoGptProvider,
+    ollama::OllamaProvider,
+    openai::OpenAiProvider,
+    openrouter::OpenRouterProvider,
+    pi_acp::PiAcpProvider,
+    provider_registry::ProviderRegistry,
+    snowflake::SnowflakeProvider,
+    tetrate::TetrateProvider,
+    xai::XaiProvider,
+    xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
@@ -158,7 +178,7 @@ pub async fn create(
     name: &str,
     model: ModelConfig,
     extensions: Vec<ExtensionConfig>,
-) -> Result<Arc<dyn super::mode::GooseProvider>> {
+) -> Result<Arc<dyn Provider>> {
     let entry = get_from_registry(name).await?;
     entry.create(model, extensions).await
 }
@@ -168,7 +188,7 @@ pub async fn create_with_working_dir(
     model: ModelConfig,
     extensions: Vec<ExtensionConfig>,
     working_dir: PathBuf,
-) -> Result<Arc<dyn super::mode::GooseProvider>> {
+) -> Result<Arc<dyn Provider>> {
     let entry = get_from_registry(name).await?;
     entry
         .create_with_working_dir(model, extensions, working_dir)
@@ -178,7 +198,7 @@ pub async fn create_with_working_dir(
 pub async fn create_with_default_model(
     name: impl AsRef<str>,
     extensions: Vec<ExtensionConfig>,
-) -> Result<Arc<dyn super::mode::GooseProvider>> {
+) -> Result<Arc<dyn Provider>> {
     get_from_registry(name.as_ref())
         .await?
         .create_with_default_model(extensions)
@@ -203,7 +223,7 @@ pub async fn create_with_named_model(
     provider_name: &str,
     model_name: &str,
     extensions: Vec<ExtensionConfig>,
-) -> Result<Arc<dyn super::mode::GooseProvider>> {
+) -> Result<Arc<dyn Provider>> {
     let config = ModelConfig::new(model_name)?;
     create(provider_name, config, extensions).await
 }

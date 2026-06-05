@@ -24,9 +24,7 @@ pub mod databricks;
 pub mod databricks_auth;
 pub mod databricks_v2;
 pub mod embedding;
-pub mod errors {
-    pub use goose_providers::errors::*;
-}
+pub mod errors;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
@@ -43,7 +41,6 @@ pub mod kimicode;
 pub mod litellm;
 #[cfg(feature = "local-inference")]
 pub mod local_inference;
-pub mod mode;
 pub mod nanogpt;
 pub mod oauth;
 pub mod oauth_device_flow;
@@ -52,11 +49,9 @@ pub mod openai;
 pub mod openai_compatible;
 pub mod openrouter;
 pub mod pi_acp;
-mod provider_def;
 pub mod provider_registry;
 pub mod provider_test;
-pub mod retry;
-pub mod runtime;
+mod retry;
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
 pub mod snowflake;

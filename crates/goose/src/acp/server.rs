@@ -16,11 +16,11 @@ use crate::conversation::message::{ActionRequiredData, Message, MessageContent, 
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
+use crate::providers::base::Provider;
 use crate::providers::inventory::{
     InventoryIdentity, ProviderInventoryEntry, ProviderInventoryService, RefreshJobPlan,
     RefreshPlan, RefreshSkipReason,
 };
-use crate::providers::mode::GooseProvider;
 use crate::session::session_manager::{SessionListCursor, SessionType};
 use crate::session::{EnabledExtensionsState, Session, SessionManager};
 use crate::source_roots::SourceRoot;
@@ -90,7 +90,7 @@ pub type AcpProviderFactory = Arc<
             crate::model::ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
-        ) -> BoxFuture<'static, Result<Arc<dyn GooseProvider>>>
+        ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
 >;
@@ -223,7 +223,7 @@ struct AgentSetupRequest {
     /// When present the spawn skips re-deriving these from config.
     resolved_provider: Option<(String, crate::model::ModelConfig)>,
     /// Pre-instantiated provider reused from synchronous session initialization.
-    prebuilt_provider: Option<Arc<dyn GooseProvider>>,
+    prebuilt_provider: Option<Arc<dyn Provider>>,
 }
 
 pub struct GooseAcpAgentOptions {
@@ -1270,7 +1270,7 @@ impl GooseAcpAgent {
         model_config: crate::model::ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
-    ) -> Result<Arc<dyn GooseProvider>> {
+    ) -> Result<Arc<dyn Provider>> {
         (self.provider_factory)(
             provider_name.to_string(),
             model_config,
@@ -1288,7 +1288,7 @@ impl GooseAcpAgent {
     ) -> (
         Option<SessionModelState>,
         Option<Vec<SessionConfigOption>>,
-        Option<Arc<dyn GooseProvider>>,
+        Option<Arc<dyn Provider>>,
     ) {
         let Ok((provider_name, model_config)) = resolved else {
             return (None, None, None);

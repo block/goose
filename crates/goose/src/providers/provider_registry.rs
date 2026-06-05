@@ -1,6 +1,5 @@
-use super::base::{ConfigKey, ModelInfo, ProviderDef, ProviderMetadata, ProviderType};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::InventoryIdentityInput;
-use super::mode::GooseProvider;
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -14,7 +13,7 @@ pub type ProviderConstructor = Arc<
             ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
-        ) -> BoxFuture<'static, Result<Arc<dyn GooseProvider>>>
+        ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
 >;
@@ -78,7 +77,7 @@ impl ProviderEntry {
     pub async fn create_with_default_model(
         &self,
         extensions: Vec<ExtensionConfig>,
-    ) -> Result<Arc<dyn GooseProvider>> {
+    ) -> Result<Arc<dyn Provider>> {
         let default_model = &self.metadata.default_model;
         let model_config = self.normalize_model_config(ModelConfig::new(default_model.as_str())?);
         (self.constructor)(model_config, extensions, None).await
@@ -88,7 +87,7 @@ impl ProviderEntry {
         &self,
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
-    ) -> Result<Arc<dyn GooseProvider>> {
+    ) -> Result<Arc<dyn Provider>> {
         let model = self.normalize_model_config(model);
         (self.constructor)(model, extensions, None).await
     }
@@ -98,7 +97,7 @@ impl ProviderEntry {
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
-    ) -> Result<Arc<dyn GooseProvider>> {
+    ) -> Result<Arc<dyn Provider>> {
         let model = self.normalize_model_config(model);
         (self.constructor)(model, extensions, Some(working_dir)).await
     }
@@ -135,7 +134,7 @@ impl ProviderRegistry {
                             }
                             None => F::from_env(model, extensions).await?,
                         };
-                        Ok(Arc::new(provider) as Arc<dyn GooseProvider>)
+                        Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
                 inventory_identity: Arc::new(F::inventory_identity),
@@ -306,7 +305,7 @@ impl ProviderRegistry {
                     let result = constructor(model);
                     Box::pin(async move {
                         let provider = result?;
-                        Ok(Arc::new(provider) as Arc<dyn GooseProvider>)
+                        Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
                 inventory_identity: Arc::new(inventory_identity),
@@ -337,7 +336,7 @@ impl ProviderRegistry {
         name: &str,
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
-    ) -> Result<Arc<dyn GooseProvider>> {
+    ) -> Result<Arc<dyn Provider>> {
         let entry = self
             .entries
             .get(name)
