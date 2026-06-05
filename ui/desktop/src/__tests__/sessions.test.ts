@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { shouldShowNewChatTitle } from '../sessions';
-import {
-  getSessionDisplayName,
-  sortAndTrim,
-  mergeWithPendingEmptyLocals,
-  prependUnique,
-} from '../hooks/useNavigationSessions';
+import { getSessionDisplayName, sortAndTrim, prependUnique } from '../hooks/useNavigationSessions';
 import type { Session } from '../api';
 
 // Helper to build a minimal Session object for testing.
@@ -106,53 +101,6 @@ describe('sortAndTrim', () => {
     ];
     sortAndTrim(input);
     expect(input.map((s) => s.id)).toEqual(['a', 'b']);
-  });
-});
-
-describe('mergeWithPendingEmptyLocals', () => {
-  it('keeps pending local empty sessions the api has not returned yet', () => {
-    const emptyLocal = makeSession({ id: 'local-empty', message_count: 0 });
-    const apiSessions = [makeSession({ id: 'api-1', message_count: 3 })];
-    const result = mergeWithPendingEmptyLocals([emptyLocal], apiSessions, new Set(['local-empty']));
-    expect(result.map((s) => s.id)).toEqual(['local-empty', 'api-1']);
-  });
-
-  it('drops empty locals that are not pending creation reconciliation', () => {
-    const staleEmptyLocal = makeSession({ id: 'stale-empty', message_count: 0 });
-    const apiSessions = [makeSession({ id: 'api-1', message_count: 3 })];
-    const result = mergeWithPendingEmptyLocals([staleEmptyLocal], apiSessions, new Set());
-    expect(result.map((s) => s.id)).toEqual(['api-1']);
-  });
-
-  it('drops an empty local once the api returns it', () => {
-    const local = makeSession({ id: 'shared', message_count: 0 });
-    const apiSessions = [makeSession({ id: 'shared', message_count: 1 })];
-    const result = mergeWithPendingEmptyLocals([local], apiSessions, new Set(['shared']));
-    expect(result).toHaveLength(1);
-    expect(result[0].message_count).toBe(1);
-  });
-
-  it('does not keep non-empty locals missing from the api', () => {
-    const usedLocal = makeSession({ id: 'used-local', message_count: 5 });
-    const apiSessions = [makeSession({ id: 'api-1', message_count: 3 })];
-    const result = mergeWithPendingEmptyLocals([usedLocal], apiSessions, new Set(['used-local']));
-    expect(result.map((s) => s.id)).toEqual(['api-1']);
-  });
-
-  it('caps the merged list at 25 sessions', () => {
-    const emptyLocals = Array.from({ length: 5 }, (_, i) =>
-      makeSession({ id: `local-${i}`, message_count: 0 })
-    );
-    const apiSessions = Array.from({ length: 25 }, (_, i) =>
-      makeSession({ id: `api-${i}`, message_count: 1 })
-    );
-    expect(
-      mergeWithPendingEmptyLocals(
-        emptyLocals,
-        apiSessions,
-        new Set(emptyLocals.map((session) => session.id))
-      )
-    ).toHaveLength(25);
   });
 });
 
