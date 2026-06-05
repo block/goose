@@ -4914,6 +4914,10 @@
           "requires_auth": {
             "type": "boolean"
           },
+          "requires_reasoning_content_on_all_messages": {
+            "type": "boolean",
+            "description": "Always emit `reasoning_content` on assistant messages (even `\"\"`); required by DeepSeek V4."
+          },
           "setup_steps": {
             "type": "array",
             "items": {

@@ -412,7 +412,7 @@ pub fn format_messages_with_options(
         }
 
         // Kimi rejects empty reasoning_content; DeepSeek V4 requires it on every assistant message.
-        if options.preserve_thinking_context {
+        if options.preserve_thinking_context && message.role == Role::Assistant {
             if !reasoning_text.is_empty() {
                 converted["reasoning_content"] = json!(reasoning_text);
             } else if options.require_reasoning_content_on_all_messages {
@@ -3468,5 +3468,44 @@ data: [DONE]"#;
         let raw = r#"{"arguments":"{\"k\":1}"}"#;
         let parsed: DeltaToolCallFunction = serde_json::from_str(raw).unwrap();
         assert_eq!(parsed.arguments, "{\"k\":1}");
+    }
+
+    #[test]
+    fn test_reasoning_content_gated_to_assistant_messages() {
+        let options = OpenAiFormatOptions {
+            preserve_thinking_context: true,
+            require_reasoning_content_on_all_messages: true,
+        };
+
+        let messages = vec![
+            Message::user().with_text("What is 2 + 2?"),
+            Message::assistant().with_text("The answer is 4."),
+            Message::user().with_text("Now add 5 to that."),
+        ];
+
+        let formatted = format_messages_with_options(&messages, &ImageFormat::OpenAi, options);
+
+        assert_eq!(formatted.len(), 3, "Should have 3 formatted messages");
+
+        // User message should NOT have reasoning_content
+        assert_eq!(formatted[0]["role"], "user");
+        assert!(
+            formatted[0].get("reasoning_content").is_none(),
+            "User message must not have reasoning_content"
+        );
+
+        // Assistant message should have reasoning_content (empty string)
+        assert_eq!(formatted[1]["role"], "assistant");
+        assert_eq!(
+            formatted[1]["reasoning_content"], "",
+            "Assistant message should have empty reasoning_content when require_reasoning_content_on_all_messages is set"
+        );
+
+        // Second user message should NOT have reasoning_content
+        assert_eq!(formatted[2]["role"], "user");
+        assert!(
+            formatted[2].get("reasoning_content").is_none(),
+            "Second user message must not have reasoning_content"
+        );
     }
 }
