@@ -122,7 +122,6 @@ strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
-goose-sdk = { path = "../goose-sdk", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
