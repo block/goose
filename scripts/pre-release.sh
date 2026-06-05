@@ -14,7 +14,10 @@ else
     SEARCH="chore(release): release version"
 fi
 
-PR=$(gh pr list --repo "$REPO" --search "$SEARCH in:title" --state all --limit 1 --json number,title)
+# Wrap the phrase in quotes so GitHub treats it literally. Without quotes the
+# parentheses in "release):" are interpreted as search operators and the query
+# matches nothing.
+PR=$(gh pr list --repo "$REPO" --search "\"$SEARCH\" in:title" --state all --limit 1 --json number,title)
 PR_NUMBER=$(echo "$PR" | jq -r '.[0].number // empty')
 
 if [[ -z "$PR_NUMBER" ]]; then

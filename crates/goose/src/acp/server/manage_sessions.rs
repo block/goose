@@ -20,15 +20,12 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
 
-        if let Some(session) = self.sessions.lock().await.get_mut(session_id) {
-            match &session.agent {
-                AgentHandle::Ready(agent) => {
-                    agent.extension_manager.update_working_dir(&path).await;
-                }
-                AgentHandle::Loading(_) => {
-                    session.pending_working_dir = Some(path);
-                }
-            }
+        if let Some(session) = self.sessions.lock().await.get(session_id) {
+            session
+                .agent
+                .extension_manager
+                .update_working_dir(&path)
+                .await;
         }
 
         Ok(EmptyResponse {})
@@ -45,7 +42,7 @@ impl GooseAcpAgent {
             );
         }
 
-        let agent = self.get_session_agent_provider_ready(session_id).await?;
+        let agent = self.get_session_agent(session_id, None).await?;
         match req.mode {
             SessionSystemPromptMode::Set => {
                 if req.text.trim().is_empty() {
@@ -84,6 +81,7 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
         self.sessions.lock().await.remove(&req.session_id);
+        let _ = self.agent_manager.remove_session(&req.session_id).await;
         Ok(EmptyResponse {})
     }
 
@@ -156,6 +154,7 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
         self.sessions.lock().await.remove(&req.session_id);
+        let _ = self.agent_manager.remove_session(&req.session_id).await;
         Ok(EmptyResponse {})
     }
 

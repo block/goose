@@ -1,8 +1,7 @@
-use ahash::AHasher;
-use dashmap::DashMap;
+use lru::LruCache;
 use rmcp::model::Tool;
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
 use tiktoken_rs::CoreBPE;
 use tokio::sync::OnceCell;
 
@@ -10,7 +9,7 @@ use crate::conversation::message::Message;
 
 static TOKENIZER: OnceCell<Arc<CoreBPE>> = OnceCell::const_new();
 
-const MAX_TOKEN_CACHE_SIZE: usize = 10_000;
+const MAX_TOKEN_CACHE_SIZE: usize = 1_024;
 
 // token use for various bits of a tool calls:
 const FUNC_INIT: usize = 7;
@@ -22,38 +21,54 @@ const FUNC_END: usize = 12;
 
 pub struct TokenCounter {
     tokenizer: Arc<CoreBPE>,
-    token_cache: Arc<DashMap<u64, usize>>,
+    token_cache: Mutex<LruCache<TokenCacheKey, usize>>,
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+struct TokenCacheKey {
+    len: usize,
+    hash: [u8; 32],
+}
+
+impl TokenCacheKey {
+    fn from_text(text: &str) -> Self {
+        Self {
+            len: text.len(),
+            hash: *blake3::hash(text.as_bytes()).as_bytes(),
+        }
+    }
 }
 
 impl TokenCounter {
     pub async fn new() -> Result<Self, String> {
         let tokenizer = get_tokenizer().await?;
+        let cache_capacity =
+            NonZeroUsize::new(MAX_TOKEN_CACHE_SIZE).expect("token cache capacity must be non-zero");
         Ok(Self {
             tokenizer,
-            token_cache: Arc::new(DashMap::new()),
+            token_cache: Mutex::new(LruCache::new(cache_capacity)),
         })
     }
 
     pub fn count_tokens(&self, text: &str) -> usize {
-        let mut hasher = AHasher::default();
-        text.hash(&mut hasher);
-        let hash = hasher.finish();
-
-        if let Some(count) = self.token_cache.get(&hash) {
-            return *count;
+        let cache_key = TokenCacheKey::from_text(text);
+        if let Some(count) = self
+            .token_cache
+            .lock()
+            .expect("token cache mutex poisoned")
+            .get(&cache_key)
+            .copied()
+        {
+            return count;
         }
 
         let tokens = self.tokenizer.encode_with_special_tokens(text);
         let count = tokens.len();
 
-        if self.token_cache.len() >= MAX_TOKEN_CACHE_SIZE {
-            if let Some(entry) = self.token_cache.iter().next() {
-                let old_hash = *entry.key();
-                self.token_cache.remove(&old_hash);
-            }
-        }
-
-        self.token_cache.insert(hash, count);
+        self.token_cache
+            .lock()
+            .expect("token cache mutex poisoned")
+            .put(cache_key, count);
         count
     }
 
@@ -173,11 +188,17 @@ impl TokenCounter {
     }
 
     pub fn clear_cache(&self) {
-        self.token_cache.clear();
+        self.token_cache
+            .lock()
+            .expect("token cache mutex poisoned")
+            .clear();
     }
 
     pub fn cache_size(&self) -> usize {
-        self.token_cache.len()
+        self.token_cache
+            .lock()
+            .expect("token cache mutex poisoned")
+            .len()
     }
 }
 
@@ -260,13 +281,13 @@ mod tests {
         let counter = create_token_counter().await.unwrap();
 
         let mut cached_texts = Vec::new();
-        for i in 0..50 {
+        for i in 0..=MAX_TOKEN_CACHE_SIZE {
             let text = format!("Test string number {}", i);
             counter.count_tokens(&text);
             cached_texts.push(text);
         }
 
-        assert!(counter.cache_size() <= MAX_TOKEN_CACHE_SIZE);
+        assert_eq!(counter.cache_size(), MAX_TOKEN_CACHE_SIZE);
 
         let recent_text = &cached_texts[cached_texts.len() - 1];
         let start_size = counter.cache_size();

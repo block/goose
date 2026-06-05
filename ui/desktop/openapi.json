@@ -1312,6 +1312,66 @@
         }
       }
     },
+    "/config/provider-secrets": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "list_provider_secrets",
+        "responses": {
+          "200": {
+            "description": "Provider secrets retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSecretsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/provider-secrets/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "delete_provider_secret",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Provider secret identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider secret deleted successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid provider secret identifier"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -7151,6 +7211,91 @@
         "properties": {
           "model": {
             "type": "string"
+          }
+        }
+      },
+      "ProviderSecret": {
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "provider_display_name",
+          "name",
+          "storage",
+          "status",
+          "configured",
+          "has_secret",
+          "can_delete",
+          "can_configure"
+        ],
+        "properties": {
+          "can_configure": {
+            "type": "boolean"
+          },
+          "can_delete": {
+            "type": "boolean"
+          },
+          "configure_provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "has_secret": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_display_name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProviderSecretStatus"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/ProviderSecretStorage"
+          }
+        }
+      },
+      "ProviderSecretStatus": {
+        "type": "string",
+        "enum": [
+          "valid",
+          "expired",
+          "unknown"
+        ]
+      },
+      "ProviderSecretStorage": {
+        "type": "string",
+        "enum": [
+          "secret_store",
+          "provider_cache"
+        ]
+      },
+      "ProviderSecretsResponse": {
+        "type": "object",
+        "required": [
+          "secrets"
+        ],
+        "properties": {
+          "secrets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSecret"
+            }
           }
         }
       },

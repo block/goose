@@ -1,7 +1,4 @@
 use std::collections::HashMap;
-use std::fs;
-use std::hash::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -10,10 +7,10 @@ use crate::state::AppState;
 use anyhow::Result;
 use axum::http::StatusCode;
 use goose::agents::Agent;
-use goose::recipe::build_recipe::{
-    build_recipe_from_template, resolve_sub_recipe_path, RecipeError,
-};
-use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
+use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
+use goose::recipe::local_recipes::get_recipe_library_dir;
+pub use goose::recipe::manifest::short_id_from_path;
+use goose::recipe::manifest::{list_recipe_file_manifests, load_recipe_from_path};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
 use serde::Serialize;
@@ -36,44 +33,18 @@ pub struct RecipeManifest {
     pub slash_command: Option<String>,
 }
 
-pub fn short_id_from_path(path: &str) -> String {
-    let mut hasher = DefaultHasher::new();
-    path.hash(&mut hasher);
-    let h = hasher.finish();
-    format!("{:016x}", h)
-}
-
 pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifest>> {
-    let recipes_with_path = list_local_recipes()?;
-    let mut recipe_manifests_with_path = Vec::new();
-    for (file_path, mut recipe) in recipes_with_path {
-        let Ok(last_modified) = fs::metadata(file_path.clone())
-            .map(|m| chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339())
-        else {
-            continue;
-        };
-
-        if let Some(recipe_dir) = file_path.parent() {
-            if let Some(ref mut sub_recipes) = recipe.sub_recipes {
-                for sr in sub_recipes.iter_mut() {
-                    if let Ok(resolved) = resolve_sub_recipe_path(&sr.path, recipe_dir) {
-                        sr.path = resolved;
-                    }
-                }
-            }
-        }
-
-        let manifest_with_path = RecipeManifest {
-            id: short_id_from_path(file_path.to_string_lossy().as_ref()),
-            recipe,
-            file_path,
-            last_modified,
+    let recipe_manifests_with_path = list_recipe_file_manifests()?
+        .into_iter()
+        .map(|manifest| RecipeManifest {
+            id: manifest.id,
+            recipe: manifest.recipe,
+            file_path: manifest.file_path,
+            last_modified: manifest.last_modified,
             schedule_cron: None,
             slash_command: None,
-        };
-        recipe_manifests_with_path.push(manifest_with_path);
-    }
-    recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+        })
+        .collect();
 
     Ok(recipe_manifests_with_path)
 }
@@ -138,22 +109,10 @@ pub async fn get_recipe_file_path_by_id(
 pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, ErrorResponse> {
     let path = get_recipe_file_path_by_id(state, id).await?;
 
-    let mut recipe = Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
+    load_recipe_from_path(&path).map_err(|err| ErrorResponse {
         message: format!("Failed to load recipe: {}", err),
         status: StatusCode::INTERNAL_SERVER_ERROR,
-    })?;
-
-    if let Some(recipe_dir) = path.parent() {
-        if let Some(ref mut sub_recipes) = recipe.sub_recipes {
-            for sr in sub_recipes.iter_mut() {
-                if let Ok(resolved) = resolve_sub_recipe_path(&sr.path, recipe_dir) {
-                    sr.path = resolved;
-                }
-            }
-        }
-    }
-
-    Ok(recipe)
+    })
 }
 
 pub async fn build_recipe_with_parameter_values(
