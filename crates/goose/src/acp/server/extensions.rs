@@ -74,11 +74,15 @@ impl GooseAcpAgent {
         &self,
         req: AddConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let config = goose_extension_to_config(req.extension)?;
+        let conversion = goose_extension_to_config(req.extension)?;
+
+        Config::global()
+            .set_secret_values(&conversion.secret_updates)
+            .internal_err_ctx("Failed to save extension env secrets")?;
 
         crate::config::extensions::set_extension(ExtensionEntry {
             enabled: req.enabled,
-            config,
+            config: conversion.config,
         });
         Ok(EmptyResponse {})
     }
@@ -211,9 +215,15 @@ fn config_to_goose_extension(
     Ok(Some(extension))
 }
 
+struct ConfigExtensionConversion {
+    config: ExtensionConfig,
+    secret_updates: Vec<(String, serde_json::Value)>,
+}
+
 fn goose_extension_to_config(
     extension: GooseExtension,
-) -> Result<ExtensionConfig, agent_client_protocol::Error> {
+) -> Result<ConfigExtensionConversion, agent_client_protocol::Error> {
+    let mut secret_updates = Vec::new();
     let config = match extension {
         GooseExtension::Builtin {
             name,
@@ -254,10 +264,12 @@ fn goose_extension_to_config(
                     return Err(agent_client_protocol::Error::invalid_params()
                         .data("socket is only supported for streamable_http MCP extensions"));
                 }
-                if !stdio.env.is_empty() {
-                    return Err(agent_client_protocol::Error::invalid_params().data(
-                        "literal env values are unsupported for config extensions; use envKeys",
-                    ));
+                let mut env_keys = env_keys;
+                for env in stdio.env {
+                    if !env_keys.contains(&env.name) {
+                        env_keys.push(env.name.clone());
+                    }
+                    secret_updates.push((env.name, serde_json::Value::String(env.value)));
                 }
                 ExtensionConfig::Stdio {
                     name: stdio.name,
@@ -298,7 +310,10 @@ fn goose_extension_to_config(
             }
         },
     };
-    Ok(config)
+    Ok(ConfigExtensionConversion {
+        config,
+        secret_updates,
+    })
 }
 
 fn config_entry_to_goose_entry(
@@ -568,7 +583,8 @@ mod tests {
             bundled: Some(true),
         };
 
-        let config = goose_extension_to_config(extension).expect("conversion should succeed");
+        let conversion = goose_extension_to_config(extension).expect("conversion should succeed");
+        assert!(conversion.secret_updates.is_empty());
 
         let ExtensionConfig::Stdio {
             name,
@@ -580,7 +596,7 @@ mod tests {
             timeout,
             bundled,
             available_tools,
-        } = config
+        } = conversion.config
         else {
             panic!("expected stdio config");
         };
@@ -600,10 +616,11 @@ mod tests {
     }
 
     #[test]
-    fn goose_mcp_stdio_extension_rejects_literal_envs_for_config_add() {
+    fn goose_mcp_stdio_extension_extracts_literal_envs_for_config_add() {
         let extension = GooseExtension::Mcp {
             server: McpServer::Stdio(McpServerStdio::new("test-stdio", "test-command").env(vec![
                 agent_client_protocol::schema::EnvVariable::new("SECRET_TOKEN", "literal-secret"),
+                agent_client_protocol::schema::EnvVariable::new("OTHER_TOKEN", "other-secret"),
             ])),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             description: Some("Test stdio".to_string()),
@@ -612,7 +629,31 @@ mod tests {
             bundled: Some(true),
         };
 
-        assert!(goose_extension_to_config(extension).is_err());
+        let conversion = goose_extension_to_config(extension).expect("conversion should succeed");
+
+        assert_eq!(
+            conversion.secret_updates,
+            vec![
+                (
+                    "SECRET_TOKEN".to_string(),
+                    serde_json::Value::String("literal-secret".to_string())
+                ),
+                (
+                    "OTHER_TOKEN".to_string(),
+                    serde_json::Value::String("other-secret".to_string())
+                )
+            ]
+        );
+
+        let ExtensionConfig::Stdio { envs, env_keys, .. } = conversion.config else {
+            panic!("expected stdio config");
+        };
+
+        assert!(
+            envs.get_env().is_empty(),
+            "literal envs should not be persisted"
+        );
+        assert_eq!(env_keys, vec!["SECRET_TOKEN", "OTHER_TOKEN"]);
     }
 
     #[test]
@@ -630,7 +671,8 @@ mod tests {
             bundled: Some(true),
         };
 
-        let config = goose_extension_to_config(extension).expect("conversion should succeed");
+        let conversion = goose_extension_to_config(extension).expect("conversion should succeed");
+        assert!(conversion.secret_updates.is_empty());
 
         let ExtensionConfig::StreamableHttp {
             name,
@@ -643,7 +685,7 @@ mod tests {
             socket,
             bundled,
             available_tools,
-        } = config
+        } = conversion.config
         else {
             panic!("expected streamable http config");
         };
@@ -679,7 +721,8 @@ mod tests {
             bundled: Some(true),
         };
 
-        let config = goose_extension_to_config(builtin).expect("conversion should succeed");
+        let conversion = goose_extension_to_config(builtin).expect("conversion should succeed");
+        assert!(conversion.secret_updates.is_empty());
 
         let ExtensionConfig::Builtin {
             name,
@@ -688,7 +731,7 @@ mod tests {
             timeout,
             bundled,
             available_tools,
-        } = config
+        } = conversion.config
         else {
             panic!("expected builtin config");
         };
@@ -710,7 +753,8 @@ mod tests {
             bundled: Some(true),
         };
 
-        let config = goose_extension_to_config(platform).expect("conversion should succeed");
+        let conversion = goose_extension_to_config(platform).expect("conversion should succeed");
+        assert!(conversion.secret_updates.is_empty());
 
         let ExtensionConfig::Platform {
             name,
@@ -718,7 +762,7 @@ mod tests {
             display_name,
             bundled,
             available_tools,
-        } = config
+        } = conversion.config
         else {
             panic!("expected platform config");
         };
