@@ -26,7 +26,7 @@ use crate::model::ModelConfig;
 use crate::providers::utils::RequestLog;
 use crate::session::session_manager::{SessionManager, SessionStorage};
 use futures::future::BoxFuture;
-use rmcp::model::Tool;
+use rmcp::model::{Role, Tool};
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
@@ -353,8 +353,9 @@ impl Provider for AnthropicProvider {
     ) -> Result<MessageStream, ProviderError> {
         let storage = self.session_storage.lock().unwrap().clone();
         let is_subagent = storage.is_subagent_session(session_id).await;
+        let is_first_turn = !messages.iter().any(|m| m.role == Role::Assistant);
         let options = AnthropicFormatOptions {
-            skip_cache_control: is_subagent,
+            skip_cache_control: is_subagent && is_first_turn,
             ..self.format_options
         };
         let mut payload = create_request_with_options_for_provider(
