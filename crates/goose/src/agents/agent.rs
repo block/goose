@@ -49,6 +49,7 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
 use crate::security::egress_inspector::EgressInspector;
 use crate::security::security_inspector::SecurityInspector;
+use crate::security::supply_chain_inspector::SupplyChainInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
@@ -540,6 +541,9 @@ impl Agent {
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
         tool_inspection_manager.add_inspector(Box::new(EgressInspector::new()));
+
+        // Add supply-chain inspector (flags likely-typosquat package installs)
+        tool_inspection_manager.add_inspector(Box::new(SupplyChainInspector::new()));
 
         // Add adversary inspector (LLM-based review, enabled by ~/.config/goose/adversary.md)
         tool_inspection_manager.add_inspector(Box::new(AdversaryInspector::new(provider.clone())));

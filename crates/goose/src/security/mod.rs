@@ -4,6 +4,7 @@ pub mod egress_inspector;
 pub mod patterns;
 pub mod scanner;
 pub mod security_inspector;
+pub mod supply_chain_inspector;
 
 use crate::config::Config;
 use crate::conversation::message::{Message, ToolRequest};
