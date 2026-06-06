@@ -1405,15 +1405,11 @@ impl SummonClient {
                 .map(|c| c.with_canonical_limits(provider_name))
         })?;
 
-        let override_model = params
-            .model
-            .clone()
-            .or_else(|| recipe.settings.as_ref().and_then(|s| s.goose_model.clone()))
-            .or_else(|| {
-                Config::global()
-                    .get_param::<String>("GOOSE_SUBAGENT_MODEL")
-                    .ok()
-            });
+        let override_model = Config::global()
+            .get_param::<String>("GOOSE_SUBAGENT_MODEL")
+            .ok()
+            .or_else(|| params.model.clone())
+            .or_else(|| recipe.settings.as_ref().and_then(|s| s.goose_model.clone()));
 
         if let Some(model) = override_model {
             if model != model_config.model_name {
@@ -1454,19 +1450,15 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<Arc<dyn crate::providers::base::Provider>, anyhow::Error> {
-        let provider_name = params
-            .provider
-            .clone()
+        let provider_name = Config::global()
+            .get_param::<String>("GOOSE_SUBAGENT_PROVIDER")
+            .ok()
+            .or_else(|| params.provider.clone())
             .or_else(|| {
                 recipe
                     .settings
                     .as_ref()
                     .and_then(|s| s.goose_provider.clone())
-            })
-            .or_else(|| {
-                Config::global()
-                    .get_param::<String>("GOOSE_SUBAGENT_PROVIDER")
-                    .ok()
             })
             .or_else(|| session.provider_name.clone())
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
@@ -2297,6 +2289,47 @@ You review code."#;
             RawContent::Text(t) => t.text.as_str(),
             _ => panic!("Expected text content"),
         }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_model_config_env_var_overrides_params_model() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let params = DelegateParams {
+            model: Some("params-model".to_string()),
+            ..Default::default()
+        };
+        std::env::set_var("GOOSE_SUBAGENT_MODEL", OVERRIDE_MODEL);
+        let result = client
+            .resolve_model_config(&params, &empty_recipe(), &session_with(parent_config()), PROVIDER)
+            .expect("resolve_model_config");
+        std::env::remove_var("GOOSE_SUBAGENT_MODEL");
+        assert_eq!(
+            result.model_name, OVERRIDE_MODEL,
+            "GOOSE_SUBAGENT_MODEL must take priority over params.model"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_model_config_env_var_overrides_recipe_model() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let mut recipe = empty_recipe();
+        recipe.settings = Some(crate::recipe::Settings {
+            goose_provider: None,
+            goose_model: Some("recipe-model".to_string()),
+            temperature: None,
+            max_turns: None,
+        });
+        std::env::set_var("GOOSE_SUBAGENT_MODEL", OVERRIDE_MODEL);
+        let result = client
+            .resolve_model_config(&DelegateParams::default(), &recipe, &session_with(parent_config()), PROVIDER)
+            .expect("resolve_model_config");
+        std::env::remove_var("GOOSE_SUBAGENT_MODEL");
+        assert_eq!(
+            result.model_name, OVERRIDE_MODEL,
+            "GOOSE_SUBAGENT_MODEL must take priority over recipe settings"
+        );
     }
 
     #[test]
