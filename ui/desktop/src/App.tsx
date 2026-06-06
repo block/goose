@@ -18,6 +18,7 @@ import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
+import { listSessions, deleteSession } from './api';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -394,7 +395,20 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
-    const handleOpenSessionShare = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+    listSessions()
+      .then(({ data }) => {
+        const phantom = (data?.sessions ?? []).filter(
+          (s) => s.message_count === 0 && !s.user_set_name && !s.recipe
+        );
+        for (const s of phantom) {
+          deleteSession({ path: { session_id: s.id } }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo('Opening session share link');
       try {
@@ -417,9 +431,9 @@ export function AppInner() {
         navigate('/sessions');
       }
     };
-    window.electron.on('open-shared-session', handleOpenSessionShare);
+    window.electron.on('open-shared-session', handleOpenSharedSession);
     return () => {
-      window.electron.off('open-shared-session', handleOpenSessionShare);
+      window.electron.off('open-shared-session', handleOpenSharedSession);
     };
   }, [navigate]);
 
