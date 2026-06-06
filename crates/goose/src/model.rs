@@ -241,7 +241,7 @@ impl ModelConfig {
                 self.max_tokens = canonical
                     .limit
                     .output
-                    .filter(|&output| output <= canonical.limit.context)
+                    .filter(|&output| output < canonical.limit.context)
                     .map(|output| output as i32);
             }
             if self.reasoning.is_none() {
