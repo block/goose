@@ -570,12 +570,18 @@ export function AppInner() {
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
+      // Navigate to the Home tab so the Hub mounts and the user lands on a
+      // fresh chat surface. Previously this only dispatched a
+      // `TRIGGER_NEW_CHAT` window event, but nothing in the renderer
+      // listens for it, so the Cmd+T / Ctrl+T shortcut (and the File >
+      // New Chat menu item) silently did nothing. See #9523.
+      navigate('/');
       window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
     };
 
     window.electron.on('new-chat', handleNewChat);
     return () => window.electron.off('new-chat', handleNewChat);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
