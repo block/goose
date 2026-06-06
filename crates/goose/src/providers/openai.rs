@@ -452,8 +452,11 @@ impl OpenAiProvider {
             "v1/chat/completions".to_string()
         } else if normalized == "v1" || normalized.ends_with("/v1") {
             format!("{}/chat/completions", normalized)
-        } else {
+        } else if normalized.ends_with("chat/completions")  {
             stripped.to_string()
+        } else {
+            // this is the path to the api /zen or /zen/go 
+            format!("{}/v1/chat/completions", normalized)
         }
     }
 
@@ -1205,6 +1208,24 @@ mod tests {
         let r = OpenAiProvider::parse_base_url("https://example.com/custom/api").unwrap();
         assert_eq!(r.host, "https://example.com/custom/api");
         assert!(!r.has_v1);
+    }
+
+    #[test]
+    fn derive_base_path_not_removing_api_path() {
+        let r = OpenAiProvider::derive_base_path("https://opencode.ai/zen/go");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_v1() {
+        let r = OpenAiProvider::derive_base_path("https://opencode.ai/zen/go/v1");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_no_base_path() {
+        let r = OpenAiProvider::derive_base_path("https://opencode.ai/");
+        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
     }
 
     #[test]
