@@ -8,8 +8,13 @@ pub mod azureauth;
 pub mod base;
 #[cfg(feature = "aws-providers")]
 pub mod bedrock;
-pub mod canonical;
-pub mod catalog;
+pub mod canonical {
+    pub use goose_providers::canonical::*;
+}
+mod catalog_util;
+pub mod catalog {
+    pub use super::catalog_util::*;
+}
 pub mod chatgpt_codex;
 pub mod claude_acp;
 pub mod claude_code;

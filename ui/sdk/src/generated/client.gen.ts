@@ -46,8 +46,10 @@ import type {
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
   ExportSourceResponse_unstable,
-  GetExtensionsRequest_unstable,
-  GetExtensionsResponse_unstable,
+  GetAvailableExtensionsRequest_unstable,
+  GetAvailableExtensionsResponse_unstable,
+  GetConfigExtensionsRequest_unstable,
+  GetConfigExtensionsResponse_unstable,
   GetSessionExtensionsRequest_unstable,
   GetSessionExtensionsResponse_unstable,
   GetToolsRequest_unstable,
@@ -94,8 +96,8 @@ import type {
   RemoveConfigExtensionRequest_unstable,
   RemoveExtensionRequest_unstable,
   RenameSessionRequest_unstable,
+  SetConfigExtensionEnabledRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
-  ToggleConfigExtensionRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
@@ -115,7 +117,8 @@ import {
   zDictationTranscribeResponse_unstable,
   zExportSessionResponse_unstable,
   zExportSourceResponse_unstable,
-  zGetExtensionsResponse_unstable,
+  zGetAvailableExtensionsResponse_unstable,
+  zGetConfigExtensionsResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
   zGetToolsResponse_unstable,
   zGooseSessionNotification_unstable,
@@ -208,15 +211,27 @@ export class GooseExtClient {
   }
 
   async configExtensionsList_unstable(
-    params: GetExtensionsRequest_unstable,
-  ): Promise<GetExtensionsResponse_unstable> {
+    params: GetConfigExtensionsRequest_unstable,
+  ): Promise<GetConfigExtensionsResponse_unstable> {
     const raw = await this.conn.extMethod(
       "_goose/unstable/config/extensions/list",
       params,
     );
-    return zGetExtensionsResponse_unstable.parse(
+    return zGetConfigExtensionsResponse_unstable.parse(
       raw,
-    ) as GetExtensionsResponse_unstable;
+    ) as GetConfigExtensionsResponse_unstable;
+  }
+
+  async extensionsAvailable_unstable(
+    params: GetAvailableExtensionsRequest_unstable,
+  ): Promise<GetAvailableExtensionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/extensions/available",
+      params,
+    );
+    return zGetAvailableExtensionsResponse_unstable.parse(
+      raw,
+    ) as GetAvailableExtensionsResponse_unstable;
   }
 
   async configExtensionsAdd_unstable(
@@ -234,11 +249,11 @@ export class GooseExtClient {
     );
   }
 
-  async configExtensionsToggle_unstable(
-    params: ToggleConfigExtensionRequest_unstable,
+  async configExtensionsSetEnabled_unstable(
+    params: SetConfigExtensionEnabledRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod(
-      "_goose/unstable/config/extensions/toggle",
+      "_goose/unstable/config/extensions/set-enabled",
       params,
     );
   }

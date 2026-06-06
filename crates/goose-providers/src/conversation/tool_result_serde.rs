@@ -1,4 +1,4 @@
-use crate::mcp_utils::ToolResult;
+use crate::conversation::message::ToolResult;
 use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, JsonObject};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

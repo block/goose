@@ -1,5 +1,5 @@
 use crate::conversation::tool_result_serde;
-use crate::mcp_utils::{extract_text_from_resource, ToolResult};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
@@ -74,6 +74,7 @@ where
 /// Provider-specific metadata for tool requests/responses.
 /// Allows providers to store custom data without polluting the core model.
 pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
+pub type ToolResult<T> = Result<T, rmcp::model::ErrorData>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

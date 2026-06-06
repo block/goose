@@ -74,6 +74,8 @@ fn main() {
         strip_integer_formats(def);
     }
 
+    add_mcp_server_transport_discriminants(&mut defs);
+
     // Annotate $defs entries with x-method/x-side. Only set x-method for types
     // used by exactly one method (shared types like EmptyResponse skip x-method).
     for (name, methods_list) in &type_methods {
@@ -316,6 +318,42 @@ fn rewrite_unstable_schema_refs(value: &mut Value, unstable_type_names: &BTreeSe
     }
 }
 
+fn add_mcp_server_transport_discriminants(defs: &mut Map<String, Value>) {
+    add_object_discriminant(defs, "McpServerHttp", "http");
+    add_object_discriminant(defs, "McpServerSse", "sse");
+}
+
+fn add_object_discriminant(defs: &mut Map<String, Value>, def_name: &str, tag: &str) {
+    let def = defs
+        .get_mut(def_name)
+        .unwrap_or_else(|| panic!("missing {def_name} schema definition"));
+    let obj = def
+        .as_object_mut()
+        .unwrap_or_else(|| panic!("{def_name} schema definition must be an object"));
+
+    let properties = obj
+        .entry("properties")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .unwrap_or_else(|| panic!("{def_name}.properties must be an object"));
+    properties.insert(
+        "type".into(),
+        json!({
+            "type": "string",
+            "const": tag,
+        }),
+    );
+
+    let required = obj
+        .entry("required")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .unwrap_or_else(|| panic!("{def_name}.required must be an array"));
+    if !required.iter().any(|item| item.as_str() == Some("type")) {
+        required.insert(0, json!("type"));
+    }
+}
+
 /// Recursively strip `"format"` from integer-typed schemas.
 ///
 /// schemars emits `"format": "uint64"` / `"int64"` etc. for Rust integer types.
@@ -323,7 +361,15 @@ fn rewrite_unstable_schema_refs(value: &mut Value, unstable_type_names: &BTreeSe
 fn strip_integer_formats(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            let is_integer = map.get("type").and_then(|v| v.as_str()) == Some("integer");
+            let is_integer = match map.get("type") {
+                Some(Value::String(schema_type)) => schema_type == "integer",
+                Some(Value::Array(schema_types)) => schema_types.iter().any(|schema_type| {
+                    schema_type
+                        .as_str()
+                        .is_some_and(|schema_type| schema_type == "integer")
+                }),
+                _ => false,
+            };
             if is_integer {
                 map.remove("format");
             }
@@ -365,5 +411,107 @@ fn replace_true_schemas(value: &mut Value) {
             }
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adds_http_and_sse_discriminants_without_tagging_stdio() {
+        let mut defs = Map::from_iter([
+            (
+                "McpServerHttp".into(),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" }
+                    },
+                    "required": ["name"]
+                }),
+            ),
+            (
+                "McpServerSse".into(),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" }
+                    },
+                    "required": ["name"]
+                }),
+            ),
+            (
+                "McpServerStdio".into(),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" }
+                    },
+                    "required": ["name"]
+                }),
+            ),
+        ]);
+
+        add_mcp_server_transport_discriminants(&mut defs);
+
+        assert_eq!(
+            defs["McpServerHttp"]["properties"]["type"],
+            json!({ "type": "string", "const": "http" })
+        );
+        assert_eq!(
+            defs["McpServerSse"]["properties"]["type"],
+            json!({ "type": "string", "const": "sse" })
+        );
+        assert_eq!(defs["McpServerStdio"]["properties"].get("type"), None);
+        assert!(defs["McpServerHttp"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("type")));
+        assert!(defs["McpServerSse"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("type")));
+    }
+
+    #[test]
+    fn strips_integer_formats_from_nullable_integer_schemas() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "timeout": {
+                    "type": ["integer", "null"],
+                    "format": "uint64",
+                    "minimum": 0
+                },
+                "count": {
+                    "type": "integer",
+                    "format": "uint32",
+                    "minimum": 0
+                },
+                "name": {
+                    "type": "string",
+                    "format": "custom"
+                }
+            }
+        });
+
+        strip_integer_formats(&mut schema);
+
+        assert_eq!(
+            schema["properties"]["timeout"].get("format"),
+            None,
+            "nullable integer formats should be stripped"
+        );
+        assert_eq!(
+            schema["properties"]["count"].get("format"),
+            None,
+            "integer formats should be stripped"
+        );
+        assert_eq!(
+            schema["properties"]["name"]["format"],
+            json!("custom"),
+            "non-integer formats should be preserved"
+        );
     }
 }

@@ -18,15 +18,21 @@ use std::sync::{Arc, LazyLock, Mutex};
 
 use common_tests::fixtures::OpenAiFixture;
 
-const DEFAULT_ACP_TEST_CONFIG: &str = "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\n";
+const DEFAULT_ACP_TEST_CONFIG: &str =
+    "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\n";
 
 static ACP_CONFIG_ROOT: LazyLock<tempfile::TempDir> =
     LazyLock::new(|| tempfile::tempdir().unwrap());
 
 fn write_acp_global_config(contents: &str) -> PathBuf {
     std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
+    std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
     let config_dir = goose::config::paths::Paths::config_dir();
     std::fs::create_dir_all(&config_dir).unwrap();
+    let mut contents = contents.to_string();
+    if !contents.contains("GOOSE_DISABLE_KEYRING") {
+        contents.push_str("GOOSE_DISABLE_KEYRING: true\n");
+    }
     std::fs::write(
         config_dir.join(goose::config::base::CONFIG_YAML_NAME),
         contents,
@@ -120,6 +126,132 @@ fn test_custom_get_tools() {
 #[test]
 #[serial]
 fn test_custom_get_extensions() {
+    let config_key = "test-stdio-acp-mutation-flow";
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let add_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/add",
+            serde_json::json!({
+                "enabled": true,
+                "extension": {
+                    "type": "mcp",
+                    "description": "Test stdio",
+                    "envKeys": ["SECRET_TOKEN"],
+                    "timeout": 42,
+                    "server": {
+                        "type": "stdio",
+                        "name": config_key,
+                        "command": "test-command",
+                        "args": ["--flag", "value"],
+                        "env": [
+                            { "name": "INLINE_TOKEN", "value": "inline-secret" }
+                        ]
+                    }
+                }
+            }),
+        )
+        .await;
+        assert!(add_result.is_ok(), "expected ok, got: {:?}", add_result);
+        let stored_inline_token = goose::config::Config::global()
+            .get_secret::<String>("INLINE_TOKEN")
+            .expect("inline env should be saved as a secret");
+        assert!(
+            stored_inline_token == "inline-secret",
+            "inline env secret was not saved correctly"
+        );
+
+        let list_extension = || async {
+            let result = send_custom(
+                conn.cx(),
+                "_goose/unstable/config/extensions/list",
+                serde_json::json!({}),
+            )
+            .await;
+            assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+            let response = result.unwrap();
+            let extensions = response
+                .get("extensions")
+                .and_then(|extensions| extensions.as_array())
+                .expect("extensions should be an array");
+            extensions
+                .iter()
+                .find(|entry| entry["configKey"] == config_key)
+                .cloned()
+        };
+
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing added extension entry"));
+        assert_eq!(entry["enabled"], true);
+        assert_eq!(entry["configKey"], config_key);
+
+        let extension = &entry["extension"];
+        assert_eq!(extension["type"], "mcp");
+        assert_eq!(
+            extension["envKeys"],
+            serde_json::json!(["SECRET_TOKEN", "INLINE_TOKEN"])
+        );
+        assert_eq!(extension["description"], "Test stdio");
+        assert_eq!(extension["timeout"], 42);
+        assert!(extension.get("socket").is_none());
+
+        let server = &extension["server"];
+        assert_eq!(server["name"], config_key);
+        assert_eq!(server["command"], "test-command");
+        assert_eq!(server["args"], serde_json::json!(["--flag", "value"]));
+        assert_eq!(server["env"], serde_json::json!([]));
+
+        let set_enabled_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/set-enabled",
+            serde_json::json!({
+                "configKey": config_key,
+                "enabled": false,
+            }),
+        )
+        .await;
+        assert!(
+            set_enabled_result.is_ok(),
+            "expected ok, got: {:?}",
+            set_enabled_result
+        );
+
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing disabled extension entry"));
+        assert_eq!(entry["enabled"], false);
+
+        let remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/remove",
+            serde_json::json!({
+                "configKey": config_key,
+            }),
+        )
+        .await;
+        assert!(
+            remove_result.is_ok(),
+            "expected ok, got: {:?}",
+            remove_result
+        );
+
+        assert!(
+            list_extension().await.is_none(),
+            "removed extension should not be listed"
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_get_available_extensions() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
@@ -127,20 +259,36 @@ fn test_custom_get_extensions() {
 
         let result = send_custom(
             conn.cx(),
-            "_goose/unstable/config/extensions/list",
+            "_goose/unstable/extensions/available",
             serde_json::json!({}),
         )
         .await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result);
 
         let response = result.unwrap();
+        let extensions = response
+            .get("extensions")
+            .and_then(|extensions| extensions.as_array())
+            .expect("extensions should be an array");
+        assert!(!extensions.is_empty(), "extensions should not be empty");
         assert!(
-            response.get("extensions").is_some(),
-            "missing 'extensions' field"
+            extensions.iter().all(|extension| matches!(
+                extension["type"].as_str(),
+                Some("builtin" | "platform")
+            )),
+            "available extensions should only include builtin and platform entries"
         );
         assert!(
-            response.get("warnings").is_some(),
-            "missing 'warnings' field"
+            extensions.iter().any(|extension| {
+                extension["type"] == "platform" && extension["name"] == "developer"
+            }),
+            "developer platform extension should be available"
+        );
+        assert!(
+            !extensions.iter().any(|extension| {
+                extension["type"] == "platform" && extension["name"] == "orchestrator"
+            }),
+            "hidden orchestrator platform extension should not be available"
         );
     });
 }

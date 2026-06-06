@@ -95,15 +95,6 @@
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "поиск расширений..."
   },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "авто"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Автоматический выбор режима"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Текущий режим: {label} - {description}"
-  },
   "cardButtons.configure": {
     "defaultMessage": "Настроить"
   },
@@ -3727,9 +3718,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "Сообщений: {count}"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Общий доступ к сеансам уже настроен"

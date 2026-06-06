@@ -9,10 +9,11 @@
 ///
 use anyhow::{Context, Result};
 use clap::Parser;
-use goose::providers::canonical::{
-    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality, Pricing,
+use goose::providers::create_with_named_model;
+use goose_providers::canonical::{
+    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality,
+    ModelMapping, Pricing,
 };
-use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -320,7 +321,7 @@ impl MappingReport {
 
 fn data_file_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/providers/canonical/data")
+        .join("../goose-providers/src/canonical/data")
         .join(filename)
 }
 

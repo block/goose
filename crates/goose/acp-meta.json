@@ -42,8 +42,13 @@
     },
     {
       "method": "_goose/unstable/config/extensions/list",
-      "requestType": "GetExtensionsRequest_unstable",
-      "responseType": "GetExtensionsResponse_unstable"
+      "requestType": "GetConfigExtensionsRequest_unstable",
+      "responseType": "GetConfigExtensionsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/extensions/available",
+      "requestType": "GetAvailableExtensionsRequest_unstable",
+      "responseType": "GetAvailableExtensionsResponse_unstable"
     },
     {
       "method": "_goose/unstable/config/extensions/add",
@@ -56,8 +61,8 @@
       "responseType": "EmptyResponse"
     },
     {
-      "method": "_goose/unstable/config/extensions/toggle",
-      "requestType": "ToggleConfigExtensionRequest_unstable",
+      "method": "_goose/unstable/config/extensions/set-enabled",
+      "requestType": "SetConfigExtensionEnabledRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {

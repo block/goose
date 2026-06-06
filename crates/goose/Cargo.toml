@@ -122,6 +122,7 @@ strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
+goose-providers = { path = "../goose-providers", default-features = false }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
@@ -213,6 +214,7 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
 llama-cpp-sys-2 = { workspace = true, optional = true }
+image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
@@ -267,7 +269,7 @@ path = "src/bin/analyze_cli.rs"
 
 [[bin]]
 name = "build_canonical_models"
-path = "src/providers/canonical/build_canonical_models.rs"
+path = "src/bin/build_canonical_models.rs"
 
 [[bin]]
 name = "generate-acp-schema"

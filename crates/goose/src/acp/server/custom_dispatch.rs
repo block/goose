@@ -75,11 +75,18 @@ impl GooseAcpAgent {
         self.on_delete_session(req).await
     }
 
-    #[custom_method(GetExtensionsRequest)]
-    async fn dispatch_get_extensions(
+    #[custom_method(GetConfigExtensionsRequest)]
+    async fn dispatch_get_config_extensions(
         &self,
-    ) -> Result<GetExtensionsResponse, agent_client_protocol::Error> {
-        self.on_get_extensions().await
+    ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {
+        self.on_get_config_extensions().await
+    }
+
+    #[custom_method(GetAvailableExtensionsRequest)]
+    async fn dispatch_get_available_extensions(
+        &self,
+    ) -> Result<GetAvailableExtensionsResponse, agent_client_protocol::Error> {
+        self.on_get_available_extensions().await
     }
 
     #[custom_method(AddConfigExtensionRequest)]
@@ -98,12 +105,12 @@ impl GooseAcpAgent {
         self.on_remove_config_extension(req).await
     }
 
-    #[custom_method(ToggleConfigExtensionRequest)]
-    async fn dispatch_toggle_config_extension(
+    #[custom_method(SetConfigExtensionEnabledRequest)]
+    async fn dispatch_set_config_extension_enabled(
         &self,
-        req: ToggleConfigExtensionRequest,
+        req: SetConfigExtensionEnabledRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.on_toggle_config_extension(req).await
+        self.on_set_config_extension_enabled(req).await
     }
 
     #[custom_method(GetSessionExtensionsRequest)]

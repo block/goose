@@ -106,12 +106,16 @@ pub fn remove_extension(key: &str) {
     save_extensions_map(extensions);
 }
 
-pub fn set_extension_enabled(key: &str, enabled: bool) {
+/// Returns true when an existing extension was updated, false when the key was missing.
+pub fn set_extension_enabled(key: &str, enabled: bool) -> bool {
     let mut extensions = get_extensions_map();
-    if let Some(entry) = extensions.get_mut(key) {
-        entry.enabled = enabled;
-        save_extensions_map(extensions);
-    }
+    let Some(entry) = extensions.get_mut(key) else {
+        return false;
+    };
+
+    entry.enabled = enabled;
+    save_extensions_map(extensions);
+    true
 }
 
 pub fn get_all_extensions() -> Vec<ExtensionEntry> {
@@ -142,6 +146,40 @@ pub fn get_enabled_extensions_with_config(config: &Config) -> Vec<ExtensionConfi
         .into_values()
         .filter(|ext| ext.enabled)
         .map(|ext| ext.config)
+        .collect()
+}
+
+pub fn get_available_extensions() -> Vec<ExtensionConfig> {
+    let mut builtin_names = crate::builtin_extension::get_builtin_extension_names();
+    builtin_names.sort_unstable();
+
+    let mut platform_definitions = PLATFORM_EXTENSIONS
+        .values()
+        .filter(|definition| !definition.hidden)
+        .collect::<Vec<_>>();
+    platform_definitions.sort_unstable_by_key(|definition| definition.name);
+
+    builtin_names
+        .into_iter()
+        .map(|name| ExtensionConfig::Builtin {
+            name: name.to_string(),
+            description: String::new(),
+            display_name: Some(name.to_string()),
+            timeout: None,
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        })
+        .chain(
+            platform_definitions
+                .into_iter()
+                .map(|definition| ExtensionConfig::Platform {
+                    name: definition.name.to_string(),
+                    description: definition.description.to_string(),
+                    display_name: Some(definition.display_name.to_string()),
+                    bundled: Some(true),
+                    available_tools: Vec::new(),
+                }),
+        )
         .collect()
 }
 

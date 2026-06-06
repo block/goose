@@ -1,13 +1,10 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use super::{
-    base::{ConfigKey, ProviderMetadata},
-    canonical::CanonicalModelRegistry,
-};
+use super::CanonicalModelRegistry;
 
-const PROVIDER_METADATA_JSON: &str = include_str!("canonical/data/provider_metadata.json");
+const PROVIDER_METADATA_JSON: &str = include_str!("data/provider_metadata.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ProviderMetadataEntry {
@@ -173,6 +170,24 @@ pub struct ProviderSetupCatalogEntry {
     pub binary_name: Option<String>,
     pub setup_capabilities: ProviderSetupCapabilities,
     pub show_only_when_installed: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProviderSetupMetadata {
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub model_doc_link: String,
+    pub config_keys: Vec<ProviderSetupConfigKey>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProviderSetupConfigKey {
+    pub name: String,
+    pub required: bool,
+    pub secret: bool,
+    pub default: Option<String>,
+    pub primary: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -900,7 +915,7 @@ fn field_label(key: &str) -> String {
 
 fn field_override<'a>(
     key: &str,
-    config_key: &ConfigKey,
+    config_key: &ProviderSetupConfigKey,
     curated: &'a CuratedSetupMetadata,
 ) -> Option<&'a CuratedFieldMetadata> {
     if let Some(field) = curated
@@ -918,7 +933,10 @@ fn field_override<'a>(
     None
 }
 
-fn setup_field(config_key: &ConfigKey, curated: &CuratedSetupMetadata) -> ProviderSetupField {
+fn setup_field(
+    config_key: &ProviderSetupConfigKey,
+    curated: &CuratedSetupMetadata,
+) -> ProviderSetupField {
     let field_override = field_override(&config_key.name, config_key, curated);
     ProviderSetupField {
         key: config_key.name.clone(),
@@ -936,7 +954,7 @@ fn setup_field(config_key: &ConfigKey, curated: &CuratedSetupMetadata) -> Provid
 
 fn setup_entry_from_metadata(
     curated: &CuratedSetupMetadata,
-    metadata: &ProviderMetadata,
+    metadata: &ProviderSetupMetadata,
 ) -> ProviderSetupCatalogEntry {
     ProviderSetupCatalogEntry {
         provider_id: curated.provider_id.to_string(),
@@ -994,13 +1012,10 @@ fn synthetic_goose_setup_entry(curated: &CuratedSetupMetadata) -> ProviderSetupC
     }
 }
 
-pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
-    let native_provider_ids = super::init::providers()
-        .await
-        .into_iter()
-        .map(|(metadata, _)| metadata.name)
-        .collect::<std::collections::HashSet<_>>();
-
+pub fn get_providers_by_format(
+    format: ProviderFormat,
+    native_provider_ids: &HashSet<String>,
+) -> Vec<ProviderCatalogEntry> {
     let mut entries: Vec<ProviderCatalogEntry> = PROVIDER_METADATA
         .values()
         .filter_map(|metadata| {
@@ -1038,13 +1053,9 @@ pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCata
     entries
 }
 
-pub async fn get_setup_catalog_entries() -> Vec<ProviderSetupCatalogEntry> {
-    let registry_metadata = super::providers()
-        .await
-        .into_iter()
-        .map(|(metadata, _)| (metadata.name.clone(), metadata))
-        .collect::<HashMap<_, _>>();
-
+pub fn get_setup_catalog_entries(
+    registry_metadata: &HashMap<String, ProviderSetupMetadata>,
+) -> Vec<ProviderSetupCatalogEntry> {
     SETUP_METADATA
         .iter()
         .filter_map(|curated| {
@@ -1121,145 +1132,4 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
         env_var,
         doc_url: metadata.doc.clone().unwrap_or_default(),
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::providers::base::ProviderType;
-
-    #[tokio::test]
-    async fn test_zai_provider() {
-        let zai = crate::providers::get_from_registry("zai")
-            .await
-            .expect("z.ai should be registered as a declarative provider");
-        assert_eq!(zai.provider_type(), ProviderType::Declarative);
-
-        let metadata = zai.metadata();
-        assert_eq!(metadata.display_name, "Z.AI");
-        assert!(
-            !metadata.known_models.is_empty(),
-            "z.ai should have known models"
-        );
-        assert!(
-            metadata
-                .config_keys
-                .iter()
-                .any(|key| key.name == "ZHIPU_API_KEY"),
-            "z.ai should expose its API key config"
-        );
-
-        let setup_entries = get_setup_catalog_entries().await;
-        let setup_entry = setup_entries
-            .iter()
-            .find(|entry| entry.provider_id == "zai")
-            .expect("z.ai should be in the setup catalog");
-        assert_eq!(setup_entry.setup_method, ProviderSetupMethod::SingleApiKey);
-
-        let template = get_provider_template("zai");
-        assert!(template.is_some(), "z.ai should have a template");
-
-        let template = template.unwrap();
-        println!("Z.AI template: {} models", template.models.len());
-        for model in template.models.iter().take(3) {
-            println!(
-                "  - {} ({}K context)",
-                model.name,
-                model.context_limit / 1000
-            );
-        }
-        assert!(
-            !template.models.is_empty(),
-            "z.ai template should have models"
-        );
-    }
-
-    #[tokio::test]
-    async fn setup_catalog_includes_goose_and_curated_fields() {
-        let entries = get_setup_catalog_entries().await;
-
-        let goose = entries
-            .iter()
-            .find(|entry| entry.provider_id == "goose")
-            .expect("setup catalog should include synthetic goose");
-        assert_eq!(goose.category, ProviderSetupCategory::Agent);
-        assert_eq!(goose.setup_method, ProviderSetupMethod::None);
-        assert!(goose.fields.is_empty());
-
-        let ollama = entries
-            .iter()
-            .find(|entry| entry.provider_id == "ollama")
-            .expect("setup catalog should include ollama");
-        assert_eq!(ollama.setup_method, ProviderSetupMethod::ConfigFields);
-        assert_eq!(ollama.fields.len(), 1);
-        assert_eq!(ollama.fields[0].key, "OLLAMA_HOST");
-        assert_eq!(ollama.fields[0].label, "Host");
-        assert_eq!(
-            ollama.fields[0].default_value.as_deref(),
-            Some("http://localhost:11434")
-        );
-
-        let databricks = entries
-            .iter()
-            .find(|entry| entry.provider_id == "databricks")
-            .expect("setup catalog should include databricks");
-        assert_eq!(
-            databricks.setup_method,
-            ProviderSetupMethod::HostWithOauthFallback
-        );
-        assert_eq!(
-            databricks
-                .fields
-                .iter()
-                .map(|field| field.key.as_str())
-                .collect::<Vec<_>>(),
-            ["DATABRICKS_HOST", "DATABRICKS_TOKEN"]
-        );
-
-        let huggingface = entries
-            .iter()
-            .find(|entry| entry.provider_id == "huggingface")
-            .expect("setup catalog should include huggingface");
-        assert_eq!(huggingface.setup_method, ProviderSetupMethod::SingleApiKey);
-        assert_eq!(
-            huggingface
-                .fields
-                .iter()
-                .map(|field| field.key.as_str())
-                .collect::<Vec<_>>(),
-            ["HF_TOKEN"]
-        );
-
-        let atomic_chat = entries
-            .iter()
-            .find(|entry| entry.provider_id == "atomic_chat")
-            .expect("setup catalog should include atomic_chat declarative provider");
-        assert_eq!(atomic_chat.setup_method, ProviderSetupMethod::ConfigFields);
-        let host_field = atomic_chat
-            .fields
-            .iter()
-            .find(|field| field.key == "ATOMIC_CHAT_HOST")
-            .expect("atomic_chat should expose ATOMIC_CHAT_HOST");
-        assert_eq!(host_field.label, "Host URL");
-        assert_eq!(
-            host_field.default_value.as_deref(),
-            Some("http://localhost:1337")
-        );
-    }
-
-    #[tokio::test]
-    async fn setup_catalog_excludes_uncurated_deprecated_providers() {
-        let provider_ids = get_setup_catalog_entries()
-            .await
-            .into_iter()
-            .map(|entry| entry.provider_id)
-            .collect::<std::collections::HashSet<_>>();
-
-        assert!(provider_ids.contains("claude-acp"));
-        assert!(provider_ids.contains("codex-acp"));
-        assert!(provider_ids.contains("atomic_chat"));
-        assert!(!provider_ids.contains("claude_code"));
-        assert!(!provider_ids.contains("codex"));
-        assert!(!provider_ids.contains("gemini_cli"));
-    }
 }
