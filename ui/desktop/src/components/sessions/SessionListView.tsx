@@ -505,7 +505,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
-          detail: { sessionId, newName: newDescription },
+          detail: { sessionId, newName: newDescription, userInitiated: true },
         })
       );
     }, []);

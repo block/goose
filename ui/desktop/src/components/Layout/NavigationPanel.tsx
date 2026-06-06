@@ -107,7 +107,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
           });
           window.dispatchEvent(
             new CustomEvent(AppEvents.SESSION_RENAMED, {
-              detail: { sessionId: session.id, newName },
+              detail: { sessionId: session.id, newName, userInitiated: true },
             })
           );
           onRenamed();
