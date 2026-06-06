@@ -167,6 +167,7 @@ impl ToolInspector for SupplyChainInspector {
             let finding_id = format!("SUPPLY-{}", Uuid::new_v4().simple());
 
             tracing::warn!(
+                monotonic_counter.goose.supply_chain_typosquat_finding = 1,
                 tool_name = tool_call.name.as_ref(),
                 tool_request_id = %tool_request.id,
                 finding_id = %finding_id,
@@ -234,38 +235,34 @@ fn extract_install_targets(command: &str) -> Vec<String> {
     out
 }
 
-/// Split on `&&`, `;`, and a single `|` (but not `||`), so `cd x && npm i evil`
-/// is inspected per fragment.
+/// Split a shell command into the separate commands it chains, so each is
+/// inspected on its own. Separators: newline, `;`, `&&`, `||`, a single `|`
+/// (pipeline) and a single `&` (background). Agents routinely batch installs
+/// with newlines or `&&` (`cd ui\nnpm install evil`), and a separator-blind
+/// parser would only ever see the first command's executable.
 fn split_shell_fragments(cmd: &str) -> Vec<&str> {
     let bytes = cmd.as_bytes();
     let mut parts = Vec::new();
     let mut start = 0usize;
     let mut i = 0usize;
     // `cmd.get(range)` instead of `&cmd[range]`: all split points are ASCII
-    // (`&`, `;`, `|`) so the ranges are always valid, but `get` keeps clippy's
-    // `string_slice` lint satisfied and can never panic.
+    // (`&`, `;`, `|`, `\n`) so the ranges are always valid, but `get` keeps
+    // clippy's `string_slice` lint satisfied and can never panic.
     while i < bytes.len() {
-        if i + 1 < bytes.len() && bytes[i] == b'&' && bytes[i + 1] == b'&' {
+        // Two-char operators first, so `&&`/`||` aren't mis-read as `&`/`|`.
+        let two_char_op = i + 1 < bytes.len()
+            && ((bytes[i] == b'&' && bytes[i + 1] == b'&')
+                || (bytes[i] == b'|' && bytes[i + 1] == b'|'));
+        if two_char_op {
             parts.push(cmd.get(start..i).unwrap_or_default());
             i += 2;
             start = i;
             continue;
         }
-        if bytes[i] == b';' {
+        if matches!(bytes[i], b';' | b'|' | b'&' | b'\n') {
             parts.push(cmd.get(start..i).unwrap_or_default());
             i += 1;
             start = i;
-            continue;
-        }
-        if bytes[i] == b'|' {
-            let next_is_pipe = i + 1 < bytes.len() && bytes[i + 1] == b'|';
-            if !next_is_pipe {
-                parts.push(cmd.get(start..i).unwrap_or_default());
-                i += 1;
-                start = i;
-                continue;
-            }
-            i += 2;
             continue;
         }
         i += 1;
@@ -274,51 +271,152 @@ fn split_shell_fragments(cmd: &str) -> Vec<&str> {
     parts
 }
 
+/// Command wrappers that prefix the real command (`sudo npm i evil`,
+/// `env FOO=bar npm i evil`); skipped so the wrapped install is still seen.
+const COMMAND_WRAPPERS: &[&str] = &[
+    "sudo", "doas", "env", "time", "nice", "nohup", "stdbuf", "command", "xargs",
+];
+
 fn packages_from_fragment(fragment: &str) -> Vec<String> {
-    let tokens: Vec<&str> = fragment.split_whitespace().collect();
-    if tokens.is_empty() {
+    // Unquote each token (`"lodash"` -> `lodash`) and drop leading shell noise
+    // (env assignments, wrapper commands) so the real binary is at the front.
+    let tokens: Vec<&str> = fragment.split_whitespace().map(unquote).collect();
+    let tokens = strip_command_prefixes(&tokens);
+    let Some(&first) = tokens.first() else {
         return vec![];
-    }
+    };
     // Strip any path prefix on the binary (`/usr/bin/npm` -> `npm`).
-    let bin_base = tokens[0].rsplit('/').next().unwrap_or(tokens[0]);
+    let bin_base = first.rsplit('/').next().unwrap_or(first);
     match bin_base {
-        "npm" | "npm.cmd" => parse_npm(&tokens),
-        "yarn" => parse_yarn(&tokens),
-        "pnpm" => parse_pnpm(&tokens),
-        "bun" => parse_bun(&tokens),
+        "npm" | "npm.cmd" => parse_npm(tokens),
+        "yarn" => parse_yarn(tokens),
+        "pnpm" => parse_pnpm(tokens),
+        "bun" => parse_bun(tokens),
         "npx" | "npx.cmd" | "bunx" | "bunx.cmd" => parse_runner(&tokens[1..]),
         _ => vec![],
     }
 }
 
+/// Strip one matched pair of surrounding quotes from a token
+/// (`"lodash"` / `'lodash'` -> `lodash`). The shell tool passes the raw command
+/// string, so quotes survive into tokens and would otherwise hide the name.
+fn unquote(tok: &str) -> &str {
+    let b = tok.as_bytes();
+    if b.len() >= 2 && (b[0] == b'"' || b[0] == b'\'') && b[b.len() - 1] == b[0] {
+        tok.get(1..b.len() - 1).unwrap_or(tok)
+    } else {
+        tok
+    }
+}
+
+/// Skip leading shell noise that hides the real command: environment-variable
+/// assignments (`FOO=bar`) and wrapper commands (`sudo`, `env`, ...) plus their
+/// own options. Returns the slice starting at the wrapped binary, so a typosquat
+/// install behind `sudo`/`env`/a var assignment is still inspected.
+fn strip_command_prefixes<'s, 'a>(tokens: &'a [&'s str]) -> &'a [&'s str] {
+    let mut i = 0;
+    loop {
+        while i < tokens.len() && is_env_assignment(tokens[i]) {
+            i += 1;
+        }
+        if i < tokens.len() && is_command_wrapper(tokens[i]) {
+            i += 1;
+            while i < tokens.len() && tokens[i].starts_with('-') {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    tokens.get(i..).unwrap_or(&[])
+}
+
+/// A `KEY=VALUE` shell assignment (`NODE_ENV=production`): a shell identifier
+/// followed by `=`. Such a token is never a binary name.
+fn is_env_assignment(tok: &str) -> bool {
+    let Some(eq) = tok.find('=') else {
+        return false;
+    };
+    eq > 0
+        && tok
+            .as_bytes()
+            .iter()
+            .take(eq)
+            .enumerate()
+            .all(|(i, &b)| b == b'_' || b.is_ascii_alphabetic() || (i > 0 && b.is_ascii_digit()))
+}
+
+fn is_command_wrapper(tok: &str) -> bool {
+    let base = tok.rsplit('/').next().unwrap_or(tok);
+    COMMAND_WRAPPERS.contains(&base)
+}
+
+/// Locate the package-manager subcommand, skipping any leading global options.
+///
+/// npm/yarn/pnpm/bun all accept global flags before the subcommand
+/// (`npm --prefix ui install x`), so it isn't always `tokens[1]`. We skip leading
+/// options: `--flag=value` is self-contained, and a bare `--flag` consumes the
+/// next token as its value unless that token starts with `-` or is itself a
+/// subcommand. The first non-option token is the subcommand, or there is none.
+/// Stopping at the first non-option token keeps `npm run add x` (a script named
+/// `add`) from being misread as an install.
+fn subcommand_index(tokens: &[&str], subcommands: &[&str]) -> Option<usize> {
+    let is_sub = |t: &str| subcommands.iter().any(|s| s.eq_ignore_ascii_case(t));
+    let mut i = 1;
+    while i < tokens.len() {
+        let tok = tokens[i];
+        if !tok.starts_with('-') {
+            return is_sub(tok).then_some(i);
+        }
+        let consumes_value = !tok.contains('=')
+            && tokens
+                .get(i + 1)
+                .is_some_and(|n| !n.starts_with('-') && !is_sub(n));
+        i += if consumes_value { 2 } else { 1 };
+    }
+    None
+}
+
 fn parse_npm(tokens: &[&str]) -> Vec<String> {
-    match tokens.get(1).copied().unwrap_or("") {
-        "install" | "i" | "add" => collect_pkg_args(&tokens[2..]),
-        "exec" | "x" => parse_runner(&tokens[2..]),
+    let Some(idx) = subcommand_index(tokens, &["install", "i", "add", "exec", "x"]) else {
+        return vec![];
+    };
+    match tokens[idx].to_ascii_lowercase().as_str() {
+        "install" | "i" | "add" => collect_pkg_args(&tokens[idx + 1..]),
+        "exec" | "x" => parse_runner(&tokens[idx + 1..]),
         _ => vec![],
     }
 }
 
 fn parse_yarn(tokens: &[&str]) -> Vec<String> {
-    match tokens.get(1).copied().unwrap_or("") {
-        "add" => collect_pkg_args(&tokens[2..]),
-        "dlx" => parse_runner(&tokens[2..]),
+    let Some(idx) = subcommand_index(tokens, &["add", "dlx"]) else {
+        return vec![];
+    };
+    match tokens[idx].to_ascii_lowercase().as_str() {
+        "add" => collect_pkg_args(&tokens[idx + 1..]),
+        "dlx" => parse_runner(&tokens[idx + 1..]),
         _ => vec![],
     }
 }
 
 fn parse_pnpm(tokens: &[&str]) -> Vec<String> {
-    match tokens.get(1).copied().unwrap_or("") {
-        "add" | "install" | "i" => collect_pkg_args(&tokens[2..]),
-        "dlx" => parse_runner(&tokens[2..]),
+    let Some(idx) = subcommand_index(tokens, &["add", "install", "i", "dlx"]) else {
+        return vec![];
+    };
+    match tokens[idx].to_ascii_lowercase().as_str() {
+        "add" | "install" | "i" => collect_pkg_args(&tokens[idx + 1..]),
+        "dlx" => parse_runner(&tokens[idx + 1..]),
         _ => vec![],
     }
 }
 
 fn parse_bun(tokens: &[&str]) -> Vec<String> {
-    match tokens.get(1).copied().unwrap_or("") {
-        "add" | "install" | "i" => collect_pkg_args(&tokens[2..]),
-        "x" => parse_runner(&tokens[2..]),
+    let Some(idx) = subcommand_index(tokens, &["add", "install", "i", "x"]) else {
+        return vec![];
+    };
+    match tokens[idx].to_ascii_lowercase().as_str() {
+        "add" | "install" | "i" => collect_pkg_args(&tokens[idx + 1..]),
+        "x" => parse_runner(&tokens[idx + 1..]),
         _ => vec![],
     }
 }
@@ -363,18 +461,45 @@ fn parse_runner(args: &[&str]) -> Vec<String> {
     packages
 }
 
+/// npm/yarn/pnpm/bun options that take a separate value token (`--prefix ui`),
+/// so the value isn't mistaken for a package. Boolean flags (`--save-dev`, `-D`)
+/// are intentionally absent: the token after them IS a package.
+const VALUE_FLAGS: &[&str] = &[
+    "--prefix",
+    "-C",
+    "--registry",
+    "--cache",
+    "--userconfig",
+    "--globalconfig",
+    "--workspace",
+    "-w",
+    "--omit",
+    "--include",
+    "--save-prefix",
+    "--loglevel",
+    "--filter",
+    "--dir",
+];
+
 fn collect_pkg_args(args: &[&str]) -> Vec<String> {
     let mut packages = Vec::new();
-    for &arg in args {
+    let mut i = 0;
+    while i < args.len() {
+        let arg = args[i];
         if arg.starts_with('-') {
+            // A value-taking flag (`--prefix ui`) consumes its value, so we don't
+            // mistake the value (`ui`) for a package name.
+            i += if !arg.contains('=') && VALUE_FLAGS.contains(&arg) {
+                2
+            } else {
+                1
+            };
             continue;
         }
-        if matches!(arg, ">" | ">>" | "<") {
-            continue;
-        }
-        if looks_like_package_spec(arg) {
+        if !matches!(arg, ">" | ">>" | "<") && looks_like_package_spec(arg) {
             packages.push(arg.to_string());
         }
+        i += 1;
     }
     packages
 }
@@ -424,7 +549,8 @@ fn typosquat_of(name: &str) -> Option<&'static str> {
         }
     }
     // Require the popular name to be long enough that a single random edit is
-    // unlikely to collide, matching npmguard's heuristic.
+    // unlikely to collide, matching npmguard's heuristic. POPULAR_NPM_NAMES are
+    // all ASCII, so byte-len here equals char-len.
     match best {
         Some((candidate, 1)) if candidate.len() > 4 => Some(candidate),
         _ => None,
@@ -539,6 +665,121 @@ mod tests {
     }
 
     #[test]
+    fn parses_install_batched_across_newlines() {
+        // Agents commonly batch commands with newlines; each line is its own
+        // command, so the install must still be seen.
+        assert_eq!(
+            extract_install_targets("cd ui\nnpm install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("export X=1\nyarn add exprcss\necho done"),
+            vec!["exprcss"]
+        );
+        // `||` and `&` also separate commands.
+        assert_eq!(
+            extract_install_targets("test -d ui || npm install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("npm install lodahs & echo bg"),
+            vec!["lodahs"]
+        );
+    }
+
+    #[test]
+    fn parses_install_with_global_options_before_subcommand() {
+        // npm/pnpm accept global flags (some taking a value) before the
+        // subcommand; the install target must not slip past because of them.
+        assert_eq!(
+            extract_install_targets("npm --prefix ui install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("npm --prefix=ui install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("npm -g install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("pnpm --dir ui add exprcss"),
+            vec!["exprcss"]
+        );
+    }
+
+    #[test]
+    fn run_scripts_named_like_subcommands_are_not_installs() {
+        // `npm run add x` runs a user script called "add"; the option-skipping
+        // parser must stop at the first positional token (`run`) and not treat a
+        // later `add`/`install` keyword as the subcommand.
+        assert!(extract_install_targets("npm run add lodahs").is_empty());
+        assert!(extract_install_targets("npm run install").is_empty());
+    }
+
+    #[test]
+    fn strips_quotes_around_package_and_binary() {
+        assert_eq!(
+            extract_install_targets("npm install \"lodahs\""),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("yarn add 'exprcss'"),
+            vec!["exprcss"]
+        );
+        assert_eq!(
+            extract_install_targets("npx \"expresss\""),
+            vec!["expresss"]
+        );
+    }
+
+    #[test]
+    fn parses_install_behind_env_and_wrappers() {
+        // Env-var assignment prefixes and wrapper commands must not hide the
+        // install from inspection.
+        assert_eq!(
+            extract_install_targets("FOO=bar npm install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("NODE_ENV=production npm i exprcss"),
+            vec!["exprcss"]
+        );
+        assert_eq!(
+            extract_install_targets("sudo npm install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("sudo -H npm install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("env FOO=bar npm install lodahs"),
+            vec!["lodahs"]
+        );
+    }
+
+    #[test]
+    fn flag_values_are_not_treated_as_packages() {
+        // `axio` is the value of `--prefix`, not a package; it must not be
+        // collected even though it is one edit from `axios`.
+        assert_eq!(
+            extract_install_targets("npm install --prefix axio lodash"),
+            vec!["lodash"]
+        );
+        assert_eq!(
+            extract_install_targets("pnpm add --filter prism react"),
+            vec!["react"]
+        );
+        // Boolean flags still let the following token be a package.
+        assert_eq!(
+            extract_install_targets("npm install --save-dev lodahs react"),
+            vec!["lodahs", "react"]
+        );
+    }
+
+    #[test]
     fn package_name_strips_version_and_keeps_scope() {
         assert_eq!(package_name("lodash@4.17.21"), "lodash");
         assert_eq!(package_name("@scope/pkg@1.2.3"), "@scope/pkg");
@@ -605,5 +846,23 @@ mod tests {
         let results = inspect("npx expresss --version").await;
         assert_eq!(results.len(), 1);
         assert!(results[0].reason.contains("express"));
+    }
+
+    #[tokio::test]
+    async fn flags_typosquat_install_batched_with_newline() {
+        // End-to-end: a newline-batched install must still reach approval.
+        let results = inspect("cd ui\nnpm install lodahs").await;
+        assert_eq!(results.len(), 1);
+        assert!(results[0].reason.contains("lodash"));
+    }
+
+    #[tokio::test]
+    async fn flags_typosquat_behind_sudo_but_not_flag_value() {
+        // A typosquat behind `sudo` still fires.
+        let flagged = inspect("sudo npm install lodahs").await;
+        assert_eq!(flagged.len(), 1);
+        assert!(flagged[0].reason.contains("lodash"));
+        // A benign `--prefix` value that merely looks typosquat-ish must not fire.
+        assert!(inspect("npm install --prefix axio lodash").await.is_empty());
     }
 }
