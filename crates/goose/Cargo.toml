@@ -187,6 +187,7 @@ tree-sitter-ruby = { workspace = true }
 tree-sitter-rust = { workspace = true }
 tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
+tree-sitter-cpp = { workspace = true }
 which = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
 encoding_rs = { version = "0.8.35", default-features = false }

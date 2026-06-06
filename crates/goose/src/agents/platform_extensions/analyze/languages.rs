@@ -319,6 +319,52 @@ static LANGUAGES: &[LangInfo] = &[
             "#,
         },
     },
+    LangInfo {
+        name: "c",
+        extensions: &["c", "h"],
+        language: || tree_sitter_cpp::LANGUAGE.into(),
+        fn_kinds: &["function_definition"],
+        fn_name_kinds: &["identifier"],
+        class_kinds: &["struct_specifier", "union_specifier", "enum_specifier"],
+        queries: LangQueries {
+            functions: r#"
+                (function_definition
+                    declarator: [
+                        (function_declarator declarator:
+                            (identifier) @name)
+                        (pointer_declarator declarator:
+                            (function_declarator declarator:
+                                (identifier) @name))
+                    ])
+            "#,
+            classes: r#"
+                (struct_specifier name: (type_identifier) @name)
+                (union_specifier name: (type_identifier) @name)
+                (enum_specifier name: (type_identifier) @name)
+            "#,
+            imports: r#"
+                (preproc_include
+                    path: (string_literal) @path)
+                (preproc_include
+                    path: (system_lib_string) @path)
+            "#,
+            calls: r#"
+                (call_expression
+                    function: (identifier) @name)
+                (call_expression
+                    function: (field_expression
+                        field: (field_identifier) @name))
+                (call_expression
+                    function: (parenthesized_expression
+                        (pointer_expression
+                            argument: (identifier) @name)))
+                (call_expression
+                    function: (parenthesized_expression
+                        (cast_expression
+                            value: (identifier) @name)))
+            "#,
+        },
+    },
 ];
 
 pub fn lang_for_ext(ext: &str) -> Option<&'static LangInfo> {
