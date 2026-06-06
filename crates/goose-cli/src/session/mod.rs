@@ -806,11 +806,13 @@ impl CliSession {
         let current_model_name = current_model_config.model_name.clone();
 
         if model.is_none() {
-            output::goose_mode_message(&format!(
-                "Current session model: '{}' (provider '{}')",
-                current_model_name, current_provider_name
-            ));
-            return Ok(());
+            return self
+                .pick_and_switch_model(
+                    &current_provider_name,
+                    &current_model_config,
+                    &current_model_name,
+                )
+                .await;
         }
 
         let model_name = model.unwrap_or_default().trim();
@@ -862,6 +864,146 @@ impl CliSession {
         output::goose_mode_message(&format!(
             "Session model switched from '{}' to '{}' for provider '{}'",
             current_model_name, model_name, current_provider_name
+        ));
+        Ok(())
+    }
+
+    /// Bare `/model` (no argument): present one searchable menu of models across
+    /// every configured provider (local LM Studio, NVIDIA, etc.) and switch the
+    /// live session to the chosen provider + model.
+    async fn pick_and_switch_model(
+        &self,
+        current_provider_name: &str,
+        current_model_config: &goose::model::ModelConfig,
+        current_model_name: &str,
+    ) -> Result<()> {
+        use std::time::Duration;
+
+        let _ = cliclack::log::info(format!(
+            "Current model: '{current_model_name}' (provider '{current_provider_name}'). Gathering models from your configured providers…"
+        ));
+
+        let all = goose::providers::providers().await;
+        let mut entries: Vec<(String, String, String)> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        for (meta, _ptype) in &all {
+            let include =
+                meta.name.as_str() == current_provider_name || provider_is_configured(meta);
+            if !include || !seen.insert(meta.name.clone()) {
+                continue;
+            }
+
+            let seed = if meta.default_model.trim().is_empty() {
+                "placeholder".to_string()
+            } else {
+                meta.default_model.clone()
+            };
+            let model_config = match goose::model::ModelConfig::new(&seed) {
+                Ok(c) => c.with_canonical_limits(&meta.name),
+                Err(_) => continue,
+            };
+            let temp_provider = match goose::providers::create(&meta.name, model_config, Vec::new())
+                .await
+            {
+                Ok(p) => p,
+                Err(e) => {
+                    let _ =
+                        cliclack::log::warning(format!("Skipping '{}': {e}", meta.display_name));
+                    continue;
+                }
+            };
+
+            match tokio::time::timeout(
+                Duration::from_secs(15),
+                temp_provider.fetch_supported_models(),
+            )
+            .await
+            {
+                Ok(Ok(models)) if !models.is_empty() => {
+                    for m in models {
+                        let mut label = format!("{}  ▸  {}", meta.display_name, m);
+                        if meta.name.as_str() == current_provider_name
+                            && m.as_str() == current_model_name
+                        {
+                            label.push_str("  (current)");
+                        }
+                        entries.push((label, meta.name.clone(), m));
+                    }
+                }
+                Ok(Ok(_)) => {
+                    let _ = cliclack::log::warning(format!(
+                        "'{}' returned no models",
+                        meta.display_name
+                    ));
+                }
+                Ok(Err(e)) => {
+                    let _ = cliclack::log::warning(format!(
+                        "Could not list models for '{}': {e}",
+                        meta.display_name
+                    ));
+                }
+                Err(_) => {
+                    let _ = cliclack::log::warning(format!(
+                        "Timed out listing models for '{}'",
+                        meta.display_name
+                    ));
+                }
+            }
+        }
+
+        if entries.is_empty() {
+            output::render_error(
+                "No models available from any configured provider. Check that LM Studio is running or that provider keys are set.",
+            );
+            return Ok(());
+        }
+
+        entries.sort_by(|a, b| {
+            let a_current = a.1.as_str() == current_provider_name;
+            let b_current = b.1.as_str() == current_provider_name;
+            b_current
+                .cmp(&a_current)
+                .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
+        });
+
+        let labels: Vec<String> = entries.iter().map(|(l, _, _)| l.clone()).collect();
+        let chosen_label: String = if labels.len() > 12 {
+            crate::commands::configure::interactive_model_search(&labels)?
+        } else {
+            let items: Vec<(String, String, &str)> =
+                labels.iter().map(|l| (l.clone(), l.clone(), "")).collect();
+            cliclack::select("Select a model:")
+                .items(&items)
+                .interact()?
+        };
+
+        let (_, chosen_provider, chosen_model) =
+            match entries.into_iter().find(|(l, _, _)| l == &chosen_label) {
+                Some(e) => e,
+                None => return Ok(()),
+            };
+
+        if chosen_provider.as_str() == current_provider_name
+            && chosen_model.as_str() == current_model_name
+        {
+            output::goose_mode_message(&format!("Session already using model '{chosen_model}'"));
+            return Ok(());
+        }
+
+        let new_model_config =
+            build_switched_model_config(&chosen_provider, &chosen_model, current_model_config)?;
+        let extensions = self.agent.get_extension_configs().await;
+        let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        self.agent
+            .update_provider(new_provider, &self.session_id)
+            .await?;
+        let mode = self.agent.goose_mode().await;
+        self.agent.update_goose_mode(mode, &self.session_id).await?;
+        output::goose_mode_message(&format!(
+            "Session model switched to '{chosen_model}' (provider '{chosen_provider}')"
         ));
         Ok(())
     }
@@ -2160,6 +2302,19 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
         let seconds = total_secs % 60;
         format!("{}m {:02}s", minutes, seconds)
     }
+}
+
+/// A provider is offered in the `/model` menu when all of its required config
+/// keys are resolvable (via env var, stored secret/param, or a built-in default).
+/// This keeps unconfigured cloud providers out of the list while always including
+/// local (no-auth) providers like LM Studio and any provider whose key is set.
+fn provider_is_configured(meta: &goose::providers::base::ProviderMetadata) -> bool {
+    let config = Config::global();
+    meta.config_keys.iter().filter(|k| k.required).all(|k| {
+        std::env::var(&k.name).is_ok()
+            || k.default.is_some()
+            || config.get(&k.name, k.secret).is_ok()
+    })
 }
 
 fn build_switched_model_config(

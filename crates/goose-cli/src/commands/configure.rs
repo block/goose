@@ -365,7 +365,7 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
     }
 }
 
-fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
+pub(crate) fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
     const MAX_VISIBLE: usize = 30;
     let mut query = String::new();
 
