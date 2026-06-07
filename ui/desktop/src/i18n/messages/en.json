@@ -1106,6 +1106,9 @@
   "extensionInstallModal.installing": {
     "defaultMessage": "Installing..."
   },
+  "extensionInstallModal.mcpDiscoveryFailedTitle": {
+    "defaultMessage": "MCP Discovery Failed"
+  },
   "extensionInstallModal.no": {
     "defaultMessage": "No"
   },
