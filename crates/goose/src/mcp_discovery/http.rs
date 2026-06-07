@@ -85,7 +85,22 @@ impl ManifestFetcher for ReqwestFetcher {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
             .to_ascii_lowercase();
-        Ok(content_type.contains("application/json") || content_type.contains("text/event-stream"))
+
+        // An SSE response to the initialize POST is a strong MCP signal; its body
+        // is a stream we must not block on reading.
+        if content_type.contains("text/event-stream") {
+            return Ok(true);
+        }
+        // For a JSON response, confirm it is actually a JSON-RPC message rather
+        // than a generic API endpoint that happens to answer with JSON (e.g. a
+        // catch-all returning `{"error": ...}`).
+        if content_type.contains("application/json") {
+            let body = resp.text().await.unwrap_or_default();
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
+                return Ok(value.get("jsonrpc").is_some());
+            }
+        }
+        Ok(false)
     }
 }
 
@@ -167,6 +182,34 @@ mod tests {
             .await;
         let url = format!("{}/mcp", server.uri());
         assert!(!fetcher().probe(&url).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn probe_rejects_non_jsonrpc_json() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"error": "not an mcp server"})),
+            )
+            .mount(&server)
+            .await;
+        let url = format!("{}/mcp", server.uri());
+        assert!(!fetcher().probe(&url).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn probe_accepts_sse_response() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw("event: message\ndata: {}\n\n", "text/event-stream"),
+            )
+            .mount(&server)
+            .await;
+        let url = format!("{}/mcp", server.uri());
+        assert!(fetcher().probe(&url).await.unwrap());
     }
 
     #[tokio::test]

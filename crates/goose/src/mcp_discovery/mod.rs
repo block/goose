@@ -130,6 +130,9 @@ struct ParsedUri {
     host: String,
     /// authority (host[:port]) used to build https URLs
     authority: String,
+    /// path component, if the URI carried one (e.g. `mcp://host/shop`); used as
+    /// the direct-handshake fallback endpoint when present.
+    path: Option<String>,
 }
 
 fn parse_uri(uri: &str) -> Result<ParsedUri> {
@@ -150,7 +153,13 @@ fn parse_uri(uri: &str) -> Result<ParsedUri> {
         Some(port) => format!("{host}:{port}"),
         None => host.clone(),
     };
-    Ok(ParsedUri { host, authority })
+    let trimmed_path = parsed.path().trim_end_matches('/');
+    let path = (!trimmed_path.is_empty()).then(|| trimmed_path.to_string());
+    Ok(ParsedUri {
+        host,
+        authority,
+        path,
+    })
 }
 
 /// Resolve with injectable DNS and HTTP backends (used by tests).
@@ -160,7 +169,11 @@ pub async fn resolve_with(
     fetcher: &dyn ManifestFetcher,
     opts: &DiscoveryOptions,
 ) -> Result<DiscoveredServer> {
-    let ParsedUri { host, authority } = parse_uri(uri)?;
+    let ParsedUri {
+        host,
+        authority,
+        path,
+    } = parse_uri(uri)?;
 
     // Step 1: optional DNS fast-mode. Failures are non-fatal; absent keys only
     // matter if the manifest later claims a signature.
@@ -204,8 +217,12 @@ pub async fn resolve_with(
         }
     }
 
-    // Step 3: direct handshake fallback.
-    let endpoint = format!("https://{authority}/mcp");
+    // Step 3: direct handshake fallback. Honour a path the caller supplied in
+    // the discovery URI (e.g. `mcp://host/shop`), defaulting to `/mcp`.
+    let endpoint = match &path {
+        Some(p) => format!("https://{authority}{p}"),
+        None => format!("https://{authority}/mcp"),
+    };
     let reachable = fetcher
         .probe(&endpoint)
         .await

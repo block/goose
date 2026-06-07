@@ -167,6 +167,16 @@ async fn falls_back_to_direct_handshake() {
 }
 
 #[tokio::test]
+async fn fallback_preserves_uri_path() {
+    let http = MockHttp::default().reachable("https://example.com/custom");
+    let server = resolve_with("mcp://example.com/custom", None, &http, &default_opts())
+        .await
+        .unwrap();
+    assert_eq!(server.source, DiscoverySource::DirectFallback);
+    assert_eq!(server.endpoint, "https://example.com/custom");
+}
+
+#[tokio::test]
 async fn no_server_anywhere_is_not_found() {
     let http = MockHttp::default();
     let err = resolve_with("mcp://example.com", None, &http, &default_opts())

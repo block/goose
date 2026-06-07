@@ -325,12 +325,21 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
           return;
         }
 
-        // A signed, public manifest is trusted; anything else needs explicit
-        // confirmation.
-        const modalType: ModalType =
+        // Apply the admin allowlist to the resolved endpoint exactly as a
+        // regular remote extension would be, so a discovery link cannot bypass a
+        // policy that blocks the equivalent URL. A signed, public manifest is
+        // otherwise trusted; anything else needs explicit confirmation.
+        const allowlistType = await determineModalType(data.endpoint, data.endpoint);
+        const trustType: ModalType =
           data.signature_verified && data.trust_class === 'public' ? 'trusted' : 'untrusted';
+        const modalType: ModalType =
+          allowlistType === 'blocked'
+            ? 'blocked'
+            : allowlistType === 'untrusted' || trustType === 'untrusted'
+              ? 'untrusted'
+              : 'trusted';
 
-        setPendingMcpConfig(data.config);
+        setPendingMcpConfig(modalType === 'blocked' ? null : data.config);
         setPendingLink(null);
         setModalState({
           isOpen: true,

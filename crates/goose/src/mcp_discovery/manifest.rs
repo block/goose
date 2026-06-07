@@ -93,14 +93,23 @@ impl McpServerManifest {
                 reason: "endpoint is empty".to_string(),
             });
         }
-        if self.effective_trust_class().requires_auth_declaration() && self.auth.is_none() {
-            return Err(DiscoveryError::MalformedManifest {
-                url: url.to_string(),
-                reason: format!(
-                    "trust_class {:?} requires an auth declaration",
-                    self.effective_trust_class()
-                ),
-            });
+        if self.effective_trust_class().requires_auth_declaration() {
+            // A protected manifest must declare at least one usable auth method,
+            // not merely an empty `auth` object.
+            let has_usable_auth = self
+                .auth
+                .as_ref()
+                .map(|a| a.methods.iter().any(|m| m != "none"))
+                .unwrap_or(false);
+            if !has_usable_auth {
+                return Err(DiscoveryError::MalformedManifest {
+                    url: url.to_string(),
+                    reason: format!(
+                        "trust_class {:?} requires an auth declaration with at least one method",
+                        self.effective_trust_class()
+                    ),
+                });
+            }
         }
         Ok(())
     }
@@ -174,6 +183,45 @@ mod tests {
             m.validate("u"),
             Err(DiscoveryError::MalformedManifest { .. })
         ));
+    }
+
+    #[test]
+    fn validate_rejects_empty_auth_for_enterprise() {
+        let m = McpServerManifest {
+            mcp_version: "2025-06-18".into(),
+            name: "x".into(),
+            endpoint: "https://example.com/mcp".into(),
+            transport: "http".into(),
+            description: None,
+            auth: Some(AuthRequirements::default()),
+            capabilities: vec![],
+            trust_class: Some(TrustClass::Regulated),
+            signature: None,
+        };
+        assert!(matches!(
+            m.validate("u"),
+            Err(DiscoveryError::MalformedManifest { .. })
+        ));
+    }
+
+    #[test]
+    fn validate_accepts_enterprise_with_method() {
+        let m = McpServerManifest {
+            mcp_version: "2025-06-18".into(),
+            name: "x".into(),
+            endpoint: "https://example.com/mcp".into(),
+            transport: "http".into(),
+            description: None,
+            auth: Some(AuthRequirements {
+                required: true,
+                methods: vec!["oauth2".into()],
+                ..Default::default()
+            }),
+            capabilities: vec![],
+            trust_class: Some(TrustClass::Enterprise),
+            signature: None,
+        };
+        assert!(m.validate("u").is_ok());
     }
 
     #[test]
