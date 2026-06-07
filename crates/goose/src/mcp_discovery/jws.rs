@@ -70,7 +70,9 @@ pub(crate) fn canonical_payload(raw_manifest_json: &str) -> Result<Vec<u8>, Disc
     if let Value::Object(map) = &mut value {
         map.remove("signature");
     }
-    Ok(serde_json::to_vec(&canonicalize(&value)).unwrap_or_default())
+    serde_json::to_vec(&canonicalize(&value)).map_err(|e| {
+        DiscoveryError::SignatureVerification(format!("failed to canonicalize manifest: {e}"))
+    })
 }
 
 /// Recursively sort object keys so serialization is deterministic regardless of

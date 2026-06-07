@@ -84,17 +84,21 @@ pub struct DiscoveredServer {
 impl DiscoveredServer {
     /// Build a `streamable_http` extension config pointing at the resolved
     /// endpoint.
+    ///
+    /// The extension name (and therefore its config key) is derived from the
+    /// discovery host, NOT the manifest's self-declared `name`: a remote
+    /// manifest must not be able to choose a key that collides with — and
+    /// shadows — a trusted builtin or an existing extension. The manifest name
+    /// is surfaced in the description instead.
     pub fn to_extension_config(&self, timeout: u64) -> ExtensionConfig {
-        let name = if self.manifest.name.trim().is_empty() {
-            self.discovery_host.clone()
-        } else {
-            self.manifest.name.clone()
+        let name = self.discovery_host.clone();
+        let manifest_name = self.manifest.name.trim();
+        let description = match (manifest_name.is_empty(), &self.manifest.description) {
+            (false, Some(desc)) => format!("{manifest_name}: {desc}"),
+            (false, None) => manifest_name.to_string(),
+            (true, Some(desc)) => desc.clone(),
+            (true, None) => format!("MCP server discovered at {}", self.discovery_host),
         };
-        let description = self
-            .manifest
-            .description
-            .clone()
-            .unwrap_or_else(|| format!("MCP server discovered at {}", self.discovery_host));
         ExtensionConfig::streamable_http(name, self.endpoint.clone(), description, timeout)
     }
 }
@@ -173,23 +177,31 @@ pub async fn resolve_with(
         }
     }
 
-    // Step 2: authoritative .well-known manifest.
+    // Step 2: authoritative .well-known manifest. A transport/non-404 error is
+    // NOT treated as "manifest absent": failing through to the unsigned fallback
+    // on error would let an on-path attacker who can disrupt (but not break TLS
+    // on) the well-known request strip a signed manifest's trust posture. Only a
+    // definitive 404 advances to the fallback.
     let well_known_url = format!("https://{authority}{WELL_KNOWN_PATH}");
-    let outcome = fetcher.get(&well_known_url).await.unwrap_or_else(|e| {
-        tracing::debug!("well-known fetch error for {well_known_url}: {e}");
-        FetchOutcome::NotFound
-    });
-
-    if let FetchOutcome::Found { body } = outcome {
-        return build_from_manifest(
-            &host,
-            &authority,
-            &body,
-            &well_known_url,
-            &jwks,
-            &dns_hint,
-            opts,
-        );
+    match fetcher.get(&well_known_url).await {
+        Ok(FetchOutcome::Found { body }) => {
+            return build_from_manifest(
+                &host,
+                &authority,
+                &body,
+                &well_known_url,
+                &jwks,
+                &dns_hint,
+                opts,
+            );
+        }
+        Ok(FetchOutcome::NotFound) => {}
+        Err(e) => {
+            return Err(DiscoveryError::Network {
+                url: well_known_url,
+                source: e,
+            });
+        }
     }
 
     // Step 3: direct handshake fallback.

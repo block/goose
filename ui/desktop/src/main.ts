@@ -599,6 +599,8 @@ app.on('open-url', async (_event, url) => {
       targetWindow.focus();
       if (parsedUrl.hostname === 'extension') {
         targetWindow.webContents.send('add-extension', url);
+      } else if (parsedUrl.hostname === 'mcp') {
+        targetWindow.webContents.send('discover-mcp-extension', url);
       } else if (parsedUrl.hostname === 'sessions') {
         targetWindow.webContents.send('open-shared-session', url);
       }
@@ -1560,6 +1562,8 @@ ipcMain.on('react-ready', (event) => {
       const parsedUrl = new URL(deepLinkUrl);
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
+      } else if (parsedUrl.hostname === 'mcp') {
+        window.webContents.send('discover-mcp-extension', deepLinkUrl);
       } else if (parsedUrl.hostname === 'sessions') {
         window.webContents.send('open-shared-session', deepLinkUrl);
       }

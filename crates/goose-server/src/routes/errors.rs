@@ -117,7 +117,11 @@ impl From<goose::mcp_discovery::DiscoveryError> for ErrorResponse {
         match err {
             D::InvalidUri(_) => Self::bad_request(err.to_string()),
             D::NotFound(_) => Self::not_found(err.to_string()),
-            D::Network { .. } => Self::internal(err.to_string()),
+            // The failure is reaching the discovered host, not goose itself.
+            D::Network { .. } => Self {
+                message: err.to_string(),
+                status: StatusCode::BAD_GATEWAY,
+            },
             // Validation and security failures: the request was understood but
             // the discovered server cannot be trusted/used.
             D::MalformedManifest { .. }

@@ -92,10 +92,6 @@ const i18n = defineMessages({
     id: 'extensionInstallModal.mcpDiscoveryFailedTitle',
     defaultMessage: 'MCP Discovery Failed',
   },
-  mcpUnsignedMessage: {
-    id: 'extensionInstallModal.mcpUnsignedMessage',
-    defaultMessage: 'This MCP server was discovered at {name} but its manifest is not signed (trust class: {trustClass}). Installing unsigned servers may pose security risks.\n\nEndpoint: {command}',
-  },
 });
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
@@ -286,6 +282,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       });
 
       setPendingLink(modalType === 'blocked' ? null : link);
+      setPendingMcpConfig(null);
 
       window.electron.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
     } catch (error) {
@@ -334,6 +331,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
           data.signature_verified && data.trust_class === 'public' ? 'trusted' : 'untrusted';
 
         setPendingMcpConfig(data.config);
+        setPendingLink(null);
         setModalState({
           isOpen: true,
           modalType,

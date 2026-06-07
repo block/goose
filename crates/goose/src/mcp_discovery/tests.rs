@@ -98,9 +98,17 @@ async fn well_known_manifest_resolves() {
 
     let config = server.to_extension_config(300);
     match config {
-        ExtensionConfig::StreamableHttp { uri, name, .. } => {
+        ExtensionConfig::StreamableHttp {
+            uri,
+            name,
+            description,
+            ..
+        } => {
             assert_eq!(uri, "https://example.com/mcp");
-            assert_eq!(name, "Example");
+            // Name is derived from the discovery host, not the manifest's
+            // self-declared name, to prevent key collisions/shadowing.
+            assert_eq!(name, "example.com");
+            assert!(description.contains("Example"));
         }
         other => panic!("expected StreamableHttp, got {other:?}"),
     }
