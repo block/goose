@@ -570,12 +570,12 @@ export function AppInner() {
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
-      window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
+      navigate('/');
     };
 
     window.electron.on('new-chat', handleNewChat);
     return () => window.electron.off('new-chat', handleNewChat);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
