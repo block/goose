@@ -264,6 +264,21 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        // Local servers (llama.cpp, Ollama) aren't in the canonical model
+        // registry, so context_limit is still unset at this point. Ask the
+        // server for its actual runtime context window rather than falling
+        // back to DEFAULT_CONTEXT_LIMIT. See #9529.
+        let model = if model.context_limit.is_none() {
+            match Self::fetch_context_limit_from_api(&api_client, &base_path, &model.model_name)
+                .await
+            {
+                Some(n_ctx) if n_ctx > 0 => model.with_context_limit(Some(n_ctx)),
+                _ => model,
+            }
+        } else {
+            model
+        };
+
         Ok(Self {
             api_client,
             base_path,
@@ -609,6 +624,33 @@ impl OpenAiProvider {
             .collect();
         models.sort();
         Ok(models)
+    }
+
+    /// Reads the actual runtime context window from a local server's models
+    /// list response. llama.cpp and Ollama expose this via a non-standard
+    /// `meta.n_ctx` field that isn't part of the OpenAI spec, so canonical
+    /// model limits don't account for it. See #9529.
+    async fn fetch_context_limit_from_api(
+        api_client: &ApiClient,
+        base_path: &str,
+        model_name: &str,
+    ) -> Option<usize> {
+        let models_path = Self::map_base_path(base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
+        let response = api_client
+            .request(None, &models_path)
+            .response_get()
+            .await
+            .ok()?;
+        let json = handle_response_openai_compat(response).await.ok()?;
+        let data = json.get("data")?.as_array()?;
+        let entry = data
+            .iter()
+            .find(|m| m.get("id").and_then(|v| v.as_str()) == Some(model_name))?;
+        entry
+            .get("meta")?
+            .get("n_ctx")?
+            .as_u64()
+            .map(|n| n as usize)
     }
 }
 
@@ -1255,7 +1297,7 @@ mod tests {
     // ── dynamic_models behavior ─────────────────────────────────────────────
 
     use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
-    use wiremock::matchers::method;
+    use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn make_provider_with_server(
@@ -1324,6 +1366,53 @@ mod tests {
 
         let models = provider.fetch_supported_models().await.unwrap();
         assert_eq!(models, vec!["m1".to_string(), "m2".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn fetch_context_limit_from_api_reads_meta_n_ctx() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [
+                    {"id": "other-model", "meta": {"n_ctx": 8192}},
+                    {"id": "qwen3.6-35b-a3b", "meta": {"n_ctx": 32768, "n_ctx_train": 262144}},
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let api_client = ApiClient::new(server.uri(), AuthMethod::NoAuth).unwrap();
+        let limit = OpenAiProvider::fetch_context_limit_from_api(
+            &api_client,
+            "v1/chat/completions",
+            "qwen3.6-35b-a3b",
+        )
+        .await;
+
+        assert_eq!(limit, Some(32768));
+    }
+
+    #[tokio::test]
+    async fn fetch_context_limit_from_api_returns_none_without_meta() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [{"id": "gpt-4o"}]
+            })))
+            .mount(&server)
+            .await;
+
+        let api_client = ApiClient::new(server.uri(), AuthMethod::NoAuth).unwrap();
+        let limit = OpenAiProvider::fetch_context_limit_from_api(
+            &api_client,
+            "v1/chat/completions",
+            "gpt-4o",
+        )
+        .await;
+
+        assert_eq!(limit, None);
     }
 
     #[test]
