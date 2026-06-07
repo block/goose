@@ -372,7 +372,11 @@ impl ModelConfig {
         fast_model_name: &str,
         provider_name: &str,
     ) -> Result<Self, ConfigError> {
-        let name = std::env::var("GOOSE_FAST_MODEL")
+        // Using Config::global().get_param() reads from both environment
+        // variables and config.yaml, so users can set `GOOSE_FAST_MODEL: ...`
+        // in config.yaml instead of exporting an env var. See #9646.
+        let name = crate::config::Config::global()
+            .get_param::<String>("GOOSE_FAST_MODEL")
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty())
@@ -633,6 +637,50 @@ mod tests {
             config_without_params
                 .get_config_param::<String>("nonexistent", "NONEXISTENT_CONFIG_KEY"),
             None
+        );
+    }
+
+    #[test]
+    fn test_with_fast_uses_goose_fast_model_override() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_FAST_MODEL", Some("openrouter/owl-alpha")),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+
+        let config = ModelConfig::new("primary-model")
+            .unwrap()
+            .with_fast("google/gemini-2.5-flash", "openrouter")
+            .unwrap();
+
+        assert_eq!(
+            config.fast_model_config.as_ref().unwrap().model_name,
+            "openrouter/owl-alpha"
+        );
+    }
+
+    #[test]
+    fn test_with_fast_falls_back_to_provider_default() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_FAST_MODEL", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+
+        let config = ModelConfig::new("primary-model")
+            .unwrap()
+            .with_fast("google/gemini-2.5-flash", "openrouter")
+            .unwrap();
+
+        assert_eq!(
+            config.fast_model_config.as_ref().unwrap().model_name,
+            "google/gemini-2.5-flash"
         );
     }
 

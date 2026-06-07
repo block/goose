@@ -30,7 +30,8 @@ export GOOSE_PROVIDER="anthropic"
 export GOOSE_MODEL="claude-sonnet-4-5-20250929"
 export GOOSE_TEMPERATURE=0.7
 
-# Override the fast model used for auxiliary calls (tool-selection, classification, etc.)
+# Override the fast model used for auxiliary calls (tool-selection, classification, session titles, etc.)
+# Can also be set as `GOOSE_FAST_MODEL: "gpt-4o-mini"` in config.yaml
 export GOOSE_FAST_MODEL="gpt-4o-mini"
 
 # Set a lower limit for shorter interactions
