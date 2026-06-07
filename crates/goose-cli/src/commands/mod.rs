@@ -1,5 +1,6 @@
 pub mod configure;
 pub mod doctor;
+pub mod editor;
 pub mod gateway;
 pub mod info;
 pub mod plugin;

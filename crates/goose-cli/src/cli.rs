@@ -874,6 +874,16 @@ enum Command {
         )]
         fork: bool,
 
+        /// Fork a session after editing its conversation in $EDITOR
+        #[arg(
+            long = "fork-session",
+            requires = "resume",
+            conflicts_with = "fork",
+            help = "Fork a session after editing its conversation in $EDITOR",
+            long_help = "Open the session's conversation in your editor ($VISUAL / $EDITOR / vi), then create a new session from the edited result. Must be used with --resume."
+        )]
+        fork_edit: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -1465,6 +1475,7 @@ async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
+    fork_edit: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1475,7 +1486,7 @@ async fn handle_interactive_session(
     }
 
     let session_start = std::time::Instant::now();
-    let session_type = if fork {
+    let session_type = if fork || fork_edit {
         "forked"
     } else if resume {
         "resumed"
@@ -1504,7 +1515,30 @@ async fn handle_interactive_session(
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
-    if fork {
+    if fork_edit {
+        if let Some(ref id) = session_id {
+            let session_manager = SessionManager::instance();
+            let original = session_manager.get_session(id, true).await?;
+            let conversation = original
+                .conversation
+                .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
+
+            let edited = crate::commands::editor::edit_conversation(&conversation)?;
+
+            let new_session = session_manager
+                .create_session(
+                    original.working_dir,
+                    original.name,
+                    original.session_type,
+                    original.goose_mode,
+                )
+                .await?;
+            session_manager
+                .replace_conversation(&new_session.id, &edited)
+                .await?;
+            session_id = Some(new_session.id);
+        }
+    } else if fork {
         if let Some(id) = session_id {
             let session_manager = SessionManager::instance();
             let original = session_manager.get_session(&id, false).await?;
@@ -1513,10 +1547,11 @@ async fn handle_interactive_session(
         }
     }
 
+    let is_fork = fork || fork_edit;
     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
         session_id,
         resume,
-        fork,
+        fork: is_fork,
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
@@ -1538,7 +1573,7 @@ async fn handle_interactive_session(
     })
     .await;
 
-    if (resume || fork) && history {
+    if (resume || is_fork) && history {
         session.render_message_history();
     }
 
@@ -2081,6 +2116,7 @@ pub async fn cli() -> anyhow::Result<()> {
             identifier,
             resume,
             fork,
+            fork_edit,
             history,
             session_opts,
             extension_opts,
@@ -2089,6 +2125,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 identifier,
                 resume,
                 fork,
+                fork_edit,
                 history,
                 session_opts,
                 extension_opts,
