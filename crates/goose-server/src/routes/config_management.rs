@@ -907,6 +907,22 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, ErrorResponse> {
     Ok(Json(providers_response))
 }
 
+// Per-provider cache of fetched model lists. Listing models hits each provider's
+// `/models` endpoint over the network, so with several providers configured the
+// model picker can take many seconds on every open. Cache each provider's list
+// for a short TTL so repeat opens are instant. Entries are invalidated per
+// provider by `cleanup_provider_cache` (called when a provider's config changes),
+// so a freshly-added API key still triggers a refetch.
+const MODELS_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+type ModelsCache =
+    std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, Vec<ModelInfo>)>>;
+
+fn provider_models_cache() -> &'static ModelsCache {
+    static CACHE: std::sync::OnceLock<ModelsCache> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
 #[utoipa::path(
     get,
     path = "/config/providers/{name}/models",
@@ -937,13 +953,28 @@ pub async fn get_provider_models(
         )));
     }
 
+    // Serve a recently-cached list if we have one — avoids a network round-trip
+    // to the provider's `/models` endpoint on every picker open.
+    if let Ok(cache) = provider_models_cache().lock() {
+        if let Some((fetched_at, models)) = cache.get(&name) {
+            if fetched_at.elapsed() < MODELS_CACHE_TTL {
+                return Ok(Json(models.clone()));
+            }
+        }
+    }
+
     let model_config = ModelConfig::new(&metadata.default_model)?.with_canonical_limits(&name);
     let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
 
     let models_result = provider.fetch_recommended_model_info().await;
 
     match models_result {
-        Ok(models) => Ok(Json(models)),
+        Ok(models) => {
+            if let Ok(mut cache) = provider_models_cache().lock() {
+                cache.insert(name.clone(), (std::time::Instant::now(), models.clone()));
+            }
+            Ok(Json(models))
+        }
         Err(provider_error) => Err(provider_error.into()),
     }
 }
@@ -1276,6 +1307,9 @@ pub async fn cleanup_provider_cache(
     Path(name): Path<String>,
 ) -> Result<Json<String>, ErrorResponse> {
     goose::providers::cleanup_provider(&name).await?;
+    if let Ok(mut cache) = provider_models_cache().lock() {
+        cache.remove(&name);
+    }
     Ok(Json(format!("Cleaned up provider cache: {}", name)))
 }
 
