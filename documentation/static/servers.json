@@ -332,6 +332,23 @@
     "environmentVariables": []
   },
   {
+    "id": "firecrawl",
+    "name": "Firecrawl",
+    "description": "Web scraping, crawling, and search capabilities for AI agents",
+    "command": "npx -y firecrawl-mcp",
+    "link": "https://github.com/firecrawl/firecrawl-mcp-server",
+    "installation_notes": "Install using npx package manager. Requires a Firecrawl API key.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "FIRECRAWL_API_KEY",
+        "description": "API key for Firecrawl web scraping and crawling service",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "github-mcp",
     "name": "GitHub",
     "description": "GitHub repository management and operations",
