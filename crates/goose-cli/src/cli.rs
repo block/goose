@@ -179,6 +179,15 @@ pub struct ExtensionOptions {
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
 
     #[arg(
+        long = "with-mcp-extension",
+        value_name = "URI",
+        help = "Add an MCP server discovered from an mcp:// URI (can be specified multiple times)",
+        long_help = "Discover and add an MCP server from an mcp:// discovery URI per draft-serra-mcp-discovery-uri. Resolves the server's .well-known manifest (verifying signatures and host-match) and adds it as a streamable HTTP extension. Format: 'mcp://host[:port][/path]'",
+        action = clap::ArgAction::Append
+    )]
+    pub mcp_extensions: Vec<String>,
+
+    #[arg(
         long = "with-builtin",
         value_name = "NAME",
         help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
@@ -1508,6 +1517,7 @@ async fn handle_interactive_session(
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
+        mcp_extensions: extension_opts.mcp_extensions,
         builtins: extension_opts.builtins,
         no_profile: extension_opts.no_profile,
         recipe: None,
@@ -1720,6 +1730,7 @@ async fn handle_run_command(
         no_session: run_behavior.no_session,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
+        mcp_extensions: extension_opts.mcp_extensions,
         builtins: extension_opts.builtins,
         no_profile: extension_opts.no_profile,
         recipe: recipe.clone(),
@@ -2051,6 +2062,7 @@ async fn handle_default_session() -> Result<()> {
         no_session: false,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
+        mcp_extensions: Vec::new(),
         builtins: Vec::new(),
         no_profile: false,
         recipe: None,

@@ -89,6 +89,8 @@ pub struct SessionBuilderConfig {
     pub extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
+    /// List of `mcp://` discovery URIs to resolve and add
+    pub mcp_extensions: Vec<String>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
     pub no_profile: bool,
@@ -129,6 +131,7 @@ impl Default for SessionBuilderConfig {
             no_session: false,
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
+            mcp_extensions: Vec::new(),
             builtins: Vec::new(),
             no_profile: false,
             recipe: None,
@@ -429,8 +432,44 @@ async fn collect_extension_configs(
 
     let mut all: Vec<ExtensionConfig> = configured_extensions;
     all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
+    all.extend(resolve_mcp_flag_extensions(&session_config.mcp_extensions).await);
 
     Ok(all)
+}
+
+/// Resolve `--with-mcp-extension mcp://...` flags into streamable HTTP configs.
+/// Resolution failures are surfaced as warnings and skipped, matching the
+/// behaviour of the other CLI extension flags.
+async fn resolve_mcp_flag_extensions(uris: &[String]) -> Vec<ExtensionConfig> {
+    let mut configs = Vec::new();
+    for uri in uris {
+        match goose::mcp_discovery::resolve(uri).await {
+            Ok(server) => {
+                if !server.signature_verified {
+                    eprintln!(
+                        "{}",
+                        style(format!(
+                            "Note: MCP server discovered at {} is unsigned (trust class: {:?})",
+                            server.endpoint, server.trust_class
+                        ))
+                        .yellow()
+                    );
+                }
+                configs.push(server.to_extension_config(goose::config::DEFAULT_EXTENSION_TIMEOUT));
+            }
+            Err(e) => {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "Warning: failed to discover MCP server from '{}' ({}); ignoring",
+                        uri, e
+                    ))
+                    .yellow()
+                );
+            }
+        }
+    }
+    configs
 }
 
 async fn resolve_and_load_extensions(
@@ -637,6 +676,7 @@ mod tests {
                 url: "http://localhost:8080/mcp".to_string(),
                 timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
             }],
+            mcp_extensions: Vec::new(),
             builtins: vec!["developer".to_string()],
             no_profile: false,
             recipe: None,

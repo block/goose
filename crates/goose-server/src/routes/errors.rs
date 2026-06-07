@@ -111,6 +111,24 @@ impl From<serde_yaml::Error> for ErrorResponse {
     }
 }
 
+impl From<goose::mcp_discovery::DiscoveryError> for ErrorResponse {
+    fn from(err: goose::mcp_discovery::DiscoveryError) -> Self {
+        use goose::mcp_discovery::DiscoveryError as D;
+        match err {
+            D::InvalidUri(_) => Self::bad_request(err.to_string()),
+            D::NotFound(_) => Self::not_found(err.to_string()),
+            D::Network { .. } => Self::internal(err.to_string()),
+            // Validation and security failures: the request was understood but
+            // the discovered server cannot be trusted/used.
+            D::MalformedManifest { .. }
+            | D::EndpointHostMismatch { .. }
+            | D::InsecureEndpoint(_)
+            | D::UnsupportedTransport(_)
+            | D::SignatureVerification(_) => Self::unprocessable(err.to_string()),
+        }
+    }
+}
+
 impl From<ProviderError> for ErrorResponse {
     fn from(err: ProviderError) -> Self {
         let (status, message) = match err {

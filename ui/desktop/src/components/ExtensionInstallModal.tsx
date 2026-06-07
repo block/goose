@@ -11,6 +11,7 @@ import {
 import { Button } from './ui/button';
 import { extractExtensionName } from './settings/extensions/utils';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
+import { discoverExtension } from '../api';
 import type { ExtensionConfig } from '../api/types.gen';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { useConfig } from './ConfigContext';
@@ -87,6 +88,14 @@ const i18n = defineMessages({
     id: 'extensionInstallModal.installing',
     defaultMessage: 'Installing...',
   },
+  mcpDiscoveryFailedTitle: {
+    id: 'extensionInstallModal.mcpDiscoveryFailedTitle',
+    defaultMessage: 'MCP Discovery Failed',
+  },
+  mcpUnsignedMessage: {
+    id: 'extensionInstallModal.mcpUnsignedMessage',
+    defaultMessage: 'This MCP server was discovered at {name} but its manifest is not signed (trust class: {trustClass}). Installing unsigned servers may pose security risks.\n\nEndpoint: {command}',
+  },
 });
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
@@ -159,6 +168,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   });
 
   const [pendingLink, setPendingLink] = useState<string | null>(null);
+  const [pendingMcpConfig, setPendingMcpConfig] = useState<ExtensionConfig | null>(null);
 
   const determineModalType = async (
     command: string,
@@ -289,6 +299,66 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
     }
   }, [intl]);
 
+  const handleDiscoverMcp = useCallback(
+    async (link: string): Promise<void> => {
+      if (processingLinkRef.current === link) {
+        return;
+      }
+      processingLinkRef.current = link;
+
+      try {
+        const uri = new URL(link).searchParams.get('uri');
+        if (!uri) {
+          throw new Error('mcp deep link is missing the uri parameter');
+        }
+
+        const { data, error } = await discoverExtension({ body: { uri } });
+        if (error || !data) {
+          const message =
+            (error as { message?: string } | undefined)?.message ?? 'discovery failed';
+          throw new Error(message);
+        }
+
+        const extensionsList = await getExtensionsRef.current(true);
+        if (extensionsList?.find((ext) => ext.name === data.config.name)) {
+          toastService.success({
+            title: intl.formatMessage(i18n.alreadyInstalledTitle, { name: data.config.name }),
+            msg: intl.formatMessage(i18n.alreadyInstalledMessage, { name: data.config.name }),
+          });
+          return;
+        }
+
+        // A signed, public manifest is trusted; anything else needs explicit
+        // confirmation.
+        const modalType: ModalType =
+          data.signature_verified && data.trust_class === 'public' ? 'trusted' : 'untrusted';
+
+        setPendingMcpConfig(data.config);
+        setModalState({
+          isOpen: true,
+          modalType,
+          extensionInfo: {
+            name: data.config.name,
+            command: data.endpoint,
+            remoteUrl: data.endpoint,
+            link,
+          },
+          isPending: false,
+          error: null,
+        });
+        window.electron.logInfo(`MCP discovery modal opened: ${modalType} for ${data.endpoint}`);
+      } catch (error) {
+        toastService.error({
+          title: intl.formatMessage(i18n.mcpDiscoveryFailedTitle),
+          msg: errorMessage(error, 'Unknown error'),
+        });
+      } finally {
+        processingLinkRef.current = null;
+      }
+    },
+    [intl]
+  );
+
   const dismissModal = useCallback(() => {
     setModalState({
       isOpen: false,
@@ -298,18 +368,24 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       error: null,
     });
     setPendingLink(null);
+    setPendingMcpConfig(null);
   }, []);
 
   const confirmInstall = useCallback(async (): Promise<void> => {
-    if (!pendingLink) {
+    if (!pendingLink && !pendingMcpConfig) {
       return;
     }
 
     setModalState((prev) => ({ ...prev, isPending: true }));
 
     try {
+      if (!addExtension) {
+        throw new Error('addExtension function not provided to component');
+      }
 
-      if (addExtension) {
+      if (pendingMcpConfig) {
+        await addExtension(pendingMcpConfig.name, pendingMcpConfig, true);
+      } else if (pendingLink) {
         await addExtensionFromDeepLink(
           pendingLink,
           addExtension,
@@ -317,8 +393,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
             setView(view as View, options);
           }
         );
-      } else {
-        throw new Error('addExtension function not provided to component');
       }
       dismissModal();
     } catch (error) {
@@ -328,7 +402,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         isPending: false,
       }));
     }
-  }, [pendingLink, dismissModal, addExtension, setView]);
+  }, [pendingLink, pendingMcpConfig, dismissModal, addExtension, setView]);
 
   useEffect(() => {
 
@@ -337,12 +411,22 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       await handleExtensionRequest(link);
     };
 
+    const handleDiscoverMcpExtension = async (
+      _event: IpcRendererEvent,
+      ...args: unknown[]
+    ) => {
+      const link = args[0] as string;
+      await handleDiscoverMcp(link);
+    };
+
     window.electron.on('add-extension', handleAddExtension);
+    window.electron.on('discover-mcp-extension', handleDiscoverMcpExtension);
 
     return () => {
       window.electron.off('add-extension', handleAddExtension);
+      window.electron.off('discover-mcp-extension', handleDiscoverMcpExtension);
     };
-  }, [handleExtensionRequest]);
+  }, [handleExtensionRequest, handleDiscoverMcp]);
 
   const getModalConfig = (): ExtensionModalConfig | null => {
     if (!modalState.extensionInfo) return null;

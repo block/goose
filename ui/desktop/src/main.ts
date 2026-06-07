@@ -524,6 +524,8 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
+  } else if (parsedUrl.hostname === 'mcp') {
+    window.webContents.send('discover-mcp-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {

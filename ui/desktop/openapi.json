@@ -1037,6 +1037,50 @@
         }
       }
     },
+    "/config/extensions/discover": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Resolve an `mcp://` discovery URI to an extension config WITHOUT persisting",
+        "description": "it. The caller is expected to confirm the trust/auth posture and then POST\nthe returned `config` to `/config/extensions`.",
+        "operationId": "discover_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverExtensionQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MCP server resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverExtensionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid discovery URI"
+          },
+          "404": {
+            "description": "No MCP server found for host"
+          },
+          "422": {
+            "description": "Discovered manifest failed validation or signature checks"
+          },
+          "500": {
+            "description": "Network error during discovery"
+          }
+        }
+      }
+    },
     "/config/extensions/{name}": {
       "delete": {
         "tags": [
@@ -5013,6 +5057,65 @@
             "description": "Whether this provider uses the main provider config (true) or has its own key (false)"
           }
         }
+      },
+      "DiscoverExtensionQuery": {
+        "type": "object",
+        "required": [
+          "uri"
+        ],
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Optional connection timeout (seconds) for the resulting extension config.",
+            "nullable": true,
+            "minimum": 0
+          },
+          "uri": {
+            "type": "string",
+            "description": "An `mcp://host[:port][/path]` discovery URI."
+          }
+        }
+      },
+      "DiscoverExtensionResponse": {
+        "type": "object",
+        "required": [
+          "config",
+          "endpoint",
+          "trust_class",
+          "source",
+          "signature_verified",
+          "auth_required"
+        ],
+        "properties": {
+          "auth_required": {
+            "type": "boolean",
+            "description": "Whether the manifest declares that authentication is required."
+          },
+          "config": {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "signature_verified": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DiscoverySource"
+          },
+          "trust_class": {
+            "$ref": "#/components/schemas/TrustClass"
+          }
+        }
+      },
+      "DiscoverySource": {
+        "type": "string",
+        "description": "Which step of the resolution chain produced the final endpoint.",
+        "enum": [
+          "well_known",
+          "direct_fallback"
+        ]
       },
       "DownloadModelRequest": {
         "type": "object",
@@ -9188,6 +9291,16 @@
             "description": "Transcribed text from the audio"
           }
         }
+      },
+      "TrustClass": {
+        "type": "string",
+        "description": "Trust class declared by an MCP server manifest.\n\nPer draft-serra-mcp-discovery-uri a missing declaration defaults to the most\nrestrictive safe value, `Public`.",
+        "enum": [
+          "public",
+          "sandbox",
+          "enterprise",
+          "regulated"
+        ]
       },
       "TunnelInfo": {
         "type": "object",

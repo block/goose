@@ -215,6 +215,7 @@ icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
 llama-cpp-sys-2 = { workspace = true, optional = true }
 image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+hickory-resolver = "0.26.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }

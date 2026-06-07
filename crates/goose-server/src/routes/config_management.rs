@@ -25,6 +25,7 @@ use goose::providers::huggingface_auth;
 use goose::providers::providers as get_providers;
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
+    mcp_discovery::DiscoverySource, mcp_discovery::TrustClass,
     slash_commands::recipe_slash_command,
 };
 use serde::{Deserialize, Serialize};
@@ -846,6 +847,66 @@ pub async fn add_extension(
     }
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct DiscoverExtensionQuery {
+    /// An `mcp://host[:port][/path]` discovery URI.
+    pub uri: String,
+    /// Optional connection timeout (seconds) for the resulting extension config.
+    #[serde(default)]
+    pub timeout: Option<u64>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DiscoverExtensionResponse {
+    /// Streamable HTTP config ready to POST to `/config/extensions` once the
+    /// caller has confirmed the trust posture.
+    pub config: ExtensionConfig,
+    pub endpoint: String,
+    pub trust_class: TrustClass,
+    pub source: DiscoverySource,
+    pub signature_verified: bool,
+    /// Whether the manifest declares that authentication is required.
+    pub auth_required: bool,
+}
+
+/// Resolve an `mcp://` discovery URI to an extension config WITHOUT persisting
+/// it. The caller is expected to confirm the trust/auth posture and then POST
+/// the returned `config` to `/config/extensions`.
+#[utoipa::path(
+    post,
+    path = "/config/extensions/discover",
+    request_body = DiscoverExtensionQuery,
+    responses(
+        (status = 200, description = "MCP server resolved", body = DiscoverExtensionResponse),
+        (status = 400, description = "Invalid discovery URI"),
+        (status = 404, description = "No MCP server found for host"),
+        (status = 422, description = "Discovered manifest failed validation or signature checks"),
+        (status = 500, description = "Network error during discovery")
+    )
+)]
+pub async fn discover_extension(
+    Json(query): Json<DiscoverExtensionQuery>,
+) -> Result<Json<DiscoverExtensionResponse>, ErrorResponse> {
+    let server = goose::mcp_discovery::resolve(&query.uri).await?;
+    let timeout = query
+        .timeout
+        .unwrap_or(goose::config::DEFAULT_EXTENSION_TIMEOUT);
+    let auth_required = server
+        .manifest
+        .auth
+        .as_ref()
+        .map(|a| a.required)
+        .unwrap_or(false);
+    Ok(Json(DiscoverExtensionResponse {
+        config: server.to_extension_config(timeout),
+        endpoint: server.endpoint.clone(),
+        trust_class: server.trust_class,
+        source: server.source,
+        signature_verified: server.signature_verified,
+        auth_required,
+    }))
+}
+
 #[utoipa::path(
     delete,
     path = "/config/extensions/{name}",
@@ -1481,6 +1542,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/config/extensions", get(get_extensions))
         .route("/config/extensions", post(add_extension))
+        .route("/config/extensions/discover", post(discover_extension))
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))

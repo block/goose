@@ -290,6 +290,34 @@ export type DictationProviderStatus = {
     uses_provider_config: boolean;
 };
 
+export type DiscoverExtensionQuery = {
+    /**
+     * Optional connection timeout (seconds) for the resulting extension config.
+     */
+    timeout?: number | null;
+    /**
+     * An `mcp://host[:port][/path]` discovery URI.
+     */
+    uri: string;
+};
+
+export type DiscoverExtensionResponse = {
+    /**
+     * Whether the manifest declares that authentication is required.
+     */
+    auth_required: boolean;
+    config: ExtensionConfig;
+    endpoint: string;
+    signature_verified: boolean;
+    source: DiscoverySource;
+    trust_class: TrustClass;
+};
+
+/**
+ * Which step of the resolution chain produced the final endpoint.
+ */
+export type DiscoverySource = 'well_known' | 'direct_fallback';
+
 export type DownloadModelRequest = {
     /**
      * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
@@ -1652,6 +1680,14 @@ export type TranscribeResponse = {
     text: string;
 };
 
+/**
+ * Trust class declared by an MCP server manifest.
+ *
+ * Per draft-serra-mcp-discovery-uri a missing declaration defaults to the most
+ * restrictive safe value, `Public`.
+ */
+export type TrustClass = 'public' | 'sandbox' | 'enterprise' | 'regulated';
+
 export type TunnelInfo = {
     hostname: string;
     secret: string;
@@ -2524,6 +2560,41 @@ export type AddExtensionResponses = {
 };
 
 export type AddExtensionResponse = AddExtensionResponses[keyof AddExtensionResponses];
+
+export type DiscoverExtensionData = {
+    body: DiscoverExtensionQuery;
+    path?: never;
+    query?: never;
+    url: '/config/extensions/discover';
+};
+
+export type DiscoverExtensionErrors = {
+    /**
+     * Invalid discovery URI
+     */
+    400: unknown;
+    /**
+     * No MCP server found for host
+     */
+    404: unknown;
+    /**
+     * Discovered manifest failed validation or signature checks
+     */
+    422: unknown;
+    /**
+     * Network error during discovery
+     */
+    500: unknown;
+};
+
+export type DiscoverExtensionResponses = {
+    /**
+     * MCP server resolved
+     */
+    200: DiscoverExtensionResponse;
+};
+
+export type DiscoverExtensionResponse2 = DiscoverExtensionResponses[keyof DiscoverExtensionResponses];
 
 export type RemoveExtensionData = {
     body?: never;
