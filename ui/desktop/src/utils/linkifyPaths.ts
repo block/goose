@@ -1,12 +1,12 @@
 import { visit } from 'unist-util-visit';
 import type { Plugin } from 'unified';
-import type { Root, Text, Link, Parent } from 'mdast';
+import type { Root, Text, InlineCode, Link, Parent } from 'mdast';
 
 const OPEN_FILE_PROTOCOL = 'open-file://';
 
-const UNIX_PATH_RE = /(?:^|[\s('"`\[(,;]|\/\*.*?\*\/)()(\/(?:[a-zA-Z0-9._+-]+\/){1,}[a-zA-Z0-9._+-]+)/g;
-const TILDE_PATH_RE = /(?:^|[\s('"`\[(,;]|\/\*.*?\*\/)()(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
-const WIN_PATH_RE = /(?:^|[\s('"`\[(,;]|\/\*.*?\*\/)()([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
+const UNIX_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(\/(?:[a-zA-Z0-9._+-]+\/){1,}[a-zA-Z0-9._+-]+)/g;
+const TILDE_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
+const WIN_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
 
 type PathMatch = [index: number, path: string];
 
@@ -33,43 +33,51 @@ function findPaths(text: string): PathMatch[] {
   return result;
 }
 
+function linkifyNode(node: Text | InlineCode, index: number, parent: Parent): void {
+  const text = node.value;
+  const paths = findPaths(text);
+  if (paths.length === 0) return;
+
+  const newNodes: Array<Text | InlineCode | Link> = [];
+  let lastIndex = 0;
+  for (const [pathIndex, path] of paths) {
+    if (pathIndex > lastIndex) {
+      newNodes.push({
+        type: node.type,
+        value: text.slice(lastIndex, pathIndex),
+      } as Text | InlineCode);
+    }
+    newNodes.push({
+      type: 'link',
+      url: OPEN_FILE_PROTOCOL + path,
+      title: null,
+      children: [
+        {
+          type: 'text',
+          value: path,
+        },
+      ],
+    });
+    lastIndex = pathIndex + path.length;
+  }
+  if (lastIndex < text.length) {
+    newNodes.push({
+      type: node.type,
+      value: text.slice(lastIndex),
+    } as Text | InlineCode);
+  }
+  parent.children.splice(index, 1, ...newNodes);
+}
+
 export const remarkLinkifyPaths: Plugin<[], Root> = function () {
   return (tree: Root) => {
     visit(tree, 'text', (node: Text, index: number | undefined, parent: Parent | undefined) => {
       if (index === undefined || !parent) return;
-
-      const paths = findPaths(node.value);
-      if (paths.length === 0) return;
-
-      const newNodes: Array<Text | Link> = [];
-      let lastIndex = 0;
-      for (const [pathIndex, path] of paths) {
-        if (pathIndex > lastIndex) {
-          newNodes.push({
-            type: 'text',
-            value: node.value.slice(lastIndex, pathIndex),
-          });
-        }
-        newNodes.push({
-          type: 'link',
-          url: OPEN_FILE_PROTOCOL + path,
-          title: null,
-          children: [
-            {
-              type: 'text',
-              value: path,
-            },
-          ],
-        });
-        lastIndex = pathIndex + path.length;
-      }
-      if (lastIndex < node.value.length) {
-        newNodes.push({
-          type: 'text',
-          value: node.value.slice(lastIndex),
-        });
-      }
-      parent.children.splice(index, 1, ...newNodes);
+      linkifyNode(node, index, parent);
+    });
+    visit(tree, 'inlineCode', (node: InlineCode, index: number | undefined, parent: Parent | undefined) => {
+      if (index === undefined || !parent) return;
+      linkifyNode(node, index, parent);
     });
   };
 };

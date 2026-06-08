@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { OPEN_FILE_PROTOCOL } from './linkifyPaths';
 
-const UNIX_PATH_RE = /(?:^|[\s('"`\[(,;]|\/\*.*?\*\/)()(\/(?:[a-zA-Z0-9._+-]+\/){1,}[a-zA-Z0-9._+-]+)/g;
-const TILDE_PATH_RE = /(?:^|[\s('"`\[(,;]|\/\*.*?\*\/)()(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
-const WIN_PATH_RE = /(?:^|[\s('"`\[(,;]|\/\*.*?\*\/)()([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
+const UNIX_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(\/(?:[a-zA-Z0-9._+-]+\/){1,}[a-zA-Z0-9._+-]+)/g;
+const TILDE_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
+const WIN_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
 
 type PathMatch = [index: number, path: string];
 
@@ -99,6 +99,17 @@ describe('path linkification', () => {
       const matches = findPaths('Check /usr/local/lib/my-app/config.yaml');
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('/usr/local/lib/my-app/config.yaml');
+    });
+
+    it('does not match content inside code blocks', () => {
+      const matches = findPaths('Use `Array<T>` for generics');
+      expect(matches).toHaveLength(0);
+    });
+
+    it('matches paths inside inline code markers', () => {
+      const matches = findPaths('`/usr/local/bin/node`');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/usr/local/bin/node');
     });
   });
 });
