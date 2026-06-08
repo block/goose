@@ -902,7 +902,6 @@ where
         let mut accumulated_reasoning_content = String::new();
         let mut think_filter = ThinkFilter::new();
         let mut saw_structured_reasoning = false;
-        let mut yielded_reasoning_content_len = 0usize;
         let mut last_signature: Option<String> = None;
         // Buffer inline <think>...</think> content until we know whether structured
         // reasoning will arrive. Emitting it immediately and then receiving
@@ -1060,17 +1059,20 @@ where
                 }
 
                 let mut contents = Vec::new();
-                if yielded_reasoning_content_len < accumulated_reasoning_content.len() {
-                    if let Some(unyielded_reasoning) =
-                        accumulated_reasoning_content.get(yielded_reasoning_content_len..)
-                    {
-                        if !unyielded_reasoning.is_empty() {
-                            contents.push(MessageContent::thinking(unyielded_reasoning, ""));
-                        }
-                    }
+                // Always attach the full accumulated reasoning to the tool-call message.
+                // DeepSeek (and Kimi) require `reasoning_content` on every assistant message
+                // that has tool_calls when thinking mode is enabled. If reasoning was
+                // already streamed in earlier chunks, the "unyielded" slice is empty and
+                // the message would otherwise be emitted with no thinking — which causes
+                // DeepSeek to reject the next request with
+                // "The reasoning_content in the thinking mode must be passed back to the API."
+                if !accumulated_reasoning_content.is_empty() {
+                    contents.push(MessageContent::thinking(
+                        accumulated_reasoning_content.clone(),
+                        "",
+                    ));
                 }
                 accumulated_reasoning_content.clear();
-                yielded_reasoning_content_len = 0;
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
@@ -1138,7 +1140,6 @@ where
                 if let Some(reasoning) = chunk.choices[0].delta.reasoning_text() {
                     let signature = last_signature.as_deref().unwrap_or("");
                     content.push(MessageContent::thinking(reasoning, signature));
-                    yielded_reasoning_content_len = accumulated_reasoning_content.len();
                 }
 
                 let (text_content, thought_signature) = extract_content_and_signature(chunk.choices[0].delta.content.as_ref());
@@ -3299,8 +3300,17 @@ data: [DONE]"#;
         Ok(())
     }
 
+    /// Regression test for the DeepSeek error
+    ///   "The reasoning_content in the thinking mode must be passed back to the API."
+    ///
+    /// When the model streams reasoning in chunks BEFORE the tool_call chunk (the normal
+    /// DeepSeek pattern), the reasoning has already been yielded to the UI in prior
+    /// messages. The tool_call message must still carry the full accumulated reasoning
+    /// as `MessageContent::Thinking` so that `format_messages` can re-emit
+    /// `reasoning_content` on the next request.
     #[tokio::test]
-    async fn test_streaming_tool_call_does_not_duplicate_yielded_reasoning() -> anyhow::Result<()> {
+    async fn test_streaming_tool_call_attaches_accumulated_reasoning_after_prior_yields(
+    ) -> anyhow::Result<()> {
         let response_lines = concat!(
             "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"think \"},\"finish_reason\":null}]}\n",
             "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"once\"},\"finish_reason\":null}]}\n",
@@ -3312,26 +3322,47 @@ data: [DONE]"#;
         let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
         let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
 
-        let mut thinking = String::new();
-        let mut tool_calls = 0;
         let mut history = Vec::new();
         while let Some(result) = messages.next().await {
             let (message, _usage) = result?;
             if let Some(msg) = message {
-                for content in &msg.content {
-                    match content {
-                        MessageContent::Thinking(t) => thinking.push_str(&t.thinking),
-                        MessageContent::ToolRequest(_) => tool_calls += 1,
-                        _ => {}
-                    }
-                }
                 history.push(msg);
             }
         }
 
-        assert_eq!(thinking, "think once");
+        // Exactly one tool call is yielded across the entire stream.
+        let tool_calls: usize = history
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .count();
         assert_eq!(tool_calls, 1);
 
+        // The tool_call message itself must carry the full accumulated reasoning,
+        // not an empty slice, otherwise format_messages has no Thinking content
+        // to convert into `reasoning_content` and DeepSeek rejects the next request.
+        let tool_msg = history
+            .iter()
+            .find(|m| {
+                m.content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+            })
+            .expect("tool_call message present in stream");
+        let tool_msg_thinking: String = tool_msg
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                MessageContent::Thinking(t) => Some(t.thinking.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(tool_msg_thinking, "think once");
+
+        // The format spec — what the provider actually receives — must have a single
+        // assistant message with both `reasoning_content` and `tool_calls`. The
+        // format layer collapses the split thinking-only yields via pending-reasoning
+        // carry-over, so the wire payload matches DeepSeek's expectations.
         let spec = format_messages_with_options(
             &history,
             &ImageFormat::OpenAi,
