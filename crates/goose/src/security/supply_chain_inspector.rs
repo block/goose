@@ -322,7 +322,28 @@ fn strip_command_prefixes<'s, 'a>(tokens: &'a [&'s str]) -> &'a [&'s str] {
         if i < tokens.len() && is_command_wrapper(tokens[i]) {
             i += 1;
             while i < tokens.len() && tokens[i].starts_with('-') {
+                let flag = tokens[i];
                 i += 1;
+                // A wrapper option can take a separate operand (`sudo -u node`,
+                // `nice -n 10`, `env -u PATH`). Consume the following token as
+                // that operand, unless it begins the wrapped command we are
+                // looking for (a package manager), starts another wrapper or an
+                // env assignment, or is itself a flag. Without this, the operand
+                // (`node`) is mistaken for the command and the real install
+                // (`npm install lodahs`) is never inspected. The package-manager
+                // guard keeps boolean flags such as `sudo -H npm ...` correct:
+                // `npm` is not swallowed as an operand.
+                if !flag.contains('=') {
+                    if let Some(&next) = tokens.get(i) {
+                        if !next.starts_with('-')
+                            && !is_package_manager_bin(next)
+                            && !is_command_wrapper(next)
+                            && !is_env_assignment(next)
+                        {
+                            i += 1;
+                        }
+                    }
+                }
             }
             continue;
         }
@@ -349,6 +370,18 @@ fn is_env_assignment(tok: &str) -> bool {
 fn is_command_wrapper(tok: &str) -> bool {
     let base = tok.rsplit('/').next().unwrap_or(tok);
     COMMAND_WRAPPERS.contains(&base)
+}
+
+/// The package-manager binaries this inspector understands (path prefix
+/// stripped, `/usr/bin/npm` -> `npm`). Used when skipping wrapper options so a
+/// flag's operand (`sudo -u node`) is not mistaken for the wrapped command,
+/// while the real binary (`npm`) is still recognised and inspected.
+fn is_package_manager_bin(tok: &str) -> bool {
+    let base = tok.rsplit('/').next().unwrap_or(tok);
+    matches!(
+        base,
+        "npm" | "npm.cmd" | "yarn" | "pnpm" | "bun" | "npx" | "npx.cmd" | "bunx" | "bunx.cmd"
+    )
 }
 
 /// Locate the package-manager subcommand, skipping any leading global options.
@@ -761,6 +794,39 @@ mod tests {
     }
 
     #[test]
+    fn parses_install_behind_wrapper_options_that_take_an_operand() {
+        // A wrapper option with a separate operand (`sudo -u node`) must not let
+        // the operand be read as the command; the wrapped install still fires.
+        assert_eq!(
+            extract_install_targets("sudo -u node npm install lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("doas -u build pnpm add exprcss"),
+            vec!["exprcss"]
+        );
+        assert_eq!(
+            extract_install_targets("nice -n 10 npm i lodahs"),
+            vec!["lodahs"]
+        );
+        assert_eq!(
+            extract_install_targets("env -u PATH yarn add exprcss"),
+            vec!["exprcss"]
+        );
+        // Boolean wrapper flags must still leave the package manager visible:
+        // `npm` is not swallowed as `-H`'s operand.
+        assert_eq!(
+            extract_install_targets("sudo -H npm install lodahs"),
+            vec!["lodahs"]
+        );
+        // Stacked: an operand-taking flag followed by a boolean one.
+        assert_eq!(
+            extract_install_targets("sudo -u node -H npm install lodahs"),
+            vec!["lodahs"]
+        );
+    }
+
+    #[test]
     fn flag_values_are_not_treated_as_packages() {
         // `axio` is the value of `--prefix`, not a package; it must not be
         // collected even though it is one edit from `axios`.
@@ -860,6 +926,10 @@ mod tests {
     async fn flags_typosquat_behind_sudo_but_not_flag_value() {
         // A typosquat behind `sudo` still fires.
         let flagged = inspect("sudo npm install lodahs").await;
+        assert_eq!(flagged.len(), 1);
+        assert!(flagged[0].reason.contains("lodash"));
+        // ...and still fires when sudo carries an operand-taking option.
+        let flagged = inspect("sudo -u node npm install lodahs").await;
         assert_eq!(flagged.len(), 1);
         assert!(flagged[0].reason.contains("lodash"));
         // A benign `--prefix` value that merely looks typosquat-ish must not fire.
