@@ -2301,7 +2301,12 @@ You review code."#;
         };
         std::env::set_var("GOOSE_SUBAGENT_MODEL", OVERRIDE_MODEL);
         let result = client
-            .resolve_model_config(&params, &empty_recipe(), &session_with(parent_config()), PROVIDER)
+            .resolve_model_config(
+                &params,
+                &empty_recipe(),
+                &session_with(parent_config()),
+                PROVIDER,
+            )
             .expect("resolve_model_config");
         std::env::remove_var("GOOSE_SUBAGENT_MODEL");
         assert_eq!(
@@ -2323,7 +2328,12 @@ You review code."#;
         });
         std::env::set_var("GOOSE_SUBAGENT_MODEL", OVERRIDE_MODEL);
         let result = client
-            .resolve_model_config(&DelegateParams::default(), &recipe, &session_with(parent_config()), PROVIDER)
+            .resolve_model_config(
+                &DelegateParams::default(),
+                &recipe,
+                &session_with(parent_config()),
+                PROVIDER,
+            )
             .expect("resolve_model_config");
         std::env::remove_var("GOOSE_SUBAGENT_MODEL");
         assert_eq!(
