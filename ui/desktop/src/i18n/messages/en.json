@@ -4502,6 +4502,12 @@
   "themeSelector.theme": {
     "defaultMessage": "Theme"
   },
+  "timeFormatToggle.description": {
+    "defaultMessage": "Display message timestamps in 24-hour format."
+  },
+  "timeFormatToggle.title": {
+    "defaultMessage": "Use 24-Hour Clock"
+  },
   "toolApprovalButtons.allowOnce": {
     "defaultMessage": "Allow Once"
   },
