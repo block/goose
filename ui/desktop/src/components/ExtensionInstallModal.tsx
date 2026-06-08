@@ -309,6 +309,24 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
           throw new Error('mcp deep link is missing the uri parameter');
         }
 
+        // Gate the discovery network call on the allowlist BEFORE contacting the
+        // host, so a blocked `mcp://` link can't make the backend fetch the
+        // manifest / probe the endpoint of an unapproved (possibly internal)
+        // host. The resolved endpoint is checked again after discovery below.
+        if ((await determineModalType(uri, uri)) === 'blocked') {
+          setPendingMcpConfig(null);
+          setPendingLink(null);
+          setModalState({
+            isOpen: true,
+            modalType: 'blocked',
+            extensionInfo: { name: uri, command: uri, link },
+            isPending: false,
+            error: null,
+          });
+          window.electron.logInfo(`MCP discovery blocked by allowlist before probing: ${uri}`);
+          return;
+        }
+
         const { data, error } = await discoverExtension({ body: { uri } });
         if (error || !data) {
           const message =

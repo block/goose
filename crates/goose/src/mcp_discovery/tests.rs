@@ -177,6 +177,33 @@ async fn fallback_preserves_uri_path() {
 }
 
 #[tokio::test]
+async fn fallback_honors_validated_dns_src() {
+    // No well-known manifest, but DNS advertises a same-domain src endpoint.
+    let http = MockHttp::default().reachable("https://api.example.com/mcp");
+    let dns = MockDns::default().with(
+        "_mcp.example.com",
+        &["v=mcp1; src=https://api.example.com/mcp"],
+    );
+    let server = resolve_with("mcp://example.com", Some(&dns), &http, &default_opts())
+        .await
+        .unwrap();
+    assert_eq!(server.source, DiscoverySource::DirectFallback);
+    assert_eq!(server.endpoint, "https://api.example.com/mcp");
+}
+
+#[tokio::test]
+async fn fallback_ignores_cross_host_dns_src() {
+    // A cross-host src (a spoofed DNS answer) must be ignored; discovery falls
+    // back to the default /mcp on the discovery host instead.
+    let http = MockHttp::default().reachable("https://example.com/mcp");
+    let dns = MockDns::default().with("_mcp.example.com", &["v=mcp1; src=https://evil.com/mcp"]);
+    let server = resolve_with("mcp://example.com", Some(&dns), &http, &default_opts())
+        .await
+        .unwrap();
+    assert_eq!(server.endpoint, "https://example.com/mcp");
+}
+
+#[tokio::test]
 async fn no_server_anywhere_is_not_found() {
     let http = MockHttp::default();
     let err = resolve_with("mcp://example.com", None, &http, &default_opts())

@@ -162,6 +162,22 @@ fn parse_uri(uri: &str) -> Result<ParsedUri> {
     })
 }
 
+/// An `src` hint from DNS is only usable if it is HTTPS and its host equals, or
+/// is a subdomain of, the discovery host — the same host-match rule applied to
+/// manifest endpoints, so an unauthenticated DNS answer cannot point discovery
+/// at an arbitrary host.
+fn validated_dns_src(host: &str, dns_hint: &Option<McpDnsHint>) -> Option<String> {
+    let src = dns_hint.as_ref()?.src.as_ref()?;
+    let parsed = url::Url::parse(src).ok()?;
+    if parsed.scheme() != "https" {
+        return None;
+    }
+    if !host_matches(host, parsed.host_str()?) {
+        return None;
+    }
+    Some(src.clone())
+}
+
 /// Resolve with injectable DNS and HTTP backends (used by tests).
 pub async fn resolve_with(
     uri: &str,
@@ -217,22 +233,40 @@ pub async fn resolve_with(
         }
     }
 
-    // Step 3: direct handshake fallback. Honour a path the caller supplied in
-    // the discovery URI (e.g. `mcp://host/shop`), defaulting to `/mcp`.
-    let endpoint = match &path {
-        Some(p) => format!("https://{authority}{p}"),
-        None => format!("https://{authority}/mcp"),
-    };
-    let reachable = fetcher
-        .probe(&endpoint)
-        .await
-        .map_err(|e| DiscoveryError::Network {
-            url: endpoint.clone(),
-            source: e,
-        })?;
-    if !reachable {
-        return Err(DiscoveryError::NotFound(host));
+    // Step 3: direct handshake fallback. Candidate endpoints, in priority order:
+    //   1. a path the caller supplied in the discovery URI (`mcp://host/shop`),
+    //   2. an `src` hint from the `_mcp.{host}` DNS record (validated: HTTPS and
+    //      host equal-or-subdomain of the discovery host, so an unauthenticated
+    //      DNS answer cannot redirect to an arbitrary host),
+    //   3. the default `https://{authority}/mcp`.
+    // The first endpoint that answers a real MCP handshake wins.
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(p) = &path {
+        candidates.push(format!("https://{authority}{p}"));
+    } else {
+        if let Some(src) = validated_dns_src(&host, &dns_hint) {
+            candidates.push(src);
+        }
+        candidates.push(format!("https://{authority}/mcp"));
     }
+
+    let mut endpoint = None;
+    for candidate in candidates {
+        let reachable = fetcher
+            .probe(&candidate)
+            .await
+            .map_err(|e| DiscoveryError::Network {
+                url: candidate.clone(),
+                source: e,
+            })?;
+        if reachable {
+            endpoint = Some(candidate);
+            break;
+        }
+    }
+    let Some(endpoint) = endpoint else {
+        return Err(DiscoveryError::NotFound(host));
+    };
     if opts.require_signature {
         return Err(DiscoveryError::SignatureVerification(
             "direct-handshake fallback cannot be signed".to_string(),
