@@ -399,9 +399,11 @@ export const SecurityToggle = () => {
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       {intl.formatMessage(i18n.overrideNotice)}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {intl.formatMessage(i18n.warpNotice)}
-                    </p>
+                    {commandClassifierOverrideValue && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {intl.formatMessage(i18n.warpNotice)}
+                      </p>
+                    )}
                   </>
                 )}
               </div>

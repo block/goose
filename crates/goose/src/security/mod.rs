@@ -14,10 +14,10 @@ use std::env;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
-fn get_override(env_key: &str) -> Option<bool> {
+pub(crate) fn get_override(env_key: &str) -> Option<bool> {
     env::var(env_key).ok().and_then(|v| match v.as_str() {
-        "true" | "1" => Some(true),
-        "false" | "0" => Some(false),
+        "true" => Some(true),
+        "false" => Some(false),
         _ => None,
     })
 }
