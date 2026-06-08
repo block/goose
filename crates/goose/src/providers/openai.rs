@@ -452,10 +452,10 @@ impl OpenAiProvider {
             "v1/chat/completions".to_string()
         } else if normalized == "v1" || normalized.ends_with("/v1") {
             format!("{}/chat/completions", normalized)
-        } else if normalized.ends_with("chat/completions")  {
+        } else if normalized.ends_with("chat/completions") {
             stripped.to_string()
         } else {
-            // this is the path to the api /zen or /zen/go 
+            // This is the path to the api /zen or /zen/go
             format!("{}/v1/chat/completions", normalized)
         }
     }
