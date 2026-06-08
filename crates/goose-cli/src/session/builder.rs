@@ -538,7 +538,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     )
     .await
     {
-        Ok(provider) => (provider, resolved.provider_name.clone(), resolved.model_name.clone()),
+        Ok(provider) => (
+            provider,
+            resolved.provider_name.clone(),
+            resolved.model_name.clone(),
+        ),
         Err(e) if session_config.resume && is_provider_unavailable_error(&e) => {
             let fallback_provider = config.get_goose_provider().unwrap_or_else(|_| {
                 output::render_error("No provider configured. Run 'goose configure' first.");
@@ -557,17 +561,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 ))
                 .yellow()
             );
-            let fallback_model_config =
-                goose::model::ModelConfig::new(&fallback_model)
-                    .unwrap_or_else(|e| {
-                        output::render_error(&format!(
-                            "Failed to create model configuration: {}",
-                            e
-                        ));
-                        process::exit(1);
-                    })
-                    .with_canonical_limits(&fallback_provider);
-            match create(&fallback_provider, fallback_model_config, extensions_for_provider.clone()).await {
+            let fallback_model_config = goose::model::ModelConfig::new(&fallback_model)
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to create model configuration: {}", e));
+                    process::exit(1);
+                })
+                .with_canonical_limits(&fallback_provider);
+            match create(
+                &fallback_provider,
+                fallback_model_config,
+                extensions_for_provider.clone(),
+            )
+            .await
+            {
                 Ok(provider) => (provider, fallback_provider, fallback_model),
                 Err(e2) => {
                     output::render_error(&format!(
