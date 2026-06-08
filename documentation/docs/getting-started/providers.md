@@ -308,6 +308,15 @@ Need to connect to multiple OpenAI-compatible endpoints? [Configure custom provi
     OPENAI_PROJECT=ml-serving
     ```
   </TabItem>
+  <TabItem value="runapi" label="RunAPI">
+    For [RunAPI](https://runapi.ai) as an OpenAI-compatible endpoint for model jobs like AI image, video, music/audio, text-to-speech, and LLM tasks:
+    ```sh
+    OPENAI_HOST=https://api.runapi.ai
+    OPENAI_BASE_PATH=v1
+    OPENAI_API_KEY=your-runapi-api-key
+    ```
+    Choose a model from [RunAPI models](https://runapi.ai/models.md).
+  </TabItem>
   <TabItem value="enterprise" label="Enterprise OpenAI">
     For enterprise OpenAI deployments with governance:
     ```sh
