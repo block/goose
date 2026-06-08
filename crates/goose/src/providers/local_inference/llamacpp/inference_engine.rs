@@ -10,6 +10,7 @@ use llama_cpp_2::model::{AddBos, ChatTemplateResult, LlamaChatTemplate, LlamaMod
 use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdInputText};
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::token_type::LlamaTokenAttr;
 use std::num::NonZeroU32;
 
 use super::super::StreamSender;
@@ -659,6 +660,25 @@ pub(super) fn generation_loop(
         if model.is_eog_token(token) {
             exhausted_loop = false;
             break;
+        }
+
+        // A non-EOG control token (e.g. ChatML `<|im_start|>`) usually means the
+        // model is opening a fresh turn instead of ending its own — upstream
+        // llama.cpp leaves `additional_stops` empty for ChatML, so nothing else
+        // catches it and it leaks into content / runs away generating fake turns.
+        // Stop before emitting it — EXCEPT tool-call boundary markers (e.g. Qwen
+        // `<tool_call>`/`</tool_call>`, which llama.cpp also flags `Control`): those
+        // must reach the streaming parser, so let them through to be emitted below.
+        // (EOG control tokens like `<|im_end|>` are already handled above.)
+        if model.token_attr(token).contains(LlamaTokenAttr::Control) {
+            let mut probe = encoding_rs::UTF_8.new_decoder();
+            let marker = model
+                .token_to_piece(token, &mut probe, true, None)
+                .unwrap_or_default();
+            if !marker.contains("tool_call") {
+                exhausted_loop = false;
+                break;
+            }
         }
 
         output_token_count += 1;
