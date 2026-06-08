@@ -12,6 +12,7 @@ import {
   sessionCancel,
   sessionReply,
   TokenState,
+  updateAgentProvider,
   updateFromSession,
   updateSessionUserRecipeValues,
   listApps,
@@ -748,6 +749,24 @@ export function useChatStream({
           },
         },
       });
+      // Re-apply this session's persisted provider/model to the live agent.
+      // The non-cached path does this via resumeAgent({ load_model_and_extensions: true }).
+      // Without it, switching back to an already-visited (cached) chat leaves the agent on
+      // the previously-active model, so the per-session model "sticks" to the last selected.
+      const cachedModelConfig = cached.session?.model_config;
+      const cachedProvider = cached.session?.provider_name;
+      if (cachedModelConfig?.model_name && cachedProvider) {
+        void updateAgentProvider({
+          body: {
+            session_id: sessionId,
+            provider: cachedProvider,
+            model: cachedModelConfig.model_name,
+            context_limit: cachedModelConfig.context_limit,
+          },
+        }).catch((error) => {
+          console.error('Failed to re-apply session provider on cached switch:', error);
+        });
+      }
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
       );
