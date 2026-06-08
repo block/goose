@@ -104,6 +104,11 @@ jobs:
             sudo apt-get install -y libasound2
           fi
 
+      - name: Configure RPM packaging
+        run: |
+          echo '%_build_id_links none' > ~/.rpmmacros
+          test "$(rpm --eval '%{_build_id_links}')" = "none"
+
       - name: Setup Flatpak Runtimes
         run: |
           flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -180,6 +185,14 @@ jobs:
               mv "$package" "${base}-vulkan.${extension}"
             done
           fi
+
+          for package in out/make/rpm/x64/*.rpm; do
+            package_contents="$(rpm -qlp "$package")"
+            if grep -qE '^/usr/lib/\.build-id(/|$)' <<< "$package_contents"; then
+              echo "::error file=$package::RPM contains build-id links"
+              exit 1
+            fi
+          done
 
           echo "Build completed. Checking output..."
           ls -la out/
