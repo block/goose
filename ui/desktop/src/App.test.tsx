@@ -52,6 +52,8 @@ vi.mock('./api', () => {
     validateConfig: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(test_chat),
     resumeAgent: vi.fn().mockResolvedValue(test_chat),
+    listSessions: vi.fn().mockResolvedValue({ data: { sessions: [] } }),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
   };
 });
 
