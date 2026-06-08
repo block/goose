@@ -581,6 +581,18 @@ pre:has(> code.bg-inline-code) {
   content: '';
 }
 
+a.file-path-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px dashed currentColor;
+}
+
+a.file-path-link:hover {
+  border-bottom-style: solid;
+  opacity: 0.8;
+}
+
 .user-message p {
   margin-bottom: 0 !important;
 }

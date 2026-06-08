@@ -29,6 +29,7 @@ const customOneDarkTheme = {
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
 import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
+import { remarkLinkifyPaths, OPEN_FILE_PROTOCOL } from '../utils/linkifyPaths';
 import { ConfirmationModal } from './ui/ConfirmationModal';
 import { defineMessages, useIntl } from '../i18n';
 
@@ -258,7 +259,7 @@ const MarkdownContent = memo(function MarkdownContent({
       >
         <ReactMarkdown
           urlTransform={customUrlTransform}
-          remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
+          remarkPlugins={[remarkGfm, remarkBreaks, remarkLinkifyPaths, [remarkMath, { singleDollarTextMath: false }]]}
           rehypePlugins={[
             [
               rehypeKatex,
@@ -271,6 +272,23 @@ const MarkdownContent = memo(function MarkdownContent({
           ]}
           components={{
             a: (props) => {
+              const href = props.href;
+              if (href && href.startsWith(OPEN_FILE_PROTOCOL)) {
+                const filePath = decodeURIComponent(href.slice(OPEN_FILE_PROTOCOL.length));
+                return (
+                  <a
+                    {...props}
+                    href={undefined}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.electron.openPathInExplorer(filePath);
+                    }}
+                    className="file-path-link"
+                    title={`Show in Finder: ${filePath}`}
+                  />
+                );
+              }
               return (
                 <a
                   {...props}

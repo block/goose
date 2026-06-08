@@ -186,6 +186,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  openPathInExplorer: (filePath: string) => Promise<boolean>;
   launchApp: (app: GooseApp) => Promise<void>;
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
@@ -344,6 +345,8 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  openPathInExplorer: (filePath: string) =>
+    ipcRenderer.invoke('open-path-in-explorer', filePath),
   launchApp: (app: GooseApp) => ipcRenderer.invoke('launch-app', app),
   refreshApp: (app: GooseApp) => ipcRenderer.invoke('refresh-app', app),
   closeApp: (appName: string) => ipcRenderer.invoke('close-app', appName),

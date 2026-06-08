@@ -2779,6 +2779,16 @@ async function appMain() {
     }
   });
 
+  ipcMain.handle('open-path-in-explorer', async (_event, path: string) => {
+    try {
+      shell.showItemInFolder(path);
+      return true;
+    } catch (error) {
+      console.error('Error showing path in explorer:', error);
+      return false;
+    }
+  });
+
   ipcMain.handle('launch-app', async (event, gooseApp: GooseApp) => {
     try {
       const launchingWindow = BrowserWindow.fromWebContents(event.sender);
