@@ -12,6 +12,10 @@ use utoipa::ToSchema;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const OPENAI_VERSIONLESS_TRANSCRIPTIONS_PATH: &str = "audio/transcriptions";
+const GLADIA_UPLOAD_PATH: &str = "v2/upload";
+const GLADIA_TRANSCRIPTION_PATH: &str = "v2/pre-recorded";
+const GLADIA_POLL_INTERVAL: Duration = Duration::from_millis(1000);
+const GLADIA_MAX_POLLS: u32 = 120;
 type OpenAiDictationTarget = (String, Vec<(String, String)>, String);
 
 #[cfg(feature = "local-inference")]
@@ -28,6 +32,7 @@ pub enum DictationProvider {
     OpenAI,
     ElevenLabs,
     Groq,
+    Gladia,
     #[cfg(feature = "local-inference")]
     Local,
 }
@@ -71,6 +76,16 @@ pub const PROVIDERS: &[DictationProviderDef] = &[
         endpoint_path: "v1/speech-to-text",
         host_key: None,
         description: "Uses ElevenLabs speech-to-text API for advanced voice processing.",
+        uses_provider_config: false,
+        settings_path: None,
+    },
+    DictationProviderDef {
+        provider: DictationProvider::Gladia,
+        config_key: "GLADIA_API_KEY",
+        default_base_url: "https://api.gladia.io",
+        endpoint_path: GLADIA_UPLOAD_PATH,
+        host_key: None,
+        description: "Uses Gladia's speech-to-text API with an upload-and-poll workflow.",
         uses_provider_config: false,
         settings_path: None,
     },
@@ -247,6 +262,10 @@ fn build_api_client(provider: DictationProvider) -> Result<(ApiClient, String)> 
             header_name: "xi-api-key".to_string(),
             key: api_key,
         },
+        DictationProvider::Gladia => AuthMethod::ApiKey {
+            header_name: "x-gladia-key".to_string(),
+            key: api_key,
+        },
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => anyhow::bail!("Local provider should not use API client"),
     };
@@ -320,10 +339,136 @@ pub async fn transcribe_with_provider(
     Ok(text)
 }
 
+async fn gladia_response_json(response: reqwest::Response) -> Result<serde_json::Value> {
+    if !response.status().is_success() {
+        let status = response.status();
+        if status == 401 {
+            anyhow::bail!("Invalid API key");
+        } else if status == 429 {
+            anyhow::bail!("Rate limit exceeded");
+        } else {
+            anyhow::bail!("API error: status {}", status);
+        }
+    }
+
+    response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse Gladia response: {}", e);
+        anyhow::anyhow!(e)
+    })
+}
+
+fn parse_gladia_transcript(result: &serde_json::Value) -> Result<String> {
+    result["result"]["transcription"]["full_transcript"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("Missing transcript in Gladia response"))
+}
+
+enum GladiaPollOutcome {
+    Done(String),
+    Pending,
+}
+
+fn interpret_gladia_poll(result: &serde_json::Value) -> Result<GladiaPollOutcome> {
+    match result["status"].as_str() {
+        Some("done") => Ok(GladiaPollOutcome::Done(parse_gladia_transcript(result)?)),
+        Some("error") => anyhow::bail!("Gladia transcription failed"),
+        _ => Ok(GladiaPollOutcome::Pending),
+    }
+}
+
+fn gladia_pre_recorded_payload(audio_url: &str, model: &str) -> serde_json::Value {
+    serde_json::json!({ "audio_url": audio_url, "model": model })
+}
+
+pub async fn transcribe_gladia(
+    audio_bytes: Vec<u8>,
+    extension: &str,
+    mime_type: &str,
+    model: &str,
+) -> Result<String> {
+    let (client, upload_path) = build_api_client(DictationProvider::Gladia)?;
+
+    let part = reqwest::multipart::Part::bytes(audio_bytes)
+        .file_name(format!("audio.{}", extension))
+        .mime_str(mime_type)
+        .map_err(|e| {
+            tracing::error!("Failed to create multipart: {}", e);
+            anyhow::anyhow!(e)
+        })?;
+    let form = reqwest::multipart::Form::new().part("audio", part);
+
+    let upload = client
+        .request(None, &upload_path)
+        .multipart_post(form)
+        .await?;
+    let upload = gladia_response_json(upload).await?;
+    let audio_url = upload["audio_url"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("Missing 'audio_url' in Gladia upload response"))?;
+
+    let payload = gladia_pre_recorded_payload(audio_url, model);
+    let job = client
+        .request(None, GLADIA_TRANSCRIPTION_PATH)
+        .response_post(&payload)
+        .await?;
+    let job = gladia_response_json(job).await?;
+    let job_id = job["id"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("Missing 'id' in Gladia transcription response"))?;
+
+    let poll_path = format!("{}/{}", GLADIA_TRANSCRIPTION_PATH, job_id);
+    for _ in 0..GLADIA_MAX_POLLS {
+        let response = client.request(None, &poll_path).response_get().await?;
+        let result = gladia_response_json(response).await?;
+        match interpret_gladia_poll(&result)? {
+            GladiaPollOutcome::Done(text) => return Ok(text),
+            GladiaPollOutcome::Pending => tokio::time::sleep(GLADIA_POLL_INTERVAL).await,
+        }
+    }
+
+    anyhow::bail!("Gladia transcription timed out")
+}
+
+/// Single entry point for dictation transcription. Hides the per-provider
+/// differences (Gladia's async upload-and-poll flow, local Whisper inference)
+/// behind one call so dispatch sites stay uniform. `model_param`/`model_value`
+/// are the multipart field name and model id used by the shared remote path;
+/// providers that ignore them (Gladia, Local) simply don't read them.
+pub async fn transcribe(
+    provider: DictationProvider,
+    audio_bytes: Vec<u8>,
+    extension: &str,
+    mime_type: &str,
+    model_param: &str,
+    model_value: &str,
+) -> Result<String> {
+    match provider {
+        #[cfg(feature = "local-inference")]
+        DictationProvider::Local => transcribe_local(audio_bytes).await,
+        DictationProvider::Gladia => {
+            transcribe_gladia(audio_bytes, extension, mime_type, model_value).await
+        }
+        _ => {
+            transcribe_with_provider(
+                provider,
+                model_param.to_string(),
+                model_value.to_string(),
+                audio_bytes,
+                extension,
+                mime_type,
+            )
+            .await
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        openai_dictation_target, resolve_openai_base_url_target,
+        all_providers, get_provider_def, gladia_pre_recorded_payload, interpret_gladia_poll,
+        openai_dictation_target, parse_gladia_transcript, resolve_openai_base_url_target,
+        DictationProvider, GladiaPollOutcome, GLADIA_UPLOAD_PATH,
         OPENAI_VERSIONLESS_TRANSCRIPTIONS_PATH,
     };
 
@@ -364,5 +509,79 @@ mod tests {
         assert!(resolve_openai_base_url_target(Some("   "))
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn parse_gladia_transcript_reads_nested_full_transcript() {
+        let result = serde_json::json!({
+            "status": "done",
+            "result": { "transcription": { "full_transcript": "hello world" } }
+        });
+        assert_eq!(parse_gladia_transcript(&result).unwrap(), "hello world");
+    }
+
+    #[test]
+    fn parse_gladia_transcript_errors_when_transcript_missing() {
+        let result = serde_json::json!({ "status": "done", "result": {} });
+        assert!(parse_gladia_transcript(&result).is_err());
+    }
+
+    #[test]
+    fn interpret_gladia_poll_returns_transcript_when_done() {
+        let result = serde_json::json!({
+            "status": "done",
+            "result": { "transcription": { "full_transcript": "hi there" } }
+        });
+        match interpret_gladia_poll(&result).unwrap() {
+            GladiaPollOutcome::Done(text) => assert_eq!(text, "hi there"),
+            GladiaPollOutcome::Pending => panic!("expected Done"),
+        }
+    }
+
+    #[test]
+    fn interpret_gladia_poll_is_pending_while_processing() {
+        for status in ["queued", "processing"] {
+            let result = serde_json::json!({ "status": status });
+            assert!(matches!(
+                interpret_gladia_poll(&result).unwrap(),
+                GladiaPollOutcome::Pending
+            ));
+        }
+    }
+
+    #[test]
+    fn interpret_gladia_poll_errors_on_error_status() {
+        let result = serde_json::json!({ "status": "error" });
+        assert!(interpret_gladia_poll(&result).is_err());
+    }
+
+    #[test]
+    fn interpret_gladia_poll_errors_when_done_without_transcript() {
+        let result = serde_json::json!({ "status": "done", "result": {} });
+        assert!(interpret_gladia_poll(&result).is_err());
+    }
+
+    #[test]
+    fn gladia_pre_recorded_payload_includes_audio_url_and_model() {
+        let payload = gladia_pre_recorded_payload("https://api.gladia.io/x.wav", "solaria-1");
+        assert_eq!(payload["audio_url"], "https://api.gladia.io/x.wav");
+        assert_eq!(payload["model"], "solaria-1");
+    }
+
+    #[test]
+    fn gladia_provider_def_uses_dedicated_key_and_upload_path() {
+        let def = get_provider_def(DictationProvider::Gladia);
+        assert_eq!(def.config_key, "GLADIA_API_KEY");
+        assert_eq!(def.default_base_url, "https://api.gladia.io");
+        assert_eq!(def.endpoint_path, GLADIA_UPLOAD_PATH);
+        assert!(!def.uses_provider_config);
+        assert!(def.host_key.is_none());
+    }
+
+    #[test]
+    fn all_providers_includes_gladia() {
+        assert!(all_providers()
+            .iter()
+            .any(|def| def.provider == DictationProvider::Gladia));
     }
 }

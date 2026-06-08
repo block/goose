@@ -1,8 +1,6 @@
 use super::*;
-#[cfg(feature = "local-inference")]
-use crate::dictation::providers::transcribe_local;
 use crate::dictation::providers::{
-    all_providers, get_provider_def, is_configured, transcribe_with_provider, DictationProvider,
+    all_providers, get_provider_def, is_configured, transcribe, DictationProvider,
 };
 #[cfg(feature = "local-inference")]
 use crate::dictation::whisper;
@@ -10,9 +8,11 @@ use crate::dictation::whisper;
 const OPENAI_TRANSCRIPTION_MODEL_CONFIG_KEY: &str = "OPENAI_TRANSCRIPTION_MODEL";
 const GROQ_TRANSCRIPTION_MODEL_CONFIG_KEY: &str = "GROQ_TRANSCRIPTION_MODEL";
 const ELEVENLABS_TRANSCRIPTION_MODEL_CONFIG_KEY: &str = "ELEVENLABS_TRANSCRIPTION_MODEL";
+const GLADIA_TRANSCRIPTION_MODEL_CONFIG_KEY: &str = "GLADIA_TRANSCRIPTION_MODEL";
 const OPENAI_TRANSCRIPTION_MODEL: &str = "whisper-1";
 const GROQ_TRANSCRIPTION_MODEL: &str = "whisper-large-v3-turbo";
 const ELEVENLABS_TRANSCRIPTION_MODEL: &str = "scribe_v1";
+const GLADIA_TRANSCRIPTION_MODEL: &str = "solaria-1";
 
 impl GooseAcpAgent {
     pub(super) async fn on_dictation_transcribe(
@@ -58,24 +58,18 @@ impl GooseAcpAgent {
             }
         };
 
-        let text = match provider {
-            #[cfg(feature = "local-inference")]
-            DictationProvider::Local => transcribe_local(audio_bytes).await,
-            remote => {
-                let (model_param, default_model) = dictation_transcribe_params(remote);
-                let model = dictation_selected_model(config, remote)
-                    .unwrap_or_else(|| default_model.to_string());
-                transcribe_with_provider(
-                    remote,
-                    model_param.to_string(),
-                    model,
-                    audio_bytes,
-                    extension,
-                    &req.mime_type,
-                )
-                .await
-            }
-        }
+        let (model_param, default_model) = dictation_transcribe_params(provider);
+        let model =
+            dictation_selected_model(config, provider).unwrap_or_else(|| default_model.to_string());
+        let text = transcribe(
+            provider,
+            audio_bytes,
+            extension,
+            &req.mime_type,
+            model_param,
+            &model,
+        )
+        .await
         .internal_err()?;
 
         Ok(DictationTranscribeResponse { text })
@@ -334,6 +328,7 @@ impl GooseAcpAgent {
             DictationProvider::OpenAI => OPENAI_TRANSCRIPTION_MODEL_CONFIG_KEY,
             DictationProvider::Groq => GROQ_TRANSCRIPTION_MODEL_CONFIG_KEY,
             DictationProvider::ElevenLabs => ELEVENLABS_TRANSCRIPTION_MODEL_CONFIG_KEY,
+            DictationProvider::Gladia => GLADIA_TRANSCRIPTION_MODEL_CONFIG_KEY,
             #[cfg(feature = "local-inference")]
             DictationProvider::Local => {
                 let model = whisper::get_model(&req.model_id).ok_or_else(|| {
@@ -389,6 +384,7 @@ fn dictation_model_config_key(provider: DictationProvider) -> Option<String> {
         DictationProvider::ElevenLabs => {
             Some(ELEVENLABS_TRANSCRIPTION_MODEL_CONFIG_KEY.to_string())
         }
+        DictationProvider::Gladia => Some(GLADIA_TRANSCRIPTION_MODEL_CONFIG_KEY.to_string()),
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => Some(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY.to_string()),
     }
@@ -401,6 +397,7 @@ fn dictation_transcribe_params(provider: DictationProvider) -> (&'static str, &'
         DictationProvider::OpenAI => ("model", OPENAI_TRANSCRIPTION_MODEL),
         DictationProvider::Groq => ("model", GROQ_TRANSCRIPTION_MODEL),
         DictationProvider::ElevenLabs => ("model_id", ELEVENLABS_TRANSCRIPTION_MODEL),
+        DictationProvider::Gladia => ("", GLADIA_TRANSCRIPTION_MODEL),
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => ("", ""),
     }
@@ -411,6 +408,7 @@ fn dictation_default_model(provider: DictationProvider) -> Option<String> {
         DictationProvider::OpenAI => Some(OPENAI_TRANSCRIPTION_MODEL.to_string()),
         DictationProvider::Groq => Some(GROQ_TRANSCRIPTION_MODEL.to_string()),
         DictationProvider::ElevenLabs => Some(ELEVENLABS_TRANSCRIPTION_MODEL.to_string()),
+        DictationProvider::Gladia => Some(GLADIA_TRANSCRIPTION_MODEL.to_string()),
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => Some(whisper::recommend_model().to_string()),
     }
@@ -453,6 +451,11 @@ fn dictation_available_models(provider: DictationProvider) -> Vec<DictationModel
             id: ELEVENLABS_TRANSCRIPTION_MODEL.to_string(),
             label: "Scribe v1".to_string(),
             description: "ElevenLabs' hosted speech-to-text model.".to_string(),
+        }],
+        DictationProvider::Gladia => vec![DictationModelOption {
+            id: GLADIA_TRANSCRIPTION_MODEL.to_string(),
+            label: "Solaria-1".to_string(),
+            description: "Gladia's hosted speech-to-text model.".to_string(),
         }],
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => whisper::available_models()

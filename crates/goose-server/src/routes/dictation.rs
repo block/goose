@@ -9,11 +9,7 @@ use axum::{
 #[cfg(feature = "local-inference")]
 use axum::{extract::Path, routing::delete};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-#[cfg(feature = "local-inference")]
-use goose::dictation::providers::transcribe_local;
-use goose::dictation::providers::{
-    all_providers, is_configured, transcribe_with_provider, DictationProvider,
-};
+use goose::dictation::providers::{all_providers, is_configured, transcribe, DictationProvider};
 #[cfg(feature = "local-inference")]
 use goose::dictation::whisper;
 #[cfg(feature = "local-inference")]
@@ -147,40 +143,25 @@ pub async fn transcribe_dictation(
 ) -> Result<Json<TranscribeResponse>, ErrorResponse> {
     let (audio_bytes, extension) = validate_audio(&request.audio, &request.mime_type)?;
 
-    let text = match request.provider {
-        DictationProvider::OpenAI => transcribe_with_provider(
-            DictationProvider::OpenAI,
-            "model".to_string(),
-            "whisper-1".to_string(),
-            audio_bytes,
-            extension,
-            &request.mime_type,
-        )
-        .await
-        .map_err(convert_error)?,
-        DictationProvider::Groq => transcribe_with_provider(
-            DictationProvider::Groq,
-            "model".to_string(),
-            "whisper-large-v3-turbo".to_string(),
-            audio_bytes,
-            extension,
-            &request.mime_type,
-        )
-        .await
-        .map_err(convert_error)?,
-        DictationProvider::ElevenLabs => transcribe_with_provider(
-            DictationProvider::ElevenLabs,
-            "model_id".to_string(),
-            "scribe_v1".to_string(),
-            audio_bytes,
-            extension,
-            &request.mime_type,
-        )
-        .await
-        .map_err(convert_error)?,
+    let (model_param, model_value) = match request.provider {
+        DictationProvider::OpenAI => ("model", "whisper-1"),
+        DictationProvider::Groq => ("model", "whisper-large-v3-turbo"),
+        DictationProvider::ElevenLabs => ("model_id", "scribe_v1"),
+        DictationProvider::Gladia => ("", "solaria-1"),
         #[cfg(feature = "local-inference")]
-        DictationProvider::Local => transcribe_local(audio_bytes).await.map_err(convert_error)?,
+        DictationProvider::Local => ("", ""),
     };
+
+    let text = transcribe(
+        request.provider,
+        audio_bytes,
+        extension,
+        &request.mime_type,
+        model_param,
+        model_value,
+    )
+    .await
+    .map_err(convert_error)?;
 
     Ok(Json(TranscribeResponse { text }))
 }

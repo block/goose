@@ -4974,6 +4974,7 @@
           "openai",
           "elevenlabs",
           "groq",
+          "gladia",
           "local"
         ]
       },
