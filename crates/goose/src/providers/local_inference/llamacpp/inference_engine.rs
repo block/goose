@@ -282,16 +282,25 @@ pub(super) fn effective_context_size(
     memory_max_ctx: Option<usize>,
 ) -> usize {
     let limit = context_cap(settings, context_limit, n_ctx_train, memory_max_ctx);
-    let min_generation_headroom = 512;
-    if prompt_token_count + min_generation_headroom > limit {
+
+    // Size the context to what THIS turn actually needs (prompt + generation
+    // headroom), not the model's full advertised limit. Allocating the full limit
+    // (e.g. 128k for Qwen) builds a Metal compute graph large enough that macOS
+    // aborts the GPU command buffer ("Impacting Interactivity" -> command buffer
+    // status 5 -> "failed to decode, ret = -3"), which then poisons the backend for
+    // the rest of the session. `limit` (which honors an explicit `context_size`
+    // setting and the memory cap) stays the upper bound.
+    let headroom = settings.max_output_tokens.unwrap_or(8192).max(2048);
+    let sized = prompt_token_count.saturating_add(headroom).min(limit);
+
+    if prompt_token_count + 512 > limit {
         tracing::warn!(
-            "Prompt ({} tokens) + minimum headroom ({}) exceeds context limit ({})",
+            "Prompt ({} tokens) + minimum headroom (512) exceeds context limit ({})",
             prompt_token_count,
-            min_generation_headroom,
             limit,
         );
     }
-    limit
+    sized
 }
 
 pub(super) fn build_context_params(
