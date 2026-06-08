@@ -14,6 +14,7 @@ import {
   screen,
   session,
   shell,
+  systemPreferences,
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
@@ -2114,14 +2115,20 @@ async function appMain() {
 
   registerUpdateIpcHandlers();
 
-  // Handle microphone permission requests
+  // Handle microphone permission requests. On macOS, granting Chromium's
+  // `media` permission is not enough — the OS only delivers real audio after
+  // the main process triggers a genuine TCC authorization via
+  // askForMediaAccess. Without it the renderer receives a live but silent
+  // (all-zero) stream, breaking dictation.
+  //
+  // Request it lazily, only when dictation actually invokes getUserMedia, so a
+  // fresh profile is never prompted at launch. An unexpected launch prompt the
+  // user denies cannot be shown again, which would silently break later
+  // dictation with no recovery short of System Settings.
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    console.log('Permission requested:', permission);
-    // Allow microphone and media access
-    if (permission === 'media') {
-      callback(true);
+    if (permission === 'media' && process.platform === 'darwin') {
+      systemPreferences.askForMediaAccess('microphone').finally(() => callback(true));
     } else {
-      // Default behavior for other permissions
       callback(true);
     }
   });
