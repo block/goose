@@ -76,27 +76,15 @@ struct TokioSpanExporter {
     rt: Arc<tokio::runtime::Runtime>,
 }
 
-impl opentelemetry_sdk::export::trace::SpanExporter for TokioSpanExporter {
+impl opentelemetry_sdk::trace::SpanExporter for TokioSpanExporter {
     async fn export(
-        &mut self,
-        batch: Vec<opentelemetry_sdk::export::trace::SpanData>,
-    ) -> opentelemetry_sdk::error::OtelSdkResult {
+        &self,
+        batch: Vec<opentelemetry_sdk::trace::SpanData>,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
         if tokio::runtime::Handle::try_current().is_ok() {
             self.inner.export(batch).await
         } else {
             self.rt.block_on(self.inner.export(batch))
-        }
-    }
-
-    fn shutdown(&mut self) {
-        self.inner.shutdown();
-    }
-
-    async fn force_flush(&mut self) -> opentelemetry_sdk::error::OtelSdkResult {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            self.inner.force_flush().await
-        } else {
-            self.rt.block_on(self.inner.force_flush())
         }
     }
 
@@ -115,25 +103,13 @@ struct TokioLogExporter {
 
 impl opentelemetry_sdk::logs::LogExporter for TokioLogExporter {
     async fn export(
-        &mut self,
+        &self,
         batch: opentelemetry_sdk::logs::LogBatch<'_>,
-    ) -> opentelemetry_sdk::error::OtelSdkResult {
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
         if tokio::runtime::Handle::try_current().is_ok() {
             self.inner.export(batch).await
         } else {
             self.rt.block_on(self.inner.export(batch))
-        }
-    }
-
-    fn shutdown(&mut self) {
-        self.inner.shutdown();
-    }
-
-    async fn force_flush(&mut self) -> opentelemetry_sdk::error::OtelSdkResult {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            self.inner.force_flush().await
-        } else {
-            self.rt.block_on(self.inner.force_flush())
         }
     }
 
@@ -153,8 +129,8 @@ struct TokioMetricExporter {
 impl opentelemetry_sdk::metrics::exporter::PushMetricExporter for TokioMetricExporter {
     async fn export(
         &self,
-        metrics: &mut opentelemetry_sdk::metrics::data::ResourceMetrics,
-    ) -> opentelemetry_sdk::error::OtelSdkResult {
+        metrics: &opentelemetry_sdk::metrics::data::ResourceMetrics,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
         if tokio::runtime::Handle::try_current().is_ok() {
             self.inner.export(metrics).await
         } else {
@@ -162,20 +138,15 @@ impl opentelemetry_sdk::metrics::exporter::PushMetricExporter for TokioMetricExp
         }
     }
 
-    async fn force_flush(&self) -> opentelemetry_sdk::error::OtelSdkResult {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            self.inner.force_flush().await
-        } else {
-            self.rt.block_on(self.inner.force_flush())
-        }
+    fn force_flush(&self) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.force_flush()
     }
 
-    async fn shutdown(&self) -> opentelemetry_sdk::error::OtelSdkResult {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            self.inner.shutdown().await
-        } else {
-            self.rt.block_on(self.inner.shutdown())
-        }
+    fn shutdown_with_timeout(
+        &self,
+        timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
     }
 
     fn temporality(&self) -> Temporality {
