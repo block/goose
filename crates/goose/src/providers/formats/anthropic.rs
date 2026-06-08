@@ -1998,16 +1998,13 @@ mod tests {
     fn test_skip_cache_control_via_create_request_with_options() -> Result<()> {
         let config = cfg("claude-sonnet-4-5");
         let messages = vec![Message::user().with_text("Hello")];
-        let tool = Tool::new(
-            "my_tool",
-            "does stuff",
-            object!({"type": "object"}),
-        );
+        let tool = Tool::new("my_tool", "does stuff", object!({"type": "object"}));
         let opts = AnthropicFormatOptions {
             skip_cache_control: true,
             ..Default::default()
         };
-        let payload = create_request_with_options(&config, "Be helpful.", &messages, &[tool], opts)?;
+        let payload =
+            create_request_with_options(&config, "Be helpful.", &messages, &[tool], opts)?;
 
         // No cache_control in system
         let system = &payload["system"];

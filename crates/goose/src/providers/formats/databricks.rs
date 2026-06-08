@@ -1073,7 +1073,14 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let obj = request.as_object().unwrap();
         let expected = json!({
             "model": "gpt-4o",
@@ -1108,7 +1115,14 @@ mod tests {
             request_params: Some(params),
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         assert_eq!(request["reasoning_effort"], "high");
         Ok(())
     }
@@ -1128,7 +1142,14 @@ mod tests {
             request_params: Some(params),
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         assert_eq!(request["reasoning_effort"], "none");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
@@ -1149,7 +1170,14 @@ mod tests {
             request_params: Some(params),
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         assert_eq!(request["reasoning_effort"], "high");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
@@ -1168,7 +1196,14 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         assert_eq!(request["model"], "o3");
         assert_eq!(request["reasoning_effort"], "xhigh");
         Ok(())
@@ -1187,7 +1222,14 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         assert_eq!(request["model"], "o3");
         assert_eq!(request["reasoning_effort"], "none");
         Ok(())
@@ -1206,7 +1248,14 @@ mod tests {
             request_params: None,
             reasoning: None,
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         assert_eq!(request["model"], "databricks-gpt-5.4");
         assert_eq!(request["reasoning_effort"], "high");
         Ok(())
@@ -1220,7 +1269,14 @@ mod tests {
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
         model_config.request_params = Some(params);
 
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
 
         assert_eq!(request["thinking"]["type"], "adaptive");
         assert_eq!(request["output_config"]["effort"], "low");
@@ -1284,7 +1340,14 @@ mod tests {
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         model_config.request_params = Some(params);
 
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
 
         assert_eq!(request["thinking"]["type"], "enabled");
         assert_eq!(request["thinking"]["budget_tokens"], 16000);
@@ -1309,7 +1372,14 @@ mod tests {
             params.insert("thinking_effort".to_string(), serde_json::json!(effort));
             model_config.request_params = Some(params);
 
-            let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+            let request = create_request(
+                &model_config,
+                "system",
+                &[],
+                &[],
+                &ImageFormat::OpenAi,
+                false,
+            )?;
 
             assert_eq!(request["thinking"]["type"], "enabled");
             assert_eq!(request["thinking"]["budget_tokens"], expected_budget);

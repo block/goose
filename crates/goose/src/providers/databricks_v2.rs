@@ -137,7 +137,9 @@ impl DatabricksV2Provider {
             retry_config,
             name: DATABRICKS_V2_PROVIDER_NAME.to_string(),
             token_cache,
-            session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
+            session_storage: Mutex::new(
+                crate::session::session_manager::SessionManager::global_storage(),
+            ),
             format_options: anthropic::AnthropicFormatOptions::default(),
         })
     }

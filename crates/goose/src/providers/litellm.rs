@@ -252,13 +252,8 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        let is_subagent = self
-            .session_storage
-            .lock()
-            .unwrap()
-            .clone()
-            .is_subagent_session(session_id.unwrap_or(""))
-            .await;
+        let storage = self.session_storage.lock().unwrap().clone();
+        let is_subagent = storage.is_subagent_session(session_id.unwrap_or("")).await;
         if self.supports_cache_control().await && !is_subagent {
             payload = update_request_for_cache_control(&payload);
         }

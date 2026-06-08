@@ -153,7 +153,9 @@ impl DatabricksProvider {
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
-            session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
+            session_storage: Mutex::new(
+                crate::session::session_manager::SessionManager::global_storage(),
+            ),
         };
         provider.model =
             model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
@@ -223,7 +225,9 @@ impl DatabricksProvider {
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
-            session_storage: Mutex::new(crate::session::session_manager::SessionManager::global_storage()),
+            session_storage: Mutex::new(
+                crate::session::session_manager::SessionManager::global_storage(),
+            ),
         })
     }
 

@@ -287,13 +287,8 @@ impl Provider for OpenRouterProvider {
             }
         }
 
-        let is_subagent = self
-            .session_storage
-            .lock()
-            .unwrap()
-            .clone()
-            .is_subagent_session(session_id)
-            .await;
+        let storage = self.session_storage.lock().unwrap().clone();
+        let is_subagent = storage.is_subagent_session(session_id).await;
         if self.supports_cache_control().await && !is_subagent {
             payload = update_request_for_anthropic(&payload);
         }
