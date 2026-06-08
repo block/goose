@@ -31,9 +31,6 @@ pub struct ThinkFilter {
 enum ThinkTag {
     Open,
     Close,
-    // `<think/>` is XML-legal but carries no reasoning payload. Treat it as a
-    // no-op so we don't flip `inside_think` forever and swallow the rest of
-    // the stream into the thinking bucket.
     SelfClosing,
 }
 
