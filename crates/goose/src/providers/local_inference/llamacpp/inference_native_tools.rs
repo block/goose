@@ -194,7 +194,17 @@ pub(super) fn generate_with_native_tools(
     //   1. Extract thinking and attach it to per-tool-request messages
     //   2. Enable merge_split_tool_call_messages to reconstruct the standard
     //      OpenAI format (one assistant msg with N tool_calls, then N tool results)
-    let tool_call_contents = extract_oai_tool_call_contents(&accumulated_tool_calls);
+    let mut tool_call_contents = extract_oai_tool_call_contents(&accumulated_tool_calls);
+    // Fallback: several local GGUF models (e.g. Qwen2.5-Coder) emit tool calls as
+    // JSON in the *content* stream rather than through the native `tool_calls`
+    // channel, so the streaming parser accumulates zero structured calls and the
+    // call leaks to the user as plain assistant text — the agent never executes
+    // it. Recover those by scanning the raw generated text for `{"name",
+    // "arguments"}` objects. Guarded on the native channel being empty so
+    // well-behaved models are never double-parsed.
+    if tool_call_contents.is_empty() {
+        tool_call_contents = extract_text_json_tool_calls(&generated_text);
+    }
     if !tool_call_contents.is_empty() {
         let mut contents: Vec<MessageContent> = Vec::new();
         if !output_filter.accumulated_thinking().is_empty() {
@@ -287,6 +297,118 @@ fn extract_oai_tool_call_contents(deltas: &[Value]) -> Vec<MessageContent> {
             Some(MessageContent::tool_request(id, Ok(tool_call)))
         })
         .collect()
+}
+
+/// Recover tool calls that a model emitted as JSON in its text output instead of
+/// through the native `tool_calls` channel.
+///
+/// Scans `text` for one or more `{"name": ..., "arguments": {...}}` objects —
+/// the format Qwen-Coder and many other local GGUF models produce by instinct,
+/// optionally wrapped in ```json fences or `<tool_call>` tags (both ignored,
+/// since the scanner matches on the braces themselves). `arguments` may be a
+/// JSON object or a JSON-encoded string; `parameters` is accepted as an alias.
+/// Each recovered object with a non-empty `name` becomes one `ToolRequest`.
+///
+/// Only invoked when the native channel produced nothing, so well-behaved models
+/// are never affected.
+fn extract_text_json_tool_calls(text: &str) -> Vec<MessageContent> {
+    let mut out = Vec::new();
+    for obj in find_json_objects(text) {
+        let name = match obj.get("name").and_then(|v| v.as_str()) {
+            Some(n) if !n.is_empty() => n.to_string(),
+            _ => continue,
+        };
+        // Require the advertised tool-call shape: an `arguments` (or `parameters`)
+        // field must be present. Without it, ordinary name-bearing JSON — e.g. a
+        // generated package.json `{"name":"my-app","version":"1.0.0"}` — would be
+        // mis-recovered and executed as a zero-arg tool call.
+        let raw_args = match obj.get("arguments").or_else(|| obj.get("parameters")) {
+            Some(v) => v,
+            None => continue,
+        };
+        let arguments: Option<serde_json::Map<String, Value>> = match raw_args {
+            Value::Object(map) => Some(map.clone()),
+            Value::String(s) => serde_json::from_str(s).ok(),
+            _ => None,
+        };
+        let tool_call = match arguments {
+            Some(args) => CallToolRequestParams::new(Cow::Owned(name)).with_arguments(args),
+            None => CallToolRequestParams::new(Cow::Owned(name)),
+        };
+        out.push(MessageContent::tool_request(
+            Uuid::new_v4().to_string(),
+            Ok(tool_call),
+        ));
+    }
+    out
+}
+
+/// Extract top-level JSON objects embedded in free text via brace matching that
+/// respects string literals and escapes (so braces inside string values don't
+/// confuse the depth count). Only objects carrying a `"name"` field are returned,
+/// to avoid picking up unrelated JSON. Surrounding prose, code fences, and tags
+/// are ignored — the scan keys off the `{` / `}` structure alone.
+fn find_json_objects(text: &str) -> Vec<Value> {
+    let bytes = text.as_bytes();
+    let mut objs = Vec::new();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'{' {
+            i += 1;
+            continue;
+        }
+        // Scan from this `{` to its matching `}`.
+        let mut depth = 0usize;
+        let mut in_str = false;
+        let mut escaped = false;
+        let mut end = None;
+        let mut j = i;
+        while j < bytes.len() {
+            let c = bytes[j];
+            if in_str {
+                if escaped {
+                    escaped = false;
+                } else if c == b'\\' {
+                    escaped = true;
+                } else if c == b'"' {
+                    in_str = false;
+                }
+            } else {
+                match c {
+                    b'"' => in_str = true,
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = Some(j);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            j += 1;
+        }
+        match end {
+            Some(e) => {
+                // `i` and `e` are ASCII brace byte offsets (char boundaries); use
+                // `get` rather than direct indexing to avoid clippy's string-slice
+                // panic lint.
+                if let Some(v) = text
+                    .get(i..=e)
+                    .and_then(|s| serde_json::from_str::<Value>(s).ok())
+                {
+                    if v.get("name").is_some() {
+                        objs.push(v);
+                    }
+                }
+                i = e + 1;
+            }
+            // Unbalanced from here on — nothing more to find.
+            None => break,
+        }
+    }
+    objs
 }
 
 #[cfg(test)]
@@ -405,5 +527,117 @@ mod tests {
             }
             _ => panic!("Expected ToolRequest"),
         }
+    }
+
+    // ---- text-JSON fallback (extract_text_json_tool_calls / find_json_objects) ----
+
+    #[test]
+    fn test_text_json_fenced_write() {
+        // The exact shape Qwen2.5-Coder emits for the developer `write` tool.
+        let text = "```json\n{\n  \"name\": \"write\",\n  \"arguments\": {\n    \"path\": \"/tmp/spike.txt\",\n    \"content\": \"hello\"\n  }\n}\n```";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(get_content_tool_call_name(&contents[0]), "write");
+        let args = get_content_tool_call_args(&contents[0]).unwrap();
+        assert_eq!(args.get("path").unwrap(), "/tmp/spike.txt");
+        assert_eq!(args.get("content").unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_text_json_bare_object() {
+        let text = "{\"name\": \"shell\", \"arguments\": {\"command\": \"ls\"}}";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(get_content_tool_call_name(&contents[0]), "shell");
+        assert_eq!(
+            get_content_tool_call_args(&contents[0])
+                .unwrap()
+                .get("command")
+                .unwrap(),
+            "ls"
+        );
+    }
+
+    #[test]
+    fn test_text_json_tool_call_tags() {
+        let text = "<tool_call>{\"name\": \"tree\", \"arguments\": {}}</tool_call>";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(get_content_tool_call_name(&contents[0]), "tree");
+    }
+
+    #[test]
+    fn test_text_json_surrounded_by_prose() {
+        let text = "Sure, I'll do that:\n```json\n{\"name\": \"write\", \"arguments\": {\"path\": \"a.txt\", \"content\": \"x\"}}\n```\nDone.";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(get_content_tool_call_name(&contents[0]), "write");
+    }
+
+    #[test]
+    fn test_text_json_arguments_as_string() {
+        // Some models double-encode arguments as a JSON string.
+        let text = "{\"name\": \"write\", \"arguments\": \"{\\\"path\\\": \\\"b.txt\\\", \\\"content\\\": \\\"y\\\"}\"}";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        let args = get_content_tool_call_args(&contents[0]).unwrap();
+        assert_eq!(args.get("path").unwrap(), "b.txt");
+    }
+
+    #[test]
+    fn test_text_json_parameters_alias() {
+        let text = "{\"name\": \"shell\", \"parameters\": {\"command\": \"pwd\"}}";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(
+            get_content_tool_call_args(&contents[0])
+                .unwrap()
+                .get("command")
+                .unwrap(),
+            "pwd"
+        );
+    }
+
+    #[test]
+    fn test_text_json_multiple_calls() {
+        let text = "```json\n{\"name\": \"shell\", \"arguments\": {\"command\": \"ls\"}}\n```\nthen\n```json\n{\"name\": \"shell\", \"arguments\": {\"command\": \"pwd\"}}\n```";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 2);
+    }
+
+    #[test]
+    fn test_text_json_braces_inside_string_value() {
+        // A `}` inside a string value must not end the object early.
+        let text = "{\"name\": \"write\", \"arguments\": {\"path\": \"x.txt\", \"content\": \"fn main() { } end\"}}";
+        let contents = extract_text_json_tool_calls(text);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(
+            get_content_tool_call_args(&contents[0])
+                .unwrap()
+                .get("content")
+                .unwrap(),
+            "fn main() { } end"
+        );
+    }
+
+    #[test]
+    fn test_text_json_no_name_is_skipped() {
+        // Plausible JSON without a tool-call shape is ignored.
+        let text = "Here is some data: {\"path\": \"x\", \"size\": 10}";
+        assert!(extract_text_json_tool_calls(text).is_empty());
+    }
+
+    #[test]
+    fn test_text_json_plain_prose_returns_empty() {
+        let text = "I cannot complete that request without more information.";
+        assert!(extract_text_json_tool_calls(text).is_empty());
+    }
+
+    #[test]
+    fn test_text_json_name_without_arguments_is_not_a_tool_call() {
+        // A name-bearing object with no arguments/parameters (e.g. a generated
+        // package.json) must NOT be recovered and executed as a tool call.
+        let text = "{\"name\": \"my-app\", \"version\": \"1.0.0\", \"private\": true}";
+        assert!(extract_text_json_tool_calls(text).is_empty());
     }
 }
