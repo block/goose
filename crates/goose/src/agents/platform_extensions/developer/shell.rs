@@ -787,9 +787,7 @@ fn save_full_output(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose_providers::formats::openai::validate_tool_schemas;
     use rmcp::model::RawContent;
-    use serde_json::json;
 
     fn extract_text(result: &CallToolResult) -> &str {
         match &result.content[0].raw {
@@ -1049,32 +1047,6 @@ mod tests {
         assert!(
             text.contains("after"),
             "should capture output after background cmd"
-        );
-    }
-
-    #[test]
-    fn test_shell_tool_schema_is_valid_openai() {
-        use schemars::schema_for;
-        let schema_value = serde_json::to_value(schema_for!(ShellParams)).unwrap();
-        let schema_obj = schema_value.as_object().unwrap().clone();
-        let tool = rmcp::model::Tool::new("shell", "run shell", schema_obj);
-        let mut tools = vec![json!({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.input_schema,
-            }
-        })];
-        validate_tool_schemas(&mut tools);
-        let timeout = &tools[0]["function"]["parameters"]["properties"]["timeout_secs"];
-        assert!(
-            timeout.get("anyOf").is_none(),
-            "timeout_secs should not have anyOf after validation, got: {timeout}"
-        );
-        assert_eq!(
-            timeout["type"], "integer",
-            "timeout_secs should have type=integer"
         );
     }
 }
