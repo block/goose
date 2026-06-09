@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import { TextInput } from "@inkjs/ui";
-import type { GooseClient } from "@aaif/goose-sdk";
+import type {
+  GooseClient,
+  GooseExtension,
+  GooseExtensionEntry,
+  McpServerStdio,
+} from "@aaif/goose-sdk";
 import {
   CRANBERRY,
   GOLD,
@@ -21,17 +26,51 @@ type ExtEntry = {
   [key: string]: unknown;
 };
 
-function isExtEntry(v: unknown): v is ExtEntry {
-  return (
-    !!v &&
-    typeof v === "object" &&
-    "enabled" in v &&
-    "type" in v &&
-    "name" in v &&
-    typeof (v as ExtEntry).enabled === "boolean" &&
-    typeof (v as ExtEntry).type === "string" &&
-    typeof (v as ExtEntry).name === "string"
-  );
+function entryToExtEntry(entry: GooseExtensionEntry): ExtEntry | null {
+  const ext = entry.extension;
+  if (ext.type !== "mcp") {
+    return {
+      enabled: entry.enabled,
+      type: ext.type,
+      name: ext.name,
+      description: ext.description ?? "",
+    };
+  }
+  const server = ext.server;
+  if ("type" in server && server.type === "sse") return null;
+  if ("type" in server && server.type === "http") {
+    return {
+      enabled: entry.enabled,
+      type: "streamable_http",
+      name: server.name,
+      description: ext.description ?? "",
+      uri: server.url,
+    };
+  }
+  const stdio = server as McpServerStdio;
+  return {
+    enabled: entry.enabled,
+    type: "stdio",
+    name: stdio.name,
+    description: ext.description ?? "",
+    cmd: stdio.command,
+    args: stdio.args,
+  };
+}
+
+function toGooseExtension(e: ExtEntry): GooseExtension {
+  if (e.type === "streamable_http") {
+    return {
+      type: "mcp",
+      server: { type: "http", name: e.name, url: String(e.uri ?? ""), headers: [] },
+      description: e.description || undefined,
+    };
+  }
+  return {
+    type: "mcp",
+    server: { name: e.name, command: String(e.cmd ?? ""), args: (e.args as string[]) ?? [], env: [] },
+    description: e.description || undefined,
+  };
 }
 
 type AddType = "stdio" | "streamable_http";
@@ -126,9 +165,9 @@ export default function ExtensionsManager({
         client.goose.sessionExtensionsList_unstable({ sessionId }),
       ]);
 
-      const allExtensions = (configResp.extensions as unknown[]).filter(
-        isExtEntry,
-      );
+      const allExtensions = (configResp.extensions as GooseExtensionEntry[])
+        .map(entryToExtEntry)
+        .filter((e): e is ExtEntry => e !== null);
       const activeNames = new Set(
         (sessionResp.extensions as Array<{ name?: string }>).map((e) => e.name),
       );
@@ -188,8 +227,7 @@ export default function ExtensionsManager({
       const config = buildConfig(addType, addValue, addName, description);
       withSaving(async () => {
         await client.goose.configExtensionsAdd_unstable({
-          name: config.name,
-          extensionConfig: config as any,
+          extension: toGooseExtension(config),
           enabled: true,
         });
         await client.goose.sessionExtensionsAdd_unstable({
