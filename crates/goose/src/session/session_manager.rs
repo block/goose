@@ -308,17 +308,17 @@ struct SessionListQuery<'a> {
     limit: Option<usize>,
 }
 
-fn keyword_like_patterns(query: Option<&str>) -> Vec<String> {
+fn keyword_terms(query: Option<&str>) -> Vec<String> {
     query
         .unwrap_or_default()
         .split_whitespace()
-        .map(|word| format!("%{}%", word.to_lowercase()))
+        .map(|word| word.to_lowercase())
         .collect()
 }
 
 fn message_keyword_clause(keyword_count: usize) -> String {
     let keyword_clauses = (0..keyword_count)
-        .map(|_| "LOWER(json_extract(value, '$.text')) LIKE ?")
+        .map(|_| "instr(LOWER(json_extract(value, '$.text')), ?) > 0")
         .collect::<Vec<_>>()
         .join(" OR ");
 
@@ -1577,7 +1577,7 @@ impl SessionStorage {
             return Ok(Vec::new());
         }
 
-        let keyword_patterns = keyword_like_patterns(filters.keyword);
+        let keywords = keyword_terms(filters.keyword);
         let mut where_clauses = Vec::new();
         if let Some(types) = filters.types {
             let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
@@ -1586,8 +1586,8 @@ impl SessionStorage {
         if filters.working_dir.is_some() {
             where_clauses.push("s.working_dir = ?".to_string());
         }
-        if !keyword_patterns.is_empty() {
-            where_clauses.push(message_keyword_clause(keyword_patterns.len()));
+        if !keywords.is_empty() {
+            where_clauses.push(message_keyword_clause(keywords.len()));
         }
         if query.cursor.is_some() {
             where_clauses.push(
@@ -1643,8 +1643,8 @@ impl SessionStorage {
         if let Some(working_dir) = filters.working_dir {
             q = q.bind(working_dir.to_string_lossy().to_string());
         }
-        for pattern in keyword_patterns {
-            q = q.bind(pattern);
+        for term in keywords {
+            q = q.bind(term);
         }
         if let Some(cursor) = query.cursor {
             let updated_at = cursor.updated_at.to_rfc3339();
@@ -2649,6 +2649,63 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(ids, expected_ids);
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_keyword_treats_like_wildcards_as_literals() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let percent_id =
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "Deploy is 100% done")
+                .await;
+        let underscore_id = create_session_for_list_with_message(
+            &sm,
+            "/tmp/session-list",
+            "feature_flag is enabled",
+        )
+        .await;
+        create_session_for_list_with_message(&sm, "/tmp/session-list", "plain message").await;
+
+        let types = [SessionType::User];
+        let percent_page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("%"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+            })
+            .await
+            .unwrap();
+        let percent_ids = percent_page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(percent_ids, vec![percent_id]);
+
+        let underscore_page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("_"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+            })
+            .await
+            .unwrap();
+        let underscore_ids = underscore_page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(underscore_ids, vec![underscore_id]);
     }
 
     #[tokio::test]
