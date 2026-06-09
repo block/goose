@@ -139,6 +139,7 @@ impl GooseAcpAgent {
                     types: Some(&ACP_SESSION_LIST_TYPES),
                     working_dir: cwd,
                     require_messages: true,
+                    ..Default::default()
                 },
                 cursor: cursor.as_ref(),
                 page_size: SESSION_LIST_PAGE_SIZE,
