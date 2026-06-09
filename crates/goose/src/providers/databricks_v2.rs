@@ -37,6 +37,9 @@ use rmcp::model::Tool;
 
 const DATABRICKS_V2_PROVIDER_NAME: &str = "databricks_v2";
 const DATABRICKS_V2_LIST_ENDPOINTS_PATH: &str = "api/ai-gateway/v2/endpoints";
+const DATABRICKS_V2_OPENAI_RESPONSES_PATH: &str = "ai-gateway/openai/v1/responses";
+const DATABRICKS_V2_ANTHROPIC_MESSAGES_PATH: &str = "ai-gateway/anthropic/v1/messages";
+const DATABRICKS_V2_MLFLOW_CHAT_COMPLETIONS_PATH: &str = "ai-gateway/mlflow/v1/chat/completions";
 pub const DATABRICKS_V2_DEFAULT_MODEL: &str = "databricks-gpt-5-5";
 pub const DATABRICKS_V2_KNOWN_MODELS: &[&str] =
     &["databricks-gpt-5-5", "databricks-claude-opus-4-7"];
@@ -230,7 +233,11 @@ impl DatabricksV2Provider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "ai-gateway/openai/v1/responses", &payload)
+                    .response_post(
+                        Some(session_id),
+                        DATABRICKS_V2_OPENAI_RESPONSES_PATH,
+                        &payload,
+                    )
                     .await?;
                 handle_status(resp).await
             })
@@ -275,7 +282,7 @@ impl DatabricksV2Provider {
                     .api_client
                     .response_post(
                         Some(session_id),
-                        "ai-gateway/mlflow/v1/chat/completions",
+                        DATABRICKS_V2_MLFLOW_CHAT_COMPLETIONS_PATH,
                         &payload,
                     )
                     .await?;
@@ -307,7 +314,7 @@ impl DatabricksV2Provider {
                     .api_client
                     .response_post(
                         Some(session_id),
-                        "ai-gateway/anthropic/v1/messages",
+                        DATABRICKS_V2_ANTHROPIC_MESSAGES_PATH,
                         &payload,
                     )
                     .await?;
@@ -448,6 +455,9 @@ impl Provider for DatabricksV2Provider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn routes_known_model_families() {
@@ -471,6 +481,130 @@ mod tests {
             DatabricksV2Provider::route_for_model("custom-model"),
             DatabricksV2Route::MlflowChatCompletions
         );
+    }
+
+    #[tokio::test]
+    async fn claude_models_use_anthropic_messages_endpoint_and_payload() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/{DATABRICKS_V2_ANTHROPIC_MESSAGES_PATH}")))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                [
+                    "event: message_start\n",
+                    "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"goose-claude-fable-5\",\"usage\":{\"input_tokens\":1}}}\n\n",
+                    "event: content_block_start\n",
+                    "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+                    "event: content_block_delta\n",
+                    "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n",
+                    "event: content_block_stop\n",
+                    "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+                    "event: message_delta\n",
+                    "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":1}}\n\n",
+                    "event: message_stop\n",
+                    "data: {\"type\":\"message_stop\"}\n\n",
+                ]
+                .concat(),
+                "text/event-stream",
+            ))
+            .mount(&server)
+            .await;
+
+        let provider = DatabricksV2Provider::from_params(
+            server.uri(),
+            "test-token".to_string(),
+            ModelConfig::new_or_fail("goose-claude-fable-5"),
+        )
+        .unwrap();
+
+        let stream = provider
+            .stream(
+                &ModelConfig::new_or_fail("goose-claude-fable-5"),
+                "session-id",
+                "",
+                &[
+                    Message::user().with_text("Hello!"),
+                    Message::assistant().with_text("Hello! How can I assist you today?"),
+                    Message::user().with_text("What is Databricks?"),
+                ],
+                &[],
+            )
+            .await
+            .unwrap();
+        drop(stream);
+
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].url.path(), "/ai-gateway/anthropic/v1/messages");
+
+        let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(body["model"], "goose-claude-fable-5");
+        assert_eq!(body["max_tokens"], json!(4096));
+        assert_eq!(body["stream"], json!(true));
+        assert!(body.get("max_completion_tokens").is_none());
+        assert!(body.get("stream_options").is_none());
+        assert_eq!(body["messages"][0]["role"], "user");
+        assert_eq!(body["messages"][0]["content"][0]["text"], "Hello!");
+        assert_eq!(body["messages"][1]["role"], "assistant");
+        assert_eq!(
+            body["messages"][1]["content"][0]["text"],
+            "Hello! How can I assist you today?"
+        );
+        assert_eq!(body["messages"][2]["role"], "user");
+        assert_eq!(
+            body["messages"][2]["content"][0]["text"],
+            "What is Databricks?"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_claude_models_use_mlflow_chat_completions_endpoint() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(format!(
+                "/{DATABRICKS_V2_MLFLOW_CHAT_COMPLETIONS_PATH}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\ndata: [DONE]\n\n",
+                "text/event-stream",
+            ))
+            .mount(&server)
+            .await;
+
+        let provider = DatabricksV2Provider::from_params(
+            server.uri(),
+            "test-token".to_string(),
+            ModelConfig::new_or_fail("custom-model"),
+        )
+        .unwrap();
+
+        let stream = provider
+            .stream(
+                &ModelConfig::new_or_fail("custom-model"),
+                "session-id",
+                "",
+                &[Message::user().with_text("Hello!")],
+                &[],
+            )
+            .await
+            .unwrap();
+        drop(stream);
+
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].url.path(),
+            "/ai-gateway/mlflow/v1/chat/completions"
+        );
+
+        let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(body["model"], "custom-model");
+        let user_message = body["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|message| message["role"] == "user")
+            .unwrap();
+        assert_eq!(user_message["content"], "Hello!");
     }
 
     #[test]
