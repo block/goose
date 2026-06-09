@@ -1,4 +1,4 @@
-import type { ListSessionsRequest, SessionInfo } from '@agentclientprotocol/sdk';
+import type { ForkSessionRequest, ListSessionsRequest, SessionInfo } from '@agentclientprotocol/sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 
@@ -69,4 +69,31 @@ export async function acpListRecentSessions(maxSessions: number): Promise<Sessio
   const client = await getAcpClient();
   const response = await client.listSessions({});
   return response.sessions.slice(0, maxSessions).map(sessionInfoToListItem);
+}
+
+export async function acpDeleteSession(sessionId: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionDelete({ sessionId });
+}
+
+export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionRename_unstable({ sessionId, title });
+}
+
+export async function acpForkSession(sessionId: string, cwd: string): Promise<void> {
+  const client = await getAcpClient();
+  const request: ForkSessionRequest = { sessionId, cwd };
+  await client.unstable_forkSession(request);
+}
+
+export async function acpExportSession(sessionId: string): Promise<string> {
+  const client = await getAcpClient();
+  const response = await client.goose.sessionExport_unstable({ sessionId });
+  return response.data;
+}
+
+export async function acpImportSession(data: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionImport_unstable({ data });
 }

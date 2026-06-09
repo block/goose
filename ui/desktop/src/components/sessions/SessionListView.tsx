@@ -36,17 +36,20 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import {
-  deleteSession,
-  exportSession,
-  forkSession,
-  importSession,
   importSessionNostr,
   searchSessions,
   shareSessionNostr,
-  updateSessionName,
 } from '../../api';
 import { getTunnelStatus } from '../../api/sdk.gen';
-import { acpListSessions, type SessionListItem } from '../../acp/sessions';
+import {
+  acpDeleteSession,
+  acpExportSession,
+  acpForkSession,
+  acpImportSession,
+  acpListSessions,
+  acpRenameSession,
+  type SessionListItem,
+} from '../../acp/sessions';
 import { sessionToListItem } from '../../hooks/useNavigationSessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
@@ -131,11 +134,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
       setIsUpdating(true);
       try {
-        await updateSessionName({
-          path: { session_id: session.id },
-          body: { name: trimmedDescription },
-          throwOnError: true,
-        });
+        await acpRenameSession(session.id, trimmedDescription);
         await onSave(session.id, trimmedDescription);
         onClose();
         setTimeout(() => {
@@ -247,8 +246,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const intl = useIntl();
     const [sessions, setSessions] = useState<SessionListItem[]>([]);
     const [filteredSessions, setFilteredSessions] = useState<SessionListItem[]>([]);
-    const [nextCursor, setNextCursor] = useState<string | null>(null);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
     const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showSkeleton, setShowSkeleton] = useState(true);
@@ -284,6 +282,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const loadGenerationRef = useRef(0);
 
     // Track session to element ref
     const sessionRefs = useRef<Record<string, HTMLElement>>({});
@@ -301,56 +300,79 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       return dateGroups.slice(0, visibleGroupsCount);
     }, [dateGroups, visibleGroupsCount]);
 
+    const previousSearchTermRef = useRef('');
     useEffect(() => {
-      if (debouncedSearchTerm) {
+      const wasSearching = previousSearchTermRef.current.length > 0;
+      const isSearching = debouncedSearchTerm.length > 0;
+      previousSearchTermRef.current = debouncedSearchTerm;
+
+      if (isSearching) {
         setVisibleGroupsCount(dateGroups.length);
-      } else {
+      } else if (wasSearching) {
         setVisibleGroupsCount(15);
       }
     }, [debouncedSearchTerm, dateGroups.length]);
 
+    const loadRemainingSessionPages = useCallback(async (initialCursor: string, loadId: number) => {
+      let cursor: string | null = initialCursor;
+      setIsPrefetchingSessions(true);
+
+      try {
+        while (cursor && loadGenerationRef.current === loadId) {
+          const resp = await acpListSessions(cursor);
+          if (loadGenerationRef.current !== loadId) return;
+
+          cursor = resp.nextCursor;
+          startTransition(() => {
+            setSessions((prev) => {
+              const seen = new Set(prev.map((s) => s.id));
+              return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+            });
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load remaining sessions:', err);
+      } finally {
+        if (loadGenerationRef.current === loadId) {
+          setIsPrefetchingSessions(false);
+        }
+      }
+    }, []);
+
     const loadSessions = useCallback(async () => {
+      const loadId = loadGenerationRef.current + 1;
+      loadGenerationRef.current = loadId;
       setIsLoading(true);
+      setIsPrefetchingSessions(false);
       setShowSkeleton(true);
       setShowContent(false);
       setError(null);
       try {
         const resp = await acpListSessions();
+        if (loadGenerationRef.current !== loadId) return;
+
         // Use startTransition to make state updates non-blocking
         startTransition(() => {
           setSessions(resp.sessions);
           setFilteredSessions(resp.sessions);
-          setNextCursor(resp.nextCursor);
         });
+
+        if (resp.nextCursor) {
+          void loadRemainingSessionPages(resp.nextCursor, loadId);
+        }
       } catch (err) {
+        if (loadGenerationRef.current !== loadId) return;
+
         console.error('Failed to load sessions:', err);
         setError('Failed to load sessions. Please try again later.');
         setSessions([]);
         setFilteredSessions([]);
-        setNextCursor(null);
       } finally {
-        setIsLoading(false);
+        if (loadGenerationRef.current === loadId) {
+          setIsLoading(false);
+        }
       }
-    }, []);
-
-    const loadMoreSessions = useCallback(async () => {
-      if (!nextCursor || isLoadingMore) return;
-      setIsLoadingMore(true);
-      try {
-        const resp = await acpListSessions(nextCursor);
-        startTransition(() => {
-          setSessions((prev) => {
-            const seen = new Set(prev.map((s) => s.id));
-            return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
-          });
-          setNextCursor(resp.nextCursor);
-        });
-      } catch (err) {
-        console.error('Failed to load more sessions:', err);
-      } finally {
-        setIsLoadingMore(false);
-      }
-    }, [nextCursor, isLoadingMore]);
+    }, [loadRemainingSessionPages]);
 
     const handleScroll = useCallback(
       (target: HTMLDivElement) => {
@@ -361,15 +383,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         if (visibleGroupsCount < dateGroups.length) {
           setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
-        } else if (!debouncedSearchTerm) {
-          void loadMoreSessions();
         }
       },
-      [visibleGroupsCount, dateGroups.length, debouncedSearchTerm, loadMoreSessions]
+      [visibleGroupsCount, dateGroups.length]
     );
 
     useEffect(() => {
       loadSessions();
+      return () => {
+        loadGenerationRef.current += 1;
+      };
     }, [loadSessions]);
 
     useEffect(() => {
@@ -529,11 +552,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleDuplicateSession = useCallback(
       async (session: SessionListItem) => {
         try {
-          await forkSession({
-            path: { session_id: session.id },
-            body: { truncate: false, copy: true },
-            throwOnError: true,
-          });
+          await acpForkSession(session.id, session.workingDir);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
           await loadSessions();
         } catch (error) {
@@ -553,10 +572,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
 
       try {
-        await deleteSession({
-          path: { session_id: sessionToDeleteId },
-          throwOnError: true,
-        });
+        await acpDeleteSession(sessionToDeleteId);
         toast.success(intl.formatMessage(i18n.deleteSuccess));
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
@@ -576,12 +592,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleExportSession = useCallback(async (session: SessionListItem, e: React.MouseEvent) => {
       e.stopPropagation();
 
-      const response = await exportSession({
-        path: { session_id: session.id },
-        throwOnError: true,
-      });
-
-      const json = response.data;
+      const json = await acpExportSession(session.id);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -626,10 +637,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             toast.error(intl.formatMessage(i18n.importFailed, { error: result.error }));
             return;
           }
-          await importSession({
-            body: { json: result.contents },
-            throwOnError: true,
-          });
+          await acpImportSession(result.contents);
           toast.success(intl.formatMessage(i18n.importSuccess));
           await loadSessions();
         } catch (error) {
@@ -680,10 +688,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         try {
           const json = await file.text();
-          await importSession({
-            body: { json },
-            throwOnError: true,
-          });
+          await acpImportSession(json);
 
           toast.success(intl.formatMessage(i18n.importSuccess));
           await loadSessions();
@@ -955,7 +960,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
           ))}
 
-          {visibleGroupsCount < dateGroups.length && (
+          {isPrefetchingSessions && (
             <div className="flex justify-center py-8">
               <div className="flex items-center space-x-2 text-text-secondary">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
