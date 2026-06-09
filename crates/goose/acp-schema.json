@@ -625,10 +625,15 @@
       "properties": {
         "runId": {
           "type": "string"
+        },
+        "messageId": {
+          "type": "string",
+          "description": "Stable id of the queued steer message. The same id later appears as\n`messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),\nletting clients correlate a queued steer with its pickup."
         }
       },
       "required": [
-        "runId"
+        "runId",
+        "messageId"
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/session/steer"

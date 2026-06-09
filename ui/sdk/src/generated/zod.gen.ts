@@ -314,7 +314,8 @@ export const zSteerSessionRequest_unstable = z.object({
 });
 
 export const zSteerSessionResponse_unstable = z.object({
-    runId: z.string()
+    runId: z.string(),
+    messageId: z.string()
 });
 
 /**

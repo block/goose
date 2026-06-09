@@ -313,6 +313,12 @@ export type EmbeddedResource = {
 
 export type SteerSessionResponse_unstable = {
     runId: string;
+    /**
+     * Stable id of the queued steer message. The same id later appears as
+     * `messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),
+     * letting clients correlate a queued steer with its pickup.
+     */
+    messageId: string;
 };
 
 /**

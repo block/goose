@@ -2445,6 +2445,29 @@ impl GooseAcpAgent {
         ))
     }
 
+    fn send_queued_steer_update(
+        cx: &ConnectionTo<Client>,
+        session_id: &SessionId,
+        message_id: &str,
+        run_id: &str,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let mut goose = serde_json::Map::new();
+        goose.insert(
+            "queuedSteer".to_string(),
+            serde_json::json!({
+                "messageId": message_id,
+                "runId": run_id,
+            }),
+        );
+        let mut meta = serde_json::Map::new();
+        meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+
+        cx.send_notification(SessionNotification::new(
+            session_id.clone(),
+            SessionUpdate::SessionInfoUpdate(SessionInfoUpdate::new().meta(meta)),
+        ))
+    }
+
     #[allow(dead_code)]
     async fn add_mcp_extensions(
         agent: &Arc<Agent>,
@@ -2759,10 +2782,23 @@ impl GooseAcpAgent {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data("prompt must contain steerable content"));
         }
+
+        let message_id = format!("steer_{}", Uuid::new_v4());
+        let message = message.with_id(message_id.clone());
         agent.steer(&req.session_id, message).await;
+
+        if let Some(cx) = self.client_cx.get() {
+            let _ = Self::send_queued_steer_update(
+                cx,
+                &SessionId::new(req.session_id.clone()),
+                &message_id,
+                &active_run_id,
+            );
+        }
 
         Ok(SteerSessionResponse {
             run_id: active_run_id,
+            message_id,
         })
     }
 

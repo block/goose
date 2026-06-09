@@ -114,6 +114,38 @@ fn active_run_id_from_update(update: &SessionUpdate) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn queued_steer_message_ids(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::SessionInfoUpdate(info) = update else {
+                return None;
+            };
+            info.meta
+                .as_ref()?
+                .get("goose")?
+                .get("queuedSteer")?
+                .get("messageId")?
+                .as_str()
+                .map(ToString::to_string)
+        })
+        .collect()
+}
+
+fn steer_chunk_message_ids(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::UserMessageChunk(chunk) = update else {
+                return None;
+            };
+            let goose = chunk.meta.as_ref()?.get("goose")?;
+            goose.get("steer")?.as_bool().filter(|b| *b)?;
+            goose.get("messageId")?.as_str().map(ToString::to_string)
+        })
+        .collect()
+}
+
 fn steer_chunk_texts(updates: &[SessionUpdate]) -> Vec<String> {
     updates
         .iter()
@@ -385,6 +417,7 @@ fn test_steer_session_adds_input_to_active_prompt() {
                 .block_task(),
         );
         let mut steer_sent = false;
+        let mut steer_message_id: Option<String> = None;
         let mut final_response = None;
         let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
 
@@ -411,6 +444,12 @@ fn test_steer_session_adds_input_to_active_prompt() {
                         .await
                         .unwrap();
                         assert_eq!(response["runId"], run_id);
+                        let mid = response["messageId"].as_str();
+                        assert!(
+                            mid.is_some_and(|id| !id.is_empty()),
+                            "steer response must return a messageId for correlation, got: {response:?}"
+                        );
+                        steer_message_id = mid.map(ToString::to_string);
                         steer_sent = true;
                     }
                 }
@@ -436,6 +475,21 @@ fn test_steer_session_adds_input_to_active_prompt() {
                 .iter()
                 .any(|t| t.contains("steer while active")),
             "expected a chunk marked _meta.goose.steer with the steer text, got: {steer_chunks:?}"
+        );
+
+        // The queued steer must be announced (so a UI can show it as pending)
+        // and carry the same messageId returned by the steer response and later
+        // stamped on the picked-up UserMessageChunk.
+        let steer_message_id = steer_message_id.expect("steer response had no messageId");
+        let queued_ids = queued_steer_message_ids(&updates);
+        assert!(
+            queued_ids.contains(&steer_message_id),
+            "expected a queuedSteer SessionInfoUpdate with messageId {steer_message_id:?}, got: {queued_ids:?}"
+        );
+        let picked_up_ids = steer_chunk_message_ids(&updates);
+        assert!(
+            picked_up_ids.contains(&steer_message_id),
+            "picked-up steer chunk must carry the queued messageId {steer_message_id:?} for correlation, got: {picked_up_ids:?}"
         );
     });
 }
