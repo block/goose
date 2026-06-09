@@ -274,7 +274,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         name: "log_manipulation",
         pattern: r"(truncate.*log|rm\s+((--[a-zA-Z][a-zA-Z\-]*|--|-[a-zA-Z]+)\s+)*/var/log(/|\s|[;&|]|$)|echo\s*>\s*/var/log)",
         description: "Log file manipulation or deletion",
-        risk_level: RiskLevel::Low,
+        risk_level: RiskLevel::Medium,
         category: ThreatCategory::SystemModification,
     },
     ThreatPattern {
