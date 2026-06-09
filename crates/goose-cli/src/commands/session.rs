@@ -464,15 +464,19 @@ pub async fn prompt_interactive_session_selection(
     // Build the selection prompt.
     //
     // Cap the visible rows to the terminal height so the list scrolls instead of
-    // overflowing on short terminals, and enable fuzzy filtering (matching the
-    // convention used by the configure command's long lists). We reserve a few
-    // lines for the prompt header, filter input, and footer, and clamp to a sane
-    // minimum so the picker stays usable even on tiny windows.
+    // overflowing on short terminals. We reserve a few lines for the prompt
+    // header and footer, and clamp to a sane minimum so the picker stays usable
+    // even on tiny windows.
+    //
+    // Note: we intentionally do not enable `filter_mode()` here. In cliclack the
+    // filter captures every character key as type-to-filter input, which would
+    // break vim-style `j`/`k`/`h`/`l` navigation. Scrolling via `max_rows` is
+    // enough to keep long lists usable.
     let max_rows = console::Term::stderr()
         .size_checked()
         .map(|(rows, _cols)| (rows as usize).saturating_sub(6).max(3))
         .unwrap_or(10);
-    let mut selector = select(prompt).max_rows(max_rows).filter_mode();
+    let mut selector = select(prompt).max_rows(max_rows);
 
     // Offer starting a fresh session as the first option when allowed. A new
     // session always uses the current working directory, so this behaves the
