@@ -232,14 +232,14 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         name: "indirect_command_execution",
         pattern: r"\$\([^)]*\$\([^)]*\)[^)]*\)|`[^`]*`[^`]*`",
         description: "Nested command substitution",
-        risk_level: RiskLevel::Medium,
+        risk_level: RiskLevel::Low,
         category: ThreatCategory::CommandInjection,
     },
     ThreatPattern {
         name: "unicode_obfuscation",
         pattern: r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}",
         description: "Unicode character obfuscation",
-        risk_level: RiskLevel::Medium,
+        risk_level: RiskLevel::Low,
         category: ThreatCategory::CommandInjection,
     },
     ThreatPattern {
@@ -274,7 +274,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         name: "log_manipulation",
         pattern: r"(truncate.*log|rm\s+((--[a-zA-Z][a-zA-Z\-]*|--|-[a-zA-Z]+)\s+)*/var/log(/|\s|[;&|]|$)|echo\s*>\s*/var/log)",
         description: "Log file manipulation or deletion",
-        risk_level: RiskLevel::Medium,
+        risk_level: RiskLevel::Low,
         category: ThreatCategory::SystemModification,
     },
     ThreatPattern {
