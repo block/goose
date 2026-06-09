@@ -3,7 +3,6 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status;
 use crate::providers::retry::ProviderRetry;
@@ -16,6 +15,7 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
+use goose_providers::errors::ProviderError;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use reqwest::header::{HeaderName, HeaderValue};
@@ -230,7 +230,7 @@ fn get_reasoning_effort(model_name: &str) -> String {
 }
 
 fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
-    use crate::model::ThinkingEffort;
+    use goose_providers::thinking::ThinkingEffort;
 
     model_config
         .thinking_effort()

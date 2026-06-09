@@ -3,6 +3,10 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use goose_providers::formats::openai::{
+    self, extract_reasoning_effort, is_openai_responses_model, ModelConfigParams,
+};
+use goose_providers::images::ImageFormat;
 use serde::Serialize;
 use serde_json::Value;
 use std::io;
@@ -17,11 +21,10 @@ use super::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
-use super::errors::ProviderError;
-use super::formats::{anthropic, openai, openai_responses};
+use super::formats::{anthropic, openai_responses};
 use super::openai_compatible::{handle_status, stream_openai_compat, stream_responses_compat};
 use super::retry::ProviderRetry;
-use super::utils::{extract_reasoning_effort, is_openai_responses_model, ImageFormat, RequestLog};
+use super::utils::RequestLog;
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -29,6 +32,7 @@ use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
+use goose_providers::errors::ProviderError;
 use rmcp::model::Tool;
 
 const DATABRICKS_V2_PROVIDER_NAME: &str = "databricks_v2";
@@ -247,7 +251,13 @@ impl DatabricksV2Provider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = openai::create_request(
-            model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,
