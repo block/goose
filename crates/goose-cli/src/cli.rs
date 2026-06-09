@@ -1424,6 +1424,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                     &session_manager,
                     "Select a session to export:",
                     None,
+                    false,
                 )
                 .await
                 {
@@ -1455,6 +1456,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                     &session_manager,
                     "Select a session to view diagnostics for:",
                     None,
+                    false,
                 )
                 .await
                 {
@@ -1471,7 +1473,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
     Ok(())
 }
 
-async fn resolve_resume_selection(all: bool) -> Result<Identifier> {
+/// Outcome of the interactive `--select` resume picker.
+enum ResumeSelection {
+    /// Resume the session identified by the wrapped identifier.
+    Resume(Identifier),
+    /// Start a fresh session in the current directory instead of resuming.
+    NewSession,
+}
+
+async fn resolve_resume_selection(all: bool) -> Result<ResumeSelection> {
     let session_manager = SessionManager::instance();
     let filter_dir = if all {
         None
@@ -1482,13 +1492,19 @@ async fn resolve_resume_selection(all: bool) -> Result<Identifier> {
         &session_manager,
         "Select a session to resume:",
         filter_dir.as_deref(),
+        true,
     )
     .await?;
-    Ok(Identifier {
+
+    if id == crate::commands::session::NEW_SESSION_SELECTION {
+        return Ok(ResumeSelection::NewSession);
+    }
+
+    Ok(ResumeSelection::Resume(Identifier {
         name: None,
         session_id: Some(id),
         path: None,
-    })
+    }))
 }
 
 async fn handle_interactive_session(
@@ -2158,16 +2174,19 @@ pub async fn cli() -> anyhow::Result<()> {
             session_opts,
             extension_opts,
         }) => {
-            let identifier = if select {
+            let (identifier, resume) = if select {
                 match resolve_resume_selection(all).await {
-                    Ok(id) => Some(id),
+                    Ok(ResumeSelection::Resume(id)) => (Some(id), resume),
+                    // Starting fresh: drop any identifier and don't resume, so a
+                    // brand new session is created in the current directory.
+                    Ok(ResumeSelection::NewSession) => (None, false),
                     Err(e) => {
                         eprintln!("Error: {}", e);
                         return Ok(());
                     }
                 }
             } else {
-                identifier
+                (identifier, resume)
             };
             handle_interactive_session(
                 identifier,

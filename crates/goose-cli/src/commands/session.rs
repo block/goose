@@ -423,15 +423,26 @@ fn export_session_to_markdown(
     markdown_output
 }
 
+/// Sentinel value returned by [`prompt_interactive_session_selection`] when the
+/// user chooses to start a new session in the current directory instead of
+/// resuming an existing one. This is only offered when `allow_new` is set. The
+/// leading NUL byte guarantees it can never collide with a real session id.
+pub const NEW_SESSION_SELECTION: &str = "\0new-session";
+
 /// Prompt the user to interactively select a session
 ///
 /// Shows a list of available sessions and lets the user select one. When
 /// `filter_dir` is provided, only sessions whose working directory matches it
 /// are shown (and the path is omitted from each row since it is identical).
+///
+/// When `allow_new` is set, a "Start a new session" entry is shown first and
+/// selecting it returns [`NEW_SESSION_SELECTION`]. In that mode an empty session
+/// list is not an error, since the user can always start fresh.
 pub async fn prompt_interactive_session_selection(
     session_manager: &SessionManager,
     prompt: &str,
     filter_dir: Option<&Path>,
+    allow_new: bool,
 ) -> Result<String> {
     let mut sessions = session_manager.list_sessions().await?;
 
@@ -440,7 +451,7 @@ pub async fn prompt_interactive_session_selection(
         sessions.retain(|s| canonical_or_owned(&s.working_dir) == target);
     }
 
-    if sessions.is_empty() {
+    if sessions.is_empty() && !allow_new {
         return Err(match filter_dir {
             Some(dir) => anyhow::anyhow!(
                 "No sessions found for {}. Use --all to pick from sessions in any directory.",
@@ -462,6 +473,17 @@ pub async fn prompt_interactive_session_selection(
         .map(|(rows, _cols)| (rows as usize).saturating_sub(6).max(3))
         .unwrap_or(10);
     let mut selector = select(prompt).max_rows(max_rows).filter_mode();
+
+    // Offer starting a fresh session as the first option when allowed. A new
+    // session always uses the current working directory, so this behaves the
+    // same with or without a directory filter.
+    if allow_new {
+        selector = selector.item(
+            NEW_SESSION_SELECTION.to_string(),
+            "Start a new session (in current directory)",
+            "",
+        );
+    }
 
     // Build options in the order returned by list_sessions (most recent first),
     // keyed by session id so the display text can be anything.
