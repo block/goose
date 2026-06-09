@@ -46,6 +46,29 @@ async fn seed_list_sessions(data_root: &Path, working_dir: &Path, count: usize) 
     }
 }
 
+async fn seed_list_session_with_message(
+    data_root: &Path,
+    working_dir: &Path,
+    name: &str,
+    session_type: SessionType,
+    message: &str,
+) {
+    let session_manager = SessionManager::new(data_root.to_path_buf());
+    let session = session_manager
+        .create_session(
+            working_dir.to_path_buf(),
+            name.to_string(),
+            session_type,
+            GooseMode::default(),
+        )
+        .await
+        .unwrap();
+    session_manager
+        .add_message(&session.id, &Message::user().with_text(message))
+        .await
+        .unwrap();
+}
+
 async fn new_connection(data_root: &Path) -> AcpServerConnection {
     let openai = OpenAiFixture::new(
         vec![],
@@ -119,6 +142,85 @@ fn test_list_sessions_pagination() {
             .sessions
             .iter()
             .all(|session| session.session_id != *second_id));
+    });
+}
+
+#[test]
+fn test_list_sessions_query_filters_results() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list");
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "Postgres session",
+            SessionType::Acp,
+            "Discuss Postgres migrations",
+        )
+        .await;
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "Mobile session",
+            SessionType::Acp,
+            "Plan the mobile release",
+        )
+        .await;
+        let conn = new_connection(data_root.path()).await;
+
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "query".to_string(),
+            serde_json::Value::String("postgres".to_string()),
+        );
+        let response = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+            .await
+            .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(
+            response.sessions[0].title.as_deref(),
+            Some("Postgres session")
+        );
+        assert!(response.next_cursor.is_none());
+    });
+}
+
+#[test]
+fn test_list_sessions_types_override_filters_results() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list");
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "ACP session",
+            SessionType::Acp,
+            "ACP message",
+        )
+        .await;
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "User session",
+            SessionType::User,
+            "User message",
+        )
+        .await;
+        let conn = new_connection(data_root.path()).await;
+
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "types".to_string(),
+            serde_json::Value::Array(vec![serde_json::Value::String("user".to_string())]),
+        );
+        let response = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+            .await
+            .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(response.sessions[0].title.as_deref(), Some("User session"));
+        assert!(response.next_cursor.is_none());
     });
 }
 

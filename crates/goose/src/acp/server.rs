@@ -34,7 +34,6 @@ use crate::providers::inventory::{
     ProviderInventoryEntry, ProviderInventoryService, RefreshJobPlan, RefreshPlan,
     RefreshSkipReason,
 };
-use crate::session::session_manager::SessionType;
 use crate::session::{
     EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager,
 };
@@ -50,7 +49,7 @@ use agent_client_protocol::schema::{
     McpCapabilities, McpServer, Meta, NewSessionRequest, NewSessionResponse, PermissionOption,
     PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
-    SessionCloseCapabilities, SessionConfigOption, SessionId, SessionInfo, SessionInfoUpdate,
+    SessionCloseCapabilities, SessionConfigOption, SessionId, SessionInfoUpdate,
     SessionListCapabilities, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
     SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse,
     SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent, TextResourceContents,
@@ -70,7 +69,7 @@ use futures::FutureExt;
 use rmcp::model::{
     AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
@@ -267,10 +266,22 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
     meta
 }
 
-fn meta_string(meta: Option<&Meta>, key: &str) -> Option<String> {
-    meta.and_then(|m| m.get(key))
-        .and_then(|v| v.as_str())
-        .map(ToString::to_string)
+fn meta_string(
+    meta: Option<&Meta>,
+    key: &str,
+) -> Result<Option<String>, agent_client_protocol::Error> {
+    let Some(value) = meta.and_then(|m| m.get(key)) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let Some(value) = value.as_str() else {
+        return Err(
+            agent_client_protocol::Error::invalid_params().data(format!("{key} must be a string"))
+        );
+    };
+    Ok(Some(value.to_string()))
 }
 
 fn spawn_session_name_update_notifier(
@@ -2802,6 +2813,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 mod tests {
     use super::*;
     use crate::conversation::message::{ToolRequest, ToolResponse};
+    use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,

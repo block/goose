@@ -291,7 +291,7 @@ pub(crate) struct SessionListFilters<'a> {
     pub(crate) types: Option<&'a [SessionType]>,
     pub(crate) working_dir: Option<&'a Path>,
     pub(crate) keyword: Option<&'a str>,
-    pub(crate) require_messages: bool,
+    pub(crate) only_sessions_with_messages: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1602,7 +1602,7 @@ impl SessionStorage {
         } else {
             format!("WHERE {}", where_clauses.join(" AND "))
         };
-        let message_join = if filters.require_messages {
+        let message_join = if filters.only_sessions_with_messages {
             "JOIN messages m ON s.id = m.session_id"
         } else {
             "LEFT JOIN messages m ON s.id = m.session_id"
@@ -1612,11 +1612,7 @@ impl SessionStorage {
         } else {
             "ORDER BY s.updated_at DESC"
         };
-        let limit_clause = if query.limit.is_some() {
-            "LIMIT ?"
-        } else {
-            ""
-        };
+        let limit_clause = if query.limit.is_some() { "LIMIT ?" } else { "" };
 
         let sql = format!(
             r#"
@@ -1676,7 +1672,10 @@ impl SessionStorage {
         .await
     }
 
-    async fn list_sessions_paged(&self, query: SessionListPageQuery<'_>) -> Result<SessionListPage> {
+    async fn list_sessions_paged(
+        &self,
+        query: SessionListPageQuery<'_>,
+    ) -> Result<SessionListPage> {
         if matches!(query.filters.types, Some(types) if types.is_empty()) || query.page_size == 0 {
             return Ok(SessionListPage {
                 sessions: Vec::new(),
@@ -2367,7 +2366,7 @@ mod tests {
                 filters: SessionListFilters {
                     types: Some(&types),
                     working_dir: working_dir.map(Path::new),
-                    require_messages: true,
+                    only_sessions_with_messages: true,
                     ..Default::default()
                 },
                 cursor,
@@ -2560,7 +2559,7 @@ mod tests {
                 filters: SessionListFilters {
                     types: Some(&types),
                     keyword: Some("postgres"),
-                    require_messages: true,
+                    only_sessions_with_messages: true,
                     ..Default::default()
                 },
                 cursor: None,
@@ -2601,7 +2600,7 @@ mod tests {
                 filters: SessionListFilters {
                     types: Some(&types),
                     keyword: Some("postgres sqlite"),
-                    require_messages: true,
+                    only_sessions_with_messages: true,
                     ..Default::default()
                 },
                 cursor: None,
@@ -2635,7 +2634,7 @@ mod tests {
                 filters: SessionListFilters {
                     types: Some(&types),
                     keyword: Some("   "),
-                    require_messages: true,
+                    only_sessions_with_messages: true,
                     ..Default::default()
                 },
                 cursor: None,
@@ -2672,7 +2671,7 @@ mod tests {
             types: Some(&types),
             working_dir: Some(Path::new("/tmp/session-list/a")),
             keyword: Some("postgres"),
-            require_messages: true,
+            only_sessions_with_messages: true,
         };
         let cursor = sm
             .list_sessions_paged(SessionListPageQuery {
