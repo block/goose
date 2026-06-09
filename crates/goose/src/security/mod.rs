@@ -10,11 +10,16 @@ use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
 use scanner::PromptInjectionScanner;
+use std::env;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
-pub(crate) fn get_override(key: &str) -> Option<bool> {
-    Config::global().get_param::<bool>(key).ok()
+pub(crate) fn get_override(env_key: &str) -> Option<bool> {
+    env::var(env_key).ok().and_then(|v| match v.as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
 }
 
 pub struct SecurityManager {

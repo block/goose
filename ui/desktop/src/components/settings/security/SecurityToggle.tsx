@@ -246,7 +246,9 @@ export const SecurityToggle = () => {
     return Object.values(modelMapping).some((modelInfo) => modelInfo.model_type === 'command');
   }, [modelMapping]);
 
-  const effectiveCommandClassifierEnabled = commandClassifierEnabled ?? false;
+  const effectiveCommandClassifierEnabled = isCommandClassifierOverridden
+    ? commandClassifierOverrideValue
+    : (commandClassifierEnabled ?? false);
   const effectiveModel = mlModel || availablePromptModels[0]?.value || '';
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
   const [endpointInput, setEndpointInput] = useState(mlEndpoint);
@@ -411,11 +413,7 @@ export const SecurityToggle = () => {
                 className={`flex items-center ${isCommandClassifierOverridden ? 'opacity-40' : ''}`}
               >
                 <Switch
-                  checked={
-                    isCommandClassifierOverridden
-                      ? commandClassifierOverrideValue
-                      : effectiveCommandClassifierEnabled
-                  }
+                  checked={effectiveCommandClassifierEnabled}
                   onCheckedChange={handleCommandClassifierToggle}
                   disabled={!effectiveEnabled || isCommandClassifierOverridden}
                   variant="mono"
@@ -425,9 +423,7 @@ export const SecurityToggle = () => {
 
             {hasCommandModel ? (
               effectiveEnabled &&
-              (isCommandClassifierOverridden
-                ? commandClassifierOverrideValue
-                : effectiveCommandClassifierEnabled) && (
+              effectiveCommandClassifierEnabled && (
                 <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
                   ✓ {intl.formatMessage(i18n.commandClassifierActive)}
                 </div>
