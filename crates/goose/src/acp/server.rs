@@ -2366,13 +2366,19 @@ impl GooseAcpAgent {
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(session_id) {
-            if session.active_run_id.as_deref() == Some(run_id) {
-                session.cancel_token = None;
-                session.active_run_id = None;
+        let agent = {
+            let mut sessions = self.sessions.lock().await;
+            let Some(session) = sessions.get_mut(session_id) else {
+                return;
+            };
+            if session.active_run_id.as_deref() != Some(run_id) {
+                return;
             }
-        }
+            session.cancel_token = None;
+            session.active_run_id = None;
+            session.agent.clone()
+        };
+        agent.discard_pending_steers(session_id).await;
     }
 
     async fn require_active_run(

@@ -413,6 +413,10 @@ impl Agent {
             .push_back(message);
     }
 
+    pub async fn discard_pending_steers(&self, session_id: &str) {
+        self.pending_steers.lock().await.remove(session_id);
+    }
+
     async fn has_pending_steers(&self, session_id: &str) -> bool {
         self.pending_steers
             .lock()
@@ -3419,6 +3423,25 @@ exit 0
         );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn discard_pending_steers_clears_queued_messages() {
+        let agent = Agent::new();
+        let session_id = "session-discard";
+
+        agent
+            .steer(session_id, Message::user().with_text("queued steer"))
+            .await;
+        assert!(agent.has_pending_steers(session_id).await);
+
+        agent.discard_pending_steers(session_id).await;
+
+        assert!(
+            !agent.has_pending_steers(session_id).await,
+            "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
+        );
+        assert!(agent.drain_pending_steers(session_id).await.is_empty());
     }
 
     #[test]
