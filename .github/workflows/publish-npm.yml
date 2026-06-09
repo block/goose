@@ -100,7 +100,7 @@ jobs:
           cd ui/sdk
           pnpm run build:ts
 
-      - name: Compatibility check (TUI client ↔ goose binary)
+      - name: Compatibility check (SDK client ↔ goose binary)
         env:
           GOOSE_BINARY: ${{ github.workspace }}/ui/goose-binary/goose-binary-linux-x64/bin/goose
         run: |

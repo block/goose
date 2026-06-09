@@ -2,7 +2,7 @@
 // Compatibility smoke test: boot the freshly-built goose binary via `goose acp`
 // and call every read-only ACP method through the freshly-built SDK. The
 // generated client validates every response with Zod, so any schema drift
-// between the binary and the TUI client fails this check and blocks the
+// between the binary and the SDK client fails this check and blocks the
 // publish.
 //
 // Run with:
@@ -45,40 +45,36 @@ const { PROTOCOL_VERSION, ndJsonStream } = await import(
 // method ships will widen the safety net for free.
 const READ_ONLY_CHECKS = [
   {
-    name: "GooseProvidersList",
-    call: (c) => c.goose.GooseProvidersList({ providerIds: [] }),
+    name: "providersList_unstable",
+    call: (c) => c.goose.providersList_unstable({ providerIds: [] }),
   },
   {
-    name: "GooseProvidersCatalogList",
-    call: (c) => c.goose.GooseProvidersCatalogList({}),
+    name: "providersCatalogList_unstable",
+    call: (c) => c.goose.providersCatalogList_unstable({}),
   },
   {
-    name: "GooseProvidersSetupCatalogList",
-    call: (c) => c.goose.GooseProvidersSetupCatalogList({}),
+    name: "providersSetupCatalogList_unstable",
+    call: (c) => c.goose.providersSetupCatalogList_unstable({}),
   },
   {
-    name: "GooseDefaultsRead",
-    call: (c) => c.goose.GooseDefaultsRead({}),
+    name: "defaultsRead_unstable",
+    call: (c) => c.goose.defaultsRead_unstable({}),
   },
   {
-    name: "GoosePreferencesRead",
-    call: (c) => c.goose.GoosePreferencesRead({}),
+    name: "preferencesRead_unstable",
+    call: (c) => c.goose.preferencesRead_unstable({}),
   },
   {
-    name: "GooseSourcesList",
-    call: (c) => c.goose.GooseSourcesList({}),
+    name: "sourcesList_unstable",
+    call: (c) => c.goose.sourcesList_unstable({}),
   },
   {
-    name: "GooseDictationConfig",
-    call: (c) => c.goose.GooseDictationConfig({}),
+    name: "dictationModelsList_unstable",
+    call: (c) => c.goose.dictationModelsList_unstable({}),
   },
   {
-    name: "GooseDictationModelsList",
-    call: (c) => c.goose.GooseDictationModelsList({}),
-  },
-  {
-    name: "GooseConfigExtensionsList",
-    call: (c) => c.goose.GooseConfigExtensionsList({}),
+    name: "configExtensionsList_unstable",
+    call: (c) => c.goose.configExtensionsList_unstable({}),
   },
 ];
 
@@ -176,7 +172,7 @@ if (failed > 0) {
     `\n[compat] ${failed} check(s) failed, ${passed} passed — refusing to publish.`,
   );
   console.error(
-    "[compat] This means the TUI's generated client schema doesn't match what",
+    "[compat] This means the SDK's generated client schema doesn't match what",
   );
   console.error(
     "[compat] the goose binary returns. Regenerate the SDK or fix the server DTO.",
