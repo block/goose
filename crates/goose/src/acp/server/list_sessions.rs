@@ -1,5 +1,7 @@
 use super::{session_meta, GooseAcpAgent, ResultExt};
-use crate::session::session_manager::{SessionListCursor, SessionType};
+use crate::session::session_manager::{
+    SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
+};
 use crate::session::Session;
 use agent_client_protocol::schema::{
     ListSessionsRequest, ListSessionsResponse, SessionId, SessionInfo,
@@ -132,12 +134,15 @@ impl GooseAcpAgent {
         // ACP clients see their own (Acp) sessions plus legacy User/Scheduled ones.
         let page = self
             .session_manager
-            .list_nonempty_sessions_by_types_paged(
-                &ACP_SESSION_LIST_TYPES,
-                cwd,
-                cursor.as_ref(),
-                SESSION_LIST_PAGE_SIZE,
-            )
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&ACP_SESSION_LIST_TYPES),
+                    working_dir: cwd,
+                    require_messages: true,
+                },
+                cursor: cursor.as_ref(),
+                page_size: SESSION_LIST_PAGE_SIZE,
+            })
             .await
             .internal_err()?;
         let session_infos: Vec<SessionInfo> = page

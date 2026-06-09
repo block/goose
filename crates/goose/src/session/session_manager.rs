@@ -286,13 +286,25 @@ pub(crate) struct SessionListPage {
     pub(crate) next_cursor: Option<SessionListCursor>,
 }
 
+#[derive(Debug, Default, Clone)]
+pub(crate) struct SessionListFilters<'a> {
+    pub(crate) types: Option<&'a [SessionType]>,
+    pub(crate) working_dir: Option<&'a Path>,
+    pub(crate) require_messages: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SessionListPageQuery<'a> {
+    pub(crate) filters: SessionListFilters<'a>,
+    pub(crate) cursor: Option<&'a SessionListCursor>,
+    pub(crate) page_size: usize,
+}
+
 #[derive(Debug, Default)]
 struct SessionListQuery<'a> {
-    types: Option<&'a [SessionType]>,
-    working_dir: Option<&'a Path>,
+    filters: SessionListFilters<'a>,
     cursor: Option<&'a SessionListCursor>,
     limit: Option<usize>,
-    require_messages: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -361,16 +373,11 @@ impl SessionManager {
         self.storage.list_sessions_by_types(Some(types)).await
     }
 
-    pub(crate) async fn list_nonempty_sessions_by_types_paged(
+    pub(crate) async fn list_sessions_paged(
         &self,
-        types: &[SessionType],
-        working_dir: Option<&Path>,
-        cursor: Option<&SessionListCursor>,
-        page_size: usize,
+        query: SessionListPageQuery<'_>,
     ) -> Result<SessionListPage> {
-        self.storage
-            .list_nonempty_sessions_by_types_paged(types, working_dir, cursor, page_size)
-            .await
+        self.storage.list_sessions_paged(query).await
     }
 
     pub async fn list_all_sessions(&self) -> Result<Vec<Session>> {
@@ -1532,20 +1539,21 @@ impl SessionStorage {
         Self::replace_conversation_inner(pool, session_id, conversation).await
     }
 
-    async fn list_sessions_matching(&self, options: SessionListQuery<'_>) -> Result<Vec<Session>> {
-        if matches!(options.types, Some(types) if types.is_empty()) {
+    async fn list_sessions_matching(&self, query: SessionListQuery<'_>) -> Result<Vec<Session>> {
+        let filters = &query.filters;
+        if matches!(filters.types, Some(types) if types.is_empty()) {
             return Ok(Vec::new());
         }
 
         let mut where_clauses = Vec::new();
-        if let Some(types) = options.types {
+        if let Some(types) = filters.types {
             let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             where_clauses.push(format!("s.session_type IN ({})", placeholders));
         }
-        if options.working_dir.is_some() {
+        if filters.working_dir.is_some() {
             where_clauses.push("s.working_dir = ?".to_string());
         }
-        if options.cursor.is_some() {
+        if query.cursor.is_some() {
             where_clauses.push(
                 "(datetime(s.updated_at) < datetime(?) \
                  OR (datetime(s.updated_at) = datetime(?) AND s.id < ?))"
@@ -1558,17 +1566,17 @@ impl SessionStorage {
         } else {
             format!("WHERE {}", where_clauses.join(" AND "))
         };
-        let message_join = if options.require_messages {
+        let message_join = if filters.require_messages {
             "JOIN messages m ON s.id = m.session_id"
         } else {
             "LEFT JOIN messages m ON s.id = m.session_id"
         };
-        let order_by = if options.cursor.is_some() || options.limit.is_some() {
+        let order_by = if query.cursor.is_some() || query.limit.is_some() {
             "ORDER BY datetime(s.updated_at) DESC, s.id DESC"
         } else {
             "ORDER BY s.updated_at DESC"
         };
-        let limit_clause = if options.limit.is_some() {
+        let limit_clause = if query.limit.is_some() {
             "LIMIT ?"
         } else {
             ""
@@ -1595,22 +1603,22 @@ impl SessionStorage {
         );
 
         let mut q = sqlx::query_as::<_, Session>(&query);
-        if let Some(types) = options.types {
+        if let Some(types) = filters.types {
             for session_type in types {
                 q = q.bind(session_type.to_string());
             }
         }
-        if let Some(working_dir) = options.working_dir {
+        if let Some(working_dir) = filters.working_dir {
             q = q.bind(working_dir.to_string_lossy().to_string());
         }
-        if let Some(cursor) = options.cursor {
+        if let Some(cursor) = query.cursor {
             let updated_at = cursor.updated_at.to_rfc3339();
             // Normalize mixed SQLite CURRENT_TIMESTAMP and RFC3339 stored values.
             q = q.bind(updated_at.clone());
             q = q.bind(updated_at);
             q = q.bind(&cursor.session_id);
         }
-        if let Some(limit) = options.limit {
+        if let Some(limit) = query.limit {
             q = q.bind(limit as i64);
         }
 
@@ -1620,33 +1628,29 @@ impl SessionStorage {
 
     async fn list_sessions_by_types(&self, types: Option<&[SessionType]>) -> Result<Vec<Session>> {
         self.list_sessions_matching(SessionListQuery {
-            types,
+            filters: SessionListFilters {
+                types,
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await
     }
 
-    async fn list_nonempty_sessions_by_types_paged(
-        &self,
-        types: &[SessionType],
-        working_dir: Option<&Path>,
-        cursor: Option<&SessionListCursor>,
-        page_size: usize,
-    ) -> Result<SessionListPage> {
-        if types.is_empty() || page_size == 0 {
+    async fn list_sessions_paged(&self, query: SessionListPageQuery<'_>) -> Result<SessionListPage> {
+        if matches!(query.filters.types, Some(types) if types.is_empty()) || query.page_size == 0 {
             return Ok(SessionListPage {
                 sessions: Vec::new(),
                 next_cursor: None,
             });
         }
 
+        let page_size = query.page_size;
         let mut sessions = self
             .list_sessions_matching(SessionListQuery {
-                types: Some(types),
-                working_dir,
-                cursor,
+                filters: query.filters,
+                cursor: query.cursor,
                 limit: Some(page_size + 1),
-                require_messages: true,
             })
             .await?;
         let has_next_page = sessions.len() > page_size;
@@ -2306,13 +2310,17 @@ mod tests {
         expected_ids: &[String],
         expected_next_cursor: bool,
     ) -> Option<SessionListCursor> {
+        let types = [SessionType::User];
         let page = sm
-            .list_nonempty_sessions_by_types_paged(
-                &[SessionType::User],
-                working_dir.map(Path::new),
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    working_dir: working_dir.map(Path::new),
+                    require_messages: true,
+                },
                 cursor,
                 page_size,
-            )
+            })
             .await
             .unwrap();
         let ids = page
