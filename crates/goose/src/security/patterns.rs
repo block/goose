@@ -237,7 +237,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "unicode_obfuscation",
-        pattern: r"(\\u[0-9a-fA-F]{4}){3,}|(\\U[0-9a-fA-F]{8}){3,}",
+        pattern: r"(\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}){3,}",
         description: "Unicode character obfuscation (3+ consecutive escapes)",
         risk_level: RiskLevel::Medium,
         category: ThreatCategory::CommandInjection,
@@ -524,5 +524,7 @@ mod tests {
         // Runs of 3+ consecutive escapes (obfuscation) should match
         assert!(matches(pat, r"\u0041\u0042\u0043"));
         assert!(matches(pat, r"\U00000041\U00000042\U00000043"));
+        // Mixed 4-digit and 8-digit forms should also match
+        assert!(matches(pat, r"\u0065\U00000076\u0061"));
     }
 }
