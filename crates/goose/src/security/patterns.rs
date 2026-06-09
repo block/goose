@@ -237,9 +237,9 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "unicode_obfuscation",
-        pattern: r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}",
-        description: "Unicode character obfuscation",
-        risk_level: RiskLevel::Low,
+        pattern: r"(\\u[0-9a-fA-F]{4}){3,}|(\\U[0-9a-fA-F]{8}){3,}",
+        description: "Unicode character obfuscation (3+ consecutive escapes)",
+        risk_level: RiskLevel::Medium,
         category: ThreatCategory::CommandInjection,
     },
     ThreatPattern {
@@ -513,5 +513,16 @@ mod tests {
         // Similar-looking paths outside /var/log should NOT match
         assert!(!matches(pat, "rm -rf /var/log-backup"));
         assert!(!matches(pat, "rm -rf /var/logs"));
+    }
+
+    #[test]
+    fn unicode_obfuscation_requires_consecutive_escapes() {
+        let pat = "unicode_obfuscation";
+        // Isolated escapes in legitimate code/strings should NOT match
+        assert!(!matches(pat, r"\u0041"));
+        assert!(!matches(pat, r"echo \u00e9 \u00e8"));
+        // Runs of 3+ consecutive escapes (obfuscation) should match
+        assert!(matches(pat, r"\u0041\u0042\u0043"));
+        assert!(matches(pat, r"\U00000041\U00000042\U00000043"));
     }
 }
