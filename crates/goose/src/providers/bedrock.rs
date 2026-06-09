@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
+use aws_sdk_bedrockruntime::types::error::ConverseStreamOutputError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use base64::Engine;
 use futures::future::BoxFuture;
@@ -705,11 +706,50 @@ impl Provider for BedrockProvider {
             let mut final_usage: Option<ProviderUsage> = None;
 
             loop {
-                let event = event_stream.recv().await.map_err(|e| {
-                    ProviderError::RequestFailed(format!(
-                        "Bedrock stream receive error: {:?}",
-                        e
-                    ))
+                let event = event_stream.recv().await.map_err(|err| {
+                    // Map Bedrock mid-stream exceptions to specific ProviderError
+                    // variants so the agent's retry / context-length / server-error
+                    // handling kicks in, mirroring the non-streaming Converse error
+                    // mapping. Without this, a mid-stream throttling or
+                    // context-length failure would be flattened to a generic
+                    // RequestFailed and lose its retryable / context semantics.
+                    match err.as_service_error() {
+                        Some(ConverseStreamOutputError::ThrottlingException(e)) => {
+                            ProviderError::RateLimitExceeded {
+                                details: format!("Bedrock streaming throttling error: {:?}", e),
+                                retry_delay: None,
+                            }
+                        }
+                        Some(ConverseStreamOutputError::ValidationException(e))
+                            if {
+                                let msg = e.message().unwrap_or_default();
+                                msg.contains("Input is too long for requested model.")
+                                    || msg.contains("prompt is too long")
+                            } =>
+                        {
+                            ProviderError::ContextLengthExceeded(format!(
+                                "Bedrock streaming validation error: {:?}",
+                                e
+                            ))
+                        }
+                        Some(ConverseStreamOutputError::ServiceUnavailableException(_))
+                        | Some(ConverseStreamOutputError::InternalServerException(_)) => {
+                            ProviderError::ServerError(format!(
+                                "Bedrock streaming server error: {:?}",
+                                err
+                            ))
+                        }
+                        Some(ConverseStreamOutputError::ModelStreamErrorException(e)) => {
+                            ProviderError::ExecutionError(format!(
+                                "Bedrock model stream error: {:?}",
+                                e
+                            ))
+                        }
+                        _ => ProviderError::RequestFailed(format!(
+                            "Bedrock stream receive error: {:?}",
+                            err
+                        )),
+                    }
                 })?;
                 let Some(event) = event else { break };
 
