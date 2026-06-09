@@ -425,55 +425,69 @@ fn export_session_to_markdown(
 
 /// Prompt the user to interactively select a session
 ///
-/// Shows a list of available sessions and lets the user select one
+/// Shows a list of available sessions and lets the user select one. When
+/// `filter_dir` is provided, only sessions whose working directory matches it
+/// are shown (and the path is omitted from each row since it is identical).
 pub async fn prompt_interactive_session_selection(
     session_manager: &SessionManager,
+    prompt: &str,
+    filter_dir: Option<&Path>,
 ) -> Result<String> {
-    let sessions = session_manager.list_sessions().await?;
+    let mut sessions = session_manager.list_sessions().await?;
+
+    if let Some(dir) = filter_dir {
+        let target = canonical_or_owned(dir);
+        sessions.retain(|s| canonical_or_owned(&s.working_dir) == target);
+    }
 
     if sessions.is_empty() {
-        return Err(anyhow::anyhow!("No sessions found"));
+        return Err(match filter_dir {
+            Some(dir) => anyhow::anyhow!(
+                "No sessions found for {}. Use --all to pick from sessions in any directory.",
+                display_path_with_tilde(dir)
+            ),
+            None => anyhow::anyhow!("No sessions found"),
+        });
     }
 
     // Build the selection prompt
-    let mut selector = select("Select a session to export:");
+    let mut selector = select(prompt);
 
-    // Map to display text
-    let display_map: std::collections::HashMap<String, Session> = sessions
-        .iter()
-        .map(|s| {
-            let desc = if s.name.is_empty() {
-                "(no name)"
-            } else {
-                &s.name
-            };
-            let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
+    // Build options in the order returned by list_sessions (most recent first),
+    // keyed by session id so the display text can be anything.
+    for s in &sessions {
+        let desc = if s.name.is_empty() {
+            "(no name)"
+        } else {
+            &s.name
+        };
+        let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
 
-            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
-            (display_text, s.clone())
-        })
-        .collect();
-
-    // Add each session as an option
-    for display_text in display_map.keys() {
-        selector = selector.item(display_text.clone(), display_text.clone(), "");
+        let display_text = if filter_dir.is_some() {
+            format!("{} - {}", s.updated_at, truncated_desc)
+        } else {
+            format!(
+                "{} - {} - {}",
+                s.updated_at,
+                truncated_desc,
+                display_path_with_tilde(&s.working_dir)
+            )
+        };
+        selector = selector.item(s.id.clone(), display_text, "");
     }
 
-    // Add a cancel option
     let cancel_value = String::from("cancel");
-    selector = selector.item(cancel_value, "Cancel", "Cancel export");
+    selector = selector.item(cancel_value.clone(), "Cancel", "");
 
-    // Get user selection
-    let selected_display_text: String = selector.interact()?;
+    let selected = selector.interact()?;
 
-    if selected_display_text == "cancel" {
-        return Err(anyhow::anyhow!("Export canceled"));
+    if selected == cancel_value {
+        return Err(anyhow::anyhow!("Selection canceled"));
     }
 
-    // Retrieve the selected session
-    if let Some(session) = display_map.get(&selected_display_text) {
-        Ok(session.id.clone())
-    } else {
-        Err(anyhow::anyhow!("Invalid selection"))
-    }
+    Ok(selected)
+}
+
+fn canonical_or_owned(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
