@@ -2174,19 +2174,21 @@ pub async fn cli() -> anyhow::Result<()> {
             session_opts,
             extension_opts,
         }) => {
-            let (identifier, resume) = if select {
+            let (identifier, resume, fork) = if select {
                 match resolve_resume_selection(all).await {
-                    Ok(ResumeSelection::Resume(id)) => (Some(id), resume),
-                    // Starting fresh: drop any identifier and don't resume, so a
-                    // brand new session is created in the current directory.
-                    Ok(ResumeSelection::NewSession) => (None, false),
+                    Ok(ResumeSelection::Resume(id)) => (Some(id), resume, fork),
+                    // Starting fresh: drop any identifier and don't resume or
+                    // fork, so a brand new session is created in the current
+                    // directory. Leaving `fork` set here would copy the empty
+                    // new session and leave a stray unused session behind.
+                    Ok(ResumeSelection::NewSession) => (None, false, false),
                     Err(e) => {
                         eprintln!("Error: {}", e);
                         return Ok(());
                     }
                 }
             } else {
-                (identifier, resume)
+                (identifier, resume, fork)
             };
             handle_interactive_session(
                 identifier,
