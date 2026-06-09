@@ -1982,6 +1982,14 @@ impl Agent {
                 // thinking so a later tool-call chunk can suppress replayed
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
+                // DeepSeek/Kimi emit reasoning_content in earlier chunks before the
+                // tool-call chunk, so we buffer it across all chunks in a turn.
+                let mut reasoning_buffer: Vec<MessageContent> = Vec::new();
+                // True when reasoning_content was already pushed to messages_to_add
+                // via the continue path, so the drain path skips creating a duplicate
+                // standalone reasoning message.
+                // see: https://github.com/aaif-goose/goose/issues/9675
+                let mut reasoning_buffer_persisted = false;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) || exit_chat {
@@ -2031,6 +2039,12 @@ impl Agent {
                                     },
                                 );
 
+                                for content in &response.content {
+                                    if matches!(content, MessageContent::Thinking(_)) {
+                                        reasoning_buffer.push(content.clone());
+                                    }
+                                }
+
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
 
@@ -2041,6 +2055,9 @@ impl Agent {
                                         last_assistant_text = text;
                                     }
                                     messages_to_add.push(response);
+                                    if !reasoning_buffer.is_empty() {
+                                        reasoning_buffer_persisted = true;
+                                    }
                                     continue;
                                 }
 
@@ -2211,27 +2228,17 @@ impl Agent {
                                     }
                                 }
 
-                                // Preserve thinking/reasoning content from the original response
-                                // Gemini (and other thinking models) require thinking to be echoed back
-                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages
-                                let thinking_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
-                                if !thinking_content.is_empty() {
-                                    let thinking_msg = Message::new(
-                                        response.role.clone(),
-                                        response.created,
-                                        thinking_content,
-                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
+                                // reasoning_buffer holds thinking from earlier chunks since
+                                // Kimi/DeepSeek send it before the tool-call chunk.
+                                let reasoning_content: Vec<MessageContent> = reasoning_buffer.drain(..).collect();
+                                if reasoning_buffer_persisted && !reasoning_content.is_empty() {
+                                    // The thinking was already saved as its own assistant message
+                                    // in a prior no-tool chunk. Pop it so the thinking ends up
+                                    // only on the tool-call message below, preventing a duplicate
+                                    // Thinking block after merge_consecutive_messages.
+                                    messages_to_add.pop();
                                 }
-
-                                // Collect reasoning content to attach to tool request messages
-                                let reasoning_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
+                                reasoning_buffer_persisted = false;
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
                                     if request.tool_call.is_ok() {

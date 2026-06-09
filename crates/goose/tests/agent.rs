@@ -1123,6 +1123,236 @@ mod tests {
     }
 
     #[cfg(test)]
+    mod thinking_preservation_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::model::ModelConfig;
+        use goose::providers::base::{
+            MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+        };
+        use goose::providers::errors::ProviderError;
+        use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
+        use rmcp::model::{CallToolRequestParams, Tool};
+        use rmcp::object;
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        /// Simulates DeepSeek/Kimi streaming: reasoning_content arrives in an early
+        /// chunk, the tool call arrives in a later chunk with no reasoning_content.
+        struct ThinkingStreamProvider {
+            call_count: AtomicUsize,
+            name: &'static str,
+        }
+
+        impl ThinkingStreamProvider {
+            fn new(name: &'static str) -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                    name,
+                }
+            }
+        }
+
+        impl ProviderDef for ThinkingStreamProvider {
+            type Provider = Self;
+
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "thinking-stream-mock".to_string(),
+                    display_name: "Thinking Stream Mock".to_string(),
+                    description: "Mock for thinking preservation tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                }
+            }
+
+            fn from_env(
+                _model: ModelConfig,
+                _extensions: Vec<goose::config::ExtensionConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for ThinkingStreamProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(20), Some(30)),
+                );
+                match call {
+                    0 => {
+                        // Chunk 1: reasoning_content only (no tool call)
+                        let thinking =
+                            Message::assistant().with_thinking("I should call test_tool", "sig_0");
+                        // Chunk 2: tool call only (no reasoning_content) — the bug scenario
+                        let tool_call = CallToolRequestParams::new("test_tool")
+                            .with_arguments(object!({"param": "value"}));
+                        let tool_msg =
+                            Message::assistant().with_tool_request("call_1", Ok(tool_call));
+                        let stream = futures::stream::iter(vec![
+                            Ok((Some(thinking), None)),
+                            Ok((Some(tool_msg), Some(usage))),
+                        ]);
+                        Ok(Box::pin(stream))
+                    }
+                    _ => {
+                        let msg = Message::assistant().with_text("Done.");
+                        Ok(Box::pin(futures::stream::once(async move {
+                            Ok((Some(msg), Some(usage)))
+                        })))
+                    }
+                }
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+
+            fn get_name(&self) -> &str {
+                self.name
+            }
+        }
+
+        async fn run_and_collect(provider_name: &'static str) -> Result<Vec<Message>> {
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let config = AgentConfig::new(
+                session_manager.clone(),
+                PermissionManager::instance(),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            );
+            let agent = Agent::with_config(config);
+            let provider = Arc::new(ThinkingStreamProvider::new(provider_name));
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    format!("{provider_name}-thinking-test"),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            let session_id = session.id.clone();
+            agent.update_provider(provider, &session_id).await?;
+
+            let session_config = SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: Some(2),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Use the test tool"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            while let Some(event) = reply_stream.next().await {
+                if let Err(e) = event {
+                    return Err(e);
+                }
+            }
+
+            let reloaded = session_manager.get_session(&session_id, true).await?;
+            Ok(reloaded
+                .conversation
+                .expect("should have conversation")
+                .messages()
+                .to_vec())
+        }
+
+        /// DeepSeek (and OpenRouter DeepSeek models) stream reasoning_content before the
+        /// tool-call chunk. The agent must attach it to the tool-call assistant message;
+        /// otherwise DeepSeek returns HTTP 400 on the next turn.
+        #[tokio::test]
+        async fn test_deepseek_thinking_preserved_in_tool_call_message() -> Result<()> {
+            let messages = run_and_collect("deepseek-mock").await?;
+
+            let tool_call_msgs: Vec<_> = messages
+                .iter()
+                .filter(|m| {
+                    m.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+                })
+                .collect();
+
+            assert!(
+                !tool_call_msgs.is_empty(),
+                "expected at least one tool-call assistant message"
+            );
+            assert!(
+                tool_call_msgs.iter().any(|m| m
+                    .content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::Thinking(_)))),
+                "tool-call message must carry Thinking content — DeepSeek rejects the next \
+                 turn with HTTP 400 when reasoning_content is absent from the assistant \
+                 tool-call message"
+            );
+            Ok(())
+        }
+
+        /// Kimi (moonshot provider, OpenAI engine, preserves_thinking=true) has the same
+        /// streaming behaviour as DeepSeek: reasoning_content arrives before the tool call.
+        #[tokio::test]
+        async fn test_kimi_thinking_preserved_in_tool_call_message() -> Result<()> {
+            let messages = run_and_collect("kimi-mock").await?;
+
+            let tool_call_msgs: Vec<_> = messages
+                .iter()
+                .filter(|m| {
+                    m.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+                })
+                .collect();
+
+            assert!(
+                !tool_call_msgs.is_empty(),
+                "expected at least one tool-call assistant message"
+            );
+            assert!(
+                tool_call_msgs.iter().any(|m| m
+                    .content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::Thinking(_)))),
+                "tool-call message must carry Thinking content — Kimi rejects the next \
+                 turn with HTTP 400 when reasoning_content is absent from the assistant \
+                 tool-call message"
+            );
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
     mod goal_checking_tests {
         use super::*;
         use async_trait::async_trait;
