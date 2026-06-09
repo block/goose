@@ -62,6 +62,13 @@ fn session_types_from_meta(
     if session_types.is_empty() {
         Ok(ACP_SESSION_LIST_TYPES.to_vec())
     } else {
+        if session_types
+            .iter()
+            .any(|session_type| !ACP_SESSION_LIST_TYPES.contains(session_type))
+        {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("types may only include user, scheduled, or acp"));
+        }
         Ok(session_types)
     }
 }
@@ -181,7 +188,6 @@ impl GooseAcpAgent {
                     working_dir: cwd,
                     keyword: keyword.as_deref(),
                     only_sessions_with_messages: true,
-                    ..Default::default()
                 },
                 cursor: cursor.as_ref(),
                 page_size: SESSION_LIST_PAGE_SIZE,

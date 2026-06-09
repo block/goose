@@ -225,6 +225,27 @@ fn test_list_sessions_types_override_filters_results() {
 }
 
 #[test]
+fn test_list_sessions_types_rejects_internal_session_types() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        for session_type in ["hidden", "sub_agent"] {
+            let mut meta = serde_json::Map::new();
+            meta.insert(
+                "types".to_string(),
+                serde_json::Value::Array(vec![serde_json::Value::String(session_type.to_string())]),
+            );
+
+            let error = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+                .await
+                .unwrap_err();
+            assert_invalid_params(error);
+        }
+    });
+}
+
+#[test]
 fn test_list_sessions_invalid_params() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
