@@ -41,8 +41,8 @@ const { PROTOCOL_VERSION, ndJsonStream } = await import(
 );
 
 // Each entry is a read-only ACP method we expect to succeed against a fresh,
-// unconfigured goose install. Adding a new entry whenever a new read-only
-// method ships will widen the safety net for free.
+// unconfigured goose install. Platform-specific skips keep hardware-sensitive
+// checks from turning local environment quirks into publish blockers.
 const READ_ONLY_CHECKS = [
   {
     name: "providersList_unstable",
@@ -67,6 +67,13 @@ const READ_ONLY_CHECKS = [
   {
     name: "sourcesList_unstable",
     call: (c) => c.goose.sourcesList_unstable({}),
+  },
+  {
+    name: "dictationConfig_unstable",
+    skipIf: () => process.platform === "darwin",
+    skipReason:
+      "skipped on macOS because local-inference Metal probing can panic before returning a schema response",
+    call: (c) => c.goose.dictationConfig_unstable({}),
   },
   {
     name: "dictationModelsList_unstable",
@@ -146,6 +153,11 @@ try {
   console.log("[compat] ✅ initialize");
 
   for (const check of READ_ONLY_CHECKS) {
+    if (check.skipIf?.()) {
+      console.log(`[compat] ⏭️ ${check.name} (${check.skipReason})`);
+      continue;
+    }
+
     try {
       await Promise.race([check.call(client), timeout(15_000, check.name)]);
       console.log(`[compat] ✅ ${check.name}`);
