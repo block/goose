@@ -426,7 +426,7 @@ impl Agent {
             .lock()
             .await
             .remove(session_id)
-            .map(|messages| messages.into_iter().collect())
+            .map(|messages| messages.into_iter().map(Message::with_steer).collect())
             .unwrap_or_default()
     }
 

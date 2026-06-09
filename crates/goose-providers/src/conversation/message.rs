@@ -667,6 +667,11 @@ pub struct MessageMetadata {
     pub agent_visible: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inference: Option<InferenceMetadata>,
+    /// Whether this message is a steer injected into an active run. UI-only:
+    /// surfaced as `_meta.goose.steer` so clients can mark the steer boundary
+    /// without matching user-visible text. Never sent to providers.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub steer: bool,
 }
 
 impl Default for MessageMetadata {
@@ -675,6 +680,7 @@ impl Default for MessageMetadata {
             user_visible: true,
             agent_visible: true,
             inference: None,
+            steer: false,
         }
     }
 }
@@ -741,6 +747,11 @@ impl MessageMetadata {
 
     pub fn with_inference(mut self, inference: InferenceMetadata) -> Self {
         self.inference = Some(inference);
+        self
+    }
+
+    pub fn with_steer(mut self) -> Self {
+        self.steer = true;
         self
     }
 }
@@ -1025,6 +1036,11 @@ impl Message {
 
     pub fn with_inference(mut self, inference: InferenceMetadata) -> Self {
         self.metadata = self.metadata.with_inference(inference);
+        self
+    }
+
+    pub fn with_steer(mut self) -> Self {
+        self.metadata.steer = true;
         self
     }
 

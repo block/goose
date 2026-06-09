@@ -114,6 +114,28 @@ fn active_run_id_from_update(update: &SessionUpdate) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn steer_chunk_texts(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::AgentMessageChunk(chunk) = update else {
+                return None;
+            };
+            let ContentBlock::Text(text) = &chunk.content else {
+                return None;
+            };
+            let is_steer = chunk
+                .meta
+                .as_ref()
+                .and_then(|m| m.get("goose"))
+                .and_then(|g| g.get("steer"))
+                .and_then(|s| s.as_bool())
+                .unwrap_or(false);
+            is_steer.then(|| text.text.clone())
+        })
+        .collect()
+}
+
 fn collect_agent_text(updates: &[SessionUpdate]) -> String {
     updates
         .iter()
@@ -396,10 +418,21 @@ fn test_steer_session_adds_input_to_active_prompt() {
         assert_eq!(response.stop_reason, StopReason::EndTurn);
         assert!(steer_sent, "test never observed an active run id");
 
-        let agent_text = collect_agent_text(&session.session_updates());
+        let updates = session.session_updates();
+        let agent_text = collect_agent_text(&updates);
         assert!(
             agent_text.contains("saw steer"),
             "expected provider to receive steered input, got: {agent_text:?}"
+        );
+
+        // The echoed steer prompt must be marked structurally so the client
+        // can locate the boundary without matching user-visible text.
+        let steer_chunks = steer_chunk_texts(&updates);
+        assert!(
+            steer_chunks
+                .iter()
+                .any(|t| t.contains("steer while active")),
+            "expected a chunk marked _meta.goose.steer with the steer text, got: {steer_chunks:?}"
         );
     });
 }

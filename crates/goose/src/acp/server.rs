@@ -1412,6 +1412,7 @@ impl GooseAcpAgent {
         session_id_str: &str,
         message_id: Option<&str>,
         message_created: i64,
+        steer: bool,
         agent: &Arc<Agent>,
         session: &mut GooseAcpSession,
         cx: &ConnectionTo<Client>,
@@ -1422,7 +1423,7 @@ impl GooseAcpAgent {
                     session_id.clone(),
                     SessionUpdate::AgentMessageChunk(
                         ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
-                            .meta(message_update_meta(message_id, message_created)),
+                            .meta(message_update_meta(message_id, message_created, steer)),
                     ),
                 ))?;
             }
@@ -1455,7 +1456,11 @@ impl GooseAcpAgent {
                         ContentChunk::new(ContentBlock::Text(TextContent::new(
                             thinking.thinking.clone(),
                         )))
-                        .meta(message_update_meta(message_id, message_created)),
+                        .meta(message_update_meta(
+                            message_id,
+                            message_created,
+                            steer,
+                        )),
                     ),
                 ))?;
             }
@@ -2121,14 +2126,17 @@ fn send_elicitation_interaction_update(
 }
 
 fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json::Value {
-    serde_json::Value::Object(message_update_meta(message_id, created))
+    serde_json::Value::Object(message_update_meta(message_id, created, false))
 }
 
-fn message_update_meta(message_id: Option<&str>, created: i64) -> Meta {
+fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> Meta {
     let mut goose = serde_json::Map::new();
     goose.insert("created".to_string(), serde_json::json!(created));
     if let Some(id) = message_id {
         goose.insert("messageId".to_string(), serde_json::json!(id));
+    }
+    if steer {
+        goose.insert("steer".to_string(), serde_json::json!(true));
     }
 
     let mut meta = serde_json::Map::new();
@@ -2636,6 +2644,7 @@ impl GooseAcpAgent {
                                 &session_id,
                                 stored_message_id.as_deref(),
                                 message.created,
+                                message.metadata.steer,
                                 &agent,
                                 session,
                                 cx,
@@ -3747,7 +3756,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_message_update_meta_includes_created_and_message_id() {
-        let meta = message_update_meta(Some("msg_live"), 1_700_000_000);
+        let meta = message_update_meta(Some("msg_live"), 1_700_000_000, false);
 
         assert_eq!(
             meta.get("goose"),
