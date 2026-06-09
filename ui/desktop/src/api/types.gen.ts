@@ -771,6 +771,12 @@ export type MessageMetadata = {
     agentVisible: boolean;
     inference?: InferenceMetadata | null;
     /**
+     * Whether this message is a steer injected into an active run. UI-only:
+     * surfaced as `_meta.goose.steer` so clients can mark the steer boundary
+     * without matching user-visible text. Never sent to providers.
+     */
+    steer?: boolean;
+    /**
      * Whether the message should be visible to the user in the UI
      */
     userVisible: boolean;
