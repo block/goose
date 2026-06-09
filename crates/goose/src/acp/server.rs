@@ -1412,6 +1412,7 @@ impl GooseAcpAgent {
         session_id_str: &str,
         message_id: Option<&str>,
         message_created: i64,
+        role: &Role,
         steer: bool,
         agent: &Arc<Agent>,
         session: &mut GooseAcpSession,
@@ -1419,13 +1420,14 @@ impl GooseAcpAgent {
     ) -> Result<(), agent_client_protocol::Error> {
         match content_item {
             MessageContent::Text(text) => {
-                cx.send_notification(SessionNotification::new(
-                    session_id.clone(),
-                    SessionUpdate::AgentMessageChunk(
-                        ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
-                            .meta(message_update_meta(message_id, message_created, steer)),
-                    ),
-                ))?;
+                let chunk =
+                    ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
+                        .meta(message_update_meta(message_id, message_created, steer));
+                let update = match role {
+                    Role::User => SessionUpdate::UserMessageChunk(chunk),
+                    Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
+                };
+                cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
                 self.handle_tool_request(
@@ -2653,6 +2655,7 @@ impl GooseAcpAgent {
                                 &session_id,
                                 stored_message_id.as_deref(),
                                 message.created,
+                                &message.role,
                                 message.metadata.steer,
                                 &agent,
                                 session,

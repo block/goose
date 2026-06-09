@@ -118,7 +118,10 @@ fn steer_chunk_texts(updates: &[SessionUpdate]) -> Vec<String> {
     updates
         .iter()
         .filter_map(|update| {
-            let SessionUpdate::AgentMessageChunk(chunk) = update else {
+            // A steered message is a user message injected mid-run, so it must
+            // arrive as a UserMessageChunk (matching the replay path), never an
+            // AgentMessageChunk.
+            let SessionUpdate::UserMessageChunk(chunk) = update else {
                 return None;
             };
             let ContentBlock::Text(text) = &chunk.content else {
