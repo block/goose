@@ -1,5 +1,6 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
+import { AppEvents } from '../constants/events';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ThinkingContent from './ThinkingContent';
@@ -47,11 +48,22 @@ export default function GooseMessage({
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const [clockFormatVersion, setClockFormatVersion] = useState(0);
+
+  useEffect(() => {
+    const handler = () => setClockFormatVersion((v) => v + 1);
+    window.addEventListener(AppEvents.CLOCK_FORMAT_CHANGED, handler);
+    return () => window.removeEventListener(AppEvents.CLOCK_FORMAT_CHANGED, handler);
+  }, []);
 
   const { textContent: displayText, imagePaths } = getTextAndImageContent(message);
   const thinkingContent = getThinkingContent(message);
 
-  const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
+  const timestamp = useMemo(
+    () => formatMessageTimestamp(message.created),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [message.created, clockFormatVersion]
+  );
   const toolRequests = getToolRequests(message);
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);

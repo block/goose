@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import { currentLocale } from '../i18n';
 
 let use24HourClock: boolean =
@@ -11,6 +12,7 @@ export function initTimeFormat(use24h: boolean): void {
 
 export function setTimeFormat(use24h: boolean): void {
   use24HourClock = use24h;
+  window.dispatchEvent(new CustomEvent(AppEvents.CLOCK_FORMAT_CHANGED));
 }
 
 export function formatMessageTimestamp(timestamp?: number): string {

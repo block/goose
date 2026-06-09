@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
 import MarkdownContent from './MarkdownContent';
 import { getTextAndImageContent } from '../types/message';
 import { Message } from '../api';
 import MessageCopyLink from './MessageCopyLink';
+import { AppEvents } from '../constants/events';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import Edit from './icons/Edit';
 import { Button } from './ui/button';
@@ -84,9 +85,17 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [clockFormatVersion, setClockFormatVersion] = useState(0);
+
+  useEffect(() => {
+    const handler = () => setClockFormatVersion((v) => v + 1);
+    window.addEventListener(AppEvents.CLOCK_FORMAT_CHANGED, handler);
+    return () => window.removeEventListener(AppEvents.CLOCK_FORMAT_CHANGED, handler);
+  }, []);
 
   const { textContent, imagePaths } = getTextAndImageContent(message);
-  const timestamp = formatMessageTimestamp(message.created);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created, clockFormatVersion]);
 
   // Effect to handle message content changes and ensure persistence
   useEffect(() => {
