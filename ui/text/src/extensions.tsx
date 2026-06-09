@@ -34,25 +34,37 @@ function entryToExtEntry(entry: GooseExtensionEntry): ExtEntry | null {
       type: ext.type,
       name: ext.name,
       description: ext.description ?? "",
+      display_name: ext.display_name ?? null,
+      timeout: "timeout" in ext ? (ext.timeout ?? null) : null,
+      bundled: ext.bundled ?? null,
     };
   }
   const server = ext.server;
   if ("type" in server && server.type === "sse") return null;
+  const common = {
+    enabled: entry.enabled,
+    description: ext.description ?? "",
+    env_keys: ext.envKeys ?? [],
+    timeout: ext.timeout ?? null,
+    bundled: ext.bundled ?? null,
+  };
   if ("type" in server && server.type === "http") {
     return {
-      enabled: entry.enabled,
+      ...common,
       type: "streamable_http",
       name: server.name,
-      description: ext.description ?? "",
       uri: server.url,
+      headers: Object.fromEntries(
+        (server.headers ?? []).map((h) => [h.name, h.value]),
+      ),
+      socket: ext.socket ?? null,
     };
   }
   const stdio = server as McpServerStdio;
   return {
-    enabled: entry.enabled,
+    ...common,
     type: "stdio",
     name: stdio.name,
-    description: ext.description ?? "",
     cmd: stdio.command,
     args: stdio.args,
   };
