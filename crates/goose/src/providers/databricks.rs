@@ -686,6 +686,9 @@ impl Provider for DatabricksProvider {
 
             let storage = self.session_storage.lock().unwrap().clone();
             let is_subagent = storage.is_subagent_session(session_id).await;
+            let is_first_turn = !messages
+                .iter()
+                .any(|m| m.role == rmcp::model::Role::Assistant);
             let mut payload = create_request_for_provider(
                 DATABRICKS_PROVIDER_NAME,
                 request_model_config,
@@ -693,7 +696,7 @@ impl Provider for DatabricksProvider {
                 messages,
                 tools,
                 &self.image_format,
-                is_subagent,
+                is_subagent && is_first_turn,
             )?;
             payload
                 .as_object_mut()

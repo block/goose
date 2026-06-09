@@ -289,7 +289,10 @@ impl Provider for OpenRouterProvider {
 
         let storage = self.session_storage.lock().unwrap().clone();
         let is_subagent = storage.is_subagent_session(session_id).await;
-        if self.supports_cache_control().await && !is_subagent {
+        let is_first_turn = !messages
+            .iter()
+            .any(|m| m.role == rmcp::model::Role::Assistant);
+        if self.supports_cache_control().await && !(is_subagent && is_first_turn) {
             payload = update_request_for_anthropic(&payload);
         }
 

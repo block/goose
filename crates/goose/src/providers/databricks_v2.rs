@@ -316,8 +316,11 @@ impl DatabricksV2Provider {
     ) -> Result<MessageStream, ProviderError> {
         let storage = self.session_storage.lock().unwrap().clone();
         let is_subagent = storage.is_subagent_session(session_id).await;
+        let is_first_turn = !messages
+            .iter()
+            .any(|m| m.role == rmcp::model::Role::Assistant);
         let options = anthropic::AnthropicFormatOptions {
-            skip_cache_control: is_subagent,
+            skip_cache_control: is_subagent && is_first_turn,
             ..self.format_options
         };
         let mut payload =
