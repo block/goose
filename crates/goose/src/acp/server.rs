@@ -2174,6 +2174,9 @@ fn replay_message_goose_meta(message: &Message) -> serde_json::Map<String, serde
     if let Some(id) = &message.id {
         goose.insert("messageId".to_string(), serde_json::json!(id));
     }
+    if message.metadata.steer {
+        goose.insert("steer".to_string(), serde_json::json!(true));
+    }
     goose
 }
 
@@ -3758,6 +3761,34 @@ print(\"hello, world\")
                 "messageId": "msg_2",
             })),
         );
+    }
+
+    #[test]
+    fn test_merge_replay_message_meta_includes_steer_marker() {
+        let message = Message::new(Role::User, 1_700_000_000, vec![])
+            .with_id("msg_steer")
+            .with_steer();
+
+        let merged = merge_replay_message_meta(None, &message);
+
+        assert_eq!(
+            merged.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_steer",
+                "steer": true,
+            })),
+            "replay must carry the steer marker so the boundary survives reload"
+        );
+    }
+
+    #[test]
+    fn test_merge_replay_message_meta_omits_steer_when_not_set() {
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_plain");
+
+        let merged = merge_replay_message_meta(None, &message);
+
+        assert_eq!(merged.get("goose").and_then(|g| g.get("steer")), None);
     }
 
     #[test]
