@@ -1,6 +1,8 @@
 use anyhow::Error;
 use async_stream::try_stream;
 use futures::TryStreamExt;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::images::ImageFormat;
 use reqwest::Response;
 #[cfg(test)]
 use reqwest::StatusCode;
@@ -11,16 +13,17 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
-use super::errors::ProviderError;
+use super::base::{stream_from_single_message, MessageStream, Provider};
 use super::retry::ProviderRetry;
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::RequestLog;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::{
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+    ModelConfigParams,
+};
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -63,7 +66,13 @@ impl OpenAiCompatibleProvider {
         for_streaming: bool,
     ) -> Result<Value, ProviderError> {
         create_request(
-            model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,

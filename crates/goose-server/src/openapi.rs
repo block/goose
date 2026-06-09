@@ -5,10 +5,11 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::model::{ModelConfig, ThinkingEffort};
+use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,
     RawAudioContent, RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
@@ -392,6 +393,9 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::config_management::upsert_config,
         super::routes::config_management::remove_config,
         super::routes::config_management::read_config,
+        super::routes::config_management::add_extension,
+        super::routes::config_management::remove_extension,
+        super::routes::config_management::get_extensions,
         super::routes::config_management::read_all_config,
         super::routes::config_management::list_provider_secrets,
         super::routes::config_management::delete_provider_secret,
@@ -427,6 +431,8 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::agent::export_app,
         super::routes::agent::import_app,
         super::routes::agent::update_from_session,
+        super::routes::agent::agent_add_extension,
+        super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
         super::routes::agent::update_session,
         super::routes::action_required::confirm_tool_action,
@@ -446,6 +452,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::session::import_session_nostr,
         super::routes::session::update_session_user_recipe_values,
         super::routes::session::fork_session,
+        super::routes::session::get_session_extensions,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -491,6 +498,8 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::config_management::SlashCommandsResponse,
         super::routes::config_management::SlashCommand,
         super::routes::config_management::CommandType,
+        super::routes::config_management::ExtensionResponse,
+        super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
         super::routes::config_management::UpdateCustomProviderRequest,
@@ -523,6 +532,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
         super::routes::session::ForkRequest,
         super::routes::session::ForkResponse,
+        super::routes::session::SessionExtensionsResponse,
         Message,
         MessageContent,
         MessageMetadata,
@@ -641,6 +651,8 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::agent::RestartAgentRequest,
         super::routes::agent::UpdateWorkingDirRequest,
         super::routes::agent::UpdateFromSessionRequest,
+        super::routes::agent::AddExtensionRequest,
+        super::routes::agent::RemoveExtensionRequest,
         super::routes::agent::ResumeAgentResponse,
         super::routes::agent::RestartAgentResponse,
         goose::agents::ExtensionLoadResult,

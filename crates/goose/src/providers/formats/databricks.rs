@@ -3,12 +3,14 @@ use crate::model::ModelConfig;
 use crate::providers::formats::anthropic::{
     thinking_budget_tokens, thinking_effort, thinking_type, ThinkingType,
 };
-use crate::providers::utils::{
-    convert_image, detect_image_path, extract_reasoning_effort, is_openai_responses_model,
-    is_valid_function_name, load_image_file, openai_reasoning_effort_for_thinking,
-    safely_parse_json, sanitize_function_name, ImageFormat,
-};
+
 use anyhow::{anyhow, Error};
+use goose_providers::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
+    openai_reasoning_effort_for_thinking, sanitize_function_name,
+};
+use goose_providers::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use goose_providers::json::safely_parse_json;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,

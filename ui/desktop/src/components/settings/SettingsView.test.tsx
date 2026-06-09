@@ -7,11 +7,19 @@ import SettingsView from './SettingsView';
 import { IntlTestWrapper } from '../../i18n/test-utils';
 
 vi.mock('../../api/sdk.gen', () => ({
-  getTunnelStatus: vi.fn().mockResolvedValue({ data: { state: 'running' } }),
+  getTunnelStatus: vi.fn().mockResolvedValue({ data: { state: 'disabled' } }),
 }));
 
 vi.mock('../../utils/analytics', () => ({
   trackSettingsTabViewed: vi.fn(),
+}));
+
+vi.mock('../../contexts/FeaturesContext', () => ({
+  useFeatures: () => ({
+    localInference: false,
+    codeMode: true,
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../Layout/MainPanelLayout', () => ({
@@ -59,7 +67,7 @@ vi.mock('./config/ConfigSettings', () => ({
 }));
 
 describe('SettingsView', () => {
-  it('hides local inference and mesh settings tabs from ApeCloud builds', async () => {
+  it('hides unavailable local inference and mesh settings tabs', async () => {
     render(
       <SettingsView
         onClose={vi.fn()}
@@ -75,7 +83,6 @@ describe('SettingsView', () => {
 
     expect(screen.queryByTestId('settings-local-inference-tab')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-mesh-tab')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('settings-sharing-tab')).not.toBeInTheDocument();
     expect(screen.getByText('Models section')).toBeInTheDocument();
   });
 });

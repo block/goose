@@ -1,17 +1,17 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::errors::ProviderError;
+use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use crate::json::safely_parse_json;
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::ModelConfig;
-use crate::providers::base::{split_think_blocks, ProviderUsage, ThinkFilter, Usage};
-use crate::providers::errors::ProviderError;
-use crate::providers::utils::{
-    convert_image, detect_image_path, extract_reasoning_effort, is_openai_responses_model,
-    is_valid_function_name, load_image_file, openai_reasoning_effort_for_thinking,
-    safely_parse_json, sanitize_function_name, ImageFormat,
+use crate::thinking::{
+    split_think_blocks, ThinkFilter, ThinkingEffort, GEMINI_THOUGHT_SIGNATURE_KEY,
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
+use regex::Regex;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role,
     Tool,
@@ -21,6 +21,7 @@ use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::sync::OnceLock;
 
 type ToolCallData = HashMap<
     i32,
@@ -1085,7 +1086,7 @@ where
                         let metadata = if let Some(sig) = &last_signature {
                             let mut combined = extra_fields.clone().unwrap_or_default();
                             combined.insert(
-                                crate::providers::formats::google::THOUGHT_SIGNATURE_KEY.to_string(),
+                                GEMINI_THOUGHT_SIGNATURE_KEY.to_string(),
                                 json!(sig)
                             );
                             Some(combined)
@@ -1218,7 +1219,7 @@ where
 }
 
 pub fn create_request(
-    model_config: &ModelConfig,
+    model_config: ModelConfigParams,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -1238,8 +1239,16 @@ pub fn create_request(
     )
 }
 
+pub struct ModelConfigParams<'a> {
+    pub model_name: &'a str,
+    pub thinking_effort: Option<ThinkingEffort>,
+    pub temperature: Option<f32>,
+    pub max_tokens: Option<i32>,
+    pub request_params: Option<&'a HashMap<String, Value>>,
+}
+
 pub fn create_request_with_options(
-    model_config: &ModelConfig,
+    model_config: ModelConfigParams,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -1253,11 +1262,11 @@ pub fn create_request_with_options(
         ));
     }
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(model_config.model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let reasoning_effort = if is_reasoning_model {
         model_config
-            .thinking_effort()
+            .thinking_effort
             .map_or(legacy_reasoning_effort, |effort| {
                 openai_reasoning_effort_for_thinking(&model_name, effort)
             })
@@ -1319,7 +1328,7 @@ pub fn create_request_with_options(
         payload["stream_options"] = json!({"include_usage": true});
     }
 
-    if let Some(params) = &model_config.request_params {
+    if let Some(params) = model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
                 if key != "thinking_effort" && !is_reserved_request_param_key(key) {
@@ -1330,6 +1339,105 @@ pub fn create_request_with_options(
     }
 
     Ok(payload)
+}
+
+/// Extract an explicit reasoning-effort suffix from a model name.
+///
+/// Returns `(base_model_name, Some(effort))` when the user appended a
+/// recognised suffix like `-high` or `-xhigh`, e.g. `gpt-5.4-high` →
+/// `("gpt-5.4", Some("high"))`.
+///
+/// When no suffix is present the effort is `None` — callers should omit
+/// the `reasoning` field entirely so the API applies its own per-model
+/// default. This avoids hard-coding a default that may be invalid for
+/// certain models (e.g. `gpt-5-pro` only accepts `high`; older o-series
+/// models reject `none` and `xhigh`).
+pub fn extract_reasoning_effort(model_name: &str) -> (String, Option<String>) {
+    if !is_openai_responses_model(model_name) {
+        return (model_name.to_string(), None);
+    }
+
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"(?i)^(?P<base>.+)-(?P<effort>none|low|medium|high|xhigh)$").unwrap()
+    });
+
+    if let Some(captures) = re.captures(model_name) {
+        let base = captures["base"].to_string();
+        let effort = captures["effort"].to_ascii_lowercase();
+        return (base, Some(effort));
+    }
+
+    (model_name.to_string(), None)
+}
+
+/// True when the model should use the OpenAI Responses API.
+///
+/// The Responses API is backwards-compatible with all OpenAI reasoning
+/// models, so every `o`-series (`o1`, `o3`, `o4`, …) and `gpt-5` variant
+/// routes here. The matcher intentionally scans the full model identifier so
+/// hosted aliases like `databricks-gpt-5.4`, `goose-o3-mini`, or
+/// `headless-goose-o3-mini` work without provider-specific normalization.
+pub fn is_openai_responses_model(model_name: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re =
+        RE.get_or_init(|| Regex::new(r"(?i)(?:^|[-/])(?:o\d+(?:$|-)|gpt-5(?:$|[-.]))").unwrap());
+    re.is_match(model_name)
+}
+
+pub fn openai_reasoning_effort_for_thinking(
+    model_name: &str,
+    effort: ThinkingEffort,
+) -> Option<String> {
+    if effort == ThinkingEffort::Off {
+        return Some("none".to_string());
+    }
+
+    let supported = openai_reasoning_efforts_for_model(model_name);
+    let preferred: &[&str] = match effort {
+        ThinkingEffort::Off => unreachable!(),
+        ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
+        ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
+        ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
+        ThinkingEffort::Max => &["xhigh", "high", "medium", "low"],
+    };
+
+    preferred
+        .iter()
+        .find(|level| supported.contains(level))
+        .map(|level| (*level).to_string())
+}
+
+fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
+    let normalized = model_name.to_ascii_lowercase();
+
+    if normalized.contains("gpt-5") {
+        if normalized.contains("-pro") || normalized.contains("/pro") {
+            &["high"]
+        } else if normalized.contains("gpt-5.4")
+            || normalized.contains("gpt-5-4")
+            || normalized.contains("gpt-5.5")
+            || normalized.contains("gpt-5-5")
+        {
+            &["low", "medium", "high", "xhigh"]
+        } else {
+            &["low", "medium", "high"]
+        }
+    } else {
+        &["low", "medium", "high"]
+    }
+}
+
+pub fn sanitize_function_name(name: &str) -> String {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
+    re.replace_all(name, "_").to_string()
+}
+
+pub fn is_valid_function_name(name: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
+    re.is_match(name)
 }
 
 #[cfg(test)]
@@ -1471,31 +1579,6 @@ mod tests {
         let timeout_schema = &tools[0]["function"]["parameters"]["properties"]["timeout_secs"];
         assert_eq!(timeout_schema["type"], "integer");
         assert!(!timeout_schema["type"].is_array());
-
-        // Test case 5: Verify the actual ShellParams schema is compatible (no anyOf for timeout_secs)
-        use crate::agents::platform_extensions::developer::shell::ShellParams;
-        use schemars::schema_for;
-        let schema_value = serde_json::to_value(schema_for!(ShellParams)).unwrap();
-        let schema_obj = schema_value.as_object().unwrap().clone();
-        let tool = rmcp::model::Tool::new("shell", "run shell", schema_obj);
-        let mut tools = vec![json!({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.input_schema,
-            }
-        })];
-        validate_tool_schemas(&mut tools);
-        let timeout = &tools[0]["function"]["parameters"]["properties"]["timeout_secs"];
-        assert!(
-            timeout.get("anyOf").is_none(),
-            "timeout_secs should not have anyOf after validation, got: {timeout}"
-        );
-        assert_eq!(
-            timeout["type"], "integer",
-            "timeout_secs should have type=integer"
-        );
     }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
@@ -2051,19 +2134,15 @@ mod tests {
     #[test]
     fn test_create_request_gpt_4o() -> anyhow::Result<()> {
         // Test default medium reasoning effort for O3 model
-        let model_config = ModelConfig {
-            model_name: "gpt-4o".to_string(),
-            context_limit: Some(4096),
+        let model_config = ModelConfigParams {
+            model_name: "gpt-4o",
+            thinking_effort: None,
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
-            reasoning: None,
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2094,19 +2173,15 @@ mod tests {
         // Unknown models on OpenAI-compatible local providers (llama_swap,
         // lmstudio) have no canonical record and no GOOSE_MAX_TOKENS, so the
         // request must not pin the legacy 4096 default. See issue #9007.
-        let model_config = ModelConfig {
-            model_name: "some-unknown-local-model".to_string(),
-            context_limit: None,
+        let model_config = ModelConfigParams {
+            model_name: "some-unknown-local-model",
+            thinking_effort: None,
             temperature: None,
             max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
-            reasoning: None,
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2127,44 +2202,34 @@ mod tests {
 
     #[test]
     fn test_request_params_preserve_reserved_fields() -> anyhow::Result<()> {
-        let model_config = ModelConfig {
-            model_name: "glm-4.7".to_string(),
-            context_limit: Some(204800),
+        let params = std::collections::HashMap::from([
+            (
+                "thinking".to_string(),
+                json!({
+                    "type": "enabled",
+                    "clear_thinking": false
+                }),
+            ),
+            ("stream".to_string(), json!(false)),
+            (
+                "stream_options".to_string(),
+                json!({"include_usage": false}),
+            ),
+            ("model".to_string(), json!("wrong-model")),
+            ("messages".to_string(), json!([])),
+            ("max_tokens".to_string(), json!(1)),
+            ("temperature".to_string(), json!(2.0)),
+            ("provider_custom".to_string(), json!("allowed")),
+        ]);
+        let model_config = ModelConfigParams {
+            model_name: "glm-4.7",
+            thinking_effort: None,
             temperature: None,
             max_tokens: Some(4096),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
-            request_params: Some(std::collections::HashMap::from([
-                (
-                    "thinking".to_string(),
-                    json!({
-                        "type": "enabled",
-                        "clear_thinking": false
-                    }),
-                ),
-                ("stream".to_string(), json!(false)),
-                (
-                    "stream_options".to_string(),
-                    json!({"include_usage": false}),
-                ),
-                ("model".to_string(), json!("wrong-model")),
-                ("messages".to_string(), json!([])),
-                ("max_tokens".to_string(), json!(1)),
-                ("temperature".to_string(), json!(2.0)),
-                ("provider_custom".to_string(), json!("allowed")),
-            ])),
-            reasoning: None,
+            request_params: Some(&params),
         };
 
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-            true,
-        )?;
+        let request = create_request(model_config, "system", &[], &[], &ImageFormat::OpenAi, true)?;
 
         assert_eq!(
             request["thinking"],
@@ -2186,19 +2251,15 @@ mod tests {
 
     #[test]
     fn test_create_request_o1_default() -> anyhow::Result<()> {
-        let model_config = ModelConfig {
-            model_name: "o1".to_string(),
-            context_limit: Some(4096),
+        let model_config = ModelConfigParams {
+            model_name: "o1",
+            thinking_effort: None,
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
-            reasoning: None,
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2232,19 +2293,15 @@ mod tests {
     fn test_create_request_o1_medium_effort() -> anyhow::Result<()> {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("medium"));
-        let model_config = ModelConfig {
-            model_name: "o1".to_string(),
-            context_limit: Some(4096),
+        let model_config = ModelConfigParams {
+            model_name: "o1",
+            thinking_effort: Some(ThinkingEffort::Medium),
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
-            request_params: Some(params),
-            reasoning: None,
+            request_params: Some(&params),
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2263,19 +2320,15 @@ mod tests {
     fn test_create_request_o3_off_effort_preserves_none() -> anyhow::Result<()> {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
-        let model_config = ModelConfig {
-            model_name: "o3".to_string(),
-            context_limit: Some(4096),
+        let model_config = ModelConfigParams {
+            model_name: "o3",
+            thinking_effort: Some(ThinkingEffort::Off),
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
-            request_params: Some(params),
-            reasoning: None,
+            request_params: Some(&params),
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2294,19 +2347,15 @@ mod tests {
     fn test_create_request_gpt5_pro_max_effort_uses_supported_level() -> anyhow::Result<()> {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
-        let model_config = ModelConfig {
-            model_name: "gpt-5.2-pro-2025-12-11".to_string(),
-            context_limit: Some(4096),
+        let model_config = ModelConfigParams {
+            model_name: "gpt-5.2-pro-2025-12-11",
+            thinking_effort: Some(ThinkingEffort::Max),
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
-            request_params: Some(params),
-            reasoning: None,
+            request_params: Some(&params),
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2325,19 +2374,15 @@ mod tests {
     fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
-        let model_config = ModelConfig {
-            model_name: "o3-mini".to_string(),
-            context_limit: Some(4096),
+        let model_config = ModelConfigParams {
+            model_name: "o3-mini",
+            thinking_effort: Some(ThinkingEffort::High),
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
-            request_params: Some(params),
-            reasoning: None,
+            request_params: Some(&params),
         };
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[],
             &[],
@@ -2968,16 +3013,12 @@ data: [DONE]"#;
 
     #[test]
     fn test_create_request_preserves_reasoning_content_for_legacy_compat() -> anyhow::Result<()> {
-        let model_config = ModelConfig {
-            model_name: "deepseek-reasoner".to_string(),
-            context_limit: Some(128000),
+        let model_config = ModelConfigParams {
+            model_name: "deepseek-reasoner",
+            thinking_effort: None,
             temperature: None,
             max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
-            reasoning: None,
         };
         let message = Message::assistant()
             .with_content(MessageContent::thinking("preserve this", ""))
@@ -2988,7 +3029,7 @@ data: [DONE]"#;
             );
 
         let request = create_request(
-            &model_config,
+            model_config,
             "system",
             &[message],
             &[],
@@ -3453,5 +3494,81 @@ data: [DONE]"#;
         let raw = r#"{"arguments":"{\"k\":1}"}"#;
         let parsed: DeltaToolCallFunction = serde_json::from_str(raw).unwrap();
         assert_eq!(parsed.arguments, "{\"k\":1}");
+    }
+
+    #[test]
+    fn test_is_openai_responses_model_matches_o_and_gpt5_families() {
+        for model in [
+            "o3",
+            "o3-mini",
+            "o4-mini",
+            "gpt-5",
+            "gpt-5-pro",
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5-4",
+            "gpt-5-2-pro",
+            "databricks-gpt-5.4",
+            "goose-gpt-5.4-high",
+            "headless-goose-o3-mini",
+        ] {
+            assert!(is_openai_responses_model(model), "{model} should match");
+        }
+    }
+
+    #[test]
+    fn test_is_openai_responses_model_rejects_other_families() {
+        for model in [
+            "gpt-4o",
+            "claude-sonnet-4",
+            "databricks-claude-sonnet-4",
+            "llama-3-70b",
+        ] {
+            assert!(
+                !is_openai_responses_model(model),
+                "{model} should not match"
+            );
+        }
+    }
+
+    #[test]
+    fn test_extract_reasoning_effort_for_responses_models() {
+        for (model, expected_name, expected_effort) in [
+            ("o3-none", "o3", Some("none")),
+            ("o3-xhigh", "o3", Some("xhigh")),
+            ("gpt-5-low", "gpt-5", Some("low")),
+            ("gpt-5.4", "gpt-5.4", None),
+            (
+                "databricks-gpt-5.4-high",
+                "databricks-gpt-5.4",
+                Some("high"),
+            ),
+            ("databricks-o3-low", "databricks-o3", Some("low")),
+            ("goose-gpt-5-high", "goose-gpt-5", Some("high")),
+            ("gpt-4o", "gpt-4o", None),
+        ] {
+            let (name, effort) = extract_reasoning_effort(model);
+            assert_eq!(name, expected_name, "unexpected base model for {model}");
+            assert_eq!(
+                effort.as_deref(),
+                expected_effort,
+                "unexpected effort for {model}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_sanitize_function_name() {
+        assert_eq!(sanitize_function_name("hello-world"), "hello-world");
+        assert_eq!(sanitize_function_name("hello world"), "hello_world");
+        assert_eq!(sanitize_function_name("hello@world"), "hello_world");
+    }
+
+    #[test]
+    fn test_is_valid_function_name() {
+        assert!(is_valid_function_name("hello-world"));
+        assert!(is_valid_function_name("hello_world"));
+        assert!(!is_valid_function_name("hello world"));
+        assert!(!is_valid_function_name("hello@world"));
     }
 }

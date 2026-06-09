@@ -4124,11 +4124,17 @@
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
+  "settingsView.tabLocalInference": {
+    "defaultMessage": "Local Inference"
+  },
   "settingsView.tabModels": {
     "defaultMessage": "Models"
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "Session"
   },
   "settingsView.title": {
     "defaultMessage": "Settings"

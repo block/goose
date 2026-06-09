@@ -1,6 +1,5 @@
 import { toastService } from '../../../toasts';
-import { ExtensionConfig } from '../../../api';
-import { addSessionExtension, removeSessionExtension } from '../../../acp/extensions';
+import { agentAddExtension, ExtensionConfig, agentRemoveExtension } from '../../../api';
 import { errorMessage } from '../../../utils/conversionUtils';
 import {
   createExtensionRecoverHints,
@@ -21,7 +20,10 @@ export async function addToAgent(
     : 0;
 
   try {
-    await addSessionExtension(sessionId, extensionConfig);
+    await agentAddExtension({
+      body: { session_id: sessionId, config: extensionConfig },
+      throwOnError: true,
+    });
     if (showToast) {
       toastService.dismiss(toastId);
       toastService.success({
@@ -59,7 +61,10 @@ export async function removeFromAgent(
     : 0;
 
   try {
-    await removeSessionExtension(sessionId, extensionName);
+    await agentRemoveExtension({
+      body: { session_id: sessionId, name: extensionName },
+      throwOnError: true,
+    });
     if (showToast) {
       toastService.dismiss(toastId);
       toastService.success({
