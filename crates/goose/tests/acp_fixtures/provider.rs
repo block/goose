@@ -190,6 +190,7 @@ impl Connection for AcpProviderConnection {
                     (mode, mode.to_string())
                 })
                 .collect(),
+            terminal: config.terminal.is_some(),
             notification_callback: Some(Arc::new(move |n| {
                 sink_clone.lock().unwrap().push(n.update.clone());
             })),

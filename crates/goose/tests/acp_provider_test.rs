@@ -131,7 +131,6 @@ fn test_shell_terminal_false() {
 }
 
 #[test]
-#[ignore = "provider does not handle terminal delegation requests"]
 fn test_shell_terminal_true() {
     run_test(async { run_shell_terminal_true::<AcpProviderConnection>().await });
 }

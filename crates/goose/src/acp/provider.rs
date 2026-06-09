@@ -1,12 +1,15 @@
 use agent_client_protocol::schema::{
-    ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
-    ImageContent, InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
-    McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    ProtocolVersion, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, CreateTerminalRequest,
+    CreateTerminalResponse, EnvVariable, HttpHeader, ImageContent, InitializeRequest,
+    InitializeResponse, KillTerminalRequest, KillTerminalResponse, McpCapabilities, McpServer,
+    McpServerHttp, McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest,
+    PromptResponse, ProtocolVersion, ReleaseTerminalRequest, ReleaseTerminalResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
     SessionConfigSelectOptions, SessionId, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    TerminalOutputRequest, TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    WaitForTerminalExitRequest, WaitForTerminalExitResponse,
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use agent_client_protocol_schema::Usage as AcpUsage;
@@ -30,6 +33,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
+use crate::acp::terminal::TerminalManager;
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
@@ -44,6 +48,11 @@ use goose_providers::errors::ProviderError;
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
 
+/// Priority for bridged tool-result content. The CLI renderer only shows
+/// tool output whose priority is `>= GOOSE_CLI_MIN_PRIORITY` (default 0.0)
+/// and drops content with no priority at all.
+const USER_VISIBLE_PRIORITY: f32 = 0.0;
+
 pub struct AcpProviderConfig {
     pub command: PathBuf,
     pub args: Vec<String>,
@@ -53,6 +62,7 @@ pub struct AcpProviderConfig {
     pub mcp_servers: Vec<McpServer>,
     pub session_mode_id: Option<String>,
     pub mode_mapping: HashMap<GooseMode, String>,
+    pub terminal: bool,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
 
@@ -716,6 +726,8 @@ impl AcpClientLoop {
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
+        let terminal_enabled = config.terminal;
+        let terminal_manager = TerminalManager::new(config.work_dir.clone());
 
         Client
             .builder()
@@ -726,6 +738,7 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
+                    let terminal_manager = terminal_manager.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -823,7 +836,10 @@ impl AcpClientLoop {
                                         let content = if accumulated.content.is_empty() {
                                             None
                                         } else {
-                                            Some(accumulated.content)
+                                            Some(
+                                                terminal_manager
+                                                    .resolve_content(accumulated.content),
+                                            )
                                         };
                                         let _ = tx.try_send(AcpUpdate::ToolCallComplete {
                                             id,
@@ -869,7 +885,10 @@ impl AcpClientLoop {
                                         let content = if accumulated.content.is_empty() {
                                             None
                                         } else {
-                                            Some(accumulated.content)
+                                            Some(
+                                                terminal_manager
+                                                    .resolve_content(accumulated.content),
+                                            )
                                         };
                                         let _ = tx.try_send(AcpUpdate::ToolCallComplete {
                                             id,
@@ -915,6 +934,97 @@ impl AcpClientLoop {
                             RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
                         });
                         responder.respond(response)
+                    }
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                {
+                    let terminal_manager = terminal_manager.clone();
+                    async move |request: CreateTerminalRequest, responder, _cx| {
+                        if !terminal_enabled {
+                            return responder.respond_with_error(
+                                agent_client_protocol::Error::method_not_found(),
+                            );
+                        }
+                        match terminal_manager.create(request).await {
+                            Ok(id) => responder.respond(CreateTerminalResponse::new(id)),
+                            Err(e) => {
+                                Err(agent_client_protocol::Error::internal_error()
+                                    .data(e.to_string()))
+                            }
+                        }
+                    }
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                {
+                    let terminal_manager = terminal_manager.clone();
+                    async move |request: TerminalOutputRequest, responder, _cx| {
+                        if !terminal_enabled {
+                            return responder.respond_with_error(
+                                agent_client_protocol::Error::method_not_found(),
+                            );
+                        }
+                        match terminal_manager.output(request.terminal_id.0.as_ref()) {
+                            Some(response) => responder.respond(response),
+                            None => Err(agent_client_protocol::Error::internal_error()
+                                .data(format!("unknown terminal {}", request.terminal_id.0))),
+                        }
+                    }
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                {
+                    let terminal_manager = terminal_manager.clone();
+                    async move |request: WaitForTerminalExitRequest, responder, _cx| {
+                        if !terminal_enabled {
+                            return responder.respond_with_error(
+                                agent_client_protocol::Error::method_not_found(),
+                            );
+                        }
+                        match terminal_manager
+                            .wait_for_exit(request.terminal_id.0.as_ref())
+                            .await
+                        {
+                            Some(status) => {
+                                responder.respond(WaitForTerminalExitResponse::new(status))
+                            }
+                            None => Err(agent_client_protocol::Error::internal_error()
+                                .data(format!("unknown terminal {}", request.terminal_id.0))),
+                        }
+                    }
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                {
+                    let terminal_manager = terminal_manager.clone();
+                    async move |request: KillTerminalRequest, responder, _cx| {
+                        if !terminal_enabled {
+                            return responder.respond_with_error(
+                                agent_client_protocol::Error::method_not_found(),
+                            );
+                        }
+                        terminal_manager.kill(request.terminal_id.0.as_ref());
+                        responder.respond(KillTerminalResponse::new())
+                    }
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                {
+                    let terminal_manager = terminal_manager.clone();
+                    async move |request: ReleaseTerminalRequest, responder, _cx| {
+                        if !terminal_enabled {
+                            return responder.respond_with_error(
+                                agent_client_protocol::Error::method_not_found(),
+                            );
+                        }
+                        terminal_manager.release(request.terminal_id.0.as_ref());
+                        responder.respond(ReleaseTerminalResponse::new())
                     }
                 },
                 agent_client_protocol::on_receive_request!(),
@@ -1008,7 +1118,7 @@ async fn handle_requests(
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
 
-    let client_capabilities = ClientCapabilities::new();
+    let client_capabilities = ClientCapabilities::new().terminal(config.terminal);
     let init_response: InitializeResponse = cx
         .send_request(
             InitializeRequest::new(ProtocolVersion::LATEST)
@@ -1379,7 +1489,17 @@ fn acp_tool_call_content_to_rmcp(
             out.push(RmcpContent::text(text));
         }
     }
-    out
+    // Tag as user-visible: the CLI renderer hides tool-result content that has
+    // no priority annotation, so unannotated bridge output never shows up.
+    out.into_iter()
+        .map(|content| {
+            if content.priority().is_none() {
+                content.with_priority(USER_VISIBLE_PRIORITY)
+            } else {
+                content
+            }
+        })
+        .collect()
 }
 
 fn build_action_required_message(request: &RequestPermissionRequest) -> Option<Message> {
@@ -2006,6 +2126,11 @@ mod tests {
             serialized[3].contains("base64data"),
             "image data lost: {serialized:?}"
         );
+        assert!(
+            out.iter()
+                .all(|c| c.priority() == Some(USER_VISIBLE_PRIORITY)),
+            "every bridged block must be tagged user-visible so the CLI renders it",
+        );
     }
 
     #[test]
@@ -2017,6 +2142,11 @@ mod tests {
         assert!(
             serialized.contains("key"),
             "fallback raw_output lost: {serialized}"
+        );
+        assert_eq!(
+            out[0].priority(),
+            Some(USER_VISIBLE_PRIORITY),
+            "fallback raw_output must be tagged user-visible",
         );
     }
 

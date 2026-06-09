@@ -6,6 +6,7 @@ mod provider;
 mod response_builder;
 pub mod server;
 pub mod server_factory;
+mod terminal;
 pub(crate) mod tools;
 pub mod transport;
 
