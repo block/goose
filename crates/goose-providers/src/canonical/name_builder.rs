@@ -69,7 +69,8 @@ pub fn map_to_canonical_model(
         if let Some(canonical) = registry.get(registry_provider, model) {
             return Some(canonical.id.clone());
         }
-        if model.starts_with("gemini-") {
+        let model_lower = model.to_lowercase();
+        if model_lower.starts_with("gemini-") || model_lower.contains("claude") {
             return None;
         }
     }
@@ -447,16 +448,16 @@ mod tests {
 
         // === Grok (X.AI) ===
         assert_eq!(
-            map_to_canonical_model("databricks", "grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "databricks-grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "databricks-grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "kgoose-grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
 
         // === Cohere Command ===
@@ -492,8 +493,8 @@ mod tests {
             Some("deepseek/deepseek-chat".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "x-ai-grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "x-ai-grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
 
         // === Zhipu AI ===
@@ -517,7 +518,7 @@ mod tests {
         );
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-3-5-sonnet", r),
-            Some("google-vertex/claude-3.5-sonnet".to_string())
+            None
         );
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-sonnet-4@20250514", r),
