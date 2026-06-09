@@ -450,8 +450,18 @@ pub async fn prompt_interactive_session_selection(
         });
     }
 
-    // Build the selection prompt
-    let mut selector = select(prompt);
+    // Build the selection prompt.
+    //
+    // Cap the visible rows to the terminal height so the list scrolls instead of
+    // overflowing on short terminals, and enable fuzzy filtering (matching the
+    // convention used by the configure command's long lists). We reserve a few
+    // lines for the prompt header, filter input, and footer, and clamp to a sane
+    // minimum so the picker stays usable even on tiny windows.
+    let max_rows = console::Term::stderr()
+        .size_checked()
+        .map(|(rows, _cols)| (rows as usize).saturating_sub(6).max(3))
+        .unwrap_or(10);
+    let mut selector = select(prompt).max_rows(max_rows).filter_mode();
 
     // Build options in the order returned by list_sessions (most recent first),
     // keyed by session id so the display text can be anything.
