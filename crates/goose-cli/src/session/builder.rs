@@ -543,7 +543,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             resolved.provider_name.clone(),
             resolved.model_name.clone(),
         ),
-        Err(e) if session_config.resume && is_provider_unavailable_error(&e) => {
+        Err(e)
+            if session_config.resume
+                && session_config.provider.is_none()
+                && is_provider_unavailable_error(&e) =>
+        {
             let fallback_provider = config.get_goose_provider().unwrap_or_else(|_| {
                 output::render_error("No provider configured. Run 'goose configure' first.");
                 process::exit(1);
@@ -671,7 +675,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
 fn is_provider_unavailable_error(e: &anyhow::Error) -> bool {
     let msg = e.to_string();
-    msg.contains("is not set") || msg.contains("not configured")
+    msg.contains("is not set")
+        || msg.contains("not configured")
+        || msg.contains("Configuration value not found")
 }
 
 #[cfg(test)]
