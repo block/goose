@@ -102,6 +102,7 @@ fn acp_cors_layer() -> CorsLayer {
         .allow_headers([
             header::CONTENT_TYPE,
             header::ACCEPT,
+            HeaderName::from_static("x-secret-key"),
             HeaderName::from_static("acp-connection-id"),
             HeaderName::from_static("acp-session-id"),
             header::SEC_WEBSOCKET_VERSION,
