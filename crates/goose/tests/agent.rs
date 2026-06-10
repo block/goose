@@ -1132,10 +1132,10 @@ mod tests {
         use goose::conversation::message::{Message, MessageContent};
         use goose::model::ModelConfig;
         use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
-        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-        use goose_providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use rmcp::model::{CallToolRequestParams, Tool};
         use rmcp::object;
         use std::path::PathBuf;
