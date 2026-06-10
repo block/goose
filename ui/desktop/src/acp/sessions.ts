@@ -51,9 +51,23 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
   };
 }
 
-export async function acpListSessions(cursor?: string | null): Promise<SessionListPage> {
+export interface SessionListFilter {
+  keyword?: string;
+}
+
+export async function acpListSessions(
+  cursor?: string | null,
+  filter?: SessionListFilter
+): Promise<SessionListPage> {
   const client = await getAcpClient();
-  const request: ListSessionsRequest = cursor ? { cursor } : {};
+  const request: ListSessionsRequest = {};
+  if (cursor) {
+    request.cursor = cursor;
+  }
+  const keyword = filter?.keyword?.trim();
+  if (keyword) {
+    request._meta = { query: keyword };
+  }
   const response = await client.listSessions(request);
   return {
     sessions: response.sessions.map(sessionInfoToListItem),
