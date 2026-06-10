@@ -100,10 +100,7 @@ jobs:
           cd ui/sdk
           pnpm run build:ts
 
-          cd ../text
-          pnpm run build
-
-      - name: Compatibility check (TUI client ↔ goose binary)
+      - name: Compatibility check (SDK client ↔ goose binary)
         env:
           GOOSE_BINARY: ${{ github.workspace }}/ui/goose-binary/goose-binary-linux-x64/bin/goose
         run: |
@@ -135,7 +132,7 @@ jobs:
             echo ""
             echo "### npm Packages"
             cd ui
-            for pkg in sdk text goose-binary/*/; do
+            for pkg in sdk goose-binary/*/; do
               if [ -f "$pkg/package.json" ]; then
                 name=$(jq -r '.name' "$pkg/package.json")
                 version=$(jq -r '.version' "$pkg/package.json")
@@ -177,7 +174,7 @@ jobs:
           # Publish each package individually so one failure doesn't abort the rest.
           # Skips packages whose version is already published (409/403).
           failed=0
-          for pkg in sdk goose-binary/*/ text; do
+          for pkg in sdk goose-binary/*/; do
             if [ -f "$pkg/package.json" ]; then
               name=$(jq -r '.name' "$pkg/package.json")
               version=$(jq -r '.version' "$pkg/package.json")
@@ -207,7 +204,7 @@ jobs:
           {
             echo "## 🚀 Published Packages"
             echo ""
-            for pkg in sdk text goose-binary/*/; do
+            for pkg in sdk goose-binary/*/; do
               if [ -f "$pkg/package.json" ]; then
                 name=$(jq -r '.name' "$pkg/package.json")
                 version=$(jq -r '.version' "$pkg/package.json")

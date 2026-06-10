@@ -82,26 +82,6 @@ impl Provider for MockProvider {
     }
 }
 
-fn mock_provider_factory() -> AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
-        Box::pin(async move {
-            let recommended_models = match provider_name.as_str() {
-                "anthropic" => vec![
-                    "claude-3-7-sonnet-latest".to_string(),
-                    "claude-3-5-haiku-latest".to_string(),
-                ],
-                _ => vec!["gpt-4o".to_string(), "o4-mini".to_string()],
-            };
-            Ok(Arc::new(MockProvider {
-                name: provider_name,
-                model_config,
-                supported_models: recommended_models.clone(),
-                recommended_models,
-            }) as Arc<dyn Provider>)
-        })
-    })
-}
-
 fn active_run_id_from_update(update: &SessionUpdate) -> Option<String> {
     let SessionUpdate::SessionInfoUpdate(info) = update else {
         return None;
@@ -567,7 +547,7 @@ fn test_custom_provider_inventory_includes_metadata() {
 #[serial]
 fn test_custom_preferences_read_save_remove() {
     let config_dir = write_acp_global_config(
-        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
+        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nGOOSE_THINKING_EFFORT: high\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
     );
 
     run_test(async move {
@@ -584,6 +564,7 @@ fn test_custom_preferences_read_save_remove() {
             serde_json::json!({
                 "keys": [
                     "autoCompactThreshold",
+                    "gooseThinkingEffort",
                     "voiceAutoSubmitPhrases",
                     "voiceDictationPreferredMic"
                 ],
@@ -595,6 +576,7 @@ fn test_custom_preferences_read_save_remove() {
             response.get("values"),
             Some(&serde_json::json!([
                 { "key": "autoCompactThreshold", "value": 0.7 },
+                { "key": "gooseThinkingEffort", "value": "high" },
                 { "key": "voiceAutoSubmitPhrases", "value": "send it" },
                 { "key": "voiceDictationPreferredMic", "value": null },
             ]))
@@ -605,6 +587,7 @@ fn test_custom_preferences_read_save_remove() {
             "_goose/unstable/preferences/save",
             serde_json::json!({
                 "values": [
+                    { "key": "gooseThinkingEffort", "value": "disabled" },
                     { "key": "voiceDictationProvider", "value": "__disabled__" },
                     { "key": "voiceDictationPreferredMic", "value": "mic-1" }
                 ],
@@ -627,7 +610,7 @@ fn test_custom_preferences_read_save_remove() {
             conn.cx(),
             "_goose/unstable/preferences/read",
             serde_json::json!({
-                "keys": ["voiceDictationProvider", "voiceDictationPreferredMic"],
+                "keys": ["gooseThinkingEffort", "voiceDictationProvider", "voiceDictationPreferredMic"],
             }),
         )
         .await
@@ -635,6 +618,7 @@ fn test_custom_preferences_read_save_remove() {
         assert_eq!(
             response.get("values"),
             Some(&serde_json::json!([
+                { "key": "gooseThinkingEffort", "value": "off" },
                 { "key": "voiceDictationProvider", "value": null },
                 { "key": "voiceDictationPreferredMic", "value": "mic-1" },
             ]))
@@ -656,6 +640,12 @@ fn test_custom_preferences_save_rejects_invalid_values() {
             }),
             serde_json::json!({
                 "values": [{ "key": "autoCompactThreshold", "value": 1.1 }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": "bogus" }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": ["high"] }],
             }),
             serde_json::json!({
                 "values": [{ "key": "voiceAutoSubmitPhrases", "value": ["send"] }],
@@ -859,11 +849,11 @@ fn test_raw_config_and_secret_methods_are_removed() {
 #[test]
 #[serial]
 fn test_provider_switching_updates_session_state() {
+    let _env = env_lock::lock_env([("ANTHROPIC_API_KEY", Some("test-key"))]);
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let config = TestConnectionConfig {
-            provider_factory: Some(mock_provider_factory()),
             current_model: "gpt-4o".to_string(),
             ..Default::default()
         };

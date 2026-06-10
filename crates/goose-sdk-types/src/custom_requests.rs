@@ -338,6 +338,7 @@ pub struct PreferencesRemoveRequest {
 pub enum PreferenceKey {
     #[default]
     AutoCompactThreshold,
+    GooseThinkingEffort,
     VoiceAutoSubmitPhrases,
     VoiceDictationProvider,
     VoiceDictationPreferredMic,

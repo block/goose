@@ -3,7 +3,6 @@ import React, { useEffect, useState, useRef, useCallback, useMemo, startTransiti
 import { defineMessages, useIntl } from '../../i18n';
 import {
   MessageSquareText,
-  Target,
   AlertCircle,
   Calendar,
   Folder,
@@ -15,7 +14,6 @@ import {
   LoaderCircle,
   ExternalLink,
   Copy,
-  Puzzle,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -29,7 +27,6 @@ import { errorMessage } from '../../utils/conversionUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import {
   Dialog,
   DialogContent,
@@ -39,24 +36,22 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import {
-  deleteSession,
-  exportSession,
-  forkSession,
-  importSession,
   importSessionNostr,
-  listSessions,
   searchSessions,
   shareSessionNostr,
-  Session,
-  updateSessionName,
-  ExtensionConfig,
-  ExtensionData,
 } from '../../api';
 import { getTunnelStatus } from '../../api/sdk.gen';
-import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
+import {
+  acpDeleteSession,
+  acpExportSession,
+  acpForkSession,
+  acpImportSession,
+  acpListSessions,
+  acpRenameSession,
+  type SessionListItem,
+} from '../../acp/sessions';
+import { sessionToListItem } from '../../hooks/useNavigationSessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { shouldShowNewChatTitle } from '../../sessions';
-import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -100,27 +95,13 @@ const i18n = defineMessages({
   deleteSession: { id: 'sessions.action.delete', defaultMessage: 'Delete session' },
   exportSession: { id: 'sessions.action.export', defaultMessage: 'Export session' },
   shareNostrSession: { id: 'sessions.action.shareNostr', defaultMessage: 'Share encrypted Nostr link' },
-  extensions: { id: 'sessions.extensions', defaultMessage: 'Extensions:' },
   shareNostrTitle: { id: 'sessions.shareNostr.title', defaultMessage: 'Encrypted Nostr Share Link' },
   shareNostrDesc: { id: 'sessions.shareNostr.description', defaultMessage: 'Anyone with this link can fetch and decrypt the session. Treat it like a secret.' },
   close: { id: 'sessions.close', defaultMessage: 'Close' },
 });
 
-function getSessionExtensionNames(extensionData: ExtensionData): string[] {
-  try {
-    const enabledExtensionData = extensionData?.['enabled_extensions.v0'] as
-      | { extensions?: ExtensionConfig[] }
-      | undefined;
-    if (!enabledExtensionData?.extensions) return [];
-
-    return enabledExtensionData.extensions.map((ext) => formatExtensionName(ext.name));
-  } catch {
-    return [];
-  }
-}
-
 interface EditSessionModalProps {
-  session: Session | null;
+  session: SessionListItem | null;
   isOpen: boolean;
   onClose: () => void;
   onSave: (sessionId: string, newDescription: string) => Promise<void>;
@@ -153,11 +134,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
       setIsUpdating(true);
       try {
-        await updateSessionName({
-          path: { session_id: session.id },
-          body: { name: trimmedDescription },
-          throwOnError: true,
-        });
+        await acpRenameSession(session.id, trimmedDescription);
         await onSave(session.id, trimmedDescription);
         onClose();
         setTimeout(() => {
@@ -267,8 +244,9 @@ interface SessionListViewProps {
 const SessionListView: React.FC<SessionListViewProps> = React.memo(
   ({ onSelectSession, selectedSessionId }) => {
     const intl = useIntl();
-    const [sessions, setSessions] = useState<Session[]>([]);
-    const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
+    const [sessions, setSessions] = useState<SessionListItem[]>([]);
+    const [filteredSessions, setFilteredSessions] = useState<SessionListItem[]>([]);
+    const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
     const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showSkeleton, setShowSkeleton] = useState(true);
@@ -284,11 +262,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
-    const [editingSession, setEditingSession] = useState<Session | null>(null);
+    const [editingSession, setEditingSession] = useState<SessionListItem | null>(null);
 
     // Delete confirmation modal state
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-    const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+    const [sessionToDelete, setSessionToDelete] = useState<SessionListItem | null>(null);
 
     const [showImportLinkModal, setShowImportLinkModal] = useState(false);
     const [nostrImportLink, setNostrImportLink] = useState('');
@@ -304,6 +282,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const loadGenerationRef = useRef(0);
 
     // Track session to element ref
     const sessionRefs = useRef<Record<string, HTMLElement>>({});
@@ -321,15 +300,88 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       return dateGroups.slice(0, visibleGroupsCount);
     }, [dateGroups, visibleGroupsCount]);
 
+    const previousSearchTermRef = useRef('');
+    useEffect(() => {
+      const wasSearching = previousSearchTermRef.current.length > 0;
+      const isSearching = debouncedSearchTerm.length > 0;
+      previousSearchTermRef.current = debouncedSearchTerm;
+
+      if (isSearching) {
+        setVisibleGroupsCount(dateGroups.length);
+      } else if (wasSearching) {
+        setVisibleGroupsCount(15);
+      }
+    }, [debouncedSearchTerm, dateGroups.length]);
+
+    const loadRemainingSessionPages = useCallback(async (initialCursor: string, loadId: number) => {
+      let cursor: string | null = initialCursor;
+      setIsPrefetchingSessions(true);
+
+      try {
+        while (cursor && loadGenerationRef.current === loadId) {
+          const resp = await acpListSessions(cursor);
+          if (loadGenerationRef.current !== loadId) return;
+
+          cursor = resp.nextCursor;
+          startTransition(() => {
+            setSessions((prev) => {
+              const seen = new Set(prev.map((s) => s.id));
+              return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+            });
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load remaining sessions:', err);
+      } finally {
+        if (loadGenerationRef.current === loadId) {
+          setIsPrefetchingSessions(false);
+        }
+      }
+    }, []);
+
+    const loadSessions = useCallback(async () => {
+      const loadId = loadGenerationRef.current + 1;
+      loadGenerationRef.current = loadId;
+      setIsLoading(true);
+      setIsPrefetchingSessions(false);
+      setShowSkeleton(true);
+      setShowContent(false);
+      setError(null);
+      try {
+        const resp = await acpListSessions();
+        if (loadGenerationRef.current !== loadId) return;
+
+        // Use startTransition to make state updates non-blocking
+        startTransition(() => {
+          setSessions(resp.sessions);
+          setFilteredSessions(resp.sessions);
+        });
+
+        if (resp.nextCursor) {
+          void loadRemainingSessionPages(resp.nextCursor, loadId);
+        }
+      } catch (err) {
+        if (loadGenerationRef.current !== loadId) return;
+
+        console.error('Failed to load sessions:', err);
+        setError('Failed to load sessions. Please try again later.');
+        setSessions([]);
+        setFilteredSessions([]);
+      } finally {
+        if (loadGenerationRef.current === loadId) {
+          setIsLoading(false);
+        }
+      }
+    }, [loadRemainingSessionPages]);
+
     const handleScroll = useCallback(
       (target: HTMLDivElement) => {
         const { scrollTop, scrollHeight, clientHeight } = target;
         const threshold = 200;
 
-        if (
-          scrollHeight - scrollTop - clientHeight < threshold &&
-          visibleGroupsCount < dateGroups.length
-        ) {
+        if (scrollHeight - scrollTop - clientHeight >= threshold) return;
+
+        if (visibleGroupsCount < dateGroups.length) {
           setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
         }
       },
@@ -337,39 +389,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     );
 
     useEffect(() => {
-      if (debouncedSearchTerm) {
-        setVisibleGroupsCount(dateGroups.length);
-      } else {
-        setVisibleGroupsCount(15);
-      }
-    }, [debouncedSearchTerm, dateGroups.length]);
-
-    const loadSessions = useCallback(async () => {
-      setIsLoading(true);
-      setShowSkeleton(true);
-      setShowContent(false);
-      setError(null);
-      try {
-        const resp = await listSessions<true>({ throwOnError: true });
-        const sessions = resp.data.sessions;
-        // Use startTransition to make state updates non-blocking
-        startTransition(() => {
-          setSessions(sessions);
-          setFilteredSessions(sessions);
-        });
-      } catch (err) {
-        console.error('Failed to load sessions:', err);
-        setError('Failed to load sessions. Please try again later.');
-        setSessions([]);
-        setFilteredSessions([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }, []);
+      loadSessions();
+      return () => {
+        loadGenerationRef.current += 1;
+      };
+    }, [loadSessions]);
 
     useEffect(() => {
-      loadSessions();
-    }, [loadSessions]);
+      if (!debouncedSearchTerm) {
+        setFilteredSessions(sessions);
+      }
+    }, [sessions, debouncedSearchTerm]);
 
     // Hide Nostr sharing when tunnel is disabled (restricted/enterprise bundles)
     useEffect(() => {
@@ -429,14 +459,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     // Debounced search effect - performs content search via API
     useEffect(() => {
       if (!debouncedSearchTerm) {
-        startTransition(() => {
-          setFilteredSessions(sessions);
-          setSearchResults(null);
-        });
+        setSearchResults(null);
         return;
       }
 
-      // Call the backend search API for content search
       const performSearch = async () => {
         const resp = await searchSessions({
           query: { query: debouncedSearchTerm },
@@ -444,20 +470,25 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         if (resp.data) {
           // Response is Vec<Session> - sessions that match the search
-          const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
-          const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
+          const matched = resp.data.map(sessionToListItem).sort((a, b) => {
+            const byUpdatedAt = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+            if (byUpdatedAt !== 0) return byUpdatedAt;
+            if (a.id > b.id) return -1;
+            if (a.id < b.id) return 1;
+            return 0;
+          });
 
           startTransition(() => {
-            setFilteredSessions(filtered);
+            setFilteredSessions(matched);
             setSearchResults(
-              filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null
+              matched.length > 0 ? { count: matched.length, currentIndex: 1 } : null
             );
           });
         }
       };
 
       performSearch();
-    }, [debouncedSearchTerm, caseSensitive, sessions]);
+    }, [debouncedSearchTerm, caseSensitive]);
 
     // Handle immediate search input (updates search term for debouncing)
     const handleSearch = useCallback((term: string, caseSensitive: boolean) => {
@@ -508,24 +539,20 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
     }, []);
 
-    const handleEditSession = useCallback((session: Session) => {
+    const handleEditSession = useCallback((session: SessionListItem) => {
       setEditingSession(session);
       setShowEditModal(true);
     }, []);
 
-    const handleDeleteSession = useCallback((session: Session) => {
+    const handleDeleteSession = useCallback((session: SessionListItem) => {
       setSessionToDelete(session);
       setShowDeleteConfirmation(true);
     }, []);
 
     const handleDuplicateSession = useCallback(
-      async (session: Session) => {
+      async (session: SessionListItem) => {
         try {
-          await forkSession({
-            path: { session_id: session.id },
-            body: { truncate: false, copy: true },
-            throwOnError: true,
-          });
+          await acpForkSession(session.id, session.workingDir);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
           await loadSessions();
         } catch (error) {
@@ -545,10 +572,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
 
       try {
-        await deleteSession({
-          path: { session_id: sessionToDeleteId },
-          throwOnError: true,
-        });
+        await acpDeleteSession(sessionToDeleteId);
         toast.success(intl.formatMessage(i18n.deleteSuccess));
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
@@ -565,15 +589,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(null);
     }, []);
 
-    const handleExportSession = useCallback(async (session: Session, e: React.MouseEvent) => {
+    const handleExportSession = useCallback(async (session: SessionListItem, e: React.MouseEvent) => {
       e.stopPropagation();
 
-      const response = await exportSession({
-        path: { session_id: session.id },
-        throwOnError: true,
-      });
-
-      const json = response.data;
+      const json = await acpExportSession(session.id);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -587,7 +606,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     }, [intl]);
 
     const handleShareSessionNostr = useCallback(
-      async (session: Session, e: React.MouseEvent) => {
+      async (session: SessionListItem, e: React.MouseEvent) => {
         e.stopPropagation();
         setSharingSessionId(session.id);
         try {
@@ -618,10 +637,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             toast.error(intl.formatMessage(i18n.importFailed, { error: result.error }));
             return;
           }
-          await importSession({
-            body: { json: result.contents },
-            throwOnError: true,
-          });
+          await acpImportSession(result.contents);
           toast.success(intl.formatMessage(i18n.importSuccess));
           await loadSessions();
         } catch (error) {
@@ -672,10 +688,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         try {
           const json = await file.text();
-          await importSession({
-            body: { json },
-            throwOnError: true,
-          });
+          await acpImportSession(json);
 
           toast.success(intl.formatMessage(i18n.importSuccess));
           await loadSessions();
@@ -690,10 +703,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       [loadSessions, intl]
     );
 
-    const handleOpenInNewWindow = useCallback((session: Session, e: React.MouseEvent) => {
+    const handleOpenInNewWindow = useCallback((session: SessionListItem, e: React.MouseEvent) => {
       e.stopPropagation();
       window.electron.createChatWindow({
-        dir: session.working_dir,
+        dir: session.workingDir,
         resumeSessionId: session.id,
         viewType: 'pair',
       });
@@ -709,13 +722,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       onOpenInNewWindow,
       isSharing,
     }: {
-      session: Session;
-      onEditClick: (session: Session) => void;
-      onDuplicateClick: (session: Session) => void;
-      onDeleteClick: (session: Session) => void;
-      onExportClick: (session: Session, e: React.MouseEvent) => void;
-      onShareClick: (session: Session, e: React.MouseEvent) => void;
-      onOpenInNewWindow: (session: Session, e: React.MouseEvent) => void;
+      session: SessionListItem;
+      onEditClick: (session: SessionListItem) => void;
+      onDuplicateClick: (session: SessionListItem) => void;
+      onDeleteClick: (session: SessionListItem) => void;
+      onExportClick: (session: SessionListItem, e: React.MouseEvent) => void;
+      onShareClick: (session: SessionListItem, e: React.MouseEvent) => void;
+      onOpenInNewWindow: (session: SessionListItem, e: React.MouseEvent) => void;
       isSharing: boolean;
     }) {
       const handleEditClick = useCallback(
@@ -767,13 +780,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
-      const displayName = shouldShowNewChatTitle(session) ? DEFAULT_CHAT_TITLE : session.name;
-
-      // Get extension names for this session
-      const extensionNames = useMemo(
-        () => getSessionExtensionNames(session.extension_data),
-        [session.extension_data]
-      );
+      const displayName = session.name;
 
       return (
         <Card
@@ -786,11 +793,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="flex-1 mt-2">
               <div className="flex items-center text-text-secondary text-xs">
                 <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
+                <span>{formatMessageTimestamp(Date.parse(session.updatedAt) / 1000)}</span>
               </div>
               <div className="flex items-center text-text-secondary text-xs">
                 <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-                <span className="truncate">{session.working_dir}</span>
+                <span className="truncate">{session.workingDir}</span>
               </div>
             </div>
           </div>
@@ -798,36 +805,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="flex items-center space-x-3 text-xs text-text-secondary">
               <div className="flex items-center">
                 <MessageSquareText className="w-3 h-3 mr-1" />
-                <span className="font-mono">{session.message_count}</span>
+                <span className="font-mono">{session.messageCount}</span>
               </div>
-              {session.total_tokens !== null && (
-                <div className="flex items-center">
-                  <Target className="w-3 h-3 mr-1" />
-                  <span className="font-mono">{(session.total_tokens || 0).toLocaleString()}</span>
-                </div>
-              )}
-              {extensionNames.length > 0 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                        <Puzzle className="w-3 h-3 mr-1" />
-                        <span className="font-mono">{extensionNames.length}</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      <div className="text-xs">
-                        <div className="font-medium mb-1">{intl.formatMessage(i18n.extensions)}</div>
-                        <ul className="list-disc list-inside">
-                          {extensionNames.map((name) => (
-                            <li key={name}>{name}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
             </div>
           </div>
           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -981,7 +960,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
           ))}
 
-          {visibleGroupsCount < dateGroups.length && (
+          {isPrefetchingSessions && (
             <div className="flex justify-center py-8">
               <div className="flex items-center space-x-2 text-text-secondary">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>

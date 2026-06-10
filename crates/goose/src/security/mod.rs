@@ -10,30 +10,16 @@ use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
 use scanner::PromptInjectionScanner;
+use std::env;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
-fn set_default_if_not_exist(config: &Config, key: &str, default_env: &str) {
-    if config.get_param::<bool>(key).is_ok() {
-        return;
-    }
-    if let Ok(parsed) = config.get_param::<bool>(default_env) {
-        let _ = config.set_param(key, parsed);
-    }
-}
-
-pub fn set_security_defaults() {
-    let config = Config::global();
-    set_default_if_not_exist(
-        config,
-        "SECURITY_PROMPT_ENABLED",
-        "DEFAULT_SECURITY_PROMPT_ENABLED",
-    );
-    set_default_if_not_exist(
-        config,
-        "SECURITY_COMMAND_CLASSIFIER_ENABLED",
-        "DEFAULT_SECURITY_COMMAND_CLASSIFIER_ENABLED",
-    );
+pub(crate) fn get_override(env_key: &str) -> Option<bool> {
+    env::var(env_key).ok().and_then(|v| match v.as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
 }
 
 pub struct SecurityManager {
@@ -52,15 +38,17 @@ pub struct SecurityResult {
 
 impl SecurityManager {
     pub fn new() -> Self {
-        set_security_defaults();
         Self {
             scanner: OnceLock::new(),
         }
     }
 
     pub fn is_prompt_injection_detection_enabled(&self) -> bool {
-        let config = Config::global();
+        if let Some(overridden) = get_override("SECURITY_PROMPT_ENABLED_OVERRIDE") {
+            return overridden;
+        }
 
+        let config = Config::global();
         config
             .get_param::<bool>("SECURITY_PROMPT_ENABLED")
             .unwrap_or(false)
@@ -73,9 +61,15 @@ impl SecurityManager {
             .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
             .unwrap_or(false);
 
-        let command_enabled = config
-            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
-            .unwrap_or(false);
+        let command_enabled = if let Some(overridden) =
+            get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE")
+        {
+            overridden
+        } else {
+            config
+                .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                .unwrap_or(false)
+        };
 
         prompt_enabled || command_enabled
     }
@@ -95,9 +89,14 @@ impl SecurityManager {
 
         let scanner = self.scanner.get_or_init(|| {
             let config = Config::global();
-            let command_classifier_enabled = config
-                .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
-                .unwrap_or(false);
+            let command_classifier_enabled =
+                if let Some(overridden) = get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE") {
+                    overridden
+                } else {
+                    config
+                        .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                        .unwrap_or(false)
+                };
             let prompt_classifier_enabled = config
                 .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
                 .unwrap_or(false);

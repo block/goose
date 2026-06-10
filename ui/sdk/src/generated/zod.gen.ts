@@ -979,6 +979,7 @@ export const zProviderConfigAuthenticateRequest_unstable = z.object({
 
 export const zPreferenceKey = z.enum([
     'autoCompactThreshold',
+    'gooseThinkingEffort',
     'voiceAutoSubmitPhrases',
     'voiceDictationProvider',
     'voiceDictationPreferredMic'

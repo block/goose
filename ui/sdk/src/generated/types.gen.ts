@@ -1006,7 +1006,7 @@ export type PreferencesReadRequest_unstable = {
     keys?: Array<PreferenceKey>;
 };
 
-export type PreferenceKey = 'autoCompactThreshold' | 'voiceAutoSubmitPhrases' | 'voiceDictationProvider' | 'voiceDictationPreferredMic';
+export type PreferenceKey = 'autoCompactThreshold' | 'gooseThinkingEffort' | 'voiceAutoSubmitPhrases' | 'voiceDictationProvider' | 'voiceDictationPreferredMic';
 
 export type PreferencesReadResponse_unstable = {
     values: Array<PreferenceValue>;
