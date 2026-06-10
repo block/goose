@@ -1131,10 +1131,9 @@ mod tests {
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
         use goose::model::ModelConfig;
-        use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-        };
-        use goose::providers::errors::ProviderError;
+        use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
         use rmcp::model::{CallToolRequestParams, Tool};

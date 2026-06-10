@@ -2232,7 +2232,7 @@ impl Agent {
 
                                 // reasoning_buffer holds thinking from earlier chunks since
                                 // Kimi/DeepSeek send it before the tool-call chunk.
-                                let reasoning_content: Vec<MessageContent> = reasoning_buffer.drain(..).collect();
+                                let reasoning_content: Vec<MessageContent> = std::mem::take(&mut reasoning_buffer);
                                 if let Some(idx) = reasoning_buffer_persisted_idx.take() {
                                     if !reasoning_content.is_empty() {
                                         // Strip only Thinking from the persisted message so any
