@@ -2691,7 +2691,8 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = provider.get_name().to_string();
-        let current_model = provider.get_model_config().model_name.clone();
+        let current_model_config = provider.get_model_config();
+        let current_model = current_model_config.model_name.clone();
         let goose_mode = agent.goose_mode().await;
         let inventory = self
             .provider_inventory
@@ -2708,6 +2709,7 @@ impl GooseAcpAgent {
         let config_options = build_config_options(
             &mode_state,
             &model_state,
+            &current_model_config,
             session_provider_selection(&session),
             provider_options,
         );
@@ -2737,6 +2739,58 @@ impl GooseAcpAgent {
         // goose_mode is already updated on the session above.
 
         Ok(SetSessionModeResponse::new())
+    }
+
+    async fn on_set_thinking_effort(
+        &self,
+        session_id: &str,
+        effort_id: &str,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let effort = effort_id
+            .parse::<goose_providers::thinking::ThinkingEffort>()
+            .map_err(|_| {
+                agent_client_protocol::Error::invalid_params()
+                    .data(format!("Invalid thinking effort: {}", effort_id))
+            })?;
+        let config = self.config()?;
+        let agent = self.get_session_agent(session_id, None).await?;
+        let current_provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to get provider")?;
+        let provider_name = current_provider.get_name().to_string();
+        let current_model_config = current_provider.get_model_config();
+        let model_config = current_model_config.with_merged_request_params(HashMap::from([(
+            "thinking_effort".to_string(),
+            serde_json::json!(effort.to_string()),
+        )]));
+        let extensions =
+            EnabledExtensionsState::for_session(&self.session_manager, session_id, config).await;
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to get session")?;
+        let provider = self
+            .create_provider(
+                &provider_name,
+                model_config,
+                extensions,
+                Some(session.working_dir),
+            )
+            .await
+            .internal_err_ctx("Failed to create provider")?;
+        agent
+            .update_provider(provider, session_id)
+            .await
+            .internal_err_ctx("Failed to update provider")?;
+        let mode = agent.goose_mode().await;
+        agent
+            .update_goose_mode(mode, session_id)
+            .await
+            .internal_err_ctx("Failed to propagate mode")?;
+
+        Ok(())
     }
 
     async fn update_provider(

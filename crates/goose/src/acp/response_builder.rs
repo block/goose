@@ -1,4 +1,5 @@
 use crate::config::GooseMode;
+use crate::model::ModelConfig;
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
 use agent_client_protocol::schema::{
@@ -146,6 +147,7 @@ pub(super) async fn build_session_setup_config(
     let config_options = build_config_options(
         &mode_state,
         &model_state,
+        model_config,
         provider_selection,
         provider_options,
     );
@@ -155,6 +157,7 @@ pub(super) async fn build_session_setup_config(
 pub(super) fn build_config_options(
     mode_state: &SessionModeState,
     model_state: &SessionModelState,
+    model_config: &ModelConfig,
     provider_selection: &str,
     provider_options: Vec<SessionConfigSelectOption>,
 ) -> Vec<SessionConfigOption> {
@@ -171,6 +174,14 @@ pub(super) fn build_config_options(
         .iter()
         .map(|m| SessionConfigSelectOption::new(m.model_id.0.clone(), m.name.clone()))
         .collect();
+    let thinking_effort_options = ["off", "low", "medium", "high", "max"]
+        .into_iter()
+        .map(|effort| SessionConfigSelectOption::new(effort, effort))
+        .collect::<Vec<_>>();
+    let current_thinking_effort = model_config
+        .thinking_effort()
+        .map(|effort| effort.to_string())
+        .unwrap_or_else(|| "off".to_string());
     vec![
         SessionConfigOption::select(
             "provider",
@@ -192,6 +203,14 @@ pub(super) fn build_config_options(
             model_options,
         )
         .category(SessionConfigOptionCategory::Model),
+        SessionConfigOption::select(
+            "thinking_effort",
+            "Thinking effort",
+            current_thinking_effort,
+            thinking_effort_options,
+        )
+        .description("Controls reasoning effort for models that support extended thinking.")
+        .category(SessionConfigOptionCategory::ThoughtLevel),
     ]
 }
 
@@ -236,6 +255,7 @@ pub(super) fn send_session_setup_notifications(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_client_protocol::schema::SessionConfigKind;
     use test_case::test_case;
 
     #[test_case(
@@ -363,6 +383,18 @@ mod tests {
                     SessionConfigSelectOption::new("gpt-3.5", "gpt-3.5"),
                 ],
             ).category(SessionConfigOptionCategory::Model),
+            SessionConfigOption::select(
+                "thinking_effort", "Thinking effort", "off",
+                vec![
+                    SessionConfigSelectOption::new("off", "off"),
+                    SessionConfigSelectOption::new("low", "low"),
+                    SessionConfigSelectOption::new("medium", "medium"),
+                    SessionConfigSelectOption::new("high", "high"),
+                    SessionConfigSelectOption::new("max", "max"),
+                ],
+            )
+            .description("Controls reasoning effort for models that support extended thinking.")
+            .category(SessionConfigOptionCategory::ThoughtLevel),
         ]
         ; "auto mode with multiple models"
     )]
@@ -389,6 +421,18 @@ mod tests {
                 "model", "Model", "only-model",
                 vec![SessionConfigSelectOption::new("only-model", "only-model")],
             ).category(SessionConfigOptionCategory::Model),
+            SessionConfigOption::select(
+                "thinking_effort", "Thinking effort", "off",
+                vec![
+                    SessionConfigSelectOption::new("off", "off"),
+                    SessionConfigSelectOption::new("low", "low"),
+                    SessionConfigSelectOption::new("medium", "medium"),
+                    SessionConfigSelectOption::new("high", "high"),
+                    SessionConfigSelectOption::new("max", "max"),
+                ],
+            )
+            .description("Controls reasoning effort for models that support extended thinking.")
+            .category(SessionConfigOptionCategory::ThoughtLevel),
         ]
         ; "approve mode with single model"
     )]
@@ -398,6 +442,55 @@ mod tests {
         provider_options: Vec<SessionConfigSelectOption>,
         model_state: SessionModelState,
     ) -> Vec<SessionConfigOption> {
-        build_config_options(&mode_state, &model_state, provider_name, provider_options)
+        let model_config = ModelConfig {
+            model_name: model_state.current_model_id.0.to_string(),
+            request_params: Some(std::collections::HashMap::from([(
+                "thinking_effort".to_string(),
+                serde_json::json!("off"),
+            )])),
+            ..Default::default()
+        };
+        build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            provider_name,
+            provider_options,
+        )
+    }
+
+    #[test]
+    fn test_build_config_options_uses_current_thinking_effort() {
+        let mode_state = build_mode_state(GooseMode::Auto).unwrap();
+        let model_state = SessionModelState::new(
+            ModelId::new("gpt-4"),
+            vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4")],
+        );
+        let model_config = ModelConfig {
+            model_name: "gpt-4".to_string(),
+            request_params: Some(std::collections::HashMap::from([(
+                "thinking_effort".to_string(),
+                serde_json::json!("high"),
+            )])),
+            ..Default::default()
+        };
+
+        let options = build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            "openai",
+            vec![SessionConfigSelectOption::new("openai", "openai")],
+        );
+        let option = options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "thinking_effort")
+            .expect("thinking_effort option");
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("thinking_effort should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "high");
     }
 }

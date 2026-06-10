@@ -1,10 +1,13 @@
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
-use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse};
+use agent_client_protocol::schema::{
+    ListSessionsRequest, ListSessionsResponse, SessionConfigKind, SessionConfigOptionCategory,
+    SessionConfigOptionValue, SetSessionConfigOptionRequest,
+};
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, TestConnectionConfig};
+use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
@@ -174,6 +177,47 @@ fn test_close_session() {
 #[test]
 fn test_config_option_model_set() {
     run_test(async { run_config_option_model_set::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_config_option_thinking_effort_set() {
+    run_test(async {
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let mut conn =
+            <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
+        let data = conn.new_session().await.unwrap();
+
+        let response = conn
+            .cx()
+            .send_request(SetSessionConfigOptionRequest::new(
+                data.session.session_id().clone(),
+                "thinking_effort".to_string(),
+                SessionConfigOptionValue::value_id("high".to_string()),
+            ))
+            .block_task()
+            .await
+            .unwrap();
+
+        let option = response
+            .config_options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "thinking_effort")
+            .expect("thinking_effort option");
+        assert_eq!(
+            option.category,
+            Some(SessionConfigOptionCategory::ThoughtLevel)
+        );
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("thinking_effort should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "high");
+    });
 }
 
 #[test]
