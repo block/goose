@@ -2752,43 +2752,11 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::invalid_params()
                     .data(format!("Invalid thinking effort: {}", effort_id))
             })?;
-        let config = self.config()?;
         let agent = self.get_session_agent(session_id, None).await?;
-        let current_provider = agent
-            .provider()
-            .await
-            .internal_err_ctx("Failed to get provider")?;
-        let provider_name = current_provider.get_name().to_string();
-        let current_model_config = current_provider.get_model_config();
-        let model_config = current_model_config.with_merged_request_params(HashMap::from([(
-            "thinking_effort".to_string(),
-            serde_json::json!(effort.to_string()),
-        )]));
-        let extensions =
-            EnabledExtensionsState::for_session(&self.session_manager, session_id, config).await;
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err_ctx("Failed to get session")?;
-        let provider = self
-            .create_provider(
-                &provider_name,
-                model_config,
-                extensions,
-                Some(session.working_dir),
-            )
-            .await
-            .internal_err_ctx("Failed to create provider")?;
         agent
-            .update_provider(provider, session_id)
+            .update_thinking_effort(session_id, effort)
             .await
-            .internal_err_ctx("Failed to update provider")?;
-        let mode = agent.goose_mode().await;
-        agent
-            .update_goose_mode(mode, session_id)
-            .await
-            .internal_err_ctx("Failed to propagate mode")?;
+            .internal_err_ctx("Failed to update thinking effort")?;
 
         Ok(())
     }
