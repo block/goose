@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use goose_providers::errors::ProviderError;
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::io;
@@ -10,7 +11,6 @@ use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
-use super::errors::ProviderError;
 use super::formats::anthropic::{
     create_request_with_options, response_to_streaming_message, thinking_type,
     AnthropicFormatOptions, ThinkingType,

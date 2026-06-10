@@ -95,15 +95,6 @@
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "搜索扩展…"
   },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "自动"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "自动模式选择"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "当前模式：{label} - {description}"
-  },
   "cardButtons.configure": {
     "defaultMessage": "配置"
   },
@@ -3661,9 +3652,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} 条消息"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "会话分享已配置"

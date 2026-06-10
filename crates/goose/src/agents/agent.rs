@@ -43,7 +43,6 @@ use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::{PermissionRouting, Provider};
-use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
@@ -54,6 +53,8 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
+use goose_providers::errors::ProviderError;
+use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
@@ -2490,6 +2491,54 @@ impl Agent {
         *self.current_goose_mode.lock().await
     }
 
+    pub async fn recreate_provider_for_session(
+        &self,
+        session_id: &str,
+        provider_name: &str,
+        model_config: crate::model::ModelConfig,
+    ) -> Result<()> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .context("Failed to get session")?;
+
+        let extensions = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            Config::global(),
+        );
+
+        let provider = crate::providers::create_with_working_dir(
+            provider_name,
+            model_config,
+            extensions,
+            session.working_dir.clone(),
+        )
+        .await
+        .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+
+        self.update_provider(provider, session_id).await?;
+
+        let mode = self.goose_mode().await;
+        self.update_goose_mode(mode, session_id).await
+    }
+
+    pub async fn update_thinking_effort(
+        &self,
+        session_id: &str,
+        effort: ThinkingEffort,
+    ) -> Result<()> {
+        let current_provider = self.provider().await?;
+        let provider_name = current_provider.get_name().to_string();
+        let model_config = current_provider
+            .get_model_config()
+            .with_thinking_effort(effort);
+
+        self.recreate_provider_for_session(session_id, &provider_name, model_config)
+            .await
+    }
+
     /// Restore the provider from session data or fall back to global config
     /// This is used when resuming a session to restore the provider state
     /// Returns true if the session's provider was replaced with a fallback.
@@ -2522,9 +2571,14 @@ impl Agent {
             .await
             .is_ok()
         {
-            let p = crate::providers::create(&provider_name, model_config, extensions)
-                .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+            let p = crate::providers::create_with_working_dir(
+                &provider_name,
+                model_config,
+                extensions,
+                session.working_dir.clone(),
+            )
+            .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
             (p, false)
         } else {
             let fallback_provider_name = config
@@ -2552,10 +2606,11 @@ impl Agent {
                 .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?
                 .with_canonical_limits(&fallback_provider_name);
 
-            let fallback_provider = crate::providers::create(
+            let fallback_provider = crate::providers::create_with_working_dir(
                 &fallback_provider_name,
                 fallback_model_config.clone(),
                 extensions,
+                session.working_dir.clone(),
             )
             .await
             .map_err(|e| {
@@ -2922,12 +2977,10 @@ mod tests {
     use super::*;
     use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
-    use crate::providers::base::{
-        stream_from_single_message, MessageStream, PermissionRouting, ProviderUsage, Usage,
-    };
-    use crate::providers::errors::ProviderError;
+    use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
     use crate::recipe::Response;
     use crate::session::session_manager::SessionType;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::model::Tool;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -2966,8 +3019,7 @@ mod tests {
             _: &str,
             _: &[crate::conversation::message::Message],
             _: &[rmcp::model::Tool],
-        ) -> Result<crate::providers::base::MessageStream, crate::providers::errors::ProviderError>
-        {
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
             unimplemented!()
         }
         fn permission_routing(&self) -> PermissionRouting {

@@ -5,10 +5,11 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::model::{ModelConfig, ThinkingEffort};
+use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,
     RawAudioContent, RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
@@ -396,6 +397,8 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::config_management::remove_extension,
         super::routes::config_management::get_extensions,
         super::routes::config_management::read_all_config,
+        super::routes::config_management::list_provider_secrets,
+        super::routes::config_management::delete_provider_secret,
         super::routes::config_management::providers,
         super::routes::config_management::get_provider_models,
         super::routes::config_management::get_provider_model_info,
@@ -488,6 +491,10 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::config_management::ConfigResponse,
         super::routes::config_management::ProvidersResponse,
         super::routes::config_management::ProviderDetails,
+        super::routes::config_management::ProviderSecretsResponse,
+        super::routes::config_management::ProviderSecret,
+        super::routes::config_management::ProviderSecretStorage,
+        super::routes::config_management::ProviderSecretStatus,
         super::routes::config_management::SlashCommandsResponse,
         super::routes::config_management::SlashCommand,
         super::routes::config_management::CommandType,

@@ -115,22 +115,179 @@ export const zDeleteSessionRequest = z.object({
 /**
  * List configured extensions and any warnings.
  */
-export const zGetExtensionsRequest_unstable = z.record(z.unknown());
+export const zGetConfigExtensionsRequest_unstable = z.record(z.unknown());
+
+/**
+ * An HTTP header to set when making requests to the MCP server.
+ */
+export const zHttpHeader = z.object({
+    name: z.string(),
+    value: z.string(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * HTTP transport configuration for MCP.
+ */
+export const zMcpServerHttp = z.object({
+    name: z.string(),
+    url: z.string(),
+    headers: z.array(zHttpHeader),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional(),
+    type: z.literal('http')
+});
+
+/**
+ * SSE transport configuration for MCP.
+ */
+export const zMcpServerSse = z.object({
+    name: z.string(),
+    url: z.string(),
+    headers: z.array(zHttpHeader),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional(),
+    type: z.literal('sse')
+});
+
+/**
+ * An environment variable to set when launching an MCP server.
+ */
+export const zEnvVariable = z.object({
+    name: z.string(),
+    value: z.string(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * Stdio transport configuration for MCP.
+ */
+export const zMcpServerStdio = z.object({
+    name: z.string(),
+    command: z.string(),
+    args: z.array(z.string()),
+    env: z.array(zEnvVariable),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * Configuration for connecting to an MCP (Model Context Protocol) server.
+ *
+ * MCP servers provide tools and context that the agent can use when
+ * processing prompts.
+ *
+ * See protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)
+ */
+export const zMcpServer = z.union([
+    zMcpServerHttp,
+    zMcpServerSse,
+    zMcpServerStdio
+]);
+
+export const zGooseExtension = z.union([
+    z.object({
+        name: z.string(),
+        description: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        display_name: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        timeout: z.union([
+            z.number().int().gte(0),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
+        type: z.literal('builtin')
+    }),
+    z.object({
+        name: z.string(),
+        description: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        display_name: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
+        type: z.literal('platform')
+    }),
+    z.object({
+        server: zMcpServer,
+        envKeys: z.array(z.string()).optional(),
+        description: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        timeout: z.union([
+            z.number().int().gte(0),
+            z.null()
+        ]).optional(),
+        socket: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
+        type: z.literal('mcp')
+    })
+]);
+
+export const zGooseExtensionEntry = z.object({
+    extension: zGooseExtension,
+    enabled: z.boolean(),
+    configKey: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
 
 /**
  * List configured extensions and any warnings.
  */
-export const zGetExtensionsResponse_unstable = z.object({
-    extensions: z.array(z.unknown()),
-    warnings: z.array(z.string())
+export const zGetConfigExtensionsResponse_unstable = z.object({
+    extensions: z.array(zGooseExtensionEntry),
+    warnings: z.array(z.string()).optional().default([])
+});
+
+/**
+ * List Goose-owned extension definitions available to configure or enable.
+ */
+export const zGetAvailableExtensionsRequest_unstable = z.record(z.unknown());
+
+export const zGetAvailableExtensionsResponse_unstable = z.object({
+    extensions: z.array(zGooseExtension)
 });
 
 /**
  * Persist a new extension to the user's global goose config.
  */
 export const zAddConfigExtensionRequest_unstable = z.object({
-    name: z.string(),
-    extensionConfig: z.unknown().optional().default(null),
+    extension: zGooseExtension,
     enabled: z.boolean().optional().default(false)
 });
 
@@ -142,9 +299,9 @@ export const zRemoveConfigExtensionRequest_unstable = z.object({
 });
 
 /**
- * Toggle the `enabled` flag for a persisted extension in the user's global goose config.
+ * Set the `enabled` flag for a persisted extension in the user's global goose config.
  */
-export const zToggleConfigExtensionRequest_unstable = z.object({
+export const zSetConfigExtensionEnabledRequest_unstable = z.object({
     configKey: z.string(),
     enabled: z.boolean()
 });
@@ -609,6 +766,7 @@ export const zProviderConfigAuthenticateRequest_unstable = z.object({
 
 export const zPreferenceKey = z.enum([
     'autoCompactThreshold',
+    'gooseThinkingEffort',
     'voiceAutoSubmitPhrases',
     'voiceDictationProvider',
     'voiceDictationPreferredMic'
@@ -758,6 +916,15 @@ export const zImportSessionResponse_unstable = z.object({
         z.null()
     ]).optional(),
     messageCount: z.number().int().gte(0)
+});
+
+/**
+ * Submit a response for a pending MCP elicitation in an active session.
+ */
+export const zElicitationRespondRequest_unstable = z.object({
+    sessionId: z.string(),
+    elicitationId: z.string(),
+    userData: z.unknown().optional().default(null)
 });
 
 /**
@@ -1088,6 +1255,86 @@ export const zDictationModelSelectRequest_unstable = z.object({
     modelId: z.string()
 });
 
+/**
+ * Streaming context-window usage update for a session.
+ */
+export const zSessionUsageUpdate = z.object({
+    used: z.number().int().gte(0),
+    contextLimit: z.number().int().gte(0),
+    accumulatedInputTokens: z.number().int().gte(0),
+    accumulatedOutputTokens: z.number().int().gte(0),
+    accumulatedCost: z.union([
+        z.number(),
+        z.null()
+    ]).optional()
+});
+
+export const zStatusMessage = z.union([
+    z.object({
+        message: z.string(),
+        type: z.literal('notice')
+    }),
+    z.object({
+        message: z.string(),
+        type: z.literal('progress')
+    })
+]);
+
+/**
+ * Live UI/session status. This is not conversation transcript content, and
+ * should not be persisted or replayed as history.
+ */
+export const zStatusMessageUpdate = z.object({
+    status: zStatusMessage
+});
+
+export const zInteractionState = z.enum(['pending', 'submitted']);
+
+export const zInteraction = z.object({
+    id: z.string(),
+    state: zInteractionState,
+    message: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    requestedSchema: z.unknown().optional(),
+    type: z.literal('elicitation')
+});
+
+export const zInteractionUpdate = z.object({
+    interaction: zInteraction,
+    _meta: z.unknown().optional()
+});
+
+/**
+ * Discriminated union of goose-specific session update payloads.
+ * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
+ *
+ * `discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)
+ * emit the correct snake_case tag value even when this enum has a single
+ * variant. Add a mapping entry per variant.
+ */
+export const zGooseSessionUpdate = z.union([
+    z.object({
+        sessionUpdate: z.literal('usage_update')
+    }).and(zSessionUsageUpdate),
+    z.object({
+        sessionUpdate: z.literal('status_message')
+    }).and(zStatusMessageUpdate),
+    z.object({
+        sessionUpdate: z.literal('interaction_update')
+    }).and(zInteractionUpdate)
+]);
+
+/**
+ * Goose-custom session update notification — a parallel to ACP's
+ * `session/update` carrying goose-specific update variants.
+ */
+export const zGooseSessionNotification_unstable = z.object({
+    sessionId: z.string(),
+    update: zGooseSessionUpdate
+});
+
 export const zExtRequest = z.object({
     id: z.string(),
     method: z.string(),
@@ -1101,10 +1348,11 @@ export const zExtRequest = z.object({
             zUpdateWorkingDirRequest_unstable,
             zSetSessionSystemPromptRequest_unstable,
             zDeleteSessionRequest,
-            zGetExtensionsRequest_unstable,
+            zGetConfigExtensionsRequest_unstable,
+            zGetAvailableExtensionsRequest_unstable,
             zAddConfigExtensionRequest_unstable,
             zRemoveConfigExtensionRequest_unstable,
-            zToggleConfigExtensionRequest_unstable,
+            zSetConfigExtensionEnabledRequest_unstable,
             zGetSessionExtensionsRequest_unstable,
             zListProvidersRequest_unstable,
             zProviderSupportedModelsListRequest_unstable,
@@ -1130,6 +1378,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zElicitationRespondRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
             zArchiveSessionRequest_unstable,
@@ -1167,7 +1416,8 @@ export const zExtResponse = z.union([
                 zGetToolsResponse_unstable,
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
-                zGetExtensionsResponse_unstable,
+                zGetConfigExtensionsResponse_unstable,
+                zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
                 zListProvidersResponse_unstable,
                 zProviderSupportedModelsListResponse_unstable,
@@ -1210,3 +1460,14 @@ export const zExtResponse = z.union([
         id: z.string()
     })
 ]);
+
+export const zExtNotification = z.object({
+    method: z.string(),
+    params: z.union([
+        zGooseSessionNotification_unstable,
+        z.union([
+            z.record(z.unknown()),
+            z.null()
+        ])
+    ]).optional()
+});
