@@ -66,7 +66,7 @@ impl ProviderDef for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None, true),
                 ConfigKey::new("AZURE_OPENAI_API_VERSION", false, false, None, false),
                 ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some(""), true),
-                ConfigKey::new("AZURE_OPENAI_AD_TOKEN", false, true, Some(""), false),
+                ConfigKey::new("AZURE_OPENAI_AD_TOKEN", false, true, Some(""), true),
             ],
         )
     }
