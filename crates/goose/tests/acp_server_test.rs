@@ -187,8 +187,14 @@ fn test_config_option_thinking_effort_set() {
             <AcpServerConnection as Connection>::expected_session_id(),
         )
         .await;
-        let mut conn =
-            <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
+        let mut conn = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                current_model: "claude-sonnet-4".to_string(),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
         let data = conn.new_session().await.unwrap();
 
         let response = conn
