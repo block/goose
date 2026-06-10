@@ -12,12 +12,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use aws_sdk_bedrockruntime::{Client, types as bedrock};
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::extract_reasoning_effort;
-use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use rmcp::model::Tool;
 use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
@@ -94,11 +94,7 @@ impl BedrockProvider {
         let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
             Ok(token) => {
                 let token = token.trim().to_string();
-                if token.is_empty() {
-                    None
-                } else {
-                    Some(token)
-                }
+                if token.is_empty() { None } else { Some(token) }
             }
             Err(_) => None,
         };
@@ -434,16 +430,26 @@ impl Provider for BedrockProvider {
             .model_name
             .strip_prefix("openai.")
             .unwrap_or(&model_config.model_name);
-        let (base_name, _effort) = extract_reasoning_effort(without_prefix);
+        let (base_name, effort) = extract_reasoning_effort(without_prefix);
         let bedrock_model_id = format!("openai.{}", base_name);
 
         let is_mantle_model = BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str());
 
         if is_mantle_model {
-            let normalized_config = ModelConfig {
+            let mut normalized_config = ModelConfig {
                 model_name: base_name,
                 ..model_config.clone()
             };
+            // `ModelConfig::new` cannot normalize the effort suffix for `openai.gpt-*` names
+            // because the `openai.` prefix breaks the reasoning-model regex. Inject it here.
+            if let Some(e) = effort {
+                let params = normalized_config
+                    .request_params
+                    .get_or_insert_with(Default::default);
+                params
+                    .entry("thinking_effort".to_string())
+                    .or_insert_with(|| serde_json::json!(e));
+            }
             let mut payload =
                 create_responses_request(&normalized_config, system, messages, tools)?;
             payload["model"] = Value::String(bedrock_model_id.clone());
