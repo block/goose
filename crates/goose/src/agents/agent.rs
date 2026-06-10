@@ -2189,6 +2189,17 @@ impl Agent {
                             );
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::Refusal { ref details, ref category }) => {
+                            #[cfg(feature = "telemetry")]
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let category = category.as_deref().map(|c| format!("\n\nCategory: {c}")).unwrap_or_default();
+                            yield AgentEvent::Message(Message::assistant().with_text(format!(
+                                "The provider refused this request.\n\n{details}{category}\n\nPlease start a new session to continue — resending this conversation is likely to be refused again."
+                            )));
+                            break;
+                        }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());

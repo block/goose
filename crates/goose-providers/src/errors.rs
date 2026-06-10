@@ -42,6 +42,12 @@ pub enum ProviderError {
         details: String,
         top_up_url: Option<String>,
     },
+
+    #[error("Provider refused request: {details}")]
+    Refusal {
+        details: String,
+        category: Option<String>,
+    },
 }
 
 impl ProviderError {
@@ -58,11 +64,20 @@ impl ProviderError {
             ProviderError::NotImplemented(_) => "not_implemented",
             ProviderError::EndpointNotFound(_) => "endpoint_not_found",
             ProviderError::CreditsExhausted { .. } => "credits_exhausted",
+            ProviderError::Refusal { .. } => "refusal",
         }
     }
 
     pub fn is_endpoint_not_found(&self) -> bool {
         matches!(self, ProviderError::EndpointNotFound(_))
+    }
+
+    /// Recover a typed `ProviderError` from a streaming decode error, falling
+    /// back to `RequestFailed` for errors that did not originate as one.
+    pub fn from_stream_error(error: anyhow::Error) -> Self {
+        error
+            .downcast()
+            .unwrap_or_else(|e| ProviderError::RequestFailed(format!("Stream decode error: {e}")))
     }
 }
 
@@ -157,5 +172,38 @@ impl GoogleErrorCode {
             503 => Some(Self::ServiceUnavailable),
             _ => Some(Self::InternalServerError),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refusal_telemetry_type() {
+        let error = ProviderError::Refusal {
+            details: "policy violation".to_string(),
+            category: Some("cyber".to_string()),
+        };
+        assert_eq!(error.telemetry_type(), "refusal");
+    }
+
+    #[test]
+    fn from_stream_error_preserves_typed_provider_error() {
+        let refusal = ProviderError::Refusal {
+            details: "policy violation".to_string(),
+            category: Some("cyber".to_string()),
+        };
+        let recovered = ProviderError::from_stream_error(anyhow::Error::from(refusal.clone()));
+        assert_eq!(recovered, refusal);
+    }
+
+    #[test]
+    fn from_stream_error_wraps_untyped_errors() {
+        let recovered = ProviderError::from_stream_error(anyhow::anyhow!("bad chunk"));
+        assert_eq!(
+            recovered,
+            ProviderError::RequestFailed("Stream decode error: bad chunk".to_string())
+        );
     }
 }
