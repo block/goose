@@ -449,7 +449,10 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             Some(total_input_i32),
             Some(output_tokens_i32),
             Some(total_tokens_i32),
-        ))
+        )
+        // Provider-reported cost (USD), when an Anthropic-compatible gateway adds
+        // `cost` to its usage object. Falls back to catalog pricing when absent.
+        .with_cost(usage.get("cost").and_then(|v| v.as_f64())))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
         let input_tokens = data
@@ -492,7 +495,8 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
                 Some(total_input_i32),
                 Some(output_tokens_i32),
                 Some(total_tokens_i32),
-            ))
+            )
+            .with_cost(data.get("cost").and_then(|v| v.as_f64())))
         } else {
             tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))

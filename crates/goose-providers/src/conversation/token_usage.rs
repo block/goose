@@ -30,6 +30,12 @@ pub struct Usage {
     pub total_tokens: Option<i32>,
     pub cache_read_input_tokens: Option<i32>,
     pub cache_write_input_tokens: Option<i32>,
+    /// Provider-reported cost for this usage, in USD. Populated only when the
+    /// provider/gateway includes a `cost` field in its `usage` object (e.g.
+    /// OpenRouter, or an Anthropic-compatible gateway). `None` => the cost is
+    /// computed from the local pricing catalog instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<f64>,
 }
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
@@ -60,6 +66,11 @@ impl Add for Usage {
                 other.cache_write_input_tokens,
             ),
         )
+        // Cost is a total for the usage that carries it (e.g. the final
+        // message_delta), not an additive per-field count — take the latest
+        // non-None value rather than summing, so merging message_start (no cost)
+        // with message_delta (total cost) yields the total, not a doubled value.
+        .with_cost(other.cost.or(self.cost))
     }
 }
 
@@ -92,6 +103,7 @@ impl Usage {
             total_tokens: calculated_total,
             cache_read_input_tokens: None,
             cache_write_input_tokens: None,
+            cost: None,
         }
     }
 
@@ -102,6 +114,13 @@ impl Usage {
     ) -> Self {
         self.cache_read_input_tokens = cache_read_input_tokens;
         self.cache_write_input_tokens = cache_write_input_tokens;
+        self
+    }
+
+    /// Attach a provider-reported cost (USD) for this usage. `None` leaves the
+    /// cost to be computed from the local pricing catalog downstream.
+    pub fn with_cost(mut self, cost: Option<f64>) -> Self {
+        self.cost = cost;
         self
     }
 }
@@ -144,5 +163,37 @@ mod tests {
         assert_eq!(combined.total_tokens, Some(178));
         assert_eq!(combined.cache_read_input_tokens, Some(14));
         assert_eq!(combined.cache_write_input_tokens, Some(6));
+        // No provider cost on either side -> None.
+        assert_eq!(combined.cost, None);
+    }
+
+    #[test]
+    fn test_provider_cost_field() {
+        // Defaults to None and is omitted from JSON when absent.
+        let bare = Usage::new(Some(10), Some(20), Some(30));
+        assert_eq!(bare.cost, None);
+        let json: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&bare).unwrap()).unwrap();
+        assert!(json.get("cost").is_none());
+
+        // Deserializes from a provider `usage` that includes `cost`.
+        let with_cost: Usage =
+            serde_json::from_value(json!({"input_tokens": 10, "output_tokens": 20, "cost": 0.0123}))
+                .unwrap();
+        assert_eq!(with_cost.cost, Some(0.0123));
+    }
+
+    #[test]
+    fn test_cost_merge_takes_latest_non_none_not_sum() {
+        // message_start has no cost; the final message_delta carries the total.
+        let start = Usage::new(Some(100), Some(0), Some(100));
+        let delta = Usage::new(Some(0), Some(50), Some(50)).with_cost(Some(0.42));
+        let merged = start + delta;
+        // Total cost wins (not summed, not lost).
+        assert_eq!(merged.cost, Some(0.42));
+
+        // And when the accumulator already had a cost, the newer one replaces it.
+        let next = Usage::new(Some(0), Some(10), Some(10)).with_cost(Some(0.10));
+        assert_eq!((merged + next).cost, Some(0.10));
     }
 }

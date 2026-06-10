@@ -560,6 +560,14 @@ impl Agent {
         usage: &ProviderUsage,
         provider_name: &str,
     ) -> Option<f64> {
+        // Prefer a provider-reported cost when present (e.g. OpenRouter's
+        // `usage.cost`, or an Anthropic-compatible gateway). This reflects the
+        // model/route actually served — including failover and cache discounts —
+        // which a local price catalog can't know. Falls back to the catalog below.
+        if let Some(provider_cost) = usage.usage.cost {
+            return Some(existing.unwrap_or(0.0) + provider_cost);
+        }
+
         let canonical =
             crate::providers::canonical::maybe_get_canonical_model(provider_name, &usage.model)?;
 

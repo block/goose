@@ -733,6 +733,9 @@ pub fn get_usage(usage: &Value) -> Usage {
 
     Usage::new(input_tokens, output_tokens, total_tokens)
         .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
+        // Provider-reported cost (USD), e.g. OpenRouter's `usage.cost`. Falls back
+        // to catalog pricing when absent.
+        .with_cost(usage.get("cost").and_then(|v| v.as_f64()))
 }
 
 fn extract_usage_with_output_tokens(

@@ -160,20 +160,37 @@ export function CostTracker({
 
   // Build tooltip content
   const getTooltipContent = (): string => {
-    if (pricingFailed) {
-      return intl.formatMessage(i18n.pricingUnavailable, { model: `${currentProvider}/${currentModel}` });
-    }
-
     const currency = costInfo?.currency || '$';
 
+    // A provider-reported cost (accumulatedCost) is authoritative — show it even
+    // when the local pricing catalog has no entry for this model (pricingFailed),
+    // e.g. a custom/self-hosted model id served via a gateway.
     if (accumulatedCost != null) {
-      return intl.formatMessage(i18n.totalSessionCost, { cost: `${currency}${totalCost.toFixed(4)}` })
-        + `\n` + intl.formatMessage(i18n.inputOutputTooltip, {
+      const total = intl.formatMessage(i18n.totalSessionCost, {
+        cost: `${currency}${totalCost.toFixed(4)}`,
+      });
+      // Only append the per-token breakdown when the catalog actually has prices;
+      // otherwise the breakdown would read $0.000000 and mislead.
+      if (
+        costInfo?.input_token_cost === undefined &&
+        costInfo?.output_token_cost === undefined
+      ) {
+        return total;
+      }
+      return (
+        total +
+        `\n` +
+        intl.formatMessage(i18n.inputOutputTooltip, {
           inputTokens: inputTokens.toLocaleString(),
           inputCost: `${currency}${((inputTokens * (costInfo?.input_token_cost || 0)) / 1_000_000).toFixed(6)}`,
           outputTokens: outputTokens.toLocaleString(),
           outputCost: `${currency}${((outputTokens * (costInfo?.output_token_cost || 0)) / 1_000_000).toFixed(6)}`,
-        });
+        })
+      );
+    }
+
+    if (pricingFailed) {
+      return intl.formatMessage(i18n.pricingUnavailable, { model: `${currentProvider}/${currentModel}` });
     }
 
     const inputCostStr = `${currency}${((inputTokens * (costInfo?.input_token_cost || 0)) / 1_000_000).toFixed(6)}`;
