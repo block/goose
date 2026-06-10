@@ -3203,81 +3203,6 @@
         }
       }
     },
-    "/sessions": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "list_sessions",
-        "responses": {
-          "200": {
-            "description": "List of available sessions retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/import": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "import_session",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportSessionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid JSON"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/import/nostr": {
       "post": {
         "tags": [
@@ -3307,37 +3232,6 @@
           },
           "400": {
             "description": "Bad request - Invalid Nostr share link"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/insights": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "get_session_insights",
-        "responses": {
-          "200": {
-            "description": "Session insights retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionInsights"
-                }
-              }
-            }
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -3498,87 +3392,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "delete_session",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session deleted successfully"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/{session_id}/export": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "export_session",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session exported successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
                 }
               }
             }
@@ -5845,17 +5658,6 @@
         ],
         "properties": {
           "deeplink": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportSessionRequest": {
-        "type": "object",
-        "required": [
-          "json"
-        ],
-        "properties": {
-          "json": {
             "type": "string"
           }
         }
@@ -8313,38 +8115,6 @@
             "items": {
               "$ref": "#/components/schemas/ExtensionConfig"
             }
-          }
-        }
-      },
-      "SessionInsights": {
-        "type": "object",
-        "required": [
-          "totalSessions",
-          "totalTokens"
-        ],
-        "properties": {
-          "totalSessions": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "totalTokens": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "SessionListResponse": {
-        "type": "object",
-        "required": [
-          "sessions"
-        ],
-        "properties": {
-          "sessions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Session"
-            },
-            "description": "List of available session information objects"
           }
         }
       },
