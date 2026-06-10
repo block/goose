@@ -13,6 +13,7 @@ use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
+#[cfg(feature = "nostr")]
 use goose::session::session_manager::SessionType;
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
