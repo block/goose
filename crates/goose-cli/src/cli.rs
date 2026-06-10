@@ -827,6 +827,12 @@ enum Command {
         port: u16,
 
         #[arg(
+            long,
+            help = "Require ACP clients to authenticate with the token from GOOSE_SERVER__SECRET_KEY"
+        )]
+        require_token: bool,
+
+        #[arg(
             long = "with-builtin",
             value_name = "NAME",
             help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
@@ -1320,7 +1326,12 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) -> Result<()> {
+async fn handle_serve_command(
+    host: String,
+    port: u16,
+    builtins: Vec<String>,
+    require_token: bool,
+) -> Result<()> {
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
@@ -1353,12 +1364,18 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots,
     }));
-    let secret_key = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
+    let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
         .map(|secret| secret.trim().to_string())
-        .filter(|secret| !secret.is_empty())
-        .unwrap_or_else(generate_serve_secret_key);
-    let router = create_router(server, secret_key);
+        .filter(|secret| !secret.is_empty());
+    let secret_key = match env_secret {
+        Some(secret) => secret,
+        None if require_token => anyhow::bail!(
+            "--require-token requires {GOOSE_SERVER_SECRET_KEY_ENV} to be set to a non-empty value"
+        ),
+        None => generate_serve_secret_key(),
+    };
+    let router = create_router(server, secret_key, require_token);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     info!("Starting ACP server on {}", addr);
@@ -2100,8 +2117,9 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Serve {
             host,
             port,
+            require_token,
             builtins,
-        }) => handle_serve_command(host, port, builtins).await,
+        }) => handle_serve_command(host, port, builtins, require_token).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
