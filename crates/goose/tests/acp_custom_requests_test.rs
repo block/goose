@@ -78,26 +78,6 @@ impl Provider for MockProvider {
     }
 }
 
-fn mock_provider_factory() -> AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
-        Box::pin(async move {
-            let recommended_models = match provider_name.as_str() {
-                "anthropic" => vec![
-                    "claude-3-7-sonnet-latest".to_string(),
-                    "claude-3-5-haiku-latest".to_string(),
-                ],
-                _ => vec!["gpt-4o".to_string(), "o4-mini".to_string()],
-            };
-            Ok(Arc::new(MockProvider {
-                name: provider_name,
-                model_config,
-                supported_models: recommended_models.clone(),
-                recommended_models,
-            }) as Arc<dyn Provider>)
-        })
-    })
-}
-
 #[test]
 #[serial]
 fn test_custom_get_tools() {
@@ -668,11 +648,11 @@ fn test_raw_config_and_secret_methods_are_removed() {
 #[test]
 #[serial]
 fn test_provider_switching_updates_session_state() {
+    let _env = env_lock::lock_env([("ANTHROPIC_API_KEY", Some("test-key"))]);
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let config = TestConnectionConfig {
-            provider_factory: Some(mock_provider_factory()),
             current_model: "gpt-4o".to_string(),
             ..Default::default()
         };
