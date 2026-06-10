@@ -884,7 +884,11 @@ where
                                 (None, None) => None,
                             };
 
-                            let merged_usage = Usage::new(merged_input, merged_output, merged_total);
+                            // Preserve a provider-reported cost: it typically arrives
+                            // on this message_delta, not the earlier message_start, so
+                            // take the delta's cost first, then any prior cost.
+                            let merged_usage = Usage::new(merged_input, merged_output, merged_total)
+                                .with_cost(delta_usage.cost.or(existing_usage.usage.cost));
                             final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                         } else {
                             let model = event.data.get("model")

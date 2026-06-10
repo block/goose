@@ -177,9 +177,10 @@ mod tests {
         assert!(json.get("cost").is_none());
 
         // Deserializes from a provider `usage` that includes `cost`.
-        let with_cost: Usage =
-            serde_json::from_value(json!({"input_tokens": 10, "output_tokens": 20, "cost": 0.0123}))
-                .unwrap();
+        let with_cost: Usage = serde_json::from_value(
+            json!({"input_tokens": 10, "output_tokens": 20, "cost": 0.0123}),
+        )
+        .unwrap();
         assert_eq!(with_cost.cost, Some(0.0123));
     }
 
