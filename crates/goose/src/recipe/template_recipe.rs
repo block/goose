@@ -160,6 +160,13 @@ fn get_env_with_template_variables(
     Ok((env, template_variables))
 }
 
+pub(crate) fn collect_template_variables(content: &str) -> Result<HashSet<String>> {
+    let preprocessed_content = preprocess_template_variables(content)?;
+    let (_, template_variables) =
+        get_env_with_template_variables(&preprocessed_content, None, UndefinedBehavior::Lenient)?;
+    Ok(template_variables)
+}
+
 fn uses_template_inheritance(content: &str) -> bool {
     let re = Regex::new(r"\{%-?\s*(extends|include)").unwrap();
     re.is_match(content)

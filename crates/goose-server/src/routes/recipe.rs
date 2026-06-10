@@ -588,7 +588,45 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::recipe::Recipe;
+    use goose::recipe::{
+        Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
+    };
+
+    #[tokio::test]
+    async fn test_decode_recipe_with_params_in_multiline_instructions() {
+        let instructions = concat!(
+            "Process the {{ product_type }} request.   \n",
+            "Run this query which is intentionally longer than eighty characters so the YAML emitter may fold it: {{ sql_query }}\n",
+            "Use priority {{ priority }} when filing the request.\n",
+        );
+        let parameters = ["product_type", "sql_query", "priority"]
+            .into_iter()
+            .map(|key| RecipeParameter {
+                key: key.to_string(),
+                input_type: RecipeParameterInputType::String,
+                requirement: RecipeParameterRequirement::Required,
+                description: format!("the {}", key),
+                default: None,
+                options: None,
+            })
+            .collect();
+        let original_recipe = Recipe::builder()
+            .title("Param Recipe")
+            .description("Recipe with parameters in multi-line instructions")
+            .instructions(instructions)
+            .parameters(parameters)
+            .build()
+            .unwrap();
+
+        let encoded = recipe_deeplink::encode(&original_recipe).unwrap();
+        let response = decode_recipe(Json(DecodeRecipeRequest { deeplink: encoded })).await;
+
+        let decoded = response
+            .expect("decoding a valid recipe deeplink should succeed")
+            .0
+            .recipe;
+        assert_eq!(decoded.instructions, original_recipe.instructions);
+    }
 
     #[tokio::test]
     async fn test_decode_and_encode_recipe() {

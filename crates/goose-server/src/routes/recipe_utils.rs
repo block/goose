@@ -11,7 +11,7 @@ use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::get_recipe_library_dir;
 pub use goose::recipe::manifest::short_id_from_path;
 use goose::recipe::manifest::{list_recipe_file_manifests, load_recipe_from_path};
-use goose::recipe::validate_recipe::validate_recipe_template_from_content;
+use goose::recipe::validate_recipe::validate_recipe_struct;
 use goose::recipe::Recipe;
 use serde::Serialize;
 use tracing::error;
@@ -50,25 +50,14 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifest>> {
 }
 
 pub fn validate_recipe(recipe: &Recipe) -> Result<(), RecipeValidationError> {
-    let recipe_yaml = recipe.to_yaml().map_err(|err| {
-        let message = err.to_string();
-        error!("Failed to serialize recipe for validation: {}", message);
-        RecipeValidationError {
-            status: StatusCode::BAD_REQUEST,
-            message,
-        }
-    })?;
-
-    validate_recipe_template_from_content(&recipe_yaml, None).map_err(|err| {
+    validate_recipe_struct(recipe).map_err(|err| {
         let message = err.to_string();
         error!("Recipe validation failed: {}", message);
         RecipeValidationError {
             status: StatusCode::BAD_REQUEST,
             message,
         }
-    })?;
-
-    Ok(())
+    })
 }
 
 pub async fn get_recipe_file_path_by_id(

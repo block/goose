@@ -1,5 +1,5 @@
 use crate::recipe::read_recipe_file_content::RecipeFile;
-use crate::recipe::template_recipe::parse_recipe_content;
+use crate::recipe::template_recipe::{collect_template_variables, parse_recipe_content};
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
     BUILT_IN_RECIPE_DIR_PARAM,
@@ -52,6 +52,50 @@ pub fn validate_recipe_template_from_content(
     }
 
     Ok(recipe)
+}
+
+/// Validates a recipe that already exists as a struct (e.g. decoded from a
+/// deeplink) without round-tripping it through YAML, which can mangle
+/// multi-line template content and hide `{{ }}` variables from the scanner.
+pub fn validate_recipe_struct(recipe: &Recipe) -> Result<()> {
+    let recipe_json = serde_json::to_value(recipe)?;
+    let mut template_variables = HashSet::new();
+    collect_template_variables_from_json(&recipe_json, &mut template_variables)?;
+
+    validate_optional_parameters(&recipe.parameters)?;
+    validate_parameters_in_template(&recipe.parameters, &template_variables)?;
+    validate_prompt_or_instructions(recipe)?;
+    validate_retry_config(recipe)?;
+    if let Some(response) = &recipe.response {
+        if let Some(json_schema) = &response.json_schema {
+            validate_json_schema(json_schema)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn collect_template_variables_from_json(
+    value: &serde_json::Value,
+    template_variables: &mut HashSet<String>,
+) -> Result<()> {
+    match value {
+        serde_json::Value::String(content) => {
+            template_variables.extend(collect_template_variables(content)?);
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_template_variables_from_json(item, template_variables)?;
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for item in map.values() {
+                collect_template_variables_from_json(item, template_variables)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn validate_retry_config(recipe: &Recipe) -> Result<()> {
@@ -209,5 +253,87 @@ parameters:
         assert_eq!(recipe.description, "A test recipe for validation");
         assert!(recipe.instructions.is_some());
         println!("Recipe: {:?}", recipe.prompt);
+    }
+
+    fn recipe_with_multiline_instructions() -> Recipe {
+        let instructions = concat!(
+            "Process the {{ product_type }} request.   \n",
+            "Run this query which is intentionally longer than eighty characters so the YAML emitter may fold it: {{ sql_query }}\n",
+            "Use priority {{ priority }} when filing the request.\n",
+        );
+        let parameters = ["product_type", "sql_query", "priority"]
+            .into_iter()
+            .map(|key| RecipeParameter {
+                key: key.to_string(),
+                input_type: RecipeParameterInputType::String,
+                requirement: RecipeParameterRequirement::Required,
+                description: format!("the {}", key),
+                default: None,
+                options: None,
+            })
+            .collect();
+        Recipe::builder()
+            .title("Param Recipe")
+            .description("Recipe with parameters in multi-line instructions")
+            .instructions(instructions)
+            .parameters(parameters)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_validate_recipe_struct_with_params_in_multiline_instructions() {
+        let recipe = recipe_with_multiline_instructions();
+        let result = validate_recipe_struct(&recipe);
+        assert!(result.is_ok(), "Validation failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_validate_recipe_struct_after_deeplink_round_trip() {
+        let recipe = recipe_with_multiline_instructions();
+        let encoded = crate::recipe_deeplink::encode(&recipe).unwrap();
+        let decoded = crate::recipe_deeplink::decode(&encoded).unwrap();
+        assert_eq!(decoded.instructions, recipe.instructions);
+
+        let result = validate_recipe_struct(&decoded);
+        assert!(result.is_ok(), "Validation failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_validate_recipe_struct_rejects_unused_parameter() {
+        let recipe = Recipe::builder()
+            .title("Unused Param Recipe")
+            .description("Recipe declaring a parameter it never uses")
+            .instructions("No template variables here")
+            .parameters(vec![RecipeParameter {
+                key: "unused_param".to_string(),
+                input_type: RecipeParameterInputType::String,
+                requirement: RecipeParameterRequirement::Required,
+                description: "never used".to_string(),
+                default: None,
+                options: None,
+            }])
+            .build()
+            .unwrap();
+
+        let err = validate_recipe_struct(&recipe).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Unnecessary parameter definitions: unused_param"));
+    }
+
+    #[test]
+    fn test_validate_recipe_struct_rejects_missing_parameter_definition() {
+        let recipe = Recipe::builder()
+            .title("Missing Param Recipe")
+            .description("Recipe using a variable it never declares")
+            .instructions("Do something with {{ undeclared_var }}")
+            .build()
+            .unwrap();
+
+        let err = validate_recipe_struct(&recipe).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Missing definitions for parameters in the recipe file: undeclared_var"));
     }
 }
