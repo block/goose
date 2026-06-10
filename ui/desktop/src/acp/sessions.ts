@@ -55,6 +55,8 @@ export interface SessionListFilter {
   keyword?: string;
 }
 
+const SESSION_LIST_TYPES = ['user', 'scheduled'] as const;
+
 export async function acpListSessions(
   cursor?: string | null,
   filter?: SessionListFilter
@@ -64,10 +66,12 @@ export async function acpListSessions(
   if (cursor) {
     request.cursor = cursor;
   }
+  const meta: Record<string, unknown> = { types: SESSION_LIST_TYPES };
   const keyword = filter?.keyword?.trim();
   if (keyword) {
-    request._meta = { query: keyword };
+    meta.query = keyword;
   }
+  request._meta = meta;
   const response = await client.listSessions(request);
   return {
     sessions: response.sessions.map(sessionInfoToListItem),
@@ -81,7 +85,7 @@ export async function acpListRecentSessions(maxSessions: number): Promise<Sessio
   }
 
   const client = await getAcpClient();
-  const response = await client.listSessions({});
+  const response = await client.listSessions({ _meta: { types: SESSION_LIST_TYPES } });
   return response.sessions.slice(0, maxSessions).map(sessionInfoToListItem);
 }
 

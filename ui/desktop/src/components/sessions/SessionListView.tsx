@@ -240,7 +240,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const [isLoading, setIsLoading] = useState(true);
     const [showSkeleton, setShowSkeleton] = useState(true);
     const [showContent, setShowContent] = useState(false);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
@@ -264,6 +263,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     // Search state for debouncing
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
+    const debouncedSearchTermRef = useRef(debouncedSearchTerm);
+    debouncedSearchTermRef.current = debouncedSearchTerm;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const loadGenerationRef = useRef(0);
@@ -328,7 +329,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     );
 
     const loadSessions = useCallback(
-      async (keyword?: string) => {
+      async (keyword: string = debouncedSearchTermRef.current) => {
         const loadId = loadGenerationRef.current + 1;
         loadGenerationRef.current = loadId;
         // Only show the skeleton on the first load; subsequent loads (e.g. typing a
@@ -409,14 +410,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         startTransition(() => {
           setTimeout(() => {
             setShowContent(true);
-            if (isInitialLoad) {
-              setIsInitialLoad(false);
-            }
           }, 10);
         });
       }
       return () => void 0;
-    }, [isLoading, showSkeleton, isInitialLoad]);
+    }, [isLoading, showSkeleton]);
 
     // Memoize date groups calculation to prevent unnecessary recalculations
     const memoizedDateGroups = useMemo(() => {
@@ -483,6 +481,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         try {
           await acpForkSession(session.id, session.workingDir);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
         } catch (error) {
           console.error('Error duplicating session:', error);
@@ -568,6 +567,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           }
           await acpImportSession(result.contents);
           toast.success(intl.formatMessage(i18n.importSuccess));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
         } catch (error) {
           toast.error(
@@ -593,6 +593,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         setNostrImportLink('');
         setShowImportLinkModal(false);
         toast.success(intl.formatMessage(i18n.importSuccess));
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
         await loadSessions();
       } catch (error) {
         toast.error(intl.formatMessage(i18n.importFailed, { error: errorMessage(error, 'Unknown error') }));
@@ -620,6 +621,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           await acpImportSession(json);
 
           toast.success(intl.formatMessage(i18n.importSuccess));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
         } catch (error) {
           toast.error(intl.formatMessage(i18n.importFailed, { error: String(error) }));
