@@ -12,12 +12,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
-use aws_sdk_bedrockruntime::{Client, types as bedrock};
+use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::extract_reasoning_effort;
-use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
+use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
 use rmcp::model::Tool;
 use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
@@ -94,7 +94,11 @@ impl BedrockProvider {
         let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
             Ok(token) => {
                 let token = token.trim().to_string();
-                if token.is_empty() { None } else { Some(token) }
+                if token.is_empty() {
+                    None
+                } else {
+                    Some(token)
+                }
             }
             Err(_) => None,
         };
