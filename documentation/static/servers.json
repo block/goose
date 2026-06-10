@@ -779,6 +779,20 @@
     ]
   },
   {
+    "id": "tempguru",
+    "name": "TempGuru Event Staffing",
+    "description": "W-2 event staffing data for AI agents: city coverage, role rates, availability and lead times, and state compliance across 300+ US and Canadian markets, plus an opt-in quote request.",
+    "url": "https://mcp.tempguru.co/mcp",
+    "link": "https://github.com/Tempguru-co/tempguru-mcp",
+    "installation_notes": "No local setup required. This extension connects to TempGuru's hosted server; no API key or authentication is needed. To run the same server as a local stdio process instead, use `npx -y tempguru-mcp`.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [],
+    "show_install_command": false,
+    "type": "streamable-http"
+  },
+  {
     "id": "tom",
     "name": "Top of Mind",
     "description": "Inject persistent instructions into goose's working memory every turn",
