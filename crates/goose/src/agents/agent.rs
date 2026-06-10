@@ -1985,11 +1985,13 @@ impl Agent {
                 // DeepSeek/Kimi emit reasoning_content in earlier chunks before the
                 // tool-call chunk, so we buffer it across all chunks in a turn.
                 let mut reasoning_buffer: Vec<MessageContent> = Vec::new();
-                // True when reasoning_content was already pushed to messages_to_add
-                // via the continue path, so the drain path skips creating a duplicate
-                // standalone reasoning message.
+                // Index into messages_to_add of the first no-tool message that contained
+                // reasoning content. When a tool-call chunk later arrives, we strip only
+                // the Thinking variants from that message (preserving any text) rather
+                // than popping the whole message, since a subsequent text chunk may have
+                // been appended after it.
                 // see: https://github.com/aaif-goose/goose/issues/9675
-                let mut reasoning_buffer_persisted = false;
+                let mut reasoning_buffer_persisted_idx: Option<usize> = None;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) || exit_chat {
@@ -2055,8 +2057,8 @@ impl Agent {
                                         last_assistant_text = text;
                                     }
                                     messages_to_add.push(response);
-                                    if !reasoning_buffer.is_empty() {
-                                        reasoning_buffer_persisted = true;
+                                    if !reasoning_buffer.is_empty() && reasoning_buffer_persisted_idx.is_none() {
+                                        reasoning_buffer_persisted_idx = Some(messages_to_add.len() - 1);
                                     }
                                     continue;
                                 }
@@ -2231,14 +2233,23 @@ impl Agent {
                                 // reasoning_buffer holds thinking from earlier chunks since
                                 // Kimi/DeepSeek send it before the tool-call chunk.
                                 let reasoning_content: Vec<MessageContent> = reasoning_buffer.drain(..).collect();
-                                if reasoning_buffer_persisted && !reasoning_content.is_empty() {
-                                    // The thinking was already saved as its own assistant message
-                                    // in a prior no-tool chunk. Pop it so the thinking ends up
-                                    // only on the tool-call message below, preventing a duplicate
-                                    // Thinking block after merge_consecutive_messages.
-                                    messages_to_add.pop();
+                                if let Some(idx) = reasoning_buffer_persisted_idx.take() {
+                                    if !reasoning_content.is_empty() {
+                                        // Strip only Thinking from the persisted message so any
+                                        // visible text in that message is preserved in context.
+                                        let tail: Vec<Message> = messages_to_add.iter().skip(idx + 1).cloned().collect();
+                                        messages_to_add.truncate(idx + 1);
+                                        if let Some(mut msg) = messages_to_add.pop() {
+                                            msg.content.retain(|c| !matches!(c, MessageContent::Thinking(_)));
+                                            if !msg.content.is_empty() {
+                                                messages_to_add.push(msg);
+                                            }
+                                        }
+                                        for m in tail {
+                                            messages_to_add.push(m);
+                                        }
+                                    }
                                 }
-                                reasoning_buffer_persisted = false;
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
                                     if request.tool_call.is_ok() {
