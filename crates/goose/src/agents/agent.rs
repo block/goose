@@ -1985,13 +1985,13 @@ impl Agent {
                 // DeepSeek/Kimi emit reasoning_content in earlier chunks before the
                 // tool-call chunk, so we buffer it across all chunks in a turn.
                 let mut reasoning_buffer: Vec<MessageContent> = Vec::new();
-                // Index into messages_to_add of the first no-tool message that contained
-                // reasoning content. When a tool-call chunk later arrives, we strip only
-                // the Thinking variants from that message (preserving any text) rather
-                // than popping the whole message, since a subsequent text chunk may have
-                // been appended after it.
+                // Indices into messages_to_add of no-tool messages that contained
+                // reasoning content. When a tool-call chunk later arrives, we strip
+                // the Thinking variants from each of those messages (preserving any
+                // text) rather than popping them, since a subsequent text chunk may
+                // have been appended after them.
                 // see: https://github.com/aaif-goose/goose/issues/9675
-                let mut reasoning_buffer_persisted_idx: Option<usize> = None;
+                let mut reasoning_buffer_persisted_indices: Vec<usize> = Vec::new();
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) || exit_chat {
@@ -2056,9 +2056,10 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
+                                    let has_thinking = response.content.iter().any(|c| matches!(c, MessageContent::Thinking(_)));
                                     messages_to_add.push(response);
-                                    if !reasoning_buffer.is_empty() && reasoning_buffer_persisted_idx.is_none() {
-                                        reasoning_buffer_persisted_idx = Some(messages_to_add.len() - 1);
+                                    if has_thinking {
+                                        reasoning_buffer_persisted_indices.push(messages_to_add.len() - 1);
                                     }
                                     continue;
                                 }
@@ -2233,20 +2234,19 @@ impl Agent {
                                 // reasoning_buffer holds thinking from earlier chunks since
                                 // Kimi/DeepSeek send it before the tool-call chunk.
                                 let reasoning_content: Vec<MessageContent> = std::mem::take(&mut reasoning_buffer);
-                                if let Some(idx) = reasoning_buffer_persisted_idx.take() {
-                                    if !reasoning_content.is_empty() {
-                                        // Strip only Thinking from the persisted message so any
-                                        // visible text in that message is preserved in context.
-                                        let tail: Vec<Message> = messages_to_add.iter().skip(idx + 1).cloned().collect();
-                                        messages_to_add.truncate(idx + 1);
-                                        if let Some(mut msg) = messages_to_add.pop() {
+                                let persisted_indices = std::mem::take(&mut reasoning_buffer_persisted_indices);
+                                if !reasoning_content.is_empty() && !persisted_indices.is_empty() {
+                                    // Strip Thinking from every no-tool message that held reasoning
+                                    // content, preserving any accompanying text in those messages.
+                                    let old = std::mem::take(&mut messages_to_add);
+                                    for (i, mut msg) in old.into_iter().enumerate() {
+                                        if persisted_indices.contains(&i) {
                                             msg.content.retain(|c| !matches!(c, MessageContent::Thinking(_)));
                                             if !msg.content.is_empty() {
                                                 messages_to_add.push(msg);
                                             }
-                                        }
-                                        for m in tail {
-                                            messages_to_add.push(m);
+                                        } else {
+                                            messages_to_add.push(msg);
                                         }
                                     }
                                 }
