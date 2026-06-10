@@ -1274,9 +1274,7 @@ mod tests {
             tokio::pin!(reply_stream);
 
             while let Some(event) = reply_stream.next().await {
-                if let Err(e) = event {
-                    return Err(e);
-                }
+                event?;
             }
 
             let reloaded = session_manager.get_session(&session_id, true).await?;
