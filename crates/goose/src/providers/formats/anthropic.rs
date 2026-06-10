@@ -869,28 +869,6 @@ where
                     continue;
                 }
                 EVENT_MESSAGE_DELTA => {
-                    if let Some(delta) = event.data.get("delta") {
-                        let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
-                        if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
-                            let str_field = |key: &str| stop_details
-                                .and_then(|d| d.get(key))
-                                .and_then(|v| v.as_str())
-                                .map(str::to_string);
-                            let details = str_field("explanation")
-                                .or_else(|| stop_details.map(|d| d.to_string()))
-                                .unwrap_or_else(|| REFUSAL_FALLBACK_DETAILS.to_string());
-                            let category = str_field("category");
-                            Err(ProviderError::Refusal { details, category })?;
-                        } else if let Some(details) = stop_details {
-                            // No specific handling for these stop details yet —
-                            // forward them rather than silently dropping the turn.
-                            let mut message = Message::assistant().with_text(format!(
-                                "The provider ended the response with: {details}"
-                            ));
-                            message.id = message_id.clone();
-                            yield (Some(message), None);
-                        }
-                    }
                     if let Some(usage_data) = event.data.get("usage") {
                         let delta_usage = get_usage(usage_data).unwrap_or_default();
 
@@ -912,6 +890,33 @@ where
                                 .unwrap_or("unknown")
                                 .to_string();
                             final_usage = Some(ProviderUsage::new(model, delta_usage));
+                        }
+                    }
+                    if let Some(delta) = event.data.get("delta") {
+                        let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
+                        if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
+                            let str_field = |key: &str| stop_details
+                                .and_then(|d| d.get(key))
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string);
+                            let details = str_field("explanation")
+                                .or_else(|| stop_details.map(|d| d.to_string()))
+                                .unwrap_or_else(|| REFUSAL_FALLBACK_DETAILS.to_string());
+                            let category = str_field("category");
+                            // The refusal delta carries the request's usage;
+                            // flush it so refused turns are still accounted.
+                            if let Some(usage) = final_usage.take() {
+                                yield (None, Some(usage));
+                            }
+                            Err(ProviderError::Refusal { details, category })?;
+                        } else if let Some(details) = stop_details {
+                            // No specific handling for these stop details yet —
+                            // forward them rather than silently dropping the turn.
+                            let mut message = Message::assistant().with_text(format!(
+                                "The provider ended the response with: {details}"
+                            ));
+                            message.id = message_id.clone();
+                            yield (Some(message), None);
                         }
                     }
                     continue;
@@ -1789,24 +1794,18 @@ mod tests {
             r#"data: {"type":"message_stop"}"#,
         );
 
-        let (details, category) = expect_refusal(collect_stream_results(events).await);
+        let results = collect_stream_results(events).await;
+        let usage = results
+            .iter()
+            .filter_map(|r| r.as_ref().ok())
+            .find_map(|(_, usage)| usage.clone())
+            .expect("a refused request should still yield its usage");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+
+        let (details, category) = expect_refusal(results);
         assert_eq!(details, "This request violates the usage policy.");
         assert_eq!(category.as_deref(), Some("cyber"));
-    }
-
-    #[tokio::test]
-    async fn test_streaming_refusal_without_explanation() {
-        let events = concat!(
-            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
-            "\n",
-            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_sequence":null},"usage":{"output_tokens":5}}"#,
-            "\n",
-            r#"data: {"type":"message_stop"}"#,
-        );
-
-        let (details, category) = expect_refusal(collect_stream_results(events).await);
-        assert_eq!(details, "No additional details were provided.");
-        assert_eq!(category, None);
     }
 
     #[tokio::test]

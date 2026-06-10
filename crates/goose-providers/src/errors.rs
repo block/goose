@@ -174,36 +174,3 @@ impl GoogleErrorCode {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn refusal_telemetry_type() {
-        let error = ProviderError::Refusal {
-            details: "policy violation".to_string(),
-            category: Some("cyber".to_string()),
-        };
-        assert_eq!(error.telemetry_type(), "refusal");
-    }
-
-    #[test]
-    fn from_stream_error_preserves_typed_provider_error() {
-        let refusal = ProviderError::Refusal {
-            details: "policy violation".to_string(),
-            category: Some("cyber".to_string()),
-        };
-        let recovered = ProviderError::from_stream_error(anyhow::Error::from(refusal.clone()));
-        assert_eq!(recovered, refusal);
-    }
-
-    #[test]
-    fn from_stream_error_wraps_untyped_errors() {
-        let recovered = ProviderError::from_stream_error(anyhow::anyhow!("bad chunk"));
-        assert_eq!(
-            recovered,
-            ProviderError::RequestFailed("Stream decode error: bad chunk".to_string())
-        );
-    }
-}

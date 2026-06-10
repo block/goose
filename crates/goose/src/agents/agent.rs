@@ -2198,6 +2198,10 @@ impl Agent {
                             yield AgentEvent::Message(Message::assistant().with_text(format!(
                                 "The provider refused this request.\n\n{details}{category}\n\nPlease start a new session to continue — resending this conversation is likely to be refused again."
                             )));
+                            // A refusal is terminal: skip goal/grind nudges and
+                            // recipe retry_config, which would resend the same
+                            // refused conversation.
+                            exit_chat = true;
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
@@ -2241,7 +2245,7 @@ impl Agent {
                     }
                 }
 
-                if no_tools_called {
+                if no_tools_called && !exit_chat {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -3228,12 +3232,86 @@ exit 0
         }
     }
 
-    async fn create_stop_hook_test_agent(
-        env: &StopHookTestEnv,
-        stop_hook_block_cap: u32,
-    ) -> Result<(Agent, String, Arc<CountingTextProvider>)> {
-        let session_manager = Arc::new(SessionManager::new(env.data_dir()));
-        let permission_manager = Arc::new(PermissionManager::new(env.data_dir()));
+    struct RefusingProvider {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for RefusingProvider {
+        async fn stream(
+            &self,
+            _model_config: &crate::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(Box::pin(futures::stream::once(async {
+                Err(ProviderError::Refusal {
+                    details: "This request was declined.".to_string(),
+                    category: Some("cyber".to_string()),
+                })
+            })))
+        }
+
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "refusing"
+        }
+    }
+
+    #[tokio::test]
+    async fn refusal_exits_turn_without_recipe_retry() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(RefusingProvider {
+            call_count: AtomicUsize::new(0),
+        });
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: Some(crate::agents::types::RetryConfig {
+                max_retries: 3,
+                checks: vec![crate::agents::types::SuccessCheck::Shell {
+                    command: "false".to_string(),
+                }],
+                on_failure: None,
+                timeout_seconds: None,
+                on_failure_timeout_seconds: None,
+            }),
+        };
+
+        let reply_stream = agent
+            .reply(Message::user().with_text("hi"), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+        while let Some(event) = reply_stream.next().await {
+            event?;
+        }
+
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "a refused request must not be resent"
+        );
+        Ok(())
+    }
+
+    async fn create_test_agent(
+        data_dir: PathBuf,
+        hook_manager: crate::hooks::HookManager,
+        provider: Arc<dyn crate::providers::base::Provider>,
+    ) -> Result<(Agent, String)> {
+        let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+        let permission_manager = Arc::new(PermissionManager::new(data_dir));
         let config = AgentConfig::new(
             session_manager.clone(),
             permission_manager,
@@ -3243,19 +3321,28 @@ exit 0
             GoosePlatform::GooseCli,
         );
         let mut agent = Agent::with_config(config);
-        agent.set_hook_manager_for_test(env.hook_manager());
-        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
-        let provider = Arc::new(CountingTextProvider::new());
+        agent.set_hook_manager_for_test(hook_manager);
         let session = session_manager
             .create_session(
                 PathBuf::default(),
-                "stop-hook-test".to_string(),
+                "test".to_string(),
                 SessionType::Hidden,
                 GooseMode::Auto,
             )
             .await?;
-        agent.update_provider(provider.clone(), &session.id).await?;
-        Ok((agent, session.id, provider))
+        agent.update_provider(provider, &session.id).await?;
+        Ok((agent, session.id))
+    }
+
+    async fn create_stop_hook_test_agent(
+        env: &StopHookTestEnv,
+        stop_hook_block_cap: u32,
+    ) -> Result<(Agent, String, Arc<CountingTextProvider>)> {
+        let provider = Arc::new(CountingTextProvider::new());
+        let (mut agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
+        Ok((agent, session_id, provider))
     }
 
     async fn run_stop_hook_test_turn(
