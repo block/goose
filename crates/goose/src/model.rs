@@ -368,23 +368,33 @@ impl ModelConfig {
         self
     }
 
-    pub fn with_preserved_session_settings_from(mut self, previous: &ModelConfig) -> Self {
-        let has_thinking_effort = self
-            .request_params
-            .as_ref()
-            .and_then(|params| params.get("thinking_effort"))
-            .is_some();
-
-        if !has_thinking_effort {
-            if let Some(thinking_effort) = previous
+    pub fn with_inherited_session_settings_from(
+        mut self,
+        previous: Option<&ModelConfig>,
+        request_params: Option<HashMap<String, Value>>,
+    ) -> Self {
+        if let Some(previous) = previous {
+            let has_thinking_effort = self
                 .request_params
                 .as_ref()
                 .and_then(|params| params.get("thinking_effort"))
-                .cloned()
-            {
-                let params = self.request_params.get_or_insert_with(HashMap::new);
-                params.insert("thinking_effort".to_string(), thinking_effort);
+                .is_some();
+
+            if !has_thinking_effort {
+                if let Some(thinking_effort) = previous
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort"))
+                    .cloned()
+                {
+                    let params = self.request_params.get_or_insert_with(HashMap::new);
+                    params.insert("thinking_effort".to_string(), thinking_effort);
+                }
             }
+        }
+
+        if let Some(request_params) = request_params {
+            self = self.with_merged_request_params(request_params);
         }
 
         self
@@ -727,7 +737,7 @@ mod tests {
                 model_name: "next".to_string(),
                 ..Default::default()
             }
-            .with_preserved_session_settings_from(&previous);
+            .with_inherited_session_settings_from(Some(&previous), None);
 
             assert_eq!(
                 config
@@ -756,7 +766,7 @@ mod tests {
                 )])),
                 ..Default::default()
             }
-            .with_preserved_session_settings_from(&previous);
+            .with_inherited_session_settings_from(Some(&previous), None);
 
             assert_eq!(
                 config
@@ -781,7 +791,7 @@ mod tests {
                 model_name: "next".to_string(),
                 ..Default::default()
             }
-            .with_preserved_session_settings_from(&previous);
+            .with_inherited_session_settings_from(Some(&previous), None);
 
             assert!(config.request_params.is_none());
         }
@@ -797,9 +807,40 @@ mod tests {
                 model_name: "next".to_string(),
                 ..Default::default()
             }
-            .with_preserved_session_settings_from(&previous);
+            .with_inherited_session_settings_from(Some(&previous), None);
 
             assert!(config.request_params.is_none());
+        }
+
+        #[test]
+        fn explicit_request_params_override_preserved_session_settings() {
+            let previous = ModelConfig {
+                model_name: "previous".to_string(),
+                request_params: Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("high"),
+                )])),
+                ..Default::default()
+            };
+            let config = ModelConfig {
+                model_name: "next".to_string(),
+                ..Default::default()
+            }
+            .with_inherited_session_settings_from(
+                Some(&previous),
+                Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("low"),
+                )])),
+            );
+
+            assert_eq!(
+                config
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort")),
+                Some(&serde_json::json!("low"))
+            );
         }
 
         #[test]

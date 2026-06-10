@@ -908,34 +908,6 @@ fn builtin_to_extension_config(name: &str) -> ExtensionConfig {
     }
 }
 
-fn with_preserved_session_request_params(
-    mut model_config: crate::model::ModelConfig,
-    current_model_config: Option<&crate::model::ModelConfig>,
-    request_params: Option<HashMap<String, serde_json::Value>>,
-) -> crate::model::ModelConfig {
-    let has_model_effort = model_config
-        .request_params
-        .as_ref()
-        .and_then(|params| params.get("thinking_effort"))
-        .is_some();
-    if !has_model_effort {
-        if let Some(thinking_effort) = current_model_config
-            .and_then(|config| config.request_params.as_ref())
-            .and_then(|params| params.get("thinking_effort"))
-            .cloned()
-        {
-            model_config = model_config.with_merged_request_params(HashMap::from([(
-                "thinking_effort".into(),
-                thinking_effort,
-            )]));
-        }
-    }
-    if let Some(request_params) = request_params {
-        model_config = model_config.with_merged_request_params(request_params);
-    }
-    model_config
-}
-
 fn to_nonnegative_u64(value: Option<i32>) -> Option<u64> {
     value.and_then(|v| u64::try_from(v).ok())
 }
@@ -2634,7 +2606,6 @@ impl GooseAcpAgent {
         session_id: &str,
         model_id: &str,
     ) -> Result<SetSessionModelResponse, agent_client_protocol::Error> {
-        let config = self.config()?;
         let agent = self.get_session_agent(session_id, None).await?;
         let current_provider = agent
             .provider()
@@ -2642,36 +2613,15 @@ impl GooseAcpAgent {
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
         let current_model_config = current_provider.get_model_config();
-        let extensions =
-            EnabledExtensionsState::for_session(&self.session_manager, session_id, config).await;
         let model_config = crate::model::ModelConfig::new(model_id)
             .invalid_params_err_ctx("Invalid model config")?
             .with_canonical_limits(&provider_name);
         let model_config =
-            with_preserved_session_request_params(model_config, Some(&current_model_config), None);
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err_ctx("Failed to get session")?;
-        let provider = self
-            .create_provider(
-                &provider_name,
-                model_config,
-                extensions,
-                Some(session.working_dir),
-            )
-            .await
-            .internal_err_ctx("Failed to create provider")?;
+            model_config.with_inherited_session_settings_from(Some(&current_model_config), None);
         agent
-            .update_provider(provider, session_id)
+            .recreate_provider_for_session(session_id, &provider_name, model_config)
             .await
-            .internal_err_ctx("Failed to update provider")?;
-        let mode = agent.goose_mode().await;
-        agent
-            .update_goose_mode(mode, session_id)
-            .await
-            .internal_err_ctx("Failed to propagate mode")?;
+            .internal_err_ctx("Failed to recreate provider")?;
         // model_config is already updated on the session by the agent's update_provider call.
         Ok(SetSessionModelResponse::new())
     }
@@ -2803,37 +2753,13 @@ impl GooseAcpAgent {
             .invalid_params_err_ctx("Invalid model config")?
             .with_canonical_limits(&resolved_provider_name)
             .with_context_limit(context_limit);
-        model_config = with_preserved_session_request_params(
-            model_config,
-            (!is_changing_provider).then_some(&current_model_config),
-            request_params,
-        );
+        model_config = model_config
+            .with_inherited_session_settings_from(Some(&current_model_config), request_params);
 
-        let extensions =
-            EnabledExtensionsState::for_session(&self.session_manager, session_id, config).await;
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err_ctx("Failed to get session")?;
-        let new_provider = self
-            .create_provider(
-                &resolved_provider_name,
-                model_config,
-                extensions,
-                Some(session.working_dir),
-            )
-            .await
-            .internal_err_ctx("Failed to create provider")?;
         agent
-            .update_provider(new_provider, session_id)
+            .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)
             .await
-            .internal_err_ctx("Failed to update provider")?;
-        let mode = agent.goose_mode().await;
-        agent
-            .update_goose_mode(mode, session_id)
-            .await
-            .internal_err_ctx("Failed to propagate mode")?;
+            .internal_err_ctx("Failed to recreate provider")?;
 
         // provider_name is already updated on the session by the agent's update_provider call.
         Ok(())

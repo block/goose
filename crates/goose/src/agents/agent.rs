@@ -2491,10 +2491,11 @@ impl Agent {
         *self.current_goose_mode.lock().await
     }
 
-    pub async fn update_thinking_effort(
+    pub async fn recreate_provider_for_session(
         &self,
         session_id: &str,
-        effort: ThinkingEffort,
+        provider_name: &str,
+        model_config: crate::model::ModelConfig,
     ) -> Result<()> {
         let session = self
             .config
@@ -2503,19 +2504,13 @@ impl Agent {
             .await
             .context("Failed to get session")?;
 
-        let current_provider = self.provider().await?;
-        let provider_name = current_provider.get_name().to_string();
-        let model_config = current_provider
-            .get_model_config()
-            .with_thinking_effort(effort);
-
         let extensions = EnabledExtensionsState::extensions_or_default(
             Some(&session.extension_data),
             Config::global(),
         );
 
         let provider = crate::providers::create_with_working_dir(
-            &provider_name,
+            provider_name,
             model_config,
             extensions,
             session.working_dir.clone(),
@@ -2527,6 +2522,21 @@ impl Agent {
 
         let mode = self.goose_mode().await;
         self.update_goose_mode(mode, session_id).await
+    }
+
+    pub async fn update_thinking_effort(
+        &self,
+        session_id: &str,
+        effort: ThinkingEffort,
+    ) -> Result<()> {
+        let current_provider = self.provider().await?;
+        let provider_name = current_provider.get_name().to_string();
+        let model_config = current_provider
+            .get_model_config()
+            .with_thinking_effort(effort);
+
+        self.recreate_provider_for_session(session_id, &provider_name, model_config)
+            .await
     }
 
     /// Restore the provider from session data or fall back to global config
