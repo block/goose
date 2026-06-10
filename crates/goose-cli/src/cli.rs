@@ -827,12 +827,6 @@ enum Command {
         port: u16,
 
         #[arg(
-            long,
-            help = "Require ACP clients to authenticate with the token from GOOSE_SERVER__SECRET_KEY"
-        )]
-        require_token: bool,
-
-        #[arg(
             long = "with-builtin",
             value_name = "NAME",
             help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
@@ -1326,18 +1320,13 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_serve_command(
-    host: String,
-    port: u16,
-    builtins: Vec<String>,
-    require_token: bool,
-) -> Result<()> {
+async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) -> Result<()> {
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use tracing::info;
+    use tracing::{info, warn};
 
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
@@ -1368,13 +1357,13 @@ async fn handle_serve_command(
         .ok()
         .map(|secret| secret.trim().to_string())
         .filter(|secret| !secret.is_empty());
-    let secret_key = match env_secret {
-        Some(secret) => secret,
-        None if require_token => anyhow::bail!(
-            "--require-token requires {GOOSE_SERVER_SECRET_KEY_ENV} to be set to a non-empty value"
-        ),
-        None => generate_serve_secret_key(),
-    };
+    let require_token = env_secret.is_some();
+    if !require_token {
+        warn!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set; the ACP endpoint will accept unauthenticated connections"
+        );
+    }
+    let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
     let router = create_router(server, secret_key, require_token);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
@@ -2117,9 +2106,8 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Serve {
             host,
             port,
-            require_token,
             builtins,
-        }) => handle_serve_command(host, port, builtins, require_token).await,
+        }) => handle_serve_command(host, port, builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,

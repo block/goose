@@ -105,7 +105,7 @@ async fn health_endpoints_skip_token_check() {
 }
 
 #[tokio::test]
-async fn token_not_required_by_default() {
+async fn acp_open_when_no_secret_configured() {
     let dir = tempfile::tempdir().unwrap();
     let router = test_router(false, &dir);
 
