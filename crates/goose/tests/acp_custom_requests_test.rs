@@ -366,7 +366,7 @@ fn test_custom_provider_inventory_includes_metadata() {
 #[serial]
 fn test_custom_preferences_read_save_remove() {
     let config_dir = write_acp_global_config(
-        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
+        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nGOOSE_THINKING_EFFORT: high\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
     );
 
     run_test(async move {
@@ -383,6 +383,7 @@ fn test_custom_preferences_read_save_remove() {
             serde_json::json!({
                 "keys": [
                     "autoCompactThreshold",
+                    "gooseThinkingEffort",
                     "voiceAutoSubmitPhrases",
                     "voiceDictationPreferredMic"
                 ],
@@ -394,6 +395,7 @@ fn test_custom_preferences_read_save_remove() {
             response.get("values"),
             Some(&serde_json::json!([
                 { "key": "autoCompactThreshold", "value": 0.7 },
+                { "key": "gooseThinkingEffort", "value": "high" },
                 { "key": "voiceAutoSubmitPhrases", "value": "send it" },
                 { "key": "voiceDictationPreferredMic", "value": null },
             ]))
@@ -404,6 +406,7 @@ fn test_custom_preferences_read_save_remove() {
             "_goose/unstable/preferences/save",
             serde_json::json!({
                 "values": [
+                    { "key": "gooseThinkingEffort", "value": "disabled" },
                     { "key": "voiceDictationProvider", "value": "__disabled__" },
                     { "key": "voiceDictationPreferredMic", "value": "mic-1" }
                 ],
@@ -426,7 +429,7 @@ fn test_custom_preferences_read_save_remove() {
             conn.cx(),
             "_goose/unstable/preferences/read",
             serde_json::json!({
-                "keys": ["voiceDictationProvider", "voiceDictationPreferredMic"],
+                "keys": ["gooseThinkingEffort", "voiceDictationProvider", "voiceDictationPreferredMic"],
             }),
         )
         .await
@@ -434,6 +437,7 @@ fn test_custom_preferences_read_save_remove() {
         assert_eq!(
             response.get("values"),
             Some(&serde_json::json!([
+                { "key": "gooseThinkingEffort", "value": "off" },
                 { "key": "voiceDictationProvider", "value": null },
                 { "key": "voiceDictationPreferredMic", "value": "mic-1" },
             ]))
@@ -455,6 +459,12 @@ fn test_custom_preferences_save_rejects_invalid_values() {
             }),
             serde_json::json!({
                 "values": [{ "key": "autoCompactThreshold", "value": 1.1 }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": "bogus" }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": ["high"] }],
             }),
             serde_json::json!({
                 "values": [{ "key": "voiceAutoSubmitPhrases", "value": ["send"] }],

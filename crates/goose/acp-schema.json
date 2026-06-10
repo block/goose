@@ -1915,6 +1915,7 @@
       "type": "string",
       "enum": [
         "autoCompactThreshold",
+        "gooseThinkingEffort",
         "voiceAutoSubmitPhrases",
         "voiceDictationProvider",
         "voiceDictationPreferredMic"
