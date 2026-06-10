@@ -1367,7 +1367,7 @@ GitHub Copilot uses a device flow for authentication, so no API keys are require
 
 goose supports three authentication methods for Azure OpenAI:
 
-1. **Entra ID Bearer Token** - Uses a pre-acquired Microsoft Entra access token from `AZURE_OPENAI_AD_TOKEN`, sent as `Authorization: Bearer <token>`. goose skips Azure CLI and token acquisition entirely, which suits enterprise deployments where only short-lived tokens are exposed to the runtime (e.g. obtained via `az account get-access-token --resource https://cognitiveservices.azure.com`)
+1. **Entra ID Bearer Token** - Uses a pre-acquired Microsoft Entra access token from `AZURE_OPENAI_AD_TOKEN`, sent as `Authorization: Bearer <token>`. goose skips Azure CLI and token acquisition entirely, which suits enterprise deployments where only short-lived tokens are exposed to the runtime (e.g. obtained via `az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken --output tsv`)
 2. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
 3. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
 
