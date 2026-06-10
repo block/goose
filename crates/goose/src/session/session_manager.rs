@@ -88,6 +88,21 @@ pub struct Session {
     pub project_id: Option<String>,
 }
 
+impl Session {
+    pub fn display_title(&self) -> Option<String> {
+        if !self.user_set_name && self.session_type != SessionType::Scheduled {
+            if let Some(recipe) = &self.recipe {
+                return Some(recipe.title.clone());
+            }
+        }
+        if self.name.is_empty() {
+            None
+        } else {
+            Some(self.name.clone())
+        }
+    }
+}
+
 pub struct SessionUpdateBuilder<'a> {
     session_manager: &'a SessionManager,
     session_id: String,

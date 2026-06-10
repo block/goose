@@ -68,9 +68,19 @@ impl PromptInjectionScanner {
             ClassifierType::Prompt => "PROMPT",
         };
 
-        let enabled = config
-            .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
-            .unwrap_or(false);
+        let enabled = match classifier_type {
+            ClassifierType::Command => {
+                crate::security::get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE")
+                    .unwrap_or_else(|| {
+                        config
+                            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                            .unwrap_or(false)
+                    })
+            }
+            ClassifierType::Prompt => config
+                .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+                .unwrap_or(false),
+        };
 
         if !enabled {
             anyhow::bail!("{} classifier not enabled", prefix);

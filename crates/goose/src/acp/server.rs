@@ -314,19 +314,6 @@ fn encode_session_list_cursor(
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
-fn display_title(s: &Session) -> Option<String> {
-    if !s.user_set_name {
-        if let Some(recipe) = &s.recipe {
-            return Some(recipe.title.clone());
-        }
-    }
-    if s.name.is_empty() {
-        None
-    } else {
-        Some(s.name.clone())
-    }
-}
-
 pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
     let mut meta = serde_json::Map::new();
     meta.insert(
@@ -2861,7 +2848,7 @@ impl GooseAcpAgent {
             .into_iter()
             .map(|s| {
                 let meta = session_meta(&s);
-                let title = display_title(&s);
+                let title = s.display_title();
                 let mut info = SessionInfo::new(SessionId::new(s.id), s.working_dir)
                     .updated_at(s.updated_at.to_rfc3339())
                     .meta(meta);
