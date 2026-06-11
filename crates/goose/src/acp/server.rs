@@ -3,8 +3,8 @@ use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
 pub(super) use crate::acp::response_builder::{
     build_config_options, build_mode_state, build_model_state, build_provider_options,
-    build_session_setup_config, send_session_setup_notifications, session_provider_selection,
-    should_refresh_inventory_for_session_init,
+    build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
+    session_provider_selection, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -220,52 +220,6 @@ pub struct GooseAcpAgent {
 /// can be extracted with `grep 'perf:' <log> | grep 'sid=abc12345'`.
 pub(super) fn sid_short(id: &str) -> String {
     id.chars().take(8).collect()
-}
-
-pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
-    let mut meta = serde_json::Map::new();
-    meta.insert(
-        "messageCount".to_string(),
-        serde_json::Value::Number(session.message_count.into()),
-    );
-    meta.insert(
-        "createdAt".to_string(),
-        serde_json::Value::String(session.created_at.to_rfc3339()),
-    );
-    if let Some(ref archived_at) = session.archived_at {
-        meta.insert(
-            "archivedAt".to_string(),
-            serde_json::Value::String(archived_at.to_rfc3339()),
-        );
-    }
-    meta.insert(
-        "userSetName".to_string(),
-        serde_json::Value::Bool(session.user_set_name),
-    );
-    meta.insert(
-        "hasRecipe".to_string(),
-        serde_json::Value::Bool(session.recipe.is_some()),
-    );
-
-    if let Some(ref pid) = session.project_id {
-        meta.insert(
-            "projectId".to_string(),
-            serde_json::Value::String(pid.clone()),
-        );
-    }
-    if let Some(ref provider) = session.provider_name {
-        meta.insert(
-            "providerId".to_string(),
-            serde_json::Value::String(provider.clone()),
-        );
-    }
-    if let Some(ref mc) = session.model_config {
-        meta.insert(
-            "modelId".to_string(),
-            serde_json::Value::String(mc.model_name.clone()),
-        );
-    }
-    meta
 }
 
 fn meta_string(

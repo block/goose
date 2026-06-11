@@ -321,6 +321,14 @@ impl GooseAcpAgent {
         self.on_import_session(req).await
     }
 
+    #[custom_method(GetSessionInfoRequest)]
+    async fn dispatch_get_session_info(
+        &self,
+        req: GetSessionInfoRequest,
+    ) -> Result<GetSessionInfoResponse, agent_client_protocol::Error> {
+        self.on_get_session_info(req).await
+    }
+
     #[custom_method(ElicitationRespondRequest)]
     async fn dispatch_elicitation_respond(
         &self,

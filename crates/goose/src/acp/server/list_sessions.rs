@@ -1,10 +1,8 @@
-use super::{meta_string, session_meta, GooseAcpAgent, ResultExt};
+use super::{build_session_info, meta_string, GooseAcpAgent, ResultExt};
 use crate::session::session_manager::{
     SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
 };
-use agent_client_protocol::schema::{
-    ListSessionsRequest, ListSessionsResponse, Meta, SessionId, SessionInfo,
-};
+use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -180,21 +178,8 @@ impl GooseAcpAgent {
             })
             .await
             .internal_err()?;
-        let session_infos: Vec<SessionInfo> = page
-            .sessions
-            .into_iter()
-            .map(|s| {
-                let meta = session_meta(&s);
-                let title = s.display_title();
-                let mut info = SessionInfo::new(SessionId::new(s.id), s.working_dir)
-                    .updated_at(s.updated_at.to_rfc3339())
-                    .meta(meta);
-                if let Some(t) = title {
-                    info = info.title(t);
-                }
-                info
-            })
-            .collect();
+        let session_infos: Vec<SessionInfo> =
+            page.sessions.into_iter().map(build_session_info).collect();
         let next_cursor = page
             .next_cursor
             .as_ref()

@@ -1,4 +1,4 @@
-use agent_client_protocol::schema::{ContentBlock, McpServer};
+use agent_client_protocol::schema::{ContentBlock, McpServer, SessionInfo};
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -472,6 +472,23 @@ pub struct DictationSecretSaveRequest {
 #[serde(rename_all = "camelCase")]
 pub struct DictationSecretDeleteRequest {
     pub provider: String,
+}
+
+/// Return list-style metadata for a single session without loading the conversation.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/info",
+    response = GetSessionInfoResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSessionInfoRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSessionInfoResponse {
+    pub session: SessionInfo,
 }
 
 /// Update the project association for a session.
