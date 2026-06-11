@@ -1,10 +1,11 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::{ModelConfig, ThinkingEffort};
-use crate::providers::base::Usage;
-use crate::providers::errors::ProviderError;
-use crate::providers::utils::{convert_image, ImageFormat};
+use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
+use goose_providers::images::{convert_image, ImageFormat};
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
@@ -117,6 +118,8 @@ const EVENT_MESSAGE_STOP: &str = "message_stop";
 const EVENT_CONTENT_BLOCK_START: &str = "content_block_start";
 const EVENT_CONTENT_BLOCK_DELTA: &str = "content_block_delta";
 const EVENT_CONTENT_BLOCK_STOP: &str = "content_block_stop";
+const STOP_REASON_REFUSAL: &str = "refusal";
+const REFUSAL_FALLBACK_DETAILS: &str = "No additional details were provided.";
 
 /// Coerce a tool call's optional arguments into the JSON value Anthropic
 /// expects for the `input` field of a `tool_use` content block.
@@ -484,7 +487,7 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             let total_tokens_i32 =
                 (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
+            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}",
                     total_input_i32, output_tokens_i32, total_tokens_i32);
 
             Ok(Usage::new(
@@ -663,12 +666,7 @@ pub fn create_request_with_options(
 /// Process streaming response from Anthropic's API
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl futures::Stream<
-    Item = anyhow::Result<(
-        Option<Message>,
-        Option<crate::providers::base::ProviderUsage>,
-    )>,
-> + 'static
+) -> impl futures::Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
 where
     S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -702,7 +700,7 @@ where
     try_stream! {
         let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
         let mut current_tool_id: Option<String> = None;
-        let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+        let mut final_usage: Option<ProviderUsage> = None;
         let mut message_id: Option<String> = None;
         let mut thinking: Option<ThinkingState> = None;
 
@@ -744,7 +742,7 @@ where
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                            final_usage = Some(ProviderUsage::new(model, usage));
                         }
                     }
                     continue;
@@ -884,14 +882,41 @@ where
                                 (None, None) => None,
                             };
 
-                            let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
+                            let merged_usage = Usage::new(merged_input, merged_output, merged_total);
+                            final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                         } else {
                             let model = event.data.get("model")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, delta_usage));
+                            final_usage = Some(ProviderUsage::new(model, delta_usage));
+                        }
+                    }
+                    if let Some(delta) = event.data.get("delta") {
+                        let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
+                        if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
+                            let str_field = |key: &str| stop_details
+                                .and_then(|d| d.get(key))
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string);
+                            let details = str_field("explanation")
+                                .or_else(|| stop_details.map(|d| d.to_string()))
+                                .unwrap_or_else(|| REFUSAL_FALLBACK_DETAILS.to_string());
+                            let category = str_field("category");
+                            // The refusal delta carries the request's usage;
+                            // flush it so refused turns are still accounted.
+                            if let Some(usage) = final_usage.take() {
+                                yield (None, Some(usage));
+                            }
+                            Err(ProviderError::Refusal { details, category })?;
+                        } else if let Some(details) = stop_details {
+                            // No specific handling for these stop details yet —
+                            // forward them rather than silently dropping the turn.
+                            let mut message = Message::assistant().with_text(format!(
+                                "The provider ended the response with: {details}"
+                            ));
+                            message.id = message_id.clone();
+                            yield (Some(message), None);
                         }
                     }
                     continue;
@@ -903,7 +928,7 @@ where
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                        final_usage = Some(ProviderUsage::new(model, usage));
                     }
                     break;
                 }
@@ -1580,16 +1605,10 @@ mod tests {
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
-        use futures::StreamExt;
-
-        let lines: Vec<Result<String, anyhow::Error>> =
-            events.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
         let mut parts = StreamedParts::default();
 
-        while let Some(Ok((message, _usage))) = msg_stream.next().await {
-            if let Some(msg) = message {
+        for result in collect_stream_results(events).await {
+            if let Ok((Some(msg), _usage)) = result {
                 for c in &msg.content {
                     match c {
                         MessageContent::Thinking(t) => {
@@ -1737,5 +1756,90 @@ mod tests {
         );
         assert_eq!(parts.text, vec!["Let me search for that."]);
         assert_eq!(parts.tool_calls, vec!["search"]);
+    }
+
+    async fn collect_stream_results(
+        events: &str,
+    ) -> Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> {
+        use futures::StreamExt;
+
+        let lines: Vec<Result<String, anyhow::Error>> =
+            events.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        response_to_streaming_message(stream).collect().await
+    }
+
+    fn expect_refusal(
+        results: Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>>,
+    ) -> (String, Option<String>) {
+        let err = results
+            .into_iter()
+            .find_map(|r| r.err())
+            .expect("refusal should surface as a stream error");
+        match err.downcast_ref::<ProviderError>() {
+            Some(ProviderError::Refusal { details, category }) => {
+                (details.clone(), category.clone())
+            }
+            other => panic!("expected ProviderError::Refusal, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_refusal() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"explanation":"This request violates the usage policy.","category":"cyber"}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let results = collect_stream_results(events).await;
+        let usage = results
+            .iter()
+            .filter_map(|r| r.as_ref().ok())
+            .find_map(|(_, usage)| usage.clone())
+            .expect("a refused request should still yield its usage");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+
+        let (details, category) = expect_refusal(results);
+        assert_eq!(details, "This request violates the usage policy.");
+        assert_eq!(category.as_deref(), Some("cyber"));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_refusal_forwards_unrecognized_stop_details() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"code":42}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let (details, category) = expect_refusal(collect_stream_results(events).await);
+        assert!(details.contains("\"code\":42"), "details: {details}");
+        assert_eq!(category, None);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_forwards_unhandled_stop_details() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"model_context_window_exceeded","stop_details":{"reason":"context_window"}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.text.len(), 1);
+        assert!(
+            parts.text[0].starts_with("The provider ended the response with:"),
+            "text: {}",
+            parts.text[0]
+        );
+        assert!(parts.text[0].contains("context_window"));
     }
 }

@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::utils::bytes_to_hex;
 use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
@@ -56,7 +57,7 @@ impl TokenCache {
         hasher.update(host.as_bytes());
         hasher.update(client_id.as_bytes());
         hasher.update(scopes.join(",").as_bytes());
-        let hash = format!("{:x}", hasher.finalize());
+        let hash = bytes_to_hex(hasher.finalize());
 
         fs::create_dir_all(get_base_path()).unwrap();
         let cache_path = get_base_path().join(format!("{}.json", hash));

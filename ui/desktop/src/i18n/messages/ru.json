@@ -95,15 +95,6 @@
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "поиск расширений..."
   },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "авто"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Автоматический выбор режима"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Текущий режим: {label} - {description}"
-  },
   "cardButtons.configure": {
     "defaultMessage": "Настроить"
   },
@@ -2201,6 +2192,48 @@
   "modelSettingsPanel.flashAttentionDescription": {
     "defaultMessage": "Включить оптимизацию flash attention"
   },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Встроенный шаблон"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Выберите имя встроенного шаблона llama.cpp"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Шаблон чата"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Встроенный"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Пользовательский inline"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "Использовать встроенные метаданные GGUF, встроенный шаблон llama.cpp или inline-шаблон Jinja"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Встроенный"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Пользовательский шаблон чата"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Вставьте полный исходный код шаблона Jinja"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Вызов инструментов"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Авто"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Выберите, как локальные модели используют нативный или эмулируемый вызов инструментов"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Принудительно эмулируемый"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Принудительно нативный"
+  },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "Штраф частоты"
   },
@@ -2230,12 +2263,6 @@
   },
   "modelSettingsPanel.minP": {
     "defaultMessage": "Min P"
-  },
-  "modelSettingsPanel.nativeToolCalling": {
-    "defaultMessage": "Нативный вызов инструментов"
-  },
-  "modelSettingsPanel.nativeToolCallingDescription": {
-    "defaultMessage": "Использовать встроенный формат вызова инструментов модели вместо эмулятора shell-команд. Включайте для крупных моделей, надежно поддерживающих вызов tool calling."
   },
   "modelSettingsPanel.performance": {
     "defaultMessage": "Производительность"
@@ -2287,9 +2314,6 @@
   },
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "Потоки CPU для генерации"
-  },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Вызов инструментов"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
@@ -3694,9 +3718,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "Сообщений: {count}"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Общий доступ к сеансам уже настроен"

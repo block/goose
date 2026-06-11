@@ -1,50 +1,14 @@
+use goose_providers::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
+use goose_providers::thinking::ThinkingEffort;
 use once_cell::sync::Lazy;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fmt;
-use std::str::FromStr;
 use thiserror::Error;
 use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum ThinkingEffort {
-    Off,
-    Low,
-    Medium,
-    High,
-    Max,
-}
-
-impl FromStr for ThinkingEffort {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "off" | "disabled" | "none" => Ok(Self::Off),
-            "low" => Ok(Self::Low),
-            "medium" | "med" => Ok(Self::Medium),
-            "high" => Ok(Self::High),
-            "max" | "xhigh" => Ok(Self::Max),
-            other => Err(format!("unknown thinking effort: '{other}'")),
-        }
-    }
-}
-
-impl fmt::Display for ThinkingEffort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Off => write!(f, "off"),
-            Self::Low => write!(f, "low"),
-            Self::Medium => write!(f, "medium"),
-            Self::High => write!(f, "high"),
-            Self::Max => write!(f, "max"),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 struct PredefinedModel {
@@ -224,8 +188,7 @@ impl ModelConfig {
         let canonical =
             crate::providers::canonical::maybe_get_canonical_model(provider_name, &self.model_name)
                 .or_else(|| {
-                    let (base, _effort) =
-                        crate::providers::utils::extract_reasoning_effort(&self.model_name);
+                    let (base, _effort) = extract_reasoning_effort(&self.model_name);
                     if base != self.model_name {
                         crate::providers::canonical::maybe_get_canonical_model(provider_name, &base)
                     } else {
@@ -396,6 +359,47 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_thinking_effort(mut self, effort: ThinkingEffort) -> Self {
+        let params = self.request_params.get_or_insert_with(HashMap::new);
+        params.insert(
+            "thinking_effort".to_string(),
+            serde_json::json!(effort.to_string()),
+        );
+        self
+    }
+
+    pub fn with_inherited_session_settings_from(
+        mut self,
+        previous: Option<&ModelConfig>,
+        request_params: Option<HashMap<String, Value>>,
+    ) -> Self {
+        if let Some(previous) = previous {
+            let has_thinking_effort = self
+                .request_params
+                .as_ref()
+                .and_then(|params| params.get("thinking_effort"))
+                .is_some();
+
+            if !has_thinking_effort {
+                if let Some(thinking_effort) = previous
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort"))
+                    .cloned()
+                {
+                    let params = self.request_params.get_or_insert_with(HashMap::new);
+                    params.insert("thinking_effort".to_string(), thinking_effort);
+                }
+            }
+        }
+
+        if let Some(request_params) = request_params {
+            self = self.with_merged_request_params(request_params);
+        }
+
+        self
+    }
+
     pub fn use_fast_model(&self) -> Self {
         if let Some(fast_config) = &self.fast_model_config {
             *fast_config.clone()
@@ -409,7 +413,7 @@ impl ModelConfig {
     }
 
     pub fn is_openai_reasoning_model(&self) -> bool {
-        crate::providers::utils::is_openai_responses_model(&self.model_name)
+        is_openai_responses_model(&self.model_name)
     }
 
     pub fn is_reasoning_model(&self) -> bool {
@@ -700,6 +704,143 @@ mod tests {
                 ..Default::default()
             };
             assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Low));
+        }
+
+        #[test]
+        fn with_thinking_effort_sets_request_param() {
+            let config = ModelConfig {
+                model_name: "test".to_string(),
+                ..Default::default()
+            }
+            .with_thinking_effort(ThinkingEffort::High);
+
+            assert_eq!(
+                config
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort")),
+                Some(&serde_json::json!("high"))
+            );
+        }
+
+        #[test]
+        fn preserves_explicit_thinking_effort() {
+            let previous = ModelConfig {
+                model_name: "previous".to_string(),
+                request_params: Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("high"),
+                )])),
+                ..Default::default()
+            };
+            let config = ModelConfig {
+                model_name: "next".to_string(),
+                ..Default::default()
+            }
+            .with_inherited_session_settings_from(Some(&previous), None);
+
+            assert_eq!(
+                config
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort")),
+                Some(&serde_json::json!("high"))
+            );
+        }
+
+        #[test]
+        fn does_not_override_existing_thinking_effort() {
+            let previous = ModelConfig {
+                model_name: "previous".to_string(),
+                request_params: Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("high"),
+                )])),
+                ..Default::default()
+            };
+            let config = ModelConfig {
+                model_name: "next".to_string(),
+                request_params: Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("low"),
+                )])),
+                ..Default::default()
+            }
+            .with_inherited_session_settings_from(Some(&previous), None);
+
+            assert_eq!(
+                config
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort")),
+                Some(&serde_json::json!("low"))
+            );
+        }
+
+        #[test]
+        fn does_not_preserve_unrelated_request_params() {
+            let previous = ModelConfig {
+                model_name: "previous".to_string(),
+                request_params: Some(HashMap::from([(
+                    "provider_specific".to_string(),
+                    serde_json::json!("old"),
+                )])),
+                ..Default::default()
+            };
+            let config = ModelConfig {
+                model_name: "next".to_string(),
+                ..Default::default()
+            }
+            .with_inherited_session_settings_from(Some(&previous), None);
+
+            assert!(config.request_params.is_none());
+        }
+
+        #[test]
+        fn does_not_materialize_env_thinking_effort() {
+            let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
+            let previous = ModelConfig {
+                model_name: "previous".to_string(),
+                ..Default::default()
+            };
+            let config = ModelConfig {
+                model_name: "next".to_string(),
+                ..Default::default()
+            }
+            .with_inherited_session_settings_from(Some(&previous), None);
+
+            assert!(config.request_params.is_none());
+        }
+
+        #[test]
+        fn explicit_request_params_override_preserved_session_settings() {
+            let previous = ModelConfig {
+                model_name: "previous".to_string(),
+                request_params: Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("high"),
+                )])),
+                ..Default::default()
+            };
+            let config = ModelConfig {
+                model_name: "next".to_string(),
+                ..Default::default()
+            }
+            .with_inherited_session_settings_from(
+                Some(&previous),
+                Some(HashMap::from([(
+                    "thinking_effort".to_string(),
+                    serde_json::json!("low"),
+                )])),
+            );
+
+            assert_eq!(
+                config
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort")),
+                Some(&serde_json::json!("low"))
+            );
         }
 
         #[test]

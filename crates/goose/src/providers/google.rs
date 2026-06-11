@@ -1,10 +1,10 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::MessageStream;
-use super::errors::ProviderError;
 use super::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
+use goose_providers::errors::ProviderError;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};

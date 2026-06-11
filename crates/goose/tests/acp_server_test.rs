@@ -1,25 +1,30 @@
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
-use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse};
+use agent_client_protocol::schema::{
+    ListSessionsRequest, ListSessionsResponse, SessionConfigKind, SessionConfigOptionCategory,
+    SessionConfigOptionValue, SetSessionConfigOptionRequest,
+};
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, TestConnectionConfig};
+use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
     run_close_session, run_config_mcp, run_config_option_mode_set, run_config_option_model_set,
     run_delete_session, run_fs_read_text_file_true, run_fs_write_text_file_false,
     run_fs_write_text_file_true, run_initialize_doesnt_hit_provider, run_list_sessions,
-    run_load_mode, run_load_model, run_load_session_error, run_load_session_mcp, run_mode_set,
-    run_model_list, run_model_set, run_model_set_error_session_not_found,
-    run_new_session_returns_initial_config, run_permission_persistence, run_prompt_basic,
+    run_load_mode, run_load_model, run_load_session_error, run_load_session_mcp,
+    run_load_session_replays_image_attachment, run_mode_set, run_model_list, run_model_set,
+    run_model_set_error_session_not_found, run_new_session_returns_initial_config,
+    run_new_session_uses_current_config_mode, run_permission_persistence, run_prompt_basic,
     run_prompt_error, run_prompt_image, run_prompt_image_attachment, run_prompt_mcp,
     run_prompt_model_mismatch, run_prompt_skill, run_session_name_update_notification,
     run_shell_terminal_false, run_shell_terminal_true,
 };
 use goose::config::GooseMode;
 use goose::conversation::message::Message;
+use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::session::{SessionManager, SessionType};
 use std::path::Path;
 
@@ -45,6 +50,29 @@ async fn seed_list_sessions(data_root: &Path, working_dir: &Path, count: usize) 
     }
 }
 
+async fn seed_list_session_with_message(
+    data_root: &Path,
+    working_dir: &Path,
+    name: &str,
+    session_type: SessionType,
+    message: &str,
+) {
+    let session_manager = SessionManager::new(data_root.to_path_buf());
+    let session = session_manager
+        .create_session(
+            working_dir.to_path_buf(),
+            name.to_string(),
+            session_type,
+            GooseMode::default(),
+        )
+        .await
+        .unwrap();
+    session_manager
+        .add_message(&session.id, &Message::user().with_text(message))
+        .await
+        .unwrap();
+}
+
 async fn new_connection(data_root: &Path) -> AcpServerConnection {
     let openai = OpenAiFixture::new(
         vec![],
@@ -65,6 +93,17 @@ async fn list_sessions_request(
     conn: &AcpServerConnection,
     request: ListSessionsRequest,
 ) -> anyhow::Result<ListSessionsResponse> {
+    conn.cx()
+        .send_request(request)
+        .block_task()
+        .await
+        .map_err(Into::into)
+}
+
+async fn get_session_info_request(
+    conn: &AcpServerConnection,
+    request: GetSessionInfoRequest,
+) -> anyhow::Result<GetSessionInfoResponse> {
     conn.cx()
         .send_request(request)
         .block_task()
@@ -122,6 +161,106 @@ fn test_list_sessions_pagination() {
 }
 
 #[test]
+fn test_list_sessions_query_filters_results() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list");
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "Postgres session",
+            SessionType::Acp,
+            "Discuss Postgres migrations",
+        )
+        .await;
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "Mobile session",
+            SessionType::Acp,
+            "Plan the mobile release",
+        )
+        .await;
+        let conn = new_connection(data_root.path()).await;
+
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "query".to_string(),
+            serde_json::Value::String("postgres".to_string()),
+        );
+        let response = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+            .await
+            .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(
+            response.sessions[0].title.as_deref(),
+            Some("Postgres session")
+        );
+        assert!(response.next_cursor.is_none());
+    });
+}
+
+#[test]
+fn test_list_sessions_types_override_filters_results() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list");
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "ACP session",
+            SessionType::Acp,
+            "ACP message",
+        )
+        .await;
+        seed_list_session_with_message(
+            data_root.path(),
+            cwd,
+            "User session",
+            SessionType::User,
+            "User message",
+        )
+        .await;
+        let conn = new_connection(data_root.path()).await;
+
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "types".to_string(),
+            serde_json::Value::Array(vec![serde_json::Value::String("user".to_string())]),
+        );
+        let response = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+            .await
+            .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(response.sessions[0].title.as_deref(), Some("User session"));
+        assert!(response.next_cursor.is_none());
+    });
+}
+
+#[test]
+fn test_list_sessions_types_rejects_internal_session_types() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        for session_type in ["hidden", "sub_agent"] {
+            let mut meta = serde_json::Map::new();
+            meta.insert(
+                "types".to_string(),
+                serde_json::Value::Array(vec![serde_json::Value::String(session_type.to_string())]),
+            );
+
+            let error = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+                .await
+                .unwrap_err();
+            assert_invalid_params(error);
+        }
+    });
+}
+
+#[test]
 fn test_list_sessions_invalid_params() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
@@ -161,6 +300,55 @@ fn test_list_sessions_invalid_params() {
 }
 
 #[test]
+fn test_get_session_info() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-info");
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                cwd.to_path_buf(),
+                "Session info".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("hello"))
+            .await
+            .unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        let response = get_session_info_request(
+            &conn,
+            GetSessionInfoRequest {
+                session_id: session.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            response.session.session_id,
+            agent_client_protocol::schema::SessionId::new(session.id)
+        );
+        assert_eq!(response.session.cwd, cwd.to_path_buf());
+        assert_eq!(response.session.title.as_deref(), Some("Session info"));
+        assert!(response.session.updated_at.is_some());
+
+        let meta = response
+            .session
+            .meta
+            .expect("session info should include meta");
+        assert!(meta.get("createdAt").and_then(|v| v.as_str()).is_some());
+        assert_eq!(meta.get("messageCount"), Some(&serde_json::json!(1)));
+        assert_eq!(meta.get("userSetName"), Some(&serde_json::json!(false)));
+        assert_eq!(meta.get("hasRecipe"), Some(&serde_json::json!(false)));
+    });
+}
+
+#[test]
 fn test_session_name_update_notification() {
     run_test(async { run_session_name_update_notification::<AcpServerConnection>().await });
 }
@@ -173,6 +361,53 @@ fn test_close_session() {
 #[test]
 fn test_config_option_model_set() {
     run_test(async { run_config_option_model_set::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_config_option_thinking_effort_set() {
+    run_test(async {
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let mut conn = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                current_model: "claude-sonnet-4".to_string(),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+        let data = conn.new_session().await.unwrap();
+
+        let response = conn
+            .cx()
+            .send_request(SetSessionConfigOptionRequest::new(
+                data.session.session_id().clone(),
+                "thinking_effort".to_string(),
+                SessionConfigOptionValue::value_id("high".to_string()),
+            ))
+            .block_task()
+            .await
+            .unwrap();
+
+        let option = response
+            .config_options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "thinking_effort")
+            .expect("thinking_effort option");
+        assert_eq!(
+            option.category,
+            Some(SessionConfigOptionCategory::ThoughtLevel)
+        );
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("thinking_effort should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "high");
+    });
 }
 
 #[test]
@@ -221,6 +456,11 @@ fn test_load_session_mcp() {
 }
 
 #[test]
+fn test_load_session_replays_image_attachment() {
+    run_test(async { run_load_session_replays_image_attachment::<AcpServerConnection>().await });
+}
+
+#[test]
 fn test_mode_set() {
     run_test(async { run_mode_set::<AcpServerConnection>().await });
 }
@@ -233,6 +473,11 @@ fn test_model_list() {
 #[test]
 fn test_new_session_returns_initial_config() {
     run_test(async { run_new_session_returns_initial_config::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_new_session_uses_current_config_mode() {
+    run_test(async { run_new_session_uses_current_config_mode::<AcpServerConnection>().await });
 }
 
 #[test]

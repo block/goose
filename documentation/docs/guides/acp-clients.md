@@ -194,6 +194,18 @@ npm start -- --server http://HOST:PORT
 cargo run -p goose-cli --bin goose -- serve
 ```
 
+### Server Authentication
+
+Set the `GOOSE_SERVER__SECRET_KEY` environment variable to require authentication on the ACP endpoint. When it is set, `goose serve` rejects any request that doesn't present a matching token:
+
+```bash
+GOOSE_SERVER__SECRET_KEY='a-long-random-secret' goose serve
+```
+
+Clients authenticate by sending the token in the `X-Secret-Key` header, or as a `?token=` query parameter for WebSocket connections (the browser WebSocket API can't set custom headers). Requests without a matching token receive `401 Unauthorized`, including WebSocket handshakes.
+
+When `GOOSE_SERVER__SECRET_KEY` is not set, the endpoint accepts unauthenticated connections and `goose serve` logs a warning at startup.
+
 ### Single Prompt Mode
 
 Send a single prompt and exit (useful for scripting):

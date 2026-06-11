@@ -1,0 +1,20 @@
+[package]
+name = "goose-sdk-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared types for the Goose SDK"
+
+[dependencies]
+agent-client-protocol = { workspace = true, features = ["unstable"] }
+agent-client-protocol-schema = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+schemars = { workspace = true, features = ["derive"] }
+
+[package.metadata.cargo-machete]
+# Used to provide extras imports for agent-client-protocol
+ignored = ["agent-client-protocol-schema"]
