@@ -1126,6 +1126,7 @@ mod tests {
 
     #[test]
     fn test_create_request_reasoning_effort_xhigh() -> anyhow::Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
         let model_config = ModelConfig {
             model_name: "o3-xhigh".to_string(),
             context_limit: Some(4096),
@@ -1145,6 +1146,7 @@ mod tests {
 
     #[test]
     fn test_create_request_reasoning_effort_none() -> anyhow::Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
         let model_config = ModelConfig {
             model_name: "o3-none".to_string(),
             context_limit: Some(4096),
@@ -1164,6 +1166,7 @@ mod tests {
 
     #[test]
     fn test_create_request_reasoning_effort_for_prefixed_gpt5_model() -> anyhow::Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
         let model_config = ModelConfig {
             model_name: "databricks-gpt-5.4-high".to_string(),
             context_limit: Some(4096),
