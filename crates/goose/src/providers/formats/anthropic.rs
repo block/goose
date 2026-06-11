@@ -68,9 +68,24 @@ impl AnthropicFormatOptions {
     }
 }
 
+/// Models where adaptive thinking is always on and cannot be disabled, so
+/// `thinking: {type: "adaptive"}` is the only valid mode regardless of effort.
+pub fn always_on_adaptive_thinking(model_name: &str) -> bool {
+    let lower = model_name.to_lowercase();
+    lower.contains("claude-fable-5")
+        || lower.contains("claude-mythos-5")
+        || lower.contains("claude-mythos-preview")
+}
+
+/// Models that use adaptive thinking instead of manual `thinking: {type: "enabled"}`.
+/// On Opus 4.7/4.8 and the always-on models, manual `enabled` is rejected with a 400.
 pub fn supports_adaptive_thinking(model_name: &str) -> bool {
     let lower = model_name.to_lowercase();
-    lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
+    always_on_adaptive_thinking(model_name)
+        || lower.contains("claude-opus-4-6")
+        || lower.contains("claude-sonnet-4-6")
+        || lower.contains("claude-opus-4-7")
+        || lower.contains("claude-opus-4-8")
 }
 
 pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
@@ -79,11 +94,19 @@ pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
         return ThinkingType::Disabled;
     }
 
+    if always_on_adaptive_thinking(&model_config.model_name) {
+        return ThinkingType::Adaptive;
+    }
+
     let is_adaptive_model = supports_adaptive_thinking(&model_config.model_name);
     let effort = model_config.thinking_effort();
 
     if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
-        return ThinkingType::Enabled;
+        return if is_adaptive_model {
+            ThinkingType::Adaptive
+        } else {
+            ThinkingType::Enabled
+        };
     }
 
     match effort.unwrap_or(ThinkingEffort::Off) {
@@ -1559,6 +1582,37 @@ mod tests {
             thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
             ThinkingType::Disabled
         );
+        // Opus 4.7/4.8 are adaptive-only (manual `enabled` is rejected by the API)
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-opus-4-7", "high")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("databricks-claude-opus-4-8", "high")),
+            ThinkingType::Adaptive
+        );
+    }
+
+    #[test]
+    fn test_thinking_type_always_on_adaptive() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        // Fable 5 / Mythos 5 cannot disable thinking — always adaptive, even with off or unset.
+        for name in [
+            "databricks-claude-fable-5",
+            "global.anthropic.claude-fable-5",
+            "claude-mythos-5",
+            "claude-mythos-preview",
+        ] {
+            assert_eq!(thinking_type(&cfg(name)), ThinkingType::Adaptive);
+            assert_eq!(
+                thinking_type(&cfg_with_effort(name, "off")),
+                ThinkingType::Adaptive
+            );
+            assert_eq!(
+                thinking_type(&cfg_with_effort(name, "high")),
+                ThinkingType::Adaptive
+            );
+        }
     }
 
     #[test]

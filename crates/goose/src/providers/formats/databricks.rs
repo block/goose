@@ -1201,6 +1201,24 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_fable_5_omits_temperature() -> anyhow::Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        let mut model_config = ModelConfig::new_or_fail("databricks-claude-fable-5");
+        model_config.max_tokens = Some(4096);
+        model_config.temperature = Some(0.7);
+
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+
+        assert_eq!(request["thinking"]["type"], "adaptive");
+        assert!(
+            request.get("temperature").is_none(),
+            "fable-5 does not support the temperature parameter"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
         let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
         model_config.max_tokens = Some(4096);
