@@ -68,7 +68,7 @@ impl ExporterType {
 /// (matching what `.with_http()` produces in this build).
 ///
 /// goose's `opentelemetry-otlp` build only enables the `http-proto` /
-/// `reqwest-client` transport features — not `grpc-tonic`. If the caller's
+/// `reqwest-blocking-client` transport features — not `grpc-tonic`. If the caller's
 /// environment sets `…_PROTOCOL=grpc`, the `.with_http()` exporter still
 /// builds successfully but its background batch / metric reader threads
 /// panic on the first export with
