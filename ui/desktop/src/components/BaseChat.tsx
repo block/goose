@@ -499,12 +499,16 @@ export default function BaseChat({
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
             accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+              tokenState?.accumulatedInputTokens ??
+              session?.accumulated_usage?.input_tokens ??
+              undefined
             }
             accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+              tokenState?.accumulatedOutputTokens ??
+              session?.accumulated_usage?.output_tokens ??
+              undefined
             }
             accumulatedCost={
               tokenState?.accumulatedCost ?? session?.accumulated_cost ?? undefined

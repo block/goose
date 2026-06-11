@@ -3,6 +3,7 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::conversation::token_usage::Usage;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
 use goose::model::ModelConfig;
@@ -530,6 +531,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         MessageMetadata,
         InferenceMetadata,
         TokenState,
+        Usage,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,

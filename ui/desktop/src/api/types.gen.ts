@@ -1330,27 +1330,23 @@ export type ScheduledJob = {
 
 export type Session = {
     accumulated_cost?: number | null;
-    accumulated_input_tokens?: number | null;
-    accumulated_output_tokens?: number | null;
-    accumulated_total_tokens?: number | null;
+    accumulated_usage?: Usage;
     archived_at?: string | null;
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
     goose_mode?: GooseMode;
     id: string;
-    input_tokens?: number | null;
     message_count: number;
     model_config?: ModelConfig | null;
     name: string;
-    output_tokens?: number | null;
     project_id?: string | null;
     provider_name?: string | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
     session_type?: SessionType;
-    total_tokens?: number | null;
     updated_at: string;
+    usage?: Usage;
     user_recipe_values?: {
         [key: string]: string;
     } | null;
@@ -1528,10 +1524,14 @@ export type ThinkingContent = {
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
 
 export type TokenState = {
+    accumulatedCacheReadTokens?: number;
+    accumulatedCacheWriteTokens?: number;
     accumulatedCost?: number | null;
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
     accumulatedTotalTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -1739,6 +1739,20 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * `input_tokens` is the total input including cache read/write tokens;
+ * the cache fields are breakdown subsets of it. Parsers for providers
+ * that report cache tokens separately from input (e.g. Anthropic,
+ * Bedrock) must fold them into `input_tokens`.
+ */
+export type Usage = {
+    cache_read_input_tokens?: number | null;
+    cache_write_input_tokens?: number | null;
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    total_tokens?: number | null;
 };
 
 export type WhisperModelResponse = {

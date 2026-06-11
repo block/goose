@@ -1929,7 +1929,7 @@ impl ExtensionManager {
             .await
         {
             if let (Some(total), Some(config)) =
-                (session.total_tokens, session.model_config.as_ref())
+                (session.usage.total_tokens, session.model_config.as_ref())
             {
                 let limit = config.context_limit();
                 if total > 0 && limit > 0 {
