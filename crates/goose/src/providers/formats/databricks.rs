@@ -1,7 +1,7 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::anthropic::{
-    thinking_budget_tokens, thinking_effort, thinking_type, ThinkingType,
+    adaptive_output_effort, thinking_budget_tokens, thinking_type, ThinkingType,
 };
 
 use anyhow::{anyhow, Error};
@@ -251,7 +251,7 @@ fn apply_claude_thinking_config(payload: &mut Value, model_config: &ModelConfig)
             obj.insert("thinking".to_string(), json!({ "type": "adaptive" }));
             obj.insert(
                 "output_config".to_string(),
-                json!({ "effort": thinking_effort(model_config).to_string() }),
+                json!({ "effort": adaptive_output_effort(model_config).to_string() }),
             );
             obj.insert(
                 "max_completion_tokens".to_string(),
@@ -1213,6 +1213,27 @@ mod tests {
         assert!(
             request.get("temperature").is_none(),
             "fable-5 does not support the temperature parameter"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_always_on_adaptive_off_effort_falls_back_to_high() -> anyhow::Result<()>
+    {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        let mut model_config = ModelConfig::new_or_fail("databricks-claude-fable-5");
+        model_config.max_tokens = Some(4096);
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), serde_json::json!("off"));
+        model_config.request_params = Some(params);
+
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+
+        assert_eq!(request["thinking"]["type"], "adaptive");
+        assert_eq!(
+            request["output_config"]["effort"], "high",
+            "always-on adaptive models cannot disable thinking, so off must not be sent"
         );
 
         Ok(())

@@ -538,6 +538,17 @@ pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
         .unwrap_or(ThinkingEffort::High)
 }
 
+/// Effort to send in `output_config.effort` for adaptive thinking. Adaptive
+/// thinking does not accept an "off" effort; the only way the adaptive branch
+/// sees "off" is an always-on model that cannot be disabled, so fall back to the
+/// default "high".
+pub fn adaptive_output_effort(model_config: &ModelConfig) -> ThinkingEffort {
+    match thinking_effort(model_config) {
+        ThinkingEffort::Off => ThinkingEffort::High,
+        other => other,
+    }
+}
+
 pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
     if let Some(request_param) = model_config
         .request_params
@@ -584,7 +595,7 @@ fn apply_thinking_config(
     match thinking_type(model_config) {
         ThinkingType::Adaptive => {
             obj.insert("thinking".to_string(), json!({"type": "adaptive"}));
-            let effort = thinking_effort(model_config).to_string();
+            let effort = adaptive_output_effort(model_config).to_string();
             obj.insert("output_config".to_string(), json!({"effort": effort}));
         }
         ThinkingType::Enabled => {
