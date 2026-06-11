@@ -12,7 +12,7 @@ use clap::Parser;
 use goose::providers::create_with_named_model;
 use goose_providers::canonical::{
     canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality,
-    ModelMapping, Pricing,
+    ModelMapping, Pricing, ThinkingMode,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -346,6 +346,25 @@ fn get_string(value: &Value, field: &str) -> Option<String> {
     value.get(field).and_then(|v| v.as_str()).map(String::from)
 }
 
+fn get_thinking_mode(canonical_id: &str, value: &Value) -> Option<ThinkingMode> {
+    value
+        .get("thinking_mode")
+        .and_then(|v| v.as_str())
+        .and_then(|mode| serde_json::from_value(Value::String(mode.to_string())).ok())
+        .or_else(|| inferred_thinking_mode(canonical_id))
+}
+
+fn inferred_thinking_mode(canonical_id: &str) -> Option<ThinkingMode> {
+    match canonical_id {
+        "anthropic/claude-fable-5" => Some(ThinkingMode::AlwaysOnAdaptive),
+        "anthropic/claude-opus-4.6" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-opus-4.7" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-opus-4.8" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-sonnet-4.6" => Some(ThinkingMode::Adaptive),
+        _ => None,
+    }
+}
+
 fn parse_modalities(model_data: &Value, field: &str) -> Vec<Modality> {
     model_data
         .get("modalities")
@@ -412,6 +431,7 @@ fn process_model(
         family: get_string(model_data, "family"),
         attachment: model_data.get("attachment").and_then(|v| v.as_bool()),
         reasoning: model_data.get("reasoning").and_then(|v| v.as_bool()),
+        thinking_mode: get_thinking_mode(&canonical_id, model_data),
         tool_call: model_data
             .get("tool_call")
             .and_then(|v| v.as_bool())
@@ -497,6 +517,7 @@ fn collect_provider_metadata(
         println!("  Added {} ({}) - {} models", provider_id, npm, model_count);
     }
 
+    metadata_list.sort_by(|a, b| a.id.cmp(&b.id));
     metadata_list
 }
 
@@ -722,6 +743,7 @@ mod tests {
                 family: None,
                 attachment: None,
                 reasoning: None,
+                thinking_mode: None,
                 tool_call: false,
                 temperature: None,
                 knowledge: None,
