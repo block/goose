@@ -143,6 +143,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         Err(e) => { responder.respond_with_error(e)?; return Ok(()); }
                                     }
                                 }
+                                "thinking_effort" => {
+                                    match agent.on_set_thinking_effort(&session_id.0, &value_id.0).await {
+                                        Ok(_) => {}
+                                        Err(e) => { responder.respond_with_error(e)?; return Ok(()); }
+                                    }
+                                }
                                 other => {
                                     responder.respond_with_error(
                                         agent_client_protocol::Error::invalid_params().data(format!("Unsupported config option: {}", other))

@@ -17,6 +17,10 @@ jobs:
   build:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PAGES_PR_PREVIEW_CF_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PAGES_PR_PREVIEW_CF_API_TOKEN }}
+      CLOUDFLARE_PAGES_PROJECT_NAME: ${{ secrets.PAGES_PR_PREVIEW_CF_PAGES_PROJECT_NAME }}
     permissions:
       contents: read
       pull-requests: write
@@ -52,12 +56,10 @@ jobs:
           node-version: 22
 
       - name: Deploy preview to Cloudflare Pages
+        if: env.CLOUDFLARE_ACCOUNT_ID != '' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_PAGES_PROJECT_NAME != ''
         id: cloudflare-pages
         working-directory: ./documentation
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PAGES_PR_PREVIEW_CF_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.PAGES_PR_PREVIEW_CF_API_TOKEN }}
-          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ secrets.PAGES_PR_PREVIEW_CF_PAGES_PROJECT_NAME }}
           PR_NUMBER: ${{ github.event.number }}
         run: |
           set -euo pipefail
@@ -76,6 +78,7 @@ jobs:
           echo "preview-url=$preview_url" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview URL
+        if: steps.cloudflare-pages.outputs.preview-url != ''
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         env:
           PREVIEW_URL: ${{ steps.cloudflare-pages.outputs.preview-url }}

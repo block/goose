@@ -1326,7 +1326,7 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
     use goose::config::paths::Paths;
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use tracing::info;
+    use tracing::{info, warn};
 
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
@@ -1353,12 +1353,18 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots,
     }));
-    let secret_key = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
+    let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
         .map(|secret| secret.trim().to_string())
-        .filter(|secret| !secret.is_empty())
-        .unwrap_or_else(generate_serve_secret_key);
-    let router = create_router(server, secret_key);
+        .filter(|secret| !secret.is_empty());
+    let require_token = env_secret.is_some();
+    if !require_token {
+        warn!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set; the ACP endpoint will accept unauthenticated connections"
+        );
+    }
+    let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
+    let router = create_router(server, secret_key, require_token);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     info!("Starting ACP server on {}", addr);

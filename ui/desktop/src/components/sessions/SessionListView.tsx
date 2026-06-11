@@ -20,7 +20,6 @@ import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
-import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -35,11 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import {
-  importSessionNostr,
-  searchSessions,
-  shareSessionNostr,
-} from '../../api';
+import { importSessionNostr, shareSessionNostr } from '../../api';
 import { getTunnelStatus } from '../../api/sdk.gen';
 import {
   acpDeleteSession,
@@ -50,7 +45,6 @@ import {
   acpRenameSession,
   type SessionListItem,
 } from '../../acp/sessions';
-import { sessionToListItem } from '../../hooks/useNavigationSessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 const i18n = defineMessages({
@@ -232,10 +226,6 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-interface SearchContainerElement extends HTMLDivElement {
-  _searchHighlighter: SearchHighlighter | null;
-}
-
 interface SessionListViewProps {
   onSelectSession: (sessionId: string) => void;
   selectedSessionId?: string | null;
@@ -245,18 +235,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
   ({ onSelectSession, selectedSessionId }) => {
     const intl = useIntl();
     const [sessions, setSessions] = useState<SessionListItem[]>([]);
-    const [filteredSessions, setFilteredSessions] = useState<SessionListItem[]>([]);
     const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
     const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showSkeleton, setShowSkeleton] = useState(true);
     const [showContent, setShowContent] = useState(false);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [searchResults, setSearchResults] = useState<{
-      count: number;
-      currentIndex: number;
-    } | null>(null);
 
     const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
 
@@ -278,11 +262,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     // Search state for debouncing
     const [searchTerm, setSearchTerm] = useState('');
-    const [caseSensitive, setCaseSensitive] = useState(false);
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
+    const debouncedSearchTermRef = useRef(debouncedSearchTerm);
+    debouncedSearchTermRef.current = debouncedSearchTerm;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const loadGenerationRef = useRef(0);
+    const hasLoadedRef = useRef(false);
 
     // Track session to element ref
     const sessionRefs = useRef<Record<string, HTMLElement>>({});
@@ -313,66 +299,75 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     }, [debouncedSearchTerm, dateGroups.length]);
 
-    const loadRemainingSessionPages = useCallback(async (initialCursor: string, loadId: number) => {
-      let cursor: string | null = initialCursor;
-      setIsPrefetchingSessions(true);
+    const loadRemainingSessionPages = useCallback(
+      async (initialCursor: string, loadId: number, keyword?: string) => {
+        let cursor: string | null = initialCursor;
+        setIsPrefetchingSessions(true);
 
-      try {
-        while (cursor && loadGenerationRef.current === loadId) {
-          const resp = await acpListSessions(cursor);
+        try {
+          while (cursor && loadGenerationRef.current === loadId) {
+            const resp = await acpListSessions(cursor, { keyword });
+            if (loadGenerationRef.current !== loadId) return;
+
+            cursor = resp.nextCursor;
+            startTransition(() => {
+              setSessions((prev) => {
+                const seen = new Set(prev.map((s) => s.id));
+                return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+              });
+            });
+          }
+        } catch (err) {
+          console.error('Failed to load remaining sessions:', err);
+        } finally {
+          if (loadGenerationRef.current === loadId) {
+            setIsPrefetchingSessions(false);
+          }
+        }
+      },
+      []
+    );
+
+    const loadSessions = useCallback(
+      async (keyword: string = debouncedSearchTermRef.current) => {
+        const loadId = loadGenerationRef.current + 1;
+        loadGenerationRef.current = loadId;
+        // Only show the skeleton on the first load; subsequent loads (e.g. typing a
+        // search keyword) update the list in place without flashing the skeleton.
+        const isFirstLoad = !hasLoadedRef.current;
+        setIsPrefetchingSessions(false);
+        setError(null);
+        if (isFirstLoad) {
+          setIsLoading(true);
+          setShowSkeleton(true);
+          setShowContent(false);
+        }
+        try {
+          const resp = await acpListSessions(undefined, { keyword });
+          if (loadGenerationRef.current !== loadId) return;
+          hasLoadedRef.current = true;
+
+          startTransition(() => {
+            setSessions(resp.sessions);
+          });
+
+          if (resp.nextCursor) {
+            void loadRemainingSessionPages(resp.nextCursor, loadId, keyword);
+          }
+        } catch (err) {
           if (loadGenerationRef.current !== loadId) return;
 
-          cursor = resp.nextCursor;
-          startTransition(() => {
-            setSessions((prev) => {
-              const seen = new Set(prev.map((s) => s.id));
-              return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
-            });
-          });
+          console.error('Failed to load sessions:', err);
+          setError('Failed to load sessions. Please try again later.');
+          setSessions([]);
+        } finally {
+          if (loadGenerationRef.current === loadId && isFirstLoad) {
+            setIsLoading(false);
+          }
         }
-      } catch (err) {
-        console.error('Failed to load remaining sessions:', err);
-      } finally {
-        if (loadGenerationRef.current === loadId) {
-          setIsPrefetchingSessions(false);
-        }
-      }
-    }, []);
-
-    const loadSessions = useCallback(async () => {
-      const loadId = loadGenerationRef.current + 1;
-      loadGenerationRef.current = loadId;
-      setIsLoading(true);
-      setIsPrefetchingSessions(false);
-      setShowSkeleton(true);
-      setShowContent(false);
-      setError(null);
-      try {
-        const resp = await acpListSessions();
-        if (loadGenerationRef.current !== loadId) return;
-
-        // Use startTransition to make state updates non-blocking
-        startTransition(() => {
-          setSessions(resp.sessions);
-          setFilteredSessions(resp.sessions);
-        });
-
-        if (resp.nextCursor) {
-          void loadRemainingSessionPages(resp.nextCursor, loadId);
-        }
-      } catch (err) {
-        if (loadGenerationRef.current !== loadId) return;
-
-        console.error('Failed to load sessions:', err);
-        setError('Failed to load sessions. Please try again later.');
-        setSessions([]);
-        setFilteredSessions([]);
-      } finally {
-        if (loadGenerationRef.current === loadId) {
-          setIsLoading(false);
-        }
-      }
-    }, [loadRemainingSessionPages]);
+      },
+      [loadRemainingSessionPages]
+    );
 
     const handleScroll = useCallback(
       (target: HTMLDivElement) => {
@@ -389,17 +384,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     );
 
     useEffect(() => {
-      loadSessions();
+      loadSessions(debouncedSearchTerm);
       return () => {
+        // Bump the generation so any in-flight load for the previous keyword is discarded.
         loadGenerationRef.current += 1;
       };
-    }, [loadSessions]);
-
-    useEffect(() => {
-      if (!debouncedSearchTerm) {
-        setFilteredSessions(sessions);
-      }
-    }, [sessions, debouncedSearchTerm]);
+    }, [loadSessions, debouncedSearchTerm]);
 
     // Hide Nostr sharing when tunnel is disabled (restricted/enterprise bundles)
     useEffect(() => {
@@ -420,22 +410,19 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         startTransition(() => {
           setTimeout(() => {
             setShowContent(true);
-            if (isInitialLoad) {
-              setIsInitialLoad(false);
-            }
           }, 10);
         });
       }
       return () => void 0;
-    }, [isLoading, showSkeleton, isInitialLoad]);
+    }, [isLoading, showSkeleton]);
 
     // Memoize date groups calculation to prevent unnecessary recalculations
     const memoizedDateGroups = useMemo(() => {
-      if (filteredSessions.length > 0) {
-        return groupSessionsByDate(filteredSessions);
+      if (sessions.length > 0) {
+        return groupSessionsByDate(sessions);
       }
       return [];
-    }, [filteredSessions]);
+    }, [sessions]);
 
     // Update date groups when filtered sessions change
     useEffect(() => {
@@ -456,70 +443,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     }, [selectedSessionId, sessions]);
 
-    // Debounced search effect - performs content search via API
-    useEffect(() => {
-      if (!debouncedSearchTerm) {
-        setSearchResults(null);
-        return;
-      }
-
-      const performSearch = async () => {
-        const resp = await searchSessions({
-          query: { query: debouncedSearchTerm },
-        });
-
-        if (resp.data) {
-          // Response is Vec<Session> - sessions that match the search
-          const matched = resp.data.map(sessionToListItem).sort((a, b) => {
-            const byUpdatedAt = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-            if (byUpdatedAt !== 0) return byUpdatedAt;
-            if (a.id > b.id) return -1;
-            if (a.id < b.id) return 1;
-            return 0;
-          });
-
-          startTransition(() => {
-            setFilteredSessions(matched);
-            setSearchResults(
-              matched.length > 0 ? { count: matched.length, currentIndex: 1 } : null
-            );
-          });
-        }
-      };
-
-      performSearch();
-    }, [debouncedSearchTerm, caseSensitive]);
-
-    // Handle immediate search input (updates search term for debouncing)
-    const handleSearch = useCallback((term: string, caseSensitive: boolean) => {
+    // Handle immediate search input (updates search term for debouncing).
+    const handleSearch = useCallback((term: string) => {
       setSearchTerm(term);
-      setCaseSensitive(caseSensitive);
     }, []);
-
-    // Handle search result navigation
-    const handleSearchNavigation = (direction: 'next' | 'prev') => {
-      if (!searchResults || filteredSessions.length === 0) return;
-
-      let newIndex: number;
-      if (direction === 'next') {
-        newIndex = (searchResults.currentIndex % filteredSessions.length) + 1;
-      } else {
-        newIndex =
-          searchResults.currentIndex === 1
-            ? filteredSessions.length
-            : searchResults.currentIndex - 1;
-      }
-
-      setSearchResults({ ...searchResults, currentIndex: newIndex });
-
-      // Find the SearchView's container element
-      const searchContainer =
-        containerRef.current?.querySelector<SearchContainerElement>('.search-container');
-      if (searchContainer?._searchHighlighter) {
-        // Update the current match in the highlighter
-        searchContainer._searchHighlighter.setCurrentMatch(newIndex - 1, true);
-      }
-    };
 
     // Handle modal close
     const handleModalClose = useCallback(() => {
@@ -554,6 +481,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         try {
           await acpForkSession(session.id, session.workingDir);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
         } catch (error) {
           console.error('Error duplicating session:', error);
@@ -639,6 +567,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           }
           await acpImportSession(result.contents);
           toast.success(intl.formatMessage(i18n.importSuccess));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
         } catch (error) {
           toast.error(
@@ -664,6 +593,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         setNostrImportLink('');
         setShowImportLinkModal(false);
         toast.success(intl.formatMessage(i18n.importSuccess));
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
         await loadSessions();
       } catch (error) {
         toast.error(intl.formatMessage(i18n.importFailed, { error: errorMessage(error, 'Unknown error') }));
@@ -691,6 +621,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           await acpImportSession(json);
 
           toast.success(intl.formatMessage(i18n.importSuccess));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
         } catch (error) {
           toast.error(intl.formatMessage(i18n.importFailed, { error: String(error) }));
@@ -908,7 +839,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
             <p className="text-lg mb-2">{intl.formatMessage(i18n.errorLoading)}</p>
             <p className="text-sm text-center mb-4">{error}</p>
-            <Button onClick={loadSessions} variant="default">
+            <Button onClick={() => loadSessions(debouncedSearchTerm)} variant="default">
               {intl.formatMessage(i18n.tryAgain)}
             </Button>
           </div>
@@ -916,21 +847,22 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
 
       if (sessions.length === 0) {
+        // `sessions` holds the keyword-filtered set, so an empty result while searching
+        // means "no matches" rather than "no sessions at all".
+        if (debouncedSearchTerm) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full text-text-secondary mt-4">
+              <MessageSquareText className="h-12 w-12 mb-4" />
+              <p className="text-lg mb-2">{intl.formatMessage(i18n.noMatching)}</p>
+              <p className="text-sm">{intl.formatMessage(i18n.noMatchingDesc)}</p>
+            </div>
+          );
+        }
         return (
           <div className="flex flex-col justify-center h-full text-text-secondary">
             <MessageSquareText className="h-12 w-12 mb-4" />
             <p className="text-lg mb-2">{intl.formatMessage(i18n.noSessions)}</p>
             <p className="text-sm">{intl.formatMessage(i18n.noSessionsDesc)}</p>
-          </div>
-        );
-      }
-
-      if (dateGroups.length === 0 && searchResults !== null) {
-        return (
-          <div className="flex flex-col items-center justify-center h-full text-text-secondary mt-4">
-            <MessageSquareText className="h-12 w-12 mb-4" />
-            <p className="text-lg mb-2">{intl.formatMessage(i18n.noMatching)}</p>
-            <p className="text-sm">{intl.formatMessage(i18n.noMatchingDesc)}</p>
           </div>
         );
       }
@@ -1014,10 +946,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <div ref={containerRef} className="h-full relative">
                   <SearchView
                     onSearch={handleSearch}
-                    onNavigate={handleSearchNavigation}
-                    searchResults={searchResults}
                     className="relative"
                     placeholder={intl.formatMessage(i18n.searchPlaceholder)}
+                    showCaseSensitive={false}
+                    showNavigation={false}
+                    highlightMatches={false}
                   >
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div
