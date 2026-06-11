@@ -24,6 +24,7 @@ use common_tests::{
 };
 use goose::config::GooseMode;
 use goose::conversation::message::Message;
+use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::session::{SessionManager, SessionType};
 use std::path::Path;
 
@@ -92,6 +93,17 @@ async fn list_sessions_request(
     conn: &AcpServerConnection,
     request: ListSessionsRequest,
 ) -> anyhow::Result<ListSessionsResponse> {
+    conn.cx()
+        .send_request(request)
+        .block_task()
+        .await
+        .map_err(Into::into)
+}
+
+async fn get_session_info_request(
+    conn: &AcpServerConnection,
+    request: GetSessionInfoRequest,
+) -> anyhow::Result<GetSessionInfoResponse> {
     conn.cx()
         .send_request(request)
         .block_task()
@@ -284,6 +296,55 @@ fn test_list_sessions_invalid_params() {
         .await
         .unwrap_err();
         assert_invalid_params(error);
+    });
+}
+
+#[test]
+fn test_get_session_info() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-info");
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                cwd.to_path_buf(),
+                "Session info".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("hello"))
+            .await
+            .unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        let response = get_session_info_request(
+            &conn,
+            GetSessionInfoRequest {
+                session_id: session.id.clone(),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            response.session.session_id,
+            agent_client_protocol::schema::SessionId::new(session.id)
+        );
+        assert_eq!(response.session.cwd, cwd.to_path_buf());
+        assert_eq!(response.session.title.as_deref(), Some("Session info"));
+        assert!(response.session.updated_at.is_some());
+
+        let meta = response
+            .session
+            .meta
+            .expect("session info should include meta");
+        assert!(meta.get("createdAt").and_then(|v| v.as_str()).is_some());
+        assert_eq!(meta.get("messageCount"), Some(&serde_json::json!(1)));
+        assert_eq!(meta.get("userSetName"), Some(&serde_json::json!(false)));
+        assert_eq!(meta.get("hasRecipe"), Some(&serde_json::json!(false)));
     });
 }
 
