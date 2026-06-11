@@ -221,6 +221,14 @@ impl AgentConfig {
         self.use_login_shell_path = Some(use_login_shell_path);
         self
     }
+
+    fn resolve_use_login_shell_path(&self) -> bool {
+        resolve_use_login_shell_path(self.use_login_shell_path, &self.goose_platform)
+    }
+}
+
+fn resolve_use_login_shell_path(explicit: Option<bool>, platform: &GoosePlatform) -> bool {
+    explicit.unwrap_or(matches!(platform, GoosePlatform::GooseDesktop))
 }
 
 /// The main goose Agent
@@ -336,9 +344,7 @@ impl Agent {
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let use_login_shell_path = config
-            .use_login_shell_path
-            .unwrap_or(matches!(goose_platform, GoosePlatform::GooseDesktop));
+        let use_login_shell_path = config.resolve_use_login_shell_path();
         Self {
             provider: provider.clone(),
             config,
@@ -3062,6 +3068,30 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn resolve_use_login_shell_path_defaults_by_platform() {
+        assert!(resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseDesktop
+        ));
+        assert!(!resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseCli
+        ));
+    }
+
+    #[test]
+    fn resolve_use_login_shell_path_explicit_overrides_platform() {
+        assert!(resolve_use_login_shell_path(
+            Some(true),
+            &GoosePlatform::GooseCli
+        ));
+        assert!(!resolve_use_login_shell_path(
+            Some(false),
+            &GoosePlatform::GooseDesktop
+        ));
+    }
 
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,

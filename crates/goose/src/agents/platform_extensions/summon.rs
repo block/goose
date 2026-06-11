@@ -1090,7 +1090,8 @@ impl SummonClient {
             GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
-        );
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
             .context
@@ -1593,7 +1594,8 @@ impl SummonClient {
             GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
-        );
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
             .context
