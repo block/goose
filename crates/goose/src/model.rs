@@ -109,11 +109,9 @@ impl ModelConfig {
 
     pub fn new_with_context_env(
         model_name: String,
-        provider_name: &str,
-        context_env_var: Option<&str>,
+        context_env_var: &str,
     ) -> Result<Self, ConfigError> {
-        let config = Self::new_base(model_name, context_env_var)?;
-        Ok(config.with_canonical_limits(provider_name))
+        Self::new_base(model_name, Some(context_env_var))
     }
 
     fn new_base(model_name: String, context_env_var: Option<&str>) -> Result<Self, ConfigError> {

@@ -2144,8 +2144,8 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let model_config =
-        ModelConfig::new_with_context_env(model, &provider, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
+    let model_config = ModelConfig::new_with_context_env(model, "GOOSE_PLANNER_CONTEXT_LIMIT")?
+        .with_canonical_limits(&provider);
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, model_config, extensions).await?;
 
