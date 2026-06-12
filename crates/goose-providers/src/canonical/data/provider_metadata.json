@@ -229,7 +229,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 50
+    "model_count": 51
   },
   {
     "id": "crof",
@@ -318,7 +318,7 @@
     "env": [
       "FASTROUTER_API_KEY"
     ],
-    "model_count": 15
+    "model_count": 47
   },
   {
     "id": "firepass",
@@ -351,7 +351,7 @@
     "env": [
       "FREEMODEL_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 10
   },
   {
     "id": "friendli",
@@ -552,17 +552,6 @@
     "model_count": 4
   },
   {
-    "id": "meta-llama",
-    "display_name": "Llama",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.llama.com/compat/v1/",
-    "doc": "https://llama.developer.meta.com/docs/models",
-    "env": [
-      "LLAMA_API_KEY"
-    ],
-    "model_count": 7
-  },
-  {
     "id": "llmgateway",
     "display_name": "LLM Gateway",
     "npm": "@ai-sdk/openai-compatible",
@@ -572,6 +561,17 @@
       "LLMGATEWAY_API_KEY"
     ],
     "model_count": 191
+  },
+  {
+    "id": "llmtr",
+    "display_name": "LLMTR",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://llmtr.com/v1",
+    "doc": "https://llmtr.com/docs",
+    "env": [
+      "LLMTR_API_KEY"
+    ],
+    "model_count": 6
   },
   {
     "id": "lmstudio",
@@ -605,6 +605,17 @@
       "MEGANOVA_API_KEY"
     ],
     "model_count": 19
+  },
+  {
+    "id": "meta-llama",
+    "display_name": "Llama",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.llama.com/compat/v1/",
+    "doc": "https://llama.developer.meta.com/docs/models",
+    "env": [
+      "LLAMA_API_KEY"
+    ],
+    "model_count": 7
   },
   {
     "id": "minimax",
@@ -791,7 +802,7 @@
     "env": [
       "NVIDIA_API_KEY"
     ],
-    "model_count": 94
+    "model_count": 83
   },
   {
     "id": "ollama-cloud",
@@ -813,7 +824,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 69
+    "model_count": 70
   },
   {
     "id": "opencode-go",
@@ -1167,7 +1178,7 @@
     "env": [
       "XIAOMI_API_KEY"
     ],
-    "model_count": 5
+    "model_count": 6
   },
   {
     "id": "xiaomi-token-plan-ams",
@@ -1244,7 +1255,7 @@
     "env": [
       "ZENMUX_API_KEY"
     ],
-    "model_count": 107
+    "model_count": 108
   },
   {
     "id": "zhipuai",
