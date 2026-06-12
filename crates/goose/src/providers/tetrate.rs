@@ -7,6 +7,7 @@ use super::openai_compatible::{
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
+use crate::config::Config;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -142,7 +143,9 @@ impl Provider for TetrateProvider {
         let payload = create_request(
             ModelConfigParams {
                 model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
+                thinking_effort: model_config
+                    .thinking_effort()
+                    .or_else(|| Config::global().get_goose_thinking_effort()),
                 temperature: model_config.temperature,
                 max_tokens: model_config.max_tokens,
                 request_params: model_config.request_params.as_ref(),

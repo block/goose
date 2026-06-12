@@ -1,4 +1,4 @@
-use crate::config::GooseMode;
+use crate::config::{Config, GooseMode};
 use crate::model::ModelConfig;
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
@@ -291,6 +291,7 @@ fn current_thinking_effort_value(model_config: &ModelConfig) -> String {
     if model_config.is_reasoning_model() {
         model_config
             .thinking_effort()
+            .or_else(|| Config::global().get_goose_thinking_effort())
             .map(|effort| effort.to_string())
             .unwrap_or_else(|| "off".to_string())
     } else {

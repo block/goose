@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::model::ModelConfig;
 use anyhow::Result;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -540,6 +541,7 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
     if is_gemini_3 {
         let effort = model_config
             .thinking_effort()
+            .or_else(|| Config::global().get_goose_thinking_effort())
             .unwrap_or(ThinkingEffort::Off);
         if effort == ThinkingEffort::Off {
             return None;

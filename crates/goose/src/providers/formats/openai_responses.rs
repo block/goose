@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
@@ -567,6 +568,7 @@ pub fn create_responses_request(
         } else {
             model_config
                 .thinking_effort()
+                .or_else(|| Config::global().get_goose_thinking_effort())
                 .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
         }
     } else {

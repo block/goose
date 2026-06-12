@@ -446,7 +446,9 @@ impl GithubCopilotProvider {
             let payload = create_request(
                 ModelConfigParams {
                     model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
+                    thinking_effort: model_config
+                        .thinking_effort()
+                        .or_else(|| Config::global().get_goose_thinking_effort()),
                     temperature: model_config.temperature,
                     max_tokens: model_config.max_tokens,
                     request_params: model_config.request_params.as_ref(),
@@ -488,7 +490,9 @@ impl GithubCopilotProvider {
             let payload = create_request(
                 ModelConfigParams {
                     model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
+                    thinking_effort: model_config
+                        .thinking_effort()
+                        .or_else(|| Config::global().get_goose_thinking_effort()),
                     temperature: model_config.temperature,
                     max_tokens: model_config.max_tokens,
                     request_params: model_config.request_params.as_ref(),

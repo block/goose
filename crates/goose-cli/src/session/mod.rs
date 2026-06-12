@@ -837,8 +837,11 @@ impl CliSession {
         let new_model_config =
             build_switched_model_config(&current_provider_name, model_name, &current_model_config)?;
 
+        let configured_effort = Config::global().get_goose_thinking_effort();
+        let new_effort = new_model_config.thinking_effort().or(configured_effort);
+        let current_effort = current_model_config.thinking_effort().or(configured_effort);
         if new_model_config.model_name == current_model_config.model_name
-            && new_model_config.thinking_effort() == current_model_config.thinking_effort()
+            && new_effort == current_effort
         {
             output::goose_mode_message(&format!(
                 "Session already using model '{}' for provider '{}'",

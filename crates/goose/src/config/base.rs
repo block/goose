@@ -1,6 +1,7 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use fs2::FileExt;
+use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]
 use keyring::Entry;
 use once_cell::sync::OnceCell;
@@ -1136,7 +1137,55 @@ config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
-config_value!(GOOSE_THINKING_EFFORT, String);
+
+impl Config {
+    pub fn get_goose_thinking_effort(&self) -> Option<ThinkingEffort> {
+        self.get_param("GOOSE_THINKING_EFFORT")
+            .ok()
+            .or_else(|| self.legacy_thinking_effort())
+    }
+
+    pub fn set_goose_thinking_effort(&self, v: ThinkingEffort) -> Result<(), ConfigError> {
+        self.set_param("GOOSE_THINKING_EFFORT", v)
+    }
+
+    fn legacy_thinking_effort(&self) -> Option<ThinkingEffort> {
+        if let Ok(value) = self.get_param::<String>("CLAUDE_THINKING_TYPE") {
+            if let Some(effort) = match value.to_lowercase().as_str() {
+                "adaptive" | "enabled" => Some(ThinkingEffort::High),
+                "disabled" => Some(ThinkingEffort::Off),
+                _ => None,
+            } {
+                return Some(effort);
+            }
+        }
+
+        if let Ok(enabled) = self.get_param::<bool>("CLAUDE_THINKING_ENABLED") {
+            return Some(if enabled {
+                ThinkingEffort::High
+            } else {
+                ThinkingEffort::Off
+            });
+        }
+
+        if let Ok(value) = self.get_param::<String>("GEMINI3_THINKING_LEVEL") {
+            if let Some(effort) = Self::legacy_gemini3_thinking_effort(&value) {
+                return Some(effort);
+            }
+        }
+
+        None
+    }
+
+    fn legacy_gemini3_thinking_effort(value: &str) -> Option<ThinkingEffort> {
+        match value.to_lowercase().as_str() {
+            "low" => Some(ThinkingEffort::Low),
+            "high" => Some(ThinkingEffort::High),
+            _ => None,
+        }
+    }
+}
+
 config_value!(GOOSE_DEFAULT_EXTENSION_TIMEOUT, u64);
 
 fn find_workspace_or_exe_root() -> Option<PathBuf> {
@@ -2397,5 +2446,18 @@ extensions:
         // Other fields should be preserved
         assert!(openai.get("enabled").unwrap().as_bool().unwrap());
         assert!(openai.get("configured").unwrap().as_bool().unwrap());
+    }
+
+    #[test]
+    fn legacy_gemini3_thinking_level_mapping() {
+        assert_eq!(
+            Config::legacy_gemini3_thinking_effort("low"),
+            Some(ThinkingEffort::Low)
+        );
+        assert_eq!(
+            Config::legacy_gemini3_thinking_effort("high"),
+            Some(ThinkingEffort::High)
+        );
+        assert_eq!(Config::legacy_gemini3_thinking_effort("auto"), None);
     }
 }

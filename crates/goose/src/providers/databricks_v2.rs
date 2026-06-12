@@ -25,7 +25,7 @@ use super::formats::{anthropic, openai_responses};
 use super::openai_compatible::{handle_status, stream_openai_compat, stream_responses_compat};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
-use crate::config::ConfigError;
+use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::{
@@ -262,7 +262,9 @@ impl DatabricksV2Provider {
         let mut payload = openai::create_request(
             ModelConfigParams {
                 model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
+                thinking_effort: model_config
+                    .thinking_effort()
+                    .or_else(|| Config::global().get_goose_thinking_effort()),
                 temperature: model_config.temperature,
                 max_tokens: model_config.max_tokens,
                 request_params: model_config.request_params.as_ref(),

@@ -9,6 +9,7 @@ use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetad
 use super::openai_compatible::{handle_status, stream_openai_compat};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
+use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openrouter as openrouter_format;
@@ -259,7 +260,9 @@ impl Provider for OpenRouterProvider {
         let mut payload = create_request(
             ModelConfigParams {
                 model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
+                thinking_effort: model_config
+                    .thinking_effort()
+                    .or_else(|| Config::global().get_goose_thinking_effort()),
                 temperature: model_config.temperature,
                 max_tokens: model_config.max_tokens,
                 request_params: model_config.request_params.as_ref(),

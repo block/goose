@@ -472,63 +472,8 @@ impl ModelConfig {
     }
 
     pub fn thinking_effort(&self) -> Option<ThinkingEffort> {
-        self.get_config_param::<String>("thinking_effort", "GOOSE_THINKING_EFFORT")
+        self.request_param::<String>("thinking_effort")
             .and_then(|s| s.parse::<ThinkingEffort>().ok())
-            .or_else(Self::legacy_thinking_effort)
-    }
-
-    fn legacy_thinking_effort() -> Option<ThinkingEffort> {
-        let config = crate::config::Config::global();
-
-        if let Ok(value) = config.get_param::<String>("CLAUDE_THINKING_TYPE") {
-            if let Some(effort) = match value.to_lowercase().as_str() {
-                "adaptive" | "enabled" => Some(ThinkingEffort::High),
-                "disabled" => Some(ThinkingEffort::Off),
-                _ => None,
-            } {
-                return Some(effort);
-            }
-        }
-
-        if let Ok(enabled) = config.get_param::<bool>("CLAUDE_THINKING_ENABLED") {
-            return Some(if enabled {
-                ThinkingEffort::High
-            } else {
-                ThinkingEffort::Off
-            });
-        }
-
-        if let Ok(value) = config.get_param::<String>("GEMINI3_THINKING_LEVEL") {
-            if let Some(effort) = Self::legacy_gemini3_thinking_effort(&value) {
-                return Some(effort);
-            }
-        }
-
-        None
-    }
-
-    fn legacy_gemini3_thinking_effort(value: &str) -> Option<ThinkingEffort> {
-        match value.to_lowercase().as_str() {
-            "low" => Some(ThinkingEffort::Low),
-            "high" => Some(ThinkingEffort::High),
-            _ => None,
-        }
-    }
-
-    fn get_config_param<T: for<'de> serde::Deserialize<'de>>(
-        &self,
-        request_key: &str,
-        config_key: &str,
-    ) -> Option<T> {
-        self.request_params
-            .as_ref()
-            .and_then(|params| params.get(request_key))
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .or_else(|| {
-                crate::config::Config::global()
-                    .get_param::<T>(config_key)
-                    .ok()
-            })
     }
 
     pub fn request_param<T: for<'de> serde::Deserialize<'de>>(
@@ -836,19 +781,6 @@ mod tests {
                 };
                 assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
             }
-        }
-
-        #[test]
-        fn legacy_gemini3_thinking_level_mapping() {
-            assert_eq!(
-                ModelConfig::legacy_gemini3_thinking_effort("low"),
-                Some(ThinkingEffort::Low)
-            );
-            assert_eq!(
-                ModelConfig::legacy_gemini3_thinking_effort("high"),
-                Some(ThinkingEffort::High)
-            );
-            assert_eq!(ModelConfig::legacy_gemini3_thinking_effort("auto"), None);
         }
 
         #[test]

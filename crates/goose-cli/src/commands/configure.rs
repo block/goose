@@ -26,6 +26,7 @@ use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
+use goose_providers::thinking::ThinkingEffort;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::IsTerminal;
@@ -771,14 +772,16 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         };
 
         if supports_thinking {
-            let effort: &str = cliclack::select("Select thinking effort:")
+            let effort: ThinkingEffort = cliclack::select("Select thinking effort:")
                 .item("off", "Off - No extended thinking", "")
                 .item("low", "Low - Better latency, lighter reasoning", "")
                 .item("medium", "Medium - Moderate thinking", "")
                 .item("high", "High - Deep reasoning", "")
                 .item("max", "Max - No constraints on thinking depth", "")
                 .initial_value("off")
-                .interact()?;
+                .interact()?
+                .parse()
+                .map_err(|_| anyhow::anyhow!("invalid thinking effort"))?;
             config.set_goose_thinking_effort(effort)?;
         }
     }
