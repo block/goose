@@ -16,7 +16,6 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::ModelConfigParams;
 use goose_providers::images::ImageFormat;
 use goose_providers::model::ModelConfig;
 use reqwest::Response;
@@ -321,13 +320,7 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -573,13 +566,7 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -612,13 +599,7 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -662,13 +643,7 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             "You are a helpful assistant.",
             &messages,
             &[],

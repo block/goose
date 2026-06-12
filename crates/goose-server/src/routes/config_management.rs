@@ -13,7 +13,6 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::custom_requests::SourceType;
-use goose::model::ModelConfig;
 use goose::providers::base::{ModelInfo, ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::catalog::{
@@ -27,6 +26,7 @@ use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands::recipe_slash_command,
 };
+use goose_providers::model::ModelConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
@@ -1419,8 +1419,8 @@ pub async fn get_provider_catalog_template(
 pub async fn configure_provider_oauth(
     Path(provider_name): Path<String>,
 ) -> Result<Json<String>, ErrorResponse> {
-    use goose::model::ModelConfig;
     use goose::providers::create;
+    use goose_providers::model::ModelConfig;
 
     if !is_valid_provider_name(&provider_name) {
         return Err(ErrorResponse::bad_request(format!(

@@ -19,13 +19,13 @@ use goose::config::{
     configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
     PermissionManager,
 };
-use goose::model::ModelConfig;
 #[cfg(feature = "telemetry")]
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -766,7 +766,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     {
         let supports_thinking = match temp_provider.fetch_model_info(&model).await {
             Ok(model_info) => model_info.reasoning,
-            Err(_) => goose::model::ModelConfig::new(&model)
+            Err(_) => goose_providers::model::ModelConfig::new(&model)
                 .map(|c| c.is_reasoning_model())
                 .unwrap_or(false),
         };
@@ -1774,7 +1774,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
     // Test configuration - get the model that was configured
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
-    let model_config = match goose::model::ModelConfig::new(&configured_model) {
+    let model_config = match goose_providers::model::ModelConfig::new(&configured_model) {
         Ok(config) => config.with_canonical_limits("openrouter"),
         Err(e) => {
             eprintln!("⚠️  Invalid model configuration: {}", e);
@@ -1855,7 +1855,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     // Test configuration
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
-    let model_config = match goose::model::ModelConfig::new(&configured_model) {
+    let model_config = match goose_providers::model::ModelConfig::new(&configured_model) {
         Ok(config) => config.with_canonical_limits("tetrate"),
         Err(e) => {
             eprintln!("⚠️  Invalid model configuration: {}", e);

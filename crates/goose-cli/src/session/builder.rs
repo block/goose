@@ -226,14 +226,14 @@ async fn load_extensions(
 struct ResolvedProviderConfig {
     provider_name: String,
     model_name: String,
-    model_config: goose::model::ModelConfig,
+    model_config: goose_providers::model::ModelConfig,
 }
 
 fn resolve_provider_and_model(
     session_config: &SessionBuilderConfig,
     config: &Config,
     saved_provider: Option<String>,
-    saved_model_config: Option<goose::model::ModelConfig>,
+    saved_model_config: Option<goose_providers::model::ModelConfig>,
 ) -> ResolvedProviderConfig {
     let recipe_settings = session_config
         .recipe
@@ -275,7 +275,7 @@ fn resolve_provider_and_model(
         config
     } else {
         let temperature = recipe_settings.and_then(|s| s.temperature);
-        goose::model::ModelConfig::new(&model_name)
+        goose_providers::model::ModelConfig::new(&model_name)
             .unwrap_or_else(|e| {
                 output::render_error(&format!("Failed to create model configuration: {}", e));
                 process::exit(1);

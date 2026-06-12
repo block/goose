@@ -5,10 +5,10 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionType, SystemInfo};
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,

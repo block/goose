@@ -4,8 +4,8 @@ use axum::{
     Json,
 };
 use goose::config::ConfigError;
-use goose::model::ConfigError as ModelConfigError;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ConfigError as ModelConfigError;
 use serde::Serialize;
 use utoipa::ToSchema;
 

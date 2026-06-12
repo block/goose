@@ -18,10 +18,10 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::is_openai_responses_model;
 use goose_providers::formats::openai::{
     create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
 };
-use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
 use goose_providers::images::ImageFormat;
 use reqwest::StatusCode;
 use std::collections::HashMap;
@@ -834,13 +834,7 @@ impl Provider for OpenAiProvider {
             }
         } else {
             let payload = create_request_with_options(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,

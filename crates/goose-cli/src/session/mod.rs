@@ -2119,8 +2119,8 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
 }
 
 async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
-    use goose::model::ModelConfig;
     use goose::providers::create;
+    use goose_providers::model::ModelConfig;
 
     let config = Config::global();
 
@@ -2168,9 +2168,9 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
 fn build_switched_model_config(
     provider_name: &str,
     model_name: &str,
-    current_model_config: &goose::model::ModelConfig,
-) -> Result<goose::model::ModelConfig> {
-    goose::model::ModelConfig::new(model_name)
+    current_model_config: &goose_providers::model::ModelConfig,
+) -> Result<goose_providers::model::ModelConfig> {
+    goose_providers::model::ModelConfig::new(model_name)
         .map(|config| {
             config
                 .with_canonical_limits(provider_name)
@@ -2320,7 +2320,7 @@ mod tests {
             ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
         ]);
 
-        let current_model_config = goose::model::ModelConfig {
+        let current_model_config = goose_providers::model::ModelConfig {
             model_name: "gpt-4o".to_string(),
             context_limit: Some(128_000),
             temperature: Some(0.25),
@@ -2337,7 +2337,7 @@ mod tests {
 
         let switched =
             build_switched_model_config("openai", "gpt-5.4", &current_model_config).unwrap();
-        let expected = goose::model::ModelConfig::new_or_fail("gpt-5.4")
+        let expected = goose_providers::model::ModelConfig::new_or_fail("gpt-5.4")
             .with_canonical_limits("openai")
             .with_temperature(Some(0.25))
             .with_toolshim(true)
@@ -2364,8 +2364,8 @@ mod tests {
             ("GOOSE_THINKING_EFFORT", None::<&str>),
         ]);
 
-        let current =
-            goose::model::ModelConfig::new_or_fail("gpt-5.4-high").with_canonical_limits("openai");
+        let current = goose_providers::model::ModelConfig::new_or_fail("gpt-5.4-high")
+            .with_canonical_limits("openai");
         assert_eq!(current.model_name, "gpt-5.4");
         assert_eq!(
             current.thinking_effort(),

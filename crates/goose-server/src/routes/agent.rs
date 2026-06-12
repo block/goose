@@ -19,7 +19,6 @@ use goose::agents::reply_parts::is_tool_visible_to_app;
 use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
-use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -29,6 +28,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
+use goose_providers::model::ModelConfig;
 use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

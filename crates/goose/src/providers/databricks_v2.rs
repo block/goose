@@ -3,9 +3,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use goose_providers::formats::openai::{
-    self, extract_reasoning_effort, is_openai_responses_model, ModelConfigParams,
-};
+use goose_providers::formats::openai::{self, extract_reasoning_effort, is_openai_responses_model};
 use goose_providers::images::ImageFormat;
 use serde::Serialize;
 use serde_json::Value;
@@ -260,13 +258,7 @@ impl DatabricksV2Provider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = openai::create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,

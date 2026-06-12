@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
+use goose_providers::formats::openai::is_openai_responses_model;
 use goose_providers::images::ImageFormat;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
@@ -444,13 +444,7 @@ impl GithubCopilotProvider {
 
         if supports_streaming {
             let payload = create_request(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,
@@ -486,13 +480,7 @@ impl GithubCopilotProvider {
                 Some(session_id)
             };
             let payload = create_request(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,
