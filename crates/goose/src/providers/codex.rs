@@ -290,7 +290,6 @@ impl CodexProvider {
         }
     }
 
-    /// Extract usage information from a JSON object.
     /// Codex `input_tokens` already includes `cached_input_tokens`.
     fn extract_usage(usage_info: &serde_json::Value, usage: &mut Usage) {
         if usage.input_tokens.is_none() {

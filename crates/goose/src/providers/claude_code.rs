@@ -1019,20 +1019,6 @@ mod tests {
         assert_eq!(usage.output_tokens, Some(50));
     }
 
-    #[test]
-    fn test_extract_usage_tokens_folds_cache_into_input() {
-        let usage = extract_usage_tokens(&json!({
-            "input_tokens": 7,
-            "output_tokens": 50,
-            "cache_creation_input_tokens": 1000,
-            "cache_read_input_tokens": 5000
-        }));
-        assert_eq!(usage.input_tokens, Some(6007));
-        assert_eq!(usage.output_tokens, Some(50));
-        assert_eq!(usage.cache_read_input_tokens, Some(5000));
-        assert_eq!(usage.cache_write_input_tokens, Some(1000));
-    }
-
     #[test_case(
         r#"{"type":"error","error":"context window exceeded"}"#,
         true

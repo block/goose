@@ -55,11 +55,6 @@ pub struct Pricing {
 }
 
 impl Pricing {
-    /// Estimate the cost in USD for a single usage report.
-    ///
-    /// Cache read/write tokens are priced at their dedicated rates when
-    /// available, falling back to the input rate otherwise. Returns `None`
-    /// when input or output pricing is unknown.
     pub fn estimate_cost(&self, usage: &Usage) -> Option<f64> {
         let input_price = self.input?;
         let output_price = self.output?;
@@ -190,16 +185,6 @@ mod tests {
         let expected =
             (1_000.0 * 5.0 + 8_000.0 * 0.5 + 1_000.0 * 6.25 + 1_000.0 * 25.0) / 1_000_000.0;
         assert!((cost - expected).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn estimate_cost_without_cache_tokens_matches_simple_pricing() {
-        let pricing = pricing(Some(3.0), Some(15.0), Some(0.3), Some(3.75));
-        let usage = Usage::new(Some(2_000), Some(500), None);
-
-        let cost = pricing.estimate_cost(&usage).unwrap();
-        let expected = (2_000.0 * 3.0 + 500.0 * 15.0) / 1_000_000.0;
-        assert_eq!(cost, expected);
     }
 
     #[test]

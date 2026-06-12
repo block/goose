@@ -13,8 +13,6 @@ pub(crate) fn extract_usage_tokens(usage_info: &Value) -> Usage {
             .and_then(|v| v.as_i64())
             .and_then(|v| i32::try_from(v).ok())
     };
-    // CLI providers emit raw Anthropic usage, where input_tokens excludes
-    // cache tokens.
     Usage::from_cache_exclusive_input(
         get("input_tokens"),
         get("output_tokens"),

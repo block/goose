@@ -440,8 +440,6 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
     Ok(message)
 }
 
-/// Anthropic reports `input_tokens` exclusive of cache tokens, so cache
-/// read/creation tokens are folded into the input total.
 fn usage_from_anthropic_fields(usage: &Value) -> Usage {
     let field = |key: &str| {
         usage
@@ -493,9 +491,7 @@ fn merge_delta_usage(existing: &Usage, delta: &Usage, delta_data: &Value) -> Usa
 }
 
 pub fn get_usage(data: &Value) -> Result<Usage> {
-    // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        // Get all token fields for analysis
         Ok(usage_from_anthropic_fields(usage))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
