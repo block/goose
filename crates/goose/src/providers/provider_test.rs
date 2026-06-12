@@ -1,6 +1,7 @@
-use crate::{conversation::message::Message, model::ModelConfig, providers::create};
+use crate::{conversation::message::Message, providers::create};
 use anyhow::Result;
 use futures::StreamExt;
+use goose_providers::model::ModelConfig;
 use rmcp::model::ToolAnnotations;
 use rmcp::{model::Tool, object};
 

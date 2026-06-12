@@ -1,5 +1,5 @@
-use goose_providers::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
-use goose_providers::thinking::ThinkingEffort;
+use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
+use crate::thinking::ThinkingEffort;
 use once_cell::sync::Lazy;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -158,15 +158,16 @@ impl ModelConfig {
         // to the name with reasoning-effort suffixes stripped (e.g.
         // "databricks-gpt-5.4-high" → "databricks-gpt-5.4").
         let canonical =
-            goose_providers::canonical::maybe_get_canonical_model(provider_name, &self.model_name)
-                .or_else(|| {
+            crate::canonical::maybe_get_canonical_model(provider_name, &self.model_name).or_else(
+                || {
                     let (base, _effort) = extract_reasoning_effort(&self.model_name);
                     if base != self.model_name {
-                        goose_providers::canonical::maybe_get_canonical_model(provider_name, &base)
+                        crate::canonical::maybe_get_canonical_model(provider_name, &base)
                     } else {
                         None
                     }
-                });
+                },
+            );
 
         if let Some(canonical) = canonical {
             if self.context_limit.is_none() {

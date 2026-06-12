@@ -20,9 +20,9 @@ use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::subprocess::configure_subprocess;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 

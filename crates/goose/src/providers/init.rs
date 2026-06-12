@@ -42,13 +42,13 @@ use super::{
     xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
-use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
 use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
 };
 use anyhow::Result;
+use goose_providers::model::ModelConfig;
 use tokio::sync::OnceCell;
 
 static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();

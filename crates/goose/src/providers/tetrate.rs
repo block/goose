@@ -14,8 +14,8 @@ use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 
-use crate::model::ModelConfig;
 use goose_providers::formats::openai::{create_request, ModelConfigParams};
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde_json::Value;
 

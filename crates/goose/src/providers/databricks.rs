@@ -29,12 +29,12 @@ use super::utils::RequestLog;
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::instance_id::get_instance_id;
-use crate::model::ModelConfig;
 use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde_json::json;
 

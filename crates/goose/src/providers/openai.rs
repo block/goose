@@ -26,9 +26,9 @@ use goose_providers::images::ImageFormat;
 use reqwest::StatusCode;
 use std::collections::HashMap;
 
-use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 const OPEN_AI_PROVIDER_NAME: &str = "openai";

@@ -7,7 +7,6 @@ mod tool_parsing;
 
 use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::utils::RequestLog;
 use anyhow::Result;
@@ -18,6 +17,7 @@ use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
+use goose_providers::model::ModelConfig;
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
 use local_model_registry::ChatTemplate;
 use rmcp::model::Tool;

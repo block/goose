@@ -1,8 +1,8 @@
-use crate::model::ModelConfig;
 use anyhow::Result;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::{is_valid_function_name, sanitize_function_name};
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
@@ -1371,7 +1371,7 @@ data: [DONE]"#;
 
     #[test]
     fn test_get_thinking_config() {
-        use crate::model::ModelConfig;
+        use goose_providers::model::ModelConfig;
 
         // Test 1: Gemini 3 model with low thinking effort
         let mut params = std::collections::HashMap::new();

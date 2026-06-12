@@ -1,6 +1,5 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
@@ -16,6 +15,7 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use reqwest::header::{HeaderName, HeaderValue};

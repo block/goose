@@ -21,9 +21,9 @@ use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";

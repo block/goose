@@ -9,10 +9,10 @@ use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const HUGGINGFACE_API_HOST: &str = "https://router.huggingface.co/v1";

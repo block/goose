@@ -1,9 +1,9 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::InventoryIdentityInput;
 use crate::config::{Config, DeclarativeProviderConfig, ExtensionConfig};
-use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;

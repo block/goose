@@ -1,12 +1,12 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::ModelConfig;
 use crate::providers::canonical::maybe_get_canonical_model;
 use anyhow::{anyhow, Result};
 use goose_providers::canonical::ThinkingMode;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::images::{convert_image, ImageFormat};
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
@@ -1016,7 +1016,7 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
 

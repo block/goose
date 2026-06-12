@@ -10,10 +10,10 @@ use super::openai_compatible::{handle_status, stream_openai_compat};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::formats::openrouter as openrouter_format;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::{create_request, ModelConfigParams};
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";

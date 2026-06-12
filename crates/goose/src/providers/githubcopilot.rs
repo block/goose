@@ -36,10 +36,10 @@ use goose_providers::formats::openai::{create_request, get_usage, response_to_me
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::{Message, MessageContent};
 
-use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, MessageStream};
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::model::ModelConfig;
 use rmcp::model::{RawContent, Tool};
 use std::ops::Deref;
 

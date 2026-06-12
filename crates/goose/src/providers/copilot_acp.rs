@@ -8,10 +8,10 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::model::ModelConfig;
 use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
 use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
 use crate::providers::inventory::InventoryIdentityInput;
+use goose_providers::model::ModelConfig;
 
 const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
 const COPILOT_ACP_DOC_URL: &str = "https://github.com/github/copilot-cli";

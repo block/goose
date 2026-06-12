@@ -6,5 +6,6 @@ pub mod formats;
 pub mod images;
 pub mod json;
 pub(crate) mod mcp_utils;
+pub mod model;
 pub mod thinking;
 pub mod utils;

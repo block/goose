@@ -100,7 +100,7 @@ mod tools;
 pub type AcpProviderFactory = Arc<
     dyn Fn(
             String,
-            crate::model::ModelConfig,
+            goose_providers::model::ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
@@ -392,7 +392,7 @@ fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: E
 
 fn resolve_default_provider_model_config(
     config: &Config,
-) -> Result<(String, crate::model::ModelConfig), agent_client_protocol::Error> {
+) -> Result<(String, goose_providers::model::ModelConfig), agent_client_protocol::Error> {
     let resolved_provider = config.get_goose_provider().map_err(|error| {
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve provider: {}", error))
@@ -401,7 +401,7 @@ fn resolve_default_provider_model_config(
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve model: {}", error))
     })?;
-    let resolved_model_config = crate::model::ModelConfig::new(&resolved_model)
+    let resolved_model_config = goose_providers::model::ModelConfig::new(&resolved_model)
         .map(|model_config| model_config.with_canonical_limits(&resolved_provider))
         .map_err(|error| {
             agent_client_protocol::Error::internal_error()
@@ -412,14 +412,14 @@ fn resolve_default_provider_model_config(
 
 async fn resolve_provider_default_model_config(
     provider_name: &str,
-) -> Result<crate::model::ModelConfig, agent_client_protocol::Error> {
+) -> Result<goose_providers::model::ModelConfig, agent_client_protocol::Error> {
     let entry = crate::providers::get_from_registry(provider_name)
         .await
         .map_err(|error| {
             agent_client_protocol::Error::invalid_params()
                 .data(format!("Unknown provider '{}': {}", provider_name, error))
         })?;
-    crate::model::ModelConfig::new(&entry.metadata().default_model)
+    goose_providers::model::ModelConfig::new(&entry.metadata().default_model)
         .map(|model_config| model_config.with_canonical_limits(provider_name))
         .map_err(|error| {
             agent_client_protocol::Error::internal_error()
@@ -895,7 +895,7 @@ impl GooseAcpAgent {
     async fn create_provider(
         &self,
         provider_name: &str,
-        model_config: crate::model::ModelConfig,
+        model_config: goose_providers::model::ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
     ) -> Result<Arc<dyn Provider>> {
@@ -2710,7 +2710,7 @@ impl GooseAcpAgent {
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
         let current_model_config = current_provider.get_model_config();
-        let model_config = crate::model::ModelConfig::new(model_id)
+        let model_config = goose_providers::model::ModelConfig::new(model_id)
             .invalid_params_err_ctx("Invalid model config")?
             .with_canonical_limits(&provider_name);
         let model_config =
@@ -2846,7 +2846,7 @@ impl GooseAcpAgent {
             current_model
         };
         let model = model_name.unwrap_or(&default_model);
-        let mut model_config = crate::model::ModelConfig::new(model)
+        let mut model_config = goose_providers::model::ModelConfig::new(model)
             .invalid_params_err_ctx("Invalid model config")?
             .with_canonical_limits(&resolved_provider_name)
             .with_context_limit(context_limit);
@@ -3751,7 +3751,7 @@ print(\"hello, world\")
     fn test_build_usage_update_clamps_negative_used_to_zero() {
         let mut session = make_session_with_usage(Some(-7), Some(0), Some(0), None, None, None);
         session.model_config = Some(
-            crate::model::ModelConfig::new("test-model")
+            goose_providers::model::ModelConfig::new("test-model")
                 .unwrap()
                 .with_context_limit(Some(258_000)),
         );

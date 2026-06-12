@@ -1,5 +1,4 @@
 use crate::config::{Config, GooseMode};
-use crate::model::ModelConfig;
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
 use agent_client_protocol::schema::{
@@ -9,6 +8,7 @@ use agent_client_protocol::schema::{
     SessionNotification, SessionUpdate, UnstructuredCommandInput,
 };
 use agent_client_protocol::{Client, ConnectionTo};
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use strum::{EnumMessage, VariantNames};
 

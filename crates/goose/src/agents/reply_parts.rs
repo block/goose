@@ -625,11 +625,11 @@ mod tests {
     use super::*;
     use crate::config::GooseMode;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
     use crate::providers::base::Provider;
     use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
 
     #[derive(Clone)]
