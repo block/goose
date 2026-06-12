@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
@@ -110,9 +109,7 @@ pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfi
         return ThinkingType::Adaptive;
     }
 
-    let effort = model_config
-        .thinking_effort()
-        .or_else(|| Config::global().get_goose_thinking_effort());
+    let effort = model_config.thinking_effort();
 
     if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
         return match mode {
@@ -547,7 +544,6 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
     model_config
         .thinking_effort()
-        .or_else(|| Config::global().get_goose_thinking_effort())
         .unwrap_or(ThinkingEffort::High)
 }
 
@@ -574,7 +570,6 @@ pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
 
     let effort = model_config
         .thinking_effort()
-        .or_else(|| Config::global().get_goose_thinking_effort())
         .unwrap_or(ThinkingEffort::High);
     match effort {
         ThinkingEffort::Off => 1024,

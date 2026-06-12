@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::model::ModelConfig;
 use goose_providers::formats::openai;
@@ -101,10 +100,7 @@ fn reasoning_effort_for_openrouter(effort: ThinkingEffort) -> &'static str {
 }
 
 pub fn apply_reasoning_config(payload: &mut Value, model_config: &ModelConfig) {
-    let Some(effort) = model_config
-        .thinking_effort()
-        .or_else(|| Config::global().get_goose_thinking_effort())
-    else {
+    let Some(effort) = model_config.thinking_effort() else {
         return;
     };
 

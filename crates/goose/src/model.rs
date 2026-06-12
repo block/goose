@@ -366,6 +366,21 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_default_thinking_effort(mut self, effort: Option<ThinkingEffort>) -> Self {
+        if self.thinking_effort().is_none() {
+            if let Some(effort) = effort {
+                self = self.with_thinking_effort(effort);
+            }
+        }
+
+        if let Some(fast_config) = self.fast_model_config.take() {
+            self.fast_model_config =
+                Some(Box::new(fast_config.with_default_thinking_effort(effort)));
+        }
+
+        self
+    }
+
     pub fn with_inherited_session_settings_from(
         mut self,
         previous: Option<&ModelConfig>,

@@ -12,7 +12,6 @@ use super::openai_compatible::{
 };
 use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
-use crate::config::Config;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -837,9 +836,7 @@ impl Provider for OpenAiProvider {
             let payload = create_request_with_options(
                 ModelConfigParams {
                     model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config
-                        .thinking_effort()
-                        .or_else(|| Config::global().get_goose_thinking_effort()),
+                    thinking_effort: model_config.thinking_effort(),
                     temperature: model_config.temperature,
                     max_tokens: model_config.max_tokens,
                     request_params: model_config.request_params.as_ref(),

@@ -1,5 +1,4 @@
 use crate::config::paths::Paths;
-use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
@@ -235,7 +234,6 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
 
     model_config
         .thinking_effort()
-        .or_else(|| Config::global().get_goose_thinking_effort())
         .map(|effort| {
             let valid_levels = reasoning_levels_for_model(&model_config.model_name);
             let preferred_levels: &[&str] = match effort {

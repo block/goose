@@ -642,12 +642,8 @@ impl ProviderDef for CodexProvider {
             let command: String = config.get_codex_command().unwrap_or_default().into();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
-            let reasoning_effort = Self::map_thinking_effort(
-                &model.model_name,
-                model
-                    .thinking_effort()
-                    .or_else(|| Config::global().get_goose_thinking_effort()),
-            );
+            let reasoning_effort =
+                Self::map_thinking_effort(&model.model_name, model.thinking_effort());
 
             // Get skip_git_check from config, default to false
             let skip_git_check = config

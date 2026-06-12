@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::anthropic::{
@@ -625,7 +624,6 @@ pub fn create_request_for_provider(
     let reasoning_effort = if is_openai_reasoning_model {
         model_config
             .thinking_effort()
-            .or_else(|| Config::global().get_goose_thinking_effort())
             .map_or(legacy_reasoning_effort, |effort| {
                 openai_reasoning_effort_for_thinking(&model_name, effort)
             })

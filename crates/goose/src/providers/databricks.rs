@@ -26,7 +26,7 @@ use super::openai_compatible::{
 };
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
-use crate::config::{Config, ConfigError};
+use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::instance_id::get_instance_id;
 use crate::model::ModelConfig;
@@ -620,13 +620,9 @@ impl Provider for DatabricksProvider {
                 create_responses_request(request_model_config, system, messages, tools)?;
             payload["model"] = Value::String(endpoint_name.clone());
             if payload.get("reasoning").is_none() {
-                if let Some(effort) = model_config
-                    .thinking_effort()
-                    .or_else(|| Config::global().get_goose_thinking_effort())
-                    .and_then(|effort| {
-                        openai_reasoning_effort_for_thinking(effective_model_name, effort)
-                    })
-                {
+                if let Some(effort) = model_config.thinking_effort().and_then(|effort| {
+                    openai_reasoning_effort_for_thinking(effective_model_name, effort)
+                }) {
                     payload.as_object_mut().unwrap().insert(
                         "reasoning".to_string(),
                         json!({
