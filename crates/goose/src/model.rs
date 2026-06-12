@@ -115,54 +115,28 @@ impl ModelConfig {
     }
 
     fn new_base(model_name: String, context_env_var: Option<&str>) -> Result<Self, ConfigError> {
-        // Check a provider-specific env var first (e.g. DATABRICKS_CONTEXT_LIMIT),
-        // then fall back to GOOSE_CONTEXT_LIMIT.  Using Config::global().get_param()
-        // reads from both environment variables and config.yaml, so users can set
-        // `GOOSE_CONTEXT_LIMIT: 1000000` in config.yaml instead of exporting an
-        // env var.  See #7839.
         let context_limit = if let Some(env_var) = context_env_var {
-            if let Ok(val) = std::env::var(env_var) {
-                Some(Self::validate_context_limit(&val, env_var)?)
-            } else {
-                None
-            }
+            std::env::var(env_var)
+                .ok()
+                .map(|val| Self::validate_context_limit(&val, env_var))
+                .transpose()?
         } else {
-            match crate::config::Config::global().get_param::<usize>("GOOSE_CONTEXT_LIMIT") {
-                Ok(limit) => {
-                    if limit == 0 {
-                        return Err(ConfigError::InvalidRange(
-                            "GOOSE_CONTEXT_LIMIT".to_string(),
-                            "must be greater than 0".to_string(),
-                        ));
-                    }
-                    Some(limit)
-                }
-                Err(crate::config::ConfigError::NotFound(_)) => None,
-                Err(e) => {
-                    return Err(ConfigError::InvalidValue(
-                        "GOOSE_CONTEXT_LIMIT".to_string(),
-                        String::new(),
-                        e.to_string(),
-                    ))
-                }
-            }
+            None
         };
 
-        let max_tokens = Self::parse_max_tokens()?;
         let temperature = Self::parse_temperature()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
 
         // Pick up predefined model settings before legacy suffix normalization.
         let predefined = find_predefined_model(&model_name);
-        let predefined_context_limit = predefined.as_ref().and_then(|pm| pm.context_limit);
         let request_params = predefined.and_then(|pm| pm.request_params);
 
         let mut config = Self {
             model_name,
-            context_limit: context_limit.or(predefined_context_limit),
+            context_limit,
             temperature,
-            max_tokens,
+            max_tokens: None,
             toolshim,
             toolshim_model,
             fast_model_config: None,
@@ -253,26 +227,6 @@ impl ModelConfig {
         }
     }
 
-    fn parse_max_tokens() -> Result<Option<i32>, ConfigError> {
-        match crate::config::Config::global().get_param::<i32>("GOOSE_MAX_TOKENS") {
-            Ok(tokens) => {
-                if tokens <= 0 {
-                    return Err(ConfigError::InvalidRange(
-                        "goose_max_tokens".to_string(),
-                        "must be greater than 0".to_string(),
-                    ));
-                }
-                Ok(Some(tokens))
-            }
-            Err(crate::config::ConfigError::NotFound(_)) => Ok(None),
-            Err(e) => Err(ConfigError::InvalidValue(
-                "goose_max_tokens".to_string(),
-                String::new(),
-                e.to_string(),
-            )),
-        }
-    }
-
     fn parse_toolshim() -> Result<bool, ConfigError> {
         if let Ok(val) = std::env::var("GOOSE_TOOLSHIM") {
             match val.to_lowercase().as_str() {
@@ -315,6 +269,30 @@ impl ModelConfig {
 
     pub fn with_max_tokens(mut self, tokens: Option<i32>) -> Self {
         self.max_tokens = tokens;
+        self
+    }
+
+    pub fn with_default_context_limit(mut self, limit: Option<usize>) -> Self {
+        if self.context_limit.is_none() {
+            self.context_limit = limit;
+        }
+
+        if let Some(fast_config) = self.fast_model_config.take() {
+            self.fast_model_config = Some(Box::new(fast_config.with_default_context_limit(limit)));
+        }
+
+        self
+    }
+
+    pub fn with_default_max_tokens(mut self, tokens: Option<i32>) -> Self {
+        if self.max_tokens.is_none() {
+            self.max_tokens = tokens;
+        }
+
+        if let Some(fast_config) = self.fast_model_config.take() {
+            self.fast_model_config = Some(Box::new(fast_config.with_default_max_tokens(tokens)));
+        }
+
         self
     }
 
@@ -510,70 +488,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_max_tokens_valid() {
-        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("4096"))]);
-        let result = ModelConfig::parse_max_tokens().unwrap();
-        assert_eq!(result, Some(4096));
-    }
-
-    #[test]
-    fn test_parse_max_tokens_not_set() {
-        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", None::<&str>)]);
-        let result = ModelConfig::parse_max_tokens().unwrap();
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_parse_max_tokens_invalid_string() {
-        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("not_a_number"))]);
-        let result = ModelConfig::parse_max_tokens();
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConfigError::InvalidValue(..)));
-    }
-
-    #[test]
-    fn test_parse_max_tokens_zero() {
-        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("0"))]);
-        let result = ModelConfig::parse_max_tokens();
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConfigError::InvalidRange(..)));
-    }
-
-    #[test]
-    fn test_parse_max_tokens_negative() {
-        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("-100"))]);
-        let result = ModelConfig::parse_max_tokens();
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConfigError::InvalidRange(..)));
-    }
-
-    #[test]
-    fn test_model_config_with_max_tokens_env() {
-        let _guard = env_lock::lock_env([
-            ("GOOSE_MAX_TOKENS", Some("8192")),
-            ("GOOSE_TEMPERATURE", None::<&str>),
-            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
-            ("GOOSE_TOOLSHIM", None::<&str>),
-            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
-        ]);
-        let config = ModelConfig::new("test-model").unwrap();
-        assert_eq!(config.max_tokens, Some(8192));
-    }
-
-    #[test]
-    fn test_model_config_without_max_tokens_env() {
-        let _guard = env_lock::lock_env([
-            ("GOOSE_MAX_TOKENS", None::<&str>),
-            ("GOOSE_TEMPERATURE", None::<&str>),
-            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
-            ("GOOSE_TOOLSHIM", None::<&str>),
-            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
-        ]);
-        let config = ModelConfig::new("test-model").unwrap();
-        assert_eq!(config.max_tokens, None);
-    }
-
-    #[test]
     fn test_deserialize_preserves_fast_model_config() {
         let config: ModelConfig = serde_json::from_value(serde_json::json!({
             "model_name": "primary-model",
@@ -605,7 +519,6 @@ mod tests {
 
         #[test]
         fn from_request_params() {
-            let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
             let mut params = HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!("medium"));
             let config = ModelConfig {
@@ -614,29 +527,6 @@ mod tests {
                 ..Default::default()
             };
             assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Medium));
-        }
-
-        #[test]
-        fn from_env_var() {
-            let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
-            let config = ModelConfig {
-                model_name: "test".to_string(),
-                ..Default::default()
-            };
-            assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
-        }
-
-        #[test]
-        fn request_params_override_env() {
-            let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
-            let mut params = HashMap::new();
-            params.insert("thinking_effort".to_string(), serde_json::json!("low"));
-            let config = ModelConfig {
-                model_name: "test".to_string(),
-                request_params: Some(params),
-                ..Default::default()
-            };
-            assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Low));
         }
 
         #[test]
@@ -730,22 +620,6 @@ mod tests {
         }
 
         #[test]
-        fn does_not_materialize_env_thinking_effort() {
-            let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
-            let previous = ModelConfig {
-                model_name: "previous".to_string(),
-                ..Default::default()
-            };
-            let config = ModelConfig {
-                model_name: "next".to_string(),
-                ..Default::default()
-            }
-            .with_inherited_session_settings_from(Some(&previous), None);
-
-            assert!(config.request_params.is_none());
-        }
-
-        #[test]
         fn explicit_request_params_override_preserved_session_settings() {
             let previous = ModelConfig {
                 model_name: "previous".to_string(),
@@ -774,47 +648,6 @@ mod tests {
                     .and_then(|params| params.get("thinking_effort")),
                 Some(&serde_json::json!("low"))
             );
-        }
-
-        #[test]
-        fn legacy_claude_thinking_type_fallback() {
-            for value in ["enabled", "adaptive"] {
-                let _guard = env_lock::lock_env([
-                    ("GOOSE_THINKING_EFFORT", None::<&str>),
-                    ("CLAUDE_THINKING_TYPE", Some(value)),
-                    ("CLAUDE_THINKING_ENABLED", None::<&str>),
-                    ("GEMINI3_THINKING_LEVEL", None::<&str>),
-                    ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
-                    ("CLAUDE_THINKING_BUDGET", None::<&str>),
-                    ("GEMINI25_THINKING_BUDGET", None::<&str>),
-                ]);
-                let config = ModelConfig {
-                    model_name: "test".to_string(),
-                    ..Default::default()
-                };
-                assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
-            }
-        }
-
-        #[test]
-        fn legacy_gemini3_thinking_level_fallback() {
-            let temp_dir = tempfile::tempdir().unwrap();
-            let temp_root = temp_dir.path().to_string_lossy().to_string();
-            let _guard = env_lock::lock_env([
-                ("GOOSE_PATH_ROOT", Some(temp_root.as_str())),
-                ("GOOSE_THINKING_EFFORT", None::<&str>),
-                ("CLAUDE_THINKING_TYPE", None::<&str>),
-                ("CLAUDE_THINKING_ENABLED", None::<&str>),
-                ("GEMINI3_THINKING_LEVEL", Some("high")),
-                ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
-                ("CLAUDE_THINKING_BUDGET", None::<&str>),
-                ("GEMINI25_THINKING_BUDGET", None::<&str>),
-            ]);
-            let config = ModelConfig {
-                model_name: "gemini-3-pro".to_string(),
-                ..Default::default()
-            };
-            assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
         }
 
         #[test]
