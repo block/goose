@@ -13,7 +13,61 @@ pub fn collect_elicitation_input(
 
     let properties = schema.get("properties").and_then(|p| p.as_object());
 
-    // Schema-less (or empty-schema) elicitations are pure approval prompts —
+    // Case 1: Single-select menu
+    if let Some(props) = properties {
+        if props.len() == 1 {
+            let (field_name, field_schema) = props.iter().next().unwrap();
+
+            // Try to extract menu options from oneOf or enum
+            let options = if let Some(one_of) = field_schema.get("oneOf").and_then(|o| o.as_array())
+            {
+                one_of
+                    .iter()
+                    .filter_map(|opt| {
+                        let value = opt.get("const")?.as_str()?;
+                        let title = opt.get("title").and_then(|t| t.as_str()).unwrap_or(value);
+                        Some((value.to_string(), title.to_string()))
+                    })
+                    .collect::<Vec<_>>()
+            } else if let Some(enum_vals) = field_schema.get("enum").and_then(|e| e.as_array()) {
+                enum_vals
+                    .iter()
+                    .filter_map(|v| {
+                        let value = v.as_str()?;
+                        Some((value.to_string(), value.to_string()))
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                vec![]
+            };
+
+            if !options.is_empty() {
+                // Interactive menu with arrow keys
+                let items: Vec<(&str, &str, &str)> = options
+                    .iter()
+                    .map(|(value, title)| (value.as_str(), title.as_str(), ""))
+                    .collect();
+
+                match cliclack::select(field_name.as_str())
+                    .items(&items)
+                    .interact()
+                {
+                    Ok(selected_value) => {
+                        let mut data = HashMap::new();
+                        data.insert(
+                            field_name.clone(),
+                            Value::String(selected_value.to_string()),
+                        );
+                        return Ok(Some(data));
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::Interrupted => return Ok(None),
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+    }
+
+    // Case 2: Schema-less (or empty-schema) elicitations are pure approval prompts —
     // offer an explicit Y/N confirmation instead of silently auto-accepting.
     let properties = match properties {
         Some(props) if !props.is_empty() => props,
