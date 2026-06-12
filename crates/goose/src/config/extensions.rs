@@ -128,10 +128,18 @@ where
 
 pub fn get_extension_by_name(name: &str) -> Option<ExtensionConfig> {
     let extensions = get_extensions_map();
-    extensions
+    if let Some(config) = extensions
         .values()
         .find(|entry| entry.config.name() == name)
         .map(|entry| entry.config.clone())
+    {
+        return Some(config);
+    }
+
+    let key = name_to_key(name);
+    get_available_extensions()
+        .into_iter()
+        .find(|config| config.name() == name || config.key() == key)
 }
 
 pub fn set_extension(entry: ExtensionEntry) {
@@ -442,6 +450,19 @@ extensions:
         let extensions = read_extensions(&config);
         assert_eq!(extensions.get("broken").unwrap(), &broken_before);
         assert!(extensions.contains_key("newextension"));
+    }
+
+    #[test]
+    fn test_get_extension_by_name_falls_back_to_available_builtin() {
+        fn spawn_builtin(_: tokio::io::DuplexStream, _: tokio::io::DuplexStream) {}
+        crate::builtin_extension::register_builtin_extension("memory", spawn_builtin);
+
+        let extension = get_extension_by_name("memory").unwrap();
+
+        assert!(matches!(
+            extension,
+            ExtensionConfig::Builtin { ref name, .. } if name == "memory"
+        ));
     }
 
     #[test]
