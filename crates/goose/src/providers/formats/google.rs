@@ -558,8 +558,12 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
         })
     } else {
         let thinking_budget = match model_config
-            .get_config_param::<i32>("thinking_budget", "GEMINI25_THINKING_BUDGET")
-        {
+            .request_param::<i32>("thinking_budget")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("GEMINI25_THINKING_BUDGET")
+                    .ok()
+            }) {
             Some(budget) if budget >= 0 => budget,
             Some(budget) => {
                 tracing::warn!(

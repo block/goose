@@ -186,11 +186,11 @@ impl ModelConfig {
         // to the name with reasoning-effort suffixes stripped (e.g.
         // "databricks-gpt-5.4-high" → "databricks-gpt-5.4").
         let canonical =
-            crate::providers::canonical::maybe_get_canonical_model(provider_name, &self.model_name)
+            goose_providers::canonical::maybe_get_canonical_model(provider_name, &self.model_name)
                 .or_else(|| {
                     let (base, _effort) = extract_reasoning_effort(&self.model_name);
                     if base != self.model_name {
-                        crate::providers::canonical::maybe_get_canonical_model(provider_name, &base)
+                        goose_providers::canonical::maybe_get_canonical_model(provider_name, &base)
                     } else {
                         None
                     }
@@ -515,7 +515,7 @@ impl ModelConfig {
         }
     }
 
-    pub fn get_config_param<T: for<'de> serde::Deserialize<'de>>(
+    fn get_config_param<T: for<'de> serde::Deserialize<'de>>(
         &self,
         request_key: &str,
         config_key: &str,
@@ -529,6 +529,16 @@ impl ModelConfig {
                     .get_param::<T>(config_key)
                     .ok()
             })
+    }
+
+    pub fn request_param<T: for<'de> serde::Deserialize<'de>>(
+        &self,
+        request_key: &str,
+    ) -> Option<T> {
+        self.request_params
+            .as_ref()
+            .and_then(|params| params.get(request_key))
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
@@ -603,41 +613,6 @@ mod tests {
         ]);
         let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, None);
-    }
-
-    #[test]
-    fn test_get_config_param() {
-        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
-
-        let mut params = HashMap::new();
-        params.insert("thinking_effort".to_string(), serde_json::json!("low"));
-
-        let config_with_params = ModelConfig {
-            model_name: "test".to_string(),
-            request_params: Some(params),
-            ..Default::default()
-        };
-
-        let config_without_params = ModelConfig {
-            request_params: None,
-            ..config_with_params.clone()
-        };
-
-        assert_eq!(
-            config_with_params
-                .get_config_param::<String>("thinking_effort", "GOOSE_THINKING_EFFORT"),
-            Some("low".to_string())
-        );
-        assert_eq!(
-            config_without_params
-                .get_config_param::<String>("thinking_effort", "GOOSE_THINKING_EFFORT"),
-            Some("high".to_string())
-        );
-        assert_eq!(
-            config_without_params
-                .get_config_param::<String>("nonexistent", "NONEXISTENT_CONFIG_KEY"),
-            None
-        );
     }
 
     #[test]

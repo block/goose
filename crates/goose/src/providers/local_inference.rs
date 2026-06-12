@@ -474,8 +474,13 @@ impl Provider for LocalInferenceProvider {
 
         // Allow request_params to override thinking
         let mut model_settings = model_settings;
-        if let Some(false) =
-            model_config.get_config_param::<bool>("enable_thinking", "GOOSE_LOCAL_ENABLE_THINKING")
+        if let Some(false) = model_config
+            .request_param::<bool>("enable_thinking")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("GOOSE_LOCAL_ENABLE_THINKING")
+                    .ok()
+            })
         {
             model_settings.enable_thinking = false;
         }
