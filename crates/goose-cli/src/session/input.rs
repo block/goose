@@ -30,6 +30,7 @@ pub enum InputResult {
     Edit(Option<String>),
     ListSkills,
     LoadSkills(Vec<String>),
+    Status,
 }
 
 #[derive(Debug)]
@@ -298,6 +299,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             println!("{}", console::style("⚠️  Note: /summarize has been renamed to /compact and will be removed in a future release.").yellow());
             Some(InputResult::Compact)
         }
+        "/status" => Some(InputResult::Status),
         "/r" => Some(InputResult::ToggleFullToolOutput),
         s if s == CMD_EDIT => Some(InputResult::Edit(None)),
         s if s.starts_with(CMD_EDIT_WITH_SPACE) => {
@@ -431,6 +433,7 @@ fn print_help() {
 /? or /help - Display this help message
 /clear - Clears the current chat history
 
+/status - Show session status (model, provider, mode, token usage)
 Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
 Ctrl+{newline_key} - Add a newline (configurable via GOOSE_CLI_NEWLINE_KEY)
@@ -746,6 +749,14 @@ mod tests {
     #[test]
     fn test_editor_always_explicit_false_without_editor() {
         assert!(!should_use_editor_always(None, Some(false)));
+    }
+
+    #[test]
+    fn test_status_command() {
+        assert!(matches!(
+            handle_slash_command("/status"),
+            Some(InputResult::Status)
+        ));
     }
 
     #[test]
