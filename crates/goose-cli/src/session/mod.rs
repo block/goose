@@ -2304,17 +2304,31 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
     }
 }
 
-/// A provider is offered in the `/model` menu when all of its required config
-/// keys are resolvable (via env var, stored secret/param, or a built-in default).
-/// This keeps unconfigured cloud providers out of the list while always including
-/// local (no-auth) providers like LM Studio and any provider whose key is set.
+/// Whether a provider should appear in the `/model` menu — i.e. it is actually
+/// usable, not merely declarable. Every required key must resolve (a real value
+/// or a built-in default), and if the provider authenticates with a secret
+/// (API key, bearer token) at least one such secret must hold a real value. A
+/// built-in default — e.g. Bedrock's `AWS_REGION` — is configuration, not a
+/// credential, so it never marks a secret-bearing provider configured on its
+/// own. Local no-auth providers (LM Studio, Ollama) declare no secret keys and
+/// stay always available.
 fn provider_is_configured(meta: &goose::providers::base::ProviderMetadata) -> bool {
     let config = Config::global();
-    meta.config_keys.iter().filter(|k| k.required).all(|k| {
-        std::env::var(&k.name).is_ok()
-            || k.default.is_some()
-            || config.get(&k.name, k.secret).is_ok()
-    })
+    let has_value = |k: &goose::providers::base::ConfigKey| {
+        std::env::var(&k.name).is_ok() || config.get(&k.name, k.secret).is_ok()
+    };
+
+    let all_required_resolvable = meta
+        .config_keys
+        .iter()
+        .filter(|k| k.required)
+        .all(|k| has_value(k) || k.default.is_some());
+    if !all_required_resolvable {
+        return false;
+    }
+
+    let secret_keys: Vec<_> = meta.config_keys.iter().filter(|k| k.secret).collect();
+    secret_keys.is_empty() || secret_keys.iter().any(|k| has_value(k))
 }
 
 fn build_switched_model_config(
@@ -2341,6 +2355,81 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn test_provider_is_configured_default_is_not_a_credential() {
+        use goose::providers::base::{ConfigKey, ProviderMetadata};
+
+        // Mirrors Bedrock: a required non-secret key satisfied only by its
+        // built-in default, plus an unset secret credential. The default alone
+        // must not mark the provider configured.
+        let bedrock_like = ProviderMetadata::new(
+            "test_bedrock_like",
+            "Test Bedrock-like",
+            "",
+            "model-x",
+            vec!["model-x"],
+            "",
+            vec![
+                ConfigKey::new(
+                    "GOOSE_TEST_REGION_UNSET",
+                    true,
+                    false,
+                    Some("us-east-1"),
+                    true,
+                ),
+                ConfigKey::new("GOOSE_TEST_BEARER_UNSET", false, true, None, true),
+            ],
+        );
+        assert!(
+            !provider_is_configured(&bedrock_like),
+            "a default-only region must not mark a secret-bearing provider configured"
+        );
+
+        // Local no-auth provider: no secret keys, so defaults are enough.
+        let local_like = ProviderMetadata::new(
+            "test_local_like",
+            "Test Local",
+            "",
+            "model-y",
+            vec!["model-y"],
+            "",
+            vec![ConfigKey::new(
+                "GOOSE_TEST_HOST_UNSET",
+                true,
+                false,
+                Some("http://localhost:1234"),
+                true,
+            )],
+        );
+        assert!(
+            provider_is_configured(&local_like),
+            "a no-secret local provider should remain available via defaults"
+        );
+
+        // Real secret value present: configured.
+        std::env::set_var("GOOSE_TEST_APIKEY_SET", "real-key");
+        let cloud_like = ProviderMetadata::new(
+            "test_cloud_like",
+            "Test Cloud",
+            "",
+            "model-z",
+            vec!["model-z"],
+            "",
+            vec![ConfigKey::new(
+                "GOOSE_TEST_APIKEY_SET",
+                true,
+                true,
+                None,
+                true,
+            )],
+        );
+        assert!(
+            provider_is_configured(&cloud_like),
+            "a provider with a real secret value should be configured"
+        );
+        std::env::remove_var("GOOSE_TEST_APIKEY_SET");
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
