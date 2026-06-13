@@ -1303,7 +1303,14 @@ mod tests {
             params.insert("thinking_effort".to_string(), serde_json::json!("high"));
             model_config.request_params = Some(params);
 
-            let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+            let request = create_request(
+                &model_config,
+                "system",
+                &[],
+                &[],
+                &ImageFormat::OpenAi,
+                false,
+            )?;
 
             assert_eq!(request["thinking"]["type"], "adaptive", "{name}");
             assert!(request.get("temperature").is_none(), "{name}");
@@ -1324,7 +1331,14 @@ mod tests {
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
         model_config.request_params = Some(params);
 
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
 
         assert_eq!(request["thinking"]["type"], "adaptive");
         assert_eq!(request["output_config"]["effort"], "high");
