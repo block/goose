@@ -568,6 +568,17 @@
     ]
   },
   {
+    "id": "optionsahoy",
+    "name": "OptionsAhoy",
+    "description": "Equity-compensation tax optimizer: ISO/AMT exercise scheduling, NSO, RSU sell-vs-hold, QSBS eligibility, single-stock concentration, and protective puts/collars across federal and 50-state tax code",
+    "command": "npx -y optionsahoy-mcp",
+    "link": "https://github.com/AlvisoOculus/optionsahoy-mcp",
+    "installation_notes": "Install using npx package manager. No API key required.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "pdf_read",
     "name": "PDF Reader",
     "description": "Read large and complex PDF documents",
