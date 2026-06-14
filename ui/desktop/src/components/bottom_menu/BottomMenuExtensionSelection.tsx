@@ -133,13 +133,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
     let controller: AbortController | null = null;
 
-    const loadExtensionsForCurrentSession = (event: Event) => {
-      const targetSessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
-
-      if (targetSessionId !== sessionId) {
-        return;
-      }
-
+    const loadForSession = (targetSessionId: string) => {
       controller?.abort();
       const currentController = new AbortController();
       controller = currentController;
@@ -154,7 +148,22 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       });
     };
 
+    const loadExtensionsForCurrentSession = (event: Event) => {
+      const targetSessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
+
+      if (targetSessionId !== sessionId) {
+        return;
+      }
+
+      loadForSession(targetSessionId);
+    };
+
     window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, loadExtensionsForCurrentSession);
+
+    // Load immediately so the trigger isn't stuck hidden when no
+    // SESSION_EXTENSIONS_LOADED event fires for the current session
+    // (e.g. switching back to an already-loaded session).
+    loadForSession(sessionId);
 
     return () => {
       controller?.abort();
