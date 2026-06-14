@@ -20,7 +20,7 @@ This tutorial covers how to add the [Rendex MCP Server](https://github.com/coppe
   <TabItem label="goose CLI" value="cli">
   Add a `Remote Extension (Streaming HTTP)` extension type.
   
-  **Endpoint URL:** `[https://mcp.rendex.dev/mcp](https://mcp.rendex.dev/mcp)`
+  **Endpoint URL:** `https://mcp.rendex.dev/mcp`
   </TabItem>
 </Tabs>
 
