@@ -886,6 +886,7 @@ impl CliSession {
         let all = goose::providers::providers().await;
         let mut entries: Vec<(String, String, String)> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut skipped: Vec<String> = Vec::new();
 
         for (meta, _ptype) in &all {
             let include =
@@ -907,9 +908,8 @@ impl CliSession {
                 .await
             {
                 Ok(p) => p,
-                Err(e) => {
-                    let _ =
-                        cliclack::log::warning(format!("Skipping '{}': {e}", meta.display_name));
+                Err(_) => {
+                    skipped.push(meta.display_name.clone());
                     continue;
                 }
             };
@@ -931,25 +931,18 @@ impl CliSession {
                         entries.push((label, meta.name.clone(), m));
                     }
                 }
-                Ok(Ok(_)) => {
-                    let _ = cliclack::log::warning(format!(
-                        "'{}' returned no models",
-                        meta.display_name
-                    ));
-                }
-                Ok(Err(e)) => {
-                    let _ = cliclack::log::warning(format!(
-                        "Could not list models for '{}': {e}",
-                        meta.display_name
-                    ));
-                }
-                Err(_) => {
-                    let _ = cliclack::log::warning(format!(
-                        "Timed out listing models for '{}'",
-                        meta.display_name
-                    ));
+                Ok(Ok(_)) | Ok(Err(_)) | Err(_) => {
+                    skipped.push(meta.display_name.clone());
                 }
             }
+        }
+
+        if !skipped.is_empty() {
+            let _ = cliclack::log::info(format!(
+                "Skipped {} provider(s) not available here: {}",
+                skipped.len(),
+                skipped.join(", ")
+            ));
         }
 
         if entries.is_empty() {
@@ -997,6 +990,35 @@ impl CliSession {
         let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+
+        // Probe the model before committing the switch: some providers list
+        // models their account can't actually run (e.g. NVIDIA returns 404
+        // "function not found"), and a dead/stuck endpoint shouldn't silently
+        // become the session model.
+        let _ = cliclack::log::info(format!("Checking '{chosen_model}' responds…"));
+        let probe_config = new_provider.get_model_config();
+        let probe_msg = [Message::user().with_text("ok")];
+        match tokio::time::timeout(
+            Duration::from_secs(30),
+            new_provider.complete(&probe_config, "model-check", "", &probe_msg, &[]),
+        )
+        .await
+        {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => {
+                output::render_error(&format!(
+                    "'{chosen_model}' isn't usable on '{chosen_provider}' — {e}. Keeping '{current_model_name}'."
+                ));
+                return Ok(());
+            }
+            Err(_) => {
+                output::render_error(&format!(
+                    "'{chosen_model}' didn't respond within 30s. Keeping '{current_model_name}'."
+                ));
+                return Ok(());
+            }
+        }
+
         self.agent
             .update_provider(new_provider, &self.session_id)
             .await?;
