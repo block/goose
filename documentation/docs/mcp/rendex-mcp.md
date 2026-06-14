@@ -25,11 +25,11 @@ This tutorial covers how to add the [Rendex MCP Server](https://github.com/coppe
 </Tabs>
 
 **Configuration Requirement**
-Please use the `envVars` property for your API key:
+Please use the `headers` property for your API key:
 ```json
 {
-  "envVars": {
-    "AUTHORIZATION": "Bearer YOUR_RENDEX_API_KEY"
+  "headers": {
+    "Authorization": "Bearer YOUR_RENDEX_API_KEY"
   }
 }
 ```
