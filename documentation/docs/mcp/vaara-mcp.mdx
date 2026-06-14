@@ -1,0 +1,16 @@
+---
+title: Vaara MCP Proxy Extension
+description: Add Vaara as a transparent, auditing security proxy extension for your MCP servers
+---
+
+This tutorial covers how to add [Vaara](https://github.com/vaaraio/vaara) as a goose extension. Vaara is an Apache-2.0 open-source security proxy that sits transparently between goose and any `stdio` MCP server to provide per-action audit chains, signed cryptographic attestations, and perimeter policy enforcement.
+
+By routing an MCP server through Vaara, you gain a tamper-evident audit trail of every tool call, resource read, and prompt fetch, without breaking your existing goose configurations, prompt-injection classifiers, or OpenTelemetry exporters.
+
+## Quick Install
+
+### goose CLI Installation
+To spin up an instance of the standard Memory MCP server wrapped securely inside the Vaara proxy perimeter, run the following command:
+
+```sh
+npx -y @vaaraio/vaara-proxy --upstream "npx -y @modelcontextprotocol/server-memory"
