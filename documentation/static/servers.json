@@ -866,10 +866,10 @@
   {
     "id": "byte-mcp-server",
     "name": "PayPerByte",
-    "description": "Verified, provenance-first per-byte USDC data feeds for AI agents on Arbitrum — subscribe or pay-per-call via x402, with verify-before-act on-chain provenance.",
+    "description": "Verified, provenance-first per-byte data for AI agents: pay-per-call in USDC on Base mainnet over x402 (no API key, no token), or subscribe to first-party feeds; verify-before-act provenance via an EIP-712 PayloadAttestation (domain anchored on Arbitrum Sepolia, audit-gated for mainnet).",
     "command": "npx -y byte-mcp-server",
     "link": "https://github.com/0rkz/byte-mcp-server",
-    "installation_notes": "Install via npx. Read-only tools need no config; set PRIVATE_KEY (testnet wallet) for write/x402 tools.",
+    "installation_notes": "Install via npx. Read-only tools need no config; set PRIVATE_KEY for write/x402 tools — the x402 buy rail settles real USDC on Base mainnet; the on-chain subscribe layer is Arbitrum Sepolia (testnet).",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
