@@ -1190,9 +1190,6 @@
   "extensionsSection.addExtension": {
     "defaultMessage": "एक्सटेंशन जोड़ें"
   },
-  "extensionsSection.browseExtensions": {
-    "defaultMessage": "एक्सटेंशन ब्राउज़ करें"
-  },
   "extensionsSection.saveChanges": {
     "defaultMessage": "परिवर्तन सहेजें"
   },
@@ -1204,9 +1201,6 @@
   },
   "extensionsView.addExtension": {
     "defaultMessage": "एक्सटेंशन जोड़ें"
-  },
-  "extensionsView.browseExtensions": {
-    "defaultMessage": "एक्सटेंशन ब्राउज़ करें"
   },
   "extensionsView.defaultNote": {
     "defaultMessage": "यहां सक्षम एक्सटेंशन नई चैट के लिए डिफ़ॉल्ट के रूप में उपयोग किए जाते हैं। आप चैट के दौरान सक्रिय एक्सटेंशन भी टॉगल कर सकते हैं।"
@@ -3583,9 +3577,6 @@
   },
   "schedulesView.confirmDelete": {
     "defaultMessage": "शेड्यूल \"{id}\" हटाएं? रेसिपी रखा जाएगा."
-  },
-  "schedulesView.createSchedule": {
-    "defaultMessage": "शेड्यूल बनाएं"
   },
   "schedulesView.description": {
     "defaultMessage": "निर्दिष्ट समय पर व्यंजनों को स्वचालित रूप से चलाने के लिए निर्धारित कार्य बनाएं और प्रबंधित करें।"
