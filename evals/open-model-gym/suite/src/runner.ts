@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync, rmSync, readdirSync, existsSync, copyFileSync } from "node:fs";
-import { join, basename, dirname } from "node:path";
+import { join, basename, dirname, resolve } from "node:path";
 import { homedir } from "node:os";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { parse, stringify } from "yaml";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -88,10 +88,46 @@ interface CacheIndex {
 }
 
 // =============================================================================
+// Output directory resolution
+// =============================================================================
+// All run artifacts (cache, isolated agent config roots, scratch workdir, logs,
+// and the HTML report) live under a single base directory. By default this is
+// the in-repo gym directory, so existing behavior is unchanged. Set the
+// GYM_OUTPUT_DIR env var or pass --output-dir=<path> to redirect everything
+// outside the repo and keep your checkout clean, e.g.:
+//
+//   GYM_OUTPUT_DIR=~/.goose/gym-runs/$(date +%Y%d%m%H%M%S) just run
+//
+// config.yaml and scenarios/ are inputs and always read from the repo.
+
+const SUITE_DIR = join(import.meta.dirname, ".."); // .../open-model-gym/suite
+const GYM_DIR = join(import.meta.dirname, "../.."); // .../open-model-gym
+
+function expandHome(p: string): string {
+  return p === "~" || p.startsWith("~/") ? join(homedir(), p.slice(1)) : p;
+}
+
+// Resolved output base, or null to fall back to the legacy in-repo locations.
+const OUTPUT_DIR: string | null = (() => {
+  const flag = process.argv
+    .find((a) => a.startsWith("--output-dir="))
+    ?.split("=")[1];
+  const base = flag ?? process.env.GYM_OUTPUT_DIR;
+  // Resolve to an absolute path: runners exec with cwd set to the workdir, so a
+  // relative base would make prompt/log paths resolve against the wrong dir.
+  return base ? resolve(expandHome(base)) : null;
+})();
+
+// Resolve an artifact path under OUTPUT_DIR when set, else its legacy anchor.
+function artifactPath(name: string, legacyAnchor: string): string {
+  return join(OUTPUT_DIR ?? legacyAnchor, name);
+}
+
+// =============================================================================
 // Cache Utilities
 // =============================================================================
 
-const CACHE_DIR = join(import.meta.dirname, "../.cache");
+const CACHE_DIR = artifactPath(".cache", SUITE_DIR);
 const CACHE_INDEX_PATH = join(CACHE_DIR, "index.json");
 const CACHE_LOGS_DIR = join(CACHE_DIR, "logs");
 const CACHE_VERSION = 1;
@@ -296,7 +332,7 @@ const PLATFORM_EXTENSIONS = new Set([
 ]);
 
 // Isolated goose config directory
-const GOOSE_ROOT = join(import.meta.dirname, "../.goose-root");
+const GOOSE_ROOT = artifactPath(".goose-root", SUITE_DIR);
 const GOOSE_CONFIG_DIR = join(GOOSE_ROOT, "config");
 
 function generateGooseConfig(model: ModelConfig, runner: RunnerConfig): object {
@@ -397,7 +433,7 @@ async function runGooseAgent(
 // =============================================================================
 
 // Isolated opencode config directory
-const OPENCODE_ROOT = join(import.meta.dirname, "../.opencode-root");
+const OPENCODE_ROOT = artifactPath(".opencode-root", SUITE_DIR);
 
 function generateOpenCodeConfig(model: ModelConfig, runner: RunnerConfig, workdir: string): object {
   const mcp: Record<string, object> = {};
@@ -496,7 +532,7 @@ async function runOpenCodeAgent(
 // MCP support via pi-mcp-adapter: `pi install npm:pi-mcp-adapter`
 
 // Isolated Pi config directory (like Goose/OpenCode)
-const PI_CONFIG_DIR = join(import.meta.dirname, "../.pi-root");
+const PI_CONFIG_DIR = artifactPath(".pi-root", SUITE_DIR);
 
 // User's real Pi config (for copying auth.json)
 const PI_USER_CONFIG = join(homedir(), ".pi", "agent");
@@ -979,11 +1015,15 @@ function generateHtmlReport(
 ): void {
   const { isRunning = false, allPairs = [] } = options;
 
-  // Read and embed gym.png as base64
-  const rootDir = join(outputPath, "..");
+  // Read and embed gym.png as base64. Prefer one sitting next to the report
+  // (legacy in-repo layout); otherwise fall back to the copy in the source tree
+  // so the image still embeds when output is redirected via GYM_OUTPUT_DIR.
   let gymBase64 = "";
   try {
-    const gymPath = join(rootDir, "gym.png");
+    const adjacent = join(outputPath, "..", "gym.png");
+    const gymPath = existsSync(adjacent)
+      ? adjacent
+      : join(import.meta.dirname, "gym.png");
     gymBase64 = readFileSync(gymPath).toString("base64");
   } catch (e) {
     // gym.png not found, will use external reference
@@ -1323,6 +1363,7 @@ function generateHtmlReport(
 </body>
 </html>`;
 
+  mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, html);
   console.log(`\n📊 Report saved to: ${outputPath}`);
 }
@@ -1361,12 +1402,11 @@ async function main() {
     return;
   }
 
-  const rootDir = join(import.meta.dirname, "../..");
-  const configPath = join(rootDir, "config.yaml");
+  const configPath = join(GYM_DIR, "config.yaml");
   const scenariosDir = join(import.meta.dirname, "../scenarios");
-  const workdir = join(import.meta.dirname, "../.workdir");
-  const logsDir = join(rootDir, "logs");
-  const reportPath = join(rootDir, "report.html");
+  const workdir = artifactPath(".workdir", SUITE_DIR);
+  const logsDir = artifactPath("logs", GYM_DIR);
+  const reportPath = artifactPath("report.html", GYM_DIR);
 
   const config = loadConfig(configPath);
   let scenarios = loadAllScenarios(scenariosDir);
@@ -1423,6 +1463,7 @@ async function main() {
   }
   const mcpHarnessHash = getMcpHarnessHash();
 
+  console.log(`Output: ${OUTPUT_DIR ?? GYM_DIR}${OUTPUT_DIR ? "" : " (in-repo; set GYM_OUTPUT_DIR to redirect)"}`);
   console.log(`Models: ${config.models.map((m) => m.name).join(", ")}`);
   console.log(`Runners: ${config.runners.map((r) => r.name).join(", ")}`);
   console.log(`Running ${pairs.length} test pairs (${RUN_COUNT}x each, worst result kept)`);
@@ -1455,7 +1496,7 @@ async function main() {
     if (!browserOpened) {
       generateHtmlReport(results, reportPath, { isRunning: true, allPairs: pairs });
       if (!noOpen) {
-        execSync(`open "${reportPath}"`);
+        execFileSync("open", [reportPath]);
       }
       browserOpened = true;
     }
@@ -1490,10 +1531,10 @@ async function main() {
   }
 
   generateHtmlReport(results, reportPath, { isRunning: false, allPairs: pairs });
-  
+
   // If everything was cached, open browser now with final report
   if (!browserOpened && !noOpen) {
-    execSync(`open "${reportPath}"`);
+    execFileSync("open", [reportPath]);
   }
   
   printResults(results);

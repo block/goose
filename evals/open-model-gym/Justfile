@@ -7,6 +7,14 @@ default: run
 run: _install
     cd suite && npm run test
 
+# Full run with artifacts isolated under ~/.goose/gym-runs/<YYYYDDMMHHMMSS> (keeps the repo clean)
+run-clean: _install
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export GYM_OUTPUT_DIR="$HOME/.goose/gym-runs/$(date +%Y%d%m%H%M%S)"
+    echo "Artifacts → $GYM_OUTPUT_DIR"
+    cd suite && npm run test
+
 # Quick test - file-editing + everyday-app-automation, single run each (no repetition)
 test: _install
     cd suite && npx tsx src/runner.ts --scenario=file-editing,everyday-app-automation --run-count=1
@@ -19,9 +27,12 @@ scenario name: _install
 agent name: _install
     cd suite && npx tsx src/runner.ts --agent={{name}}
 
-# Open report in browser
+# Open report in browser (honors GYM_OUTPUT_DIR if set)
 report:
-    open report.html
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="${GYM_OUTPUT_DIR:-.}"
+    open "${dir/#\~/$HOME}/report.html"
 
 # Install all dependencies
 install:
