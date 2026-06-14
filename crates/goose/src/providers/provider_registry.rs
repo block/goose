@@ -1,6 +1,6 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::InventoryIdentityInput;
-use crate::config::{Config, DeclarativeProviderConfig, ExtensionConfig};
+use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
 use anyhow::Result;
 use futures::future::BoxFuture;
 use goose_providers::model::ModelConfig;
@@ -58,11 +58,7 @@ impl ProviderEntry {
     }
 
     fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        let config = Config::global();
-        model = model
-            .with_default_context_limit(config.get_goose_context_limit()?)
-            .with_default_max_tokens(config.get_goose_max_tokens()?)
-            .with_canonical_limits(&self.metadata.name);
+        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
         if model.context_limit.is_none() {
             if let Some(info) = self
@@ -82,9 +78,11 @@ impl ProviderEntry {
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let default_model = &self.metadata.default_model;
-        let model_config =
-            self.normalize_model_config(ModelConfig::new(default_model.as_str())?)?;
+        let model_config = crate::model_config::model_config_from_user_config(
+            &self.metadata.name,
+            &self.metadata.default_model,
+        )?;
+        let model_config = self.normalize_model_config(model_config)?;
         (self.constructor)(model_config, extensions, None).await
     }
 

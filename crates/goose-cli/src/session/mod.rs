@@ -2120,7 +2120,6 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
 
 async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::providers::create;
-    use goose_providers::model::ModelConfig;
 
     let config = Config::global();
 
@@ -2152,9 +2151,9 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             return Err(anyhow::anyhow!("context limit must be greater than 4096"));
         }
     }
-    let model_config = ModelConfig::new(model.as_str())?
-        .with_context_limit(planner_context_limit)
-        .with_canonical_limits(&provider);
+    let model_config =
+        goose::model_config::model_config_from_user_config(&provider, model.as_str())?
+            .with_context_limit(planner_context_limit);
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, model_config, extensions).await?;
 
@@ -2179,10 +2178,9 @@ fn build_switched_model_config(
     model_name: &str,
     current_model_config: &goose_providers::model::ModelConfig,
 ) -> Result<goose_providers::model::ModelConfig> {
-    goose_providers::model::ModelConfig::new(model_name)
+    goose::model_config::model_config_from_user_config(provider_name, model_name)
         .map(|config| {
             config
-                .with_canonical_limits(provider_name)
                 .with_temperature(current_model_config.temperature)
                 .with_toolshim(current_model_config.toolshim)
                 .with_toolshim_model(current_model_config.toolshim_model.clone())

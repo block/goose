@@ -163,7 +163,11 @@ impl KimiCodeProvider {
     }
 
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(KIMI_CODE_DEFAULT_FAST_MODEL, KIMI_CODE_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            KIMI_CODE_PROVIDER_NAME,
+            KIMI_CODE_DEFAULT_FAST_MODEL,
+        )?;
         let client = Client::builder()
             .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;

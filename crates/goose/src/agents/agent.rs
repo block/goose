@@ -2643,9 +2643,8 @@ impl Agent {
                     .get_goose_model()
                     .ok()
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
-                goose_providers::model::ModelConfig::new(&model_name)
+                crate::model_config::model_config_from_user_config(&provider_name, &model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
-                    .with_canonical_limits(&provider_name)
             }
         };
 
@@ -2687,12 +2686,11 @@ impl Agent {
                 .get_goose_model()
                 .ok()
                 .ok_or_else(|| anyhow!("Could not configure fallback provider: missing model"))?;
-            let fallback_model_config =
-                goose_providers::model::ModelConfig::new(&fallback_model_name)
-                    .map_err(|e| {
-                        anyhow!("Could not configure fallback provider: invalid model {}", e)
-                    })?
-                    .with_canonical_limits(&fallback_provider_name);
+            let fallback_model_config = crate::model_config::model_config_from_user_config(
+                &fallback_provider_name,
+                &fallback_model_name,
+            )
+            .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?;
 
             let fallback_provider = crate::providers::create_with_working_dir(
                 &fallback_provider_name,

@@ -937,7 +937,8 @@ pub async fn get_provider_models(
         )));
     }
 
-    let model_config = ModelConfig::new(&metadata.default_model)?.with_canonical_limits(&name);
+    let model_config =
+        goose::model_config::model_config_from_user_config(&name, &metadata.default_model)?;
     let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
 
     let models_result = provider.fetch_recommended_model_info().await;
@@ -971,7 +972,7 @@ pub async fn resolve_provider_model_info(
         )));
     }
 
-    let model_config = ModelConfig::new(model)?.with_canonical_limits(name);
+    let model_config = goose::model_config::model_config_from_user_config(name, model)?;
     let provider = goose::providers::create(name, model_config.clone(), Vec::new()).await?;
     match provider.fetch_model_info(model).await {
         Ok(info) => Ok(info),
@@ -1440,11 +1441,10 @@ pub async fn configure_provider_oauth(
         return Ok(Json("OAuth configuration completed".to_string()));
     }
 
-    let temp_model = ModelConfig::new("temp")
+    let temp_model = goose::model_config::model_config_from_user_config(&provider_name, "temp")
         .map_err(|e| {
             ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
-        })?
-        .with_canonical_limits(&provider_name);
+        })?;
 
     // OAuth configuration does not use extensions.
     let provider = create(&provider_name, temp_model, Vec::new())

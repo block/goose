@@ -224,7 +224,7 @@ pub async fn create_with_named_model(
     model_name: &str,
     extensions: Vec<ExtensionConfig>,
 ) -> Result<Arc<dyn Provider>> {
-    let config = ModelConfig::new(model_name)?;
+    let config = crate::model_config::model_config_from_user_config(provider_name, model_name)?;
     create(provider_name, config, extensions).await
 }
 

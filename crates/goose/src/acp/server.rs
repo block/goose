@@ -401,12 +401,12 @@ fn resolve_default_provider_model_config(
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve model: {}", error))
     })?;
-    let resolved_model_config = goose_providers::model::ModelConfig::new(&resolved_model)
-        .map(|model_config| model_config.with_canonical_limits(&resolved_provider))
-        .map_err(|error| {
-            agent_client_protocol::Error::internal_error()
-                .data(format!("Failed to resolve model: {}", error))
-        })?;
+    let resolved_model_config =
+        crate::model_config::model_config_from_user_config(&resolved_provider, &resolved_model)
+            .map_err(|error| {
+                agent_client_protocol::Error::internal_error()
+                    .data(format!("Failed to resolve model: {}", error))
+            })?;
     Ok((resolved_provider, resolved_model_config))
 }
 
@@ -419,12 +419,14 @@ async fn resolve_provider_default_model_config(
             agent_client_protocol::Error::invalid_params()
                 .data(format!("Unknown provider '{}': {}", provider_name, error))
         })?;
-    goose_providers::model::ModelConfig::new(&entry.metadata().default_model)
-        .map(|model_config| model_config.with_canonical_limits(provider_name))
-        .map_err(|error| {
-            agent_client_protocol::Error::internal_error()
-                .data(format!("Failed to resolve model: {}", error))
-        })
+    crate::model_config::model_config_from_user_config(
+        provider_name,
+        &entry.metadata().default_model,
+    )
+    .map_err(|error| {
+        agent_client_protocol::Error::internal_error()
+            .data(format!("Failed to resolve model: {}", error))
+    })
 }
 
 fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
@@ -2710,9 +2712,9 @@ impl GooseAcpAgent {
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
         let current_model_config = current_provider.get_model_config();
-        let model_config = goose_providers::model::ModelConfig::new(model_id)
-            .invalid_params_err_ctx("Invalid model config")?
-            .with_canonical_limits(&provider_name);
+        let model_config =
+            crate::model_config::model_config_from_user_config(&provider_name, model_id)
+                .invalid_params_err_ctx("Invalid model config")?;
         let model_config =
             model_config.with_inherited_session_settings_from(Some(&current_model_config), None);
         agent
@@ -2846,10 +2848,10 @@ impl GooseAcpAgent {
             current_model
         };
         let model = model_name.unwrap_or(&default_model);
-        let mut model_config = goose_providers::model::ModelConfig::new(model)
-            .invalid_params_err_ctx("Invalid model config")?
-            .with_canonical_limits(&resolved_provider_name)
-            .with_context_limit(context_limit);
+        let mut model_config =
+            crate::model_config::model_config_from_user_config(&resolved_provider_name, model)
+                .invalid_params_err_ctx("Invalid model config")?
+                .with_context_limit(context_limit);
         model_config = model_config
             .with_inherited_session_settings_from(Some(&current_model_config), request_params);
 

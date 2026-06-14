@@ -838,7 +838,11 @@ pub struct GeminiOAuthProvider {
 
 impl GeminiOAuthProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GEMINI_OAUTH_DEFAULT_FAST_MODEL, GEMINI_OAUTH_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            GEMINI_OAUTH_PROVIDER_NAME,
+            GEMINI_OAUTH_DEFAULT_FAST_MODEL,
+        )?;
 
         let token_provider = Arc::new(GeminiOAuthTokenProvider::new(
             GeminiOAuthAuthState::instance(),

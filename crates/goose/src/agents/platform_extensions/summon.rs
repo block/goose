@@ -1401,8 +1401,7 @@ impl SummonClient {
         provider_name: &str,
     ) -> Result<goose_providers::model::ModelConfig, anyhow::Error> {
         let mut model_config = session.model_config.clone().map(Ok).unwrap_or_else(|| {
-            goose_providers::model::ModelConfig::new("default")
-                .map(|c| c.with_canonical_limits(provider_name))
+            crate::model_config::model_config_from_user_config(provider_name, "default")
         })?;
 
         let override_model = params
@@ -1423,8 +1422,8 @@ impl SummonClient {
                 // overridden model, then preserve session-level state that is
                 // not model-specific from the parent.
                 let parent = model_config;
-                let mut cfg = goose_providers::model::ModelConfig::new(&model)?
-                    .with_canonical_limits(provider_name);
+                let mut cfg =
+                    crate::model_config::model_config_from_user_config(provider_name, &model)?;
                 cfg.toolshim = parent.toolshim;
                 cfg.toolshim_model = parent.toolshim_model;
                 cfg.fast_model_config = parent.fast_model_config;

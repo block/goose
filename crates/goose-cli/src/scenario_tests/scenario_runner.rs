@@ -12,7 +12,6 @@ use goose::config::GooseMode;
 use goose::providers::{create, testprovider::TestProvider};
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use goose_providers::model::ModelConfig;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -188,7 +187,7 @@ where
 
         let inner_provider = create(
             &factory_name,
-            ModelConfig::new(config.model_name)?.with_canonical_limits(&factory_name),
+            goose::model_config::model_config_from_user_config(&factory_name, config.model_name)?,
             Vec::new(),
         )
         .await?;

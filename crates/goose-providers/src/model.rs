@@ -1,6 +1,5 @@
 use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
 use crate::thinking::ThinkingEffort;
-use once_cell::sync::Lazy;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,33 +8,6 @@ use thiserror::Error;
 use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
-
-#[derive(Debug, Clone, Deserialize)]
-struct PredefinedModel {
-    name: String,
-    #[serde(default)]
-    context_limit: Option<usize>,
-    #[serde(default)]
-    request_params: Option<HashMap<String, Value>>,
-}
-
-fn get_predefined_models() -> Vec<PredefinedModel> {
-    static PREDEFINED_MODELS: Lazy<Vec<PredefinedModel>> =
-        Lazy::new(|| match std::env::var("GOOSE_PREDEFINED_MODELS") {
-            Ok(json_str) => serde_json::from_str(&json_str).unwrap_or_else(|e| {
-                tracing::warn!("Failed to parse GOOSE_PREDEFINED_MODELS: {}", e);
-                Vec::new()
-            }),
-            Err(_) => Vec::new(),
-        });
-    PREDEFINED_MODELS.clone()
-}
-
-fn find_predefined_model(model_name: &str) -> Option<PredefinedModel> {
-    get_predefined_models()
-        .into_iter()
-        .find(|m| m.name == model_name)
-}
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -103,25 +75,16 @@ impl<'de> Deserialize<'de> for ModelConfig {
 }
 
 impl ModelConfig {
-    pub fn new(model_name: impl Into<String>) -> Result<Self, ConfigError> {
-        let model_name = model_name.into();
-        let temperature = Self::parse_temperature()?;
-        let toolshim = Self::parse_toolshim()?;
-        let toolshim_model = Self::parse_toolshim_model()?;
-
-        // Pick up predefined model settings before legacy suffix normalization.
-        let predefined = find_predefined_model(&model_name);
-        let request_params = predefined.and_then(|pm| pm.request_params);
-
+    pub fn new(model_name: impl AsRef<str>) -> Result<Self, ConfigError> {
         let mut config = Self {
-            model_name,
+            model_name: model_name.as_ref().to_string(),
             context_limit: None,
-            temperature,
+            temperature: None,
             max_tokens: None,
-            toolshim,
-            toolshim_model,
+            toolshim: false,
+            toolshim_model: None,
             fast_model_config: None,
-            request_params,
+            request_params: None,
             reasoning: None,
         };
         config.normalize_effort_suffix();
@@ -129,12 +92,6 @@ impl ModelConfig {
     }
 
     pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
-        if let Some(pm) = find_predefined_model(&self.model_name) {
-            if self.context_limit.is_none() {
-                self.context_limit = pm.context_limit;
-            }
-        }
-
         // Try canonical lookup with the full model name first, then fall back
         // to the name with reasoning-effort suffixes stripped (e.g.
         // "databricks-gpt-5.4-high" → "databricks-gpt-5.4").
@@ -167,55 +124,6 @@ impl ModelConfig {
         }
 
         self
-    }
-
-    fn parse_temperature() -> Result<Option<f32>, ConfigError> {
-        if let Ok(val) = std::env::var("GOOSE_TEMPERATURE") {
-            let temp = val.parse::<f32>().map_err(|_| {
-                ConfigError::InvalidValue(
-                    "GOOSE_TEMPERATURE".to_string(),
-                    val.clone(),
-                    "must be a valid number".to_string(),
-                )
-            })?;
-            if temp < 0.0 {
-                return Err(ConfigError::InvalidRange(
-                    "GOOSE_TEMPERATURE".to_string(),
-                    val,
-                ));
-            }
-            Ok(Some(temp))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn parse_toolshim() -> Result<bool, ConfigError> {
-        if let Ok(val) = std::env::var("GOOSE_TOOLSHIM") {
-            match val.to_lowercase().as_str() {
-                "1" | "true" | "yes" | "on" => Ok(true),
-                "0" | "false" | "no" | "off" => Ok(false),
-                _ => Err(ConfigError::InvalidValue(
-                    "GOOSE_TOOLSHIM".to_string(),
-                    val,
-                    "must be one of: 1, true, yes, on, 0, false, no, off".to_string(),
-                )),
-            }
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn parse_toolshim_model() -> Result<Option<String>, ConfigError> {
-        match std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL") {
-            Ok(val) if val.trim().is_empty() => Err(ConfigError::InvalidValue(
-                "GOOSE_TOOLSHIM_OLLAMA_MODEL".to_string(),
-                val,
-                "cannot be empty if set".to_string(),
-            )),
-            Ok(val) => Ok(Some(val)),
-            Err(_) => Ok(None),
-        }
     }
 
     pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
@@ -274,14 +182,14 @@ impl ModelConfig {
         fast_model_name: &str,
         provider_name: &str,
     ) -> Result<Self, ConfigError> {
-        let name = std::env::var("GOOSE_FAST_MODEL")
-            .ok()
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| fast_model_name.to_string());
-        let fast_config = ModelConfig::new(&name)?.with_canonical_limits(provider_name);
+        let fast_config = ModelConfig::new(fast_model_name)?.with_canonical_limits(provider_name);
         self.fast_model_config = Some(Box::new(fast_config));
         Ok(self)
+    }
+
+    pub fn with_fast_model_config(mut self, fast_model_config: ModelConfig) -> Self {
+        self.fast_model_config = Some(Box::new(fast_model_config));
+        self
     }
 
     pub fn with_merged_request_params(mut self, params: HashMap<String, Value>) -> Self {

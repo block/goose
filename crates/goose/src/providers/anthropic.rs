@@ -65,7 +65,11 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL, ANTHROPIC_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            ANTHROPIC_PROVIDER_NAME,
+            ANTHROPIC_DEFAULT_FAST_MODEL,
+        )?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
@@ -152,7 +156,10 @@ impl AnthropicProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            model.with_fast_model_config(crate::model_config::model_config_from_user_config(
+                &config.name,
+                fast_model_name,
+            )?)
         } else {
             model
         };

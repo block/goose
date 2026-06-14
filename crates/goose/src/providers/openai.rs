@@ -214,7 +214,11 @@ impl OpenAiProvider {
             .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
             .unwrap_or(false);
         let model = if is_openai {
-            model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?
+            crate::model_config::with_configured_fast_model(
+                model,
+                OPEN_AI_PROVIDER_NAME,
+                OPEN_AI_DEFAULT_FAST_MODEL,
+            )?
         } else {
             model
         };
@@ -416,7 +420,10 @@ impl OpenAiProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            model.with_fast_model_config(crate::model_config::model_config_from_user_config(
+                &config.name,
+                fast_model_name,
+            )?)
         } else {
             model
         };

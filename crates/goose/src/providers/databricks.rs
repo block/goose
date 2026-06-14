@@ -152,8 +152,11 @@ impl DatabricksProvider {
             token_cache,
             instance_id: Self::resolve_instance_id(),
         };
-        provider.model =
-            model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
+        provider.model = crate::model_config::with_configured_fast_model(
+            model,
+            DATABRICKS_PROVIDER_NAME,
+            DATABRICKS_DEFAULT_FAST_MODEL,
+        )?;
         Ok(provider)
     }
 

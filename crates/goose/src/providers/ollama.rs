@@ -220,7 +220,10 @@ impl OllamaProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            model.with_fast_model_config(crate::model_config::model_config_from_user_config(
+                &config.name,
+                fast_model_name,
+            )?)
         } else {
             model
         };
