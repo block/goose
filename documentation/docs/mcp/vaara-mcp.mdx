@@ -13,4 +13,4 @@ By routing an MCP server through Vaara, you gain a tamper-evident audit trail of
 To spin up an instance of the standard Memory MCP server wrapped securely inside the Vaara proxy perimeter, run the following command:
 
 ```sh
-npx -y @vaaraio/vaara-proxy --upstream "npx -y @modelcontextprotocol/server-memory"
+python -m vaara.integrations.mcp_proxy --upstream "npx -y @modelcontextprotocol/server-memory"
