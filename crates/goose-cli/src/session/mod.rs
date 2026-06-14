@@ -2144,7 +2144,16 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let model_config = ModelConfig::new_with_context_env(model, "GOOSE_PLANNER_CONTEXT_LIMIT")?
+    let planner_context_limit = std::env::var("GOOSE_PLANNER_CONTEXT_LIMIT")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok());
+    if let Some(limit) = planner_context_limit {
+        if limit < 4096 {
+            return Err(anyhow::anyhow!("context limit must be greater than 4096"));
+        }
+    }
+    let model_config = ModelConfig::new(model.as_str())?
+        .with_context_limit(planner_context_limit)
         .with_canonical_limits(&provider);
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, model_config, extensions).await?;

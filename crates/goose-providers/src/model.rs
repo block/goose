@@ -103,27 +103,8 @@ impl<'de> Deserialize<'de> for ModelConfig {
 }
 
 impl ModelConfig {
-    pub fn new(model_name: &str) -> Result<Self, ConfigError> {
-        Self::new_base(model_name.to_string(), None)
-    }
-
-    pub fn new_with_context_env(
-        model_name: String,
-        context_env_var: &str,
-    ) -> Result<Self, ConfigError> {
-        Self::new_base(model_name, Some(context_env_var))
-    }
-
-    fn new_base(model_name: String, context_env_var: Option<&str>) -> Result<Self, ConfigError> {
-        let context_limit = if let Some(env_var) = context_env_var {
-            std::env::var(env_var)
-                .ok()
-                .map(|val| Self::validate_context_limit(&val, env_var))
-                .transpose()?
-        } else {
-            None
-        };
-
+    pub fn new(model_name: impl Into<String>) -> Result<Self, ConfigError> {
+        let model_name = model_name.into();
         let temperature = Self::parse_temperature()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
@@ -134,7 +115,7 @@ impl ModelConfig {
 
         let mut config = Self {
             model_name,
-            context_limit,
+            context_limit: None,
             temperature,
             max_tokens: None,
             toolshim,
@@ -186,25 +167,6 @@ impl ModelConfig {
         }
 
         self
-    }
-
-    fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
-        let limit = val.parse::<usize>().map_err(|_| {
-            ConfigError::InvalidValue(
-                env_var.to_string(),
-                val.to_string(),
-                "must be a positive integer".to_string(),
-            )
-        })?;
-
-        if limit < 4 * 1024 {
-            return Err(ConfigError::InvalidRange(
-                env_var.to_string(),
-                "must be greater than 4K".to_string(),
-            ));
-        }
-
-        Ok(limit)
     }
 
     fn parse_temperature() -> Result<Option<f32>, ConfigError> {
