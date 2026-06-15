@@ -62,7 +62,7 @@ use agent_client_protocol::{
 };
 use anyhow::Result;
 use fs_err as fs;
-use futures::future::BoxFuture;
+use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
 use rmcp::model::{
     AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,

@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::conversation::message::{Message, MessageContent};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ElicitationResponse {
+pub(crate) enum ElicitationResponse {
     Accept(Value),
     Decline,
     Cancel,
@@ -44,7 +44,7 @@ impl PendingResponseClaim {
     }
 }
 
-pub struct ActionRequiredManager {
+pub(crate) struct ActionRequiredManager {
     pending: Arc<RwLock<HashMap<String, Arc<Mutex<PendingRequest>>>>>,
     queued_requests: Mutex<HashMap<String, VecDeque<Message>>>,
 }
@@ -57,13 +57,13 @@ impl ActionRequiredManager {
         }
     }
 
-    pub fn global() -> &'static Self {
+    pub(crate) fn global() -> &'static Self {
         static INSTANCE: once_cell::sync::Lazy<ActionRequiredManager> =
             once_cell::sync::Lazy::new(ActionRequiredManager::new);
         &INSTANCE
     }
 
-    pub async fn request_and_wait(
+    pub(crate) async fn request_and_wait(
         &self,
         session_id: String,
         message: String,
@@ -101,16 +101,6 @@ impl ActionRequiredManager {
         self.pending.write().await.remove(&id);
 
         result
-    }
-
-    pub async fn submit_response(
-        &self,
-        session_id: &str,
-        request_id: String,
-        response: ElicitationResponse,
-    ) -> Result<()> {
-        let claim = self.claim_response(session_id, &request_id).await?;
-        claim.submit(response)
     }
 
     pub(crate) async fn claim_response(
@@ -189,7 +179,7 @@ impl ActionRequiredManager {
         }
     }
 
-    pub async fn drain_requests_for_session(&self, session_id: &str) -> Vec<Message> {
+    pub(crate) async fn drain_requests_for_session(&self, session_id: &str) -> Vec<Message> {
         self.queued_requests
             .lock()
             .await
@@ -253,23 +243,17 @@ mod tests {
         assert_eq!(messages.len(), 1);
         let request_id = elicitation_id(&messages[0]);
 
-        let err = manager
-            .submit_response(
-                "session-b",
-                request_id.clone(),
-                ElicitationResponse::Accept(json!({ "answer": "wrong" })),
-            )
-            .await
-            .unwrap_err();
+        let err = match manager.claim_response("session-b", &request_id).await {
+            Ok(_) => panic!("wrong session should not claim pending response"),
+            Err(error) => error,
+        };
         assert!(err.to_string().contains("belongs to session session-a"));
 
         manager
-            .submit_response(
-                "session-a",
-                request_id,
-                ElicitationResponse::Accept(json!({ "answer": "right" })),
-            )
+            .claim_response("session-a", &request_id)
             .await
+            .unwrap()
+            .submit(ElicitationResponse::Accept(json!({ "answer": "right" })))
             .unwrap();
 
         let response = waiter.await.unwrap().unwrap();
@@ -321,20 +305,16 @@ mod tests {
         let request_id_b = elicitation_id(&session_b_messages[0]);
 
         manager
-            .submit_response(
-                "session-a",
-                request_id_a,
-                ElicitationResponse::Accept(json!({ "answer": "a" })),
-            )
+            .claim_response("session-a", &request_id_a)
             .await
+            .unwrap()
+            .submit(ElicitationResponse::Accept(json!({ "answer": "a" })))
             .unwrap();
         manager
-            .submit_response(
-                "session-b",
-                request_id_b,
-                ElicitationResponse::Accept(json!({ "answer": "b" })),
-            )
+            .claim_response("session-b", &request_id_b)
             .await
+            .unwrap()
+            .submit(ElicitationResponse::Accept(json!({ "answer": "b" })))
             .unwrap();
 
         assert_eq!(
@@ -344,6 +324,44 @@ mod tests {
         assert_eq!(
             waiter_b.await.unwrap().unwrap(),
             ElicitationResponse::Accept(json!({ "answer": "b" }))
+        );
+    }
+
+    #[tokio::test]
+    async fn claimed_response_can_complete_after_timeout_deadline() {
+        let manager = Arc::new(ActionRequiredManager::new());
+        let waiter = {
+            let manager = manager.clone();
+            tokio::spawn(async move {
+                manager
+                    .request_and_wait(
+                        "session-a".to_string(),
+                        "Need input".to_string(),
+                        json!({ "type": "object" }),
+                        Duration::from_millis(25),
+                    )
+                    .await
+            })
+        };
+
+        let messages = wait_for_elicitation_messages(&manager, "session-a").await;
+        assert_eq!(messages.len(), 1);
+        let request_id = elicitation_id(&messages[0]);
+
+        let claim = manager
+            .claim_response("session-a", &request_id)
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        claim
+            .submit(ElicitationResponse::Accept(json!({ "answer": "late" })))
+            .unwrap();
+
+        assert_eq!(
+            waiter.await.unwrap().unwrap(),
+            ElicitationResponse::Accept(json!({ "answer": "late" }))
         );
     }
 }
