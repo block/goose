@@ -21,7 +21,7 @@
 //! support should use the `inference_native_tools` path instead.
 
 use crate::conversation::message::{Message, MessageContent};
-use crate::providers::errors::ProviderError;
+use goose_providers::errors::ProviderError;
 use rmcp::model::{CallToolRequestParams, Tool};
 use serde_json::json;
 use std::borrow::Cow;

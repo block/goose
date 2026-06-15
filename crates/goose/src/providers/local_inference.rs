@@ -8,16 +8,16 @@ mod tool_parsing;
 use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::base::{
-    MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
-use crate::providers::errors::ProviderError;
+use crate::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::utils::RequestLog;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use backend::{BackendLoadedModel, LocalInferenceBackend};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
+use goose_providers::images::ImageFormat;
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
 use local_model_registry::ChatTemplate;
 use rmcp::model::Tool;
@@ -193,8 +193,7 @@ fn build_openai_messages_json(
     messages: &[Message],
     media_marker: Option<&str>,
 ) -> String {
-    use crate::providers::formats::openai::format_messages;
-    use crate::providers::utils::ImageFormat;
+    use goose_providers::formats::openai::format_messages;
 
     let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
     arr.extend(format_messages(messages, &ImageFormat::OpenAi));

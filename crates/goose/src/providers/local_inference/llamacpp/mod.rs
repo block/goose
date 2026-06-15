@@ -18,8 +18,6 @@ use self::inference_emulated_tools::{
 };
 use self::inference_engine::{GenerationContext, LoadedChatTemplates, LoadedModel};
 use self::inference_native_tools::generate_with_native_tools;
-use crate::providers::errors::ProviderError;
-use crate::providers::formats::openai::format_tools;
 use crate::providers::local_inference::backend::{
     BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
 };
@@ -31,6 +29,8 @@ use crate::providers::local_inference::tool_parsing::compact_tools_json;
 use crate::providers::local_inference::{
     build_openai_messages_json, build_openai_text_messages_json, ResolvedModelPaths,
 };
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::format_tools;
 
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
 

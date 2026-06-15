@@ -13,7 +13,6 @@ import {
   providers,
   startAgent,
   stopAgent,
-  listSessions,
   getSession,
   updateAgentProvider,
   updateSession,
@@ -123,14 +122,6 @@ extensions:
       expect(getResponse.response).toBeOkResponse();
       expect(getResponse.data).toBeDefined();
       expect(getResponse.data!.id).toBe(session.id);
-    });
-
-    it('should list sessions', async () => {
-      const sessionsResponse = await listSessions({ client: ctx.client });
-      expect(sessionsResponse.response).toBeOkResponse();
-      expect(sessionsResponse.data).toBeDefined();
-      expect(sessionsResponse.data!.sessions).toBeDefined();
-      expect(Array.isArray(sessionsResponse.data!.sessions)).toBe(true);
     });
 
     it('should persist goose_mode on the session', async () => {

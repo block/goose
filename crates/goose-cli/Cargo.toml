@@ -20,9 +20,10 @@ name = "generate_manpages"
 path = "src/bin/generate_manpages.rs"
 
 [dependencies]
-clap_mangen = { version = "0.2", default-features = false }
+clap_mangen = { version = "0.3", default-features = false }
 goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp", default-features = false }
+goose-providers = { path = "../goose-providers", default-features = false }
 rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = { version = "0.5", default-features = false }
@@ -73,6 +74,7 @@ winapi = { workspace = true }
 default = [
     "code-mode",
     "local-inference",
+    "tui",
     "aws-providers",
     "telemetry",
     "nostr",
@@ -90,8 +92,9 @@ telemetry = ["goose/telemetry"]
 nostr = ["goose/nostr"]
 otel = ["goose/otel"]
 system-keyring = ["goose/system-keyring"]
+tui = []
 update = ["dep:sigstore-verify"]
-portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
+portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel", "tui"]
 # disables the update command
 disable-update = []
 rustls-tls = [

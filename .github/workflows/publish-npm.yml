@@ -25,14 +25,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '24.10.0'
           registry-url: 'https://registry.npmjs.org'
           always-auth: true
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6.0.5
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 10.30.3
 
@@ -100,10 +100,7 @@ jobs:
           cd ui/sdk
           pnpm run build:ts
 
-          cd ../text
-          pnpm run build
-
-      - name: Compatibility check (TUI client ↔ goose binary)
+      - name: Compatibility check (SDK client ↔ goose binary)
         env:
           GOOSE_BINARY: ${{ github.workspace }}/ui/goose-binary/goose-binary-linux-x64/bin/goose
         run: |
@@ -111,7 +108,7 @@ jobs:
           pnpm run check:compat
 
       - name: Upload built packages
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: npm-packages
           path: ui/
@@ -135,7 +132,7 @@ jobs:
             echo ""
             echo "### npm Packages"
             cd ui
-            for pkg in sdk text goose-binary/*/; do
+            for pkg in sdk goose-binary/*/; do
               if [ -f "$pkg/package.json" ]; then
                 name=$(jq -r '.name' "$pkg/package.json")
                 version=$(jq -r '.version' "$pkg/package.json")
@@ -160,14 +157,14 @@ jobs:
         run: find ui/goose-binary -name 'goose' -type f -exec chmod +x {} +
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '24.10.0'
           registry-url: 'https://registry.npmjs.org'
           always-auth: true
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6.0.5
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 10.30.3
 
@@ -177,7 +174,7 @@ jobs:
           # Publish each package individually so one failure doesn't abort the rest.
           # Skips packages whose version is already published (409/403).
           failed=0
-          for pkg in sdk goose-binary/*/ text; do
+          for pkg in sdk goose-binary/*/; do
             if [ -f "$pkg/package.json" ]; then
               name=$(jq -r '.name' "$pkg/package.json")
               version=$(jq -r '.version' "$pkg/package.json")
@@ -207,7 +204,7 @@ jobs:
           {
             echo "## 🚀 Published Packages"
             echo ""
-            for pkg in sdk text goose-binary/*/; do
+            for pkg in sdk goose-binary/*/; do
               if [ -f "$pkg/package.json" ]; then
                 name=$(jq -r '.name' "$pkg/package.json")
                 version=$(jq -r '.version' "$pkg/package.json")
