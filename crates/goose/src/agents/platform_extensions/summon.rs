@@ -286,15 +286,12 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     sources
 }
 
-fn prepend_reference_context(context: &str, instructions: &str) -> String {
-    if instructions.is_empty() {
-        format!("# Reference Context\n\n{}", context)
-    } else {
-        format!(
-            "# Reference Context\n\n{}\n\n# Task Instructions\n\n{}",
-            context, instructions
-        )
+fn build_instructions_with_context(context: &str, instructions: &str) -> String {
+    let mut result = format!("# Reference Context\n\n{}", context);
+    if !instructions.is_empty() {
+        result.push_str(&format!("\n\n# Task Instructions\n\n{}", instructions));
     }
+    result
 }
 
 fn build_subagent_instructions(session: Option<&crate::session::Session>) -> String {
@@ -1192,7 +1189,7 @@ impl SummonClient {
 
         if let Some(ref context) = params.context {
             let existing = recipe.instructions.unwrap_or_default();
-            recipe.instructions = Some(prepend_reference_context(context, &existing));
+            recipe.instructions = Some(build_instructions_with_context(context, &existing));
         }
 
         Ok(recipe)
@@ -2134,13 +2131,13 @@ You review code."#;
     }
 
     #[test]
-    fn test_prepend_reference_context_wraps_existing_instructions() {
+    fn test_build_instructions_with_context_wraps_existing_instructions() {
         assert_eq!(
-            prepend_reference_context("background info", "Run deploy steps"),
+            build_instructions_with_context("background info", "Run deploy steps"),
             "# Reference Context\n\nbackground info\n\n# Task Instructions\n\nRun deploy steps"
         );
         assert_eq!(
-            prepend_reference_context("background info", ""),
+            build_instructions_with_context("background info", ""),
             "# Reference Context\n\nbackground info"
         );
     }
