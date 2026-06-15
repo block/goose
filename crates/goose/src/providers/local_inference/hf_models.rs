@@ -1366,7 +1366,7 @@ async fn search_mlx_models_with_query(query: &str, limit: usize) -> Result<Vec<H
         if results.len() >= limit {
             break;
         }
-        if let Some(model) = model_info_to_local_model_info(info).await? {
+        if let Some(model) = get_local_model_info_for_repo_with_client(&client, &info.id).await? {
             results.push(model);
         }
     }
@@ -1376,7 +1376,14 @@ async fn search_mlx_models_with_query(query: &str, limit: usize) -> Result<Vec<H
 
 async fn get_local_model_info_for_repo(repo_id: &str) -> Result<Option<HfModelInfo>> {
     let client = hf_client().await?;
-    let repo = model_repo(&client, repo_id)?;
+    get_local_model_info_for_repo_with_client(&client, repo_id).await
+}
+
+async fn get_local_model_info_for_repo_with_client(
+    client: &HFClient,
+    repo_id: &str,
+) -> Result<Option<HfModelInfo>> {
+    let repo = model_repo(client, repo_id)?;
     let info = repo
         .info()
         .expand(vec![
