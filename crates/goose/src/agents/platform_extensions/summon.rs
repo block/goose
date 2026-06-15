@@ -286,6 +286,17 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     sources
 }
 
+fn prepend_reference_context(context: &str, instructions: &str) -> String {
+    if instructions.is_empty() {
+        format!("# Reference Context\n\n{}", context)
+    } else {
+        format!(
+            "# Reference Context\n\n{}\n\n# Task Instructions\n\n{}",
+            context, instructions
+        )
+    }
+}
+
 fn build_subagent_instructions(session: Option<&crate::session::Session>) -> String {
     let Some(session) = session else {
         return String::new();
@@ -1181,15 +1192,7 @@ impl SummonClient {
 
         if let Some(ref context) = params.context {
             let existing = recipe.instructions.unwrap_or_default();
-            let task_section = if existing.is_empty() {
-                String::new()
-            } else {
-                format!("# Task Instructions\n\n{}", existing)
-            };
-            recipe.instructions = Some(format!(
-                "# Reference Context\n\n{}\n\n{}",
-                context, task_section
-            ));
+            recipe.instructions = Some(prepend_reference_context(context, &existing));
         }
 
         Ok(recipe)
@@ -2104,6 +2107,41 @@ You review code."#;
         assert_eq!(
             SummonClient::get_task_description(&make_params(None, None)),
             "Unknown task"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_context_injected_into_adhoc_recipe() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let params = DelegateParams {
+            instructions: Some("do the task".to_string()),
+            context: Some("background info".to_string()),
+            ..Default::default()
+        };
+
+        let recipe = client
+            .build_delegate_recipe(&params, "test", temp_dir.path())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            recipe.instructions.as_deref(),
+            Some("# Reference Context\n\nbackground info")
+        );
+        assert_eq!(recipe.prompt.as_deref(), Some("do the task"));
+    }
+
+    #[test]
+    fn test_prepend_reference_context_wraps_existing_instructions() {
+        assert_eq!(
+            prepend_reference_context("background info", "Run deploy steps"),
+            "# Reference Context\n\nbackground info\n\n# Task Instructions\n\nRun deploy steps"
+        );
+        assert_eq!(
+            prepend_reference_context("background info", ""),
+            "# Reference Context\n\nbackground info"
         );
     }
 
