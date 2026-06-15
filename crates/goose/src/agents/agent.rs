@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -43,7 +43,6 @@ use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::{PermissionRouting, Provider};
-use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
@@ -54,6 +53,8 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
+use goose_providers::errors::ProviderError;
+use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
@@ -65,6 +66,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
@@ -96,6 +98,35 @@ fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
         }
     }
     None
+}
+
+fn stop_hook_denial_context_message(plugin: &str, reason: &str) -> Message {
+    let nudge = format!(
+        "Stop hook `{plugin}` blocked ending this turn:
+
+{reason}
+
+Address this policy hook denial before trying to stop again."
+    );
+    Message::user()
+        .with_text(nudge)
+        .with_visibility(false, true)
+}
+
+fn stop_hook_denial_notification(plugin: &str) -> Message {
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        format!("Stop hook `{plugin}` blocked ending this turn."),
+    )
+}
+
+fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
+        format!(
+            "Stop hook `{plugin}` blocked the turn from ending more than {cap} consecutive times — overriding and ending turn to avoid an infinite loop. Set GOOSE_STOP_HOOK_BLOCK_CAP to raise this limit."
+        ),
+    )
 }
 
 /// Context needed for the reply function
@@ -211,9 +242,12 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
+    #[cfg(test)]
+    stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
     goal: Mutex<Option<String>>,
     grind: Mutex<Option<String>>,
+    pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -330,14 +364,38 @@ impl Agent {
                 provider.clone(),
             ),
             hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            #[cfg(test)]
+            stop_hook_block_cap_override: None,
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
+            pending_steers: Mutex::new(HashMap::new()),
         }
     }
 
     /// Emit a lifecycle hook event with no extra context. Useful for events
     /// that have no matcher (e.g. `SessionStart`, `SessionEnd`).
+    #[cfg(test)]
+    pub(crate) fn set_hook_manager_for_test(&mut self, hook_manager: crate::hooks::HookManager) {
+        self.hook_manager = hook_manager;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_stop_hook_block_cap_for_test(&mut self, cap: u32) {
+        self.stop_hook_block_cap_override = Some(cap);
+    }
+
+    fn stop_hook_block_cap(&self) -> u32 {
+        #[cfg(test)]
+        if let Some(cap) = self.stop_hook_block_cap_override {
+            return cap;
+        }
+
+        Config::global()
+            .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
+            .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP)
+    }
+
     pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) {
         if !self.hook_manager.has_hooks(event) {
             return;
@@ -345,6 +403,36 @@ impl Agent {
         self.hook_manager
             .emit(event, crate::hooks::HookContext::new(event, session_id))
             .await;
+    }
+
+    pub async fn steer(&self, session_id: &str, message: Message) {
+        self.pending_steers
+            .lock()
+            .await
+            .entry(session_id.to_string())
+            .or_default()
+            .push_back(message);
+    }
+
+    pub async fn discard_pending_steers(&self, session_id: &str) {
+        self.pending_steers.lock().await.remove(session_id);
+    }
+
+    async fn has_pending_steers(&self, session_id: &str) -> bool {
+        self.pending_steers
+            .lock()
+            .await
+            .get(session_id)
+            .is_some_and(|messages| !messages.is_empty())
+    }
+
+    async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
+        self.pending_steers
+            .lock()
+            .await
+            .remove(session_id)
+            .map(|messages| messages.into_iter().map(Message::with_steer).collect())
+            .unwrap_or_default()
     }
 
     async fn emit_pre_tool_extended_hooks(
@@ -1362,17 +1450,20 @@ impl Agent {
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
-                if let ActionRequiredData::ElicitationResponse { id, user_data } =
-                    &action_required.data
+                if let ActionRequiredData::ElicitationResponse {
+                    id,
+                    user_data,
+                    action,
+                } = &action_required.data
                 {
                     // Surface stale/cancelled/timed-out elicitations as a hard
                     // error so callers (e.g. the HTTP handler) can propagate
                     // failure to the client instead of silently reporting
                     // success while the blocked tool call stays unblocked.
-                    // The success path returns an empty stream; an Err here
-                    // makes the contract: Ok(empty) on accept, Err on reject.
+                    // The success path returns an empty stream after the MCP
+                    // server receives the user's accept/decline/cancel action.
                     ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone())
+                        .submit_response(id.clone(), user_data.clone(), action.clone())
                         .await
                         .map_err(|e| {
                             error!("Failed to submit elicitation response: {}", e);
@@ -1631,7 +1722,15 @@ impl Agent {
             .count();
 
         let working_dir = session.working_dir.clone();
-        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", trace_output = tracing::field::Empty, session.id = %session_config.id);
+        let reply_stream_span = tracing::info_span!(
+            target: "goose::agents::agent",
+            "reply_stream",
+            trace_output = tracing::field::Empty,
+            session.id = %session_config.id,
+            session.user = %crate::session_context::session_user(),
+            session.host = %crate::session_context::session_host(),
+            session.agent_type = "goose",
+        );
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
@@ -1643,21 +1742,86 @@ impl Agent {
             let mut last_assistant_text = String::new();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
+            let mut stop_hook_handled_for_exit = false;
+            let mut retrying_after_stop_hook_denial = false;
+            let mut consecutive_stop_hook_blocks = 0u32;
+            let stop_hook_block_cap = self.stop_hook_block_cap();
+            let mut can_drain_pending_steers = false;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
                     break;
                 }
 
-                {
-                    let guard = self.final_output_tool.lock().await;
-                    if let Some(ref output) = guard.as_ref().and_then(|fot| fot.final_output.clone()) {
-                        yield AgentEvent::Message(Message::assistant().with_text(output));
-                        break;
+                if can_drain_pending_steers {
+                    for message in self.drain_pending_steers(&session_config.id).await {
+                        let message_text = message.as_concat_text();
+                        if self
+                            .hook_manager
+                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+                        {
+                            let ctx = crate::hooks::HookContext::new(
+                                crate::hooks::HookEvent::UserPromptSubmit,
+                                &session_config.id,
+                            )
+                            .with_message(message_text);
+                            self.hook_manager
+                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                                .await;
+                        }
+                        session_manager.add_message(&session_config.id, &message).await?;
+                        conversation.push(message.clone());
+                        yield AgentEvent::Message(message);
                     }
                 }
 
-                turns_taken += 1;
+                let final_output = {
+                    let mut guard = self.final_output_tool.lock().await;
+                    guard.as_mut().and_then(|fot| fot.final_output.take())
+                };
+                if let Some(output) = final_output {
+                    let message = Message::assistant().with_text(output);
+                    yield AgentEvent::Message(message.clone());
+                    session_manager.add_message(&session_config.id, &message).await?;
+                    conversation.push(message);
+
+                    let ctx = crate::hooks::HookContext::new(
+                        crate::hooks::HookEvent::Stop,
+                        &session_config.id,
+                    );
+                    match self
+                        .hook_manager
+                        .emit_blocking(crate::hooks::HookEvent::Stop, ctx)
+                        .await
+                    {
+                        crate::hooks::HookDecision::Allow => {
+                            stop_hook_handled_for_exit = true;
+                            break;
+                        }
+                        crate::hooks::HookDecision::Deny { reason, plugin } => {
+                            consecutive_stop_hook_blocks += 1;
+                            if consecutive_stop_hook_blocks > stop_hook_block_cap {
+                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
+                                session_manager.add_message(&session_config.id, &message).await?;
+                                yield AgentEvent::Message(message);
+                                stop_hook_handled_for_exit = true;
+                                break;
+                            }
+                            let message = stop_hook_denial_context_message(&plugin, &reason);
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message);
+                            yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            retrying_after_stop_hook_denial = true;
+                            continue;
+                        }
+                    }
+                }
+
+                if retrying_after_stop_hook_denial {
+                    retrying_after_stop_hook_denial = false;
+                } else {
+                    turns_taken += 1;
+                }
                 if turns_taken > max_turns {
                     yield AgentEvent::Message(
                         Message::assistant().with_text(
@@ -1706,6 +1870,7 @@ impl Agent {
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
+                let mut pending_final_output: Option<String> = None;
 
                 // Track whether this provider turn has already emitted visible
                 // thinking so a later tool-call chunk can suppress replayed
@@ -1981,10 +2146,14 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
+                                        // Response placeholder is created before tools run, so clamp request to avoid inverted ordering.
+                                        if request_msg.created > final_response.created {
+                                            request_msg.created = final_response.created;
+                                        }
+                                        messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
@@ -2090,6 +2259,21 @@ impl Agent {
                             );
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::Refusal { ref details, ref category }) => {
+                            #[cfg(feature = "telemetry")]
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let category = category.as_deref().map(|c| format!("\n\nCategory: {c}")).unwrap_or_default();
+                            yield AgentEvent::Message(Message::assistant().with_text(format!(
+                                "The provider refused this request.\n\n{details}{category}\n\nPlease start a new session to continue — resending this conversation is likely to be refused again."
+                            )));
+                            // A refusal is terminal: skip goal/grind nudges and
+                            // recipe retry_config, which would resend the same
+                            // refused conversation.
+                            exit_chat = true;
+                            break;
+                        }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
@@ -2114,6 +2298,8 @@ impl Agent {
                         }
                     }
                 }
+                can_drain_pending_steers = true;
+
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
@@ -2131,12 +2317,12 @@ impl Agent {
                     }
                 }
 
-                if no_tools_called {
+                if no_tools_called && !exit_chat {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
-                        let guard = self.final_output_tool.lock().await;
-                        guard.as_ref().map(|fot| fot.final_output.clone())
+                        let mut guard = self.final_output_tool.lock().await;
+                        guard.as_mut().map(|fot| fot.final_output.take())
                     };
 
                     match final_output {
@@ -2147,14 +2333,13 @@ impl Agent {
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
-                            let message = Message::assistant().with_text(output);
-                            messages_to_add.push(message.clone());
-                            yield AgentEvent::Message(message);
+                            pending_final_output = Some(output);
                             exit_chat = true;
                         }
                         None if did_recovery_compact_this_iteration => {
                             // continue from last user message after recovery compact
                         }
+                        None if self.has_pending_steers(&session_config.id).await => {}
                         None if self.goal.lock().await.is_some() && !goal_check_pending => {
                             goal_check_pending = true;
                             let goal = self.goal.lock().await.clone().unwrap();
@@ -2257,6 +2442,12 @@ impl Agent {
                     }
                 }
 
+                if let Some(output) = pending_final_output.take() {
+                    let message = Message::assistant().with_text(output);
+                    messages_to_add.push(message.clone());
+                    yield AgentEvent::Message(message);
+                }
+
                 let messages_to_add = if let Some(ref inference) = inference {
                     Conversation::new_unvalidated(
                         messages_to_add
@@ -2271,8 +2462,41 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
+
+                if exit_chat && self.has_pending_steers(&session_config.id).await {
+                    exit_chat = false;
+                }
+
                 if exit_chat {
-                    break;
+                    let ctx = crate::hooks::HookContext::new(
+                        crate::hooks::HookEvent::Stop,
+                        &session_config.id,
+                    );
+                    match self
+                        .hook_manager
+                        .emit_blocking(crate::hooks::HookEvent::Stop, ctx)
+                        .await
+                    {
+                        crate::hooks::HookDecision::Allow => {
+                            stop_hook_handled_for_exit = true;
+                            break;
+                        }
+                        crate::hooks::HookDecision::Deny { reason, plugin } => {
+                            consecutive_stop_hook_blocks += 1;
+                            if consecutive_stop_hook_blocks > stop_hook_block_cap {
+                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
+                                session_manager.add_message(&session_config.id, &message).await?;
+                                yield AgentEvent::Message(message);
+                                stop_hook_handled_for_exit = true;
+                                break;
+                            }
+                            let message = stop_hook_denial_context_message(&plugin, &reason);
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message);
+                            yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
+                            retrying_after_stop_hook_denial = true;
+                        }
+                    }
                 }
 
                 tokio::task::yield_now().await;
@@ -2282,7 +2506,9 @@ impl Agent {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
             }
 
-            self.emit_hook(crate::hooks::HookEvent::Stop, &session_config.id).await;
+            if !stop_hook_handled_for_exit {
+                self.emit_hook(crate::hooks::HookEvent::Stop, &session_config.id).await;
+            }
         }.instrument(reply_stream_span));
         Ok(inner)
     }
@@ -2357,6 +2583,54 @@ impl Agent {
         *self.current_goose_mode.lock().await
     }
 
+    pub async fn recreate_provider_for_session(
+        &self,
+        session_id: &str,
+        provider_name: &str,
+        model_config: crate::model::ModelConfig,
+    ) -> Result<()> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .context("Failed to get session")?;
+
+        let extensions = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            Config::global(),
+        );
+
+        let provider = crate::providers::create_with_working_dir(
+            provider_name,
+            model_config,
+            extensions,
+            session.working_dir.clone(),
+        )
+        .await
+        .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+
+        self.update_provider(provider, session_id).await?;
+
+        let mode = self.goose_mode().await;
+        self.update_goose_mode(mode, session_id).await
+    }
+
+    pub async fn update_thinking_effort(
+        &self,
+        session_id: &str,
+        effort: ThinkingEffort,
+    ) -> Result<()> {
+        let current_provider = self.provider().await?;
+        let provider_name = current_provider.get_name().to_string();
+        let model_config = current_provider
+            .get_model_config()
+            .with_thinking_effort(effort);
+
+        self.recreate_provider_for_session(session_id, &provider_name, model_config)
+            .await
+    }
+
     /// Restore the provider from session data or fall back to global config
     /// This is used when resuming a session to restore the provider state
     /// Returns true if the session's provider was replaced with a fallback.
@@ -2389,9 +2663,14 @@ impl Agent {
             .await
             .is_ok()
         {
-            let p = crate::providers::create(&provider_name, model_config, extensions)
-                .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+            let p = crate::providers::create_with_working_dir(
+                &provider_name,
+                model_config,
+                extensions,
+                session.working_dir.clone(),
+            )
+            .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
             (p, false)
         } else {
             let fallback_provider_name = config
@@ -2419,10 +2698,11 @@ impl Agent {
                 .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?
                 .with_canonical_limits(&fallback_provider_name);
 
-            let fallback_provider = crate::providers::create(
+            let fallback_provider = crate::providers::create_with_working_dir(
                 &fallback_provider_name,
                 fallback_model_config.clone(),
                 extensions,
+                session.working_dir.clone(),
             )
             .await
             .map_err(|e| {
@@ -2788,8 +3068,15 @@ impl Agent {
 mod tests {
     use super::*;
     use crate::permission::permission_confirmation::PrincipalType;
-    use crate::providers::base::PermissionRouting;
+    use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
+    use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
     use crate::recipe::Response;
+    use crate::session::session_manager::SessionType;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+    use rmcp::model::Tool;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tempfile::TempDir;
 
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
@@ -2824,8 +3111,7 @@ mod tests {
             _: &str,
             _: &[crate::conversation::message::Message],
             _: &[rmcp::model::Tool],
-        ) -> Result<crate::providers::base::MessageStream, crate::providers::errors::ProviderError>
-        {
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
             unimplemented!()
         }
         fn permission_routing(&self) -> PermissionRouting {
@@ -2907,6 +3193,335 @@ mod tests {
         assert_eq!(conf.permission, crate::permission::Permission::AllowOnce);
     }
 
+    const ALWAYS_BLOCK_SCRIPT: &str = r#"#!/bin/sh
+echo blocked >> "$PLUGIN_ROOT/hook.log"
+echo "always block" >&2
+exit 2
+"#;
+
+    const ALTERNATE_BLOCK_ALLOW_SCRIPT: &str = r#"#!/bin/sh
+count_file="$PLUGIN_ROOT/count"
+count=0
+if [ -f "$count_file" ]; then
+  count=$(cat "$count_file")
+fi
+count=$((count + 1))
+echo "$count" > "$count_file"
+echo "$count" >> "$PLUGIN_ROOT/hook.log"
+if [ $((count % 2)) -eq 1 ]; then
+  echo "block $count" >&2
+  exit 2
+fi
+exit 0
+"#;
+
+    struct StopHookTestEnv {
+        temp_dir: TempDir,
+        hook_log: PathBuf,
+    }
+
+    impl StopHookTestEnv {
+        fn new(script: &str) -> Result<Self> {
+            let temp_dir = tempfile::tempdir()?;
+            let plugin_dir = temp_dir.path().join("stop-blocker");
+            std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+            std::fs::write(
+                plugin_dir.join("hooks/hooks.json"),
+                r#"{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh ${PLUGIN_ROOT}/block.sh" }
+        ]
+      }
+    ]
+  }
+}
+"#,
+            )?;
+            std::fs::write(plugin_dir.join("block.sh"), script)?;
+
+            Ok(Self {
+                temp_dir,
+                hook_log: plugin_dir.join("hook.log"),
+            })
+        }
+
+        fn hook_manager(&self) -> crate::hooks::HookManager {
+            crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+                name: "stop-blocker".into(),
+                root: self.temp_dir.path().join("stop-blocker"),
+                scope: PluginScope::Project,
+            }])
+        }
+
+        fn data_dir(&self) -> PathBuf {
+            self.temp_dir.path().join("data")
+        }
+
+        fn hook_invocations(&self) -> usize {
+            std::fs::read_to_string(&self.hook_log)
+                .unwrap_or_default()
+                .lines()
+                .count()
+        }
+    }
+
+    struct CountingTextProvider {
+        call_count: AtomicUsize,
+    }
+
+    impl CountingTextProvider {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for CountingTextProvider {
+        async fn stream(
+            &self,
+            _model_config: &crate::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let message = Message::assistant().with_text(format!("provider response {call}"));
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "counting-text"
+        }
+    }
+
+    struct RefusingProvider {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for RefusingProvider {
+        async fn stream(
+            &self,
+            _model_config: &crate::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(Box::pin(futures::stream::once(async {
+                Err(ProviderError::Refusal {
+                    details: "This request was declined.".to_string(),
+                    category: Some("cyber".to_string()),
+                })
+            })))
+        }
+
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "refusing"
+        }
+    }
+
+    #[tokio::test]
+    async fn refusal_exits_turn_without_recipe_retry() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(RefusingProvider {
+            call_count: AtomicUsize::new(0),
+        });
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: Some(crate::agents::types::RetryConfig {
+                max_retries: 3,
+                checks: vec![crate::agents::types::SuccessCheck::Shell {
+                    command: "false".to_string(),
+                }],
+                on_failure: None,
+                timeout_seconds: None,
+                on_failure_timeout_seconds: None,
+            }),
+        };
+
+        let reply_stream = agent
+            .reply(Message::user().with_text("hi"), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+        while let Some(event) = reply_stream.next().await {
+            event?;
+        }
+
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "a refused request must not be resent"
+        );
+        Ok(())
+    }
+
+    async fn create_test_agent(
+        data_dir: PathBuf,
+        hook_manager: crate::hooks::HookManager,
+        provider: Arc<dyn crate::providers::base::Provider>,
+    ) -> Result<(Agent, String)> {
+        let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+        let permission_manager = Arc::new(PermissionManager::new(data_dir));
+        let config = AgentConfig::new(
+            session_manager.clone(),
+            permission_manager,
+            None,
+            GooseMode::Auto,
+            true,
+            GoosePlatform::GooseCli,
+        );
+        let mut agent = Agent::with_config(config);
+        agent.set_hook_manager_for_test(hook_manager);
+        let session = session_manager
+            .create_session(
+                PathBuf::default(),
+                "test".to_string(),
+                SessionType::Hidden,
+                GooseMode::Auto,
+            )
+            .await?;
+        agent.update_provider(provider, &session.id).await?;
+        Ok((agent, session.id))
+    }
+
+    async fn create_stop_hook_test_agent(
+        env: &StopHookTestEnv,
+        stop_hook_block_cap: u32,
+    ) -> Result<(Agent, String, Arc<CountingTextProvider>)> {
+        let provider = Arc::new(CountingTextProvider::new());
+        let (mut agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
+        Ok((agent, session_id, provider))
+    }
+
+    async fn run_stop_hook_test_turn(
+        agent: &Agent,
+        session_id: &str,
+        text: &str,
+    ) -> Result<Vec<Message>> {
+        let session_config = SessionConfig {
+            id: session_id.to_string(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(Message::user().with_text(text), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut messages = Vec::new();
+        while let Some(event) = reply_stream.next().await {
+            match event? {
+                AgentEvent::Message(message) => messages.push(message),
+                AgentEvent::McpNotification(_) | AgentEvent::HistoryReplaced(_) => {}
+            }
+        }
+        Ok(messages)
+    }
+
+    fn visible_texts(messages: &[Message]) -> Vec<String> {
+        messages
+            .iter()
+            .map(Message::as_concat_text)
+            .filter(|text| !text.is_empty())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn stop_hook_block_cap_allows_configured_consecutive_blocks_then_overrides() -> Result<()>
+    {
+        let env = StopHookTestEnv::new(ALWAYS_BLOCK_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let texts = visible_texts(&messages);
+
+        assert_eq!(
+            provider.call_count(),
+            3,
+            "cap=2 should allow two blocked retries, then override on the third block"
+        );
+        assert_eq!(
+            env.hook_invocations(),
+            3,
+            "Stop hook should run for the initial response plus the two honored retries"
+        );
+        assert!(texts.iter().any(|text| text == "provider response 0"));
+        assert!(texts.iter().any(|text| text == "provider response 1"));
+        assert!(texts.iter().any(|text| text == "provider response 2"));
+        assert!(messages.iter().any(|message| {
+            message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::SystemNotification(notification)
+                        if notification.msg.contains("more than 2 consecutive times")
+                            && notification.msg.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
+                )
+            })
+        }));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_block_cap_counts_only_consecutive_blocks() -> Result<()> {
+        let env = StopHookTestEnv::new(ALTERNATE_BLOCK_ALLOW_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 1).await?;
+
+        let first_turn = run_stop_hook_test_turn(&agent, &session_id, "first").await?;
+        let second_turn = run_stop_hook_test_turn(&agent, &session_id, "second").await?;
+        let mut texts = visible_texts(&first_turn);
+        texts.extend(visible_texts(&second_turn));
+
+        assert_eq!(
+            provider.call_count(),
+            4,
+            "each turn should honor one block, retry, then stop when the next Stop hook allows"
+        );
+        assert_eq!(env.hook_invocations(), 4);
+        assert!(texts.iter().any(|text| text == "provider response 0"));
+        assert!(texts.iter().any(|text| text == "provider response 1"));
+        assert!(texts.iter().any(|text| text == "provider response 2"));
+        assert!(texts.iter().any(|text| text == "provider response 3"));
+        assert!(
+            !texts
+                .iter()
+                .any(|text| text.contains("overriding and ending turn")),
+            "non-consecutive Stop hook blocks should not trip the cap warning"
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_add_final_output_tool() -> Result<()> {
         let agent = Agent::new();
@@ -2970,6 +3585,25 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn discard_pending_steers_clears_queued_messages() {
+        let agent = Agent::new();
+        let session_id = "session-discard";
+
+        agent
+            .steer(session_id, Message::user().with_text("queued steer"))
+            .await;
+        assert!(agent.has_pending_steers(session_id).await);
+
+        agent.discard_pending_steers(session_id).await;
+
+        assert!(
+            !agent.has_pending_steers(session_id).await,
+            "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
+        );
+        assert!(agent.drain_pending_steers(session_id).await.is_empty());
     }
 
     #[test]

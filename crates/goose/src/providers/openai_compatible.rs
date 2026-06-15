@@ -1,6 +1,8 @@
 use anyhow::Error;
 use async_stream::try_stream;
 use futures::TryStreamExt;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::images::ImageFormat;
 use reqwest::Response;
 #[cfg(test)]
 use reqwest::StatusCode;
@@ -11,14 +13,17 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{MessageStream, Provider};
-use super::errors::ProviderError;
+use super::base::{stream_from_single_message, MessageStream, Provider};
 use super::retry::ProviderRetry;
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::RequestLog;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, response_to_streaming_message};
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::{
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+    ModelConfigParams,
+};
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -28,6 +33,7 @@ pub struct OpenAiCompatibleProvider {
     model: ModelConfig,
     /// Path prefix prepended to `chat/completions` (e.g. `"deployments/{name}/"` for Azure).
     completions_prefix: String,
+    supports_streaming: bool,
 }
 
 impl OpenAiCompatibleProvider {
@@ -42,7 +48,13 @@ impl OpenAiCompatibleProvider {
             api_client,
             model,
             completions_prefix,
+            supports_streaming: true,
         }
+    }
+
+    pub fn with_supports_streaming(mut self, supports_streaming: bool) -> Self {
+        self.supports_streaming = supports_streaming;
+        self
     }
 
     fn build_request(
@@ -54,7 +66,13 @@ impl OpenAiCompatibleProvider {
         for_streaming: bool,
     ) -> Result<Value, ProviderError> {
         create_request(
-            model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,
@@ -110,7 +128,13 @@ impl Provider for OpenAiCompatibleProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = self.build_request(model_config, system, messages, tools, true)?;
+        let payload = self.build_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            self.supports_streaming,
+        )?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let completions_path = format!("{}chat/completions", self.completions_prefix);
@@ -127,7 +151,27 @@ impl Provider for OpenAiCompatibleProvider {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        if self.supports_streaming {
+            stream_openai_compat(response, log)
+        } else {
+            let json: serde_json::Value = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+
+            let message = response_to_message(&json).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+            })?;
+
+            let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
+            let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+
+            log.write(
+                &serde_json::to_value(&message).unwrap_or_default(),
+                Some(&usage.usage),
+            )?;
+
+            Ok(stream_from_single_message(message, usage))
+        }
     }
 }
 
@@ -156,7 +200,7 @@ pub fn stream_openai_compat(
         while let Some(message) = message_stream.next().await {
             let (message, usage) = message.map_err(|e|
                 e.downcast::<ProviderError>()
-                    .unwrap_or_else(|e| ProviderError::RequestFailed(format!("Stream decode error: {e}")))
+                    .unwrap_or_else(ProviderError::stream_decode_error)
             )?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
@@ -179,7 +223,8 @@ pub fn stream_responses_compat(
         pin!(message_stream);
         while let Some(message) = message_stream.next().await {
             let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {e}"))
+                e.downcast::<ProviderError>()
+                    .unwrap_or_else(ProviderError::stream_decode_error)
             )?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
@@ -190,6 +235,7 @@ pub fn stream_responses_compat(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ModelConfig;
     use serde_json::json;
     use test_case::test_case;
 
@@ -261,5 +307,27 @@ mod tests {
             actual, expected_telemetry,
             "Expected {expected_variant}, got error: {err:?}"
         );
+    }
+
+    #[test]
+    fn build_request_respects_non_streaming_mode() {
+        let provider = OpenAiCompatibleProvider::new(
+            "test".to_string(),
+            ApiClient::new(
+                "http://localhost".to_string(),
+                super::super::api_client::AuthMethod::NoAuth,
+            )
+            .unwrap(),
+            ModelConfig::new_or_fail("test-model"),
+            String::new(),
+        )
+        .with_supports_streaming(false);
+
+        let payload = provider
+            .build_request(&provider.model, "", &[], &[], provider.supports_streaming)
+            .unwrap();
+
+        assert_eq!(payload.get("stream"), None);
+        assert_eq!(payload.get("stream_options"), None);
     }
 }

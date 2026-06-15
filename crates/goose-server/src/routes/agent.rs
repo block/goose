@@ -100,6 +100,18 @@ pub struct ResumeAgentRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub struct AddExtensionRequest {
+    session_id: String,
+    config: ExtensionConfig,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct RemoveExtensionRequest {
+    name: String,
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct SetContainerRequest {
     session_id: String,
     container_id: Option<String>,
@@ -468,27 +480,35 @@ async fn update_from_session(
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
     if let Some(recipe) = session.recipe {
-        match build_recipe_with_parameter_values(
-            &recipe,
-            session.user_recipe_values.unwrap_or_default(),
-        )
-        .await
-        {
-            Ok(Some(recipe)) => {
-                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    agent
-                        .extend_system_prompt("recipe".to_string(), prompt)
-                        .await;
+        if session.session_type == SessionType::Scheduled {
+            if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
+                agent
+                    .extend_system_prompt("recipe".to_string(), prompt)
+                    .await;
+            }
+        } else {
+            match build_recipe_with_parameter_values(
+                &recipe,
+                session.user_recipe_values.unwrap_or_default(),
+            )
+            .await
+            {
+                Ok(Some(recipe)) => {
+                    if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
+                        agent
+                            .extend_system_prompt("recipe".to_string(), prompt)
+                            .await;
+                    }
                 }
-            }
-            Ok(None) => {
-                // Recipe has missing parameters
-            }
-            Err(e) => {
-                return Err(ErrorResponse {
-                    message: e.to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                });
+                Ok(None) => {
+                    // Recipe has missing parameters
+                }
+                Err(e) => {
+                    return Err(ErrorResponse {
+                        message: e.to_string(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    });
+                }
             }
         }
     }
@@ -683,6 +703,72 @@ async fn update_session(
 
 #[utoipa::path(
     post,
+    path = "/agent/add_extension",
+    request_body = AddExtensionRequest,
+    responses(
+        (status = 200, description = "Extension added", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn agent_add_extension(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<AddExtensionRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    #[cfg(feature = "telemetry")]
+    let extension_name = request.config.name();
+
+    let agent = state.get_agent(request.session_id.clone()).await?;
+
+    agent
+        .add_extension(request.config, &request.session_id)
+        .await
+        .map_err(|e| {
+            #[cfg(feature = "telemetry")]
+            goose::posthog::emit_error(
+                "extension_add_failed",
+                &format!("{}: {}", extension_name, e),
+            );
+            ErrorResponse::internal(format!("Failed to add extension: {}", e))
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/remove_extension",
+    request_body = RemoveExtensionRequest,
+    responses(
+        (status = 200, description = "Extension removed", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn agent_remove_extension(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RemoveExtensionRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state.get_agent(request.session_id.clone()).await?;
+
+    agent
+        .remove_extension(&request.name, &request.session_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to remove extension: {}", e);
+            ErrorResponse {
+                message: format!("Failed to remove extension: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
     path = "/agent/set_container",
     request_body = SetContainerRequest,
     responses(
@@ -758,27 +844,35 @@ async fn restart_agent_internal(
     })?;
 
     if let Some(ref recipe) = session.recipe {
-        match build_recipe_with_parameter_values(
-            recipe,
-            session.user_recipe_values.clone().unwrap_or_default(),
-        )
-        .await
-        {
-            Ok(Some(recipe)) => {
-                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    agent
-                        .extend_system_prompt("recipe".to_string(), prompt)
-                        .await;
+        if session.session_type == SessionType::Scheduled {
+            if let Some(prompt) = apply_recipe_to_agent(&agent, recipe, true).await {
+                agent
+                    .extend_system_prompt("recipe".to_string(), prompt)
+                    .await;
+            }
+        } else {
+            match build_recipe_with_parameter_values(
+                recipe,
+                session.user_recipe_values.clone().unwrap_or_default(),
+            )
+            .await
+            {
+                Ok(Some(recipe)) => {
+                    if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
+                        agent
+                            .extend_system_prompt("recipe".to_string(), prompt)
+                            .await;
+                    }
                 }
-            }
-            Ok(None) => {
-                // Recipe has missing parameters
-            }
-            Err(e) => {
-                return Err(ErrorResponse {
-                    message: e.to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                });
+                Ok(None) => {
+                    // Recipe has missing parameters
+                }
+                Err(e) => {
+                    return Err(ErrorResponse {
+                        message: e.to_string(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                    });
+                }
             }
         }
     }
@@ -1280,6 +1374,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/update_provider", post(update_agent_provider))
         .route("/agent/update_session", post(update_session))
         .route("/agent/update_from_session", post(update_from_session))
+        .route("/agent/add_extension", post(agent_add_extension))
+        .route("/agent/remove_extension", post(agent_remove_extension))
         .route("/agent/set_container", post(set_container))
         .route("/agent/stop", post(stop_agent))
         .with_state(state)
@@ -1328,11 +1424,15 @@ mod tests {
             .await
             .unwrap();
 
-        let agent = state.get_agent(session.id.clone()).await.unwrap();
-        agent
-            .add_extension(frontend_extension(), &session.id)
-            .await
-            .unwrap();
+        agent_add_extension(
+            State(state.clone()),
+            Json(AddExtensionRequest {
+                session_id: session.id.clone(),
+                config: frontend_extension(),
+            }),
+        )
+        .await
+        .unwrap();
 
         let Json(tools) = get_tools(
             State(state.clone()),

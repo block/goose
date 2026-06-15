@@ -1,6 +1,5 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::errors::ProviderError;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, map_http_error_to_provider_error,
     stream_openai_compat,
@@ -12,9 +11,11 @@ use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::errors::ProviderError;
+use goose_providers::images::ImageFormat;
 
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::create_request;
+use goose_providers::formats::openai::{create_request, ModelConfigParams};
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -139,11 +140,17 @@ impl Provider for TetrateProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let payload = create_request(
-            model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             true,
         )?;
 
