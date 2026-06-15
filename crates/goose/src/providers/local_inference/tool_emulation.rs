@@ -54,7 +54,7 @@ pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
     if code_mode_enabled {
         tool_desc.push_str("\n\n# Running Code\n\n");
         tool_desc.push_str(
-            "You can call tools by writing code in a ```execute block. \
+            "You can call tools by writing code in a ```execute_typescript block. \
              The code runs immediately — do not explain it, just run it.\n\n",
         );
         tool_desc.push_str("Example — counting files in /tmp:\n\n");
@@ -66,7 +66,9 @@ pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
         tool_desc.push_str("Rules:\n");
         tool_desc.push_str("- Code MUST define async function run() and return a result\n");
         tool_desc.push_str("- All function calls are async — use await\n");
-        tool_desc.push_str("- Use ```execute for tool calls, $ for simple shell one-liners\n\n");
+        tool_desc.push_str(
+            "- Use ```execute_typescript for tool calls, $ for simple shell one-liners\n\n",
+        );
         tool_desc.push_str("Available functions:\n\n");
 
         for tool in tools {
@@ -431,6 +433,15 @@ mod tests {
         assert!(actions.len() >= 2);
         assert_text(&actions[0], "Here's the code:");
         assert_execute(&actions[actions.len() - 1], "console.log('hi');");
+    }
+
+    #[test]
+    fn tool_description_uses_parser_execute_fence() {
+        let description = build_emulator_tool_description(&[], true);
+
+        assert!(description.contains("```execute_typescript"));
+        assert!(!description.contains("```execute block"));
+        assert!(!description.contains("Use ```execute for tool calls"));
     }
 
     #[test]
