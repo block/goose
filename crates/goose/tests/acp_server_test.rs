@@ -116,6 +116,17 @@ fn assert_invalid_params(error: anyhow::Error) {
     assert_eq!(acp_error.code, ErrorCode::InvalidParams);
 }
 
+fn include_last_message_snippet_meta(
+    value: serde_json::Value,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut goose = serde_json::Map::new();
+    goose.insert("includeLastMessageSnippet".to_string(), value);
+
+    let mut meta = serde_json::Map::new();
+    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+    meta
+}
+
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<AcpServerConnection>().await });
@@ -164,9 +175,29 @@ fn test_list_sessions_emits_computed_snippet() {
             .unwrap();
 
         let conn = new_connection(data_root.path()).await;
-        let response = list_sessions_request(&conn, ListSessionsRequest::new())
-            .await
-            .unwrap();
+        let response = list_sessions_request(
+            &conn,
+            ListSessionsRequest::new()
+                .meta(include_last_message_snippet_meta(serde_json::Value::Null)),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert!(response.sessions[0]
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("lastMessageSnippet"))
+            .is_none());
+
+        let response = list_sessions_request(
+            &conn,
+            ListSessionsRequest::new().meta(include_last_message_snippet_meta(
+                serde_json::Value::Bool(true),
+            )),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(response.sessions.len(), 1);
         let meta = response.sessions[0].meta.as_ref().unwrap();
@@ -189,15 +220,29 @@ fn test_list_sessions_pagination() {
             .await
             .unwrap();
         assert_eq!(first.sessions.len(), 50);
+        assert!(first.sessions.iter().all(|session| session
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("lastMessageSnippet"))
+            .is_none()));
 
         let second = list_sessions_request(
             &conn,
-            ListSessionsRequest::new().cursor(first.next_cursor.clone().unwrap()),
+            ListSessionsRequest::new()
+                .cursor(first.next_cursor.clone().unwrap())
+                .meta(include_last_message_snippet_meta(serde_json::Value::Bool(
+                    true,
+                ))),
         )
         .await
         .unwrap();
         assert_eq!(second.sessions.len(), 1);
         assert!(second.next_cursor.is_none());
+        assert!(second.sessions.iter().all(|session| session
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("lastMessageSnippet"))
+            .is_some()));
 
         let second_id = &second.sessions[0].session_id;
         assert!(first
@@ -339,6 +384,16 @@ fn test_list_sessions_invalid_params() {
             ListSessionsRequest::new()
                 .cwd(other_cwd.path())
                 .cursor(first.next_cursor.unwrap()),
+        )
+        .await
+        .unwrap_err();
+        assert_invalid_params(error);
+
+        let error = list_sessions_request(
+            &conn,
+            ListSessionsRequest::new().meta(include_last_message_snippet_meta(
+                serde_json::Value::String("true".to_string()),
+            )),
         )
         .await
         .unwrap_err();
