@@ -1070,6 +1070,53 @@ mod tests {
             .any(|variant| variant.backend_id == MLX_BACKEND_ID));
     }
 
+    fn sibling(filename: &str) -> RepoSibling {
+        RepoSibling {
+            rfilename: filename.to_string(),
+            size: Some(1),
+            lfs: None,
+        }
+    }
+
+    fn mlx_siblings(tokenizer_files: &[&str]) -> Vec<RepoSibling> {
+        let mut siblings = vec![sibling("config.json"), sibling("model.safetensors")];
+        siblings.extend(tokenizer_files.iter().map(|filename| sibling(filename)));
+        siblings
+    }
+
+    #[test]
+    fn mlx_compatible_repo_accepts_supported_tokenizer_formats() {
+        let config = Some(serde_json::json!({ "model_type": "llama" }));
+
+        for tokenizer_files in [
+            vec!["tokenizer.json"],
+            vec!["tokenizer.model"],
+            vec!["tokenizer.tiktoken"],
+            vec!["vocab.json", "merges.txt"],
+        ] {
+            assert!(
+                is_mlx_compatible_repo(&config, &mlx_siblings(&tokenizer_files)),
+                "{tokenizer_files:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn mlx_compatible_repo_rejects_incomplete_tokenizer_files() {
+        let config = Some(serde_json::json!({ "model_type": "llama" }));
+
+        for tokenizer_files in [
+            vec!["tokenizer_config.json"],
+            vec!["vocab.json"],
+            vec!["merges.txt"],
+        ] {
+            assert!(
+                !is_mlx_compatible_repo(&config, &mlx_siblings(&tokenizer_files)),
+                "{tokenizer_files:?}"
+            );
+        }
+    }
+
     fn test_model(repo_id: &str) -> HfModelInfo {
         HfModelInfo {
             repo_id: repo_id.to_string(),
@@ -1570,12 +1617,24 @@ fn mlx_variants_from_model_info(repo_id: &str, info: &ModelInfo) -> Vec<HfModelV
 
 fn is_mlx_compatible_repo(config: &Option<serde_json::Value>, siblings: &[RepoSibling]) -> bool {
     let has_config = siblings.iter().any(|s| s.rfilename == "config.json");
-    let has_tokenizer = siblings.iter().any(|s| s.rfilename == "tokenizer.json");
+    let has_tokenizer = has_mlx_tokenizer(siblings);
     let has_safetensors = siblings
         .iter()
         .any(|s| s.rfilename.ends_with(".safetensors"));
 
     has_config && has_tokenizer && has_safetensors && mlx_model_type(config).is_some()
+}
+
+fn has_mlx_tokenizer(siblings: &[RepoSibling]) -> bool {
+    let has_file = |filename: &str| siblings.iter().any(|s| s.rfilename == filename);
+    siblings
+        .iter()
+        .any(|s| is_standalone_mlx_tokenizer_file(&s.rfilename))
+        || (has_file("vocab.json") && has_file("merges.txt"))
+}
+
+fn is_standalone_mlx_tokenizer_file(filename: &str) -> bool {
+    filename == "tokenizer.json" || filename.ends_with(".model") || filename.ends_with(".tiktoken")
 }
 
 fn mlx_model_type(config: &Option<serde_json::Value>) -> Option<&str> {
@@ -1709,7 +1768,7 @@ fn merge_model_info(existing: &mut HfModelInfo, duplicate: HfModelInfo) {
 fn should_download_for_mlx(filename: &str) -> bool {
     filename.ends_with(".safetensors")
         || filename == "config.json"
-        || filename == "tokenizer.json"
+        || is_standalone_mlx_tokenizer_file(filename)
         || filename == "tokenizer_config.json"
         || filename == "generation_config.json"
         || filename == "special_tokens_map.json"
@@ -1717,8 +1776,6 @@ fn should_download_for_mlx(filename: &str) -> bool {
         || filename == "vocab.json"
         || filename == "merges.txt"
         || filename == "added_tokens.json"
-        || filename.ends_with(".model")
-        || filename.ends_with(".tiktoken")
 }
 
 fn mlx_variant_id(repo_id: &str, config: &Option<serde_json::Value>) -> String {
