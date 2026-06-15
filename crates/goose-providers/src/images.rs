@@ -37,6 +37,7 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
 
+    let mut best: Option<&str> = None;
     let mut from = 0;
     while from < text.len() {
         let Some(end) = EXTENSIONS
@@ -71,14 +72,20 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
                     };
                     let path = Path::new(candidate);
                     if path.is_absolute() && path.is_file() && is_image_file(path) {
-                        return Some(candidate);
+                        // A whitespace-terminated extension is ambiguous: the
+                        // filename may continue to a later extension, so keep
+                        // the longest existing match rather than the first.
+                        if best.is_none_or(|b| candidate.len() > b.len()) {
+                            best = Some(candidate);
+                        }
+                        break;
                     }
                 }
             }
         }
         from = end;
     }
-    None
+    best
 }
 
 /// Case-insensitive ASCII substring search returning a byte index into
@@ -232,6 +239,16 @@ mod tests {
         // unquoted path.
         let text = format!("here {}\" trailing", png_path_str);
         assert_eq!(detect_image_path(&text), Some(png_path_str));
+
+        // When a spaced filename contains an earlier image extension, prefer
+        // the longer existing candidate over the embedded prefix.
+        let edited = temp_dir.path().join("Screen Shot.png edited.jpg");
+        std::fs::write(&edited, png_data).unwrap();
+        let edited_str = edited.to_str().unwrap();
+        let prefix = temp_dir.path().join("Screen Shot.png");
+        std::fs::write(&prefix, png_data).unwrap();
+        let text = format!("look at {}", edited_str);
+        assert_eq!(detect_image_path(&text), Some(edited_str));
     }
 
     #[test]
