@@ -3444,7 +3444,9 @@ exit 0
         while let Some(event) = reply_stream.next().await {
             match event? {
                 AgentEvent::Message(message) => messages.push(message),
-                AgentEvent::McpNotification(_) | AgentEvent::HistoryReplaced(_) => {}
+                AgentEvent::McpNotification(_)
+                | AgentEvent::HistoryReplaced(_)
+                | AgentEvent::Usage(_) => {}
             }
         }
         Ok(messages)

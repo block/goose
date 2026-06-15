@@ -12,7 +12,6 @@ mod imp {
 
     use crate::conversation::message::Message;
     use crate::providers::base::{DraftStats, ProviderStats, ProviderUsage, Usage};
-    use crate::providers::errors::ProviderError;
     use crate::providers::local_inference::backend::{
         BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
     };
@@ -24,6 +23,7 @@ mod imp {
     };
     use crate::providers::local_inference::{extract_text_content, ResolvedModelPaths};
     use crate::providers::utils::filter_extensions_from_system_prompt;
+    use goose_providers::errors::ProviderError;
 
     pub(in crate::providers::local_inference) const MLX_BACKEND_ID: &str = "mlx";
 
@@ -554,12 +554,12 @@ mod imp {
 
 #[cfg(not(feature = "mlx"))]
 mod imp {
-    use crate::providers::errors::ProviderError;
     use crate::providers::local_inference::backend::{
         BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
     };
     use crate::providers::local_inference::local_model_registry::ModelSettings;
     use crate::providers::local_inference::ResolvedModelPaths;
+    use goose_providers::errors::ProviderError;
 
     pub(in crate::providers::local_inference) const MLX_BACKEND_ID: &str = "mlx";
 
