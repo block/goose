@@ -381,7 +381,7 @@ impl LocalModelEntry {
     pub fn is_downloading(&self) -> bool {
         let download_id = format!("{}-model", self.id);
         let manager = get_download_manager();
-        manager.get_progress(&download_id).is_some()
+        manager.is_downloading(&download_id)
     }
 
     pub fn download_status(&self) -> ModelDownloadStatus {
@@ -661,4 +661,61 @@ fn path_size(path: &std::path::Path) -> u64 {
 
 pub fn model_id_from_repo(repo_id: &str, quantization: &str) -> String {
     format!("{}:{}", repo_id, quantization)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::download_manager::DownloadProgress;
+
+    fn test_entry(id: &str) -> LocalModelEntry {
+        LocalModelEntry {
+            id: id.to_string(),
+            repo_id: "test/repo".to_string(),
+            filename: "model.gguf".to_string(),
+            quantization: "Q4_K_M".to_string(),
+            local_path: PathBuf::from(format!("/tmp/{id}.gguf")),
+            source_url: "https://example.test/model.gguf".to_string(),
+            backend_id: None,
+            storage: LocalModelStorage::GooseManaged,
+            settings: ModelSettings::default(),
+            size_bytes: 0,
+            mmproj_path: None,
+            mmproj_source_url: None,
+            mmproj_size_bytes: 0,
+            mmproj_checked: false,
+            shard_files: vec![],
+        }
+    }
+
+    fn set_progress(entry: &LocalModelEntry, status: DownloadStatus) {
+        get_download_manager().set_progress(DownloadProgress {
+            model_id: format!("{}-model", entry.id),
+            status,
+            bytes_downloaded: 0,
+            total_bytes: 0,
+            progress_percent: 0.0,
+            speed_bps: None,
+            eta_seconds: None,
+            error: None,
+            task_exited: true,
+        });
+    }
+
+    #[test]
+    fn is_downloading_only_for_active_progress() {
+        let entry = test_entry("test-is-downloading-only-active-progress");
+        let download_id = format!("{}-model", entry.id);
+
+        set_progress(&entry, DownloadStatus::Downloading);
+        assert!(entry.is_downloading());
+
+        set_progress(&entry, DownloadStatus::Failed);
+        assert!(!entry.is_downloading());
+
+        set_progress(&entry, DownloadStatus::Cancelled);
+        assert!(!entry.is_downloading());
+
+        get_download_manager().clear_completed(&download_id);
+    }
 }
