@@ -489,7 +489,7 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let stream = self
-            .stream(&model_config, session_id, system, messages, tools)
+            .stream(model_config, session_id, system, messages, tools)
             .await?;
         collect_stream(stream).await
     }
