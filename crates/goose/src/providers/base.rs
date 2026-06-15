@@ -32,8 +32,6 @@ use std::sync::Mutex;
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
 pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
-pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
-
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -575,44 +573,6 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
-    }
-
-    /// Returns the first 3 user messages as strings for session naming,
-    /// filtering out assistant-only content (e.g. preprompt blocks).
-    fn get_initial_user_messages(&self, messages: &Conversation) -> Vec<String> {
-        messages
-            .iter()
-            .filter(|m| m.role == rmcp::model::Role::User)
-            .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
-            .map(|m| {
-                m.content
-                    .iter()
-                    .filter_map(|c| c.filter_for_audience(rmcp::model::Role::User))
-                    .filter_map(|c| c.as_text().map(|s| s.to_string()))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .collect()
-    }
-
-    /// Extracts preprompt context (assistant-audience blocks) from the first user message.
-    /// These are content blocks visible to the assistant but not the user.
-    fn get_preprompt_context(&self, messages: &Conversation) -> String {
-        messages
-            .iter()
-            .filter(|m| m.role == rmcp::model::Role::User)
-            .take(1)
-            .flat_map(|m| m.content.iter())
-            .filter_map(|c| {
-                // If this block is NOT visible to the user, it's preprompt/assistant-only content
-                if c.filter_for_audience(rmcp::model::Role::User).is_none() {
-                    c.as_text().map(|s| s.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
     }
 
     /// Configure OAuth authentication for this provider
