@@ -402,7 +402,6 @@ fn max_background_tasks() -> usize {
         .unwrap_or(5)
 }
 
-/// TTL for uncollected completed tasks before eviction (default: 10 minutes)
 fn completed_task_ttl() -> Duration {
     let secs = Config::global()
         .get_param::<u64>("GOOSE_COMPLETED_TASK_TTL_SECS")
@@ -1550,7 +1549,6 @@ impl SummonClient {
             );
         }
 
-        // Evict uncollected completed tasks older than the TTL
         let ttl = completed_task_ttl();
         completed.retain(|_id, task| task.completed_at.elapsed() <= ttl);
     }
