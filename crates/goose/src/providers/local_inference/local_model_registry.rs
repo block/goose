@@ -331,9 +331,17 @@ impl LocalModelEntry {
     /// table if this model's repo has a known vision encoder.
     pub fn enrich_with_featured_mmproj(&mut self) {
         if let Some(mmproj) = featured_mmproj_spec(&self.id) {
-            let path = mmproj.local_path();
+            let existing_path = self
+                .mmproj_path
+                .as_ref()
+                .filter(|path| path.exists())
+                .cloned();
+            let preserve_existing_path = existing_path.is_some();
+            let path = existing_path.unwrap_or_else(|| mmproj.local_path());
             if self.mmproj_path.as_ref() != Some(&path) {
                 self.mmproj_path = Some(path.clone());
+            }
+            if !preserve_existing_path || self.mmproj_source_url.is_none() {
                 self.mmproj_source_url = Some(format!(
                     "https://huggingface.co/{}/resolve/main/{}",
                     mmproj.repo, mmproj.filename
@@ -717,5 +725,36 @@ mod tests {
         assert!(!entry.is_downloading());
 
         get_download_manager().clear_completed(&download_id);
+    }
+
+    #[test]
+    fn enrich_with_featured_mmproj_preserves_existing_downloaded_path() {
+        let existing_path = std::env::temp_dir().join(format!(
+            "goose-mmproj-preserve-{}-{}.gguf",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&existing_path, b"mmproj").unwrap();
+
+        let mut entry = test_entry("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M");
+        entry.mmproj_path = Some(existing_path.clone());
+        entry.mmproj_source_url = Some("https://example.test/mmproj.gguf".to_string());
+
+        entry.enrich_with_featured_mmproj();
+
+        assert_eq!(entry.mmproj_path.as_ref(), Some(&existing_path));
+        assert_eq!(
+            entry.mmproj_source_url.as_deref(),
+            Some("https://example.test/mmproj.gguf")
+        );
+        assert_eq!(entry.mmproj_size_bytes, 6);
+        assert!(entry.settings.vision_capable);
+        assert_eq!(entry.settings.mmproj_size_bytes, 6);
+        assert_eq!(entry.settings.tool_calling, ToolCallingMode::ForceNative);
+
+        let _ = std::fs::remove_file(existing_path);
     }
 }
