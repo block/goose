@@ -1,34 +1,42 @@
 use crate::config::{Config, ConfigError};
 use anyhow::{anyhow, Result};
 use goose_providers::model::ModelConfig;
-use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-
-#[derive(Debug, Clone, Deserialize)]
-struct PredefinedModel {
-    name: String,
-    #[serde(default)]
-    context_limit: Option<usize>,
-    #[serde(default)]
-    request_params: Option<HashMap<String, Value>>,
-}
 
 pub fn model_config_from_user_config(
     provider_name: &str,
     model_name: impl AsRef<str>,
 ) -> Result<ModelConfig> {
-    let config = Config::global();
-    let model = ModelConfig::new(model_name.as_ref())?
-        .with_temperature(get_goose_temperature(config)?)
-        .with_toolshim(get_goose_toolshim(config)?.unwrap_or(false))
-        .with_toolshim_model(get_goose_toolshim_model(config)?);
+    let model = base_model_config_from_user_config(model_name.as_ref())?;
     materialize_model_config(provider_name, model)
 }
 
-pub fn materialize_model_config(
+pub fn model_config_from_user_config_with_session_settings(
     provider_name: &str,
+    model_name: impl AsRef<str>,
+    previous: Option<&ModelConfig>,
+    request_params: Option<HashMap<String, Value>>,
+    context_limit: Option<usize>,
+) -> Result<ModelConfig> {
+    let config = Config::global();
+    let model = base_model_config_from_user_config(model_name.as_ref())?;
+    let model = materialize_model_config_inner(model, false)?
+        .with_context_limit(context_limit)
+        .with_inherited_session_settings_from(previous, request_params)
+        .with_default_thinking_effort(config.get_goose_thinking_effort());
+
+    Ok(model.with_canonical_limits(provider_name))
+}
+
+pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
+    let model = materialize_model_config_inner(model, true)?;
+    Ok(model.with_canonical_limits(provider_name))
+}
+
+fn materialize_model_config_inner(
     mut model: ModelConfig,
+    include_default_thinking_effort: bool,
 ) -> Result<ModelConfig> {
     let config = Config::global();
 
@@ -41,13 +49,14 @@ pub fn materialize_model_config(
     }
 
     model = model
-        .with_default_context_limit(config.get_goose_context_limit()?)
-        .with_default_max_tokens(config.get_goose_max_tokens()?)
-        .with_default_thinking_effort(config.get_goose_thinking_effort());
+        .with_context_limit(config.get_goose_context_limit()?)
+        .with_default_max_tokens(config.get_goose_max_tokens()?);
 
-    model = apply_predefined_model_metadata(config, model);
+    if include_default_thinking_effort {
+        model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
+    }
 
-    Ok(model.with_canonical_limits(provider_name))
+    Ok(model)
 }
 
 pub fn configured_fast_model_name(default_model: &str) -> String {
@@ -67,6 +76,23 @@ pub fn with_configured_fast_model(
     let fast_model_name = configured_fast_model_name(default_fast_model_name);
     let fast_model_config = model_config_from_user_config(provider_name, fast_model_name)?;
     Ok(model.with_fast_model_config(fast_model_config))
+}
+
+fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
+    let config = Config::global();
+    let mut model = ModelConfig {
+        model_name: model_name.to_string(),
+        context_limit: None,
+        temperature: get_goose_temperature(config)?,
+        max_tokens: None,
+        toolshim: get_goose_toolshim(config)?.unwrap_or(false),
+        toolshim_model: get_goose_toolshim_model(config)?,
+        fast_model_config: None,
+        request_params: None,
+        reasoning: None,
+    };
+    model.normalize_effort_suffix();
+    Ok(model)
 }
 
 fn get_goose_temperature(config: &Config) -> Result<Option<f32>> {
@@ -121,37 +147,4 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
         ))
         }
     }
-}
-
-fn predefined_models(config: &Config) -> Vec<PredefinedModel> {
-    match config.get_param::<Vec<PredefinedModel>>("GOOSE_PREDEFINED_MODELS") {
-        Ok(models) => models,
-        Err(ConfigError::NotFound(_)) => Vec::new(),
-        Err(error) => {
-            tracing::warn!("Failed to parse GOOSE_PREDEFINED_MODELS: {}", error);
-            Vec::new()
-        }
-    }
-}
-
-fn apply_predefined_model_metadata(config: &Config, mut model: ModelConfig) -> ModelConfig {
-    let Some(predefined) = predefined_models(config)
-        .into_iter()
-        .find(|predefined| predefined.name == model.model_name)
-    else {
-        return model;
-    };
-
-    if model.context_limit.is_none() {
-        model.context_limit = predefined.context_limit;
-    }
-
-    if let Some(request_params) = predefined.request_params {
-        let params = model.request_params.get_or_insert_with(HashMap::new);
-        for (key, value) in request_params {
-            params.entry(key).or_insert(value);
-        }
-    }
-
-    model
 }

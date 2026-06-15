@@ -2713,10 +2713,14 @@ impl GooseAcpAgent {
         let provider_name = current_provider.get_name().to_string();
         let current_model_config = current_provider.get_model_config();
         let model_config =
-            crate::model_config::model_config_from_user_config(&provider_name, model_id)
-                .invalid_params_err_ctx("Invalid model config")?;
-        let model_config =
-            model_config.with_inherited_session_settings_from(Some(&current_model_config), None);
+            crate::model_config::model_config_from_user_config_with_session_settings(
+                &provider_name,
+                model_id,
+                Some(&current_model_config),
+                None,
+                None,
+            )
+            .invalid_params_err_ctx("Invalid model config")?;
         agent
             .recreate_provider_for_session(session_id, &provider_name, model_config)
             .await
@@ -2848,12 +2852,15 @@ impl GooseAcpAgent {
             current_model
         };
         let model = model_name.unwrap_or(&default_model);
-        let mut model_config =
-            crate::model_config::model_config_from_user_config(&resolved_provider_name, model)
-                .invalid_params_err_ctx("Invalid model config")?
-                .with_context_limit(context_limit);
-        model_config = model_config
-            .with_inherited_session_settings_from(Some(&current_model_config), request_params);
+        let model_config =
+            crate::model_config::model_config_from_user_config_with_session_settings(
+                &resolved_provider_name,
+                model,
+                Some(&current_model_config),
+                request_params,
+                context_limit,
+            )
+            .invalid_params_err_ctx("Invalid model config")?;
 
         agent
             .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)
