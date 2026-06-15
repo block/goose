@@ -1,6 +1,7 @@
 use crate::conversation::message::{Message, MessageContent};
-use crate::providers::errors::ProviderError;
-use crate::providers::utils::{is_valid_function_name, safely_parse_json};
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::is_valid_function_name;
+use goose_providers::json::safely_parse_json;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData};
 use serde_json::{json, Value};
 use std::borrow::Cow;

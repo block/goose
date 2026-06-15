@@ -24,6 +24,8 @@ mod imp {
     use crate::providers::local_inference::{extract_text_content, ResolvedModelPaths};
     use crate::providers::utils::filter_extensions_from_system_prompt;
     use goose_providers::errors::ProviderError;
+    use goose_providers::formats::openai;
+    use goose_providers::images::ImageFormat;
 
     pub(in crate::providers::local_inference) const MLX_BACKEND_ID: &str = "mlx";
 
@@ -250,7 +252,7 @@ mod imp {
         match tool_mode {
             ToolMode::Native => {
                 let conversations = openai_messages(system, messages);
-                let tool_specs = crate::providers::formats::openai::format_tools(tools)
+                let tool_specs = openai::format_tools(tools)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
                 if let Some(prompt) = model
                     .apply_chat_template_json([conversations], Some(&tool_specs), true)
@@ -430,10 +432,7 @@ mod imp {
             "role": "system",
             "content": system,
         })];
-        values.extend(crate::providers::formats::openai::format_messages(
-            messages,
-            &crate::providers::utils::ImageFormat::OpenAi,
-        ));
+        values.extend(openai::format_messages(messages, &ImageFormat::OpenAi));
         values
     }
 
