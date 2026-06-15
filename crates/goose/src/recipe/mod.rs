@@ -15,6 +15,7 @@ use utoipa::ToSchema;
 
 pub mod build_recipe;
 pub mod local_recipes;
+pub mod manifest;
 pub mod read_recipe_file_content;
 mod recipe_extension_adapter;
 pub mod template_recipe;

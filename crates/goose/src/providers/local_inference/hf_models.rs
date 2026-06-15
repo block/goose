@@ -1,6 +1,8 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::providers::huggingface_auth;
+
 use utoipa::ToSchema;
 
 const HF_API_BASE: &str = "https://huggingface.co/api/models";
@@ -42,6 +44,7 @@ pub struct HfQuantVariant {
 pub struct ResolvedModel {
     pub files: Vec<HfGgufFile>,
     pub total_size: u64,
+    pub mmproj: Option<HfGgufFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,6 +186,24 @@ fn parse_quantization(filename: &str) -> String {
     "unknown".to_string()
 }
 
+fn quant_bits(quantization: &str) -> u8 {
+    let digits: String = quantization
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    digits.parse().unwrap_or(0)
+}
+
+fn mmproj_precision_preference(quantization: &str) -> u8 {
+    match quantization.to_uppercase().as_str() {
+        "BF16" => 3,
+        "F16" => 2,
+        "F32" => 1,
+        _ => 0,
+    }
+}
+
 fn looks_like_quant(s: &str) -> bool {
     let upper = s.to_uppercase();
     upper.starts_with("Q")
@@ -224,6 +245,84 @@ fn parse_shard_total(filename: &str) -> Option<u32> {
 
 fn build_download_url(repo_id: &str, filename: &str) -> String {
     format!("{}/{}/resolve/main/{}", HF_DOWNLOAD_BASE, repo_id, filename)
+}
+
+pub fn hf_authorization_header(token: Option<&str>) -> Option<String> {
+    token
+        .filter(|token| !token.is_empty())
+        .map(|token| format!("Bearer {}", token))
+}
+
+fn apply_hf_auth(request: reqwest::RequestBuilder, token: Option<&str>) -> reqwest::RequestBuilder {
+    if let Some(header) = hf_authorization_header(token) {
+        request.header("Authorization", header)
+    } else {
+        request
+    }
+}
+
+async fn optional_hf_token(
+    token: impl std::future::Future<Output = Result<Option<String>>>,
+) -> Option<String> {
+    token.await.ok().flatten()
+}
+
+fn parent_components(filename: &str) -> Vec<&str> {
+    filename.rsplit_once('/').map_or(Vec::new(), |(parent, _)| {
+        parent.split('/').filter(|part| !part.is_empty()).collect()
+    })
+}
+
+fn is_prefix(prefix: &[&str], parts: &[&str]) -> bool {
+    prefix.len() <= parts.len() && prefix.iter().zip(parts).all(|(a, b)| a == b)
+}
+
+fn select_best_mmproj(
+    repo_id: &str,
+    siblings: &[HfApiSibling],
+    model_filename: &str,
+    model_quantization: &str,
+) -> Option<HfGgufFile> {
+    let model_dir = parent_components(model_filename);
+    let model_bits = quant_bits(model_quantization);
+
+    siblings
+        .iter()
+        .filter(|s| {
+            let lowercase = s.rfilename.to_lowercase();
+            lowercase.ends_with(".gguf") && lowercase.contains("mmproj")
+        })
+        .filter_map(|s| {
+            let mmproj_dir = parent_components(&s.rfilename);
+            if !is_prefix(&mmproj_dir, &model_dir) {
+                return None;
+            }
+
+            let quantization = parse_quantization(&s.rfilename);
+            let bits = quant_bits(&quantization);
+            let diff = bits.abs_diff(model_bits);
+            let proximity = u8::MAX - diff;
+
+            Some((
+                mmproj_dir.len(),
+                proximity,
+                mmproj_precision_preference(&quantization),
+                s,
+                quantization,
+            ))
+        })
+        .max_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| a.1.cmp(&b.1))
+                .then_with(|| a.2.cmp(&b.2))
+                .then_with(|| b.3.rfilename.cmp(&a.3.rfilename))
+        })
+        .map(|(_, _, _, sibling, quantization)| HfGgufFile {
+            filename: sibling.rfilename.clone(),
+            size_bytes: sibling.size.unwrap_or(0),
+            quantization,
+            download_url: build_download_url(repo_id, &sibling.rfilename),
+        })
 }
 
 /// Derive the expected model filename stem from a repo_id.
@@ -327,13 +426,13 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
 
 pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!(
         "{}?search={}&filter=gguf&sort=downloads&direction=-1&limit={}",
         HF_API_BASE, query, limit
     );
 
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -392,10 +491,10 @@ pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModel
 /// Fetch GGUF files for a repo and return them grouped by quantization.
 pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>> {
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -417,10 +516,10 @@ pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>
 /// Fetch raw GGUF files (kept for resolve_model_spec).
 pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -479,9 +578,9 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
     let (repo_id, quant) = parse_model_spec(spec)?;
 
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -500,7 +599,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
 
     // Collect all GGUF files matching the quantization
     let matching: Vec<_> = siblings
-        .into_iter()
+        .iter()
         .filter(|s| {
             s.rfilename.ends_with(".gguf")
                 && is_model_file(&s.rfilename, &stem)
@@ -519,7 +618,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
     // Separate single files from shards
     let mut single_files: Vec<&HfApiSibling> = Vec::new();
     let mut shard_files: Vec<&HfApiSibling> = Vec::new();
-    for f in &matching {
+    for &f in &matching {
         if is_shard_file(&f.rfilename) {
             shard_files.push(f);
         } else {
@@ -529,6 +628,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
 
     // Prefer single file if available
     if let Some(single) = single_files.first() {
+        let mmproj = select_best_mmproj(&repo_id, &siblings, &single.rfilename, &quant);
         let file = HfGgufFile {
             filename: single.rfilename.clone(),
             size_bytes: single.size.unwrap_or(0),
@@ -541,6 +641,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
             ResolvedModel {
                 files: vec![file],
                 total_size,
+                mmproj,
             },
         ));
     }
@@ -600,7 +701,16 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
         .collect();
     let total_size: u64 = files.iter().map(|f| f.size_bytes).sum();
 
-    Ok((repo_id, ResolvedModel { files, total_size }))
+    let mmproj = select_best_mmproj(&repo_id, &siblings, &files[0].filename, &quant);
+
+    Ok((
+        repo_id,
+        ResolvedModel {
+            files,
+            total_size,
+            mmproj,
+        },
+    ))
 }
 
 /// Resolve a model spec to a specific GGUF file from the repo.
@@ -649,6 +759,16 @@ mod tests {
         assert_eq!(parse_quantization("Model-IQ4_NL.gguf"), "IQ4_NL");
         assert_eq!(parse_quantization("Model-F16.gguf"), "F16");
         assert_eq!(parse_quantization("random-name.gguf"), "unknown");
+    }
+
+    #[test]
+    fn test_hf_authorization_header() {
+        assert_eq!(
+            hf_authorization_header(Some("hf_test")).as_deref(),
+            Some("Bearer hf_test")
+        );
+        assert_eq!(hf_authorization_header(Some("")), None);
+        assert_eq!(hf_authorization_header(None), None);
     }
 
     #[test]
@@ -815,5 +935,108 @@ mod tests {
         assert_eq!(variants[0].quantization, "Q8_0");
         assert_eq!(variants[1].quantization, "Q4_K_M");
         assert_eq!(variants[2].quantization, "IQ1_S");
+    }
+
+    #[test]
+    fn test_select_best_mmproj_prefers_closest_precision() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "mmproj-F32.gguf".into(),
+                size: Some(3_000),
+            },
+            HfApiSibling {
+                rfilename: "mmproj-BF16.gguf".into(),
+                size: Some(2_000),
+            },
+        ];
+
+        let mmproj =
+            select_best_mmproj("someone/model-GGUF", &files, "model-Q4_K_M.gguf", "Q4_K_M")
+                .unwrap();
+
+        assert_eq!(mmproj.filename, "mmproj-BF16.gguf");
+        assert_eq!(mmproj.quantization, "BF16");
+    }
+
+    #[tokio::test]
+    async fn optional_hf_token_returns_resolved_token() {
+        let token = optional_hf_token(async { Ok(Some("token".to_string())) }).await;
+
+        assert_eq!(token.as_deref(), Some("token"));
+    }
+
+    #[tokio::test]
+    async fn optional_hf_token_ignores_resolution_errors() {
+        let token =
+            optional_hf_token(async { Err(anyhow::anyhow!("refresh token revoked")) }).await;
+
+        assert_eq!(token, None);
+    }
+
+    #[test]
+    fn test_select_best_mmproj_prefers_bf16_over_f16_tie() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "mmproj-F16.gguf".into(),
+                size: Some(2_000),
+            },
+            HfApiSibling {
+                rfilename: "mmproj-BF16.gguf".into(),
+                size: Some(2_000),
+            },
+        ];
+
+        let mmproj =
+            select_best_mmproj("someone/model-GGUF", &files, "model-Q8_0.gguf", "Q8_0").unwrap();
+
+        assert_eq!(mmproj.filename, "mmproj-BF16.gguf");
+    }
+
+    #[test]
+    fn test_select_best_mmproj_prefers_nearest_directory() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "mmproj-BF16.gguf".into(),
+                size: Some(2_000),
+            },
+            HfApiSibling {
+                rfilename: "Q4_K_M/mmproj-F32.gguf".into(),
+                size: Some(3_000),
+            },
+        ];
+
+        let mmproj = select_best_mmproj(
+            "someone/model-GGUF",
+            &files,
+            "Q4_K_M/model-Q4_K_M.gguf",
+            "Q4_K_M",
+        )
+        .unwrap();
+
+        assert_eq!(mmproj.filename, "Q4_K_M/mmproj-F32.gguf");
+    }
+
+    #[test]
+    fn test_select_best_mmproj_ignores_sibling_directories() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "Q8_0/mmproj-BF16.gguf".into(),
+                size: Some(2_000),
+            },
+            HfApiSibling {
+                rfilename: "mmproj-F32.gguf".into(),
+                size: Some(3_000),
+            },
+        ];
+
+        let mmproj = select_best_mmproj(
+            "someone/model-GGUF",
+            &files,
+            "Q4_K_M/model-Q4_K_M.gguf",
+            "Q4_K_M",
+        )
+        .unwrap();
+
+        assert_eq!(mmproj.filename, "mmproj-F32.gguf");
     }
 }

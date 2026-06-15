@@ -23,12 +23,30 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use std::collections::VecDeque;
 use std::future::Future;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+static ACP_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static ACP_CONFIG_ROOT: LazyLock<tempfile::TempDir> =
+    LazyLock::new(|| tempfile::tempdir().unwrap());
+
+fn write_global_test_config(config_path: &Path, openai_base_url: &str) {
+    let contents = fs::read_to_string(config_path).unwrap();
+    let mut config: serde_yaml::Mapping = serde_yaml::from_str(&contents).unwrap();
+    config.insert(
+        serde_yaml::Value::String("OPENAI_HOST".to_string()),
+        serde_yaml::Value::String(openai_base_url.to_string()),
+    );
+
+    let global_config_dir = Paths::config_dir();
+    fs::create_dir_all(&global_config_dir).unwrap();
+    let global_config_path = global_config_dir.join(goose::config::base::CONFIG_YAML_NAME);
+    fs::write(&global_config_path, serde_yaml::to_string(&config).unwrap()).unwrap();
+}
 
 pub struct OpenAiFixture {
     _server: MockServer,
@@ -167,10 +185,14 @@ pub async fn spawn_acp_server_in_process(
     if !config_path.exists() {
         fs::write(
             &config_path,
-            format!("GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\n"),
+            format!(
+                "GOOSE_MODEL: {current_model}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: {}\n",
+                goose_mode
+            ),
         )
         .unwrap();
     }
+    write_global_test_config(&config_path, openai_base_url);
     let provider_factory = provider_factory.unwrap_or_else(|| {
         let base_url = openai_base_url.to_string();
         Arc::new(
@@ -195,7 +217,6 @@ pub async fn spawn_acp_server_in_process(
         builtins: builtins.to_vec(),
         data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
-        goose_mode,
         disable_session_naming,
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
@@ -281,6 +302,13 @@ pub fn to_notifications(updates: &[SessionUpdate]) -> Vec<Notification> {
             SessionUpdate::ConfigOptionUpdate(_) => out.push(Notification::ConfigOption),
             SessionUpdate::SessionInfoUpdate(update) => {
                 let meta = update.meta.as_ref();
+                let is_active_run_update = meta
+                    .and_then(|m| m.get("goose"))
+                    .and_then(|g| g.get("activeRunId"))
+                    .is_some();
+                if is_active_run_update {
+                    continue;
+                }
                 out.push(Notification::SessionInfoUpdate {
                     title: update.title.value().cloned(),
                     updated_at: update.updated_at.value().cloned(),
@@ -562,6 +590,9 @@ pub trait Connection: Sized {
 pub trait Session: std::fmt::Debug {
     fn session_id(&self) -> &agent_client_protocol::schema::SessionId;
     fn work_dir(&self) -> std::path::PathBuf;
+    /// Drains and returns raw session updates collected by the fixture.
+    fn session_updates(&self) -> Vec<SessionUpdate>;
+    /// Drains and returns simplified notifications collected by the fixture.
     fn notifications(&self) -> Vec<Notification>;
     async fn prompt(
         &mut self,
@@ -582,6 +613,10 @@ pub fn run_test<F>(fut: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    let _guard = ACP_TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
+    if std::env::var_os("GOOSE_PATH_ROOT").is_none() {
+        std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
+    }
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
     let handle = std::thread::Builder::new()

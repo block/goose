@@ -868,6 +868,10 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform !== 'darwin',
+    // windowStateKeeper persists the outer window bounds (getBounds), so the
+    // window must be restored by outer bounds too. With useContentSize the saved
+    // outer height is reapplied as the content height, growing the window by the
+    // frame height on every launch on framed platforms (#9363).
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
@@ -875,7 +879,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     minWidth: 480,
     minHeight: 400,
     resizable: true,
-    useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
       spellcheck: settings.spellcheckEnabled ?? true,
@@ -896,6 +899,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
           SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
+          SECURITY_PROMPT_ENABLED_OVERRIDE: process.env.SECURITY_PROMPT_ENABLED_OVERRIDE,
+          SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE:
+            process.env.SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE,
         }),
       ],
       partition: 'persist:goose',
@@ -1874,6 +1880,33 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
     return result.filePaths[0];
   }
   return null;
+});
+
+// Native picker tailored for session imports: shows hidden files (so users can
+// reach `~/.claude/projects/...` or `~/.pi/agent/sessions/...`), filters for
+// .json/.jsonl, and returns the file's contents inline so the renderer doesn't
+// need a separate read step.
+ipcMain.handle('select-import-session-file', async () => {
+  const result = (await dialog.showOpenDialog({
+    title: 'Import session',
+    defaultPath: os.homedir(),
+    properties: ['openFile', 'showHiddenFiles'],
+    filters: [
+      { name: 'Session files', extensions: ['json', 'jsonl'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  })) as unknown as OpenDialogReturnValue;
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  const filePath = result.filePaths[0];
+  try {
+    const contents = await fs.readFile(filePath, 'utf8');
+    return { filePath, contents };
+  } catch (err) {
+    return { filePath, contents: '', error: errorMessage(err) };
+  }
 });
 
 // ── Mesh-LLM lifecycle (see mesh.ts) ────────────────────────────────

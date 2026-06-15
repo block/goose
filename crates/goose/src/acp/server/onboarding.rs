@@ -59,7 +59,7 @@ impl GooseAcpAgent {
     ) -> Result<OnboardingImportApplyResponse, agent_client_protocol::Error> {
         let config = self.config()?;
         Ok(apply_onboarding_import_candidates(
-            &config,
+            config,
             &self.config_dir,
             &req,
         ))

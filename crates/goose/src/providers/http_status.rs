@@ -7,11 +7,10 @@
 use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use goose_providers::errors::ProviderError;
 use reqwest::header::{HeaderMap, RETRY_AFTER};
 use reqwest::{Response, StatusCode};
 use serde_json::Value;
-
-use super::errors::ProviderError;
 
 /// Strip credentials and sensitive query parameters from a URL for safe
 /// inclusion in error messages and logs. Drops userinfo (`user:pass@`) and

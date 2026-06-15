@@ -30,7 +30,6 @@
 //! - `augment_message_with_tool_calls`: A utility function that takes any message, extracts text content, sends it to an interpreter, and adds any detected tool calls back to the message.
 //!
 
-use super::errors::ProviderError;
 #[cfg(feature = "local-inference")]
 use super::local_inference::LOCAL_LLM_MODEL_CONFIG_KEY;
 use super::ollama::OLLAMA_DEFAULT_PORT;
@@ -39,9 +38,12 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
-use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use futures::StreamExt;
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::create_request;
+use goose_providers::formats::openai::ModelConfigParams;
+use goose_providers::images::ImageFormat;
 use reqwest::Client;
 use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
 use serde_json::{json, Value};
@@ -696,11 +698,17 @@ impl OllamaInterpreter {
             .with_canonical_limits("ollama");
 
         let mut payload = create_request(
-            &model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system_prompt,
             &messages,
             &[], // No tools
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             false,
         )?;
 

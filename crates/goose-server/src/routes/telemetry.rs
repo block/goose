@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 
 use crate::state::AppState;
 
+#[cfg_attr(not(feature = "telemetry"), allow(dead_code))]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct TelemetryEventRequest {
     pub event_name: String,
@@ -15,6 +16,7 @@ pub struct TelemetryEventRequest {
     pub properties: HashMap<String, serde_json::Value>,
 }
 
+#[cfg_attr(not(feature = "telemetry"), allow(unused_variables))]
 #[utoipa::path(
     post,
     path = "/telemetry/event",
@@ -27,15 +29,17 @@ async fn send_telemetry_event(
     State(_state): State<Arc<AppState>>,
     Json(request): Json<TelemetryEventRequest>,
 ) -> StatusCode {
-    let event_name = request.event_name;
-    let properties = request.properties;
-
     #[cfg(feature = "telemetry")]
-    tokio::spawn(async move {
-        if let Err(e) = emit_event(&event_name, properties).await {
-            tracing::debug!("Failed to send telemetry event: {}", e);
-        }
-    });
+    {
+        let event_name = request.event_name;
+        let properties = request.properties;
+
+        tokio::spawn(async move {
+            if let Err(e) = emit_event(&event_name, properties).await {
+                tracing::debug!("Failed to send telemetry event: {}", e);
+            }
+        });
+    }
 
     StatusCode::ACCEPTED
 }

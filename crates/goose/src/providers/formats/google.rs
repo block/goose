@@ -1,8 +1,9 @@
 use crate::model::ModelConfig;
-use crate::providers::base::Usage;
-use crate::providers::errors::ProviderError;
-use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::{is_valid_function_name, sanitize_function_name};
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
 };
@@ -359,12 +360,7 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl futures::Stream<
-    Item = anyhow::Result<(
-        Option<Message>,
-        Option<crate::providers::base::ProviderUsage>,
-    )>,
-> + 'static
+) -> impl futures::Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
 where
     S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -372,7 +368,7 @@ where
     use futures::StreamExt;
 
     try_stream! {
-        let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+        let mut final_usage: Option<ProviderUsage> = None;
         let mut last_signature: Option<String> = None;
         let stream_id = Uuid::new_v4().to_string();
         let mut incomplete_data: Option<String> = None;
@@ -437,7 +433,9 @@ where
                     .get("status")
                     .and_then(|s| s.as_str())
                     .unwrap_or("UNKNOWN");
-                Err(anyhow::anyhow!("Google API error ({}): {}", status, message))?;
+                Err::<(), ProviderError>(ProviderError::RequestFailed(format!(
+                    "Google API error ({status}): {message}"
+                )))?;
             }
 
             if let Ok(usage) = get_usage(&chunk) {
@@ -446,7 +444,7 @@ where
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown")
                         .to_string();
-                    final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                    final_usage = Some(ProviderUsage::new(model, usage));
                 }
             }
 
@@ -542,7 +540,6 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
     }
 
     if is_gemini_3 {
-        use crate::model::ThinkingEffort;
         let effort = model_config
             .thinking_effort()
             .unwrap_or(ThinkingEffort::Off);
