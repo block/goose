@@ -1112,6 +1112,22 @@ mod tests {
     }
 
     #[test]
+    fn test_quantized_json_deserializes() {
+        let json = include_str!("../providers/declarative/quantized.json");
+        let config: DeclarativeProviderConfig =
+            serde_json::from_str(json).expect("quantized.json should parse");
+        assert_eq!(config.name, "quantized");
+        assert_eq!(config.display_name, "Quantized");
+        assert!(matches!(config.engine, ProviderEngine::OpenAI));
+        assert_eq!(config.api_key_env, "QUANTIZED_API_KEY");
+        assert_eq!(config.base_url, "https://api.quantized.us/v1");
+        assert_eq!(config.dynamic_models, Some(false));
+        assert!(config.skip_canonical_filtering);
+        assert!(config.preserves_thinking);
+        assert_eq!(config.models[0].name, "anthropic/claude-sonnet-4.6");
+    }
+
+    #[test]
     fn test_expand_env_vars_replaces_placeholder() {
         let _guard = env_lock::lock_env([("TEST_EXPAND_HOST", Some("https://example.com/api"))]);
 

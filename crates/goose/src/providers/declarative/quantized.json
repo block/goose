@@ -1,0 +1,21 @@
+{
+  "name": "quantized",
+  "engine": "openai",
+  "display_name": "Quantized",
+  "description": "Quantized unified LLM API by DataWars (OpenAI-compatible).",
+  "api_key_env": "QUANTIZED_API_KEY",
+  "base_url": "https://api.quantized.us/v1",
+  "requires_auth": true,
+  "dynamic_models": false,
+  "skip_canonical_filtering": true,
+  "preserves_thinking": true,
+  "supports_streaming": true,
+  "models": [
+    {"name": "anthropic/claude-sonnet-4.6", "context_limit": 200000},
+    {"name": "anthropic/claude-opus-4.6", "context_limit": 200000},
+    {"name": "anthropic/claude-haiku-4.5", "context_limit": 200000},
+    {"name": "openai/gpt-4o", "context_limit": 128000},
+    {"name": "openai/gpt-4o-mini", "context_limit": 128000},
+    {"name": "deepseek/deepseek-v3.2", "context_limit": 128000}
+  ]
+}
