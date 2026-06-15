@@ -5,6 +5,7 @@ use crate::conversation::Conversation;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
+use crate::session::session_naming::generate_session_name;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use goose_providers::model::ModelConfig;
@@ -490,7 +491,7 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = provider.generate_session_name(id, &conversation).await?;
+            let name = generate_session_name(provider.as_ref(), id, &conversation).await?;
             self.update(id)
                 .system_generated_name(name.clone())
                 .apply()
