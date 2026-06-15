@@ -49,7 +49,7 @@ fn materialize_model_config_inner(
     }
 
     model = model
-        .with_context_limit(config.get_goose_context_limit()?)
+        .with_default_context_limit(config.get_goose_context_limit()?)
         .with_default_max_tokens(config.get_goose_max_tokens()?);
 
     if include_default_thinking_effort {
